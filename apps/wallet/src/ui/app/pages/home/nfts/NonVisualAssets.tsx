@@ -26,7 +26,7 @@ export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
                                 type={ExplorerLinkType.Object}
                                 key={item.objectId}
                             >
-                                <Card type={CardType.Default} hoverableForce>
+                                <Card type={CardType.Default} isHoverable>
                                     <CardBody
                                         title={formatAddress(item.objectId!)}
                                         subtitle={`${formatAddress(address)}::${module}::${name}`}

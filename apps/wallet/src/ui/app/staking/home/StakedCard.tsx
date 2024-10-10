@@ -123,7 +123,7 @@ export function StakeCard({
             }).toString()}`}
             className="no-underline"
         >
-            <Card type={CardType.Default} hoverableForce>
+            <Card type={CardType.Default} isHoverable>
                 <CardImage>
                     <ImageIcon
                         src={validatorMeta?.imageUrl || null}

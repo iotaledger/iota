@@ -31,13 +31,13 @@ export interface CardProps {
      * Indicates whether the state-layer should be shown on the card anyway.
      * Use case: When the card is wrapped with a Link component
      */
-    hoverableForce?: boolean;
+    isHoverable?: boolean;
 }
 
 export function Card({
     isDisabled = false,
     type = CardType.Default,
-    hoverableForce,
+    isHoverable,
     onClick,
     children,
 }: CardProps) {
@@ -48,7 +48,7 @@ export function Card({
                 'relative inline-flex w-full items-center gap-3 rounded-xl px-sm py-xs',
                 CARD_TYPE_CLASSES[type],
                 {
-                    'state-layer': hoverableForce || (!isDisabled && onClick),
+                    'state-layer': isHoverable || (!isDisabled && onClick),
                     [CARD_DISABLED_CLASSES]: isDisabled,
                     'cursor-pointer': onClick,
                 },
