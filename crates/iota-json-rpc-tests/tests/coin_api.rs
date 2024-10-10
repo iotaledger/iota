@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr};
 
 use iota_json::{call_args, type_args};
 use iota_json_rpc::authority_state::StateRead;
@@ -528,12 +528,16 @@ async fn test_get_all_coins_with_limit() {
     assert!(!next_page.data.is_empty(), "Next page should have coins");
 
     // Ensure no duplicate coins between pages
-    let first_page_ids: Vec<_> = result_with_limit
+    let first_page_ids = result_with_limit
         .data
         .iter()
         .map(|c| &c.coin_object_id)
-        .collect();
-    let second_page_ids: Vec<_> = next_page.data.iter().map(|c| &c.coin_object_id).collect();
+        .collect::<Vec<&ObjectID>>();
+    let second_page_ids: Vec<_> = next_page
+        .data
+        .iter()
+        .map(|c| &c.coin_object_id)
+        .collect::<Vec<&ObjectID>>();
 
     assert!(
         first_page_ids
@@ -558,7 +562,6 @@ async fn test_get_all_coins_with_cursor_and_limit() {
         !rpc_all_coins.has_next_page,
         "Should not have next page when fetching all"
     );
-    let rpc_total_coins = rpc_all_coins.data.len();
 
     let mut collected_coins = Vec::new();
     let mut cursor = None;
@@ -575,14 +578,11 @@ async fn test_get_all_coins_with_cursor_and_limit() {
     }
 
     assert_eq!(
-        rpc_total_coins,
-        collected_coins
-            .iter()
-            .map(|coin| coin.coin_object_id)
-            .collect::<HashSet<ObjectID>>()
-            .len(),
+        rpc_all_coins.data.len(),
+        collected_coins.len(),
         "Paginated results should match total coins"
-    )
+    );
+    assert_eq!(rpc_all_coins.data, collected_coins);
 }
 
 #[sim_test]
