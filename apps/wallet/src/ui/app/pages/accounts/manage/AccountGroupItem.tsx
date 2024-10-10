@@ -17,6 +17,7 @@ import { RemoveDialog } from './RemoveDialog';
 import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
+import { truncateString } from '_src/ui/app/helpers';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -38,7 +39,9 @@ export function AccountGroupItem({
     const anchorRef = useRef<HTMLDivElement>(null);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
-    const accountName = account?.nickname ?? formatAddress(account?.address || '');
+    const accountName =
+        (account?.nickname && truncateString(account?.nickname, 12)) ??
+        formatAddress(account?.address || '');
     const { unlockAccount, lockAccount } = useUnlockAccount();
     const navigate = useNavigate();
     const allAccounts = useAccounts();
