@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponse,
@@ -10,8 +9,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_types::{
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::SenderSignedData,
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::SenderSignedData,
 };
 use test_cluster::TestClusterBuilder;
 
