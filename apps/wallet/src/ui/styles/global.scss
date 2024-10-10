@@ -1,15 +1,15 @@
-@use "./themes";
-@use "_variables" as v;
+@use './themes';
+@use '_variables' as v;
 
-@import "@iota/apps-ui-kit/styles";
+@import '@iota/apps-ui-kit/styles';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button {
+    input[type='number']::-webkit-inner-spin-button,
+    input[type='number']::-webkit-outer-spin-button {
         appearance: none;
         margin: 0;
     }
@@ -100,11 +100,11 @@ textarea {
 }
 
 textarea {
-    font-family: "Inter Variable", sans-serif;
+    font-family: 'Inter Variable', sans-serif;
 }
 
 input {
-    font-family: "Inter Variable", sans-serif;
+    font-family: 'Inter Variable', sans-serif;
 }
 
 // remove default password reveal button edge
