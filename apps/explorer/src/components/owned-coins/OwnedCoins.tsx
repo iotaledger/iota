@@ -6,7 +6,6 @@ import { getCoinSymbol } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type CoinBalance } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { LoadingIndicator } from '@iota/ui';
 import { FilterList, Warning } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
 import OwnedCoinView from './OwnedCoinView';
@@ -20,6 +19,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     ListItem,
+    LoadingIndicator,
     Select,
     Title,
 } from '@iota/apps-ui-kit';

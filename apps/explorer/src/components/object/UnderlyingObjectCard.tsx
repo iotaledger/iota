@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { LoadingIndicator } from '@iota/ui';
-
 import { FieldItem } from './FieldItem';
 import { Banner } from '~/components/ui';
 
 import type { DynamicFieldName } from '@iota/iota-sdk/client';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 interface UnderlyingObjectCardProps {
     parentId: string;

@@ -4,11 +4,10 @@
 
 import { useGetDynamicFields, useOnScreen } from '@iota/core';
 import { type DynamicFieldInfo } from '@iota/iota-sdk/client';
-import { LoadingIndicator } from '@iota/ui';
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { UnderlyingObjectCard } from './UnderlyingObjectCard';
 import { ObjectLink } from '~/components/ui';
-import { Accordion, AccordionHeader, AccordionContent, Panel } from '@iota/apps-ui-kit';
+import { Accordion, AccordionHeader, AccordionContent, Panel, LoadingIndicator } from '@iota/apps-ui-kit';
 
 interface DynamicFieldRowProps {
     id: string;
