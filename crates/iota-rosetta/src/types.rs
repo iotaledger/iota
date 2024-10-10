@@ -416,7 +416,7 @@ pub enum OperationType {
     Genesis,
     ConsensusCommitPrologue,
     ProgrammableTransaction,
-    AuthenticatorStateUpdate,
+    AuthenticatorStateUpdateV1,
     RandomnessStateUpdate,
     EndOfEpochTransaction,
 }
@@ -434,8 +434,8 @@ impl From<&IotaTransactionBlockKind> for OperationType {
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {
                 OperationType::ProgrammableTransaction
             }
-            IotaTransactionBlockKind::AuthenticatorStateUpdate(_) => {
-                OperationType::AuthenticatorStateUpdate
+            IotaTransactionBlockKind::AuthenticatorStateUpdateV1(_) => {
+                OperationType::AuthenticatorStateUpdateV1
             }
             IotaTransactionBlockKind::RandomnessStateUpdate(_) => {
                 OperationType::RandomnessStateUpdate

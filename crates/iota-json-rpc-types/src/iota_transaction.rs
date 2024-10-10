@@ -407,7 +407,7 @@ pub enum IotaTransactionBlockKind {
     /// used in future transactions
     ProgrammableTransaction(IotaProgrammableTransactionBlock),
     /// A transaction which updates global authenticator state
-    AuthenticatorStateUpdate(IotaAuthenticatorStateUpdate),
+    AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1),
     /// A transaction which updates global randomness state
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
     /// The transaction which occurs only at the end of the epoch
@@ -464,7 +464,7 @@ impl Display for IotaTransactionBlockKind {
                 write!(writer, "Transaction Kind: Programmable")?;
                 write!(writer, "{}", crate::displays::Pretty(p))?;
             }
-            Self::AuthenticatorStateUpdate(_) => {
+            Self::AuthenticatorStateUpdateV1(_) => {
                 writeln!(writer, "Transaction Kind: Authenticator State Update")?;
             }
             Self::RandomnessStateUpdate(_) => {
@@ -524,8 +524,8 @@ impl IotaTransactionBlockKind {
             TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from(p, module_cache)?,
             ),
-            TransactionKind::AuthenticatorStateUpdate(update) => {
-                Self::AuthenticatorStateUpdate(IotaAuthenticatorStateUpdate {
+            TransactionKind::AuthenticatorStateUpdateV1(update) => {
+                Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
                     epoch: update.epoch,
                     round: update.round,
                     new_active_jwks: update
@@ -632,8 +632,8 @@ impl IotaTransactionBlockKind {
                 )
                 .await?,
             ),
-            TransactionKind::AuthenticatorStateUpdate(update) => {
-                Self::AuthenticatorStateUpdate(IotaAuthenticatorStateUpdate {
+            TransactionKind::AuthenticatorStateUpdateV1(update) => {
+                Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
                     epoch: update.epoch,
                     round: update.round,
                     new_active_jwks: update
@@ -704,7 +704,7 @@ impl IotaTransactionBlockKind {
             Self::ConsensusCommitPrologueV2(_) => "ConsensusCommitPrologueV2",
             Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
-            Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
+            Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
         }
@@ -1681,7 +1681,7 @@ pub struct IotaConsensusCommitPrologueV3 {
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaAuthenticatorStateUpdate {
+pub struct IotaAuthenticatorStateUpdateV1 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch: u64,

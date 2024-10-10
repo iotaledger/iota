@@ -8,7 +8,7 @@ use async_graphql::{
 };
 use iota_types::{
     authenticator_state::ActiveJwk as NativeActiveJwk,
-    transaction::AuthenticatorStateUpdate as NativeAuthenticatorStateUpdateTransaction,
+    transaction::AuthenticatorStateUpdateV1 as NativeAuthenticatorStateUpdateV1Transaction,
 };
 
 use crate::{
@@ -21,8 +21,8 @@ use crate::{
 };
 
 #[derive(Clone, PartialEq, Eq)]
-pub(crate) struct AuthenticatorStateUpdateTransaction {
-    pub native: NativeAuthenticatorStateUpdateTransaction,
+pub(crate) struct AuthenticatorStateUpdateV1Transaction {
+    pub native: NativeAuthenticatorStateUpdateV1Transaction,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }
@@ -39,7 +39,7 @@ struct ActiveJwk {
 
 /// System transaction for updating the on-chain state used by zkLogin.
 #[Object]
-impl AuthenticatorStateUpdateTransaction {
+impl AuthenticatorStateUpdateV1Transaction {
     /// Epoch of the authenticator state update transaction.
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         Epoch::query(ctx, Some(self.native.epoch), self.checkpoint_viewed_at)
