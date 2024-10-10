@@ -47,16 +47,16 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [ ] `query_objects`
 - [ ] `get_total_transactions`
 
-### `GovernanceReadApi` (5/8)
+### `GovernanceReadApi` (8/8)
 
 - [x] `get_stakes_by_ids`
 - [x] `get_stakes`
 - [x] `get_timelocked_stakes_by_ids`
 - [x] `get_timelocked_stakes`
-- [ ] `get_committee_info`
+- [x] `get_committee_info`
 - [x] `get_latest_iota_system_state`
-- [ ] `get_reference_gas_price`
-- [ ] `get_validators_apy`
+- [x] `get_reference_gas_price`
+- [x] `get_validators_apy`
 
 ### `IndexerApi` (5/7)
 
