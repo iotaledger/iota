@@ -16,7 +16,6 @@ use iota_types::{
     committee::EpochId,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
-use narwhal_executor::ExecutionState;
 use prometheus::Registry;
 use tokio::sync::Mutex;
 use tracing::info;
@@ -156,8 +155,7 @@ impl ConsensusManagerTrait for MysticetiManager {
         let consensus_handler = consensus_handler_initializer.new_consensus_handler();
         let consumer = CommitConsumer::new(
             commit_sender,
-            // TODO(mysticeti): remove dependency on narwhal executor
-            consensus_handler.last_executed_sub_dag_index() as CommitIndex,
+            consensus_handler.last_processed_subdag_index() as CommitIndex,
         );
         let monitor = consumer.monitor();
 
