@@ -10,11 +10,12 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_types::{
+    base_types::SequenceNumber,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     message_envelope::Message,
     messages_checkpoint::{CheckpointContents, CheckpointSummary},
-    object::{Object, ObjectInner},
+    object::{Data, Object, ObjectInner, Owner},
     transaction::{
         GenesisObject, GenesisTransaction, Transaction, TransactionDataAPI, TransactionKind,
     },
@@ -62,13 +63,29 @@ impl MigrationTxData {
         else {
             panic!("wrong transaction type of migration data");
         };
+        let version_one = SequenceNumber::MIN.next();
         Some(
             objects
                 .iter()
                 .map(|GenesisObject::RawObject { data, owner }| {
+                    // Update the version for Move objects.
+                    let mut data = data.clone();
+                    if let Data::Move(ref mut obj) = data {
+                        obj.increment_version_to(version_one);
+                    }
+
+                    // Record the creation version of the shared object in its owner field.
+                    let mut owner = owner.clone();
+                    if let Owner::Shared {
+                        ref mut initial_shared_version,
+                    } = owner
+                    {
+                        *initial_shared_version = version_one;
+                    }
+
                     ObjectInner {
-                        data: data.to_owned(),
-                        owner: owner.to_owned(),
+                        data,
+                        owner,
                         previous_transaction: *tx.digest(),
                         storage_rebate: 0,
                     }
