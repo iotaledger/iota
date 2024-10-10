@@ -69,11 +69,13 @@ test('send 20 IOTA to an address', async ({ page, extensionUrl }) => {
     await page.getByPlaceholder('Enter Address').fill(receivedAddress);
     await page.getByText('Review').click();
     await page.getByText('Send Now').click();
-    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
+    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction', { timeout });
 
     await page.getByTestId('close-icon').click();
     await page.getByTestId('nav-home').click();
-    await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}`);
+    await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}`, {
+        timeout,
+    });
 });
 
 test('check balance changes in Activity', async ({ page, extensionUrl }) => {
