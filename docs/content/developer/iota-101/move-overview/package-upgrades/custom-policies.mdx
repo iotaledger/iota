@@ -3,6 +3,10 @@ description: A guide to understanding and implementing secure package upgrade po
 ---
 import UpgradeSingleKeyRisk from "../../../../_snippets/upgrade-single-key-risk.mdx";
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/move-overview/package-upgrades/custom-policies.json';
+
+
 # Custom Policies
 
 Relying on a single key to manage on-chain package upgrades can introduce significant security vulnerabilities:
@@ -1212,3 +1216,5 @@ status: {
       },
 ...
 ```
+
+<Quiz questions={questions} />

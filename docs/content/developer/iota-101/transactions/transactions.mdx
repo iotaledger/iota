@@ -1,6 +1,8 @@
 ---
 title: Transactions
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/transactions.json';
 
 All updates to the IOTA database happen via transactions. This topic describes the transaction types supported by IOTA and explains how their execution changes the ledger.  ´There are only two kinds of transactions on IOTA:
 
@@ -66,3 +68,5 @@ IOTA has some limits on transactions and the data used in them, such as a maximu
 The following diagram shows the transaction execution flow reflected by functions called inside different modules.
 
 ![Transactions execution flow](/img/concepts/execution-architecture/tx-exec-flow.svg)
+
+<Quiz questions={questions} />
