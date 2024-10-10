@@ -2,6 +2,8 @@
 title: Shared Objects
 description: Anyone can access shared objects on the IOTA network, so care must be taken to secure access, if needed.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/object-ownership/shared.json';
 
 A shared object is an object that is made accessible to everyone on the IOTA network using the 
 [`iota::transfer::share_object`](../../../../references/framework/iota-framework/transfer.mdx#function-share_object) function.
@@ -89,3 +91,5 @@ module examples::donuts {
     }
 }
 ```
+
+<Quiz questions={questions} />

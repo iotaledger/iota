@@ -7,7 +7,6 @@ import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
 import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
-import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import { toast } from 'react-hot-toast';
 import {
@@ -17,7 +16,6 @@ import {
     filterAndSortTokenBalances,
     useAppsBackend,
     useBalance,
-    useCoinMetadata,
     useGetDelegatedStake,
 } from '@iota/core';
 import {
@@ -32,7 +30,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12 } from '@iota/icons';
 import { Network } from '@iota/iota-sdk/client';
-import { formatAddress, IOTA_TYPE_ARG, parseStructTag } from '@iota/iota-sdk/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ArrowBottomLeft, Send } from '@iota/ui-icons';
@@ -46,23 +44,6 @@ import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 
 interface TokenDetailsProps {
     coinType?: string;
-}
-
-function getMostNestedName(parsed: ReturnType<typeof parseStructTag>) {
-    if (parsed.typeParams.length === 0) {
-        return parsed.name;
-    }
-
-    if (typeof parsed.typeParams[0] === 'string') {
-        return parsed.typeParams[0];
-    }
-
-    return getMostNestedName(parsed.typeParams[0]);
-}
-
-function getFallbackSymbol(coinType: string) {
-    const parsed = parseStructTag(coinType);
-    return getMostNestedName(parsed);
 }
 
 function TokenDetails({ coinType }: TokenDetailsProps) {
@@ -125,9 +106,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);
 
-    const { data: coinMetadata } = useCoinMetadata(activeCoinType);
-    const coinSymbol = coinMetadata ? coinMetadata.symbol : getFallbackSymbol(activeCoinType);
-
     // Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
     const isFirstTimeLoading = isPending && !isFetched;
 
@@ -182,8 +160,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                 />
             )}
             <Loading loading={isFirstTimeLoading}>
-                {coinType && <PageTitle title={coinSymbol} back="/tokens" />}
-
                 <div
                     className="flex h-full flex-1 flex-grow flex-col items-center gap-md"
                     data-testid="coin-page"

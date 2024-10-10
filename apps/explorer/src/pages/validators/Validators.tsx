@@ -8,18 +8,12 @@ import {
     DisplayStats,
     DisplayStatsSize,
     DisplayStatsType,
+    TableHeader,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import {
-    ErrorBoundary,
-    PageLayout,
-    Banner,
-    PlaceholderTable,
-    TableCard,
-    TableHeader,
-} from '~/components';
+import { ErrorBoundary, PageLayout, Banner, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 
 function ValidatorPageResult(): JSX.Element {
