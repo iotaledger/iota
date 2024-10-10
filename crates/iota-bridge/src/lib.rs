@@ -35,7 +35,7 @@ pub(crate) mod iota_mock_client;
 #[cfg(test)]
 pub mod test_utils;
 
-pub const BRIDGE_ENABLE_PROTOCOL_VERSION: u64 = 45;
+pub const BRIDGE_ENABLE_PROTOCOL_VERSION: u64 = 1;
 
 #[cfg(test)]
 pub mod e2e_tests;

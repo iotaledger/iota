@@ -1,6 +1,8 @@
 ---
 title: Sponsored Transactions
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/sponsored-transactions.json';
 
 An IOTA sponsored transaction is one where an IOTA address (the sponsor's) pays the gas fees for a transaction that another address (the user's) initializes. You can use sponsored transactions to cover the fees for users on your site or app so that they don't get charged for them. This removes a significant obstacle that web 2.0 users encounter when entering web3, as they often have to purchase tokens to perform a transaction on chain. For example, you could sponsor gamers' early transactions to increase conversion rates.
 
@@ -143,3 +145,5 @@ pub struct GasData {
 ```
 
 To learn more about transactions in IOTA, see [Transactions](transactions.mdx).
+
+<Quiz questions={questions} />

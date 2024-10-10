@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "Which type of object ownership in IOTA allows an object to be exclusively accessible by its specific 32-byte address owner?",
+    "answerOptions": [
+      { "answerText": "Address-Owned Objects", "isCorrect": true },
+      { "answerText": "Dynamic Fields", "isCorrect": false },
+      { "answerText": "Immutable Objects", "isCorrect": false },
+      { "answerText": "Shared Objects", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is a characteristic of immutable objects in IOTA?",
+    "answerOptions": [
+      { "answerText": "They can be altered but not transferred.", "isCorrect": false },
+      { "answerText": "They cannot be altered, transferred, or deleted once set as immutable.", "isCorrect": true },
+      { "answerText": "They are owned by a specific address and can be modified by the owner.", "isCorrect": false },
+      { "answerText": "They automatically delete themselves after a set period.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which function is used to make an object accessible to everyone on the IOTA network, making it a shared object?",
+    "answerOptions": [
+      { "answerText": "`0x2::transfer::share_object`", "isCorrect": true },
+      { "answerText": "`0x2::transfer::public_transfer`", "isCorrect": false },
+      { "answerText": "`0x2::object::wrap_object`", "isCorrect": false },
+      { "answerText": "`0x2::dynamic_field::add`", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is the purpose of wrapping objects in IOTA's Move language?",
+    "answerOptions": [
+      { "answerText": "To organize objects hierarchically by embedding one struct within another.", "isCorrect": true },
+      { "answerText": "To make objects immutable and prevent changes.", "isCorrect": false },
+      { "answerText": "To share objects with other addresses on the network.", "isCorrect": false },
+      { "answerText": "To dynamically add or remove fields from an object.", "isCorrect": false }
+    ]
+  }
+]
