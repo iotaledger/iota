@@ -10,6 +10,7 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
+use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::CommitConsumerMonitor;
 use iota_macros::{fail_point_async, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
@@ -24,7 +25,6 @@ use iota_types::{
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
-use narwhal_config::Committee;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, instrument, trace_span, warn};
 
@@ -39,9 +39,7 @@ use crate::{
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
     consensus_throughput_calculator::ConsensusThroughputCalculator,
-    consensus_types::{
-        AuthorityIndex, committee_api::CommitteeAPI, consensus_output_api::ConsensusOutputAPI,
-    },
+    consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
     execution_cache::ObjectCacheRead,
     scoring_decision::update_low_scoring_authorities,
     transaction_manager::TransactionManager,
@@ -87,9 +85,10 @@ impl ConsensusHandlerInitializer {
             )),
         }
     }
+
     pub fn new_consensus_handler(&self) -> ConsensusHandler<CheckpointService> {
         let new_epoch_start_state = self.epoch_store.epoch_start_state();
-        let committee = new_epoch_start_state.get_narwhal_committee();
+        let consensus_committee = new_epoch_start_state.get_consensus_committee();
 
         ConsensusHandler::new(
             self.epoch_store.clone(),
@@ -97,7 +96,7 @@ impl ConsensusHandlerInitializer {
             self.state.transaction_manager().clone(),
             self.state.get_object_cache_reader().clone(),
             self.low_scoring_authorities.clone(),
-            committee,
+            consensus_committee,
             self.state.metrics.clone(),
             self.throughput_calculator.clone(),
         )
@@ -121,9 +120,9 @@ pub struct ConsensusHandler<C> {
     /// Reputation scores used by consensus adapter that we update, forwarded
     /// from consensus
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-    /// The narwhal committee used to do stake computations for deciding set of
-    /// low scoring authorities
-    committee: Committee,
+    /// The consensus committee used to do stake computations for deciding set
+    /// of low scoring authorities
+    committee: ConsensusCommittee,
     // TODO: ConsensusHandler doesn't really share metrics with AuthorityState. We could define
     // a new metrics type here if we want to.
     metrics: Arc<AuthorityMetrics>,
@@ -144,7 +143,7 @@ impl<C> ConsensusHandler<C> {
         transaction_manager: Arc<TransactionManager>,
         cache_reader: Arc<dyn ObjectCacheRead>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-        committee: Committee,
+        committee: ConsensusCommittee,
         metrics: Arc<AuthorityMetrics>,
         throughput_calculator: Arc<ConsensusThroughputCalculator>,
     ) -> Self {
@@ -311,6 +310,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         update_low_scoring_authorities(
             self.low_scoring_authorities.clone(),
+            self.epoch_store.committee(),
             &self.committee,
             consensus_output.reputation_score_sorted_desc(),
             &self.metrics,
@@ -366,19 +366,20 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             }
         }
 
-        for i in 0..self.committee.size() {
-            let hostname = self
-                .committee
-                .authority_hostname_by_index(i as AuthorityIndex)
-                .unwrap_or_default();
+        for (i, authority) in self.committee.authorities() {
+            let hostname = &authority.hostname;
             self.metrics
                 .consensus_committed_messages
                 .with_label_values(&[hostname])
-                .set(self.last_consensus_stats.stats.get_num_messages(i) as i64);
+                .set(self.last_consensus_stats.stats.get_num_messages(i.value()) as i64);
             self.metrics
                 .consensus_committed_user_transactions
                 .with_label_values(&[hostname])
-                .set(self.last_consensus_stats.stats.get_num_user_transactions(i) as i64);
+                .set(
+                    self.last_consensus_stats
+                        .stats
+                        .get_num_user_transactions(i.value()) as i64,
+                );
         }
 
         let mut all_transactions = Vec::new();
@@ -403,9 +404,10 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
                 self.update_index_and_hash(current_tx_index, serialized);
 
-                let certificate_author = self
-                    .committee
-                    .authority_pubkey_by_index(cert_origin)
+                let certificate_author = *self
+                    .epoch_store
+                    .committee()
+                    .authority_by_index(cert_origin)
                     .unwrap();
 
                 let sequenced_transaction = SequencedConsensusTransaction {
@@ -881,7 +883,6 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
         committee::Committee,
-        iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -923,7 +924,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let committee = new_epoch_start_state.get_narwhal_committee();
+        let consensus_committee = new_epoch_start_state.get_consensus_committee();
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
@@ -935,7 +936,7 @@ mod tests {
             state.transaction_manager().clone(),
             state.get_object_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
-            committee.clone(),
+            consensus_committee.clone(),
             metrics,
             Arc::new(throughput_calculator),
         );
@@ -953,7 +954,7 @@ mod tests {
 
             // AND create block for each transaction
             let block = VerifiedBlock::new_for_test(
-                TestBlock::new(100 + i as u32, (i % committee.size()) as u32)
+                TestBlock::new(100 + i as u32, (i % consensus_committee.size()) as u32)
                     .set_transactions(vec![Transaction::new(transaction_bytes)])
                     .build(),
             );
