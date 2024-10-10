@@ -6,7 +6,12 @@ import type { Message } from '_messages';
 import { filter, fromEvent, map, share } from 'rxjs';
 import type { Observable } from 'rxjs';
 
-export type ClientType = 'iota_in-page' | 'iota_content-script';
+export type ClientType = string;
+
+interface ClientConnection {
+    name: ClientType;
+    target: ClientType;
+}
 
 type WindowMessage = {
     target: ClientType;
@@ -37,5 +42,18 @@ export class WindowMessageStream {
             payload,
         };
         window.postMessage(msg);
+    }
+
+    private static cleanAppName(appName: string): string {
+        return appName.replace(/\s+/g, '-').toLowerCase();
+    }
+
+    public static getClientIDs(appName: string = 'iota'): ClientConnection {
+        const id = this.cleanAppName(appName);
+
+        return {
+            name: `${id}_in-page`,
+            target: `${id}_content-script`,
+        };
     }
 }

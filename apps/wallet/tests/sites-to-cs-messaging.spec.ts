@@ -7,13 +7,16 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
 import { demoDappConnect } from './utils/dapp-connect';
+import { WindowMessageStream } from '_src/shared/messaging/WindowMessageStream';
+
+const { name: messageClientName, target: messageClientTarget } = WindowMessageStream.getClientIDs();
 
 function getInAppMessage(page: Page, id: string) {
     return page.evaluate(
         (anId) =>
             new Promise((resolve, reject) => {
                 const callBackFN = (msg: MessageEvent) => {
-                    if (msg.data.target === 'iota_in-page' && msg.data.payload.id === anId) {
+                    if (msg.data.target === messageClientName && msg.data.payload.id === anId) {
                         window.removeEventListener('message', callBackFN);
                         if (msg.data.payload.payload.error) {
                             reject(msg.data.payload);
@@ -82,7 +85,7 @@ test.describe('site to content script messages', () => {
             await page.evaluate(
                 ({ aPayload: payload, aLabel: label }) => {
                     window.postMessage({
-                        target: 'iota_content-script',
+                        target: messageClientTarget,
                         payload: {
                             id: label,
                             payload,

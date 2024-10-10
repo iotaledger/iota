@@ -25,7 +25,8 @@ function createPort(windowMsgStream: WindowMessageStream, currentMsg?: Message) 
 }
 
 export function setupMessagesProxy() {
-    const windowMsgStream = new WindowMessageStream('iota_content-script', 'iota_in-page');
+    const clientIds = WindowMessageStream.getClientIDs(process.env.APP_NAME);
+    const windowMsgStream = new WindowMessageStream(clientIds.target, clientIds.name);
     windowMsgStream.messages.pipe(take(1)).subscribe((msg) => {
         createPort(windowMsgStream, msg);
     });

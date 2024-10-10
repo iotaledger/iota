@@ -139,7 +139,8 @@ export class IotaWallet implements Wallet {
     constructor() {
         this.#events = mitt();
         this.#accounts = [];
-        this.#messagesStream = new WindowMessageStream('iota_in-page', 'iota_content-script');
+        const { name, target } = WindowMessageStream.getClientIDs(NAME);
+        this.#messagesStream = new WindowMessageStream(name, target);
         this.#messagesStream.messages.subscribe(({ payload }) => {
             if (isWalletStatusChangePayload(payload)) {
                 const { network, accounts } = payload;
