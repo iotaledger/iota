@@ -1,3 +1,6 @@
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/move-overview/strings.json';
+
 # Strings
 
 While Move does not have a built-in type to represent strings, it does offer two standard implementations for strings:
@@ -72,3 +75,5 @@ Functions that start with `try_*` typically return an `Option` with the expected
 The `string` module does not provide a way to access individual characters in a string. This limitation arises because UTF-8 is a variable-length encoding, and the length of a character can range from 1 to 4 bytes. Similarly, the `length()` method returns the number of bytes in the string, not the number of characters.
 
 However, methods like `sub_string` and `insert` ensure character boundaries are respected and will abort if the index is in the middle of a character.
+
+<Quiz questions={questions} />

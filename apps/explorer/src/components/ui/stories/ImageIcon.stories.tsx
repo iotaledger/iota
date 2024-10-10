@@ -22,7 +22,7 @@ export const largeIconNoImage: StoryObj<ImageIconProps> = {
     args: {
         src: null,
         fallback: 'Iota',
-        label: 'Iota',
+        label: 'IOTA',
         size: 'lg',
     },
 };
@@ -30,7 +30,7 @@ export const largeIconNoImage: StoryObj<ImageIconProps> = {
 export const smallIconImage: StoryObj<ImageIconProps> = {
     args: {
         src: 'https://ipfs.io/ipfs/QmZPWWy5Si54R3d26toaqRiqvCH7HkGdXkxwUgCm2oKKM2?filename=img-sq-01.png',
-        label: 'Iota',
+        label: 'IOTA',
         size: 'sm',
         fallback: 'Iota',
     },

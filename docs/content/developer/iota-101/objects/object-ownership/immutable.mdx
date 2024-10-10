@@ -2,6 +2,8 @@
 title: Immutable Objects
 description: Immutable objects on IOTA cannot be mutated, transferred, or deleted once frozen. These objects are ownerless and can be used by anyone on the network.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/object-ownership/immutable.json';
 
 In IOTA, objects can be either mutable or immutable.
 Immutable objects are unique in that they cannot be altered, transferred, or deleted after they are created.
@@ -218,3 +220,5 @@ iota client call --package $PACKAGE --module "color_object" --function "update" 
 ```
 
 The response will indicate that you cannot pass an immutable object to a mutable argument.
+
+<Quiz questions={questions} />

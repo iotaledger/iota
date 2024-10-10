@@ -6,7 +6,7 @@ import type { Wallet, WalletWithFeatures } from '@wallet-standard/core';
 
 import type { MinimallyRequiredFeatures } from './features/index.js';
 
-// These features are absolutely required for wallets to function in the Iota ecosystem.
+// These features are absolutely required for wallets to function in the IOTA ecosystem.
 // Eventually, as wallets have more consistent support of features, we may want to extend this list.
 const REQUIRED_FEATURES: (keyof MinimallyRequiredFeatures)[] = [
     'standard:connect',
