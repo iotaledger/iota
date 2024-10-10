@@ -19,7 +19,7 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
     return (
         <div className="relative">
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
+                <DialogContent containerId="overlay-portal-container">
                     <Header title="Receive" onClose={() => setOpen(false)} />
                     <DialogBody>
                         <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">

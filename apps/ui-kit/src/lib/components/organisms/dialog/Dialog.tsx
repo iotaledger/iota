@@ -52,6 +52,7 @@ const DialogContent = React.forwardRef<
             <RadixDialog.Content
                 ref={ref}
                 className="absolute left-1/2 top-1/2 z-[99999] flex max-h-[60vh] w-80 max-w-[85vw] -translate-x-1/2 -translate-y-1/2 flex-col justify-center overflow-hidden rounded-xl bg-primary-100 dark:bg-neutral-6 md:w-96"
+                aria-describedby={undefined}
                 {...props}
             >
                 <VisuallyHidden.Root>

@@ -39,7 +39,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
 
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
-            <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
+            <DialogContent containerId="overlay-portal-container">
                 <Header title="Remove account" onClose={() => setOpen(false)} />
                 <DialogBody>
                     <div className="mb-md text-body-md">

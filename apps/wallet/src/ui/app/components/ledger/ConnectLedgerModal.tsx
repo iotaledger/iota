@@ -39,7 +39,7 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                 }
             }}
         >
-            <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
+            <DialogContent containerId="overlay-portal-container">
                 <Header title="Connect Ledger Wallet" onClose={onClose} titleCentered />
                 <DialogBody>
                     <div className="flex flex-col items-center gap-y-lg">

@@ -48,7 +48,7 @@ export function ConfirmationModal({
                 setIsCancelLoading(false);
             }}
         >
-            <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
+            <DialogContent containerId="overlay-portal-container">
                 <Header title={title} />
                 <DialogBody>
                     <div className="flex flex-col gap-lg">
