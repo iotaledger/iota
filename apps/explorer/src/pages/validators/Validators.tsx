@@ -8,6 +8,7 @@ import {
     DisplayStats,
     DisplayStatsSize,
     DisplayStatsType,
+    TableHeader,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
@@ -18,7 +19,6 @@ import {
     Banner,
     PlaceholderTable,
     TableCard,
-    TableHeader,
 } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 
