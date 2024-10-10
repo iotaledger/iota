@@ -234,8 +234,8 @@ async fn test_auth_state_creation() {
     // Wait until we are in an epoch that has zklogin enabled, but the auth state
     // object is not created yet.
     test_cluster.wait_for_protocol_version(24.into()).await;
-    // Now wait until the auth state object is created, ie. AuthenticatorStateUpdateV1
-    // transaction happened.
+    // Now wait until the auth state object is created, ie.
+    // AuthenticatorStateUpdateV1 transaction happened.
     test_cluster.wait_for_authenticator_state_update().await;
 }
 
