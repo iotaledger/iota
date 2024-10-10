@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Controller, Get, Query } from '@nestjs/common';
-import { Feature } from '@iota/core';
+import { Controller, Get } from '@nestjs/common';
+import { Feature } from '@iota/core/constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -133,7 +133,7 @@ export class FeaturesController {
     }
 
     @Get('/apps')
-    getAppsFeatures(@Query('network') network: string) {
+    getAppsFeatures() {
         return {
             status: 200,
             apps: [], // Note: we'll add wallet dapps when evm will be ready
