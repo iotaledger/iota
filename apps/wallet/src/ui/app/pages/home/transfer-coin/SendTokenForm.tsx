@@ -223,7 +223,7 @@ export function SendTokenForm({
                                 );
 
                     async function onMaxTokenButtonClick() {
-                        await setFieldValue('amount', formattedTokenBalance, true);
+                        await setFieldValue('amount', formattedTokenBalance);
                     }
 
                     const isMaxActionDisabled =
