@@ -32,9 +32,8 @@ use iota_types::{
     stardust::output::{Irc27Metadata, Nft},
     transaction::{Command, ObjectArg, SenderSignedData, TransactionData},
 };
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
+use move_core_types::{ident_str, identifier::Identifier, language_storage::TypeTag};
 use test_cluster::TestClusterBuilder;
-use move_core_types::ident_str;
 #[sim_test]
 async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -576,6 +575,17 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
             vec![],
         );
 
+        let field_name_argument = builder.pure(0u64).expect("valid pure");
+        let field_value_argument = builder.pure(0u64).expect("valid pure");
+
+        let _ = builder.programmable_move_call(
+            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            Identifier::from_str("bag")?,
+            Identifier::from_str("add")?,
+            vec![TypeTag::U64, TypeTag::U64],
+            vec![bag, field_name_argument, field_value_argument],
+        );
+
         builder.transfer_arg(address, bag);
         builder.finish()
     };
@@ -594,7 +604,7 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
             Some(IotaObjectResponseQuery::new(
                 Some(IotaObjectDataFilter::StructType(StructTag {
                     address: IOTA_FRAMEWORK_ADDRESS.into(),
-                    module:     Identifier::from_str("bag")?,
+                    module: Identifier::from_str("bag")?,
                     name: Identifier::from_str("Bag")?,
                     type_params: Vec::new(),
                 })),
@@ -613,72 +623,9 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
 
     let bag_object_ref = objects.data.first().unwrap().object().unwrap().object_ref();
 
-    // Add a dynamic field to the bag object
-    let pt = {
-        let mut builder = ProgrammableTransactionBuilder::new();
-
-        let bag_argument = builder.input(CallArg::Object(ObjectArg::ImmOrOwnedObject(bag_object_ref))).expect("valid input");
-        let field_name_argument = builder.pure(0u64).expect("valid pure");
-        let field_value_argument = builder.pure(0u64).expect("valid pure");
-
-        let _ = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-            Identifier::from_str("bag")?,
-            Identifier::from_str("add")?,
-            vec![TypeTag::U64, TypeTag::U64],
-            vec![bag_argument, field_name_argument, field_value_argument],
-        );
-
-        builder.finish()
-    };
-
-    let tx_builder = TestTransactionBuilder::new(signer, *gas, 1000);
-    let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
-    let res = context.execute_transaction_must_succeed(txn).await;
-
-
-
-
-
-/*
-
-        // Step 2: Add a dynamic field to the bag object
-        let field_name_argument = builder.pure(0u64).expect("valid pure");
-        let field_value_argument = builder.pure(0u64).expect("valid pure");
-
-        let _ = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-            Identifier::from_str("bag")?,
-            Identifier::from_str("add")?,
-            vec![TypeTag::U64, TypeTag::U64],
-            vec![bag, field_name_argument, field_value_argument],
-        );
-
-        let _ = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-            Identifier::from_str("bag")?,
-            Identifier::from_str("remove")?,
-            vec![TypeTag::U64, TypeTag::U64],
-            vec![bag, field_name_argument],
-        );
-
-        builder.programmable_move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
-            ident_str!("bag").to_owned(),
-            ident_str!("destroy_empty").to_owned(),
-            vec![],
-            vec![bag],
-        );
-
-
- */
-
-
-
-
     // Verify that the dynamic field was successfully added
     let dynamic_fields = rpc_client
-        .get_dynamic_fields(parent_object.0, None, None)
+        .get_dynamic_fields(bag_object_ref.0, None, None)
         .await
         .expect("Failed to get dynamic fields");
 
@@ -689,8 +636,3 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
-
-use iota_types::collection_types::Bag;
-use move_core_types::language_storage::StructTag;
-use iota_types::base_types::ObjectRef;
-use iota_types::transaction::CallArg;
