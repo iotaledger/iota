@@ -49,6 +49,8 @@ tower-http.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
+strum_macros.workspace = true
+strum.workspace = true
 
 iota-bridge.workspace = true
 iota-config.workspace = true

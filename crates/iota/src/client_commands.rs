@@ -83,6 +83,7 @@ use tabled::{
     },
 };
 use tracing::info;
+use strum_macros::EnumString;
 
 use crate::{
     clever_error_rendering::render_clever_error_opt,
@@ -654,7 +655,7 @@ pub struct Opts {
     /// If not provided, all fields are displayed.
     /// The fields are: effects, input, events, object_changes,
     /// balance_changes.
-    #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_opts)]
+    #[clap(long, required = false, value_delimiter = ',', num_args = 0..)]
     pub emit: Vec<EmitOption>,
 }
 
@@ -740,34 +741,14 @@ impl OptsWithGas {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumString)]
+#[strum(serialize_all = "snake_case")]
 pub enum EmitOption {
     Effects,
     Input,
     Events,
     ObjectChanges,
     BalanceChanges,
-}
-
-/// Converts a string into the corresponding `EmitOption` enum.
-///
-/// # Arguments
-/// * `s` - A string representing an option.
-///
-/// # Returns
-/// * `Ok(EmitOption)` if the string is valid.
-/// * `Err(String)` if the string is invalid.
-///
-/// Valid options: "effects", "input", "events", "object_changes", "balance_changes".
-fn parse_emit_opts(s: &str) -> Result<EmitOption, String> {
-    match s {
-        "effects" => Ok(EmitOption::Effects),
-        "input" => Ok(EmitOption::Input),
-        "events" => Ok(EmitOption::Events),
-        "object_changes" => Ok(EmitOption::ObjectChanges),
-        "balance_changes" => Ok(EmitOption::BalanceChanges),
-        _ => Err(format!("Invalid option: {}", s)),
-    }
 }
 
 #[derive(serde::Deserialize)]
@@ -3000,16 +2981,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                         .quorum_driver_api()
                         .execute_transaction_block(
                             transaction,
-                            if opts.emit.is_empty() {
-                                IotaTransactionBlockResponseOptions::new()
-                                  .with_effects()
-                                  .with_input()
-                                  .with_events()
-                                  .with_object_changes()
-                                  .with_balance_changes()
-                              } else {
-                                opts_from_cli(opts.emit)
-                              },
+                            opts_from_cli(opts.emit),
                             Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
                         )
                         .await?;
