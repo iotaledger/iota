@@ -65,7 +65,7 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                             <Divider />
                         </div>
                     </div>
-                    <div className="flex flex-col gap-xs px-md--rs pb-md--rs pt-xs--rs">
+                    <div className="flex flex-col gap-xs px-md--rs pb-md--rs pt-sm--rs">
                         <CoinsPanel id={id} coinType={coin.coinType} />
                     </div>
                 </>
