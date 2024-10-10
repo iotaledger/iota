@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    CoinFormat,
     createStakeTransaction,
     getGasSummary,
     parseAmount,
@@ -26,10 +27,9 @@ export interface StakeFromProps {
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
     const { values } = useFormikContext<FormValues>();
-
+    const activeAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
-    const [maxToken, symbol, queryResult] = useFormatCoin(coinBalance, coinType);
 
     const transaction = useMemo(() => {
         if (!values.amount || !decimals) return null;
@@ -38,7 +38,6 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         return createStakeTransaction(amountWithoutDecimals, validatorAddress);
     }, [values.amount, validatorAddress, decimals]);
 
-    const activeAddress = useActiveAddress();
     const { data: txDryRunResponse } = useTransactionDryRun(
         activeAddress ?? undefined,
         transaction ?? new Transaction(),
@@ -48,6 +47,26 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         if (!txDryRunResponse) return null;
         return getGasSummary(txDryRunResponse);
     }, [txDryRunResponse]);
+
+    const stakeAllTransaction = useMemo(() => {
+        return createStakeTransaction(coinBalance, validatorAddress);
+    }, [values.amount, validatorAddress, decimals]);
+
+    const { data: stakeAllTransactionDryRun } = useTransactionDryRun(
+        activeAddress ?? undefined,
+        stakeAllTransaction ?? new Transaction(),
+    );
+
+    const gasBudget = useMemo(() => {
+        return BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
+    }, [stakeAllTransactionDryRun]);
+
+    const [maxToken, symbol, queryResult] = useFormatCoin(
+        coinBalance - gasBudget,
+        coinType,
+        CoinFormat.FULL,
+    );
+    const isMaxValueSelected = values.amount === maxToken;
 
     return (
         <Form
@@ -73,12 +92,13 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                             name="amount"
                             placeholder={`0 ${symbol}`}
                             value={values.amount}
-                            caption={coinBalance ? `${maxToken} ${symbol} Available` : ''}
+                            caption={coinBalance ? `~ ${maxToken} ${symbol} Available` : ''}
                             suffix={' ' + symbol}
+                            prefix={isMaxValueSelected ? '~ ' : undefined}
                             trailingElement={
                                 <ButtonPill
                                     onClick={setMaxToken}
-                                    disabled={queryResult.isPending || values.amount === maxToken}
+                                    disabled={queryResult.isPending || isMaxValueSelected}
                                 >
                                     Max
                                 </ButtonPill>

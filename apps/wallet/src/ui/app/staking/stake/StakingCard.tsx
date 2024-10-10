@@ -39,6 +39,7 @@ import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -66,7 +67,7 @@ function StakingCard() {
         Feature.WalletEffectsOnlySharedTransaction as string,
     );
 
-    const { data: system, isPending: validatorsisPending } = useIotaClientQuery(
+    const { data: system, isPending: validatorsIsPending } = useIotaClientQuery(
         'getLatestIotaSystemState',
     );
 
@@ -257,12 +258,12 @@ function StakingCard() {
         ],
     );
 
-    if (!coinType || !validatorAddress || (!validatorsisPending && !system)) {
+    if (!coinType || !validatorAddress || (!validatorsIsPending && !system)) {
         return <Navigate to="/" replace={true} />;
     }
     return (
         <div className="flex h-full w-full flex-grow flex-col flex-nowrap">
-            <Loading loading={isPending || validatorsisPending || loadingIotaBalances}>
+            <Loading loading={isPending || validatorsIsPending || loadingIotaBalances}>
                 <Formik
                     initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
@@ -305,6 +306,15 @@ function StakingCard() {
                                     disabled={
                                         !isValid || isSubmitting || (unstake && !delegationId)
                                     }
+                                    icon={
+                                        isSubmitting ? (
+                                            <Loader
+                                                className="animate-spin"
+                                                data-testid="loading-indicator"
+                                            />
+                                        ) : null
+                                    }
+                                    iconAfterText
                                     text={unstake ? 'Unstake' : 'Stake'}
                                 />
                             </div>
