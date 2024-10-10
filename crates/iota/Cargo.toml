@@ -40,6 +40,8 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 signature.workspace = true
+strum_macros.workspace = true
+strum.workspace = true
 tabled.workspace = true
 tap.workspace = true
 thiserror.workspace = true
@@ -49,8 +51,6 @@ tower-http.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
-strum_macros.workspace = true
-strum.workspace = true
 
 iota-bridge.workspace = true
 iota-config.workspace = true
