@@ -61,6 +61,7 @@ use iota_types::{
     transaction::{
         SenderSignedData, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
+    quorum_driver_types::ExecuteTransactionRequestType
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
@@ -2976,13 +2977,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
-            let response: iota_json_rpc_types::IotaTransactionBlockResponse =
+            let response =
                     client
                         .quorum_driver_api()
                         .execute_transaction_block(
                             transaction,
                             opts_from_cli(opts.emit),
-                            Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
+                            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                         )
                         .await?;
 
