@@ -120,7 +120,7 @@ You can run it with a local network using the `iota start` subcommand or [pg-ser
 To run it with the `iota start` subcommand, switch to the root directory of the repository and run the following command to start the Indexer with the Sync worker:
 
 ```
-`cargo run --features indexer --bin iota start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:9125`
+`cargo run --features indexer --bin iota start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:8000`
 ```
 
 ## Running tests
