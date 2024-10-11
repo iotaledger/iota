@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::Path;
 #[cfg(not(msim))]
 use std::str::FromStr;
-use std::{path::Path, time::Duration};
 
 use iota_json_rpc_api::{
     IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
@@ -17,7 +17,7 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
     error::IotaObjectResponseError,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -27,220 +27,153 @@ use iota_types::{
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
+trait MatchesResponseOptions {
+    type Options;
+
+    fn matches_response_options(&self, options: &Self::Options) -> bool;
+}
+
+trait MatchResponseOptions {
+    type Options;
+
+    fn match_response_options(&self, options: &Self::Options) -> bool;
+}
+
+impl MatchesResponseOptions for IotaTransactionBlockResponse {
+    type Options = IotaTransactionBlockResponseOptions;
+
+    fn matches_response_options(&self, options: &Self::Options) -> bool {
+        let derived_options = Self::Options {
+            show_input: self.transaction.is_some(),
+            show_raw_input: !self.raw_transaction.is_empty(),
+            show_effects: self.effects.is_some(),
+            show_events: self.events.is_some(),
+            show_object_changes: self.object_changes.is_some(),
+            show_balance_changes: self.balance_changes.is_some(),
+            show_raw_effects: !self.raw_effects.is_empty(),
+        };
+        &derived_options == options
+    }
+}
+
+impl MatchesResponseOptions for IotaObjectResponse {
+    type Options = IotaObjectDataOptions;
+
+    fn matches_response_options(&self, options: &Self::Options) -> bool {
+        self.data
+            .as_ref()
+            .map(|iota_obj| {
+                let derived_options = Self::Options {
+                    show_type: iota_obj.type_.is_some(),
+                    show_owner: iota_obj.owner.is_some(),
+                    show_previous_transaction: iota_obj.previous_transaction.is_some(),
+                    show_display: iota_obj.display.is_some(),
+                    show_content: iota_obj.content.is_some(),
+                    show_bcs: iota_obj.bcs.is_some(),
+                    show_storage_rebate: iota_obj.storage_rebate.is_some(),
+                };
+                &derived_options == options
+            })
+            .unwrap_or_default()
+    }
+}
+
+impl MatchesResponseOptions for IotaPastObjectResponse {
+    type Options = IotaObjectDataOptions;
+
+    fn matches_response_options(&self, options: &Self::Options) -> bool {
+        self.object()
+            .map(|iota_obj| {
+                let derived_options = Self::Options {
+                    show_type: iota_obj.type_.is_some(),
+                    show_owner: iota_obj.owner.is_some(),
+                    show_previous_transaction: iota_obj.previous_transaction.is_some(),
+                    show_display: iota_obj.display.is_some(),
+                    show_content: iota_obj.content.is_some(),
+                    show_bcs: iota_obj.bcs.is_some(),
+                    show_storage_rebate: iota_obj.storage_rebate.is_some(),
+                };
+
+                &derived_options == options
+            })
+            .unwrap()
+    }
+}
+
+impl<T: MatchesResponseOptions> MatchResponseOptions for &[T] {
+    type Options = T::Options;
+
+    fn match_response_options(&self, options: &Self::Options) -> bool {
+        self.iter()
+            .all(|response| response.matches_response_options(options))
+    }
+}
+
 fn is_ascending(vec: &[u64]) -> bool {
     vec.windows(2).all(|window| window[0] <= window[1])
 }
+
 fn is_descending(vec: &[u64]) -> bool {
     vec.windows(2).all(|window| window[0] >= window[1])
 }
 
-/// Checks if
-/// [`iota_json_rpc_types::IotaTransactionBlockResponse`] match to the
-/// provided
-/// [`iota_json_rpc_types::IotaTransactionBlockResponseOptions`] filters
-fn match_transaction_block_resp_options(
-    expected_options: &IotaTransactionBlockResponseOptions,
-    responses: &[IotaTransactionBlockResponse],
-) -> bool {
-    responses
-        .iter()
-        .map(|iota_tx_block_resp| IotaTransactionBlockResponseOptions {
-            show_input: iota_tx_block_resp.transaction.is_some(),
-            show_raw_input: !iota_tx_block_resp.raw_transaction.is_empty(),
-            show_effects: iota_tx_block_resp.effects.is_some(),
-            show_events: iota_tx_block_resp.events.is_some(),
-            show_object_changes: iota_tx_block_resp.object_changes.is_some(),
-            show_balance_changes: iota_tx_block_resp.balance_changes.is_some(),
-            show_raw_effects: !iota_tx_block_resp.raw_effects.is_empty(),
-        })
-        .all(|actual_options| actual_options.eq(expected_options))
-}
-
-/// Checks if
-/// [`iota_json_rpc_types::IotaObjectResponse`] match to the
-/// provided
-/// [`iota_json_rpc_types::IotaObjectDataOptions`] filters
-fn match_object_resp_options(
-    expected_options: &IotaObjectDataOptions,
-    responses: &[IotaObjectResponse],
-) -> bool {
-    responses
-        .iter()
-        .map(|iota_obj_resp| {
-            let obj_data = iota_obj_resp.data.as_ref().unwrap();
-
-            IotaObjectDataOptions {
-                show_type: obj_data.type_.is_some(),
-                show_owner: obj_data.owner.is_some(),
-                show_previous_transaction: obj_data.previous_transaction.is_some(),
-                show_display: obj_data.display.is_some(),
-                show_content: obj_data.content.is_some(),
-                show_bcs: obj_data.bcs.is_some(),
-                show_storage_rebate: obj_data.storage_rebate.is_some(),
-            }
-        })
-        .all(|actual_options| actual_options.eq(expected_options))
-}
-
-/// Checks if
-/// [`iota_json_rpc_types::IotaPastObjectResponse`] match to the
-/// provided
-/// [`iota_json_rpc_types::IotaObjectDataOptions`] filters
-fn match_past_object_resp_options(
-    expected_options: &IotaObjectDataOptions,
-    responses: &[IotaPastObjectResponse],
-) -> bool {
-    assert!(!responses.is_empty());
-    responses
-        .iter()
-        .map(|iota_past_obj_resp| match iota_past_obj_resp {
-            IotaPastObjectResponse::VersionFound(iota_object_data) => IotaObjectDataOptions {
-                show_type: iota_object_data.type_.is_some(),
-                show_owner: iota_object_data.owner.is_some(),
-                show_previous_transaction: iota_object_data.previous_transaction.is_some(),
-                show_display: iota_object_data.display.is_some(),
-                show_content: iota_object_data.content.is_some(),
-                show_bcs: iota_object_data.bcs.is_some(),
-                show_storage_rebate: iota_object_data.storage_rebate.is_some(),
-            },
-            _ => unreachable!(),
-        })
-        .all(|actual_options| actual_options.eq(expected_options))
-}
-
-/// Wait for the `TestCluster` to catch up to the given checkpoint sequence
-/// number
-pub async fn wait_for_checkpoint(cluster: &TestCluster, checkpoint_sequence_number: u64) {
-    tokio::time::timeout(Duration::from_secs(60), async {
-        loop {
-            let fullnode_checkpoint = cluster
-                .fullnode_handle
-                .iota_node
-                .with(|node| {
-                    node.state()
-                        .get_checkpoint_store()
-                        .get_highest_executed_checkpoint_seq_number()
-                })
-                .unwrap();
-
-            match fullnode_checkpoint {
-                Some(c) if c >= checkpoint_sequence_number => break,
-                _ => tokio::time::sleep(Duration::from_millis(100)).await,
-            }
-        }
-    })
-    .await
-    .expect("Timeout waiting for indexer to catchup to checkpoint");
-}
-
-async fn create_transactions(
+async fn get_objects_to_mutate(
     cluster: &TestCluster,
-    options: IotaTransactionBlockResponseOptions,
-) -> Vec<IotaTransactionBlockResponse> {
-    let http_client = cluster.rpc_client();
-    let address = cluster.get_address_0();
+    address: IotaAddress,
+) -> (Vec<ObjectID>, ObjectID) {
+    let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
 
-    let objects = http_client
-        .get_owned_objects(address, None, None, None)
-        .await
-        .unwrap()
-        .data;
+    let gas = owned_objects.last().unwrap().object_id().unwrap();
 
-    let gas_id = objects.last().unwrap().object().unwrap().object_id;
+    let object_ids = owned_objects
+        .iter()
+        .take(owned_objects.len() - 1)
+        .map(|obj| obj.object_id().unwrap())
+        .collect();
 
-    // Make some transactions
-    let mut tx_responses: Vec<IotaTransactionBlockResponse> = Vec::new();
-
-    for obj in objects.iter().take(objects.len() - 1) {
-        let oref = obj.object().unwrap();
-
-        let transaction_bytes: TransactionBlockBytes = http_client
-            .transfer_object(
-                address,
-                oref.object_id,
-                Some(gas_id),
-                1_000_000.into(),
-                address,
-            )
-            .await
-            .unwrap();
-
-        let tx = cluster
-            .wallet
-            .sign_transaction(&transaction_bytes.to_data().unwrap());
-
-        let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
-
-        let response = http_client
-            .execute_transaction_block(
-                tx_bytes,
-                signatures,
-                Some(options.clone()),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await
-            .unwrap();
-
-        tx_responses.push(response);
-    }
-
-    tx_responses
-}
-
-async fn get_owned_objects(
-    cluster: &TestCluster,
-    options: IotaObjectDataOptions,
-) -> Vec<IotaObjectResponse> {
-    let http_client = cluster.rpc_client();
-    let address = cluster.get_address_0();
-
-    http_client
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(options)),
-            None,
-            None,
-        )
-        .await
-        .unwrap()
-        .data
+    (object_ids, gas)
 }
 
 async fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptions) {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
 
-    let tx_response = create_transactions(&cluster, options.clone()).await;
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
-    assert!(match_transaction_block_resp_options(&options, &tx_response));
+    let transactions = cluster
+        .create_transactions(address, object_ids, gas, Some(options.clone()))
+        .await
+        .unwrap();
 
-    for tx_digest in tx_response
-        .iter()
-        .map(|a| a.digest)
-        .collect::<Vec<TransactionDigest>>()
-    {
-        let transaction_block = http_client
-            .get_transaction_block(tx_digest, Some(options.clone()))
-            .await
-            .unwrap();
+    assert!(transactions.as_slice().match_response_options(&options));
 
-        assert!(match_transaction_block_resp_options(
-            &options,
-            &[transaction_block]
-        ));
-    }
+    let digest = transactions[0].digest;
+
+    let rpc_transaction_block = http_client
+        .get_transaction_block(digest, Some(options.clone()))
+        .await
+        .unwrap();
+
+    assert!(rpc_transaction_block.matches_response_options(&options));
 }
 
 async fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockResponseOptions) {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
 
-    let tx_response = create_transactions(&cluster, options.clone()).await;
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
-    assert!(match_transaction_block_resp_options(&options, &tx_response));
+    let transactions = cluster
+        .create_transactions(address, object_ids, gas, Some(options.clone()))
+        .await
+        .unwrap();
 
-    let digests = tx_response
-        .iter()
+    assert!(transactions.as_slice().match_response_options(&options));
+
+    let digests = transactions
+        .into_iter()
         .map(|tx_block_resp| tx_block_resp.digest)
         .collect::<Vec<TransactionDigest>>();
 
@@ -249,45 +182,52 @@ async fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlock
         .await
         .unwrap();
 
-    assert!(match_transaction_block_resp_options(
-        &options,
-        &transaction_blocks
-    ));
+    assert!(transaction_blocks
+        .as_slice()
+        .match_response_options(&options));
 }
 
 async fn get_object_with_options(options: IotaObjectDataOptions) {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    let objects = get_owned_objects(&cluster, options.clone()).await;
+    let objects = cluster
+        .get_owned_objects(cluster.get_address_0(), Some(options.clone()))
+        .await
+        .unwrap();
+    let object_id = objects[0].object_id().unwrap();
 
-    for obj in objects {
-        let oref = obj.into_object().unwrap();
-        let result = http_client
-            .get_object(oref.object_id, Some(options.clone()))
-            .await
-            .unwrap();
+    let rpc_object_resp = http_client
+        .get_object(object_id, Some(options.clone()))
+        .await
+        .unwrap();
 
-        assert!(match_object_resp_options(&options, &[result]));
-    }
+    assert!(rpc_object_resp.matches_response_options(&options));
 }
+
 async fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
 
-    let objects = get_owned_objects(&cluster, options.clone()).await;
+    let objects = cluster
+        .get_owned_objects(address, Some(options.clone()))
+        .await
+        .unwrap();
 
     let object_ids = objects
-        .iter()
+        .into_iter()
         .map(|obj| obj.data.as_ref().unwrap().object_id)
         .collect::<Vec<ObjectID>>();
 
-    let response = http_client
+    let rpc_objects_response = http_client
         .multi_get_objects(object_ids, Some(options.clone()))
         .await
         .unwrap();
 
-    assert!(match_object_resp_options(&options, &response))
+    assert!(rpc_objects_response
+        .as_slice()
+        .match_response_options(&options))
 }
 
 async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
@@ -295,77 +235,58 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let fullnode_objects = http_client
-        .get_owned_objects(address, None, None, None)
+    let objects = cluster
+        .get_owned_objects(address, Some(options.clone()))
         .await
-        .unwrap()
-        .data;
+        .unwrap();
 
-    for object in fullnode_objects.iter() {
-        let seq_num = object.data.as_ref().unwrap().version;
-        let object_id = object.object_id().unwrap();
+    let object_data = objects[0].data.as_ref().unwrap();
 
-        let rpc_past_obj = http_client
-            .try_get_past_object(object_id, seq_num, Some(options.clone()))
-            .await
-            .unwrap();
+    let rpc_past_obj = http_client
+        .try_get_past_object(
+            object_data.object_id,
+            object_data.version,
+            Some(options.clone()),
+        )
+        .await
+        .unwrap();
 
-        assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::VersionFound(ref obj) if obj.object_id == object_id && obj.version == seq_num)
-        );
-        assert!(match_past_object_resp_options(&options, &[rpc_past_obj]));
-    }
+    assert!(rpc_past_obj.matches_response_options(&options));
+    assert_eq!(object_data, rpc_past_obj.object().unwrap());
 
-    let tx_response = create_transactions(
-        &cluster,
-        IotaTransactionBlockResponseOptions::default().with_object_changes(),
-    )
-    .await;
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
-    let mutated_objects = tx_response
-        .iter()
-        .flat_map(|tx_block_res| {
-            tx_block_res.object_changes.as_ref().map(|obj_changes| {
-                obj_changes
-                    .iter()
-                    .filter_map(|obj_change| {
-                        if let ObjectChange::Mutated {
-                            object_id, version, ..
-                        } = obj_change
-                        {
-                            return Some((object_id, version));
-                        };
-                        None
-                    })
-                    .collect::<Vec<(&ObjectID, &SequenceNumber)>>()
-            })
-        })
-        .flatten()
-        .collect::<Vec<_>>();
+    let transactions = cluster
+        .create_transactions(
+            address,
+            object_ids,
+            gas,
+            Some(IotaTransactionBlockResponseOptions::default().with_object_changes()),
+        )
+        .await
+        .unwrap();
 
-    for (mutated_obj_id, mutated_obj_version) in mutated_objects {
-        let rpc_past_obj = http_client
-            .try_get_past_object(*mutated_obj_id, *mutated_obj_version, Some(options.clone()))
-            .await
-            .unwrap();
+    let (mutated_obj_id, mutated_obj_version, _) = transactions[0].mutated_objects()[0];
 
-        assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::VersionFound(ref obj) if obj.object_id ==
-    *mutated_obj_id && obj.version == *mutated_obj_version)
-        );
-        assert!(match_past_object_resp_options(&options, &[rpc_past_obj]));
-    }
+    let rpc_past_obj = http_client
+        .try_get_past_object(mutated_obj_id, mutated_obj_version, Some(options.clone()))
+        .await
+        .unwrap();
+
+    assert!(rpc_past_obj.matches_response_options(&options));
+
+    let obj_data = rpc_past_obj.into_object().unwrap();
+
+    assert_eq!(obj_data.object_id, mutated_obj_id);
+    assert_eq!(obj_data.version, mutated_obj_version);
 }
+
 async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions) {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let fullnode_objects = http_client
-        .get_owned_objects(address, None, None, None)
-        .await
-        .unwrap()
-        .data;
+    let fullnode_objects = cluster.get_owned_objects(address, None).await.unwrap();
 
     let past_obj_requests = fullnode_objects
         .iter()
@@ -382,64 +303,55 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
         .try_multi_get_past_objects(past_obj_requests, Some(options.clone()))
         .await
         .unwrap();
-    assert!(match_past_object_resp_options(&options, &rpc_past_objs));
+    assert!(rpc_past_objs.as_slice().match_response_options(&options));
 
-    let tx_response = create_transactions(
-        &cluster,
-        IotaTransactionBlockResponseOptions::default().with_object_changes(),
-    )
-    .await;
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
-    let mutated_past_objects_req = tx_response
-        .iter()
-        .flat_map(|tx_block_res| {
-            tx_block_res.object_changes.as_ref().map(|obj_changes| {
-                obj_changes
-                    .iter()
-                    .filter_map(|obj_change| {
-                        if let ObjectChange::Mutated {
-                            object_id, version, ..
-                        } = obj_change
-                        {
-                            return Some(IotaGetPastObjectRequest {
-                                object_id: *object_id,
-                                version: *version,
-                            });
-                        };
-                        None
-                    })
-                    .collect::<Vec<IotaGetPastObjectRequest>>()
-            })
+    let transactions = cluster
+        .create_transactions(
+            address,
+            object_ids,
+            gas,
+            Some(IotaTransactionBlockResponseOptions::default().with_object_changes()),
+        )
+        .await
+        .unwrap();
+
+    let mutated_past_objects_req = transactions
+        .into_iter()
+        .flat_map(|tx| {
+            tx.mutated_objects()
+                .into_iter()
+                .map(|(object_id, version, _)| IotaGetPastObjectRequest { object_id, version })
         })
-        .flatten()
-        .collect::<Vec<_>>();
+        .collect::<Vec<IotaGetPastObjectRequest>>();
 
     let rpc_past_objs = http_client
         .try_multi_get_past_objects(mutated_past_objects_req, Some(options.clone()))
         .await
         .unwrap();
-    assert!(match_past_object_resp_options(&options, &rpc_past_objs));
+
+    assert!(rpc_past_objs.as_slice().match_response_options(&options));
 }
 
 async fn publish_move_package(cluster: &TestCluster) -> IotaTransactionBlockResponse {
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let objects = http_client
+    let objects = cluster
         .get_owned_objects(
             address,
-            Some(IotaObjectResponseQuery::new_with_options(
+            Some(
                 IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
-            )),
-            None,
-            None,
+            ),
         )
         .await
         .unwrap();
-    let gas = objects.data.first().unwrap().object().unwrap();
+
+    let gas = objects[0].object().unwrap();
 
     let compiled_package = BuildConfig::new_for_testing()
         .build(Path::new("../../examples/move/basics"))
@@ -464,7 +376,7 @@ async fn publish_move_package(cluster: &TestCluster) -> IotaTransactionBlockResp
         .sign_transaction(&transaction_bytes.to_data().unwrap());
     let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
 
-    let tx_response: IotaTransactionBlockResponse = http_client
+    let transaction: IotaTransactionBlockResponse = http_client
         .execute_transaction_block(
             tx_bytes,
             signatures,
@@ -474,12 +386,12 @@ async fn publish_move_package(cluster: &TestCluster) -> IotaTransactionBlockResp
         .await
         .unwrap();
 
-    matches!(tx_response, IotaTransactionBlockResponse {ref effects, ..} if effects.as_ref().unwrap().created().len() == 6);
-    tx_response
+    matches!(transaction, IotaTransactionBlockResponse {ref effects, ..} if effects.as_ref().unwrap().created().len() == 6);
+    transaction
 }
 
 #[tokio::test]
-async fn test_get_package_with_display_should_not_fail() -> Result<(), anyhow::Error> {
+async fn get_package_with_display_should_not_fail() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
@@ -502,25 +414,22 @@ async fn test_get_package_with_display_should_not_fail() -> Result<(), anyhow::E
 }
 
 #[sim_test]
-async fn test_get_object_info() -> Result<(), anyhow::Error> {
+async fn get_object_info() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let objects = http_client
+    let objects = cluster
         .get_owned_objects(
             address,
-            Some(IotaObjectResponseQuery::new_with_options(
+            Some(
                 IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
-            )),
-            None,
-            None,
+            ),
         )
-        .await?
-        .data;
+        .await?;
 
     for obj in objects {
         let oref = obj.into_object().unwrap();
@@ -538,7 +447,7 @@ async fn test_get_object_info() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_get_objects() -> Result<(), anyhow::Error> {
+async fn get_objects() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
 
     let http_client = cluster.rpc_client();
@@ -886,7 +795,7 @@ async fn get_checkpoint_by_seq_number() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 6).await;
+    cluster.wait_for_checkpoint(6, None).await;
 
     let fullnode_checkpoints = cluster
         .fullnode_handle
@@ -901,42 +810,40 @@ async fn get_checkpoint_by_seq_number() {
         })
         .await;
 
-    for checkpoint in fullnode_checkpoints {
-        let envelope = checkpoint.unwrap();
-        let digest = *envelope.digest();
-        let checkpoint_summary = envelope.into_inner().into_data();
+    let envelope = fullnode_checkpoints[0].clone().unwrap();
+    let digest = *envelope.digest();
+    let checkpoint_summary = envelope.into_inner().into_data();
 
-        let rpc_checkpoint = http_client
-            .get_checkpoint(CheckpointId::SequenceNumber(
-                checkpoint_summary.sequence_number,
-            ))
-            .await
-            .unwrap();
+    let rpc_checkpoint = http_client
+        .get_checkpoint(CheckpointId::SequenceNumber(
+            checkpoint_summary.sequence_number,
+        ))
+        .await
+        .unwrap();
 
-        assert_eq!(rpc_checkpoint.epoch, checkpoint_summary.epoch);
-        assert_eq!(
-            rpc_checkpoint.sequence_number,
-            checkpoint_summary.sequence_number
-        );
-        assert_eq!(
-            rpc_checkpoint.network_total_transactions,
-            checkpoint_summary.network_total_transactions
-        );
-        assert_eq!(rpc_checkpoint.digest, digest);
-        assert_eq!(
-            rpc_checkpoint.previous_digest,
-            checkpoint_summary.previous_digest
-        );
-        assert_eq!(
-            rpc_checkpoint.epoch_rolling_gas_cost_summary,
-            checkpoint_summary.epoch_rolling_gas_cost_summary
-        );
-        assert_eq!(rpc_checkpoint.timestamp_ms, checkpoint_summary.timestamp_ms);
-        assert_eq!(
-            rpc_checkpoint.end_of_epoch_data,
-            checkpoint_summary.end_of_epoch_data
-        );
-    }
+    assert_eq!(rpc_checkpoint.epoch, checkpoint_summary.epoch);
+    assert_eq!(
+        rpc_checkpoint.sequence_number,
+        checkpoint_summary.sequence_number
+    );
+    assert_eq!(
+        rpc_checkpoint.network_total_transactions,
+        checkpoint_summary.network_total_transactions
+    );
+    assert_eq!(rpc_checkpoint.digest, digest);
+    assert_eq!(
+        rpc_checkpoint.previous_digest,
+        checkpoint_summary.previous_digest
+    );
+    assert_eq!(
+        rpc_checkpoint.epoch_rolling_gas_cost_summary,
+        checkpoint_summary.epoch_rolling_gas_cost_summary
+    );
+    assert_eq!(rpc_checkpoint.timestamp_ms, checkpoint_summary.timestamp_ms);
+    assert_eq!(
+        rpc_checkpoint.end_of_epoch_data,
+        checkpoint_summary.end_of_epoch_data
+    );
 }
 
 #[sim_test]
@@ -956,7 +863,7 @@ async fn get_checkpoint_by_digest() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 6).await;
+    cluster.wait_for_checkpoint(6, None).await;
 
     let fullnode_checkpoints = cluster
         .fullnode_handle
@@ -971,40 +878,38 @@ async fn get_checkpoint_by_digest() {
         })
         .await;
 
-    for checkpoint in fullnode_checkpoints {
-        let envelope = checkpoint.unwrap();
-        let digest = *envelope.digest();
-        let checkpoint_summary = envelope.into_inner().into_data();
+    let envelope = fullnode_checkpoints[0].clone().unwrap();
+    let digest = *envelope.digest();
+    let checkpoint_summary = envelope.into_inner().into_data();
 
-        let rpc_checkpoint = http_client
-            .get_checkpoint(CheckpointId::Digest(digest))
-            .await
-            .unwrap();
+    let rpc_checkpoint = http_client
+        .get_checkpoint(CheckpointId::Digest(digest))
+        .await
+        .unwrap();
 
-        assert_eq!(rpc_checkpoint.epoch, checkpoint_summary.epoch);
-        assert_eq!(
-            rpc_checkpoint.sequence_number,
-            checkpoint_summary.sequence_number
-        );
-        assert_eq!(
-            rpc_checkpoint.network_total_transactions,
-            checkpoint_summary.network_total_transactions
-        );
-        assert_eq!(rpc_checkpoint.digest, digest);
-        assert_eq!(
-            rpc_checkpoint.previous_digest,
-            checkpoint_summary.previous_digest
-        );
-        assert_eq!(
-            rpc_checkpoint.epoch_rolling_gas_cost_summary,
-            checkpoint_summary.epoch_rolling_gas_cost_summary
-        );
-        assert_eq!(rpc_checkpoint.timestamp_ms, checkpoint_summary.timestamp_ms);
-        assert_eq!(
-            rpc_checkpoint.end_of_epoch_data,
-            checkpoint_summary.end_of_epoch_data
-        );
-    }
+    assert_eq!(rpc_checkpoint.epoch, checkpoint_summary.epoch);
+    assert_eq!(
+        rpc_checkpoint.sequence_number,
+        checkpoint_summary.sequence_number
+    );
+    assert_eq!(
+        rpc_checkpoint.network_total_transactions,
+        checkpoint_summary.network_total_transactions
+    );
+    assert_eq!(rpc_checkpoint.digest, digest);
+    assert_eq!(
+        rpc_checkpoint.previous_digest,
+        checkpoint_summary.previous_digest
+    );
+    assert_eq!(
+        rpc_checkpoint.epoch_rolling_gas_cost_summary,
+        checkpoint_summary.epoch_rolling_gas_cost_summary
+    );
+    assert_eq!(rpc_checkpoint.timestamp_ms, checkpoint_summary.timestamp_ms);
+    assert_eq!(
+        rpc_checkpoint.end_of_epoch_data,
+        checkpoint_summary.end_of_epoch_data
+    );
 }
 
 #[sim_test]
@@ -1024,7 +929,7 @@ async fn get_checkpoints_all_ascending() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 3).await;
+    cluster.wait_for_checkpoint(3, None).await;
 
     let rpc_checkpoints = http_client
         .get_checkpoints(None, None, false)
@@ -1045,7 +950,7 @@ async fn get_checkpoints_all_descending() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 3).await;
+    cluster.wait_for_checkpoint(3, None).await;
 
     let rpc_checkpoints = http_client.get_checkpoints(None, None, true).await.unwrap();
 
@@ -1063,7 +968,7 @@ async fn get_checkpoints_by_cursor_and_limit_one_descending() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 3).await;
+    cluster.wait_for_checkpoint(3, None).await;
 
     let rpc_checkpoints = http_client
         .get_checkpoints(Some(1.into()), Some(1), true)
@@ -1084,7 +989,7 @@ async fn get_checkpoints_by_cursor_and_limit_one_ascending() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 3).await;
+    cluster.wait_for_checkpoint(3, None).await;
 
     let rpc_checkpoints = http_client
         .get_checkpoints(Some(1.into()), Some(1), false)
@@ -1105,7 +1010,7 @@ async fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 3).await;
+    cluster.wait_for_checkpoint(3, None).await;
 
     let rpc_checkpoints = http_client
         .get_checkpoints(Some(0.into()), Some(3), false)
@@ -1126,7 +1031,7 @@ async fn get_checkpoints_by_cursor_zero_and_limit_descending() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 3).await;
+    cluster.wait_for_checkpoint(3, None).await;
 
     let rpc_checkpoints = http_client
         .get_checkpoints(Some(0.into()), Some(3), true)
@@ -1147,7 +1052,7 @@ async fn get_checkpoints_by_cursor_and_limit_ascending() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 6).await;
+    cluster.wait_for_checkpoint(6, None).await;
 
     let rpc_checkpoints = http_client
         .get_checkpoints(Some(3.into()), Some(3), false)
@@ -1168,7 +1073,7 @@ async fn get_checkpoints_by_cursor_and_limit_descending() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, 3).await;
+    cluster.wait_for_checkpoint(3, None).await;
 
     let rpc_checkpoints = http_client
         .get_checkpoints(Some(3.into()), Some(3), true)
@@ -1205,10 +1110,8 @@ async fn get_events() {
         .await
         .unwrap();
 
-    let rpc_events = http_client
-        .get_events(*fullnode_checkpoint.transactions.first().unwrap())
-        .await
-        .unwrap();
+    let digest = fullnode_checkpoint.transactions[0];
+    let rpc_events = http_client.get_events(digest).await.unwrap();
 
     assert!(!rpc_events.is_empty())
 }
@@ -1230,7 +1133,7 @@ async fn get_total_transaction_blocks() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, checkpoint_seq_num).await;
+    cluster.wait_for_checkpoint(checkpoint_seq_num, None).await;
 
     let fullnode_checkpoint = cluster
         .rpc_client()
@@ -1252,7 +1155,7 @@ async fn get_latest_checkpoint_sequence_number() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    wait_for_checkpoint(&cluster, checkpoint_seq_num).await;
+    cluster.wait_for_checkpoint(checkpoint_seq_num, None).await;
 
     let fullnode_checkpoint = cluster
         .rpc_client()
@@ -1459,11 +1362,7 @@ async fn try_get_past_object_version_too_high() {
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let fullnode_objects = http_client
-        .get_owned_objects(address, None, None, None)
-        .await
-        .unwrap()
-        .data;
+    let fullnode_objects = cluster.get_owned_objects(address, None).await.unwrap();
 
     let seq_num = SequenceNumber::from_u64(5);
     for object in fullnode_objects.iter() {
@@ -1484,37 +1383,29 @@ async fn try_get_past_object_version_too_high() {
 async fn try_get_past_object_version_not_found() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
 
-    let tx_response = create_transactions(
-        &cluster,
-        IotaTransactionBlockResponseOptions::default().with_object_changes(),
-    )
-    .await;
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
-    let mutated_objects = tx_response
-        .iter()
-        .flat_map(|tx_block_res| {
-            tx_block_res.object_changes.as_ref().map(|obj_changes| {
-                obj_changes
-                    .iter()
-                    .filter_map(|obj_change| {
-                        if let ObjectChange::Mutated {
-                            object_id, version, ..
-                        } = obj_change
-                        {
-                            if version > &SequenceNumber::from_u64(2) {
-                                return Some(object_id);
-                            } else {
-                                return None;
-                            }
-                        };
-                        None
-                    })
-                    .collect::<Vec<&ObjectID>>()
-            })
+    let transactions = cluster
+        .create_transactions(
+            address,
+            object_ids,
+            gas,
+            Some(IotaTransactionBlockResponseOptions::default().with_object_changes()),
+        )
+        .await
+        .unwrap();
+
+    let mutated_objects = transactions
+        .into_iter()
+        .flat_map(|tx| {
+            tx.mutated_objects()
+                .into_iter()
+                .filter(|(_, seq_num, _)| seq_num > &SequenceNumber::from_u64(2))
+                .map(|(object_id, _, _)| object_id)
         })
-        .flatten()
-        .collect::<Vec<_>>();
+        .collect::<Vec<ObjectID>>();
 
     let seq_num = SequenceNumber::from_u64(2);
     let mut at_least_one_version_not_found = false;
@@ -1526,18 +1417,19 @@ async fn try_get_past_object_version_not_found() {
             .with(|node| {
                 node.state()
                     .get_object_cache_reader()
-                    .object_exists_by_key(mutated_obj_id, seq_num)
+                    .object_exists_by_key(&mutated_obj_id, seq_num)
             })
             .unwrap()
         {
             let rpc_past_obj = http_client
-                .try_get_past_object(*mutated_obj_id, seq_num, None)
+                .try_get_past_object(mutated_obj_id, seq_num, None)
                 .await
                 .unwrap();
 
             assert!(
-                matches!(rpc_past_obj, IotaPastObjectResponse::VersionNotFound(obj_id, seq_number) if obj_id == *mutated_obj_id && seq_number == seq_num)
+                matches!(rpc_past_obj, IotaPastObjectResponse::VersionNotFound(obj_id, seq_number) if obj_id == mutated_obj_id && seq_number == seq_num)
             );
+
             at_least_one_version_not_found = true;
         }
     }
@@ -1550,19 +1442,12 @@ async fn try_get_past_object_deleted() {
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let objects = http_client
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::full_content(),
-            )),
-            None,
-            None,
-        )
+    let objects = cluster
+        .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
         .await
         .unwrap();
 
-    assert_eq!(5, objects.data.len());
+    assert_eq!(5, objects.len());
 
     let tx_block_response = publish_move_package(&cluster).await;
 
@@ -1601,25 +1486,17 @@ async fn try_get_past_object_deleted() {
         })
         .collect::<Vec<ObjectID>>()[0];
 
-    let objects = http_client
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::full_content(),
-            )),
-            None,
-            None,
-        )
+    let objects = cluster
+        .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
         .await
         .unwrap();
 
     let object_ids = objects
-        .data
         .iter()
         .map(|a| a.object_id().unwrap())
         .collect::<Vec<ObjectID>>();
 
-    assert_eq!(7, objects.data.len());
+    assert_eq!(7, objects.len());
     assert!(object_ids.contains(&created_object_id));
 
     let created_object = http_client
@@ -1669,72 +1546,45 @@ async fn try_get_object_before_version() {
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let fullnode_objects = http_client
-        .get_owned_objects(address, None, None, None)
+    let fullnode_objects = cluster
+        .get_owned_objects(address, Some(options.clone()))
         .await
-        .unwrap()
-        .data;
+        .unwrap();
 
-    for object in fullnode_objects.iter() {
-        let seq_num = object.data.as_ref().unwrap().version;
-        let object_id = object.object_id().unwrap();
+    let object = fullnode_objects[0].data.as_ref().unwrap();
 
-        let rpc_obj_before_ver = http_client
-            .try_get_object_before_version(object_id, seq_num)
-            .await
-            .unwrap();
+    let rpc_obj_before_ver = http_client
+        .try_get_object_before_version(object.object_id, object.version)
+        .await
+        .unwrap();
 
-        assert!(
-            matches!(rpc_obj_before_ver, IotaPastObjectResponse::VersionFound(ref obj) if obj.object_id == object_id && obj.version == seq_num)
-        );
-        assert!(match_past_object_resp_options(
-            &options,
-            &[rpc_obj_before_ver]
-        ));
-    }
+    assert!(rpc_obj_before_ver.matches_response_options(&options));
+    assert_eq!(object, rpc_obj_before_ver.object().unwrap());
 
-    let tx_response = create_transactions(
-        &cluster,
-        IotaTransactionBlockResponseOptions::default().with_object_changes(),
-    )
-    .await;
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
-    let mutated_objects = tx_response
-        .iter()
-        .flat_map(|tx_block_res| {
-            tx_block_res.object_changes.as_ref().map(|obj_changes| {
-                obj_changes
-                    .iter()
-                    .filter_map(|obj_change| {
-                        if let ObjectChange::Mutated {
-                            object_id, version, ..
-                        } = obj_change
-                        {
-                            return Some((object_id, version));
-                        };
-                        None
-                    })
-                    .collect::<Vec<(&ObjectID, &SequenceNumber)>>()
-            })
-        })
-        .flatten()
-        .collect::<Vec<_>>();
+    let transactions = cluster
+        .create_transactions(
+            address,
+            object_ids,
+            gas,
+            Some(IotaTransactionBlockResponseOptions::default().with_object_changes()),
+        )
+        .await
+        .unwrap();
 
-    for (mutated_obj_id, mutated_obj_version) in mutated_objects {
-        let rpc_obj_before_ver = http_client
-            .try_get_object_before_version(*mutated_obj_id, *mutated_obj_version)
-            .await
-            .unwrap();
+    let (mutated_obj_id, mutated_obj_version, _) = transactions[0].mutated_objects()[0];
 
-        assert!(
-            matches!(rpc_obj_before_ver, IotaPastObjectResponse::VersionFound(ref obj) if obj.object_id ==
-    *mutated_obj_id && obj.version == *mutated_obj_version)
-        );
-        assert!(match_past_object_resp_options(
-            &options,
-            &[rpc_obj_before_ver]
-        ));
-    }
+    let rpc_obj_before_ver = http_client
+        .try_get_object_before_version(mutated_obj_id, mutated_obj_version)
+        .await
+        .unwrap();
+
+    assert!(rpc_obj_before_ver.matches_response_options(&options));
+
+    let rpc_obj_before_ver_obj = rpc_obj_before_ver.object().unwrap();
+    assert_eq!(rpc_obj_before_ver_obj.object_id, mutated_obj_id);
+    assert_eq!(rpc_obj_before_ver_obj.version, mutated_obj_version);
 }
 
 #[sim_test]
