@@ -37,7 +37,7 @@ jobs:
           node-version: "20"
           cache: "pnpm"
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
       - name: Manypkg Check
         run: pnpm manypkg check
       - name: Turbo Cache
