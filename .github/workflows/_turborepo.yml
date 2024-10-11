@@ -49,7 +49,7 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
       - name: Lint
-        run: pnpm turbo lint --force
+        run: pnpm turbo lint
       - name: Install wasm-pack for mbf package
         uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa # pin@v0.4.0
         with:
