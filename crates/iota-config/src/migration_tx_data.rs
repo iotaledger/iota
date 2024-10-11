@@ -9,20 +9,19 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use iota_genesis_common::prepare_and_execute_genesis_transaction;
 use iota_types::{
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     message_envelope::Message,
     messages_checkpoint::{CheckpointContents, CheckpointSummary},
-    object::{Object, ObjectInner},
-    transaction::{
-        GenesisObject, GenesisTransaction, Transaction, TransactionDataAPI, TransactionKind,
-    },
+    object::Object,
+    transaction::{Transaction, TransactionDataAPI, TransactionKind},
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;
 
-use crate::genesis::{Genesis, UnsignedGenesis};
+use crate::genesis::{Genesis, GenesisCeremonyParameters, UnsignedGenesis};
 
 pub type TransactionsData =
     BTreeMap<TransactionDigest, (Transaction, TransactionEffects, TransactionEvents)>;
@@ -57,25 +56,22 @@ impl MigrationTxData {
 
     pub fn objects_by_tx_digest(&self, digest: TransactionDigest) -> Option<Vec<Object>> {
         let (tx, _, _) = self.inner.get(&digest)?;
-        let TransactionKind::Genesis(GenesisTransaction { objects, .. }) =
-            tx.transaction_data().kind()
-        else {
-            panic!("wrong transaction type of migration data");
-        };
-        Some(
-            objects
-                .iter()
-                .map(|GenesisObject::RawObject { data, owner }| {
-                    ObjectInner {
-                        data: data.to_owned(),
-                        owner: owner.to_owned(),
-                        previous_transaction: *tx.digest(),
-                        storage_rebate: 0,
-                    }
-                    .into()
-                })
-                .collect(),
-        )
+        assert!(
+            matches!(tx.transaction_data().kind(), TransactionKind::Genesis(_)),
+            "wrong transaction type of migration data"
+        );
+
+        // We use default ceremony parameters, not the real ones. This should not affect
+        // the execution of a genesis transaction.
+        let default_ceremony_parameters = GenesisCeremonyParameters::default();
+
+        let (_, _, objects) = prepare_and_execute_genesis_transaction(
+            default_ceremony_parameters.chain_start_timestamp_ms,
+            default_ceremony_parameters.protocol_version,
+            tx,
+        );
+
+        Some(objects)
     }
 
     fn validate_from_genesis_components(

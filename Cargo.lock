@@ -6136,6 +6136,7 @@ dependencies = [
  "csv",
  "dirs 5.0.1",
  "fastcrypto",
+ "iota-genesis-common",
  "iota-keys",
  "iota-protocol-config",
  "iota-types",

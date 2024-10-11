@@ -26,7 +26,9 @@ use iota_config::{
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
-use iota_genesis_common::{execute_genesis_transaction, process_package};
+use iota_genesis_common::{
+    execute_genesis_transaction, get_genesis_protocol_config, process_package,
+};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{Url, types::block::address::Address};
 use iota_types::{
@@ -939,16 +941,6 @@ fn create_genesis_context(
         &genesis_transaction_digest,
         epoch_data,
     )
-}
-
-fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
-    // We have a circular dependency here. Protocol config depends on chain ID,
-    // which depends on genesis checkpoint (digest), which depends on genesis
-    // transaction, which depends on protocol config.
-    //
-    // ChainIdentifier::default().chain() which can be overridden by the
-    // IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE if necessary
-    ProtocolConfig::get_for_version(version, ChainIdentifier::default().chain())
 }
 
 fn build_unsigned_genesis_data<'info>(

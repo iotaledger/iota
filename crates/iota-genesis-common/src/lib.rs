@@ -5,20 +5,32 @@
 use std::{collections::HashSet, sync::Arc};
 
 use iota_execution::{self, Executor};
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_types::{
     base_types::{ObjectID, TxContext},
+    digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
+    messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction},
 };
 use move_binary_format::CompiledModule;
+
+pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
+    // We have a circular dependency here. Protocol config depends on chain ID,
+    // which depends on genesis checkpoint (digest), which depends on genesis
+    // transaction, which depends on protocol config.
+    //
+    // ChainIdentifier::default().chain() which can be overridden by the
+    // IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE if necessary
+    ProtocolConfig::get_for_version(version, ChainIdentifier::default().chain())
+}
 
 pub fn process_package(
     store: &mut InMemoryStorage,
@@ -90,6 +102,19 @@ pub fn process_package(
     store.finish(written);
 
     Ok(events)
+}
+
+pub fn prepare_and_execute_genesis_transaction(
+    chain_start_timestamp_ms: CheckpointTimestamp,
+    protocol_version: ProtocolVersion,
+    genesis_transaction: &Transaction,
+) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
+    let registry = prometheus::Registry::new();
+    let metrics = Arc::new(LimitsMetrics::new(&registry));
+    let epoch_data = EpochData::new_genesis(chain_start_timestamp_ms);
+    let protocol_config = get_genesis_protocol_config(protocol_version);
+
+    execute_genesis_transaction(&epoch_data, &protocol_config, metrics, genesis_transaction)
 }
 
 pub fn execute_genesis_transaction(
