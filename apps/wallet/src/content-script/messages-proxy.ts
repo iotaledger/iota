@@ -5,6 +5,7 @@
 import { PortStream } from '_messaging/PortStream';
 import { WindowMessageStream } from '_messaging/WindowMessageStream';
 import type { Message } from '_src/shared/messaging/messages';
+import { getClientIDs } from '_src/shared/utils/getClientIDs';
 import { take } from 'rxjs';
 
 function createPort(windowMsgStream: WindowMessageStream, currentMsg?: Message) {
@@ -25,7 +26,7 @@ function createPort(windowMsgStream: WindowMessageStream, currentMsg?: Message) 
 }
 
 export function setupMessagesProxy() {
-    const clientIds = WindowMessageStream.getClientIDs(process.env.APP_NAME);
+    const clientIds = getClientIDs(process.env.APP_NAME);
     const windowMsgStream = new WindowMessageStream(clientIds.target, clientIds.name);
     windowMsgStream.messages.pipe(take(1)).subscribe((msg) => {
         createPort(windowMsgStream, msg);

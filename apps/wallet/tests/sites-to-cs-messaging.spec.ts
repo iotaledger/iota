@@ -2,18 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import 'tsconfig-paths/register';
+
 import { type Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
 import { demoDappConnect } from './utils/dapp-connect';
+import { getClientIDs } from '../src/shared/utils/getClientIDs';
+
+let walletName: string;
 
 function getInAppMessage(page: Page, id: string) {
+    const clientIDs = getClientIDs(walletName);
     return page.evaluate(
-        (anId) =>
-            new Promise((resolve, reject) => {
+        ({ clientIDs, anId }) => {
+            return new Promise((resolve, reject) => {
                 const callBackFN = (msg: MessageEvent) => {
-                    if (msg.data.target === 'iota_in-page' && msg.data.payload.id === anId) {
+                    if (msg.data.target === clientIDs.name && msg.data.payload.id === anId) {
                         window.removeEventListener('message', callBackFN);
                         if (msg.data.payload.payload.error) {
                             reject(msg.data.payload);
@@ -23,13 +29,15 @@ function getInAppMessage(page: Page, id: string) {
                     }
                 };
                 window.addEventListener('message', callBackFN);
-            }),
-        id,
+            });
+        },
+        { clientIDs, anId: id },
     );
 }
 
 test.beforeEach(async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
+    walletName = await page.title();
     await page.close();
 });
 
@@ -78,18 +86,19 @@ test.describe('site to content script messages', () => {
         test(aLabel, async ({ context, demoPageUrl }) => {
             const page = await context.newPage();
             await page.goto(demoPageUrl);
+            const clientIDs = getClientIDs(walletName);
             const nextMessage = getInAppMessage(page, aLabel);
             await page.evaluate(
-                ({ aPayload: payload, aLabel: label }) => {
+                ({ aPayload: payload, aLabel: label, clientIDs }) => {
                     window.postMessage({
-                        target: 'iota_content-script',
+                        target: clientIDs.target,
                         payload: {
                             id: label,
                             payload,
                         },
                     });
                 },
-                { aPayload, aLabel },
+                { aPayload, aLabel, clientIDs },
             );
             if (result) {
                 expect(await nextMessage).toMatchObject(result);

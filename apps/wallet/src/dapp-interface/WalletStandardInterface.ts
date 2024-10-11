@@ -49,6 +49,7 @@ import { filter, map, type Observable } from 'rxjs';
 
 import { mapToPromise } from './utils';
 import { bcs } from '@iota/iota-sdk/bcs';
+import { getClientIDs } from '_src/shared/utils/getClientIDs';
 
 type WalletEventsMap = {
     [E in keyof StandardEventsListeners]: Parameters<StandardEventsListeners[E]>[0];
@@ -139,7 +140,7 @@ export class IotaWallet implements Wallet {
     constructor() {
         this.#events = mitt();
         this.#accounts = [];
-        const { name, target } = WindowMessageStream.getClientIDs(NAME);
+        const { name, target } = getClientIDs(NAME);
         this.#messagesStream = new WindowMessageStream(name, target);
         this.#messagesStream.messages.subscribe(({ payload }) => {
             if (isWalletStatusChangePayload(payload)) {
