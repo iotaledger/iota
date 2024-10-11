@@ -2,31 +2,36 @@
 description: Guide to setting up and using a local IOTA network for development and testing.
 tags: [ how-to, install, setup, cli, typescript, sdk, testing ]
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/local-network.json';
+
 # Local Development
 
 You can create a local IOTA network to develop and test your dApps with the latest changes in the IOTA repository. You
-can set it up using the `iota-test-validator` binary, which will start a local IOTA Full node, an IOTA validator, and a
-test token faucet.
+can set it up using the `iota` binary with the `iota start` subcommand, which can start a local IOTA network
+consisting of 4 IOTA validators with indexer and a test token faucet.
 
 ## Prerequisites
 
-You should [install IOTA](iota-install.mdx) to interact with the local node.
+You should [install the IOTA CLI tool](install-iota.mdx) to interact with the local node.
 
 ## Start a Local Network
 
 You can start a local network by running the following command from your `iota` root folder.
 
 ```bash
-RUST_LOG="off,iota_node=info" cargo run --bin iota-test-validator
+RUST_LOG="off,iota_node=info" cargo run --bin iota start --force-regenesis --with-faucet
 ```
 
-The command will start the `iota-test-validator`. The `RUST_LOG`=`off,iota_node=info` turns off logging for all
+The command will start a local network with a test token faucet. The `RUST_LOG`=`off,iota_node=info` turns off logging for all
 components except iota-node. If you want to see more detailed logs, you can remove `RUST_LOG` from the command.
 
 :::danger No persistence
 
-Data on the local network is not persistent. This means that every time you start the `iota-test-validator`, the network
-will not have any record of your previous addresses or transactions.
+Data on the local network does not persist when the `--force-regenesis` flag is
+used.
+
+To persist data use the `--config-dir` flag instead.
 
 :::
 
@@ -36,12 +41,12 @@ You can add the following additional parameters to the [start command](#start-a-
 network:
 
 * `--epoch-duration-ms <EPOCH_DURATION_MS>`:  Change epoch duration from the default one minute to your desired value.
-* `--faucet-port <FAUCET_PORT>`: Change the port where the IOTA faucet starts.
+* `--with-faucet=<FAUCET_PORT>`: Change the port where the IOTA faucet starts.
 * `--fullnode-rpc-port <FULLNODE_RPC_PORT>`: Change the port where the Full-node RPC server starts.
 
 :::tip Validator Help
 
-Use `iota-test-validator --help` to see these options in your console.
+Use `iota start --help` to see these options in your console.
 
 :::
 
@@ -157,7 +162,7 @@ The response resembles the following, but with different IDs:
 ├────────────────────────────────────────────────────────────────────┼────────────┤
 │ 0x1d790713c1c3441a307782597c088f11230c47e609af2cec97f393123ea4de45 │ 200000000  │
 │ 0x20c1d5ad2e8693953fca09fd2fec0fbc52a787e0a0f77725220d36a09a5b312d │ 200000000  │
-│ [...]                                                              │            │ 
+│ [...]                                                              │            │
 ╰────────────────────────────────────────────────────────────────────┴────────────╯
 ```
 
@@ -165,7 +170,7 @@ The response resembles the following, but with different IDs:
 
 ### Prerequisites
 
-* [pnpm](https://pnpm.io/installation).
+* [pnpm](https://pnpm.io/installation)
 
 ### Install Dependencies
 
@@ -241,18 +246,21 @@ To resolve this, switch or update to Node.js 18 and then try again.
 ## Test with the IOTA TypeScript SDK
 
 The published version of the IOTA TypeScript SDK might be an earlier version than the version of IOTA you installed for
-your local network. To make sure you're using the latest version of the SDK, use a local built version of SDK. 
+your local network. To make sure you're using the latest version of the SDK, use a local built version of SDK.
 
-In your local checkout of the [IOTA repository](../advanced/iota-repository.mdx) make sure you are using the same branch as the network you are developing against. Run 
+In your local checkout of the [IOTA repository](../advanced/iota-repository.mdx) make sure you are using the same branch as the network you are developing against. Run
 ```bash
 pnpm install && pnpm build
 ```
  to compile the SDK.
 
-To use the local built SDK in your project go to your project folder and execute 
+To use the local built SDK in your project go to your project folder and execute
 
 ```bash
 pnpm add <PATH_TO_YOUR_REPO>/sdk/typescript
-``` 
+```
 
 and the locally compiled version of `@iota/iota-sdk` package will be installed for your application.
+
+
+<Quiz questions={questions} />

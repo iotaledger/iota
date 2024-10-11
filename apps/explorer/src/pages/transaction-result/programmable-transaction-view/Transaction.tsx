@@ -7,9 +7,6 @@ import {
     type IotaArgument,
     type IotaMovePackage,
 } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
-import { type ReactNode } from 'react';
-
 import { flattenIotaArguments } from './utils';
 import { ErrorBoundary } from '~/components';
 import { ObjectLink } from '~/components/ui';
@@ -19,29 +16,17 @@ interface TransactionProps<T> {
     data: T;
 }
 
-interface TransactionContentProps {
-    children?: ReactNode;
-}
-
-function TransactionContent({ children }: TransactionContentProps): JSX.Element {
-    return (
-        <Text variant="pBody/normal" color="steel-dark">
-            {children}
-        </Text>
-    );
-}
-
 function ArrayArgument({
     data,
 }: TransactionProps<(IotaArgument | IotaArgument[])[] | undefined>): JSX.Element {
     return (
-        <TransactionContent>
+        <>
             {data && (
-                <span className="break-all">
-                    <Text variant="pBody/medium">({flattenIotaArguments(data)})</Text>
+                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                    ({flattenIotaArguments(data)})
                 </span>
             )}
-        </TransactionContent>
+        </>
     );
 }
 
@@ -55,19 +40,17 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Elem
     } = data;
 
     return (
-        <TransactionContent>
-            <Text variant="pBody/medium">
-                package: <ObjectLink objectId={movePackage} />, module:{' '}
-                <ObjectLink objectId={`${movePackage}?module=${module}`} label={`'${module}'`} />,
-                function: <span className="break-all text-hero-dark">{func}</span>
-                {args && (
-                    <span className="break-all">, arguments: [{flattenIotaArguments(args!)}]</span>
-                )}
-                {typeArgs && (
-                    <span className="break-all">, type_arguments: [{typeArgs.join(', ')}]</span>
-                )}
-            </Text>
-        </TransactionContent>
+        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+            package: <ObjectLink objectId={movePackage} />, module:{' '}
+            <ObjectLink objectId={`${movePackage}?module=${module}`} label={`'${module}'`} />,
+            function: <span className="break-all text-primary-30">{func}</span>
+            {args && (
+                <span className="break-all">, arguments: [{flattenIotaArguments(args!)}]</span>
+            )}
+            {typeArgs && (
+                <span className="break-all">, type_arguments: [{typeArgs.join(', ')}]</span>
+            )}
+        </span>
     );
 }
 

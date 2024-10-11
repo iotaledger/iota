@@ -16,20 +16,19 @@ bcs.workspace = true
 enum-compat-util.workspace = true
 ethnum.workspace = true
 hex.workspace = true
-leb128 = "0.2"
+leb128.workspace = true
+move-proc-macros.workspace = true
 num.workspace = true
 once_cell.workspace = true
-primitive-types = { version = "0.12", features = ["impl-serde"] }
+primitive-types.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 rand.workspace = true
 ref-cast.workspace = true
 serde.workspace = true
-serde_bytes = "0.11"
-thiserror = "1.0"
-uint = "0.9"
-
-move-proc-macros.workspace = true
+serde_bytes.workspace = true
+thiserror.workspace = true
+uint.workspace = true
 
 [dev-dependencies]
 arbitrary = { workspace = true, features = ["derive_arbitrary"] }
@@ -41,3 +40,6 @@ serde_json.workspace = true
 [features]
 default = []
 fuzzing = ["proptest", "proptest-derive", "arbitrary"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["enum-compat-util"]

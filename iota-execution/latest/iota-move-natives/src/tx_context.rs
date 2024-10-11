@@ -13,7 +13,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 #[derive(Clone)]
 pub struct TxContextDeriveIdCostParams {
@@ -54,8 +54,7 @@ pub fn derive_id(
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
     obj_runtime.new_id(address.into())?;
 
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::address(address)],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::address(address)
+    ]))
 }

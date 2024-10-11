@@ -3,27 +3,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
-import {
-    AccountIcon,
-    AccountItem,
-    AccountsFormType,
-    useAccountsFormContext,
-    VerifyPasswordModal,
-} from '_components';
+import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import { Heading } from '_src/ui/app/shared/heading';
-import { Text } from '_src/ui/app/shared/text';
-import { ButtonOrLink } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { ArrowBgFill16, Plus12, Search16 } from '@iota/icons';
-import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import clsx from 'clsx';
+
+import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
+import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
+import { OutsideClickHandler } from '_components/OutsideClickHandler';
+import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
+import { Collapsible } from '_app/shared/collapse';
+import { useFeature } from '@growthbook/growthbook-react';
+import { Feature } from '_shared/experimentation/features';
+import { useActiveAccount } from '_app/hooks/useActiveAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
-    [AccountType.MnemonicDerived]: 'Passphrase Derived',
-    [AccountType.SeedDerived]: 'Seed Derived',
+    [AccountType.MnemonicDerived]: 'Mnemonic',
+    [AccountType.SeedDerived]: 'Seed',
     [AccountType.PrivateKeyDerived]: 'Private Key',
     [AccountType.LedgerDerived]: 'Ledger',
 };
@@ -41,12 +39,18 @@ export function AccountGroup({
     accounts,
     type,
     accountSourceID,
+    isLast,
+    outerRef,
 }: {
     accounts: SerializedUIAccount[];
     type: AccountType;
     accountSourceID?: string;
+    isLast: boolean;
+    outerRef?: React.RefObject<HTMLDivElement>;
 }) {
+    const [isDropdownOpen, setDropdownOpen] = useState(false);
     const navigate = useNavigate();
+    const activeAccount = useActiveAccount();
     const createAccountMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
@@ -54,93 +58,132 @@ export function AccountGroup({
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+
+    async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
+        if (!accountSource) return;
+
+        // prevent the collapsible from closing when clicking the "new" button
+        e.stopPropagation();
+        const accountsFormType = isMnemonicDerivedGroup
+            ? AccountsFormType.MnemonicSource
+            : AccountsFormType.SeedSource;
+        setAccountsFormValues({
+            type: accountsFormType,
+            sourceID: accountSource.id,
+        });
+        if (accountSource.isLocked) {
+            setPasswordModalVisible(true);
+        } else {
+            createAccountMutation.mutate({
+                type: accountsFormType,
+            });
+        }
+    }
+
+    function handleBalanceFinder() {
+        navigate(`/accounts/manage/accounts-finder/${accountSourceID}`);
+    }
+
+    function handleExportMnemonic() {
+        navigate(`../export/passphrase/${accountSource!.id}`);
+    }
+
+    function handleExportSeed() {
+        navigate(`../export/seed/${accountSource!.id}`);
+    }
+
+    const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
+
+    const dropdownVisibility = {
+        showBalanceFinder:
+            ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && featureAccountFinderEnabled,
+        showExportMnemonic: isMnemonicDerivedGroup && accountSource,
+        showExportSeed: isSeedDerivedGroup && accountSource,
+    };
+    const showMoreButton = Object.values(dropdownVisibility).some((v) => v);
+
     return (
-        <>
-            <CollapsiblePrimitive.Root defaultOpen asChild>
-                <div className="flex w-full flex-col gap-4">
-                    <CollapsiblePrimitive.Trigger asChild>
-                        <div className="group flex w-full flex-shrink-0 cursor-pointer items-center justify-center gap-2 [&>*]:select-none">
-                            <ArrowBgFill16 className="text-hero-darkest/20 h-4 w-4 group-data-[state=open]:rotate-90" />
-                            <Heading variant="heading5" weight="semibold" color="steel-darker">
-                                {getGroupTitle(accounts[0])}
-                            </Heading>
-                            <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
-                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
-                                <ButtonOrLink
-                                    className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
-                                    onClick={() => {
-                                        navigate(
-                                            `/accounts/manage/accounts-finder/${accountSourceID}`,
-                                        );
-                                    }}
-                                >
-                                    <Search16 />
-                                </ButtonOrLink>
-                            ) : null}
+        <div className="relative overflow-visible">
+            <Collapsible
+                defaultOpen
+                hideArrow
+                hideBorder
+                render={({ isOpen }) => (
+                    <div className="relative flex w-full items-center justify-between gap-1 py-2 pl-1 pr-sm">
+                        <div className="flex items-center gap-1">
+                            <TriangleDown
+                                className={clsx(
+                                    'h-5 w-5 text-neutral-60',
+                                    isOpen
+                                        ? 'rotate-0 transition-transform ease-linear'
+                                        : '-rotate-90 transition-transform ease-linear',
+                                )}
+                            />
+                            <div className="text-title-md">{getGroupTitle(accounts[0])}</div>
+                        </div>
+                        <div className="flex items-center gap-1">
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
-                                <>
-                                    <ButtonOrLink
-                                        loading={createAccountMutation.isPending}
-                                        onClick={async (e) => {
-                                            // prevent the collapsible from closing when clicking the "new" button
+                                <Button
+                                    size={ButtonSize.Small}
+                                    type={ButtonType.Ghost}
+                                    onClick={handleAdd}
+                                    icon={<Add className="h-5 w-5 text-neutral-10" />}
+                                />
+                            ) : null}
+                            {showMoreButton && (
+                                <div className="relative">
+                                    <Button
+                                        size={ButtonSize.Small}
+                                        type={ButtonType.Ghost}
+                                        onClick={(e) => {
                                             e.stopPropagation();
-                                            const accountsFormType = isMnemonicDerivedGroup
-                                                ? AccountsFormType.MnemonicSource
-                                                : AccountsFormType.SeedSource;
-                                            setAccountsFormValues({
-                                                type: accountsFormType,
-                                                sourceID: accountSource.id,
-                                            });
-                                            if (accountSource.isLocked) {
-                                                setPasswordModalVisible(true);
-                                            } else {
-                                                createAccountMutation.mutate({
-                                                    type: accountsFormType,
-                                                });
-                                            }
+                                            setDropdownOpen(true);
                                         }}
-                                        className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
-                                    >
-                                        <Plus12 />
-                                        <Text variant="bodySmall" weight="semibold">
-                                            New
-                                        </Text>
-                                    </ButtonOrLink>
-                                </>
-                            ) : null}
-                        </div>
-                    </CollapsiblePrimitive.Trigger>
-                    <CollapsiblePrimitive.CollapsibleContent asChild>
-                        <div className="flex w-full flex-shrink-0 flex-col gap-3">
-                            {accounts.map((account) => {
-                                return (
-                                    <AccountItem
-                                        key={account.id}
-                                        accountID={account.id}
-                                        icon={<AccountIcon account={account} />}
+                                        icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
                                     />
-                                );
-                            })}
-                            {isMnemonicDerivedGroup && accountSource ? (
-                                <Button
-                                    variant="secondary"
-                                    size="tall"
-                                    text="Export Passphrase"
-                                    to={`../export/passphrase/${accountSource.id}`}
-                                />
-                            ) : null}
-                            {isSeedDerivedGroup && accountSource ? (
-                                <Button
-                                    variant="secondary"
-                                    size="tall"
-                                    text="Export Seed"
-                                    to={`../export/seed/${accountSource.id}`}
-                                />
-                            ) : null}
+                                </div>
+                            )}
                         </div>
-                    </CollapsiblePrimitive.CollapsibleContent>
-                </div>
-            </CollapsiblePrimitive.Root>
+                    </div>
+                )}
+            >
+                {accounts.map((account, index) => (
+                    <AccountGroupItem
+                        outerRef={outerRef}
+                        isActive={activeAccount?.address === account.address}
+                        key={account.id}
+                        account={account}
+                        showDropdownOptionsBottom={
+                            isLast &&
+                            (index === accounts.length - 1 || index === accounts.length - 2)
+                        }
+                    />
+                ))}
+            </Collapsible>
+            <div
+                className={`absolute right-3 top-3 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+            >
+                <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                    <Dropdown>
+                        {dropdownVisibility.showBalanceFinder && (
+                            <ListItem hideBottomBorder onClick={handleBalanceFinder}>
+                                Balance finder
+                            </ListItem>
+                        )}
+
+                        {dropdownVisibility.showExportMnemonic && (
+                            <ListItem hideBottomBorder onClick={handleExportMnemonic}>
+                                Export Mnemonic
+                            </ListItem>
+                        )}
+                        {dropdownVisibility.showExportSeed && (
+                            <ListItem hideBottomBorder onClick={handleExportSeed}>
+                                Export Seed
+                            </ListItem>
+                        )}
+                    </Dropdown>
+                </OutsideClickHandler>
+            </div>
             {isPasswordModalVisible ? (
                 <VerifyPasswordModal
                     open
@@ -156,6 +199,6 @@ export function AccountGroup({
                     onClose={() => setPasswordModalVisible(false)}
                 />
             ) : null}
-        </>
+        </div>
     );
 }

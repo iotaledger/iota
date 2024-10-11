@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator } from '@iota/ui';
 import { useMemo } from 'react';
-
 import { ModuleFunction } from './ModuleFunction';
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
-import { Banner } from '~/components/ui';
+import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Info, Warning } from '@iota/ui-icons';
 
 type ModuleFunctionsInteractionProps = {
     packageId: string;
@@ -36,13 +35,19 @@ export function ModuleFunctionsInteraction({
         return (
             <div className="flex h-full items-center justify-center">
                 {error ? (
-                    <Banner variant="error">
-                        Error loading module <strong>{moduleName}</strong> details.
-                    </Banner>
+                    <InfoBox
+                        style={InfoBoxStyle.Elevated}
+                        type={InfoBoxType.Warning}
+                        icon={<Warning />}
+                        supportingText={`Error loading module ${moduleName} details.`}
+                    />
                 ) : isEmpty ? (
-                    <div className="text-body font-medium text-steel-dark">
-                        No public entry functions found.
-                    </div>
+                    <InfoBox
+                        supportingText="No public entry functions found."
+                        icon={<Info />}
+                        type={InfoBoxType.Default}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 ) : (
                     <LoadingIndicator text="Loading data" />
                 )}
@@ -50,7 +55,7 @@ export function ModuleFunctionsInteraction({
         );
     }
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-sm">
             {executableFunctions.map(({ name, details }) => (
                 <ModuleFunction
                     key={name}

@@ -12,6 +12,7 @@ iota-protocol-config.workspace = true
 iota-types.workspace = true
 
 move-binary-format.workspace = true
+move-bytecode-verifier-meter.workspace = true
 move-vm-config.workspace = true
 
 iota-adapter-latest = { path = "latest/iota-adapter" }
@@ -33,17 +34,14 @@ move-vm-runtime-v0 = { path = "../external-crates/move/move-execution/v0/crates/
 
 [dev-dependencies]
 cargo_metadata = "0.15"
-petgraph = "0.5"
+petgraph = "0.6"
 
 [features]
 default = []
 gas-profiler = [
-  #   "iota-adapter-$CUT/gas-profiler",
-  "iota-adapter-v0/gas-profiler",
   "iota-adapter-latest/gas-profiler",
-  #   "iota-adapter-$CUT/gas-profiler",
-  "move-vm-runtime-v0/gas-profiler",
+  # "iota-adapter-$CUT/gas-profiler",
   "move-vm-runtime-latest/gas-profiler",
-  #   "move-vm-runtime-$CUT/gas-profiler",
+  # "move-vm-runtime-$CUT/gas-profiler",
   "move-vm-config/gas-profiler",
 ]

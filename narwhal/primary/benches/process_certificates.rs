@@ -5,7 +5,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use criterion::{
-    criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
+    BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main,
 };
 use fastcrypto::hash::Hash;
 use narwhal_primary::consensus::{
@@ -13,7 +13,7 @@ use narwhal_primary::consensus::{
 };
 use prometheus::Registry;
 use storage::NodeStorage;
-use test_utils::{latest_protocol_version, make_optimal_certificates, temp_dir, CommitteeFixture};
+use test_utils::{CommitteeFixture, latest_protocol_version, make_optimal_certificates, temp_dir};
 use tokio::time::Instant;
 use types::{Certificate, Round};
 

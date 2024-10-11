@@ -13,8 +13,9 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     gas::GasCostSummary,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+        CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
     transaction::VerifiedTransaction,
 };
@@ -152,7 +153,8 @@ impl MockCheckpointBuilder {
             epoch_rolling_gas_cost_summary,
             end_of_epoch_data,
             timestamp_ms,
-            version_specific_data: Vec::new(),
+            version_specific_data: bcs::to_bytes(&CheckpointVersionSpecificData::empty_for_tests())
+                .unwrap(),
             checkpoint_commitments: Default::default(),
         };
 

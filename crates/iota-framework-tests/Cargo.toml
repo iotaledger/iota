@@ -7,7 +7,15 @@ license = "Apache-2.0"
 publish = false
 description = "Runs Move tests for iota-framework"
 
+[lints]
+workspace = true
+
+[[test]]
+name = "move_tests"
+harness = false
+
 [dev-dependencies]
+datatest-stable.workspace = true
 prometheus.workspace = true
 
 iota-framework.workspace = true
@@ -20,6 +28,7 @@ iota-adapter = { path = "../../iota-execution/latest/iota-adapter", package = "i
 iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
 move-bytecode-verifier = { path = "../../external-crates/move/crates/move-bytecode-verifier" }
 
+move-bytecode-verifier-meter.workspace = true
 move-cli.workspace = true
 move-package.workspace = true
 move-unit-test.workspace = true

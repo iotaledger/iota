@@ -14,6 +14,7 @@ export interface AddressInputProps {
     placeholder?: string;
     name: string;
     label?: string;
+    shouldValidateManually?: boolean;
 }
 
 export function AddressInput({
@@ -24,14 +25,16 @@ export function AddressInput({
 }: AddressInputProps) {
     const [field, meta] = useField(name);
 
-    const { isSubmitting, setFieldValue } = useFormikContext();
+    const { isSubmitting, setFieldValue, validateField } = useFormikContext();
     const iotaAddressValidation = useIotaAddressValidation();
 
     const disabled = forcedDisabled !== undefined ? forcedDisabled : isSubmitting;
     const handleOnChange = useCallback<ChangeEventHandler<HTMLInputElement>>(
         (e) => {
             const address = e.currentTarget.value;
-            setFieldValue(name, iotaAddressValidation.cast(address));
+            setFieldValue(name, iotaAddressValidation.cast(address)).then(() => {
+                validateField(name);
+            });
         },
         [setFieldValue, name, iotaAddressValidation],
     );

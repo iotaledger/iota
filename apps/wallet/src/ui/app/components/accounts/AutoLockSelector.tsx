@@ -9,14 +9,14 @@ import { z } from 'zod';
 import { CheckboxField } from '../../shared/forms/CheckboxField';
 import FormField from '../../shared/forms/FormField';
 import { SelectField } from '../../shared/forms/SelectField';
-import { Input, InputType } from '@iota/apps-ui-kit';
+import { Input, InputType, type SelectOption } from '@iota/apps-ui-kit';
 
-const LOCK_INTERVALS = [
+const LOCK_INTERVALS: SelectOption[] = [
     { id: 'day', label: 'Day' },
     { id: 'hour', label: 'Hour' },
     { id: 'minute', label: 'Minute' },
 ];
-const LOCK_INTERVALS_PLURAL = [
+const LOCK_INTERVALS_PLURAL: SelectOption[] = [
     { id: 'day', label: 'Days' },
     { id: 'hour', label: 'Hours' },
     { id: 'minute', label: 'Minutes' },
@@ -40,7 +40,7 @@ interface AutoLockSelectorProps {
 }
 
 export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
-    const { register, watch, trigger } = useFormContext();
+    const { watch, trigger, register } = useFormContext();
     const timer = watch('autoLock.timer');
     const timerEnabled = watch('autoLock.enabled');
     useEffect(() => {
@@ -51,6 +51,7 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
         });
         return unsubscribe;
     }, [watch, trigger]);
+
     return (
         <div className="flex flex-col gap-xs">
             <CheckboxField
@@ -65,7 +66,6 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
                             disabled={disabled || !timerEnabled}
                             type={InputType.Number}
                             {...register('autoLock.timer')}
-                            data-testid="auto-lock-timer"
                         />
                     </div>
                     <div className="w-1/3">

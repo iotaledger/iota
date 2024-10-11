@@ -1,18 +1,18 @@
-# Iota Wallet
+# IOTA Wallet
 
-A Chrome extension wallet for [Iota](https://iota.org).
+A Chrome extension wallet for [IOTA](https://iota.org).
 
 # Set Up
 
 **Requirements**: 18.0.0 or later.
 
-Dependencies are managed using [`pnpm`](https://pnpm.io/). You can start by installing dependencies in the root of the Iota repository:
+Dependencies are managed using [`pnpm`](https://pnpm.io/). You can start by installing dependencies in the root of the iota repository:
 
 ```
 $ pnpm install
 ```
 
-> All `pnpm` commands below are intended to be run in the root of the Iota repo.
+> All `pnpm` commands below are intended to be run in the root of the iota repo.
 
 ## Build in watch mode (dev)
 

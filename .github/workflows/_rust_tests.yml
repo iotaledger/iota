@@ -1,18 +1,19 @@
 name: Rust tests
 
-on:
-  workflow_call:
-    inputs:
-      isRust:
-        type: boolean
+on: workflow_call
 
 concurrency:
   group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  RUST_BACKTRACE: short
+  CARGO_INCREMENTAL: 0
+
 jobs:
   changes:
-    if: inputs.isRust
     runs-on: [self-hosted]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
@@ -27,7 +28,7 @@ jobs:
   test:
     name: Test rust crates
     needs: changes
-    if: always() && inputs.isRust
+    if: (!cancelled())
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -61,7 +62,7 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
-    if: always() && inputs.isRust
+    if: (!cancelled())
     strategy:
       matrix:
         flags: ["--all-features", "--no-default-features"]
@@ -197,7 +198,7 @@ jobs:
       POSTGRES_PORT: 5432
     services:
       postgres:
-        image: postgres
+        image: postgres:15
         env:
           POSTGRES_PASSWORD: postgrespw
         options: >-

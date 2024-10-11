@@ -197,7 +197,7 @@ pub enum DependencyMode {
 }
 
 /// Wrapper struct to display a package as an inline table in the lock file
-/// (matching the convention in the source manifest). This is necessary because
+/// (matching the convention in the source manifest).  This is necessary because
 /// the `toml` crate does not currently support serializing types as inline
 /// tables.
 struct PackageTOML<'a>(&'a Package);
@@ -1282,7 +1282,7 @@ impl DependencyGraph {
         let mut dev_dependencies = None;
         let mut packages = None;
         if !writer.is_empty() {
-            let toml = writer.parse::<toml_edit::DocumentMut>()?;
+            let toml = writer.parse::<toml_edit::Document>()?;
             if let Some(value) = toml.get("dependencies").and_then(|v| v.as_value()) {
                 dependencies = Some(value.clone());
             }
@@ -1686,12 +1686,13 @@ impl<'a> fmt::Display for SubstTOML<'a> {
 
 /// Escape a string to output in a TOML file.
 fn str_escape(s: &str) -> String {
-    format!("\"{s}\"")
+    toml::Value::String(s.to_string()).to_string()
 }
 
 /// Escape a path to output in a TOML file.
 fn path_escape(p: &Path) -> Result<String, fmt::Error> {
-    p.to_str().map(str_escape).ok_or(fmt::Error)
+    // Handle non-UTF-8 paths by escaping the lossy representation
+    Ok(str_escape(p.to_string_lossy().as_ref()))
 }
 
 fn format_deps(

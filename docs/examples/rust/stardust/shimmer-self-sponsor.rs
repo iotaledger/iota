@@ -12,17 +12,17 @@ use bip32::DerivationPath;
 use docs_examples::utils::{clean_keystore, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
+    IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
+        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
         base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         smr_coin::SMR,
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
-    IotaClientBuilder,
 };
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
@@ -53,8 +53,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let sponsor = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
         ED25519,
-        None,
         Some(sponsor_derivation_path),
+        None,
     )?;
     println!("Sponsor address: {sponsor:?}");
 
@@ -62,8 +62,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let sender = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
         ED25519,
-        None,
         Some(sender_derivation_path),
+        None,
     )?;
     println!("Sender address: {sender:?}");
 
@@ -103,7 +103,7 @@ async fn main() -> Result<(), anyhow::Error> {
             type_arguments,
             arguments,
         ) {
-            // If the basic output can be unlocked, the command will be succesful and will
+            // If the basic output can be unlocked, the command will be successful and will
             // return a `base_token` (i.e., SMR) balance and a `Bag` of native tokens
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
             let extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);

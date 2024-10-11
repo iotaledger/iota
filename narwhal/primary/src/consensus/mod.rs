@@ -16,7 +16,7 @@ use thiserror::Error;
 use types::Certificate;
 
 #[cfg(test)]
-pub use crate::consensus::consensus_utils::{make_certificate_store, NUM_SUB_DAGS_PER_SCHEDULE};
+pub use crate::consensus::consensus_utils::{NUM_SUB_DAGS_PER_SCHEDULE, make_certificate_store};
 pub use crate::consensus::{
     bullshark::Bullshark,
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
@@ -35,7 +35,7 @@ pub const NUM_SHUTDOWN_RECEIVERS: u64 = 25;
 #[derive(Clone, Debug, Error, PartialEq)]
 pub enum ConsensusError {
     #[error("Storage failure: {0}")]
-    StoreError(#[from] StoreError),
+    Store(#[from] StoreError),
 
     #[error("Certificate {0:?} equivocates with earlier certificate {1:?}")]
     CertificateEquivocation(Certificate, Certificate),

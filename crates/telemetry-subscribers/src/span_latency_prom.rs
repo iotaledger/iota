@@ -15,6 +15,7 @@
 //!   histograms takes extra CPU
 //! - tracing-timing records latencies using HDRHistogram, which is great, but
 //!   uses extra memory when one is already using Prometheus
+//!
 //! Thus this is a much smaller and more focused module.
 //!
 //! ## Making spans visible
@@ -23,8 +24,8 @@
 
 use std::time::Instant;
 
-use prometheus::{exponential_buckets, register_histogram_vec_with_registry, Registry};
-use tracing::{span, Subscriber};
+use prometheus::{Registry, exponential_buckets, register_histogram_vec_with_registry};
+use tracing::{Subscriber, span};
 
 /// A tokio_tracing Layer that records span latencies into Prometheus histograms
 pub struct PrometheusSpanLatencyLayer {

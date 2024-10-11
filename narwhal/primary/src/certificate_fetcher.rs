@@ -12,7 +12,7 @@ use std::{
 use anemo::Request;
 use config::{AuthorityIdentifier, Committee};
 use crypto::NetworkPublicKey;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use iota_metrics::{
     metered_channel::Receiver, monitored_future, monitored_scope, spawn_logged_monitored_task,
 };
@@ -22,14 +22,14 @@ use storage::CertificateStore;
 use tokio::{
     sync::watch,
     task::{JoinHandle, JoinSet},
-    time::{sleep, timeout, Instant},
+    time::{Instant, sleep, timeout},
 };
 use tracing::{debug, error, instrument, trace, warn};
 use types::{
+    Certificate, CertificateAPI, ConditionalBroadcastReceiver, FetchCertificatesRequest,
+    FetchCertificatesResponse, HeaderAPI, Round,
     error::{DagError, DagResult},
-    validate_received_certificate_version, Certificate, CertificateAPI,
-    ConditionalBroadcastReceiver, FetchCertificatesRequest, FetchCertificatesResponse, HeaderAPI,
-    Round,
+    validate_received_certificate_version,
 };
 
 use crate::{consensus::ConsensusRound, metrics::PrimaryMetrics, synchronizer::Synchronizer};
@@ -40,8 +40,7 @@ pub mod certificate_fetcher_tests;
 
 // Maximum number of certificates to fetch with one request.
 const MAX_CERTIFICATES_TO_FETCH: usize = 2_000;
-// Seconds to wait for a response before issuing another parallel fetch
-// request.
+// Seconds to wait for a response before issuing another parallel fetch request.
 const PARALLEL_FETCH_REQUEST_INTERVAL_SECS: Duration = Duration::from_secs(5);
 // The timeout for an iteration of parallel fetch requests over all peers would
 // be num peers * PARALLEL_FETCH_REQUEST_INTERVAL_SECS +

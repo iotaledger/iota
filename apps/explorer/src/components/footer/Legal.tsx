@@ -13,7 +13,7 @@ export function LegalText(): JSX.Element {
         <div className="flex justify-center md:justify-start">
             <Text color="steel-darker" variant="pSubtitleSmall/medium">
                 &copy;
-                {`${new Date().getFullYear()} IOTA Stiftung. The explorer is adapted from the Sui Explorer, ©2024 by Mysten Labs, licensed under Apache License 2.0. All rights reserved.`}
+                {`${new Date().getFullYear()} IOTA Stiftung. All rights reserved.`}
             </Text>
         </div>
     );

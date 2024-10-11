@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, LoadingIndicator } from '_components';
+import { Alert } from '_components';
 import {
     calculateStakeShare,
     formatPercentageDisplay,
@@ -18,7 +18,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator';
-import { KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
+import { KeyValueInfo, LoadingIndicator, Panel, TooltipPosition } from '@iota/apps-ui-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface ValidatorFormDetailProps {
@@ -118,13 +118,15 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         keyText="Staking APY"
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Annualized percentage yield based on past validator performance. Future APY may vary"
-                        valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                        value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                        fullwidth
                     />
                     <KeyValueInfo
                         keyText="Stake Share"
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Stake percentage managed by this validator."
-                        valueText={formatPercentageDisplay(totalStakePercentage)}
+                        value={formatPercentageDisplay(totalStakePercentage)}
+                        fullwidth
                     />
                     {!unstake && (
                         <>
@@ -132,15 +134,17 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                                 keyText="Total Staked"
                                 tooltipPosition={TooltipPosition.Right}
                                 tooltipText="Stake percentage managed by this validator."
-                                valueText={totalValidatorStakeFormatted}
+                                value={totalValidatorStakeFormatted}
                                 supportingLabel={totalValidatorStakeSymbol}
+                                fullwidth
                             />
                             <KeyValueInfo
                                 keyText="Your Staked IOTA"
                                 tooltipPosition={TooltipPosition.Right}
                                 tooltipText="Your current staked balance."
-                                valueText={totalStakeFormatted}
+                                value={totalStakeFormatted}
                                 supportingLabel={totalStakeSymbol}
+                                fullwidth
                             />
                         </>
                     )}

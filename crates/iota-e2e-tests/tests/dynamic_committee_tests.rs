@@ -14,20 +14,20 @@ use iota_macros::*;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_system_state::{
-        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
         IotaSystemStateTrait,
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
     transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
-    IOTA_SYSTEM_PACKAGE_ID,
 };
 use move_core_types::ident_str;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
@@ -59,7 +59,7 @@ trait StatePredicate {
         runner: &StressTestRunner,
         effects: &TransactionEffects,
     );
-    #[allow(dead_code)]
+    #[allow(unused)]
     async fn post_epoch_post_condition(
         &mut self,
         runner: &StressTestRunner,

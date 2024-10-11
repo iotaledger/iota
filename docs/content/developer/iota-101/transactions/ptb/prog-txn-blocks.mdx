@@ -2,6 +2,8 @@
 title: Programmable Transaction Blocks
 description: Programmable transaction blocks are a group of commands that complete a transaction on IOTA.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/prog-txn-blocks.json';
 
 On IOTA, a transaction is more than a basic record of the flow of assets. Transactions on IOTA are composed of a number of commands that execute on inputs to define the result of the transaction. Termed programmable transaction blocks (PTBs), these groups of commands define all user transactions on IOTA. PTBs allow a user to call multiple Move functions, manage their objects, and manage their coins in a single transaction--without publishing a new Move package. Designed with automation and transaction builders in mind, PTBs are a lightweight and flexible way of generating transactions. More intricate programming patterns, such as loops, are not supported, however, and in those cases you must publish a new Move package.
 
@@ -96,7 +98,7 @@ Each command takes `Argument`s that specify the input or result being used. The 
 - `NestedResult(u16, u16)` uses the value from a previous command. The first `u16` is the index of the command in the command vector, and the second `u16` is the index of the result in the result vector of that command. For example, given a command vector of `[MoveCall1, MoveCall2, TransferObjects]` where `MoveCall2` has a result vector of `[Value1, Value2]`, `Value1` would be accessed with `NestedResult(1, 0)` and `Value2` would be accessed with `NestedResult(1, 1)`.
 - `Result(u16)` is a special form of `NestedResult` where `Result(i)` is roughly equivalent to `NestedResult(i, 0)`. Unlike `NestedResult(i, 0)`, `Result(i)`, however, this errors if the result array at index `i` is empty or has more than one value. The ultimate intention of `Result` is to allow accessing the entire result array, but that is not yet supported. So in its current state, `NestedResult` can be used instead of `Result` in all circumstances.
 
-## Execution {#execution}
+## Execution
 
 For the execution of PTBs, the input vector is populated by the input objects or pure value bytes. The transaction commands are then executed in order, and the results are stored in the result vector. Finally, the effects of the transaction are applied atomically. The following sections describe each aspect of execution in greater detail.
 
@@ -110,7 +112,7 @@ The most important thing to note at this stage is the effects on the gas coin. A
 
 Each transaction command is then executed in order. First, examine the rules around arguments, which are shared by all commands.
 
-#### Arguments {#arguments}
+#### Arguments
 
 You can use each argument by-reference or by-value. The usage is based on the type of the argument and the type signature of the command.
   - If the signature expects an `&mut T`, the runtime checks the argument has type `T` and it is then mutably borrowed.
@@ -152,7 +154,7 @@ The command has the form `TransferObjects(ObjectArgs, AddressArg)` where `Object
 
 The command has the form `SplitCoins(CoinArg, AmountArgs)` where `CoinArg` is the coin being split and `AmountArgs` is a vector of amounts to split off.
 
-- When the transaction is signed, the network verifies that the `AmountArgs` is non-empty.
+- When the transaction is signed, the network verifies that the `ToMergeArgs` is non-empty.
 - The coin argument `CoinArg: Argument` must be a coin of type `iota::coin::Coin<T>` where `T` is the type of the coin being split. It can be any coin type and is not limited to `IOTA` coins.
 - The amount arguments `AmountArgs: [Argument]` must be `u64` values, which could come from a `Pure` input or a result.
 - The coin argument `CoinArg` is taken by mutable reference.
@@ -178,7 +180,7 @@ The command has the form `MakeMoveVec(VecTypeOption, Args)` where `VecTypeOption
 
 - When the transaction is signed, the network verifies that if that the type must be specified for an empty vector of `Args`.
 - The type `VecTypeOption: Option<TypeTag>` is an optional argument specifying the type of the elements in the vector being constructed. The `TypeTag` is a Move type for the elements in the vector, i.e. the `T` in the produced `vector<T>`.
-  - The type does not not have to be specified for an object vector--when `T: key`.
+  - The type does not have to be specified for an object vector--when `T: key`.
   - The type _must_ be specified if the type is not an object type or when the vector is empty.
 - The arguments `Args: [Argument]` are the elements of the vector. The arguments can be any type, including objects, pure values, or results from previous commands.
 - The arguments `Args` are taken by value. Copied if `T: copy` and moved otherwise.
@@ -196,7 +198,7 @@ This command has the form `MoveCall(Package, Module, Function, TypeArgs, Args)` 
 - The arguments `Args: [Argument]` are the arguments to the function being called. The arguments must be valid for the parameters as specified in the function's signature.
 - Unlike the other commands, the usage of the arguments and the number of results are dynamic in that they both depend on the signature of the Move function being called.
 
-#### `Publish` {#publish}
+#### `Publish`
 
 The command has the form `Publish(ModuleBytes, TransitiveDependencies)` where `ModuleBytes` are the bytes of the module being published and `TransitiveDependencies` is a vector of package Object ID dependencies to link against.
 
@@ -441,3 +443,5 @@ After these checks are performed, generate the effects.
   - The `Item` with `id2` is a newly created object.
 - The `Marketplace` object is returned, remains shared, and it's mutated.
   - The object remains shared but its contents are mutated.
+  
+<Quiz questions={questions} />

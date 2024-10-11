@@ -11,11 +11,7 @@ module iota_system::validator {
     use iota::balance::{Self, Balance};
     use iota::iota::IOTA;
 
-    friend iota_system::genesis;
-    friend iota_system::iota_system_state_inner;
-    friend iota_system::validator_wrapper;
-
-    struct ValidatorMetadata has store {
+    public struct ValidatorMetadata has store {
         iota_address: address,
         protocol_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
@@ -27,14 +23,14 @@ module iota_system::validator {
         extra_fields: Bag,
     }
 
-    struct Validator has store {
+    public struct Validator has store {
         metadata: ValidatorMetadata,
         voting_power: u64,
         stake: Balance<IOTA>,
         extra_fields: Bag,
     }
 
-    public(friend) fun new(
+    public(package) fun new(
         iota_address: address,
         protocol_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,

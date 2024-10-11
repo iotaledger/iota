@@ -7,8 +7,8 @@ import { config } from 'dotenv';
 
 export default defineConfig({
     test: {
-        minThreads: 1,
-        maxThreads: 8,
+        minWorkers: 1,
+        maxWorkers: 4,
         hookTimeout: 1000000,
         testTimeout: 1000000,
         env: {
@@ -18,12 +18,12 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@iota/bcs': new URL('../bcs/src', import.meta.url).toString(),
+            '@iota/bcs': new URL('../bcs/src', import.meta.url).pathname,
             '@iota/iota-sdk/transactions': new URL(
                 '../typescript/src/transactions',
                 import.meta.url,
-            ).toString(),
-            '@iota/iota-sdk': new URL('../typescript/src', import.meta.url).toString(),
+            ).pathname,
+            '@iota/iota-sdk': new URL('../typescript/src', import.meta.url).pathname,
         },
     },
 });

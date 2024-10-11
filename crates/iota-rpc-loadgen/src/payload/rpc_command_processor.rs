@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use dashmap::{DashMap, DashSet};
 use futures::future::join_all;
@@ -22,12 +22,12 @@ use iota_json_rpc_types::{
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    crypto::{get_key_pair, AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature},
+    crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{Intent, IntentMessage};
 use tokio::{sync::RwLock, time::sleep};
 use tracing::{debug, info};
@@ -36,9 +36,9 @@ use super::MultiGetTransactionBlocks;
 use crate::{
     load_test::LoadTestConfig,
     payload::{
-        checkpoint_utils::get_latest_checkpoint_stats, validation::chunk_entities, Command,
-        CommandData, DryRun, GetAllBalances, GetCheckpoints, GetObject, MultiGetObjects, Payload,
-        ProcessPayload, Processor, QueryTransactionBlocks, SignerInfo,
+        Command, CommandData, DryRun, GetAllBalances, GetCheckpoints, GetObject, MultiGetObjects,
+        Payload, ProcessPayload, Processor, QueryTransactionBlocks, SignerInfo,
+        checkpoint_utils::get_latest_checkpoint_stats, validation::chunk_entities,
     },
 };
 

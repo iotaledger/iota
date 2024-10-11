@@ -6,7 +6,7 @@ import { CONSTANTS, QueryKey } from "@/constants";
 import { useTransactionExecution } from "@/hooks/useTransactionExecution";
 import { useCurrentAccount, useIotaClient } from "@iota/dapp-kit";
 import { IotaObjectData } from "@iota/iota-sdk/client";
-import { TransactionBlock } from "@iota/iota-sdk/transactions";
+import { Transaction } from "@iota/iota-sdk/transactions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
@@ -21,7 +21,7 @@ export function useLockObjectMutation() {
     mutationFn: async ({ object }: { object: IotaObjectData }) => {
       if (!account?.address)
         throw new Error("You need to connect your wallet!");
-      const txb = new TransactionBlock();
+      const txb = new Transaction();
 
       const [locked, key] = txb.moveCall({
         target: `${CONSTANTS.escrowContract.packageId}::lock::lock`,
@@ -74,7 +74,7 @@ export function useUnlockMutation() {
         return;
       }
 
-      const txb = new TransactionBlock();
+      const txb = new Transaction();
 
       const item = txb.moveCall({
         target: `${CONSTANTS.escrowContract.packageId}::lock::unlock`,

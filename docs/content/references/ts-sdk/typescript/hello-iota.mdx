@@ -65,7 +65,7 @@ const MY_ADDRESS = '<YOUR_IOTA_ADDRESS>';
 // create a new IotaClient object pointing to the network you want to use
 const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
 
-// Convert NANOS to Iota
+// Convert NANOS to IOTA
 const balance = (balance) => {
     return Number.parseInt(balance.totalBalance) / Number(NANOS_PER_IOTA);
 };

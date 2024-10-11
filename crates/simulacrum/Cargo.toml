@@ -26,6 +26,7 @@ iota-framework.workspace = true
 iota-genesis-builder.workspace = true
 iota-keys.workspace = true
 iota-protocol-config.workspace = true
+iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true

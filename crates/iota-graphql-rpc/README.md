@@ -112,12 +112,12 @@ Try out the following sample query to see if the server is running successfully:
 
 Find more example queries in the [examples](examples) directory.
 
-### Launching with an Indexer
+### Launching the server with Indexer
 
 For local development, it might be useful to spin up an actual Indexer as well (not only the postgres instance for the Indexer) which writes data to the database, so you can query it with the GraphQL server.
-You can run it as part of [iota-test-validator](../../crates/iota-test-validator/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
+You can run it as a single service via [pg-services-local](../../docker/pg-services-local/README.md), through the `iota start` subcommand or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
 
-`cargo run --bin iota-test-validator -- --with-indexer --pg-port 5432 --pg-db-name iota_indexer --graphql-host 127.0.0.1 --graphql-port 8000`
+`cargo run --features indexer --bin iota start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:9125`
 
 ## Running tests
 

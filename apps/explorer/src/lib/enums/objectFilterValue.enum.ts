@@ -2,6 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export enum ObjectFilterValue {
-    Input = 'inputObject',
-    Changed = 'changedObject',
+    Input = 'InputObject',
+    Changed = 'ChangedObject',
 }

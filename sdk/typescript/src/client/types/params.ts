@@ -12,7 +12,7 @@
  */
 
 import type * as RpcTypes from './generated.js';
-import type { TransactionBlock } from '../../transactions/index.js';
+import type { Transaction } from '../../transactions/index.js';
 /**
  * Runs the transaction in dev-inspect mode. Which allows for nearly any transaction (or Move call)
  * with any arguments. Detailed results are provided, including both the transaction effects and any
@@ -21,7 +21,7 @@ import type { TransactionBlock } from '../../transactions/index.js';
 export interface DevInspectTransactionBlockParams {
     sender: string;
     /** BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice) */
-    transactionBlock: TransactionBlock | Uint8Array | string;
+    transactionBlock: Transaction | Uint8Array | string;
     /** Gas is not charged, but gas usage is still calculated. Default to use reference gas price */
     gasPrice?: bigint | number | null | undefined;
     /** The epoch to perform the call. Will be set from the system state object if not provided */
@@ -56,7 +56,7 @@ export interface ExecuteTransactionBlockParams {
     signature: string | string[];
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
-    /** The request type, derived from `IotaTransactionBlockResponseOptions` if None */
+    /** @deprecated requestType will be ignored by JSON RPC in the future */
     requestType?: RpcTypes.ExecuteTransactionRequestType | null | undefined;
 }
 /** Return the first four bytes of the chain's genesis checkpoint digest. */
@@ -85,9 +85,6 @@ export interface GetEventsParams {
 }
 /** Return the sequence number of the latest checkpoint that has been executed */
 export interface GetLatestCheckpointSequenceNumberParams {}
-export interface GetLoadedChildObjectsParams {
-    digest: string;
-}
 /** Return the argument types of a Move function, based on normalized Type. */
 export interface GetMoveFunctionArgTypesParams {
     package: string;
@@ -197,6 +194,9 @@ export interface GetAllCoinsParams {
     /** maximum number of items per page */
     limit?: number | null | undefined;
 }
+export interface GetAllEpochAddressMetricsParams {
+    descendingOrder?: boolean | null | undefined;
+}
 /** Return the total coin balance for one coin type, owned by the address owner. */
 export interface GetBalanceParams {
     /** the owner's Iota address */
@@ -207,7 +207,10 @@ export interface GetBalanceParams {
      */
     coinType?: string | null | undefined;
 }
-/** Return metadata(e.g., symbol, decimals) for a coin */
+export interface GetCheckpointAddressMetricsParams {
+    checkpoint: string;
+}
+/** Return metadata (e.g., symbol, decimals) for a coin. */
 export interface GetCoinMetadataParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
@@ -231,6 +234,8 @@ export interface GetCommitteeInfoParams {
     /** The epoch of interest. If None, default to the latest epoch */
     epoch?: string | null | undefined;
 }
+/** Return current epoch info */
+export interface GetCurrentEpochParams {}
 /** Return the dynamic field object information for a specified object */
 export interface GetDynamicFieldObjectParams {
     /** The ID of the queried parent object */
@@ -250,8 +255,32 @@ export interface GetDynamicFieldsParams {
     /** Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
 }
+/** Return a list of epoch metrics, which is a subset of epoch info */
+export interface GetEpochMetricsParams {
+    /** Optional paging cursor */
+    cursor?: string | null | undefined;
+    /** Maximum number of items per page */
+    limit?: number | null | undefined;
+    /** Flag to return results in descending order */
+    descendingOrder?: boolean | null | undefined;
+}
+/** Return a list of epoch info */
+export interface GetEpochsParams {
+    /** Optional paging cursor */
+    cursor?: string | null | undefined;
+    /** Maximum number of items per page */
+    limit?: number | null | undefined;
+    /** Flag to return results in descending order */
+    descendingOrder?: boolean | null | undefined;
+}
+/** Address related metrics */
+export interface GetLatestAddressMetricsParams {}
 /** Return the latest IOTA system state object on-chain. */
 export interface GetLatestIotaSystemStateParams {}
+/** Return move call metrics */
+export interface GetMoveCallMetricsParams {}
+/** Return Network metrics */
+export interface GetNetworkMetricsParams {}
 /**
  * Return the list of objects owned by an address. Note that if the address owns more than
  * `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have
@@ -286,11 +315,12 @@ export interface GetTimelockedStakesParams {
 export interface GetTimelockedStakesByIdsParams {
     timelockedStakedIotaIds: string[];
 }
-/** Return total supply for a coin */
+/** Return total supply for a coin. */
 export interface GetTotalSupplyParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
 }
+export interface GetTotalTransactionsParams {}
 /** Return the validator APY */
 export interface GetValidatorsApyParams {}
 /** Return list of events for a specified query criteria. */
@@ -319,21 +349,6 @@ export type QueryTransactionBlocksParams = {
     /** query result ordering, default to false (ascending order), oldest record first. */
     order?: 'ascending' | 'descending' | null | undefined;
 } & RpcTypes.IotaTransactionBlockResponseQuery;
-/** Return the resolved address given resolver and name */
-export interface ResolveNameServiceAddressParams {
-    /** The name to resolve */
-    name: string;
-}
-/**
- * Return the resolved names given address, if multiple names are resolved, the first one is the
- * primary name.
- */
-export interface ResolveNameServiceNamesParams {
-    /** The address to resolve */
-    address: string;
-    cursor?: string | null | undefined;
-    limit?: number | null | undefined;
-}
 /** Subscribe to a stream of Iota event */
 export interface SubscribeEventParams {
     /**

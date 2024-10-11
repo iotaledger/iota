@@ -11,10 +11,10 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     hash::Hash,
 };
-use futures::{stream::FuturesOrdered, StreamExt};
+use futures::{StreamExt, stream::FuturesOrdered};
 use primary::{
+    CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS, Primary,
     consensus::{ConsensusRound, LeaderSchedule, LeaderSwapTable},
-    Primary, CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS,
 };
 use prometheus::Registry;
 use storage::NodeStorage;
@@ -23,7 +23,7 @@ use store::{
     rocks::{MetricConf, ReadWriteOptions},
 };
 use test_utils::{
-    batch, latest_protocol_version, temp_dir, test_network, transaction, CommitteeFixture,
+    CommitteeFixture, batch, latest_protocol_version, temp_dir, test_network, transaction,
 };
 use tokio::sync::watch;
 use types::{
@@ -32,7 +32,7 @@ use types::{
 };
 
 use super::*;
-use crate::{metrics::initialise_metrics, LocalNarwhalClient, TrivialTransactionValidator};
+use crate::{LocalNarwhalClient, TrivialTransactionValidator, metrics::initialise_metrics};
 
 // A test validator that rejects every transaction / batch
 #[derive(Clone)]
@@ -108,7 +108,7 @@ async fn reject_invalid_clients_transactions() {
     let mut client = TransactionsClient::new(channel);
     let tx = transaction();
     let txn = TransactionProto {
-        transaction: Bytes::from(tx.clone()),
+        transactions: vec![Bytes::from(tx.clone())],
     };
 
     // Check invalid transactions are rejected
@@ -240,7 +240,7 @@ async fn handle_remote_clients_transactions() {
         let mut fut_list = FuturesOrdered::new();
         for tx in batch.transactions() {
             let txn = TransactionProto {
-                transaction: Bytes::from(tx.clone()),
+                transactions: vec![Bytes::from(tx.clone())],
             };
 
             // Calls to submit_transaction are now blocking, so we need to drive them
@@ -359,7 +359,10 @@ async fn handle_local_clients_transactions() {
             // all at the same time, rather than sequentially.
             let inner_client = client.clone();
             fut_list.push_back(async move {
-                inner_client.submit_transaction(txn.clone()).await.unwrap();
+                inner_client
+                    .submit_transactions(vec![txn.clone()])
+                    .await
+                    .unwrap();
             });
         }
 

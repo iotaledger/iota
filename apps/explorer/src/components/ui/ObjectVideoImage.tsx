@@ -11,7 +11,8 @@ import { Image, ObjectModal, type ImageProps } from '~/components/ui';
 const imageStyles = cva(['z-0 flex-shrink-0 relative'], {
     variants: {
         variant: {
-            xs: 'h-8 w-8',
+            xxs: 'h-8 w-8',
+            xs: 'h-12 w-12',
             small: 'h-16 w-16',
             medium: 'md:h-31.5 md:w-31.5 h-16 w-16',
             large: 'h-50 w-50',
