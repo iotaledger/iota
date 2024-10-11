@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { PageLayout, Banner, PageHeader } from '~/components';
@@ -13,6 +12,7 @@ import {
     ButtonSegmentType,
     LabelText,
     LabelTextSize,
+    LoadingIndicator,
     Panel,
     SegmentedButton,
     SegmentedButtonType,

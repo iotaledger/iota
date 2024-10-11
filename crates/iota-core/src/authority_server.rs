@@ -38,7 +38,6 @@ use iota_types::{
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
     transaction::*,
 };
-use narwhal_worker::LazyNarwhalClient;
 use nonempty::{NonEmpty, nonempty};
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -57,6 +56,7 @@ use crate::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    mysticeti_adapter::LazyMysticetiClient,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, policies::TrafficTally,
     },
@@ -127,9 +127,8 @@ impl AuthorityServer {
 
     /// Creates a new `AuthorityServer` for testing.
     pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
-        let consensus_address = new_local_tcp_address_for_testing();
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyNarwhalClient::new(consensus_address)),
+            Arc::new(LazyMysticetiClient::new()),
             state.name,
             Arc::new(ConnectionMonitorStatusForTests {}),
             100_000,
