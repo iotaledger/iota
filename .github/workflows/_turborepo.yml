@@ -48,8 +48,6 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-
-      - name: Build ui kit
-        run: pnpm turbo build --filter=@iota/apps-ui-kit
       - name: Lint
         run: pnpm turbo lint
       - name: Install wasm-pack for mbf package

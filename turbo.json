@@ -2,7 +2,9 @@
 	"ui": "tui",
 	"$schema": "https://turbo.build/schema.json",
 	"tasks": {
-		"lint": {},
+		"lint": {
+			"dependsOn": ["@iota/apps-ui-kit#build"]
+		},
 		"lint:fix": {
 			"dependsOn": ["^build"]
 		},
