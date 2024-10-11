@@ -93,6 +93,9 @@ function TransferCoinPage() {
                         {getSignerOperationErrorMessage(error)}
                     </small>
                 </div>,
+                {
+                    duration: 10000,
+                },
             );
         },
     });

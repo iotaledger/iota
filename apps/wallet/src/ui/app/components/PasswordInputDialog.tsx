@@ -8,14 +8,13 @@ import FieldLabel from '_src/ui/app/shared/field-label';
 import { Heading } from '_src/ui/app/shared/heading';
 import { PasswordInputField } from '_src/ui/app/shared/input/password';
 import { Text } from '_src/ui/app/shared/text';
-import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 import classNames from 'clsx';
 import { ErrorMessage, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
+import { ArrowLeft, ArrowRight, Warning } from '@iota/ui-icons';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),
@@ -104,7 +103,7 @@ export function PasswordInputDialog({
                                 color="heroDark"
                                 size="tall"
                                 variant="outline"
-                                before={<ArrowLeft16 />}
+                                before={<ArrowLeft className="h-4 w-4" />}
                                 onClick={() => {
                                     if (typeof onBackClicked === 'function') {
                                         onBackClicked();
@@ -122,7 +121,7 @@ export function PasswordInputDialog({
                             text={continueLabel}
                             loading={isSubmitting}
                             disabled={!isValid}
-                            after={showArrowIcon ? <ArrowRight16 /> : null}
+                            after={showArrowIcon ? <ArrowRight className="h-4 w-4" /> : null}
                         />
                     </div>
                 </Form>
