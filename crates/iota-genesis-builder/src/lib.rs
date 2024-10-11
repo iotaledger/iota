@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::BTreeMap,
     fs::{self, File},
     io::{BufReader, BufWriter, prelude::Read},
     path::{Path, PathBuf},
@@ -26,6 +26,7 @@ use iota_config::{
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
+use iota_genesis_common::{execute_genesis_transaction, process_package};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{Url, types::block::address::Address};
 use iota_types::{
@@ -43,10 +44,9 @@ use iota_types::{
     },
     deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
     event::Event,
-    gas::IotaGasStatus,
     gas_coin::{GAS, GasCoin},
     governance::StakedIota,
     id::UID,
@@ -68,11 +68,9 @@ use iota_types::{
         timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{
-        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
-        Transaction,
+        CallArg, CheckedInputObjects, InputObjectKind, ObjectArg, ObjectReadResult, Transaction,
     },
 };
-use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
@@ -1216,46 +1214,9 @@ fn create_genesis_transaction(
         .into_inner()
     };
 
-    let genesis_digest = *genesis_transaction.digest();
     // execute txn to effects
-    let (effects, events, objects) = {
-        let silent = true;
-
-        let executor = iota_execution::executor(protocol_config, silent, None)
-            .expect("Creating an executor should not fail here");
-
-        let expensive_checks = false;
-        let certificate_deny_set = HashSet::new();
-        let transaction_data = &genesis_transaction.data().intent_message().value;
-        let (kind, signer, _) = transaction_data.execution_parts();
-        let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
-        let (inner_temp_store, _, effects, _execution_error) = executor
-            .execute_transaction_to_effects(
-                &InMemoryStorage::new(Vec::new()),
-                protocol_config,
-                metrics,
-                expensive_checks,
-                &certificate_deny_set,
-                &epoch_data.epoch_id(),
-                epoch_data.epoch_start_timestamp(),
-                input_objects,
-                vec![],
-                IotaGasStatus::new_unmetered(),
-                kind,
-                signer,
-                genesis_digest,
-            );
-        assert!(inner_temp_store.input_objects.is_empty());
-        assert!(inner_temp_store.mutable_inputs.is_empty());
-        assert!(effects.mutated().is_empty());
-        assert!(effects.unwrapped().is_empty());
-        assert!(effects.deleted().is_empty());
-        assert!(effects.wrapped().is_empty());
-        assert!(effects.unwrapped_then_deleted().is_empty());
-
-        let objects = inner_temp_store.written.into_values().collect();
-        (effects, inner_temp_store.events, objects)
-    };
+    let (effects, events, objects) =
+        execute_genesis_transaction(epoch_data, protocol_config, metrics, &genesis_transaction);
 
     (genesis_transaction, effects, events, objects)
 }

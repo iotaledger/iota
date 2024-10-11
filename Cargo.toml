@@ -91,6 +91,7 @@ members = [
   "crates/iota-framework-snapshot",
   "crates/iota-framework-tests",
   "crates/iota-genesis-builder",
+  "crates/iota-genesis-common",
   "crates/iota-graphql-config",
   "crates/iota-graphql-e2e-tests",
   "crates/iota-graphql-rpc",
@@ -508,6 +509,7 @@ iota-framework = { path = "crates/iota-framework" }
 iota-framework-snapshot = { path = "crates/iota-framework-snapshot" }
 iota-framework-tests = { path = "crates/iota-framework-tests" }
 iota-genesis-builder = { path = "crates/iota-genesis-builder" }
+iota-genesis-common = { path = "crates/iota-genesis-common" }
 iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
