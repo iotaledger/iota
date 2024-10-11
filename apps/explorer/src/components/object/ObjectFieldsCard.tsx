@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search24 } from '@iota/icons';
 import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 import clsx from 'clsx';
@@ -22,6 +21,7 @@ import {
     TitleSize,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
+import { Search } from '@iota/ui-icons';
 
 const DEFAULT_OPEN_FIELDS = 3;
 const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
@@ -136,7 +136,7 @@ export function ObjectFieldsCard({
                                             className="border-none bg-inherit pr-2"
                                             type="submit"
                                         >
-                                            <Search24 className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
+                                            <Search className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
                                         </button>
                                     </div>
                                     <ComboboxList

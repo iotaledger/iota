@@ -14,14 +14,13 @@ import {
     useFloating,
     useInteractions,
 } from '@floating-ui/react';
-import { ChevronDown12, Dot12 } from '@iota/icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { ButtonConnectedTo } from '../ButtonConnectedTo';
 import { appDisconnect } from './actions';
 import st from './DappStatus.module.scss';
+import { ArrowDown, CircleEmitter } from '@iota/ui-icons';
 
 function DappStatus() {
     const dispatch = useAppDispatch();
@@ -101,9 +100,9 @@ function DappStatus() {
         <>
             <ButtonConnectedTo
                 truncate
-                iconBefore={<Dot12 className="text-success" />}
+                iconBefore={<CircleEmitter className="text-success h-3 w-3" />}
                 text={activeOrigin || ''}
-                iconAfter={<ChevronDown12 />}
+                iconAfter={<ArrowDown className="h-3 w-3" />}
                 ref={reference}
                 {...getReferenceProps()}
             />
