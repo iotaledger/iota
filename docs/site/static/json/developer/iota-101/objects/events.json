@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the main purpose of events in IOTA Move smart contracts?",
+        "answerOptions": [
+            { "answerText": "To store data permanently on the blockchain.", "isCorrect": false },
+            { "answerText": "To track on-chain actions and allow subscriptions to these events.", "isCorrect": true },
+            { "answerText": "To facilitate object transfers between addresses.", "isCorrect": false },
+            { "answerText": "To manage access control for shared objects.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the donut example, when is the `DonutBought` event emitted?",
+        "answerOptions": [
+            { "answerText": "When the donut shop is initialized.", "isCorrect": false },
+            { "answerText": "When the shop owner collects profits.", "isCorrect": false },
+            { "answerText": "When someone purchases a donut.", "isCorrect": true },
+            { "answerText": "When a donut is eaten.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How do you emit an event in IOTA Move?",
+        "answerOptions": [
+            { "answerText": "Using `emit::event(EventType { ... });`", "isCorrect": false },
+            { "answerText": "By calling `event::publish(EventType { ... });`", "isCorrect": false },
+            { "answerText": "Using `event::emit(EventType { ... });`", "isCorrect": true },
+            { "answerText": "By using `iota::event::trigger(EventType { ... });`", "isCorrect": false }
+        ]
+    }
+]

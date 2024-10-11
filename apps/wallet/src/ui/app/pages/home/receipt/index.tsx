@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, Loading, Overlay, ReceiptCard } from '_components';
+import { Loading, Overlay, ReceiptCard } from '_components';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useIotaClient } from '@iota/dapp-kit';
@@ -11,6 +11,8 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/ui-icons';
 
 function ReceiptPage() {
     const location = useLocation();
@@ -23,7 +25,7 @@ function ReceiptPage() {
     const fromParam = searchParams.get('from');
     const client = useIotaClient();
 
-    const { data, isPending, isError } = useQuery<IotaTransactionBlockResponse>({
+    const { data, isPending, isError, error } = useQuery<IotaTransactionBlockResponse>({
         queryKey: ['transactions-by-id', transactionId],
         queryFn: async () => {
             return client.getTransactionBlock({
@@ -66,7 +68,6 @@ function ReceiptPage() {
     if (!transactionId || !activeAddress) {
         return <Navigate to="/transactions" replace={true} />;
     }
-
     return (
         <Loading loading={isPending || isGuardLoading}>
             <Overlay
@@ -77,12 +78,18 @@ function ReceiptPage() {
                 closeIcon={<Check32 fill="currentColor" className="text-iota-light h-8 w-8" />}
             >
                 {isError ? (
-                    <div className="mb-2 h-fit">
-                        <Alert>Something went wrong</Alert>
+                    <div className="mb-2 flex h-full w-full items-center justify-center p-2">
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            title="Something went wrong"
+                            supportingText={error?.message ?? 'An error occurred'}
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Default}
+                        />
                     </div>
-                ) : null}
-
-                {data && <ReceiptCard txn={data} activeAddress={activeAddress} />}
+                ) : (
+                    data && <ReceiptCard txn={data} activeAddress={activeAddress} />
+                )}
             </Overlay>
         </Loading>
     );
