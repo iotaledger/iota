@@ -263,17 +263,13 @@ impl IotaTransactionBlockResponse {
     }
 
     /// Get mutated objects if any
-    pub fn mutated_objects(&self) -> Vec<ObjectRef> {
-        self.object_changes
-            .as_ref()
-            .map(|obj_changes| {
-                obj_changes
-                    .iter()
-                    .filter(|change| matches!(change, ObjectChange::Mutated { .. }))
-                    .map(|change| change.object_ref())
-                    .collect()
-            })
-            .unwrap_or_default()
+    pub fn mutated_objects(&self) -> impl Iterator<Item = ObjectRef> + '_ {
+        self.object_changes.iter().flat_map(|obj_changes| {
+            obj_changes
+                .iter()
+                .filter(|change| matches!(change, ObjectChange::Mutated { .. }))
+                .map(|change| change.object_ref())
+        })
     }
 }
 

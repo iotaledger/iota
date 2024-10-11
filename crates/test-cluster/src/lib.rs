@@ -885,9 +885,10 @@ impl TestCluster {
 
     /// Create transactions based on provided object ids
     /// by transfering them from one address to another
-    pub async fn create_transactions(
+    pub async fn transfer_objects(
         &self,
-        address: IotaAddress,
+        sender: IotaAddress,
+        receiver: IotaAddress,
         object_ids: Vec<ObjectID>,
         gas: ObjectID,
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -896,7 +897,7 @@ impl TestCluster {
 
         for id in object_ids {
             let response = self
-                .transfer_object(address, id, gas, options.clone())
+                .transfer_object(sender, receiver, id, gas, options.clone())
                 .await?;
 
             transaction_block_resp.push(response);
@@ -909,14 +910,15 @@ impl TestCluster {
     /// The object's type must allow public transfers
     pub async fn transfer_object(
         &self,
-        address: IotaAddress,
+        sender: IotaAddress,
+        receiver: IotaAddress,
         object_id: ObjectID,
         gas: ObjectID,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> anyhow::Result<IotaTransactionBlockResponse> {
         let http_client = self.rpc_client();
         let transaction_bytes = http_client
-            .transfer_object(address, object_id, Some(gas), 1_000_000.into(), address)
+            .transfer_object(sender, object_id, Some(gas), 1_000_000.into(), receiver)
             .await?;
 
         let tx = self

@@ -142,7 +142,7 @@ async fn get_transaction_block_with_options(options: IotaTransactionBlockRespons
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
     let transactions = cluster
-        .create_transactions(address, object_ids, gas, Some(options.clone()))
+        .transfer_objects(address, address, object_ids, gas, Some(options.clone()))
         .await
         .unwrap();
 
@@ -166,7 +166,7 @@ async fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlock
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
     let transactions = cluster
-        .create_transactions(address, object_ids, gas, Some(options.clone()))
+        .transfer_objects(address, address, object_ids, gas, Some(options.clone()))
         .await
         .unwrap();
 
@@ -257,7 +257,8 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
     let transactions = cluster
-        .create_transactions(
+        .transfer_objects(
+            address,
             address,
             object_ids,
             gas,
@@ -266,7 +267,8 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
         .await
         .unwrap();
 
-    let (mutated_obj_id, mutated_obj_version, _) = transactions[0].mutated_objects()[0];
+    let (mutated_obj_id, mutated_obj_version, _) =
+        transactions[0].mutated_objects().next().unwrap();
 
     let rpc_past_obj = http_client
         .try_get_past_object(mutated_obj_id, mutated_obj_version, Some(options.clone()))
@@ -308,7 +310,8 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
     let transactions = cluster
-        .create_transactions(
+        .transfer_objects(
+            address,
             address,
             object_ids,
             gas,
@@ -321,10 +324,10 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
         .into_iter()
         .flat_map(|tx| {
             tx.mutated_objects()
-                .into_iter()
                 .map(|(object_id, version, _)| IotaGetPastObjectRequest { object_id, version })
+                .collect::<Vec<IotaGetPastObjectRequest>>()
         })
-        .collect::<Vec<IotaGetPastObjectRequest>>();
+        .collect::<Vec<_>>();
 
     let rpc_past_objs = http_client
         .try_multi_get_past_objects(mutated_past_objects_req, Some(options.clone()))
@@ -1388,7 +1391,8 @@ async fn try_get_past_object_version_not_found() {
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
     let transactions = cluster
-        .create_transactions(
+        .transfer_objects(
+            address,
             address,
             object_ids,
             gas,
@@ -1401,11 +1405,11 @@ async fn try_get_past_object_version_not_found() {
         .into_iter()
         .flat_map(|tx| {
             tx.mutated_objects()
-                .into_iter()
                 .filter(|(_, seq_num, _)| seq_num > &SequenceNumber::from_u64(2))
                 .map(|(object_id, _, _)| object_id)
+                .collect::<Vec<ObjectID>>()
         })
-        .collect::<Vec<ObjectID>>();
+        .collect::<Vec<_>>();
 
     let seq_num = SequenceNumber::from_u64(2);
     let mut at_least_one_version_not_found = false;
@@ -1564,7 +1568,8 @@ async fn try_get_object_before_version() {
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
     let transactions = cluster
-        .create_transactions(
+        .transfer_objects(
+            address,
             address,
             object_ids,
             gas,
@@ -1573,7 +1578,8 @@ async fn try_get_object_before_version() {
         .await
         .unwrap();
 
-    let (mutated_obj_id, mutated_obj_version, _) = transactions[0].mutated_objects()[0];
+    let (mutated_obj_id, mutated_obj_version, _) =
+        transactions[0].mutated_objects().next().unwrap();
 
     let rpc_obj_before_ver = http_client
         .try_get_object_before_version(mutated_obj_id, mutated_obj_version)
