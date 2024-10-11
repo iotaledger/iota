@@ -254,7 +254,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         )}
                     </div>
                     {showPagination && hasAssets && (
-                        <div className="flex flex-col items-center justify-between gap-sm px-sm--rs py-sm--rs sm:flex-row">
+                        <div className="flex flex-row flex-wrap items-center justify-between gap-sm px-sm--rs py-sm--rs">
                             <Pagination {...pagination} />
                             <div className="flex items-center gap-3">
                                 {!isPending && (
