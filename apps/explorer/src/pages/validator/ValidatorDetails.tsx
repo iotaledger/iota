@@ -8,7 +8,6 @@ import { type IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
 import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-
 import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
@@ -57,15 +56,7 @@ function ValidatorDetails(): JSX.Element {
     }, [id, validatorEvents]);
 
     if (isPending || validatorsEventsLoading || validatorsApysLoading) {
-        return (
-            <PageLayout
-                content={
-                    <div className="mb-10 flex items-center justify-center">
-                        <LoadingIndicator />
-                    </div>
-                }
-            />
-        );
+        return <PageLayout content={<LoadingIndicator />} />;
     }
 
     if (!validatorData || !data || !validatorEvents || !id) {

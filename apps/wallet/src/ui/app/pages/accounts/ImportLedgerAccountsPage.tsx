@@ -138,7 +138,7 @@ export function ImportLedgerAccountsPage() {
 function LedgerViewLoading() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm">
-            <LoadingIndicator size="h-5 w-5" />
+            <LoadingIndicator />
             <span className="text-title-lg text-neutral-10">Looking for Accounts...</span>
         </div>
     );
