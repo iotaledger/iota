@@ -60,7 +60,6 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
             </Panel>
             <Panel>
                 <div className="flex flex-col gap-md p-md--rs">
-                    <KeyValueInfo keyText="Location" value="--" />
                     <KeyValueInfo
                         keyText="Pool ID"
                         value={validatorData.stakingPoolId}

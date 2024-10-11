@@ -61,7 +61,7 @@ function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
             {objectIds.map((objectId, index) => (
                 <div key={index} className="flex items-center gap-x-1.5">
                     <ObjectLink objectId={objectId} />
-                    <CopyToClipboard size="sm" copyText={objectId} />
+                    <CopyToClipboard copyText={objectId} />
                 </div>
             ))}
         </div>
