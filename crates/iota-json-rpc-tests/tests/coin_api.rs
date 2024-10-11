@@ -47,8 +47,8 @@ async fn create_and_mint_coins(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
     let compiled_package = BuildConfig::default().build(&path).unwrap();
-    let compiled_modules_bytes =
-        compiled_package.get_package_base64(/* with_unpublished_deps */ false);
+    let with_unpublished_deps = false;
+    let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let transaction_bytes: TransactionBlockBytes = http_client
@@ -82,12 +82,9 @@ async fn create_and_mint_coins(
     let object_changes = tx_response.object_changes.as_ref().unwrap();
     let package_id = object_changes
         .iter()
-        .find_map(|e| {
-            if let ObjectChange::Published { package_id, .. } = e {
-                Some(package_id)
-            } else {
-                None
-            }
+        .find_map(|change| match change {
+            ObjectChange::Published { package_id, .. } => Some(package_id),
+            _ => None,
         })
         .unwrap();
 
@@ -102,25 +99,19 @@ async fn create_and_mint_coins(
     let object_changes = tx_response.object_changes.as_ref().unwrap();
     let treasury_cap = object_changes
         .iter()
-        .find_map(|e| {
-            if let ObjectChange::Created {
+        .filter_map(|change| match change {
+            ObjectChange::Created {
                 object_id,
                 object_type,
                 ..
-            } = e
-            {
-                if &TreasuryCap::type_(parse_iota_struct_tag(&coin_name).unwrap()) == object_type {
-                    Some(object_id)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            } => Some((object_id, object_type)),
+            _ => None,
+        })
+        .find_map(|(object_id, object_type)| {
+            let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
+            (&TreasuryCap::type_(coin_type) == object_type).then_some(object_id)
         })
         .unwrap();
-
-    // Mint 100000 coin
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .move_call(
