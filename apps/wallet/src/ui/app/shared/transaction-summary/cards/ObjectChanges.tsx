@@ -62,7 +62,7 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                         }
                     />
                     <div className="flex flex-row items-center gap-xxs pr-md">
-                        <Badge type={BadgeType.PrimarySoft} label={typeName} />
+                        <Badge type={BadgeType.Neutral} label={typeName} />
                         {change.objectId && (
                             <KeyValueInfo
                                 keyText="Package"

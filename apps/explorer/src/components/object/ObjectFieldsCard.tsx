@@ -2,17 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search24 } from '@iota/icons';
 import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/iota-sdk/client';
-import { Combobox, ComboboxInput, ComboboxList, LoadingIndicator } from '@iota/ui';
+import { Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
-import { FieldCollapsible } from '~/components';
 import { Banner } from '~/components/ui';
 import { getFieldTypeValue } from '~/lib/ui';
 import { FieldItem } from './FieldItem';
 import { ScrollToViewCard } from './ScrollToViewCard';
-import { ButtonUnstyled, KeyValueInfo, Panel, TitleSize } from '@iota/apps-ui-kit';
+import {
+    Accordion,
+    AccordionHeader,
+    Title,
+    AccordionContent,
+    ButtonUnstyled,
+    KeyValueInfo,
+    Panel,
+    TitleSize,
+    LoadingIndicator,
+} from '@iota/apps-ui-kit';
+import { Search } from '@iota/ui-icons';
 
 const DEFAULT_OPEN_FIELDS = 3;
 const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
@@ -127,7 +136,7 @@ export function ObjectFieldsCard({
                                             className="border-none bg-inherit pr-2"
                                             type="submit"
                                         >
-                                            <Search24 className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
+                                            <Search className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
                                         </button>
                                     </div>
                                     <ComboboxList
@@ -172,20 +181,25 @@ export function ObjectFieldsCard({
                     <div className="flex flex-col gap-md p-md--rs">
                         {normalizedStructData?.fields.map(({ name, type }, index) => (
                             <ScrollToViewCard key={name} inView={name === activeFieldName}>
-                                <FieldCollapsible
-                                    open={openFieldsName[name]}
-                                    onOpenChange={onSetOpenFieldsName(name)}
-                                    name={name}
-                                    titleSize={TitleSize.Small}
-                                >
-                                    <div className="p-md--rs">
-                                        <FieldItem
-                                            value={fieldsData[name]}
-                                            objectType={objectType}
-                                            type={type}
-                                        />
-                                    </div>
-                                </FieldCollapsible>
+                                <Accordion>
+                                    <AccordionHeader
+                                        isExpanded={openFieldsName[name]}
+                                        onToggle={() =>
+                                            onSetOpenFieldsName(name)(!openFieldsName[name])
+                                        }
+                                    >
+                                        <Title size={TitleSize.Small} title={name ?? ''} />
+                                    </AccordionHeader>
+                                    <AccordionContent isExpanded={openFieldsName[name]}>
+                                        <div className="p-md--rs">
+                                            <FieldItem
+                                                value={fieldsData[name]}
+                                                objectType={objectType}
+                                                type={type}
+                                            />
+                                        </div>
+                                    </AccordionContent>
+                                </Accordion>
                             </ScrollToViewCard>
                         ))}
                     </div>
