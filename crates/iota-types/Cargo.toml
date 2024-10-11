@@ -64,8 +64,6 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-narwhal-config.workspace = true
-narwhal-crypto.workspace = true
 parking_lot.workspace = true
 shared-crypto.workspace = true
 

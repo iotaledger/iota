@@ -2,6 +2,8 @@
 title: Shared versus Owned Objects
 description: On IOTA, you can use shared objects, owned objects, or both in your transactions. Weigh the benefits of each to decide the best approach for your project.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/shared-owned.json';
 
 # Shared versus Owned Objects
 
@@ -202,3 +204,4 @@ the Move interface ensures that only the original sender and the intended recipi
 The `swap` function checks that the locked object matches the object requested when the `Escrow` was created,
 completing the swap if all checks pass.
 
+<Quiz questions={questions} />

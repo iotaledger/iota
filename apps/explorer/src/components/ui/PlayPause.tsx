@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AutorefreshPause24, AutorefreshPlay24 } from '@iota/icons';
+import { Pause, Play } from '@iota/ui-icons';
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
 
@@ -29,7 +29,7 @@ export interface PlayPauseProps {
 }
 
 export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.Element {
-    const Icon = paused ? AutorefreshPlay24 : AutorefreshPause24;
+    const Icon = paused ? Play : Pause;
 
     const isAnimating = animate?.start && !paused;
 

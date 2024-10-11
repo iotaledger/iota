@@ -8,7 +8,6 @@ import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { Feature } from '_src/shared/experimentation/features';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
-import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import { toast } from 'react-hot-toast';
 import {
@@ -17,7 +16,6 @@ import {
     filterAndSortTokenBalances,
     useAppsBackend,
     useBalance,
-    useCoinMetadata,
     useGetDelegatedStake,
 } from '@iota/core';
 import {
@@ -30,12 +28,11 @@ import {
     InfoBoxStyle,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Info12 } from '@iota/icons';
 import { Network } from '@iota/iota-sdk/client';
-import { formatAddress, IOTA_TYPE_ARG, parseStructTag } from '@iota/iota-sdk/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ArrowBottomLeft, Send } from '@iota/ui-icons';
+import { ArrowBottomLeft, Info, Send } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
@@ -46,23 +43,6 @@ import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 
 interface TokenDetailsProps {
     coinType?: string;
-}
-
-function getMostNestedName(parsed: ReturnType<typeof parseStructTag>) {
-    if (parsed.typeParams.length === 0) {
-        return parsed.name;
-    }
-
-    if (typeof parsed.typeParams[0] === 'string') {
-        return parsed.typeParams[0];
-    }
-
-    return getMostNestedName(parsed.typeParams[0]);
-}
-
-function getFallbackSymbol(coinType: string) {
-    const parsed = parseStructTag(coinType);
-    return getMostNestedName(parsed);
 }
 
 function TokenDetails({ coinType }: TokenDetailsProps) {
@@ -125,9 +105,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);
 
-    const { data: coinMetadata } = useCoinMetadata(activeCoinType);
-    const coinSymbol = coinMetadata ? coinMetadata.symbol : getFallbackSymbol(activeCoinType);
-
     // Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
     const isFirstTimeLoading = isPending && !isFetched;
 
@@ -174,7 +151,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         <>
             {isMainnet && data?.degraded && (
                 <InfoBox
-                    icon={<Info12 />}
+                    icon={<Info className="h-3 w-3" />}
                     title="App Performance"
                     supportingText="We apologize for the slowdown. Our team is working on a fix and appreciates your patience."
                     type={InfoBoxType.Default}
@@ -182,8 +159,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                 />
             )}
             <Loading loading={isFirstTimeLoading}>
-                {coinType && <PageTitle title={coinSymbol} back="/tokens" />}
-
                 <div
                     className="flex h-full flex-1 flex-grow flex-col items-center gap-md"
                     data-testid="coin-page"

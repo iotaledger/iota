@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetTransaction } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
@@ -22,6 +21,7 @@ import {
     ButtonSegment,
     ButtonSegmentType,
     KeyValueInfo,
+    LoadingIndicator,
     Panel,
     SegmentedButton,
     SegmentedButtonType,

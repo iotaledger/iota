@@ -69,7 +69,7 @@ export function useCoinMetadata(coinType?: string | null) {
                     decimals: 9,
                     description: '',
                     iconUrl: null,
-                    name: 'Iota',
+                    name: 'IOTA',
                     symbol: 'IOTA',
                 };
 

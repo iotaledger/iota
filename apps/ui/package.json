@@ -30,7 +30,6 @@
     },
     "dependencies": {
         "@iota/core": "workspace:*",
-        "@iota/icons": "workspace:*",
         "@radix-ui/react-radio-group": "^1.1.3",
         "@radix-ui/react-slot": "^1.1.0",
         "@radix-ui/react-switch": "^1.0.3",
