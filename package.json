@@ -59,7 +59,7 @@
 		"@manypkg/cli": "^0.21.4",
 		"@tanstack/eslint-plugin-query": "^5.35.6",
 		"@typescript-eslint/eslint-plugin": "^6.21.0",
-		"@typescript-eslint/parser": "^7.18.0",
+		"@typescript-eslint/parser": "^6.21.0",
 		"concurrently": "^8.2.2",
 		"eslint": "^8.45.0",
 		"eslint-config-next": "14.2.3",
