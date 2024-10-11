@@ -134,7 +134,7 @@ export class IotaClient {
     }
 
     /**
-     * Establish a connection to a Iota RPC endpoint
+     * Establish a connection to a IOTA RPC endpoint
      *
      * @param options configuration options for the API Client
      */
@@ -156,7 +156,7 @@ export class IotaClient {
      */
     async getCoins(input: GetCoinsParams): Promise<PaginatedCoins> {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
-            throw new Error('Invalid Iota address');
+            throw new Error('Invalid IOTA address');
         }
 
         return await this.transport.request({
@@ -170,7 +170,7 @@ export class IotaClient {
      */
     async getAllCoins(input: GetAllCoinsParams): Promise<PaginatedCoins> {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
-            throw new Error('Invalid Iota address');
+            throw new Error('Invalid IOTA address');
         }
 
         return await this.transport.request({
@@ -184,7 +184,7 @@ export class IotaClient {
      */
     async getBalance(input: GetBalanceParams): Promise<CoinBalance> {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
-            throw new Error('Invalid Iota address');
+            throw new Error('Invalid IOTA address');
         }
         return await this.transport.request({
             method: 'iotax_getBalance',
@@ -197,7 +197,7 @@ export class IotaClient {
      */
     async getAllBalances(input: GetAllBalancesParams): Promise<CoinBalance[]> {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
-            throw new Error('Invalid Iota address');
+            throw new Error('Invalid IOTA address');
         }
         return await this.transport.request({
             method: 'iotax_getAllBalances',
@@ -300,7 +300,7 @@ export class IotaClient {
      */
     async getOwnedObjects(input: GetOwnedObjectsParams): Promise<PaginatedObjectsResponse> {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
-            throw new Error('Invalid Iota address');
+            throw new Error('Invalid IOTA address');
         }
 
         return await this.transport.request({
@@ -322,7 +322,7 @@ export class IotaClient {
      */
     async getObject(input: GetObjectParams): Promise<IotaObjectResponse> {
         if (!input.id || !isValidIotaObjectId(normalizeIotaObjectId(input.id))) {
-            throw new Error('Invalid Iota Object id');
+            throw new Error('Invalid IOTA Object id');
         }
         return await this.transport.request({
             method: 'iota_getObject',
@@ -343,7 +343,7 @@ export class IotaClient {
     async multiGetObjects(input: MultiGetObjectsParams): Promise<IotaObjectResponse[]> {
         input.ids.forEach((id) => {
             if (!id || !isValidIotaObjectId(normalizeIotaObjectId(id))) {
-                throw new Error(`Invalid Iota Object id ${id}`);
+                throw new Error(`Invalid IOTA Object id ${id}`);
             }
         });
         const hasDuplicates = input.ids.length !== new Set(input.ids).size;
@@ -494,7 +494,7 @@ export class IotaClient {
      */
     async getStakes(input: GetStakesParams): Promise<DelegatedStake[]> {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
-            throw new Error('Invalid Iota address');
+            throw new Error('Invalid IOTA address');
         }
         return await this.transport.request({ method: 'iotax_getStakes', params: [input.owner] });
     }
@@ -506,7 +506,7 @@ export class IotaClient {
         input: GetTimelockedStakesParams,
     ): Promise<DelegatedTimelockedStake[]> {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
-            throw new Error('Invalid Iota address');
+            throw new Error('Invalid IOTA address');
         }
         return await this.transport.request({
             method: 'iotax_getTimelockedStakes',
@@ -520,7 +520,7 @@ export class IotaClient {
     async getStakesByIds(input: GetStakesByIdsParams): Promise<DelegatedStake[]> {
         input.stakedIotaIds.forEach((id) => {
             if (!id || !isValidIotaObjectId(normalizeIotaObjectId(id))) {
-                throw new Error(`Invalid Iota Stake id ${id}`);
+                throw new Error(`Invalid IOTA Stake id ${id}`);
             }
         });
         return await this.transport.request({
@@ -537,7 +537,7 @@ export class IotaClient {
     ): Promise<DelegatedTimelockedStake[]> {
         input.timelockedStakedIotaIds.forEach((id) => {
             if (!id || !isValidIotaObjectId(normalizeIotaObjectId(id))) {
-                throw new Error(`Invalid Iota Timelocked Stake id ${id}`);
+                throw new Error(`Invalid IOTA Timelocked Stake id ${id}`);
             }
         });
         return await this.transport.request({
@@ -659,7 +659,7 @@ export class IotaClient {
      */
     async getDynamicFields(input: GetDynamicFieldsParams): Promise<DynamicFieldPage> {
         if (!input.parentId || !isValidIotaObjectId(normalizeIotaObjectId(input.parentId))) {
-            throw new Error('Invalid Iota Object id');
+            throw new Error('Invalid IOTA Object id');
         }
         return await this.transport.request({
             method: 'iotax_getDynamicFields',

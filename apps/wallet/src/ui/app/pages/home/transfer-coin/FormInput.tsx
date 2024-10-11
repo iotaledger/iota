@@ -30,10 +30,9 @@ export function FormInput({
         decimalScale: decimals ? undefined : 0,
         thousandSeparator: true,
         onValueChange: (values) => {
-            form.setFieldValue(props.name, values.value);
-            setTimeout(() => {
+            form.setFieldValue(props.name, values.value).then(() => {
                 form.validateField(props.name);
-            }, 0);
+            });
         },
     };
 

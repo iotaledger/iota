@@ -4,8 +4,8 @@
 
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
-import { Iota, ThumbUpFill32 } from '@iota/icons';
 import type { ReactNode } from 'react';
+import { CheckmarkFilled, IotaLogoMark } from '@iota/ui-icons';
 
 export interface CardLayoutProps {
     title?: string;
@@ -21,13 +21,13 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
             {icon === 'success' ? (
                 <div className="border-success mb-2.5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dotted p-1">
                     <div className="bg-success flex h-8 w-8 items-center justify-center rounded-full">
-                        <ThumbUpFill32 className="text-2xl text-white" />
+                        <CheckmarkFilled className="text-2xl text-white" />
                     </div>
                 </div>
             ) : null}
             {icon === 'iota' ? (
                 <div className="bg-iota mb-7 flex h-16 w-16 flex-col flex-nowrap items-center justify-center rounded-full">
-                    <Iota className="text-4xl text-white" />
+                    <IotaLogoMark className="text-4xl text-white" />
                 </div>
             ) : null}
             {headerCaption ? (

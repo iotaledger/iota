@@ -1,4 +1,4 @@
-name: Rust crates
+name: Rust
 
 on:
   workflow_call:
@@ -39,41 +39,35 @@ jobs:
     uses: ./.github/workflows/_rust_lints.yml
     with:
       isRust: ${{ inputs.isRust }}
-    secrets: inherit
 
-  external-lints:
-    uses: ./.github/workflows/_external_rust_lints.yml
-    with:
-      isRust: ${{ inputs.isRust }}
+  deny:
+    uses: ./.github/workflows/_cargo_deny.yml
     secrets: inherit
 
   rust-tests:
-    if: github.event.pull_request.draft == false
+    if: |
+      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
     needs:
       - rust-lints
-      - external-lints
     uses: ./.github/workflows/_rust_tests.yml
-    with:
-      isRust: ${{ inputs.isRust }}
 
   external-tests:
-    if: github.event.pull_request.draft == false
+    if: |
+      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
     needs:
       - rust-lints
-      - external-lints
     uses: ./.github/workflows/_external_rust_tests.yml
-    with:
-      isRust: ${{ inputs.isRust }}
 
   mysticeti-tests:
-    if: inputs.isRust && github.event.pull_request.draft == false
+    if: |
+      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
     needs:
       - rust-lints
-      - external-lints
     uses: ./.github/workflows/_mysticeti_tests.yml
 
   execution-cut:
-    if: inputs.isRust
+    if: |
+      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
     needs:
       - rust-tests
       - external-tests

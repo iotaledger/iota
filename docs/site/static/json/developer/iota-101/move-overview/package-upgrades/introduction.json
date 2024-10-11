@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What happens to a Move package once it is published on-chain on the IOTA network?",
+    "answerOptions": [
+      { "answerText": "It becomes immutable and cannot be directly altered.", "isCorrect": true },
+      { "answerText": "It can be modified by its owner at any time.", "isCorrect": false },
+      { "answerText": "It is automatically upgraded to the latest version.", "isCorrect": false },
+      { "answerText": "It is hidden from other users.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How can you upgrade a Move package on IOTA without affecting existing dependencies?",
+    "answerOptions": [
+      { "answerText": "By modifying the original package directly.", "isCorrect": false },
+      { "answerText": "By creating a new package object with improved or additional code.", "isCorrect": true },
+      { "answerText": "By deleting the old package and replacing it.", "isCorrect": false },
+      { "answerText": "By making the package immutable.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is the purpose of the UpgradeCap object in the IOTA package upgrade process?",
+    "answerOptions": [
+      { "answerText": "It allows you to make a package immutable.", "isCorrect": false },
+      { "answerText": "It grants ownership and permission to upgrade a package.", "isCorrect": true },
+      { "answerText": "It stores the package's version history.", "isCorrect": false },
+      { "answerText": "It prevents other users from accessing the package.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is a consequence of making a package immutable using iota::package::make_immutable?",
+    "answerOptions": [
+      { "answerText": "You can no longer fix bugs or introduce new features.", "isCorrect": true },
+      { "answerText": "The package can still be upgraded using the UpgradeCap.", "isCorrect": false },
+      { "answerText": "The package automatically updates to the latest version.", "isCorrect": false },
+      { "answerText": "Other packages depending on it will stop working.", "isCorrect": false }
+    ]
+  }
+]

@@ -29,7 +29,7 @@ function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
     const txnDate = timestamp ? formatDate(Number(timestamp)) : '';
     return (
         <InfoBox
-            type={success ? InfoBoxType.Default : InfoBoxType.Warning}
+            type={success ? InfoBoxType.Default : InfoBoxType.Error}
             style={InfoBoxStyle.Elevated}
             title={success ? 'Successfully sent' : 'Transaction Failed'}
             supportingText={timestamp ? txnDate : ''}
@@ -87,10 +87,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 )}
             </div>
             <div className="pt-sm">
-                <ExplorerLinkCard
-                    digest={summary?.digest}
-                    timestamp={summary?.timestamp ?? undefined}
-                />
+                <ExplorerLinkCard digest={summary?.digest} />
             </div>
         </div>
     );
