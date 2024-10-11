@@ -222,7 +222,7 @@ async fn query_events_unsupported_events() {
         ),
         EventFilter::MoveEventField {
             path: String::default(),
-            value: serde_json::Value::Bool(true),
+            value: true.into(),
         },
         EventFilter::Package(ObjectID::random()),
     ];

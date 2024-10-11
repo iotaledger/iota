@@ -58,13 +58,11 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [x] `get_reference_gas_price`
 - [x] `get_validators_apy`
 
-### `IndexerApi` (5/7)
+### `IndexerApi` (5/5)
 
 - [x] `get_owned_objects`
 - [x] `query_transaction_blocks`
 - [x] `query_events`
-- [ ] `subscribe_event` (ws is not supported by the test cluster)
-- [ ] `subscribe_transaction` (ws is not supported by the test cluster)
 - [x] `get_dynamic_fields`
 - [x] `get_dynamic_field_object`
 
