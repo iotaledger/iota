@@ -294,7 +294,7 @@ struct FeatureFlags {
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
-    #[serde(skip_serializing_if = "ConsensusNetwork::is_anemo")]
+    #[serde(skip_serializing_if = "ConsensusNetwork::is_tonic")]
     consensus_network: ConsensusNetwork,
 
     // Set the upper bound allowed for max_epoch in zklogin signature.
@@ -427,13 +427,12 @@ impl ConsensusChoice {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusNetwork {
     #[default]
-    Anemo,
     Tonic,
 }
 
 impl ConsensusNetwork {
-    pub fn is_anemo(&self) -> bool {
-        matches!(self, ConsensusNetwork::Anemo)
+    pub fn is_tonic(&self) -> bool {
+        matches!(self, ConsensusNetwork::Tonic)
     }
 }
 

@@ -2601,9 +2601,6 @@ dependencies = [
 name = "consensus-core"
 version = "0.1.0"
 dependencies = [
- "anemo",
- "anemo-build",
- "anemo-tower",
  "anyhow",
  "arc-swap",
  "async-trait",
@@ -2627,7 +2624,6 @@ dependencies = [
  "iota-protocol-config",
  "iota-tls",
  "itertools 0.13.0",
- "mockall",
  "nom",
  "parking_lot 0.12.3",
  "prometheus",
