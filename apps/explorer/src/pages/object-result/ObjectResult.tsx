@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetObject } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
 import { useParams } from 'react-router-dom';
 import { ErrorBoundary, PageLayout } from '~/components';
 import { Banner, PageHeader } from '~/components/ui';
@@ -11,6 +10,7 @@ import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { translate, type DataType } from './ObjectResultType';
 import PkgView from './views/PkgView';
 import { TokenView } from './views/TokenView';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 
