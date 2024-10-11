@@ -8,13 +8,10 @@ use consensus_core::{TransactionVerifier, ValidationError};
 use eyre::WrapErr;
 use fastcrypto_tbls::dkg;
 use iota_metrics::monitored_scope;
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
-use narwhal_types::BatchAPI;
-use narwhal_worker::TransactionValidator;
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use tap::TapFallible;
 use tracing::{info, warn};
@@ -140,34 +137,8 @@ fn tx_from_bytes(tx: &[u8]) -> Result<ConsensusTransaction, eyre::Report> {
         .wrap_err("Malformed transaction (failed to deserialize)")
 }
 
-impl TransactionValidator for IotaTxValidator {
-    type Error = eyre::Report;
-
-    fn validate(&self, _tx: &[u8]) -> Result<(), Self::Error> {
-        // We only accept transactions from local iota instance so no need to re-verify
-        // it
-        Ok(())
-    }
-
-    fn validate_batch(&self, b: &narwhal_types::Batch) -> Result<(), Self::Error> {
-        let _scope = monitored_scope("ValidateBatch");
-
-        let txs = b
-            .transactions()
-            .iter()
-            .map(|tx| tx_from_bytes(tx).map(|tx| tx.kind))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        self.validate_transactions(txs)
-    }
-}
-
 impl TransactionVerifier for IotaTxValidator {
-    fn verify_batch(
-        &self,
-        _protocol_config: &ProtocolConfig,
-        batch: &[&[u8]],
-    ) -> Result<(), ValidationError> {
+    fn verify_batch(&self, batch: &[&[u8]]) -> Result<(), ValidationError> {
         let _scope = monitored_scope("ValidateBatch");
 
         let txs = batch
@@ -212,13 +183,12 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
+    use consensus_core::TransactionVerifier as _;
     use iota_macros::sim_test;
     use iota_types::{
         crypto::Ed25519IotaSignature, messages_consensus::ConsensusTransaction, object::Object,
         signature::GenericSignature,
     };
-    use narwhal_types::Batch;
-    use narwhal_worker::TransactionValidator;
 
     use crate::{
         authority::test_authority_builder::TestAuthorityBuilder,
@@ -260,7 +230,7 @@ mod tests {
             state.transaction_manager().clone(),
             metrics,
         );
-        let res = validator.validate(&first_transaction_bytes);
+        let res = validator.verify_batch(&[&first_transaction_bytes]);
         assert!(res.is_ok(), "{res:?}");
 
         let transaction_bytes: Vec<_> = certificates
@@ -271,8 +241,8 @@ mod tests {
             })
             .collect();
 
-        let batch = Batch::new(transaction_bytes);
-        let res_batch = validator.validate_batch(&batch);
+        let batch: Vec<_> = transaction_bytes.iter().map(|t| t.as_slice()).collect();
+        let res_batch = validator.verify_batch(&batch);
         assert!(res_batch.is_ok(), "{res_batch:?}");
 
         let bogus_transaction_bytes: Vec<_> = certificates
@@ -288,8 +258,11 @@ mod tests {
             })
             .collect();
 
-        let batch = Batch::new(bogus_transaction_bytes);
-        let res_batch = validator.validate_batch(&batch);
+        let batch: Vec<_> = bogus_transaction_bytes
+            .iter()
+            .map(|t| t.as_slice())
+            .collect();
+        let res_batch = validator.verify_batch(&batch);
         assert!(res_batch.is_err());
     }
 }

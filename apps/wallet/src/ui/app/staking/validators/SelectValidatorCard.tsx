@@ -3,14 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Alert } from '_components';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
 import { calculateStakeShare, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import cl from 'clsx';
 import { useMemo, useState } from 'react';
-import { Button } from '@iota/apps-ui-kit';
-
+import { Button, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { ValidatorLogo } from './ValidatorLogo';
 

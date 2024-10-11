@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 import { useIotaClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { LoadingIndicator, Text } from '@iota/ui';
+import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 
 import { Banner, TableCard } from '~/components/ui';

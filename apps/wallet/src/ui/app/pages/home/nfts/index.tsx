@@ -2,9 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ButtonSegment, SegmentedButton, SegmentedButtonType } from '@iota/apps-ui-kit';
+import {
+    ButtonSegment,
+    LoadingIndicator,
+    SegmentedButton,
+    SegmentedButtonType,
+} from '@iota/apps-ui-kit';
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { Alert, Loading, LoadingIndicator, NoData, PageTemplate } from '_components';
+import { Alert, Loading, NoData, PageTemplate } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HiddenAssets from './HiddenAssets';
