@@ -21,6 +21,7 @@ import {
     ListItem,
     LoadingIndicator,
     Select,
+    SelectSize,
     Title,
 } from '@iota/apps-ui-kit';
 import { Pagination } from '../ui';
@@ -161,7 +162,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                             </div>
 
                             {displayedBalances.length > limit && (
-                                <div className="flex flex-col items-center justify-between gap-2 px-sm--rs py-xs--rs md:flex-row">
+                                <div className="flex flex-col items-center justify-between gap-sm px-sm--rs py-sm--rs sm:flex-row">
                                     <Pagination
                                         hasFirst={currentSlice !== 1}
                                         onNext={() => setCurrentSlice(currentSlice + 1)}
@@ -175,7 +176,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                     />
                                     <div className="flex items-center gap-3">
                                         <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
-                                            {`Showing `}
+                                            Showing
                                             {(currentSlice - 1) * limit + 1}-
                                             {currentSlice * limit > displayedBalances.length
                                                 ? displayedBalances.length
@@ -185,14 +186,15 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                             dropdownPosition={DropdownPosition.Top}
                                             value={limit.toString()}
                                             options={[
-                                                { label: '20 Per Page', id: '20' },
-                                                { label: '40 Per Page', id: '40' },
-                                                { label: '60 Per Page', id: '60' },
+                                                { label: '20 / page', id: '20' },
+                                                { label: '40 / page', id: '40' },
+                                                { label: '60 / page', id: '60' },
                                             ]}
                                             onValueChange={(value) => {
                                                 setLimit(Number(value));
                                                 setCurrentSlice(1);
                                             }}
+                                            size={SelectSize.Small}
                                         />
                                     </div>
                                 </div>

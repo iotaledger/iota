@@ -17,11 +17,11 @@ import {
     SegmentedButton,
     Select,
     DropdownPosition,
+    SelectSize,
 } from '@iota/apps-ui-kit';
 import { ListViewLarge, ListViewMedium, ListViewSmall } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
-
 import { ListView, SmallThumbnailsView, ThumbnailsView } from '~/components';
 import { ObjectViewMode } from '~/lib/enums';
 import { Pagination, useCursorPagination } from '~/components/ui';
@@ -254,30 +254,27 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         )}
                     </div>
                     {showPagination && hasAssets && (
-                        <div className="flex flex-1 items-end p-md pt-none">
-                            <div className="flex w-full flex-row flex-wrap items-center justify-between gap-2">
-                                <Pagination {...pagination} />
-                                <div className="ml-auto flex items-center">
-                                    {!isPending && (
-                                        <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
-                                            Showing {start} - {end}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="hidden sm:block">
-                                    <Select
-                                        dropdownPosition={DropdownPosition.Top}
-                                        value={limit.toString()}
-                                        options={PAGE_SIZES.map((size) => ({
-                                            label: `${size} Per Page`,
-                                            id: size.toString(),
-                                        }))}
-                                        onValueChange={(value) => {
-                                            setLimit(Number(value));
-                                            pagination.onFirst();
-                                        }}
-                                    />
-                                </div>
+                        <div className="flex flex-col items-center justify-between gap-sm px-sm--rs py-sm--rs sm:flex-row">
+                            <Pagination {...pagination} />
+                            <div className="flex items-center gap-3">
+                                {!isPending && (
+                                    <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
+                                        Showing {start} - {end}
+                                    </span>
+                                )}
+                                <Select
+                                    dropdownPosition={DropdownPosition.Top}
+                                    value={limit.toString()}
+                                    options={PAGE_SIZES.map((size) => ({
+                                        label: `${size} / page`,
+                                        id: size.toString(),
+                                    }))}
+                                    onValueChange={(value) => {
+                                        setLimit(Number(value));
+                                        pagination.onFirst();
+                                    }}
+                                    size={SelectSize.Small}
+                                />
                             </div>
                         </div>
                     )}
