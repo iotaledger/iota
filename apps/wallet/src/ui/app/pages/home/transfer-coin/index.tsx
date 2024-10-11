@@ -94,8 +94,8 @@ function TransferCoinPage() {
                     </small>
                 </div>,
                 {
-                    duration: 10000
-                }
+                    duration: 10000,
+                },
             );
         },
     });
