@@ -24,33 +24,8 @@ function GasAmount({ amount }: GasProps): JSX.Element | null {
                 {formattedAmount} {symbol}
             </span>
             <span className="flex flex-wrap items-center text-body font-medium text-neutral-70">
-                {BigInt(amount)?.toLocaleString()} nano
+                {BigInt(amount)?.toLocaleString()} (nano)
             </span>
-        </div>
-    );
-}
-
-function TotalGasAmount({ amount }: GasProps): JSX.Element | null {
-    const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG, CoinFormat.FULL);
-
-    if (!amount) {
-        return null;
-    }
-
-    return (
-        <div className="flex w-full flex-row items-center justify-between gap-md pt-xs">
-            <div className="flex w-1/2 flex-col items-start gap-xxs">
-                <span className="text-body-lg text-neutral-10 dark:text-neutral-92">
-                    {formattedAmount}
-                </span>
-                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">{symbol}</span>
-            </div>
-            <div className="flex w-1/2 flex-col items-start gap-xxs">
-                <span className="text-body-lg text-neutral-10 dark:text-neutral-92">
-                    {BigInt(amount)?.toLocaleString()}
-                </span>
-                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">nano</span>
-            </div>
         </div>
     );
 }
@@ -61,7 +36,7 @@ function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
             {objectIds.map((objectId, index) => (
                 <div key={index} className="flex items-center gap-x-1.5">
                     <ObjectLink objectId={objectId} />
-                    <CopyToClipboard size="sm" copyText={objectId} />
+                    <CopyToClipboard copyText={objectId} />
                 </div>
             ))}
         </div>
@@ -119,7 +94,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                 </div>
                             )}
                             <div className="flex flex-col gap-3">
-                                <TotalGasAmount amount={totalGas} />
+                                <GasAmount amount={totalGas} />
                                 <Divider />
                                 <GasInfo
                                     label="Gas Payment"

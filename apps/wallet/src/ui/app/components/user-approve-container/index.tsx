@@ -6,8 +6,7 @@ import { type PermissionType } from '_src/shared/messaging/messages/payloads/per
 import cn from 'clsx';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Button, ButtonType, Header } from '@iota/apps-ui-kit';
-import { Loader } from '@iota/ui-icons';
+import { Button, ButtonType, Header, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useAccountByAddress } from '../../hooks/useAccountByAddress';
 import { DAppInfoCard, UnlockAccountButton } from '_components';
 
@@ -93,11 +92,7 @@ export function UserApproveContainer({
                                 onClick={() => {
                                     handleOnResponse(true);
                                 }}
-                                icon={
-                                    (submitting || approveLoading) && (
-                                        <Loader className="animate-spin" />
-                                    )
-                                }
+                                icon={(submitting || approveLoading) && <LoadingIndicator />}
                                 disabled={approveDisabled}
                                 text={approveTitle}
                             />
