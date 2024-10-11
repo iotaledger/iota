@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
 import { calculateStakeShare, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import cl from 'clsx';
 import { useMemo, useState } from 'react';
-import { Button, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Button, InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { ValidatorLogo } from './ValidatorLogo';
 import { Warning } from '@iota/ui-icons';

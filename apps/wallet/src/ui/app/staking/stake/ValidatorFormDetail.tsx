@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator } from '_components';
 import {
     calculateStakeShare,
     formatPercentageDisplay,
@@ -25,6 +24,7 @@ import {
     KeyValueInfo,
     Panel,
     TooltipPosition,
+    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Warning } from '@iota/ui-icons';

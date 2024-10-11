@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     formatDelegatedStake,
@@ -14,7 +13,6 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
-
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { StakeCard } from '../home/StakedCard';
 import { StatsDetail } from '_app/staking/validators/StatsDetail';
@@ -26,6 +24,7 @@ import {
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
+    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Info, Warning } from '@iota/ui-icons';

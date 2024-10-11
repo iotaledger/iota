@@ -7,11 +7,12 @@ import {
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
+    LoadingIndicator,
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { Loading, LoadingIndicator, NoData, PageTemplate } from '_components';
+import { Loading, NoData, PageTemplate } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HiddenAssets from './HiddenAssets';

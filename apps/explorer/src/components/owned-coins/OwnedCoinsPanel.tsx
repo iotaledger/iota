@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useElementDimensions, useGetCoins, useOnScreen } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
-
 import CoinItem from './CoinItem';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 const MIN_CONTAINER_WIDTH_SIZE = 500;
 
