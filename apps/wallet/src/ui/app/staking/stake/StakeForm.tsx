@@ -57,9 +57,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         stakeAllTransaction ?? new Transaction(),
     );
 
-    const gasBudget = useMemo(() => {
-        return BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
-    }, [stakeAllTransactionDryRun]);
+    const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
 
     const [maxToken, symbol, queryResult] = useFormatCoin(
         coinBalance - gasBudget,
