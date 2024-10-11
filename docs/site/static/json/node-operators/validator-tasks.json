@@ -20,7 +20,7 @@
     {
         "questionText": "What is required for an IOTA validator to update its name on-chain?",
         "answerOptions": [
-            { "answerText": "MoveCall transaction using the update_validator_name function.", "isCorrect": true },
+            { "answerText": "Using the Iota Client CLI to call `iota_system::update_validator_name`.", "isCorrect": true },
             { "answerText": "Sending a request to IOTA Foundation.", "isCorrect": false },
             { "answerText": "Editing the validator.yaml file.", "isCorrect": false },
             { "answerText": "Restarting the validator node.", "isCorrect": false }

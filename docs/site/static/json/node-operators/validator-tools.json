@@ -1,11 +1,11 @@
 [
     {
-        "questionText": "What command should you use to display the metadata of a validator in Iota?",
+        "questionText": "What command should you use to display the metadata of a validator in IOTA?",
         "answerOptions": [
-            { "answerText": "$IOTA_BINARY validator show-metadata", "isCorrect": false },
-            { "answerText": "$IOTA_BINARY validator display-info", "isCorrect": false },
-            { "answerText": "$IOTA_BINARY validator display-metadata", "isCorrect": true },
-            { "answerText": "$IOTA_BINARY validator get-metadata", "isCorrect": false }
+            { "answerText": "$iota validator show-metadata", "isCorrect": false },
+            { "answerText": "$iota validator display-info", "isCorrect": false },
+            { "answerText": "$iota validator display-metadata", "isCorrect": true },
+            { "answerText": "$iota validator get-metadata", "isCorrect": false }
         ]
     },
     {
