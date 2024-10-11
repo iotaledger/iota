@@ -53,7 +53,7 @@ See [pg-services-local](../../docker/pg-services-local/README.md), which automat
 
 ### Using manual setup
 
-Before you can run the GraphQL server, you need to have a running indexer database instance so that the server can query it.
+Before you can run the GraphQL server, you need to have a running Indexer database instance so that the server can query it.
 This doesn't require the Indexer to be running, only the database. Follow the [Indexer database setup](../iota-indexer/README.md#database-setup) to set up the database.
 You should end up with a running postgres instance on port `5432` with the database `iota_indexer` accessible by user `postgres` with password `postgrespw`.
 
