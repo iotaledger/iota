@@ -38,7 +38,6 @@ export { default as Home } from './Home';
 export { default as ImageIcon } from './ImageIcon';
 export { default as ImportPass } from './ImportPass';
 export { default as Info } from './Info';
-export { default as IotaLogoWeb } from './IotaLogoWeb';
 export { default as IotaLogoMark } from './IotaLogoMark';
 export { default as IotaLogoSmall } from './IotaLogoSmall';
 export { default as IotaLogoWeb } from './IotaLogoWeb';
