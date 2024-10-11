@@ -13,7 +13,7 @@ genesis:
   genesis-file-location: "/opt/iota/config/genesis.blob"
 
 migration-tx-data:
-  location: "/opt/iota/config/genesis.blob"
+  location: "/opt/iota/config/migration.blob"
 
 authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
