@@ -1618,12 +1618,10 @@ impl Display for IotaTransactionBlock {
                 "   {}\n",
                 match tx_sig {
                     Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
-                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(), /* the signatures for
-                                                                         * multisig and zklogin
-                                                                         * are not suited to be
-                                                                         * parsed out. they
-                                                                         * should be interpreted
-                                                                         * as a whole */
+                    // the signatures for multisig and zklogin
+                    // are not suited to be parsed out. they
+                    // should be interpreted as a whole
+                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
                 }
             )]);
         }
