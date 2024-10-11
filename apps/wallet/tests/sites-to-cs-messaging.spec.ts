@@ -7,10 +7,6 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
 import { demoDappConnect } from './utils/dapp-connect';
-import {
-    MESSAGE_CLIENT_NAME_FALLBACK,
-    MESSAGE_CLIENT_TARGET_FALLBACK,
-} from '_src/background/constants';
 
 function getInAppMessage(page: Page, id: string) {
     return page.evaluate(
@@ -18,7 +14,7 @@ function getInAppMessage(page: Page, id: string) {
             new Promise((resolve, reject) => {
                 const callBackFN = (msg: MessageEvent) => {
                     if (
-                        msg.data.target === MESSAGE_CLIENT_NAME_FALLBACK &&
+                        msg.data.target === 'iota_in-page' &&
                         msg.data.payload.id === anId
                     ) {
                         window.removeEventListener('message', callBackFN);
@@ -89,7 +85,7 @@ test.describe('site to content script messages', () => {
             await page.evaluate(
                 ({ aPayload: payload, aLabel: label }) => {
                     window.postMessage({
-                        target: MESSAGE_CLIENT_TARGET_FALLBACK,
+                        target: 'iota_content-script',
                         payload: {
                             id: label,
                             payload,
