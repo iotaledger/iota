@@ -17,7 +17,7 @@ import {
     useRole,
 } from '@floating-ui/react';
 import type { Placement } from '@floating-ui/react';
-import { Info16 } from '@iota/icons';
+import { Info } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useState } from 'react';
@@ -148,7 +148,7 @@ export type IconTooltipProps = Omit<TooltipProps, 'children'>;
 export function IconTooltip(props: IconTooltipProps) {
     return (
         <Tooltip {...props}>
-            <Info16 className="text-steel shrink-0 font-normal" />
+            <Info className="text-steel h-4 w-4 shrink-0 font-normal" />
         </Tooltip>
     );
 }

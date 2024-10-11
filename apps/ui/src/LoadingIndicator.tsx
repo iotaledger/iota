@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Spinner16, Spinner24 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 const loadingIndicatorStyles = cva('animate-spin text-steel', {
@@ -24,11 +23,8 @@ export interface LoadingIndicatorProps extends LoadingIndicatorStylesProps {
 }
 
 export function LoadingIndicator({ text, variant }: LoadingIndicatorProps) {
-    const SpinnerIcon = variant === 'md' ? Spinner16 : Spinner24;
-
     return (
         <div className="inline-flex flex-row flex-nowrap items-center gap-3">
-            <SpinnerIcon className={loadingIndicatorStyles({ variant })} />
             {text ? <div className="text-body font-medium text-steel-dark">{text}</div> : null}
         </div>
     );

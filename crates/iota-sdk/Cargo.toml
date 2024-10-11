@@ -51,10 +51,6 @@ name = "coin_read_api"
 path = "examples/coin_read_api.rs"
 
 [[example]]
-name = "read_api"
-path = "examples/read_api.rs"
-
-[[example]]
 name = "event_api"
 path = "examples/event_api.rs"
 
@@ -63,18 +59,113 @@ name = "governance_api"
 path = "examples/governance_api.rs"
 
 [[example]]
-name = "programmable_transactions_api"
-path = "examples/programmable_transactions_api.rs"
-
-[[example]]
 name = "iota_client"
 path = "examples/iota_client.rs"
 
 [[example]]
-name = "sign_tx_guide"
-path = "examples/sign_tx_guide.rs"
+name = "json_rpc_errors"
+path = "examples/json_rpc_errors.rs"
 
 [[example]]
 name = "utils"
 path = "examples/utils.rs"
 crate-type = ["staticlib"]
+
+# Read API folder
+
+[[example]]
+name = "checkpoints"
+path = "examples/read_api/checkpoints.rs"
+
+[[example]]
+name = "read_api_objects"
+path = "examples/read_api/read_api_objects.rs"
+
+[[example]]
+name = "read_api_package"
+path = "examples/read_api/read_api_package.rs"
+
+[[example]]
+name = "read_api"
+path = "examples/read_api/read_api.rs"
+
+[[example]]
+name = "read_api_transactions"
+path = "examples/read_api/read_api_transactions.rs"
+
+[[example]]
+name = "read_api_tx"
+path = "examples/read_api/read_api_tx.rs"
+
+[[example]]
+name = "simulate_transaction"
+path = "examples/read_api/simulate_transaction.rs"
+
+[[example]]
+name = "transaction_subscription"
+path = "examples/read_api/transaction_subscription.rs"
+
+[[example]]
+name = "transactions_with_options"
+path = "examples/read_api/transactions_with_options.rs"
+
+# Transaction builder folder
+[[example]]
+name = "batch_tx"
+path = "examples/transaction_builder/batch_tx.rs"
+
+[[example]]
+name = "consolidate"
+path = "examples/transaction_builder/consolidate.rs"
+
+[[example]]
+name = "function_move_call"
+path = "examples/transaction_builder/function_move_call.rs"
+
+[[example]]
+name = "move_package"
+path = "examples/transaction_builder/move_package.rs"
+
+[[example]]
+name = "object_ref"
+path = "examples/transaction_builder/object_ref.rs"
+
+[[example]]
+name = "pay_iota"
+path = "examples/transaction_builder/pay_iota.rs"
+
+[[example]]
+name = "pay"
+path = "examples/transaction_builder/pay.rs"
+
+[[example]]
+name = "programmable_transactions_api"
+path = "examples/transaction_builder/programmable_transactions_api.rs"
+
+[[example]]
+name = "sign_tx_guide"
+path = "examples/transaction_builder/sign_tx_guide.rs"
+
+[[example]]
+name = "single_move_call"
+path = "examples/transaction_builder/single_move_call.rs"
+
+[[example]]
+name = "split_merge_coins"
+path = "examples/transaction_builder/split_merge_coins.rs"
+
+[[example]]
+name = "stake"
+path = "examples/transaction_builder/stake.rs"
+
+[[example]]
+name = "timelocked_stake"
+path = "examples/transaction_builder/timelocked_stake.rs"
+
+[[example]]
+name = "transfer"
+path = "examples/transaction_builder/transfer.rs"
+
+[[example]]
+name = "tx_data"
+path = "examples/transaction_builder/tx_data.rs"
