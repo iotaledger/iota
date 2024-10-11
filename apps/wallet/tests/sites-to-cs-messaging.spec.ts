@@ -13,10 +13,7 @@ function getInAppMessage(page: Page, id: string) {
         (anId) =>
             new Promise((resolve, reject) => {
                 const callBackFN = (msg: MessageEvent) => {
-                    if (
-                        msg.data.target === 'iota_in-page' &&
-                        msg.data.payload.id === anId
-                    ) {
+                    if (msg.data.target === 'iota_in-page' && msg.data.payload.id === anId) {
                         window.removeEventListener('message', callBackFN);
                         if (msg.data.payload.payload.error) {
                             reject(msg.data.payload);
