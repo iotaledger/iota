@@ -56,6 +56,8 @@ validator_configs:
         checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
+    migration-tx-data:
+      location: "[fake migration location]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
@@ -197,6 +199,8 @@ validator_configs:
         checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
+    migration-tx-data:
+      location: "[fake migration location]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
@@ -338,6 +342,8 @@ validator_configs:
         checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
+    migration-tx-data:
+      location: "[fake migration location]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
@@ -479,6 +485,8 @@ validator_configs:
         checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
+    migration-tx-data:
+      location: "[fake migration location]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
@@ -620,6 +628,8 @@ validator_configs:
         checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
+    migration-tx-data:
+      location: "[fake migration location]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
@@ -761,6 +771,8 @@ validator_configs:
         checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
+    migration-tx-data:
+      location: "[fake migration location]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
@@ -902,6 +914,8 @@ validator_configs:
         checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
+    migration-tx-data:
+      location: "[fake migration location]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
