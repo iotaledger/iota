@@ -237,7 +237,7 @@ export function SendTokenForm({
                                 <div className="flex h-full w-full flex-col gap-md">
                                     {!hasEnoughBalance ? (
                                         <InfoBox
-                                            type={InfoBoxType.Warning}
+                                            type={InfoBoxType.Error}
                                             supportingText="Insufficient IOTA to cover transaction"
                                             style={InfoBoxStyle.Elevated}
                                             icon={<Exclamation />}
