@@ -113,8 +113,8 @@ pub fn generate_proof_of_possession(
 /// Verify proof of possession against the expected intent message,
 /// consisting of the protocol pubkey and the authority account address.
 pub fn verify_proof_of_possession(
-    pop: &narwhal_crypto::Signature,
-    protocol_pubkey: &narwhal_crypto::PublicKey,
+    pop: &AuthoritySignature,
+    protocol_pubkey: &AuthorityPublicKey,
     iota_address: IotaAddress,
 ) -> Result<(), IotaError> {
     protocol_pubkey

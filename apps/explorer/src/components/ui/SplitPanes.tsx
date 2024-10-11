@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronLeft12, ChevronUp12 } from '@iota/icons';
+import { ArrowRight, ArrowUp } from '@iota/ui-icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { type ReactNode, useRef, useState } from 'react';
@@ -85,7 +85,7 @@ function ResizeHandle({
 }: ResizeHandleProps): JSX.Element {
     const [isDragging, setIsDragging] = useState(false);
 
-    const ChevronButton = isHorizontal ? ChevronLeft12 : ChevronUp12;
+    const ChevronButton = isHorizontal ? ArrowRight : ArrowUp;
 
     return (
         <PanelResizeHandle

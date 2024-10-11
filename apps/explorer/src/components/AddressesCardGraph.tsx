@@ -4,7 +4,7 @@
 
 import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { type AllEpochsAddressMetrics } from '@iota/iota-sdk/client';
-import { Heading, LoadingIndicator, Text } from '@iota/ui';
+import { Heading, Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import { useMemo } from 'react';
 
@@ -15,6 +15,7 @@ import { useGetAllEpochAddressMetrics } from '~/hooks/useGetAllEpochAddressMetri
 import {
     LabelText,
     LabelTextSize,
+    LoadingIndicator,
     Panel,
     Title,
     TitleSize,
@@ -97,12 +98,7 @@ export function AddressesCardGraph(): JSX.Element {
                 />
                 <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-xl transition-colors">
                     {isPending ? (
-                        <div className="flex flex-col items-center gap-1">
-                            <LoadingIndicator />
-                            <Text color="steel" variant="body/medium">
-                                loading data
-                            </Text>
-                        </div>
+                        <LoadingIndicator text="Loading data" />
                     ) : adjEpochAddressMetrics?.length ? (
                         <div className="relative flex-1 self-stretch">
                             <ErrorBoundary>
