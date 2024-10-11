@@ -3,7 +3,6 @@
 This document is focused on running the Iota Node software as a Validator.
 
 <div style="display :none;">
-
 ## Contents
 - [Requirements](#requirements)
 - [Deployment](#deployment)
@@ -19,7 +18,6 @@ This document is focused on running the Iota Node software as a Validator.
 - [State Sync](#state-sync)
 - [Chain Operations](#chain-operations)
 - [Private Security Fixes](#private-security-fixes)
-
 </div>
 
 ## Requirements
