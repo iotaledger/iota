@@ -52,7 +52,7 @@ export class WindowMessageStream {
         return appName.replace(/\s+/g, '-').toLowerCase();
     }
 
-    public static getClientIDs(appName: string): ClientConnection {
+    public static getClientIDs(appName?: string): ClientConnection {
         if (!appName) {
             return {
                 name: MESSAGE_CLIENT_NAME_FALLBACK,
