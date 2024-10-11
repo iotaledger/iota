@@ -1,13 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Copy12 } from '@iota/icons';
 import { Text } from '_src/ui/app/shared/text';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { IconButton } from '_components';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useBalance, useFormatCoin } from '@iota/core';
+import { Copy } from '@iota/ui-icons';
 
 interface AccountBalanceItemProps {
     account: SerializedUIAccount;
@@ -35,7 +35,7 @@ export function AccountBalanceItem({ account }: AccountBalanceItemProps): JSX.El
                     <div className="flex gap-1 opacity-0 duration-100 group-hover:opacity-100">
                         <IconButton
                             variant="transparent"
-                            icon={<Copy12 className="h-2.5 w-2.5" />}
+                            icon={<Copy className="h-2.5 w-2.5" />}
                             onClick={copyAddress}
                         />
                     </div>
