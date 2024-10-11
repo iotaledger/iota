@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCoinMetadata } from '@iota/core';
-import { Unstaked } from '@iota/icons';
-import { IotaLogoMark as Iota } from '@iota/ui-icons';
+import { IotaLogoMark as Iota, Unstake } from '@iota/ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
@@ -48,7 +47,7 @@ function NonIotaCoin({ coinType, ...styleProps }: NonIotaCoinProps): JSX.Element
                 />
             ) : (
                 <div className="flex h-full w-full items-center justify-center rounded-2xl">
-                    <Unstaked className="h-2.5 w-2.5" />
+                    <Unstake className="h-2.5 w-2.5" />
                 </div>
             )}
         </div>

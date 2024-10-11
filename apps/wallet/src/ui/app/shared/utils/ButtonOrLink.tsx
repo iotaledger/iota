@@ -5,9 +5,8 @@
 import clsx from 'clsx';
 import { forwardRef, type ComponentProps, type ReactNode, type Ref } from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
-
-import { LoadingIndicator } from '_components';
 import { Tooltip } from '../tooltip';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 interface WithTooltipProps {
     title?: ReactNode;
@@ -35,7 +34,7 @@ export const ButtonOrLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, Bu
                     data-testid="loading-indicator"
                     className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2"
                 >
-                    <LoadingIndicator color="inherit" />
+                    <LoadingIndicator />
                 </div>
             </>
         ) : (
