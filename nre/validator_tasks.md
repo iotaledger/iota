@@ -2,6 +2,26 @@
 
 This document is focused on running the Iota Node software as a Validator.
 
+<div style="display :none;">
+
+## Contents
+- [Requirements](#requirements)
+- [Deployment](#deployment)
+- [Configuration](#configuration)
+- [Connectivity](#connectivity)
+- [Storage](#storage)
+- [Key Management](#key-management)
+- [Monitoring](#monitoring)
+  - [Logs](#logs)
+  - [Metrics](#metrics)
+  - [Dashboards](#dashboards)
+- [Software Updates](#software-updates)
+- [State Sync](#state-sync)
+- [Chain Operations](#chain-operations)
+- [Private Security Fixes](#private-security-fixes)
+
+</div>
+
 ## Requirements
 
 To run an Iota Validator a machine with the following is required:
