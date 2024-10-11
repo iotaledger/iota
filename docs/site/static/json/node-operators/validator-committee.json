@@ -16,5 +16,14 @@
             { "answerText": "DAG and Blockchain", "isCorrect": false },
             { "answerText": "BFT and DPoS", "isCorrect": false }
         ]
-    }
+    },
+    {
+        "questionText": "What is the purpose of certificates in IOTA’s consensus process?",
+        "answerOptions": [
+            { "answerText": "To confirm that a transaction has been validated by a quorum of validators.", "isCorrect": true },
+            { "answerText": "To create new blocks in the blockchain.", "isCorrect": false },
+            { "answerText": "To issue new tokens for staking rewards.", "isCorrect": false },
+            { "answerText": "To lock shared objects to prevent further transactions.", "isCorrect": false }
+        ]
+    }    
 ]

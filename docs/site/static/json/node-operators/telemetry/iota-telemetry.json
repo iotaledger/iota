@@ -16,5 +16,14 @@
             { "answerText": "The `UNKNOWN_STRING` constant is returned.", "isCorrect": true },
             { "answerText": "The IP address is hardcoded in the node configuration.", "isCorrect": false }
         ]
-    }
+    },
+    {
+        "questionText": "What is the role of the `TelemetryPayload` in the `iota-telemetry` crate?",
+        "answerOptions": [
+            { "answerText": "It stores the configuration data for Google Analytics API calls.", "isCorrect": false },
+            { "answerText": "It represents the client ID and list of telemetry events to be sent to Google Analytics.", "isCorrect": true },
+            { "answerText": "It contains error messages that occur during telemetry data collection.", "isCorrect": false },
+            { "answerText": "It is responsible for retrieving the public IP address of the node.", "isCorrect": false }
+        ]
+    }    
 ]

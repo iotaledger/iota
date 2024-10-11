@@ -16,5 +16,14 @@
             { "answerText": "db-checkpoint-config", "isCorrect": false },
             { "answerText": "state-sync-config", "isCorrect": false }
         ]
+    },
+    {
+        "questionText": "Which section of the configuration is used to define the cloud storage for archival data?",
+        "answerOptions": [
+            { "answerText": "object-store-config", "isCorrect": true },
+            { "answerText": "db-checkpoint-config", "isCorrect": false },
+            { "answerText": "state-sync-config", "isCorrect": false },
+            { "answerText": "state-archive-config", "isCorrect": false }
+        ]
     }
 ]

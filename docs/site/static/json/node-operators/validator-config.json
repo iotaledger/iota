@@ -16,5 +16,14 @@
             { "answerText": "By aggregating the previous epoch's gas prices from all validators.", "isCorrect": false },
             { "answerText": "By implementing a fixed gas price throughout the network.", "isCorrect": false }
         ]
+    },
+    {
+        "questionText": "What happens if a validator is deemed to be non-performant by other validators in the IOTA network?",
+        "answerOptions": [
+            { "answerText": "The validator is removed from the network immediately.", "isCorrect": false },
+            { "answerText": "The validator is automatically demoted to a full node.", "isCorrect": false },
+            { "answerText": "The validator's rewards can be slashed based on the tallying rule.", "isCorrect": true },
+            { "answerText": "The validator's stake is redistributed among other validators.", "isCorrect": false }
+        ]
     }
 ]
