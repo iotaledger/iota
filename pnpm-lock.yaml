@@ -285,35 +285,11 @@ importers:
         specifier: ^2.0.1
         version: 2.1.1(@types/node@22.7.3)(happy-dom@10.11.2)(jsdom@24.1.3)(msw@2.4.9(typescript@5.6.2))(sass@1.79.3)(terser@5.34.0)
 
-  apps/icons:
-    devDependencies:
-      '@svgr/cli':
-        specifier: ^7.0.0
-        version: 7.0.0(typescript@5.6.2)
-      '@svgr/core':
-        specifier: ^7.0.0
-        version: 7.0.0(typescript@5.6.2)
-      '@types/react':
-        specifier: ^18.3.3
-        version: 18.3.9
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      rimraf:
-        specifier: ^5.0.1
-        version: 5.0.10
-      typescript:
-        specifier: ^5.5.3
-        version: 5.6.2
-
   apps/ui:
     dependencies:
       '@iota/core':
         specifier: workspace:*
         version: link:../core
-      '@iota/icons':
-        specifier: workspace:*
-        version: link:../icons
       '@radix-ui/react-radio-group':
         specifier: ^1.1.3
         version: 1.2.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -532,9 +508,6 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/icons':
-        specifier: workspace:*
-        version: link:../icons
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -857,12 +830,12 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/icons':
-        specifier: workspace:*
-        version: link:../icons
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
+      '@iota/ui-icons':
+        specifier: workspace:*
+        version: link:../ui-icons
       '@tanstack/react-query':
         specifier: ^5.50.1
         version: 5.56.2(react@18.3.1)
