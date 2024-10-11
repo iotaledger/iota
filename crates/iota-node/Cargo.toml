@@ -53,7 +53,6 @@ iota-tls.workspace = true
 iota-types.workspace = true
 move-vm-profiler.workspace = true
 narwhal-network.workspace = true
-narwhal-worker.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
