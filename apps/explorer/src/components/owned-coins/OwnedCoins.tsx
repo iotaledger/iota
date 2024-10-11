@@ -176,8 +176,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                     />
                                     <div className="flex items-center gap-3">
                                         <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
-                                            Showing
-                                            {(currentSlice - 1) * limit + 1}-
+                                            Showing {(currentSlice - 1) * limit + 1}-
                                             {currentSlice * limit > displayedBalances.length
                                                 ? displayedBalances.length
                                                 : currentSlice * limit}
