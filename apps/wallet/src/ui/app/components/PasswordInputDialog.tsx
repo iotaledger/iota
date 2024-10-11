@@ -14,8 +14,8 @@ import { ErrorMessage, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
-
-import { Alert } from '_components';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/ui-icons';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),
@@ -79,7 +79,14 @@ export function PasswordInputDialog({
                         <FieldLabel txt="Enter Wallet Password to Continue">
                             <PasswordInputField name="password" />
                             <ErrorMessage
-                                render={(error) => <Alert>{error}</Alert>}
+                                render={(error) => (
+                                    <InfoBox
+                                        type={InfoBoxType.Error}
+                                        title={error}
+                                        icon={<Warning />}
+                                        style={InfoBoxStyle.Elevated}
+                                    />
+                                )}
                                 name="password"
                             />
                         </FieldLabel>

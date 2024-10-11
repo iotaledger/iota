@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 import { Search24 } from '@iota/icons';
 import {
-    LoadingIndicator,
     AccountBalanceItem,
     VerifyPasswordModal,
     ConnectLedgerModal,
