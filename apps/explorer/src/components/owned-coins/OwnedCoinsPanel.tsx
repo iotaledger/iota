@@ -40,11 +40,7 @@ export default function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Eleme
                         page.data.map((coin) => (
                             <div
                                 key={coin.coinObjectId}
-                                className={clsx(
-                                    'w-full',
-                                    multiCols && 'basis-1/3',
-                                    !multiCols && 'pr-3',
-                                )}
+                                className={clsx('w-full', multiCols && 'basis-1/3')}
                             >
                                 <CoinItem coin={coin} />
                             </div>
