@@ -202,7 +202,7 @@ async fn query_events() {
 }
 
 #[sim_test]
-async fn query_events_unsupported_events() {
+async fn query_events_unsupported_filters() {
     let cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(1000)
         .build()
