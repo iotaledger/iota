@@ -4,15 +4,14 @@
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useAppsBackend, Feature } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useRef } from 'react';
-
 import Footer from '../footer/Footer';
 import Header from '../header/Header';
 import { useNetworkContext } from '~/contexts';
 import { Banner } from '~/components/ui';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 type PageLayoutProps = {
     content: ReactNode;
@@ -56,7 +55,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
             </section>
             {loading && (
                 <div className="absolute left-1/2 right-0 top-1/2 flex -translate-x-1/2 -translate-y-1/2 transform justify-center">
-                    <LoadingIndicator variant="lg" />
+                    <LoadingIndicator size="w-6 h-6" />
                 </div>
             )}
             <main className="relative z-10 bg-neutral-98">
