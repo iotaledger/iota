@@ -108,7 +108,7 @@ async fn test_staking() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore]
+#[ignore = "https://github.com/iotaledger/iota/issues/3007"]
 #[sim_test]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new()
@@ -397,6 +397,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/3007"]
 #[sim_test]
 async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -589,4 +590,70 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     assert_eq!(stake.label, stake_copy.label);
 
     Ok(())
+}
+
+#[sim_test]
+async fn get_committee_info() {
+    let cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(2000)
+        .build()
+        .await;
+
+    let client = cluster.rpc_client();
+
+    // Test with no specified epoch
+    let response = client.get_committee_info(None).await.unwrap();
+
+    let (epoch_id, validators) = (response.epoch, response.validators);
+
+    assert!(epoch_id == 0);
+    assert_eq!(validators.len(), 4);
+
+    // Test with specified epoch 0
+    let response = client.get_committee_info(Some(0.into())).await.unwrap();
+
+    let (epoch_id, validators) = (response.epoch, response.validators);
+
+    assert!(epoch_id == 0);
+    assert_eq!(validators.len(), 4);
+
+    // Test with non-existent epoch
+    let response = client.get_committee_info(Some(1.into())).await;
+
+    assert!(response.is_err());
+
+    // Sleep for 5 seconds
+    sleep(Duration::from_millis(5000)).await;
+
+    // Test with specified epoch 1
+    let response = client.get_committee_info(Some(1.into())).await.unwrap();
+
+    let (epoch_id, validators) = (response.epoch, response.validators);
+
+    assert!(epoch_id == 1);
+    assert_eq!(validators.len(), 4);
+}
+
+#[sim_test]
+async fn get_reference_gas_price() {
+    let cluster = TestClusterBuilder::new().build().await;
+
+    let client = cluster.rpc_client();
+
+    let response = client.get_reference_gas_price().await.unwrap();
+    assert_eq!(response, 1000.into());
+}
+
+#[sim_test]
+async fn get_validators_apy() {
+    let cluster = TestClusterBuilder::new().build().await;
+
+    let client = cluster.rpc_client();
+
+    let response = client.get_validators_apy().await.unwrap();
+    let (apys, epoch) = (response.apys, response.epoch);
+
+    assert_eq!(epoch, 0);
+    assert_eq!(apys.len(), 4);
+    assert!(apys.iter().any(|apy| apy.apy == 0.0));
 }
