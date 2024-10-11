@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/iota-sdk/client';
-import { Combobox, ComboboxInput, ComboboxList, LoadingIndicator } from '@iota/ui';
+import { Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
 import { Banner } from '~/components/ui';
@@ -19,6 +19,7 @@ import {
     KeyValueInfo,
     Panel,
     TitleSize,
+    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { Search } from '@iota/ui-icons';
 

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search } from '@iota/ui-icons';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 import {
-    LoadingIndicator,
     AccountBalanceItem,
     VerifyPasswordModal,
     ConnectLedgerModal,
