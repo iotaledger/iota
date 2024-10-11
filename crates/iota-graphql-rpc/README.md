@@ -53,8 +53,8 @@ See [pg-services-local](../../docker/pg-services-local/README.md), which automat
 
 ### Using manual setup
 
-Before you can run the GraphQL server, you need to have a running Indexer postgres instance.
-Follow the [Indexer database setup](../iota-indexer/README.md#database-setup) to set up the database.
+Before you can run the GraphQL server, you need to have a running indexer database instance so that the server can query it.
+This doesn't require the Indexer to be running, only the database. Follow the [Indexer database setup](../iota-indexer/README.md#database-setup) to set up the database.
 You should end up with a running postgres instance on port `5432` with the database `iota_indexer` accessible by user `postgres` with password `postgrespw`.
 
 ## Launching the graphql-rpc server
@@ -99,7 +99,7 @@ See [ServiceConfig](src/config.rs) for more available service options.
 
 ### Starting the GraphQL IDE
 
-When running the GraphQL server, you can access the `GraphiQL` IDE at `http://127.0.0.1:8000` to more easily interact with the server.
+When running the GraphQL server, you can access the `GraphiQL` IDE per default at `http://127.0.0.1:8000` to more easily interact with the server.
 
 Try out the following sample query to see if the server is running successfully:
 
@@ -114,10 +114,14 @@ Find more example queries in the [examples](examples) directory.
 
 ### Launching the server with Indexer
 
-For local development, it might be useful to spin up an actual Indexer as well (not only the postgres instance for the Indexer) which writes data to the database, so you can query it with the GraphQL server.
-You can run it as a single service via [pg-services-local](../../docker/pg-services-local/README.md), through the `iota start` subcommand or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
+For local development, it might be useful to spin up an actual Indexer as well (not only the postgres instance) which writes data to the database, so you can query it with the GraphQL server.
+You can run it with a local network using the `iota start` subcommand or [pg-services-local](../../docker/pg-services-local/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup).
 
+To run it with the `iota start` subcommand, switch to the root directory of the repository and run the following command to start the Indexer with the Sync worker:
+
+```
 `cargo run --features indexer --bin iota start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:9125`
+```
 
 ## Running tests
 
