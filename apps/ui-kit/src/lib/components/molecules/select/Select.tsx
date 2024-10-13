@@ -10,6 +10,7 @@ import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
 import { ButtonUnstyled } from '../../atoms/button';
 import { ListItem } from '../../atoms';
 import { DropdownPosition } from '../dropdown';
+import { SelectSize } from './select.enums';
 
 export type SelectOption =
     | string
@@ -61,6 +62,10 @@ interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled
      * The dropdown position
      */
     dropdownPosition?: DropdownPosition;
+    /**
+     * The size of the select.
+     */
+    size?: SelectSize;
 }
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(
@@ -78,6 +83,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             onOptionClick,
             value,
             dropdownPosition = DropdownPosition.Bottom,
+            size = SelectSize.Default,
         },
         ref,
     ) => {
@@ -85,7 +91,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         const selectedValue = findValueByProps(value, options);
 
         const selectorText = selectedValue || placeholder;
-
+        const selectPadding = size === SelectSize.Small ? 'px-sm' : 'px-md';
+        const textSize = size === SelectSize.Small ? 'text-body-md' : 'text-body-lg';
         useEffect(() => {
             if (disabled && isOpen) {
                 closeDropdown();
@@ -117,7 +124,6 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         function closeDropdown() {
             setIsOpen(false);
         }
-
         return (
             <InputWrapper
                 label={label}
@@ -131,7 +137,10 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         ref={ref}
                         onClick={onSelectorClick}
                         disabled={disabled}
-                        className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed  group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5"
+                        className={cx(
+                            'flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed  group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5',
+                            selectPadding,
+                        )}
                     >
                         {leadingIcon && (
                             <span className="text-neutral-10 dark:text-neutral-92">
@@ -141,7 +150,12 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
 
                         <div className="flex w-full flex-row items-baseline gap-x-3">
                             {selectorText && (
-                                <div className="block w-full text-start text-body-lg text-neutral-10 dark:text-neutral-92">
+                                <div
+                                    className={cx(
+                                        'block w-full text-start text-neutral-10 dark:text-neutral-92',
+                                        textSize,
+                                    )}
+                                >
                                     <OptionLabel option={selectorText} />
                                 </div>
                             )}

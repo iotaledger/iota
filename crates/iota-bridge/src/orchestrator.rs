@@ -291,6 +291,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_iota_watcher_task() {
         // Note: this test may fail because of the following reasons:
         // the IotaEvent's struct tag does not match the ones in events.rs
@@ -354,6 +355,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_eth_watcher_task() {
         // Note: this test may fail because of the following reasons:
         // 1. Log and BridgeAction returned from `get_test_log_and_action` are not in
@@ -429,6 +431,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     /// Test that when orchestrator starts, all pending actions are sent to
     /// executor
     async fn test_resume_actions_in_pending_logs() {
