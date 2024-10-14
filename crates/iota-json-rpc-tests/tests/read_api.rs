@@ -17,13 +17,13 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
     error::IotaObjectResponseError,
     messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::CallArg,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -182,9 +182,11 @@ async fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlock
         .await
         .unwrap();
 
-    assert!(transaction_blocks
-        .as_slice()
-        .match_response_options(&options));
+    assert!(
+        transaction_blocks
+            .as_slice()
+            .match_response_options(&options)
+    );
 }
 
 async fn get_object_with_options(options: IotaObjectDataOptions) {
@@ -225,9 +227,11 @@ async fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
         .await
         .unwrap();
 
-    assert!(rpc_objects_response
-        .as_slice()
-        .match_response_options(&options))
+    assert!(
+        rpc_objects_response
+            .as_slice()
+            .match_response_options(&options)
+    )
 }
 
 async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
@@ -406,13 +410,15 @@ async fn get_package_with_display_should_not_fail() -> Result<(), anyhow::Error>
         .await;
     assert!(response.is_ok());
     let response: IotaObjectResponse = response?;
-    assert!(response
-        .into_object()
-        .unwrap()
-        .display
-        .unwrap()
-        .data
-        .is_none());
+    assert!(
+        response
+            .into_object()
+            .unwrap()
+            .display
+            .unwrap()
+            .data
+            .is_none()
+    );
     Ok(())
 }
 
@@ -715,27 +721,24 @@ async fn multi_get_objects_not_found() {
         .await
         .unwrap();
 
-    assert_eq!(
-        indexer_objects,
-        vec![
-            IotaObjectResponse {
-                data: None,
-                error: Some(IotaObjectResponseError::NotExists {
-                    object_id: "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
-                        .parse()
-                        .unwrap()
-                })
-            },
-            IotaObjectResponse {
-                data: None,
-                error: Some(IotaObjectResponseError::NotExists {
-                    object_id: "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82"
-                        .parse()
-                        .unwrap()
-                })
-            }
-        ]
-    );
+    assert_eq!(indexer_objects, vec![
+        IotaObjectResponse {
+            data: None,
+            error: Some(IotaObjectResponseError::NotExists {
+                object_id: "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
+                    .parse()
+                    .unwrap()
+            })
+        },
+        IotaObjectResponse {
+            data: None,
+            error: Some(IotaObjectResponseError::NotExists {
+                object_id: "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82"
+                    .parse()
+                    .unwrap()
+            })
+        }
+    ]);
 }
 
 #[sim_test]
@@ -1470,12 +1473,10 @@ async fn try_get_past_object_deleted() {
             &cluster
                 .test_transaction_builder()
                 .await
-                .move_call(
-                    package_id,
-                    "object_basics",
-                    "create",
-                    vec![1u64.into(), CallArg::Pure(address.to_vec())],
-                )
+                .move_call(package_id, "object_basics", "create", vec![
+                    1u64.into(),
+                    CallArg::Pure(address.to_vec()),
+                ])
                 .build(),
         )
         .await;
