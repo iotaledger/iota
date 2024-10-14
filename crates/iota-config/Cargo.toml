@@ -28,9 +28,9 @@ serde_yaml.workspace = true
 tracing.workspace = true
 
 consensus-config.workspace = true
+iota-genesis-common.workspace = true
 iota-keys.workspace = true
 iota-protocol-config.workspace = true
-iota-genesis-common.workspace = true
 iota-types.workspace = true
 
 [dev-dependencies]

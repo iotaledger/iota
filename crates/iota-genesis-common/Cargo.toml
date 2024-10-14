@@ -44,4 +44,3 @@ move-binary-format.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
 move-vm-runtime-v0 = { path = "../../external-crates/move/move-execution/v0/crates/move-vm-runtime" }
-

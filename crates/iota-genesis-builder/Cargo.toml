@@ -45,9 +45,9 @@ iota-config.workspace = true
 iota-execution.workspace = true
 iota-framework.workspace = true
 iota-framework-snapshot.workspace = true
+iota-genesis-common.workspace = true
 iota-move-build.workspace = true
 iota-move-natives-v0 = { path = "../../iota-execution/v0/iota-move-natives" }
-iota-genesis-common.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
