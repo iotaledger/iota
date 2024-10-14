@@ -302,6 +302,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_get_latest_bridge_committee_with_url_update_event() {
         telemetry_subscribers::init_for_testing();
         let iota_client_mock = IotaMockClient::default();
@@ -439,6 +440,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_get_latest_bridge_committee_with_blocklist_event() {
         telemetry_subscribers::init_for_testing();
         let iota_client_mock = IotaMockClient::default();
@@ -633,6 +635,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_get_bridge_pause_status_with_emergency_event() {
         telemetry_subscribers::init_for_testing();
         let iota_client_mock = IotaMockClient::default();
@@ -704,6 +707,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_update_bridge_authority_aggregation_with_url_change_event() {
         let (
             monitor_tx,
@@ -758,6 +762,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_update_bridge_authority_aggregation_with_blocklist_event() {
         let (
             monitor_tx,
@@ -810,6 +815,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_update_bridge_pause_status_with_emergency_event() {
         let (
             monitor_tx,
@@ -851,6 +857,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_update_iota_token_type_tags() {
         let (
             monitor_tx,

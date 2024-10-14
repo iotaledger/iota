@@ -4,6 +4,7 @@
 
 const aboutIota = [
     'about-iota/about-iota',
+    'about-iota/why-move',
     {
         type: 'category',
         label: 'IOTA Architecture',

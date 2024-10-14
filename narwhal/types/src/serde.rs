@@ -10,6 +10,10 @@ use serde::{
 };
 use serde_with::{Bytes, DeserializeAs, SerializeAs};
 
+#[cfg(test)]
+#[path = "./tests/batch_serde.rs"]
+mod batch_serde;
+
 #[inline]
 fn to_custom_error<'de, D, E>(e: E) -> D::Error
 where

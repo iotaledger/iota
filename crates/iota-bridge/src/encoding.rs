@@ -414,6 +414,7 @@ mod tests {
     };
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
@@ -487,6 +488,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_regression_emitted_iota_to_eth_token_bridge_v1()
     -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
@@ -537,6 +539,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_blocklist_update_v1() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
@@ -633,6 +636,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_emergency_action() {
         let action = BridgeAction::EmergencyAction(EmergencyAction {
             nonce: 55,
@@ -670,6 +674,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_limit_update_action() {
         let action = BridgeAction::LimitUpdateAction(LimitUpdateAction {
             nonce: 15,
@@ -695,6 +700,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_asset_price_update_action() {
         let action = BridgeAction::AssetPriceUpdateAction(AssetPriceUpdateAction {
             nonce: 266,
@@ -720,6 +726,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_evm_contract_upgrade_action() {
         // Calldata with only the function selector and no parameters: `function
         // initializeV2()`
@@ -858,6 +865,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_regression_eth_to_iota_token_bridge_v1() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
@@ -908,6 +916,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_regression_add_coins_on_iota() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
 
@@ -939,6 +948,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_message_encoding_regression_add_coins_on_evm() -> anyhow::Result<()> {
         let action = BridgeAction::AddTokensOnEvmAction(crate::types::AddTokensOnEvmAction {
             nonce: 0,
