@@ -3,6 +3,9 @@ title: Wallet Standard
 description: The Wallet standard defines how wallets can automatically be discovered and interacted with from dApps.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/wallet-standard.json';
+
 Browser extension wallets built for IOTA use the [Wallet standard](https://github.com/wallet-standard/wallet-standard/). This is a cross-chain standard that defines how dApps can automatically discover and interact with wallets.
 
 If you are building a wallet, the helper library `@iota/wallet-standard` provides types and utilities to help get started.
@@ -329,3 +332,5 @@ These values are all arrays containing the new or changed items. Consequently, e
 ### Implementation Example
 
 IOTA offers a bare bones scaffold for React-based applications called `@iota/dapp-kit`. See the [dApp Kit documentation](../../references/ts-sdk/dapp-kit/index.mdx) for more information.
+
+<Quiz questions={questions} />
