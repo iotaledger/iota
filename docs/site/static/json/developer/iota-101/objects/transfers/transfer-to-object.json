@@ -1,0 +1,29 @@
+[
+  {
+    "questionText": "Why does IOTA allow transferring objects directly to other objects?",
+    "answerOptions": [
+      { "answerText": "Because object IDs and addresses are both 32-byte IDs and do not overlap.", "isCorrect": true },
+      { "answerText": "Because objects have the `copy` ability.", "isCorrect": false },
+      { "answerText": "Because objects can be converted to addresses using a special function.", "isCorrect": false },
+      { "answerText": "Because IOTA only supports object-to-object transfers.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What must be ensured when transferring an object to another object in IOTA?",
+    "answerOptions": [
+      { "answerText": "The recipient object has the `drop` ability.", "isCorrect": false },
+      { "answerText": "The recipient object exists and is not immutable.", "isCorrect": true },
+      { "answerText": "The recipient object is owned by the same address.", "isCorrect": false },
+      { "answerText": "The recipient object is of the same type as the sender.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What does the `Receiving<T>` struct represent in IOTA's transfer mechanism?",
+    "answerOptions": [
+      { "answerText": "It represents the ability to receive an object of type `T`.", "isCorrect": true },
+      { "answerText": "It is used to send objects to addresses.", "isCorrect": false },
+      { "answerText": "It allows objects to be transferred without verification.", "isCorrect": false },
+      { "answerText": "It provides storage capabilities for received objects.", "isCorrect": false }
+    ]
+  }
+]

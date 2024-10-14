@@ -43,6 +43,7 @@ use crate::{
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+#[ignore = "https://github.com/iotaledger/iota/issues/3224"]
 async fn test_bridge_from_eth_to_iota_to_eth() {
     telemetry_subscribers::init_for_testing();
 
@@ -162,6 +163,7 @@ async fn test_bridge_from_eth_to_iota_to_eth() {
 // Test add new coins on both Iota and Eth
 // Also test bridge node handling `NewTokenEvent``
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+#[ignore = "https://github.com/iotaledger/iota/issues/3224"]
 async fn test_add_new_coins_on_iota_and_eth() {
     telemetry_subscribers::init_for_testing();
     let mut bridge_test_cluster = BridgeTestClusterBuilder::new()

@@ -7,20 +7,47 @@ use std::{sync::Arc, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_metrics::RegistryService;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
+use iota_types::messages_checkpoint::{
+    CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+};
 use prometheus::Registry;
-use tokio::time::sleep;
+use tokio::{sync::mpsc, time::sleep};
 
 use crate::{
-    authority::test_authority_builder::TestAuthorityBuilder,
-    checkpoints::CheckpointServiceNoop,
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
+    checkpoints::{CheckpointMetrics, CheckpointService, CheckpointServiceNoop},
     consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{
         ConsensusManagerMetrics, ConsensusManagerTrait, mysticeti_manager::MysticetiManager,
-        narwhal_manager::narwhal_manager_tests::checkpoint_service_for_testing,
     },
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     mysticeti_adapter::LazyMysticetiClient,
+    state_accumulator::StateAccumulator,
 };
+
+pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<CheckpointService> {
+    let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
+    let epoch_store = state.epoch_store_for_testing();
+    let accumulator = Arc::new(StateAccumulator::new_for_tests(
+        state.get_accumulator_store().clone(),
+        &epoch_store,
+    ));
+    let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+
+    let (checkpoint_service, _) = CheckpointService::spawn(
+        state.clone(),
+        state.get_checkpoint_store().clone(),
+        epoch_store.clone(),
+        state.get_transaction_cache_reader().clone(),
+        Arc::downgrade(&accumulator),
+        Box::new(output),
+        Box::new(certified_output),
+        CheckpointMetrics::new_for_tests(),
+        3,
+        100_000,
+    );
+    checkpoint_service
+}
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_mysticeti_manager() {

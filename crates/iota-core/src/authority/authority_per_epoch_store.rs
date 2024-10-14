@@ -23,7 +23,7 @@ use futures::{
     future::{Either, join_all, select},
 };
 use iota_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
-use iota_config::node::{ConsensusProtocol, ExpensiveSafetyCheckConfig};
+use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::{fail_point, fail_point_arg};
 use iota_metrics::monitored_scope;
@@ -64,7 +64,6 @@ use iota_types::{
 };
 use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use narwhal_executor::ExecutionIndices;
 use narwhal_types::{Round, TimestampMs};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus::IntCounter;
@@ -104,7 +103,6 @@ use crate::{
         ConsensusCommitInfo, SequencedConsensusTransaction, SequencedConsensusTransactionKey,
         SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
     },
-    consensus_manager::ConsensusManager,
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
@@ -246,6 +244,39 @@ impl ConsensusStatsAPI for ConsensusStatsV1 {
     fn inc_num_user_transactions(&mut self, authority: usize) -> u64 {
         self.num_user_transactions[authority] += 1;
         self.num_user_transactions[authority]
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Copy)]
+pub struct ExecutionIndices {
+    /// The round number of the last committed leader.
+    pub last_committed_round: u64,
+    /// The index of the last sub-DAG that was executed (either fully or
+    /// partially).
+    pub sub_dag_index: u64,
+    /// The index of the last transaction was executed (used for
+    /// crash-recovery).
+    pub transaction_index: u64,
+}
+
+impl Ord for ExecutionIndices {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (
+            self.last_committed_round,
+            self.sub_dag_index,
+            self.transaction_index,
+        )
+            .cmp(&(
+                other.last_committed_round,
+                other.sub_dag_index,
+                other.transaction_index,
+            ))
+    }
+}
+
+impl PartialOrd for ExecutionIndices {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -1803,14 +1834,8 @@ impl AuthorityPerEpochStore {
     }
 
     fn get_max_accumulated_txn_cost_per_object_in_commit(&self) -> Option<u64> {
-        match ConsensusManager::get_consensus_protocol_in_epoch(self) {
-            ConsensusProtocol::Narwhal => self
-                .protocol_config()
-                .max_accumulated_txn_cost_per_object_in_narwhal_commit_as_option(),
-            ConsensusProtocol::Mysticeti => self
-                .protocol_config()
-                .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
-        }
+        self.protocol_config()
+            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
     }
 
     fn should_defer(
@@ -3595,6 +3620,7 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::CapabilityNotification(capabilities),
                 ..
             }) => {
+                // Records capabilities for the authority.
                 let authority = capabilities.authority;
                 if self
                     .get_reconfig_state_read_lock_guard()

@@ -229,7 +229,7 @@ pub enum UserInputError {
     Unsupported(String),
 
     #[error("Query transactions with move function input error: {0}")]
-    MoveFunctionInputError(String),
+    MoveFunctionInput(String),
 
     #[error("Verified checkpoint not found for sequence number: {0}")]
     VerifiedCheckpointNotFound(CheckpointSequenceNumber),

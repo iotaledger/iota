@@ -62,6 +62,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_metered_eth_provider() {
         let metrics = Arc::new(BridgeMetrics::new(&Registry::new()));
         let provider = new_metered_eth_provider("http://localhost:9876", metrics.clone()).unwrap();

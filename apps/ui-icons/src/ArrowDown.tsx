@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { SVGProps } from 'react';
 export default function SvgArrowDown(props: SVGProps<SVGSVGElement>) {
     return (
@@ -14,7 +13,7 @@ export default function SvgArrowDown(props: SVGProps<SVGSVGElement>) {
         >
             <path
                 fill="currentColor"
-                d="M11.45 15.335a1 1 0 0 0 1.257-.128l5-5a1 1 0 0 0-1.414-1.414L12 13.086 7.707 8.793a1 1 0 0 0-1.414 1.414l5 5c.048.049.101.092.157.128Z"
+                d="M11.45 15.335a1 1 0 0 0 1.257-.128l5-5a1 1 0 0 0-1.414-1.414L12 13.086 7.707 8.793a1 1 0 0 0-1.414 1.414l5 5a1 1 0 0 0 .157.128"
             />
         </svg>
     );

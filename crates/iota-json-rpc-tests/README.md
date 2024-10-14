@@ -47,28 +47,24 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [ ] `query_objects`
 - [ ] `get_total_transactions`
 
-### `GovernanceReadApi` (5/8)
+### `GovernanceReadApi` (8/8)
 
 - [x] `get_stakes_by_ids`
 - [x] `get_stakes`
 - [x] `get_timelocked_stakes_by_ids`
 - [x] `get_timelocked_stakes`
-- [ ] `get_committee_info`
+- [x] `get_committee_info`
 - [x] `get_latest_iota_system_state`
-- [ ] `get_reference_gas_price`
-- [ ] `get_validators_apy`
+- [x] `get_reference_gas_price`
+- [x] `get_validators_apy`
 
-### `IndexerApi` (2/9)
+### `IndexerApi` (5/5)
 
 - [x] `get_owned_objects`
-- [ ] `query_transaction_blocks`
-- [ ] `query_events`
-- [ ] `subscribe_event`
-- [ ] `subscribe_transaction`
-- [ ] `get_dynamic_fields`
-- [ ] `get_dynamic_field_object`
-- [ ] `resolve_name_service_address`
-- [ ] `resolve_name_service_names`
+- [x] `query_transaction_blocks`
+- [x] `query_events`
+- [x] `get_dynamic_fields`
+- [x] `get_dynamic_field_object`
 
 ### `MoveUtils` (0/5)
 
@@ -95,19 +91,19 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [ ] `get_protocol_config`
 - [ ] `get_chain_identifier`
 
-### `TransactionBuilder` (7/15)
+### `TransactionBuilder` (15/15)
 
 - [x] `transfer_object`
-- [ ] `transfer_iota`
-- [ ] `pay`
-- [ ] `pay_iota`
-- [ ] `pay_all_iota`
+- [x] `transfer_iota`
+- [x] `pay`
+- [x] `pay_iota`
+- [x] `pay_all_iota`
 - [x] `move_call`
 - [x] `publish`
-- [ ] `split_coin`
-- [ ] `split_coin_equal`
-- [ ] `merge_coin`
-- [ ] `batch_transaction`
+- [x] `split_coin`
+- [x] `split_coin_equal`
+- [x] `merge_coin`
+- [x] `batch_transaction`
 - [x] `request_add_stake`
 - [x] `request_withdraw_stake`
 - [x] `request_add_timelocked_stake`
@@ -116,5 +112,5 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 ### `WriteApi` (2/3)
 
 - [x] `execute_transaction_block`
-- [ ] `dev_inspect_transaction_block`
+- [x] `dev_inspect_transaction_block`
 - [x] `dry_run_transaction_block`
