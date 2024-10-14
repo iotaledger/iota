@@ -149,7 +149,7 @@ async fn create_and_mint_coins(
 }
 
 #[sim_test]
-async fn test_get_coins() -> Result<(), anyhow::Error> {
+async fn get_coins() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -202,7 +202,7 @@ async fn test_get_coins() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_get_balance() -> Result<(), anyhow::Error> {
+async fn get_balance() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -221,7 +221,7 @@ async fn test_get_balance() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_get_metadata() -> Result<(), anyhow::Error> {
+async fn get_metadata() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let cluster = TestClusterBuilder::new().build().await;
@@ -308,7 +308,7 @@ async fn test_get_metadata() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_get_total_supply() -> Result<(), anyhow::Error> {
+async fn get_total_supply() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
@@ -329,7 +329,7 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
+async fn staking_multiple_coins() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
 
     let http_client = cluster.rpc_client();
@@ -424,7 +424,7 @@ async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_get_all_coins() {
+async fn get_all_coins() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -455,7 +455,7 @@ async fn test_get_all_coins() {
 }
 
 #[sim_test]
-async fn test_get_all_coins_with_multiple_coin_types() {
+async fn get_all_coins_with_multiple_coin_types() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -500,7 +500,7 @@ async fn test_get_all_coins_with_multiple_coin_types() {
 }
 
 #[sim_test]
-async fn test_get_all_coins_with_limit() {
+async fn get_all_coins_with_limit() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -539,7 +539,7 @@ async fn test_get_all_coins_with_limit() {
 }
 
 #[sim_test]
-async fn test_get_all_coins_with_cursor_and_limit() {
+async fn get_all_coins_with_cursor_and_limit() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -612,7 +612,7 @@ async fn get_all_coins_with_cursor_boundaries() {
 }
 
 #[sim_test]
-async fn test_get_all_coins_invalid_cursor() {
+async fn get_all_coins_invalid_cursor() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -628,7 +628,7 @@ async fn test_get_all_coins_invalid_cursor() {
 }
 
 #[sim_test]
-async fn test_get_all_coins_limit_zero_with_env_var() {
+async fn get_all_coins_limit_zero_with_env_var() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -644,7 +644,7 @@ async fn test_get_all_coins_limit_zero_with_env_var() {
 }
 
 #[sim_test]
-async fn test_get_all_coins_limit_zero() {
+async fn get_all_coins_limit_zero() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -661,7 +661,7 @@ async fn test_get_all_coins_limit_zero() {
 }
 
 #[sim_test]
-async fn test_get_all_balances() {
+async fn get_all_balances() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
