@@ -93,10 +93,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Balance + Total Balance ***\n ");
 
     // Return the coin metadata for the Coin<IOTA>
-    let coin_metadata = client
-        .coin_read_api()
-        .get_coin_metadata(coin_type.clone())
-        .await?;
+    let coin_metadata = client.coin_read_api().get_coin_metadata(&coin_type).await?;
 
     println!(" *** Coin Metadata *** ");
     println!("{:?}", coin_metadata);
