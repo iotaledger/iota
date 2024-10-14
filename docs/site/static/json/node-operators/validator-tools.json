@@ -1,11 +1,11 @@
 [
     {
-        "questionText": "What command should you use to display the metadata of a validator in IOTA?",
+        "questionText": "What is the key difference in how metadata changes for 'name' take effect compared to changes for 'network address'?",
         "answerOptions": [
-            { "answerText": "$iota validator show-metadata", "isCorrect": false },
-            { "answerText": "$iota validator display-info", "isCorrect": false },
-            { "answerText": "$iota validator display-metadata", "isCorrect": true },
-            { "answerText": "$iota validator get-metadata", "isCorrect": false }
+            { "answerText": "Metadata changes for 'name' take effect immediately, while changes for 'network address' take effect after the next epoch and require a restart.", "isCorrect": true },
+            { "answerText": "Both types of metadata changes take effect immediately.", "isCorrect": false },
+            { "answerText": "Changes for all listed metadata types require waiting for the next epoch and a validator restart.", "isCorrect": false },
+            { "answerText": "User cannot change 'network address'.", "isCorrect": false }
         ]
     },
     {
