@@ -14,7 +14,6 @@ You can use the anemo CLI tools to ping or call an RPC on an Anemo server. Note 
 
 Anemo networks are identified by a "server name" that the client must match. Server names you may want to use:
 
-- Narwhal primary and worker: `narwhal`
 - Iota discovery and state sync: `iota`
 
 ### ping
