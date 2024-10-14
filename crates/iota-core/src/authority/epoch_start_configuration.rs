@@ -54,22 +54,10 @@ pub trait EpochStartConfigTrait {
 // inconsistent with the released branch, and must be fixed.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum EpochFlag {
-    // The deprecated flags have all been in production for long enough that
-    // we can have deleted the old code paths they were guarding.
-    // We retain them here in order not to break deserialization.
-    _InMemoryCheckpointRootsDeprecated = 0,
-    _PerEpochFinalizedTransactionsDeprecated = 1,
-    _ObjectLockSplitTablesDeprecated = 2,
+    WritebackCacheEnabled = 0,
 
-    WritebackCacheEnabled = 3,
-
-    // This flag was "burned" because it was deployed with a broken version of the code. The
-    // new flags below are required to enable state accumulator v2
-    _StateAccumulatorV2EnabledDeprecated = 4,
-    StateAccumulatorV2EnabledTestnet = 5,
-    StateAccumulatorV2EnabledMainnet = 6,
-
-    ExecutedInEpochTable = 7,
+    StateAccumulatorV2EnabledTestnet = 1,
+    StateAccumulatorV2EnabledMainnet = 2,
 }
 
 impl EpochFlag {
@@ -87,7 +75,7 @@ impl EpochFlag {
         cache_config: &ExecutionCacheConfig,
         enable_state_accumulator_v2: bool,
     ) -> Vec<Self> {
-        let mut new_flags = vec![EpochFlag::ExecutedInEpochTable];
+        let mut new_flags = vec![];
 
         if matches!(
             choose_execution_cache(cache_config),
@@ -110,20 +98,7 @@ impl fmt::Display for EpochFlag {
         // Important - implementation should return low cardinality values because this
         // is used as metric key
         match self {
-            EpochFlag::_InMemoryCheckpointRootsDeprecated => {
-                write!(f, "InMemoryCheckpointRoots (DEPRECATED)")
-            }
-            EpochFlag::_PerEpochFinalizedTransactionsDeprecated => {
-                write!(f, "PerEpochFinalizedTransactions (DEPRECATED)")
-            }
-            EpochFlag::_ObjectLockSplitTablesDeprecated => {
-                write!(f, "ObjectLockSplitTables (DEPRECATED)")
-            }
             EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
-            EpochFlag::_StateAccumulatorV2EnabledDeprecated => {
-                write!(f, "StateAccumulatorV2EnabledDeprecated (DEPRECATED)")
-            }
-            EpochFlag::ExecutedInEpochTable => write!(f, "ExecutedInEpochTable"),
             EpochFlag::StateAccumulatorV2EnabledTestnet => {
                 write!(f, "StateAccumulatorV2EnabledTestnet")
             }
