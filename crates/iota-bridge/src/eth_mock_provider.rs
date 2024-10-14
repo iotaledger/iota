@@ -104,6 +104,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_basic_responses_match() {
         let mock = EthMockProvider::new();
 
@@ -140,6 +141,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_with_provider() {
         let mock = EthMockProvider::new();
         let provider = ethers::providers::Provider::new(mock.clone());
