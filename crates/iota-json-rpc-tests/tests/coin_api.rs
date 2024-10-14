@@ -627,6 +627,17 @@ async fn get_all_coins_invalid_cursor() {
     );
 }
 
+// This test case depends om the test execution model. The test pass when all
+// tests are executed with `nextest` or `simtest` becaus of the one test per
+// process design.
+//
+// When using `cargo test` it might fail because of the
+// `QUERY_MAX_RESULT_LIMIT` is initialized upon first access (as a Singleton).
+// This behavior complicates testing, as subsequent tests that rely on this data
+// will be affected by the initial test's configuration. Moreover, some test
+// cases may need different values for `QUERY_MAX_RESULT_LIMIT`, further
+// complicating the testing process.
+
 #[sim_test]
 async fn get_all_coins_limit_zero_with_env_var() {
     let cluster = TestClusterBuilder::new().build().await;
