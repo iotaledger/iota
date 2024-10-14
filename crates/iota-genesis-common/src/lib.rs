@@ -4,23 +4,19 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_execution::{self, Executor};
+use iota_execution::{self};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_types::{
-    base_types::{ObjectID, TxContext},
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
-    inner_temporary_store::InnerTemporaryStore,
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction},
+    transaction::{CheckedInputObjects, Transaction},
 };
-use move_binary_format::CompiledModule;
 
 pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
     // We have a circular dependency here. Protocol config depends on chain ID,
@@ -30,78 +26,6 @@ pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
     // ChainIdentifier::default().chain() which can be overridden by the
     // IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE if necessary
     ProtocolConfig::get_for_version(version, ChainIdentifier::default().chain())
-}
-
-pub fn process_package(
-    store: &mut InMemoryStorage,
-    executor: &dyn Executor,
-    ctx: &mut TxContext,
-    modules: &[CompiledModule],
-    dependencies: Vec<ObjectID>,
-    protocol_config: &ProtocolConfig,
-    metrics: Arc<LimitsMetrics>,
-) -> anyhow::Result<TransactionEvents> {
-    let dependency_objects = store.get_objects(&dependencies);
-    // When publishing genesis packages, since the std framework packages all have
-    // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will
-    // consider them as dependencies even though they are not. Hence
-    // input_objects contain objects that don't exist on-chain because they are
-    // yet to be published.
-    #[cfg(debug_assertions)]
-    {
-        use move_core_types::account_address::AccountAddress;
-        let to_be_published_addresses: HashSet<_> = modules
-            .iter()
-            .map(|module| *module.self_id().address())
-            .collect();
-        assert!(
-            // An object either exists on-chain, or is one of the packages to be published.
-            dependencies
-                .iter()
-                .zip(dependency_objects.iter())
-                .all(|(dependency, obj_opt)| obj_opt.is_some()
-                    || to_be_published_addresses.contains(&AccountAddress::from(*dependency)))
-        );
-    }
-    let loaded_dependencies: Vec<_> = dependencies
-        .iter()
-        .zip(dependency_objects)
-        .filter_map(|(dependency, object)| {
-            Some(ObjectReadResult::new(
-                InputObjectKind::MovePackage(*dependency),
-                object?.clone().into(),
-            ))
-        })
-        .collect();
-
-    let module_bytes = modules
-        .iter()
-        .map(|m| {
-            let mut buf = vec![];
-            m.serialize_with_version(m.version, &mut buf).unwrap();
-            buf
-        })
-        .collect();
-    let pt = {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        // executing in Genesis mode does not create an `UpgradeCap`.
-        builder.command(Command::Publish(module_bytes, dependencies));
-        builder.finish()
-    };
-    let InnerTemporaryStore {
-        written, events, ..
-    } = executor.update_genesis_state(
-        &*store,
-        protocol_config,
-        metrics,
-        ctx,
-        CheckedInputObjects::new_for_genesis(loaded_dependencies),
-        pt,
-    )?;
-
-    store.finish(written);
-
-    Ok(events)
 }
 
 pub fn prepare_and_execute_genesis_transaction(

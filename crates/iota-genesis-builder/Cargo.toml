@@ -38,6 +38,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+tracing-subscriber = "0.3"
 
 iota-adapter-v0 = { path = "../../iota-execution/v0/iota-adapter/" }
 iota-config.workspace = true
@@ -49,6 +50,7 @@ iota-move-natives-v0 = { path = "../../iota-execution/v0/iota-move-natives" }
 iota-genesis-common.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
+move-binary-format.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
@@ -62,7 +64,6 @@ iota-swarm-config.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros"] }
-tracing-subscriber = "0.3"
 
 [features]
 test-outputs = ["iota-sdk/client"]
