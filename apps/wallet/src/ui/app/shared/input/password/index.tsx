@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { EyeClose16, EyeOpen16 } from '@iota/icons';
+import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 import { useField } from 'formik';
 import { useState, type ComponentProps } from 'react';
 
@@ -14,7 +14,7 @@ export interface PasswordInputProps
 export function PasswordInputField({ ...props }: PasswordInputProps) {
     const [passwordShown, setPasswordShown] = useState(false);
     const [field] = useField(props.name);
-    const IconComponent = passwordShown ? EyeOpen16 : EyeClose16;
+    const IconComponent = passwordShown ? VisibilityOn : VisibilityOff;
     return (
         <div className="relative flex w-full items-center">
             <input
@@ -27,7 +27,7 @@ export function PasswordInputField({ ...props }: PasswordInputProps) {
                 }
             />
             <IconComponent
-                className="text-gray-60 peer-focus:text-steel absolute right-3 cursor-pointer text-heading6 font-normal"
+                className="text-gray-60 peer-focus:text-steel absolute right-3 h-4 w-4 cursor-pointer text-heading6 font-normal"
                 onClick={() => setPasswordShown(!passwordShown)}
             />
         </div>

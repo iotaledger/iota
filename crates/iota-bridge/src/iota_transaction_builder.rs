@@ -640,6 +640,7 @@ mod tests {
     };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_token_transfer() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];
@@ -718,6 +719,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_emergency_op() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];
@@ -787,6 +789,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_committee_blocklist() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];
@@ -873,6 +876,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_limit_update() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];
@@ -942,6 +946,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_price_update() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];

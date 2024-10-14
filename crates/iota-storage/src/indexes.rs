@@ -849,7 +849,7 @@ impl IndexStore {
         // If we are passed a function with no module return a UserInputError
         if function.is_some() && module.is_none() {
             return Err(IotaError::UserInput {
-                error: UserInputError::MoveFunctionInputError(
+                error: UserInputError::MoveFunctionInput(
                     "Cannot supply function without supplying module".to_string(),
                 ),
             });
@@ -858,7 +858,7 @@ impl IndexStore {
         // We cannot have a cursor without filling out the other keys.
         if cursor.is_some() && (module.is_none() || function.is_none()) {
             return Err(IotaError::UserInput {
-                error: UserInputError::MoveFunctionInputError(
+                error: UserInputError::MoveFunctionInput(
                     "Cannot supply cursor without supplying module and function".to_string(),
                 ),
             });
