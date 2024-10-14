@@ -4,7 +4,7 @@
 
 import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Heading, Text, LoadingIndicator } from '@iota/ui';
+import { Heading, Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 
 import { AreaGraph } from './AreaGraph';
@@ -12,6 +12,7 @@ import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import {
     LabelText,
     LabelTextSize,
+    LoadingIndicator,
     Panel,
     Title,
     TitleSize,
@@ -111,12 +112,7 @@ export function TransactionsCardGraph() {
                 </div>
                 <div className="flex min-h-[340px] flex-1 flex-col items-center justify-center rounded-xl transition-colors">
                     {isPending ? (
-                        <div className="flex flex-col items-center gap-1">
-                            <LoadingIndicator />
-                            <Text color="steel" variant="body/medium">
-                                loading data
-                            </Text>
-                        </div>
+                        <LoadingIndicator text="Loading data" />
                     ) : epochMetrics?.length ? (
                         <div className="relative flex-1 self-stretch">
                             <ErrorBoundary>
@@ -138,12 +134,7 @@ export function TransactionsCardGraph() {
                             </ErrorBoundary>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center gap-1">
-                            <LoadingIndicator />
-                            <Text color="steel" variant="body/medium">
-                                No historical data available
-                            </Text>
-                        </div>
+                        <LoadingIndicator text="No historical data available" />
                     )}
                 </div>
             </div>

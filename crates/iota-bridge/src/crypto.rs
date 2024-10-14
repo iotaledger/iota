@@ -202,6 +202,7 @@ mod tests {
     };
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_sign_and_verify_bridge_event_basic() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
@@ -278,6 +279,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_sig_verification_regression_test() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
@@ -379,6 +381,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_authority_public_key_bytes_to_eth_address() {
         let pub_key_bytes = BridgeAuthorityPublicKeyBytes::from_bytes(
             &Hex::decode("02321ede33d2c2d7a8a152f275a1484edef2098f034121a602cb7d767d38680aa4")

@@ -28,12 +28,11 @@ import {
     InfoBoxStyle,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Info12 } from '@iota/icons';
 import { Network } from '@iota/iota-sdk/client';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ArrowBottomLeft, Send } from '@iota/ui-icons';
+import { ArrowBottomLeft, Info, Send } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
@@ -152,7 +151,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         <>
             {isMainnet && data?.degraded && (
                 <InfoBox
-                    icon={<Info12 />}
+                    icon={<Info className="h-3 w-3" />}
                     title="App Performance"
                     supportingText="We apologize for the slowdown. Our team is working on a fix and appreciates your patience."
                     type={InfoBoxType.Default}
