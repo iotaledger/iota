@@ -286,7 +286,7 @@ where
             .await
             .map_err(|e| {
                 warn!(?tx_digest, "QuorumDriverInternalError: {e:?}");
-                QuorumDriverError::QuorumDriverInternalError(e)
+                QuorumDriverError::QuorumDriverInternal(e)
             })?;
 
         let Ok(result) = timeout(WAIT_FOR_FINALITY_TIMEOUT, ticket).await else {
@@ -303,7 +303,7 @@ where
         match result {
             Err(err) => {
                 warn!(?tx_digest, "QuorumDriverInternalError: {err:?}");
-                Err(QuorumDriverError::QuorumDriverInternalError(err))
+                Err(QuorumDriverError::QuorumDriverInternal(err))
             }
             Ok(Err(err)) => Err(err),
             Ok(Ok(response)) => {

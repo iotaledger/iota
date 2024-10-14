@@ -290,7 +290,7 @@ struct FeatureFlags {
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
     // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_narwhal")]
+    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
@@ -412,14 +412,12 @@ impl PerObjectCongestionControlMode {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
-    Narwhal,
-    SwapEachEpoch,
     Mysticeti,
 }
 
 impl ConsensusChoice {
-    pub fn is_narwhal(&self) -> bool {
-        matches!(self, ConsensusChoice::Narwhal)
+    pub fn is_mysticeti(&self) -> bool {
+        matches!(self, ConsensusChoice::Mysticeti)
     }
 }
 
