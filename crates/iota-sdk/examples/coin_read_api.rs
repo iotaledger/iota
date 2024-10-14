@@ -66,7 +66,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // `None` for the default Iota coin
     let select_coins = client
         .coin_read_api()
-        .select_coins(active_address, Some(coin_type.clone()), 1, vec![])
+        .select_coins(active_address, coin_type.clone(), 1, vec![])
         .await?;
 
     println!(" *** Select Coins ***");
