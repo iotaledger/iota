@@ -2225,7 +2225,6 @@ impl AuthorityPerEpochStore {
     }
 
     pub fn get_capabilities_v1(&self) -> IotaResult<Vec<AuthorityCapabilitiesV1>> {
-        assert!(self.protocol_config.authority_capabilities_v1());
         let result: Result<Vec<AuthorityCapabilitiesV1>, TypedStoreError> = self
             .tables()?
             .authority_capabilities_v1

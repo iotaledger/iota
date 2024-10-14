@@ -4670,23 +4670,15 @@ impl AuthorityState {
         let buffer_stake_bps = epoch_store.get_effective_buffer_stake_bps();
 
         let (next_epoch_protocol_version, next_epoch_system_packages) =
-            if epoch_store.protocol_config().authority_capabilities_v1() {
-                Self::choose_protocol_version_and_system_packages_v1(
-                    epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
-                    epoch_store.committee(),
-                    epoch_store
-                        .get_capabilities_v1()
-                        .expect("read capabilities from db cannot fail"),
-                    buffer_stake_bps,
-                )
-            } else {
-                error!(
-                    "authority_capabilities_v1 not enabled with protocol_config {:?}",
-                    epoch_store.protocol_config()
-                );
-                return Err(anyhow!("authority_capabilities_v1 not enabled"));
-            };
+            Self::choose_protocol_version_and_system_packages_v1(
+                epoch_store.protocol_version(),
+                epoch_store.protocol_config(),
+                epoch_store.committee(),
+                epoch_store
+                    .get_capabilities_v1()
+                    .expect("read capabilities from db cannot fail"),
+                buffer_stake_bps,
+            );
 
         // since system packages are created during the current epoch, they should abide
         // by the rules of the current epoch, including the current epoch's max

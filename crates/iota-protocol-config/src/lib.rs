@@ -359,10 +359,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     passkey_auth: bool,
 
-    // Use AuthorityCapabilitiesV1
-    #[serde(skip_serializing_if = "is_false")]
-    authority_capabilities_v1: bool,
-
     // Rethrow type layout errors during serialization instead of trying to convert them.
     #[serde(skip_serializing_if = "is_false")]
     rethrow_serialization_type_layout_errors: bool,
@@ -1436,10 +1432,6 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
-    pub fn authority_capabilities_v1(&self) -> bool {
-        self.feature_flags.authority_capabilities_v1
-    }
-
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -2112,8 +2104,6 @@ impl ProtocolConfig {
             cfg.vdf_hash_to_input_cost = Some(100);
 
             cfg.feature_flags.passkey_auth = true;
-
-            cfg.feature_flags.authority_capabilities_v1 = true;
         }
 
         // TODO: remove the never_loop attribute when the version 2 is added.
