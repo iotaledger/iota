@@ -1,11 +1,11 @@
 [
     {
-        "questionText": "What is the default format for checkpoint files in the remote IOTA checkpoint stream?",
+        "questionText": "Which trait must be implemented to process checkpoint data in a custom indexer?",
         "answerOptions": [
-            { "answerText": "https://checkpoints.testnet.iota.io/<checkpoint_id>.chk", "isCorrect": true },
-            { "answerText": "https://iota.io/checkpoints/<checkpoint_id>.dat", "isCorrect": false },
-            { "answerText": "https://testnet.iota.io/checkpoint_<checkpoint_id>", "isCorrect": false },
-            { "answerText": "https://iota.checkpoints.io/testnet_<checkpoint_id>.file", "isCorrect": false }
+            { "answerText": "Worker", "isCorrect": true },
+            { "answerText": "IndexerDaemon", "isCorrect": false },
+            { "answerText": "CheckpointProcessor", "isCorrect": false },
+            { "answerText": "DataIngestor", "isCorrect": false }
         ]
     },
     {
