@@ -231,7 +231,7 @@ impl AuthenticatorStateExpire {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct AuthenticatorStateUpdate {
+pub struct AuthenticatorStateUpdateV1 {
     /// Epoch of the authenticator state update transaction
     pub epoch: u64,
     /// Consensus round of the authenticator state update
@@ -244,7 +244,7 @@ pub struct AuthenticatorStateUpdate {
     // TransactionKind.
 }
 
-impl AuthenticatorStateUpdate {
+impl AuthenticatorStateUpdateV1 {
     pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
         self.authenticator_obj_initial_shared_version
     }
@@ -289,7 +289,7 @@ pub enum TransactionKind {
     ChangeEpoch(ChangeEpoch),
     Genesis(GenesisTransaction),
     ConsensusCommitPrologue(ConsensusCommitPrologue),
-    AuthenticatorStateUpdate(AuthenticatorStateUpdate),
+    AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1),
 
     /// EndOfEpochTransaction replaces ChangeEpoch with a list of transactions
     /// that are allowed to run at the end of the epoch.
@@ -1186,7 +1186,7 @@ impl TransactionKind {
             | TransactionKind::ConsensusCommitPrologue(_)
             | TransactionKind::ConsensusCommitPrologueV2(_)
             | TransactionKind::ConsensusCommitPrologueV3(_)
-            | TransactionKind::AuthenticatorStateUpdate(_)
+            | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => true,
             TransactionKind::ProgrammableTransaction(_) => false,
@@ -1243,7 +1243,7 @@ impl TransactionKind {
                     mutable: true,
                 })))
             }
-            Self::AuthenticatorStateUpdate(update) => {
+            Self::AuthenticatorStateUpdateV1(update) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
                     id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                     initial_shared_version: update.authenticator_obj_initial_shared_version,
@@ -1281,7 +1281,7 @@ impl TransactionKind {
             | TransactionKind::ConsensusCommitPrologue(_)
             | TransactionKind::ConsensusCommitPrologueV2(_)
             | TransactionKind::ConsensusCommitPrologueV3(_)
-            | TransactionKind::AuthenticatorStateUpdate(_)
+            | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => vec![],
             TransactionKind::ProgrammableTransaction(pt) => pt.receiving_objects(),
@@ -1314,7 +1314,7 @@ impl TransactionKind {
                     mutable: true,
                 }]
             }
-            Self::AuthenticatorStateUpdate(update) => {
+            Self::AuthenticatorStateUpdateV1(update) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                     initial_shared_version: update.authenticator_obj_initial_shared_version(),
@@ -1392,7 +1392,7 @@ impl TransactionKind {
                 }
             }
 
-            TransactionKind::AuthenticatorStateUpdate(_) => {
+            TransactionKind::AuthenticatorStateUpdateV1(_) => {
                 if !config.enable_jwk_consensus_updates() {
                     return Err(UserInputError::Unsupported(
                         "authenticator state updates not enabled".to_string(),
@@ -1441,7 +1441,7 @@ impl TransactionKind {
             Self::ConsensusCommitPrologueV2(_) => "ConsensusCommitPrologueV2",
             Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
-            Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
+            Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
         }
@@ -1486,7 +1486,7 @@ impl Display for TransactionKind {
                 writeln!(writer, "Transaction Kind : Programmable")?;
                 write!(writer, "{p}")?;
             }
-            Self::AuthenticatorStateUpdate(_) => {
+            Self::AuthenticatorStateUpdateV1(_) => {
                 writeln!(writer, "Transaction Kind : Authenticator State Update")?;
             }
             Self::RandomnessStateUpdate(_) => {
@@ -2595,13 +2595,13 @@ impl VerifiedTransaction {
         new_active_jwks: Vec<ActiveJwk>,
         authenticator_obj_initial_shared_version: SequenceNumber,
     ) -> Self {
-        AuthenticatorStateUpdate {
+        AuthenticatorStateUpdateV1 {
             epoch,
             round,
             new_active_jwks,
             authenticator_obj_initial_shared_version,
         }
-        .pipe(TransactionKind::AuthenticatorStateUpdate)
+        .pipe(TransactionKind::AuthenticatorStateUpdateV1)
         .pipe(Self::new_system_transaction)
     }
 
