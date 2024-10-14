@@ -21,7 +21,7 @@ const MIGRATION_DATA_PATH: &str = "tests/migration/stardust_object_snapshot.bin"
 #[sim_test]
 async fn test_full_node_load_migration_data() -> Result<(), anyhow::Error> {
     let snapshot_source = SnapshotSource::Local(PathBuf::from_str(MIGRATION_DATA_PATH).unwrap());
-    // telemetry_subscribers::init_for_testing();
+    telemetry_subscribers::init_for_testing();
     let mut test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
         .build()
