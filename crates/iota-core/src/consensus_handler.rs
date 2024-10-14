@@ -887,7 +887,7 @@ mod tests {
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
         object::Object,
-        supported_protocol_versions::SupportedProtocolVersions,
+        supported_protocol_versions::SupportedProtocolVersionsWithHashes,
         transaction::{
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
