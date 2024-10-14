@@ -103,7 +103,7 @@ function DappStatus() {
                             duration: 0.3,
                             ease: 'anticipate',
                         }}
-                        className="max-w-72 absolute right-6 top-[48px] z-50 rounded-2xl bg-neutral-96 p-sm shadow-xl"
+                        className="absolute right-6 top-[48px] z-50 max-w-72 rounded-2xl bg-neutral-96 p-sm shadow-xl"
                         style={{ top: y || 0, left: x || 0 }}
                         {...getFloatingProps()}
                         ref={refs.setFloating}
