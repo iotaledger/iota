@@ -167,16 +167,8 @@ members = [
   "iota-execution/v0/iota-adapter",
   "iota-execution/v0/iota-move-natives",
   "iota-execution/v0/iota-verifier",
-  "narwhal/config",
-  "narwhal/crypto",
-  "narwhal/executor",
   "narwhal/network",
-  "narwhal/node",
-  "narwhal/primary",
-  "narwhal/storage",
-  "narwhal/test-utils",
   "narwhal/types",
-  "narwhal/worker",
 ]
 
 [workspace.package]
@@ -575,16 +567,8 @@ typed-store-error = { path = "crates/typed-store-error" }
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
 
-narwhal-config = { path = "narwhal/config" }
-narwhal-crypto = { path = "narwhal/crypto" }
-narwhal-executor = { path = "narwhal/executor" }
 narwhal-network = { path = "narwhal/network" }
-narwhal-node = { path = "narwhal/node" }
-narwhal-primary = { path = "narwhal/primary" }
-narwhal-storage = { path = "narwhal/storage" }
-narwhal-test-utils = { path = "narwhal/test-utils" }
 narwhal-types = { path = "narwhal/types" }
-narwhal-worker = { path = "narwhal/worker" }
 
 iota-execution = { path = "iota-execution" }
 
