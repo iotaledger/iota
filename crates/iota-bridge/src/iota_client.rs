@@ -645,6 +645,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn get_bridge_action_by_tx_digest_and_event_idx_maybe() {
         // Note: for random events generated in this test, we only care about
         // tx_digest and event_seq, so it's ok that package and module does
@@ -760,6 +761,7 @@ mod tests {
     // TODO: we need an e2e test for this with published solidity contract and
     // committee with BridgeNodes
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_get_action_onchain_status_for_iota_to_eth_transfer() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];

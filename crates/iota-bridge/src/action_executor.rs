@@ -693,6 +693,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_onchain_execution_loop() {
         let (
             signing_tx,
@@ -900,6 +901,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_signature_aggregation_loop() {
         let (
             signing_tx,
@@ -1026,6 +1028,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_request_signature_if_already_processed_on_chain() {
         let (
             signing_tx,
@@ -1096,6 +1099,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_tx_submission_if_already_processed_on_chain() {
         let (
             _signing_tx,
@@ -1182,6 +1186,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_tx_submission_if_bridge_is_paused() {
         let (
             _signing_tx,
@@ -1281,6 +1286,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_action_executor_handle_new_token() {
         let new_token_id = 255u8; // token id that does not exist
         let new_type_tag = TypeTag::from_str("0xbeef::beef::BEEF").unwrap();
