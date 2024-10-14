@@ -2098,7 +2098,7 @@ impl ProtocolConfig {
 
         cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
 
-        cfg.feature_flags.bridge = true;
+        cfg.feature_flags.bridge = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
