@@ -30,7 +30,7 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{AuthorityCapabilitiesV2, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{AuthorityCapabilitiesV1, ConsensusDeterminedVersionAssignments},
     object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
@@ -5000,7 +5000,7 @@ fn test_choose_next_system_packages() {
 
     macro_rules! make_capabilities {
         ($v: expr, $name: expr, $packages: expr) => {
-            AuthorityCapabilitiesV2::new(
+            AuthorityCapabilitiesV1::new(
                 $name,
                 Chain::Unknown,
                 SupportedProtocolVersions::new_for_testing(1, $v),
@@ -5009,7 +5009,7 @@ fn test_choose_next_system_packages() {
         };
 
         ($v: expr, $name: expr, $packages: expr, $digest: expr) => {{
-            let mut cap = AuthorityCapabilitiesV2::new(
+            let mut cap = AuthorityCapabilitiesV1::new(
                 $name,
                 Chain::Unknown,
                 SupportedProtocolVersions::new_for_testing(1, $v),
@@ -5043,7 +5043,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5062,7 +5062,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5076,7 +5076,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5095,7 +5095,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5114,7 +5114,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5133,7 +5133,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5153,7 +5153,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5172,7 +5172,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5193,7 +5193,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5213,7 +5213,7 @@ fn test_choose_next_system_packages() {
     // upgrade to 3 which is the highest supported version
     assert_eq!(
         (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5235,7 +5235,7 @@ fn test_choose_next_system_packages() {
     // won't happen until everyone moves to 3.
     assert_eq!(
         (ver(1), sort(vec![])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,
@@ -5257,7 +5257,7 @@ fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), sort(vec![])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &protocol_config,
             &committee,

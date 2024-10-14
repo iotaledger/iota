@@ -359,9 +359,9 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     passkey_auth: bool,
 
-    // Use AuthorityCapabilitiesV2
+    // Use AuthorityCapabilitiesV1
     #[serde(skip_serializing_if = "is_false")]
-    authority_capabilities_v2: bool,
+    authority_capabilities_v1: bool,
 
     // Rethrow type layout errors during serialization instead of trying to convert them.
     #[serde(skip_serializing_if = "is_false")]
@@ -1436,8 +1436,8 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
-    pub fn authority_capabilities_v2(&self) -> bool {
-        self.feature_flags.authority_capabilities_v2
+    pub fn authority_capabilities_v1(&self) -> bool {
+        self.feature_flags.authority_capabilities_v1
     }
 
     pub fn max_transaction_size_bytes(&self) -> u64 {
@@ -2113,7 +2113,7 @@ impl ProtocolConfig {
 
             cfg.feature_flags.passkey_auth = true;
 
-            cfg.feature_flags.authority_capabilities_v2 = true;
+            cfg.feature_flags.authority_capabilities_v1 = true;
         }
 
         // TODO: remove the never_loop attribute when the version 2 is added.

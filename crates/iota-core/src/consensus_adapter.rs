@@ -739,8 +739,7 @@ impl ConsensusAdapter {
             && matches!(
                 transactions[0].kind,
                 ConsensusTransactionKind::EndOfPublish(_)
-                    | ConsensusTransactionKind::CapabilityNotification(_)
-                    | ConsensusTransactionKind::CapabilityNotificationV2(_)
+                    | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
             ) {

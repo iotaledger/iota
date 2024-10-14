@@ -579,8 +579,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
-        ConsensusTransactionKind::CapabilityNotification(_) => "capability_notification",
-        ConsensusTransactionKind::CapabilityNotificationV2(_) => "capability_notification_v2",
+        ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessStateUpdate(_, _) => "randomness_state_update",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
@@ -883,6 +882,7 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
         committee::Committee,
+        iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -1094,9 +1094,6 @@ mod tests {
                 ConsensusTransactionKind::EndOfPublish(authority) => {
                     format!("eop({})", authority.0[0])
                 }
-                ConsensusTransactionKind::CapabilityNotification(cap) => {
-                    format!("cap({})", cap.generation)
-                }
                 ConsensusTransactionKind::UserTransaction(txn) => {
                     format!("user({})", txn.transaction_data().gas_price())
                 }
@@ -1113,11 +1110,13 @@ mod tests {
     }
 
     fn cap_txn(generation: u64) -> VerifiedSequencedConsensusTransaction {
-        txn(ConsensusTransactionKind::CapabilityNotification(
+        txn(ConsensusTransactionKind::CapabilityNotificationV1(
             AuthorityCapabilitiesV1 {
                 authority: Default::default(),
                 generation,
-                supported_protocol_versions: SupportedProtocolVersions::SYSTEM_DEFAULT,
+                supported_protocol_versions: SupportedProtocolVersionsWithHashes {
+                    versions: vec![],
+                },
                 available_system_packages: vec![],
             },
         ))
