@@ -16,7 +16,7 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{CheckpointContents, CheckpointSummary},
     object::Object,
-    transaction::{Transaction, TransactionDataAPI, TransactionKind},
+    transaction::Transaction,
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;
@@ -59,23 +59,28 @@ impl MigrationTxData {
     /// Executes the migration transaction identified by `digest` and returns
     /// the vector of objects created by the execution.
     pub fn objects_by_tx_digest(&self, digest: TransactionDigest) -> Option<Vec<Object>> {
-        let (tx, _, _) = self.inner.get(&digest)?;
-        assert!(
-            matches!(tx.transaction_data().kind(), TransactionKind::Genesis(_)),
-            "wrong transaction type of migration data"
-        );
+        let (tx, effects, _) = self.inner.get(&digest)?;
 
         // We use default ceremony parameters, not the real ones. This should not affect
         // the execution of a genesis transaction.
         let default_ceremony_parameters = GenesisCeremonyParameters::default();
 
-        let (_, _, objects) = prepare_and_execute_genesis_transaction(
+        // Execute the transaction
+        let (execution_effects, _, execution_objects) = prepare_and_execute_genesis_transaction(
             default_ceremony_parameters.chain_start_timestamp_ms,
             default_ceremony_parameters.protocol_version,
             tx,
         );
 
-        Some(objects)
+        // Validate the results
+        assert_eq!(
+            effects.digest(),
+            execution_effects.digest(),
+            "invalid execution"
+        );
+
+        // Return
+        Some(execution_objects)
     }
 
     fn validate_from_genesis_components(
