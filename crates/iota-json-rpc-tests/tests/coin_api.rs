@@ -628,7 +628,7 @@ async fn get_all_coins_invalid_cursor() {
 }
 
 // This test case depends om the test execution model. The test pass when all
-// tests are executed with `nextest` or `simtest` becaus of the one test per
+// tests are executed with `nextest` or `simtest` because of the one test per
 // process design.
 //
 // When using `cargo test` it might fail because of the
