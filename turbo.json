@@ -3,7 +3,7 @@
 	"$schema": "https://turbo.build/schema.json",
 	"tasks": {
 		"lint": {
-			"dependsOn": ["^build"]
+			"dependsOn": ["@iota/apps-ui-kit#build"]
 		},
 		"lint:fix": {
 			"dependsOn": ["^build"]
