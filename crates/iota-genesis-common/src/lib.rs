@@ -15,9 +15,10 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, Transaction},
+    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI, TransactionKind},
 };
 
+/// Gets a `ProtocolConfig` for genesis based on a `ProtocolVersion`.
 pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
     // We have a circular dependency here. Protocol config depends on chain ID,
     // which depends on genesis checkpoint (digest), which depends on genesis
@@ -28,6 +29,10 @@ pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
     ProtocolConfig::get_for_version(version, ChainIdentifier::default().chain())
 }
 
+/// Prepares the data necessary and then invokes `execute_genesis_transaction`.
+/// The `chain_start_timestamp_ms` is used to construct a genesis `EpochData`.
+/// The `protocol_version` is used to create a `ProtocolConfig` for genesis.
+/// The `genesis_transaction` is the transaction to be executed.
 pub fn prepare_and_execute_genesis_transaction(
     chain_start_timestamp_ms: CheckpointTimestamp,
     protocol_version: ProtocolVersion,
@@ -41,12 +46,24 @@ pub fn prepare_and_execute_genesis_transaction(
     execute_genesis_transaction(&epoch_data, &protocol_config, metrics, genesis_transaction)
 }
 
+/// Takes as input a transaction of kind Genesis and executes it. This can be
+/// used to obtain the `TransactionEffects`, `TransactionEvents` and
+/// `Vec<Object>` (vector of created objects) that result from the execution.
+/// Some `EpochData`, `ProtocolConfig` and `LimitsMetrics` are needed as input t
+/// obe passed to the transaction executor.
 pub fn execute_genesis_transaction(
     epoch_data: &EpochData,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
     genesis_transaction: &Transaction,
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
+    assert!(
+        matches!(
+            genesis_transaction.transaction_data().kind(),
+            TransactionKind::Genesis(_)
+        ),
+        "wrong transaction type to execute"
+    );
     let genesis_digest = *genesis_transaction.digest();
     // execute txn to effects
     let silent = true;

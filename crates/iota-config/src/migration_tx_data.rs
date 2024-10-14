@@ -46,6 +46,8 @@ impl MigrationTxData {
         self.inner.is_empty()
     }
 
+    /// Executes all the migration transactions for this migration data and
+    /// returns the vector of objects created by these executions.
     pub fn get_objects(&self) -> impl Iterator<Item = Object> + '_ {
         self.inner.values().flat_map(|(tx, _, _)| {
             self.objects_by_tx_digest(*tx.digest())
@@ -54,6 +56,8 @@ impl MigrationTxData {
         })
     }
 
+    /// Executes the migration transaction identified by `digest` and returns
+    /// the vector of objects created by the execution.
     pub fn objects_by_tx_digest(&self, digest: TransactionDigest) -> Option<Vec<Object>> {
         let (tx, _, _) = self.inner.get(&digest)?;
         assert!(
@@ -120,6 +124,9 @@ impl MigrationTxData {
         Ok(())
     }
 
+    /// Validates the content of the migration data through a `Genesis`. The
+    /// vaidation is based on cryptographic links (i.e., hash digests) between
+    /// transactions, transaction effects and events.
     pub fn validate_from_genesis(&self, genesis: &Genesis) -> anyhow::Result<()> {
         self.validate_from_genesis_components(
             &genesis.checkpoint(),
@@ -128,6 +135,10 @@ impl MigrationTxData {
         )
     }
 
+    /// Validates the content of the migration data through an
+    /// `UnsignedGenesis`. The vaidation is based on cryptographic links
+    /// (i.e., hash digests) between transactions, transaction effects and
+    /// events.
     pub fn validate_from_unsigned_genesis(
         &self,
         unsigned_genesis: &UnsignedGenesis,
@@ -139,6 +150,7 @@ impl MigrationTxData {
         )
     }
 
+    /// Loads a `MigrationTxData` in memory from a file found in `path`.
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
         trace!("reading Migration transaction data from {}", path.display());
@@ -156,6 +168,7 @@ impl MigrationTxData {
         })
     }
 
+    /// Saves a `MigrationTxData` from memory into a file in `path`.
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
         trace!("writing Migration transaction data to {}", path.display());
