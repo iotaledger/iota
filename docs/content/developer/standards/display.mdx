@@ -3,6 +3,9 @@ title: IOTA Object Display
 description: The IOTA Object Display standard is a template engine that enables on-chain management of off-chain representation (display) for a type.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/display.json';
+
 The IOTA Object Display standard is a template engine that enables on-chain management of off-chain representation (display) for a type. With it, you can substitute data for an object into a template string. The standard doesn’t limit the fields you can set. You can use the  `{property}` syntax to access all object properties, and then insert them as a part of the template string.
 
 Use a `Publisher` object that you own to set `iota::display` for a type. For more information about `Publisher` objects, see [Publisher](https://examples.iota.io/basics/publisher.html) topic in *IOTA Move by Example*.
@@ -45,6 +48,7 @@ The following represents the template the `init` function defines:
 /// to use it to get the `Display<Hero>` object - a way to describe a
 /// type for the ecosystem.
 module examples::my_hero {
+    use iota::tx_context::{sender};
     use std::string::{utf8, String};
 
     // The creator bundle: these two packages often go together.
@@ -79,17 +83,17 @@ module examples::my_hero {
         ];
 
         let values = vector[
-            // For `name` one can use the `Hero.name` property.
+            // For `name` one can use the `Hero.name` property
             utf8(b"{name}"),
-            // For `link` one can build a URL using an `id` property.
+            // For `link` one can build a URL using an `id` property
             utf8(b"https://iota-heroes.io/hero/{id}"),
             // For `image_url` use an IPFS template + `image_url` property.
             utf8(b"ipfs://{image_url}"),
             // Description is static for all `Hero` objects.
             utf8(b"A true Hero of the IOTA ecosystem!"),
-            // Project URL is usually static.
+            // Project URL is usually static
             utf8(b"https://iota-heroes.io"),
-            // Creator field can be any.
+            // Creator field can be any
             utf8(b"Unknown IOTA Fan")
         ];
 
@@ -104,8 +108,8 @@ module examples::my_hero {
         // Commit first version of `Display` to apply changes.
         display::update_version(&mut display);
 
-        transfer::public_transfer(publisher, ctx.sender());
-        transfer::public_transfer(display, ctx.sender());
+        transfer::public_transfer(publisher, sender(ctx));
+        transfer::public_transfer(display, sender(ctx));
     }
 
     /// Anyone can mint their `Hero`!
@@ -231,3 +235,5 @@ module iota::devnet_nft {
     }
 }
 ```
+
+<Quiz questions={questions} />

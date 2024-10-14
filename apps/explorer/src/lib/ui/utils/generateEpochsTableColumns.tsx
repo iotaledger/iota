@@ -7,11 +7,12 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { CheckpointSequenceLink, EpochLink } from '~/components';
 import { getEpochStorageFundFlow } from '~/lib/utils';
+import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
  * Generate table columns renderers for the epochs data.
  */
-export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
+export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<EpochMetrics>[] {
     return [
         {
             header: 'Epoch',
@@ -30,11 +31,14 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
         {
             header: 'Transaction Blocks',
             accessorKey: 'epochTotalTransactions',
-            cell: ({ getValue }) => {
+            cell: ({ getValue, row }) => {
                 const epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
+                const isCurrentEpoch = row.original.epoch === currentEpoch;
+                const displayedEpochTotalTransactions =
+                    isCurrentEpoch || !epochTotalTransactions ? '--' : epochTotalTransactions;
                 return (
                     <TableCellBase>
-                        <TableCellText>{epochTotalTransactions}</TableCellText>
+                        <TableCellText>{displayedEpochTotalTransactions}</TableCellText>
                     </TableCellBase>
                 );
             },
@@ -44,11 +48,16 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             id: 'stakeRewards',
             accessorKey: 'endOfEpochInfo.totalStakeRewardsDistributed',
             cell: ({ row: { original: epochMetrics } }) => {
+                const isCurrentEpoch = epochMetrics.epoch === currentEpoch;
                 const totalStakeRewardsDistributed =
                     epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
+                const displayedTotalStakeRewardsDistributed =
+                    isCurrentEpoch || !totalStakeRewardsDistributed
+                        ? '--'
+                        : totalStakeRewardsDistributed;
                 return (
                     <TableCellBase>
-                        <TableCellText>{totalStakeRewardsDistributed ?? '0'}</TableCellText>
+                        <TableCellText>{displayedTotalStakeRewardsDistributed}</TableCellText>
                     </TableCellBase>
                 );
             },
@@ -90,7 +99,11 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
                 const epochEndTimestamp = epochMetrics.endOfEpochInfo?.epochEndTimestamp;
                 return (
                     <TableCellBase>
-                        <TableCellText>{epochEndTimestamp || '--'}</TableCellText>
+                        <TableCellText>
+                            {epochEndTimestamp
+                                ? getElapsedTime(Number(epochEndTimestamp), Date.now())
+                                : '--'}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },

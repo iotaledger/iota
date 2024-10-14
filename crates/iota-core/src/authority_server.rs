@@ -38,7 +38,6 @@ use iota_types::{
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
     transaction::*,
 };
-use narwhal_worker::LazyNarwhalClient;
 use nonempty::{NonEmpty, nonempty};
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -57,6 +56,7 @@ use crate::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    mysticeti_adapter::LazyMysticetiClient,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, policies::TrafficTally,
     },
@@ -66,6 +66,7 @@ use crate::{
 #[path = "unit_tests/server_tests.rs"]
 mod server_tests;
 
+/// A handle to the authority server.
 pub struct AuthorityServerHandle {
     tx_cancellation: tokio::sync::oneshot::Sender<()>,
     local_addr: Multiaddr,
@@ -73,6 +74,7 @@ pub struct AuthorityServerHandle {
 }
 
 impl AuthorityServerHandle {
+    /// Waits for the server to complete.
     pub async fn join(self) -> Result<(), io::Error> {
         // Note that dropping `self.complete` would terminate the server.
         self.handle
@@ -81,6 +83,7 @@ impl AuthorityServerHandle {
         Ok(())
     }
 
+    /// Kills the server.
     pub async fn kill(self) -> Result<(), io::Error> {
         self.tx_cancellation.send(()).map_err(|_e| {
             io::Error::new(io::ErrorKind::Other, "could not send cancellation signal!")
@@ -91,11 +94,13 @@ impl AuthorityServerHandle {
         Ok(())
     }
 
+    /// Returns the address of the server.
     pub fn address(&self) -> &Multiaddr {
         &self.local_addr
     }
 }
 
+/// An authority server that is used for testing.
 pub struct AuthorityServer {
     address: Multiaddr,
     pub state: Arc<AuthorityState>,
@@ -104,6 +109,7 @@ pub struct AuthorityServer {
 }
 
 impl AuthorityServer {
+    /// Creates a new `AuthorityServer` for testing with a consensus adapter.
     pub fn new_for_test_with_consensus_adapter(
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
@@ -119,10 +125,10 @@ impl AuthorityServer {
         }
     }
 
+    /// Creates a new `AuthorityServer` for testing.
     pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
-        let consensus_address = new_local_tcp_address_for_testing();
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyNarwhalClient::new(consensus_address)),
+            Arc::new(LazyMysticetiClient::new()),
             state.name,
             Arc::new(ConnectionMonitorStatusForTests {}),
             100_000,
@@ -135,11 +141,13 @@ impl AuthorityServer {
         Self::new_for_test_with_consensus_adapter(state, consensus_adapter)
     }
 
+    /// Spawns the server.
     pub async fn spawn_for_test(self) -> Result<AuthorityServerHandle, io::Error> {
         let address = self.address.clone();
         self.spawn_with_bind_address_for_test(address).await
     }
 
+    /// Spawns the server with a bind address.
     pub async fn spawn_with_bind_address_for_test(
         self,
         address: Multiaddr,
@@ -165,6 +173,7 @@ impl AuthorityServer {
     }
 }
 
+/// Metrics for the validator service.
 pub struct ValidatorServiceMetrics {
     pub signature_errors: IntCounter,
     pub tx_verification_latency: IotaHistogram,
@@ -187,6 +196,7 @@ pub struct ValidatorServiceMetrics {
 }
 
 impl ValidatorServiceMetrics {
+    /// Creates a new `ValidatorServiceMetrics` with Prometheus registry.
     pub fn new(registry: &Registry) -> Self {
         Self {
             signature_errors: register_int_counter_with_registry!(
@@ -288,12 +298,14 @@ impl ValidatorServiceMetrics {
         }
     }
 
+    /// Creates a new `ValidatorServiceMetrics` for testing.
     pub fn new_for_tests() -> Self {
         let registry = Registry::new();
         Self::new(&registry)
     }
 }
 
+/// The validator service.
 #[derive(Clone)]
 pub struct ValidatorService {
     state: Arc<AuthorityState>,
@@ -304,6 +316,7 @@ pub struct ValidatorService {
 }
 
 impl ValidatorService {
+    /// Creates a new `ValidatorService`.
     pub fn new(
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
@@ -341,10 +354,12 @@ impl ValidatorService {
         }
     }
 
+    /// Returns the validator state.
     pub fn validator_state(&self) -> &Arc<AuthorityState> {
         &self.state
     }
 
+    /// Executes a `CertifiedTransaction` for testing.
     pub async fn execute_certificate_for_testing(
         &self,
         cert: CertifiedTransaction,
@@ -353,6 +368,7 @@ impl ValidatorService {
         self.handle_certificate_v2(request).await
     }
 
+    /// Handles a `Transaction` request for benchmarking.
     pub async fn handle_transaction_for_benchmarking(
         &self,
         transaction: Transaction,
@@ -361,6 +377,7 @@ impl ValidatorService {
         self.transaction(request).await
     }
 
+    /// Handles a `Transaction` request.
     async fn handle_transaction(
         &self,
         request: tonic::Request<Transaction>,
@@ -1126,6 +1143,7 @@ macro_rules! handle_with_decoration {
 
 #[async_trait]
 impl Validator for ValidatorService {
+    /// Handles a `Transaction` request.
     async fn transaction(
         &self,
         request: tonic::Request<Transaction>,
@@ -1145,6 +1163,7 @@ impl Validator for ValidatorService {
         .unwrap()
     }
 
+    /// Submits a `CertifiedTransaction` request.
     async fn submit_certificate(
         &self,
         request: tonic::Request<CertifiedTransaction>,
@@ -1164,6 +1183,7 @@ impl Validator for ValidatorService {
         .unwrap()
     }
 
+    /// Handles a `CertifiedTransaction` request.
     async fn handle_certificate_v2(
         &self,
         request: tonic::Request<CertifiedTransaction>,
@@ -1185,6 +1205,7 @@ impl Validator for ValidatorService {
         handle_with_decoration!(self, handle_soft_bundle_certificates_v3_impl, request)
     }
 
+    /// Handles an `ObjectInfoRequest` request.
     async fn object_info(
         &self,
         request: tonic::Request<ObjectInfoRequest>,
@@ -1192,6 +1213,7 @@ impl Validator for ValidatorService {
         handle_with_decoration!(self, object_info_impl, request)
     }
 
+    /// Handles a `TransactionInfoRequest` request.
     async fn transaction_info(
         &self,
         request: tonic::Request<TransactionInfoRequest>,
@@ -1199,6 +1221,7 @@ impl Validator for ValidatorService {
         handle_with_decoration!(self, transaction_info_impl, request)
     }
 
+    /// Handles a `CheckpointRequest` request.
     async fn checkpoint(
         &self,
         request: tonic::Request<CheckpointRequest>,
@@ -1206,6 +1229,7 @@ impl Validator for ValidatorService {
         handle_with_decoration!(self, checkpoint_impl, request)
     }
 
+    /// Handles a `CheckpointRequestV2` request.
     async fn checkpoint_v2(
         &self,
         request: tonic::Request<CheckpointRequestV2>,
@@ -1213,6 +1237,7 @@ impl Validator for ValidatorService {
         handle_with_decoration!(self, checkpoint_v2_impl, request)
     }
 
+    /// Gets the `IotaSystemState` response.
     async fn get_system_state_object(
         &self,
         request: tonic::Request<SystemStateRequest>,

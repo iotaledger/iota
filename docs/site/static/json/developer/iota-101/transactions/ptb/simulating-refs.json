@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the purpose of the borrow module in IOTA?",
+        "answerOptions": [
+            { "answerText": "To provide mutable references to objects", "isCorrect": false },
+            { "answerText": "To simulate object references in programmable transaction blocks (PTBs)", "isCorrect": true },
+            { "answerText": "To destroy objects by value", "isCorrect": false },
+            { "answerText": "To wrap objects and make them immutable", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What does a mutable reference allow you to do with an object?",
+        "answerOptions": [
+            { "answerText": "Alter the object but not destroy or transfer it", "isCorrect": true },
+            { "answerText": "Destroy or transfer the object", "isCorrect": false },
+            { "answerText": "Only read the object's data", "isCorrect": false },
+            { "answerText": "Wrap the object with the store ability", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the primary limitation of PTBs regarding references?",
+        "answerOptions": [
+            { "answerText": "PTBs do not allow object references returned from one command to be used in another", "isCorrect": true },
+            { "answerText": "PTBs can only work with objects by value", "isCorrect": false },
+            { "answerText": "PTBs do not support mutable references", "isCorrect": false },
+            { "answerText": "PTBs cannot work with objects at all", "isCorrect": false }
+        ]
+    }
+]

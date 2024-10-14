@@ -2,6 +2,8 @@
 title: Programmable Transaction Blocks
 description: Programmable transaction blocks are a group of commands that complete a transaction on IOTA.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/prog-txn-blocks.json';
 
 On IOTA, a transaction is more than a basic record of the flow of assets. Transactions on IOTA are composed of a number of commands that execute on inputs to define the result of the transaction. Termed programmable transaction blocks (PTBs), these groups of commands define all user transactions on IOTA. PTBs allow a user to call multiple Move functions, manage their objects, and manage their coins in a single transaction--without publishing a new Move package. Designed with automation and transaction builders in mind, PTBs are a lightweight and flexible way of generating transactions. More intricate programming patterns, such as loops, are not supported, however, and in those cases you must publish a new Move package.
 
@@ -152,7 +154,7 @@ The command has the form `TransferObjects(ObjectArgs, AddressArg)` where `Object
 
 The command has the form `SplitCoins(CoinArg, AmountArgs)` where `CoinArg` is the coin being split and `AmountArgs` is a vector of amounts to split off.
 
-- When the transaction is signed, the network verifies that the `AmountArgs` is non-empty.
+- When the transaction is signed, the network verifies that the `ToMergeArgs` is non-empty.
 - The coin argument `CoinArg: Argument` must be a coin of type `iota::coin::Coin<T>` where `T` is the type of the coin being split. It can be any coin type and is not limited to `IOTA` coins.
 - The amount arguments `AmountArgs: [Argument]` must be `u64` values, which could come from a `Pure` input or a result.
 - The coin argument `CoinArg` is taken by mutable reference.
@@ -178,7 +180,7 @@ The command has the form `MakeMoveVec(VecTypeOption, Args)` where `VecTypeOption
 
 - When the transaction is signed, the network verifies that if that the type must be specified for an empty vector of `Args`.
 - The type `VecTypeOption: Option<TypeTag>` is an optional argument specifying the type of the elements in the vector being constructed. The `TypeTag` is a Move type for the elements in the vector, i.e. the `T` in the produced `vector<T>`.
-  - The type does not not have to be specified for an object vector--when `T: key`.
+  - The type does not have to be specified for an object vector--when `T: key`.
   - The type _must_ be specified if the type is not an object type or when the vector is empty.
 - The arguments `Args: [Argument]` are the elements of the vector. The arguments can be any type, including objects, pure values, or results from previous commands.
 - The arguments `Args` are taken by value. Copied if `T: copy` and moved otherwise.
@@ -441,3 +443,5 @@ After these checks are performed, generate the effects.
   - The `Item` with `id2` is a newly created object.
 - The `Marketplace` object is returned, remains shared, and it's mutated.
   - The object remains shared but its contents are mutated.
+  
+<Quiz questions={questions} />

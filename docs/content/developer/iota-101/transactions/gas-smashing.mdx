@@ -2,6 +2,8 @@
 title: Gas Smashing
 description: IOTA optimizes coin management by combining multiple coins into a single object to pay for gas fees.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/gas-smashing.json';
 
 Every transaction on IOTA has a gas fee associated with its execution that must be paid to successfully execute the transaction. Gas smashing enables you to pay for this gas fee using multiple coins instead of just one. This mechanism is especially helpful in scenarios where you might have a number of coins with smaller denominations, or if you simply want to minimize the number of IOTA coins under your account. Gas smashing is generally a useful tool for coin management, especially when coupled with the `GasCoin` programmable transaction block (PTB) argument.
 
@@ -16,3 +18,6 @@ IOTA has a maximum of 256 coins that you can smash in a single PTB - the transac
 ## Running out of gas with a refund
 
 Because coins are smashed regardless of the execution status, storage rebates can lead to seemingly odd cases where a transaction can both run out of gas and end up with a negative gas and storage fee (you get a refund from the transaction). As an example of how this might happen, take a transaction `T` that has a gas budget of `5000`, and you provide coins `C1`, `C2`, `C3`, `C4`, `C5` with values of `1000`, `2000`, `3000`, `4000`, and `5000` to pay for gas. If the storage rebate for a coin object is `2000`, and the gas fee for `T` execution is more than the provided gas budget of `5000` (so, `T` runs out of gas), this results in an execution status of `OutOfGas`. The `C1` coin has a balance of `1000` + `2000` + `3000` + `4000` + `5000` - `5000` + `2000` * `4` = `15000` - `5000` + `8000` = `18000` and `T` ends up with a negative gas and storage fee (a refund) of `3000`. 
+
+
+<Quiz questions={questions} />

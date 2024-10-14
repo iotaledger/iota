@@ -12,32 +12,25 @@ use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::traits::KeyPair as _;
-use iota_config::{ConsensusConfig, NodeConfig, node::ConsensusProtocol};
+use iota_config::{ConsensusConfig, NodeConfig};
 use iota_metrics::RegistryService;
-use iota_protocol_config::{ConsensusChoice, ProtocolVersion};
+use iota_protocol_config::ProtocolVersion;
 use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
-use narwhal_worker::LazyNarwhalClient;
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio::{
     sync::{Mutex, MutexGuard},
     time::{sleep, timeout},
 };
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
-    consensus_adapter::SubmitToConsensus,
-    consensus_handler::ConsensusHandlerInitializer,
-    consensus_manager::{
-        mysticeti_manager::MysticetiManager,
-        narwhal_manager::{NarwhalConfiguration, NarwhalManager},
-    },
-    consensus_validator::IotaTxValidator,
+    consensus_adapter::SubmitToConsensus, consensus_handler::ConsensusHandlerInitializer,
+    consensus_manager::mysticeti_manager::MysticetiManager, consensus_validator::IotaTxValidator,
     mysticeti_adapter::LazyMysticetiClient,
 };
 
 pub mod mysticeti_manager;
-pub mod narwhal_manager;
 
 #[derive(PartialEq)]
 pub(crate) enum Running {
@@ -65,29 +58,10 @@ pub trait ConsensusManagerTrait {
 // the ConsensusManagerTrait easier.
 #[enum_dispatch]
 enum ProtocolManager {
-    Narwhal(NarwhalManager),
     Mysticeti(MysticetiManager),
 }
 
 impl ProtocolManager {
-    /// Creates a new narwhal manager.
-    pub fn new_narwhal(
-        config: &NodeConfig,
-        consensus_config: &ConsensusConfig,
-        registry_service: &RegistryService,
-        metrics: Arc<ConsensusManagerMetrics>,
-    ) -> Self {
-        let narwhal_config = NarwhalConfiguration {
-            primary_keypair: config.protocol_key_pair().copy(),
-            network_keypair: config.network_key_pair().copy(),
-            worker_ids_and_keypairs: vec![(0, config.worker_key_pair().copy())],
-            storage_base_path: consensus_config.db_path().to_path_buf(),
-            parameters: consensus_config.narwhal_config().to_owned(),
-            registry_service: registry_service.clone(),
-        };
-        Self::Narwhal(NarwhalManager::new(narwhal_config, metrics))
-    }
-
     /// Creates a new mysticeti manager.
     pub fn new_mysticeti(
         config: &NodeConfig,
@@ -110,11 +84,9 @@ impl ProtocolManager {
 /// Used by Iota validator to start consensus protocol for each epoch.
 pub struct ConsensusManager {
     consensus_config: ConsensusConfig,
-    narwhal_manager: ProtocolManager,
     mysticeti_manager: ProtocolManager,
-    narwhal_client: Arc<LazyNarwhalClient>,
     mysticeti_client: Arc<LazyMysticetiClient>,
-    active: parking_lot::Mutex<Vec<bool>>,
+    active: parking_lot::Mutex<bool>,
     consensus_client: Arc<ConsensusClient>,
 }
 
@@ -128,15 +100,6 @@ impl ConsensusManager {
         let metrics = Arc::new(ConsensusManagerMetrics::new(
             &registry_service.default_registry(),
         ));
-        let narwhal_client = Arc::new(LazyNarwhalClient::new(
-            consensus_config.address().to_owned(),
-        ));
-        let narwhal_manager = ProtocolManager::new_narwhal(
-            node_config,
-            consensus_config,
-            registry_service,
-            metrics.clone(),
-        );
         let mysticeti_client = Arc::new(LazyMysticetiClient::new());
         let mysticeti_manager = ProtocolManager::new_mysticeti(
             node_config,
@@ -147,58 +110,15 @@ impl ConsensusManager {
         );
         Self {
             consensus_config: consensus_config.clone(),
-            narwhal_manager,
             mysticeti_manager,
-            narwhal_client,
             mysticeti_client,
-            active: parking_lot::Mutex::new(vec![false; 2]),
+            active: parking_lot::Mutex::new(false),
             consensus_client,
         }
     }
 
     pub fn get_storage_base_path(&self) -> PathBuf {
         self.consensus_config.db_path().to_path_buf()
-    }
-
-    // Picks the consensus protocol based on the protocol config and the epoch.
-    pub fn get_consensus_protocol_in_epoch(
-        epoch_store: &AuthorityPerEpochStore,
-    ) -> ConsensusProtocol {
-        let protocol_config = epoch_store.protocol_config();
-        if protocol_config.version >= ProtocolVersion::new(36) {
-            if let Ok(consensus_choice) = std::env::var("CONSENSUS") {
-                match consensus_choice.to_lowercase().as_str() {
-                    "narwhal" => return ConsensusProtocol::Narwhal,
-                    "mysticeti" => return ConsensusProtocol::Mysticeti,
-                    "swap_each_epoch" => {
-                        let protocol = if epoch_store.epoch() % 2 == 0 {
-                            ConsensusProtocol::Narwhal
-                        } else {
-                            ConsensusProtocol::Mysticeti
-                        };
-                        return protocol;
-                    }
-                    _ => {
-                        debug!(
-                            "Invalid consensus choice {} in env var. Continue to pick consensus with protocol config",
-                            consensus_choice
-                        );
-                    }
-                };
-            }
-        }
-
-        match protocol_config.consensus_choice() {
-            ConsensusChoice::Narwhal => ConsensusProtocol::Narwhal,
-            ConsensusChoice::Mysticeti => ConsensusProtocol::Mysticeti,
-            ConsensusChoice::SwapEachEpoch => {
-                if epoch_store.epoch() % 2 == 0 {
-                    ConsensusProtocol::Narwhal
-                } else {
-                    ConsensusProtocol::Mysticeti
-                }
-            }
-        }
     }
 }
 
@@ -213,26 +133,11 @@ impl ConsensusManagerTrait for ConsensusManager {
     ) {
         let protocol_manager = {
             let mut active = self.active.lock();
-            active.iter().enumerate().for_each(|(index, active)| {
-                assert!(
-                    !*active,
-                    "Cannot start consensus. ConsensusManager protocol {index} is already running"
-                );
-            });
-            let protocol = Self::get_consensus_protocol_in_epoch(&epoch_store);
-            info!("Starting consensus protocol {protocol:?} ...");
-            match protocol {
-                ConsensusProtocol::Narwhal => {
-                    active[0] = true;
-                    self.consensus_client.set(self.narwhal_client.clone());
-                    &self.narwhal_manager
-                }
-                ConsensusProtocol::Mysticeti => {
-                    active[1] = true;
-                    self.consensus_client.set(self.mysticeti_client.clone());
-                    &self.mysticeti_manager
-                }
-            }
+            assert!(!*active, "Cannot start consensus. It is already running!");
+            info!("Starting consensus ...");
+            *active = true;
+            self.consensus_client.set(self.mysticeti_client.clone());
+            &self.mysticeti_manager
         };
 
         protocol_manager
@@ -246,14 +151,12 @@ impl ConsensusManagerTrait for ConsensusManager {
     }
 
     async fn shutdown(&self) {
+        info!("Shutting down consensus ...");
         let prev_active = {
             let mut active = self.active.lock();
-            std::mem::replace(&mut *active, vec![false; 2])
+            std::mem::replace(&mut *active, false)
         };
-        if prev_active[0] {
-            self.narwhal_manager.shutdown().await;
-        }
-        if prev_active[1] {
+        if prev_active {
             self.mysticeti_manager.shutdown().await;
         }
         self.consensus_client.clear();
@@ -261,7 +164,7 @@ impl ConsensusManagerTrait for ConsensusManager {
 
     async fn is_running(&self) -> bool {
         let active = self.active.lock();
-        active.iter().any(|i| *i)
+        *active
     }
 }
 
@@ -325,8 +228,6 @@ impl SubmitToConsensus for ConsensusClient {
 pub struct ConsensusManagerMetrics {
     start_latency: IntGauge,
     shutdown_latency: IntGauge,
-    start_primary_retries: IntGauge,
-    start_worker_retries: IntGauge,
 }
 
 impl ConsensusManagerMetrics {
@@ -342,18 +243,6 @@ impl ConsensusManagerMetrics {
                 "consensus_manager_shutdown_latency",
                 "The latency of shutting down consensus nodes",
                 registry,
-            )
-            .unwrap(),
-            start_primary_retries: register_int_gauge_with_registry!(
-                "narwhal_manager_start_primary_retries",
-                "The number of retries took to start narwhal primary node",
-                registry
-            )
-            .unwrap(),
-            start_worker_retries: register_int_gauge_with_registry!(
-                "narwhal_manager_start_worker_retries",
-                "The number of retries took to start narwhal worker node",
-                registry
             )
             .unwrap(),
         }
@@ -404,7 +293,7 @@ impl<'a> RunningLockGuard<'a> {
                 "Shutting down consensus for epoch {epoch:?} & protocol version {version:?}"
             );
         } else {
-            tracing::warn!("Consensus shutdown was called but Narwhal node is not running");
+            tracing::warn!("Consensus shutdown was called but consensus is not running");
             return None;
         }
 

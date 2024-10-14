@@ -290,7 +290,7 @@ struct FeatureFlags {
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
     // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_narwhal")]
+    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
@@ -412,14 +412,12 @@ impl PerObjectCongestionControlMode {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
-    Narwhal,
-    SwapEachEpoch,
     Mysticeti,
 }
 
 impl ConsensusChoice {
-    pub fn is_narwhal(&self) -> bool {
-        matches!(self, ConsensusChoice::Narwhal)
+    pub fn is_mysticeti(&self) -> bool {
+        matches!(self, ConsensusChoice::Mysticeti)
     }
 }
 
@@ -1443,6 +1441,18 @@ impl ProtocolConfig {
         self.feature_flags.authority_capabilities_v2
     }
 
+    pub fn max_transaction_size_bytes(&self) -> u64 {
+        // Provide a default value if protocol config version is too low.
+        self.consensus_max_transaction_size_bytes
+            .unwrap_or(256 * 1024)
+    }
+
+    pub fn max_transactions_in_block_bytes(&self) -> u64 {
+        // Provide a default value if protocol config version is too low.
+        self.consensus_max_transactions_in_block_bytes
+            .unwrap_or(512 * 1024)
+    }
+
     pub fn max_num_transactions_in_block(&self) -> u64 {
         // 500 is the value used before this field is introduced.
         self.consensus_max_num_transactions_in_block.unwrap_or(500)
@@ -2086,7 +2096,7 @@ impl ProtocolConfig {
 
         cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
 
-        cfg.feature_flags.bridge = true;
+        cfg.feature_flags.bridge = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {

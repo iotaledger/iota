@@ -505,6 +505,7 @@ pub mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_events_when_init() {
         telemetry_subscribers::init_for_testing();
         init_all_struct_tags();
@@ -546,6 +547,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_conversion_for_committee_member_url_update_event() {
         let (_, kp): (_, BridgeAuthorityKeyPair) = get_key_pair();
         let new_url = "https://example.com:443";
@@ -574,6 +576,7 @@ pub mod tests {
     // TODO: add conversion tests for other events
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_0_iota_amount_conversion_for_iota_event() {
         let emitted_event = MoveTokenDepositedEvent {
             seq_num: 1,
