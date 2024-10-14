@@ -1,7 +1,7 @@
 {
     "name": "@iota/kiosk",
     "author": "IOTA Foundation <contact@iota.org>",
-    "description": "Iota Kiosk library",
+    "description": "IOTA Kiosk library",
     "version": "0.1.2",
     "license": "Apache-2.0",
     "type": "commonjs",

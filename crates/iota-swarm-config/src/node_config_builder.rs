@@ -26,7 +26,6 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use narwhal_config::{NetworkAdminServerParameters, PrometheusMetricsParameters};
 
 use crate::{
     genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder},
@@ -143,20 +142,6 @@ impl ValidatorConfigBuilder {
             max_pending_transactions: None,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            narwhal_config: narwhal_config::Parameters {
-                network_admin_server: NetworkAdminServerParameters {
-                    primary_network_admin_server_port: local_ip_utils::get_available_port(
-                        &localhost,
-                    ),
-                    worker_network_admin_server_base_port: local_ip_utils::get_available_port(
-                        &localhost,
-                    ),
-                },
-                prometheus_metrics: PrometheusMetricsParameters {
-                    socket_addr: validator.narwhal_metrics_address,
-                },
-                ..Default::default()
-            },
             parameters: Default::default(),
         };
 

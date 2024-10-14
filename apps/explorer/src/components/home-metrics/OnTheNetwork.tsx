@@ -4,7 +4,15 @@
 
 import { CoinFormat, formatBalance } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Divider, LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
+import {
+    Divider,
+    LabelText,
+    LabelTextSize,
+    Panel,
+    Title,
+    TitleSize,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -59,6 +67,8 @@ export function OnTheNetwork(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Peak 30d TPS"
                             text={tps30DaysFormatted}
+                            tooltipPosition={TooltipPosition.Left}
+                            tooltipText="Peak TPS over the past 30 days, not including this epoch."
                         />
                     </div>
                 </div>
@@ -89,6 +99,9 @@ export function OnTheNetwork(): JSX.Element {
                             label="Reference Gas Price"
                             text={gasPriceFormatted ?? '-'}
                             supportingLabel={gasPriceFormatted !== null ? 'IOTA' : undefined}
+                            tooltipPosition={TooltipPosition.Top}
+                            tooltipText="
+The reference gas price in the current epoch."
                         />
                     </div>
                     <div className="flex-1">

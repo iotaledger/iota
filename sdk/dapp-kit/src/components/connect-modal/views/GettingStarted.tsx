@@ -10,10 +10,10 @@ import * as styles from './GettingStarted.css.js';
 export function GettingStarted() {
     return (
         <div className={styles.container}>
-            <Heading as="h2">Get Started with Iota</Heading>
+            <Heading as="h2">Get Started with IOTA</Heading>
             <div className={styles.content}>
-                <InfoSection title="Install the Iota Wallet Extension">
-                    We recommend pinning Iota Wallet to your taskbar for quicker access.
+                <InfoSection title="Install the IOTA Wallet Extension">
+                    We recommend pinning IOTA Wallet to your taskbar for quicker access.
                 </InfoSection>
                 <InfoSection title="Create or Import a Wallet">
                     Be sure to back up your wallet using a secure method. Never share your secret

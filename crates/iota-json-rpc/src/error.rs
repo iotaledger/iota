@@ -261,7 +261,7 @@ impl From<Error> for RpcError {
                         );
                         RpcError::Call(error_object)
                     }
-                    QuorumDriverError::QuorumDriverInternalError(_) => {
+                    QuorumDriverError::QuorumDriverInternal(_) => {
                         let error_object = ErrorObject::owned::<()>(
                             INTERNAL_ERROR_CODE,
                             "Internal error occurred while executing transaction.",
@@ -530,7 +530,7 @@ mod tests {
         #[test]
         fn test_quorum_driver_internal_error() {
             let quorum_driver_error =
-                QuorumDriverError::QuorumDriverInternalError(IotaError::UnexpectedMessage);
+                QuorumDriverError::QuorumDriverInternal(IotaError::UnexpectedMessage);
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
