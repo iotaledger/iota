@@ -9,5 +9,4 @@ export * from './Heading';
 export * from './IconButton';
 export * from './Placeholder';
 export * from './Toggle';
-export * from './RadioGroup';
 export * from './Combobox';

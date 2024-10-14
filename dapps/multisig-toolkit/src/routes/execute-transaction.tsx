@@ -123,14 +123,14 @@ export default function ExecuteTransaction() {
                 <TabsContent value="digest">
                     <Card key={digest}>
                         <CardHeader>
-                            <CardTitle>Iota Transaction Digest</CardTitle>
+                            <CardTitle>IOTA Transaction Digest</CardTitle>
                             <CardDescription>
                                 View TX Digest on{' '}
                                 <a
                                     className="text-blue-500"
                                     href={`https://explorer.iota.org/txblock/${digest}`}
                                 >
-                                    Iota Explorer
+                                    IOTA Explorer
                                 </a>
                             </CardDescription>
                         </CardHeader>

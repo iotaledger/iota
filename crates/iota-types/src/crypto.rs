@@ -68,6 +68,21 @@ mod crypto_tests;
 #[path = "unit_tests/intent_tests.rs"]
 mod intent_tests;
 
+////////////////////////////////////////////////////////////////////////
+/// Type aliases selecting the signature algorithm for the code base.
+////////////////////////////////////////////////////////////////////////
+// Here we select the types that are used by default in the code base.
+// The whole code base should only:
+// - refer to those aliases and not use the individual scheme implementations
+// - not use the schemes in a way that break genericity (e.g. using their Struct
+//   impl functions)
+// - swap one of those aliases to point to another type if necessary
+//
+// Beware: if you change those aliases to point to another scheme
+// implementation, you will have to change all related aliases to point to
+// concrete types that work with each other. Failure to do so will result in a
+// ton of compilation errors, and worse: it will not make sense!
+
 // Authority Objects
 pub type AuthorityKeyPair = BLS12381KeyPair;
 pub type AuthorityPublicKey = BLS12381PublicKey;
@@ -113,8 +128,8 @@ pub fn generate_proof_of_possession(
 /// Verify proof of possession against the expected intent message,
 /// consisting of the protocol pubkey and the authority account address.
 pub fn verify_proof_of_possession(
-    pop: &narwhal_crypto::Signature,
-    protocol_pubkey: &narwhal_crypto::PublicKey,
+    pop: &AuthoritySignature,
+    protocol_pubkey: &AuthorityPublicKey,
     iota_address: IotaAddress,
 ) -> Result<(), IotaError> {
     protocol_pubkey

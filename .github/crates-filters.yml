@@ -172,22 +172,12 @@ narwhal-config:
   - "narwhal/config/**"
 narwhal-crypto:
   - "narwhal/crypto/**"
-narwhal-executor:
-  - "narwhal/executor/**"
 narwhal-network:
   - "narwhal/network/**"
-narwhal-node:
-  - "narwhal/node/**"
-narwhal-primary:
-  - "narwhal/primary/**"
-narwhal-storage:
-  - "narwhal/storage/**"
 narwhal-test-utils:
   - "narwhal/test-utils/**"
 narwhal-types:
   - "narwhal/types/**"
-narwhal-worker:
-  - "narwhal/worker/**"
 iota-execution:
   - "iota-execution/**"
 iota-execution-cut:

@@ -6,7 +6,6 @@ import { getCoinSymbol } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type CoinBalance } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { LoadingIndicator } from '@iota/ui';
 import { FilterList, Warning } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
 import OwnedCoinView from './OwnedCoinView';
@@ -20,7 +19,9 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     ListItem,
+    LoadingIndicator,
     Select,
+    SelectSize,
     Title,
 } from '@iota/apps-ui-kit';
 import { Pagination } from '../ui';
@@ -151,7 +152,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                     <div className="sticky top-0 z-[1] bg-neutral-100 p-sm dark:bg-neutral-10">
                                         <InfoBox
                                             icon={<Warning />}
-                                            supportingText="These coins have not been recognized by the Iota Foundation."
+                                            supportingText="These coins have not been recognized by the IOTA Foundation."
                                             type={InfoBoxType.Default}
                                             style={InfoBoxStyle.Default}
                                         />
@@ -161,7 +162,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                             </div>
 
                             {displayedBalances.length > limit && (
-                                <div className="flex flex-col justify-between gap-2 px-sm--rs py-xs--rs md:flex-row">
+                                <div className="flex flex-row flex-wrap items-center justify-between gap-xs px-sm--rs py-sm--rs">
                                     <Pagination
                                         hasFirst={currentSlice !== 1}
                                         onNext={() => setCurrentSlice(currentSlice + 1)}
@@ -174,9 +175,8 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         onFirst={() => setCurrentSlice(1)}
                                     />
                                     <div className="flex items-center gap-3">
-                                        <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
-                                            {`Showing `}
-                                            {(currentSlice - 1) * limit + 1}-
+                                        <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
+                                            Showing {(currentSlice - 1) * limit + 1}-
                                             {currentSlice * limit > displayedBalances.length
                                                 ? displayedBalances.length
                                                 : currentSlice * limit}
@@ -185,14 +185,15 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                             dropdownPosition={DropdownPosition.Top}
                                             value={limit.toString()}
                                             options={[
-                                                { label: '20 Per Page', id: '20' },
-                                                { label: '40 Per Page', id: '40' },
-                                                { label: '60 Per Page', id: '60' },
+                                                { label: '20 / page', id: '20' },
+                                                { label: '40 / page', id: '40' },
+                                                { label: '60 / page', id: '60' },
                                             ]}
                                             onValueChange={(value) => {
                                                 setLimit(Number(value));
                                                 setCurrentSlice(1);
                                             }}
+                                            size={SelectSize.Small}
                                         />
                                     </div>
                                 </div>

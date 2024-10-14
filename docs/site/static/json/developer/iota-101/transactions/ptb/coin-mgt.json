@@ -1,0 +1,47 @@
+[
+  {
+    "questionText": "How does IOTA's coin management paradigm differ from other account-based blockchains?",
+    "answerOptions": [
+      { "answerText": "IOTA does not allow multiple coins per address.", "isCorrect": false },
+      { "answerText": "IOTA stores all coins in a single global pool.", "isCorrect": false },
+      { "answerText": "IOTA uses a single coin type for all transactions.", "isCorrect": false },
+      { "answerText": "IOTA uses owned objects instead of a centralized balance field.", "isCorrect": true }
+    ]
+  },
+  {
+    "questionText": "What is 'gas smashing' in IOTA transactions?",
+    "answerOptions": [
+      { "answerText": "Automatically merging multiple coins into a single gas coin during transaction execution.", "isCorrect": true },
+      { "answerText": "Splitting a single gas coin into multiple smaller coins.", "isCorrect": false },
+      { "answerText": "Setting gas fees to the highest possible value.", "isCorrect": false },
+      { "answerText": "Using a special coin type exclusively for gas payments.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is a potential downside of merging all `Coin<IOTA>` into a single coin?",
+    "answerOptions": [
+      { "answerText": "It increases the gas fees for each transaction.", "isCorrect": false },
+      { "answerText": "It prevents the coin from being used in future transactions.", "isCorrect": false },
+      { "answerText": "It limits concurrency because the coin becomes locked during transactions.", "isCorrect": true },
+      { "answerText": "It causes the coin to lose its value over time.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "When is it recommended to split a coin in IOTA?",
+    "answerOptions": [
+      { "answerText": "When the transaction fee is too high.", "isCorrect": false },
+      { "answerText": "When executing multiple concurrent transactions requiring separate coins.", "isCorrect": true },
+      { "answerText": "When the gas price needs to be increased.", "isCorrect": false },
+      { "answerText": "When transferring coins to multiple addresses in a single transaction.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How does IOTA's gas smashing feature optimize the use of the gas coin?",
+    "answerOptions": [
+      { "answerText": "By splitting the gas coin into smaller denominations for finer control.", "isCorrect": false },
+      { "answerText": "By merging multiple coins into the gas coin, making it available for various commands within the transaction.", "isCorrect": true },
+      { "answerText": "By reserving a separate gas coin that cannot be used for other purposes.", "isCorrect": false },
+      { "answerText": "By automatically increasing the gas price based on transaction complexity.", "isCorrect": false }
+    ]
+  }
+]

@@ -35,7 +35,7 @@ pub(crate) mod iota_mock_client;
 #[cfg(test)]
 pub mod test_utils;
 
-pub const BRIDGE_ENABLE_PROTOCOL_VERSION: u64 = 45;
+pub const BRIDGE_ENABLE_PROTOCOL_VERSION: u64 = 1;
 
 #[cfg(test)]
 pub mod e2e_tests;
@@ -90,6 +90,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_retry_with_max_elapsed_time() {
         telemetry_subscribers::init_for_testing();
         // no retry is needed, should return immediately. We give it a very small
