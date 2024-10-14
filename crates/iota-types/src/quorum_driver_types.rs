@@ -36,7 +36,7 @@ pub const NON_RECOVERABLE_ERROR_MSG: &str =
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr)]
 pub enum QuorumDriverError {
     #[error("QuorumDriver internal error: {0:?}.")]
-    QuorumDriverInternalError(IotaError),
+    QuorumDriverInternal(IotaError),
     #[error("Invalid user signature: {0:?}.")]
     InvalidUserSignature(IotaError),
     #[error(
