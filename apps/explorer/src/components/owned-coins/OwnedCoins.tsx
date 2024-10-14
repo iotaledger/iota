@@ -125,7 +125,15 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
 
     if (isError) {
         return (
-            <div className="pt-2 font-sans font-semibold text-issue-dark">Failed to load Coins</div>
+            <div className="p-sm--rs">
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Coins"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
+            </div>
         );
     }
 
