@@ -126,6 +126,7 @@ if __name__ == "__main__":
         '.git',
         'scripts',
         'node_modules',
+        'target',
         '.pnpm_store',
         'unit_tests',
         'move-compiler',
@@ -166,7 +167,6 @@ if __name__ == "__main__":
         "ev1",
         "ev2",
         "sigv4",
-
     }
 
     search_files_in_parallel(args.target, pattern, ignored_dirs, ignored_matches, args.output, args.verbose, args.debug)

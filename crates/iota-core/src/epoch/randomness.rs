@@ -352,12 +352,12 @@ impl RandomnessManager {
             );
             rm.processed_messages.extend(
                 tables
-                    .dkg_processed_messages_v2
+                    .dkg_processed_messages
                     .safe_iter()
                     .map(|result| result.expect("typed_store should not fail")),
             );
             if let Some(used_messages) = tables
-                .dkg_used_messages_v2
+                .dkg_used_messages
                 .get(&SINGLETON_KEY)
                 .expect("typed_store should not fail")
             {
@@ -367,7 +367,7 @@ impl RandomnessManager {
             }
             rm.confirmations.extend(
                 tables
-                    .dkg_confirmations_v2
+                    .dkg_confirmations
                     .safe_iter()
                     .map(|result| result.expect("typed_store should not fail")),
             );
