@@ -26,6 +26,7 @@ iota-protocol-config.workspace = true
 iota-sdk.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
+iota-genesis-builder.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 move-binary-format.workspace = true
