@@ -20,12 +20,12 @@ use iota_move_build::BuildConfig;
 use iota_sdk::wallet_context::WalletContext;
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
-    coin::{TreasuryCap, COIN_MODULE_NAME},
+    coin::{COIN_MODULE_NAME, TreasuryCap},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestClusterBuilder;
@@ -470,14 +470,18 @@ async fn get_all_coins_with_multiple_coin_types() {
         .await
         .unwrap();
 
-    assert!(rpc_all_coins
-        .data
-        .iter()
-        .any(|coin| coin.coin_type.contains("0x2::iota::IOTA")));
-    assert!(rpc_all_coins
-        .data
-        .iter()
-        .any(|coin| coin.coin_type.contains(&coin_name)));
+    assert!(
+        rpc_all_coins
+            .data
+            .iter()
+            .any(|coin| coin.coin_type.contains("0x2::iota::IOTA"))
+    );
+    assert!(
+        rpc_all_coins
+            .data
+            .iter()
+            .any(|coin| coin.coin_type.contains(&coin_name))
+    );
 
     assert!(!rpc_all_coins.data.is_empty(), "Should have some coins");
     assert!(
