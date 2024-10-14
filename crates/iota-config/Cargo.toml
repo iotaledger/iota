@@ -31,7 +31,6 @@ consensus-config.workspace = true
 iota-keys.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-narwhal-config.workspace = true
 
 [dev-dependencies]
 iota-types = { workspace = true, features = ["test-utils"] }
