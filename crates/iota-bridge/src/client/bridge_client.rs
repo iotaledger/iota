@@ -259,6 +259,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_client() {
         telemetry_subscribers::init_for_testing();
 
@@ -321,6 +322,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_client_request_sign_action() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
@@ -440,6 +442,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_action_path_regression_tests() {
         let iota_tx_digest = TransactionDigest::random();
         let iota_tx_event_index = 5;

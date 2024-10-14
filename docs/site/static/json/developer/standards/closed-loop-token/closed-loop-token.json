@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the primary difference between a `Coin` and a `Token` in the IOTA framework?",
+        "answerOptions": [
+            { "answerText": "`Coin` can only be owned by an account, while `Token` can be stored in applications.", "isCorrect": false },
+            { "answerText": "`Coin` has `key + store` abilities, while `Token` has only the `key` ability.", "isCorrect": true },
+            { "answerText": "`Token` supports both wrapping and public transfers, while `Coin` does not.", "isCorrect": false },
+            { "answerText": "`Coin` has only the `key` ability, while `Token` has `key + store` abilities.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is a common way to resolve an `ActionRequest` for protected actions in the Closed-Loop Token system?",
+        "answerOptions": [
+            { "answerText": "By splitting the token using `token::split` to cancel the request.", "isCorrect": false },
+            { "answerText": "By converting the token to a coin using `token::to_coin`.", "isCorrect": false },
+            { "answerText": "Via a `TokenPolicy`, which can be used to authorize specific actions.", "isCorrect": true },
+            { "answerText": "By calling the `token::destroy_zero` method to invalidate the request.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which of the following is a public action available for tokens in the Closed-Loop Token system?",
+        "answerOptions": [
+            { "answerText": "`token::spend` - spend a token on a specified address", "isCorrect": false },
+            { "answerText": "`token::keep` - send a token to the transaction sender", "isCorrect": true },
+            { "answerText": "`token::transfer` - transfer a token to a specified address", "isCorrect": false },
+            { "answerText": "`token::from_coin` - convert a coin to a token", "isCorrect": false }
+        ]
+    }
+]
