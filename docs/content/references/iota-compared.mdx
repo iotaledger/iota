@@ -57,9 +57,7 @@ Unlike most existing blockchain systems (and as the reader may have guessed from
 
 ## State-of-the-art consensus
 
-Narwhal and Bullshark represent the latest variant of decades of work on multi-proposer, high-throughput consensus algorithms that reaches throughputs more than 130,000 transactions per second on a WAN, with production cryptography, permanent storage, and a scaled-out primary-worker architecture.
-
-The [Narwhal mempool](https://github.com/iotaledger/iota/tree/develop/narwhal) offers a high-throughput data availability engine and a scaled architecture, splitting the disk I/O and networking requirements across several workers. And Bullshark is a zero-message overhead consensus algorithm, leveraging graph traversals.
+[Mysticeti](https://arxiv.org/pdf/2310.14821) represents the latest variant of decades of work on multi-proposer, high-throughput consensus algorithms that reaches throughput more than 400,000 transactions per second on a WAN, with production cryptography and permanent storage.
 
 ## Where IOTA excels
 
@@ -126,6 +124,4 @@ IOTA uses the state commitment that arrives upon epoch change. IOTA requires a s
 
 ## Conclusion
 
-In summary, IOTA offers many performance and usability gains at the cost of some complexity in less simple use cases. Direct sender transactions excel in IOTA. And complex smart contracts may benefit from shared objects where more than one user can mutate those objects (following smart contract specific rules). In this case, IOTA totally orders all transactions involving shared objects using a consensus protocol.
-
-IOTA uses a novel peer-reviewed consensus protocol based on [Narwhal and Bullshark](https://github.com/iotaledger/iota/tree/develop/narwhal), which provides a DAG-based mempool and efficient Byzantine Fault Tolerant (BFT) consensus. This is state-of-the-art in terms of both performance and robustness.
+In summary, IOTA provides significant performance and usability enhancements. It introduces an innovative fastpath consensus for simple send transactions and utilizes a state-of-the-art consensus protocol that leads the industry with its low latency and high throughput.
