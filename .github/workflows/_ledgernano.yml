@@ -3,7 +3,7 @@ name: Ledgernano End-to-end Tests
 on: workflow_call
 
 concurrency:
-  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ledgernano-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
