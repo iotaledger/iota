@@ -14,11 +14,10 @@ import { Toaster } from '../toaster';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Link } from 'react-router-dom';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
-import { truncateString } from '../../helpers';
+import { formatAccountName } from '../../helpers';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -98,9 +97,7 @@ function LeftContent({
 }) {
     const isMain = isMainAccount(account);
 
-    const accountName =
-        (account?.nickname && truncateString(account?.nickname, 12)) ??
-        formatAddress(account?.address || '');
+    const accountName = formatAccountName(account?.nickname, account?.address);
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
         <Link
