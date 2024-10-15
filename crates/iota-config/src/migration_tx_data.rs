@@ -9,20 +9,19 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use iota_genesis_common::prepare_and_execute_genesis_transaction;
 use iota_types::{
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     message_envelope::Message,
     messages_checkpoint::{CheckpointContents, CheckpointSummary},
-    object::{Object, ObjectInner},
-    transaction::{
-        GenesisObject, GenesisTransaction, Transaction, TransactionDataAPI, TransactionKind,
-    },
+    object::Object,
+    transaction::Transaction,
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;
 
-use crate::genesis::{Genesis, UnsignedGenesis};
+use crate::genesis::{Genesis, GenesisCeremonyParameters, UnsignedGenesis};
 
 pub type TransactionsData =
     BTreeMap<TransactionDigest, (Transaction, TransactionEffects, TransactionEvents)>;
@@ -47,6 +46,8 @@ impl MigrationTxData {
         self.inner.is_empty()
     }
 
+    /// Executes all the migration transactions for this migration data and
+    /// returns the vector of objects created by these executions.
     pub fn get_objects(&self) -> impl Iterator<Item = Object> + '_ {
         self.inner.values().flat_map(|(tx, _, _)| {
             self.objects_by_tx_digest(*tx.digest())
@@ -55,27 +56,31 @@ impl MigrationTxData {
         })
     }
 
+    /// Executes the migration transaction identified by `digest` and returns
+    /// the vector of objects created by the execution.
     pub fn objects_by_tx_digest(&self, digest: TransactionDigest) -> Option<Vec<Object>> {
-        let (tx, _, _) = self.inner.get(&digest)?;
-        let TransactionKind::Genesis(GenesisTransaction { objects, .. }) =
-            tx.transaction_data().kind()
-        else {
-            panic!("wrong transaction type of migration data");
-        };
-        Some(
-            objects
-                .iter()
-                .map(|GenesisObject::RawObject { data, owner }| {
-                    ObjectInner {
-                        data: data.to_owned(),
-                        owner: owner.to_owned(),
-                        previous_transaction: *tx.digest(),
-                        storage_rebate: 0,
-                    }
-                    .into()
-                })
-                .collect(),
-        )
+        let (tx, effects, _) = self.inner.get(&digest)?;
+
+        // We use default ceremony parameters, not the real ones. This should not affect
+        // the execution of a genesis transaction.
+        let default_ceremony_parameters = GenesisCeremonyParameters::default();
+
+        // Execute the transaction
+        let (execution_effects, _, execution_objects) = prepare_and_execute_genesis_transaction(
+            default_ceremony_parameters.chain_start_timestamp_ms,
+            default_ceremony_parameters.protocol_version,
+            tx,
+        );
+
+        // Validate the results
+        assert_eq!(
+            effects.digest(),
+            execution_effects.digest(),
+            "invalid execution"
+        );
+
+        // Return
+        Some(execution_objects)
     }
 
     fn validate_from_genesis_components(
@@ -124,6 +129,9 @@ impl MigrationTxData {
         Ok(())
     }
 
+    /// Validates the content of the migration data through a `Genesis`. The
+    /// vaidation is based on cryptographic links (i.e., hash digests) between
+    /// transactions, transaction effects and events.
     pub fn validate_from_genesis(&self, genesis: &Genesis) -> anyhow::Result<()> {
         self.validate_from_genesis_components(
             &genesis.checkpoint(),
@@ -132,6 +140,10 @@ impl MigrationTxData {
         )
     }
 
+    /// Validates the content of the migration data through an
+    /// `UnsignedGenesis`. The vaidation is based on cryptographic links
+    /// (i.e., hash digests) between transactions, transaction effects and
+    /// events.
     pub fn validate_from_unsigned_genesis(
         &self,
         unsigned_genesis: &UnsignedGenesis,
@@ -143,6 +155,7 @@ impl MigrationTxData {
         )
     }
 
+    /// Loads a `MigrationTxData` in memory from a file found in `path`.
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
         trace!("reading Migration transaction data from {}", path.display());
@@ -160,6 +173,7 @@ impl MigrationTxData {
         })
     }
 
+    /// Saves a `MigrationTxData` from memory into a file in `path`.
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
         trace!("writing Migration transaction data to {}", path.display());

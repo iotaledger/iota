@@ -26,6 +26,7 @@ use iota_config::{
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
+use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{Url, types::block::address::Address};
 use iota_types::{
@@ -43,10 +44,9 @@ use iota_types::{
     },
     deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
     event::Event,
-    gas::IotaGasStatus,
     gas_coin::{GAS, GasCoin},
     governance::StakedIota,
     id::UID,
@@ -943,16 +943,6 @@ fn create_genesis_context(
     )
 }
 
-fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
-    // We have a circular dependency here. Protocol config depends on chain ID,
-    // which depends on genesis checkpoint (digest), which depends on genesis
-    // transaction, which depends on protocol config.
-    //
-    // ChainIdentifier::default().chain() which can be overridden by the
-    // IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE if necessary
-    ProtocolConfig::get_for_version(version, ChainIdentifier::default().chain())
-}
-
 fn build_unsigned_genesis_data<'info>(
     parameters: &GenesisCeremonyParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
@@ -1216,46 +1206,9 @@ fn create_genesis_transaction(
         .into_inner()
     };
 
-    let genesis_digest = *genesis_transaction.digest();
     // execute txn to effects
-    let (effects, events, objects) = {
-        let silent = true;
-
-        let executor = iota_execution::executor(protocol_config, silent, None)
-            .expect("Creating an executor should not fail here");
-
-        let expensive_checks = false;
-        let certificate_deny_set = HashSet::new();
-        let transaction_data = &genesis_transaction.data().intent_message().value;
-        let (kind, signer, _) = transaction_data.execution_parts();
-        let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
-        let (inner_temp_store, _, effects, _execution_error) = executor
-            .execute_transaction_to_effects(
-                &InMemoryStorage::new(Vec::new()),
-                protocol_config,
-                metrics,
-                expensive_checks,
-                &certificate_deny_set,
-                &epoch_data.epoch_id(),
-                epoch_data.epoch_start_timestamp(),
-                input_objects,
-                vec![],
-                IotaGasStatus::new_unmetered(),
-                kind,
-                signer,
-                genesis_digest,
-            );
-        assert!(inner_temp_store.input_objects.is_empty());
-        assert!(inner_temp_store.mutable_inputs.is_empty());
-        assert!(effects.mutated().is_empty());
-        assert!(effects.unwrapped().is_empty());
-        assert!(effects.deleted().is_empty());
-        assert!(effects.wrapped().is_empty());
-        assert!(effects.unwrapped_then_deleted().is_empty());
-
-        let objects = inner_temp_store.written.into_values().collect();
-        (effects, inner_temp_store.events, objects)
-    };
+    let (effects, events, objects) =
+        execute_genesis_transaction(epoch_data, protocol_config, metrics, &genesis_transaction);
 
     (genesis_transaction, effects, events, objects)
 }
