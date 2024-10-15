@@ -26,7 +26,6 @@ use iota_types::{
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use narwhal_config::Parameters as NarwhalParameters;
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -453,8 +452,6 @@ impl NodeConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum ConsensusProtocol {
-    #[serde(rename = "narwhal")]
-    Narwhal,
     #[serde(rename = "mysticeti")]
     Mysticeti,
 }
@@ -494,9 +491,7 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    // Deprecated: Narwhal specific configs.
     pub address: Multiaddr,
-    pub narwhal_config: NarwhalParameters,
 
     pub parameters: Option<ConsensusParameters>,
 }
@@ -517,10 +512,6 @@ impl ConsensusConfig {
     pub fn submit_delay_step_override(&self) -> Option<Duration> {
         self.submit_delay_step_override_millis
             .map(Duration::from_millis)
-    }
-
-    pub fn narwhal_config(&self) -> &NarwhalParameters {
-        &self.narwhal_config
     }
 
     pub fn db_retention_epochs(&self) -> u64 {

@@ -31,7 +31,7 @@ pub type Round = u32;
 
 pub(crate) const GENESIS_ROUND: Round = 0;
 
-/// Block proposal timestamp in milliseconds.
+/// Block proposal as epoch UNIX timestamp in milliseconds.
 pub type BlockTimestampMs = u64;
 
 /// Iota transaction in serialised bytes

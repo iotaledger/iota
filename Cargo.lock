@@ -2601,9 +2601,6 @@ dependencies = [
 name = "consensus-core"
 version = "0.1.0"
 dependencies = [
- "anemo",
- "anemo-build",
- "anemo-tower",
  "anyhow",
  "arc-swap",
  "async-trait",
@@ -2627,7 +2624,6 @@ dependencies = [
  "iota-protocol-config",
  "iota-tls",
  "itertools 0.13.0",
- "mockall",
  "nom",
  "parking_lot 0.12.3",
  "prometheus",
@@ -5907,7 +5903,6 @@ dependencies = [
  "iota-metrics",
  "iota-swarm-config",
  "iota-types",
- "narwhal-config",
  "prettytable-rs",
  "prometheus-parse",
  "reqwest 0.12.7",
@@ -6138,7 +6133,6 @@ dependencies = [
  "iota-keys",
  "iota-protocol-config",
  "iota-types",
- "narwhal-config",
  "object_store 0.10.2",
  "once_cell",
  "prometheus",
@@ -7908,7 +7902,6 @@ dependencies = [
  "iota-simulator",
  "iota-types",
  "move-bytecode-utils",
- "narwhal-config",
  "prometheus",
  "rand 0.8.5",
  "serde",
@@ -10109,39 +10102,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "narwhal-executor"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bcs",
- "bincode",
- "bytes",
- "fastcrypto",
- "futures",
- "indexmap 2.5.0",
- "iota-metrics",
- "iota-protocol-config",
- "mockall",
- "narwhal-config",
- "narwhal-crypto",
- "narwhal-network",
- "narwhal-node",
- "narwhal-primary",
- "narwhal-storage",
- "narwhal-test-utils",
- "narwhal-types",
- "prometheus",
- "serde",
- "telemetry-subscribers",
- "tempfile",
- "thiserror",
- "tokio",
- "tonic",
- "tracing",
- "typed-store",
-]
-
-[[package]]
 name = "narwhal-network"
 version = "0.1.0"
 dependencies = [
@@ -10150,13 +10110,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
- "backoff",
  "bincode",
  "bytes",
  "dashmap",
  "futures",
  "iota-common",
- "iota-macros",
  "iota-metrics",
  "narwhal-crypto",
  "narwhal-types",
@@ -10170,127 +10128,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "narwhal-node"
-version = "0.1.0"
-dependencies = [
- "anemo",
- "arc-swap",
- "async-trait",
- "axum",
- "bytes",
- "cfg-if",
- "clap",
- "eyre",
- "fastcrypto",
- "futures",
- "iota-keys",
- "iota-metrics",
- "iota-network-stack",
- "iota-protocol-config",
- "iota-types",
- "move-bytecode-utils",
- "narwhal-config",
- "narwhal-crypto",
- "narwhal-executor",
- "narwhal-network",
- "narwhal-primary",
- "narwhal-storage",
- "narwhal-test-utils",
- "narwhal-types",
- "narwhal-worker",
- "pretty_assertions",
- "prometheus",
- "rand 0.8.5",
- "reqwest 0.12.7",
- "serde",
- "serde-reflection",
- "serde_yaml",
- "telemetry-subscribers",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
-name = "narwhal-primary"
-version = "0.1.0"
-dependencies = [
- "anemo",
- "anemo-tower",
- "anyhow",
- "arc-swap",
- "async-trait",
- "backoff",
- "bcs",
- "bincode",
- "bytes",
- "cfg-if",
- "criterion",
- "dashmap",
- "fastcrypto",
- "futures",
- "governor",
- "indexmap 2.5.0",
- "iota-common",
- "iota-macros",
- "iota-metrics",
- "iota-network-stack",
- "iota-protocol-config",
- "itertools 0.13.0",
- "mockall",
- "narwhal-config",
- "narwhal-crypto",
- "narwhal-executor",
- "narwhal-network",
- "narwhal-node",
- "narwhal-storage",
- "narwhal-test-utils",
- "narwhal-types",
- "narwhal-worker",
- "once_cell",
- "parking_lot 0.12.3",
- "prometheus",
- "proptest",
- "rand 0.8.5",
- "reqwest 0.12.7",
- "tap",
- "telemetry-subscribers",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tower 0.4.13",
- "tracing",
- "typed-store",
-]
-
-[[package]]
-name = "narwhal-storage"
-version = "0.1.0"
-dependencies = [
- "fastcrypto",
- "fastcrypto-tbls",
- "futures",
- "iota-common",
- "iota-macros",
- "iota-metrics",
- "lru 0.12.4",
- "narwhal-config",
- "narwhal-test-utils",
- "narwhal-types",
- "parking_lot 0.12.3",
- "prometheus",
- "tap",
- "tempfile",
- "tokio",
- "tracing",
- "typed-store",
-]
-
-[[package]]
 name = "narwhal-test-utils"
 version = "0.1.0"
 dependencies = [
@@ -10298,36 +10135,23 @@ dependencies = [
  "fastcrypto",
  "fdlimit",
  "indexmap 2.5.0",
- "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
- "itertools 0.13.0",
  "narwhal-config",
  "narwhal-crypto",
- "narwhal-executor",
- "narwhal-network",
- "narwhal-node",
- "narwhal-primary",
- "narwhal-storage",
  "narwhal-types",
- "narwhal-worker",
  "once_cell",
- "prometheus",
  "rand 0.8.5",
- "telemetry-subscribers",
  "tempfile",
  "tokio",
  "tonic",
  "tracing",
- "typed-store",
 ]
 
 [[package]]
 name = "narwhal-types"
 version = "0.1.0"
 dependencies = [
- "anemo",
- "anemo-build",
  "anyhow",
  "base64 0.21.7",
  "bcs",
@@ -10342,7 +10166,6 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-util-mem",
- "mockall",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-test-utils",
@@ -10361,47 +10184,6 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tracing",
- "typed-store",
-]
-
-[[package]]
-name = "narwhal-worker"
-version = "0.1.0"
-dependencies = [
- "anemo",
- "anemo-tower",
- "anyhow",
- "arc-swap",
- "async-trait",
- "byteorder",
- "bytes",
- "eyre",
- "fastcrypto",
- "futures",
- "governor",
- "iota-metrics",
- "iota-network-stack",
- "itertools 0.13.0",
- "narwhal-config",
- "narwhal-crypto",
- "narwhal-network",
- "narwhal-node",
- "narwhal-primary",
- "narwhal-storage",
- "narwhal-test-utils",
- "narwhal-types",
- "prometheus",
- "rand 0.8.5",
- "reqwest 0.12.7",
- "tap",
- "telemetry-subscribers",
- "tempfile",
- "thiserror",
- "tokio",
- "tonic",
- "tower 0.4.13",
- "tracing",
- "typed-store",
 ]
 
 [[package]]

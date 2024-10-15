@@ -290,11 +290,11 @@ struct FeatureFlags {
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
     // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_narwhal")]
+    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
-    #[serde(skip_serializing_if = "ConsensusNetwork::is_anemo")]
+    #[serde(skip_serializing_if = "ConsensusNetwork::is_tonic")]
     consensus_network: ConsensusNetwork,
 
     // Set the upper bound allowed for max_epoch in zklogin signature.
@@ -412,14 +412,12 @@ impl PerObjectCongestionControlMode {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
-    Narwhal,
-    SwapEachEpoch,
     Mysticeti,
 }
 
 impl ConsensusChoice {
-    pub fn is_narwhal(&self) -> bool {
-        matches!(self, ConsensusChoice::Narwhal)
+    pub fn is_mysticeti(&self) -> bool {
+        matches!(self, ConsensusChoice::Mysticeti)
     }
 }
 
@@ -427,13 +425,12 @@ impl ConsensusChoice {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusNetwork {
     #[default]
-    Anemo,
     Tonic,
 }
 
 impl ConsensusNetwork {
-    pub fn is_anemo(&self) -> bool {
-        matches!(self, ConsensusNetwork::Anemo)
+    pub fn is_tonic(&self) -> bool {
+        matches!(self, ConsensusNetwork::Tonic)
     }
 }
 
@@ -2009,7 +2006,6 @@ impl ProtocolConfig {
             .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.narwhal_versioned_metadata = true;
         cfg.feature_flags.commit_root_state_digest = true;
-        cfg.feature_flags.zklogin_auth = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.simplified_unwrap_then_delete = true;
         cfg.feature_flags.upgraded_multisig_supported = true;
@@ -2019,10 +2015,9 @@ impl ProtocolConfig {
         cfg.feature_flags.loaded_child_object_format_type = true;
         cfg.feature_flags.simple_conservation_checks = true;
         cfg.feature_flags.end_of_epoch_transaction_supported = true;
-        cfg.feature_flags.enable_jwk_consensus_updates = true;
         cfg.feature_flags.receive_objects = true;
         cfg.feature_flags.enable_effects_v2 = true;
-        cfg.feature_flags.verify_legacy_zklogin_address = true;
+
         cfg.feature_flags.narwhal_certificate_v2 = true;
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
         cfg.feature_flags.shared_object_deletion = true;
@@ -2034,10 +2029,18 @@ impl ProtocolConfig {
         // Enable group ops and all networks (but not msm)
         cfg.feature_flags.enable_group_ops_native_functions = true;
 
-        // zklogin_supported_providers config is deprecated, zklogin
-        // signature verifier will use the fetched jwk map to determine
-        // whether the provider is supported based on node config.
-        cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
+        // zkLogin related flags
+        {
+            cfg.feature_flags.zklogin_auth = false;
+            cfg.feature_flags.enable_jwk_consensus_updates = false;
+            // zklogin_supported_providers config is deprecated, zklogin
+            // signature verifier will use the fetched jwk map to determine
+            // whether the provider is supported based on node config.
+            cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
+            cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
+            cfg.feature_flags.accept_zklogin_in_multisig = false;
+            cfg.feature_flags.verify_legacy_zklogin_address = true;
+        }
 
         // Following flags are implied by the execution version.
         // Once support for earlier protocol versions is dropped, these flags can be
@@ -2049,8 +2052,6 @@ impl ProtocolConfig {
         cfg.feature_flags.loaded_child_objects_fixed = true;
         cfg.feature_flags.ban_entry_init = true;
 
-        cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
-
         // Enable consensus digest in consensus commit prologue on all networks..
         cfg.feature_flags.include_consensus_digest_in_prologue = true;
         // Enable Mysticeti on mainnet.
@@ -2059,8 +2060,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
-
-        cfg.feature_flags.accept_zklogin_in_multisig = true;
 
         // Enable resharing at same initial version
         cfg.feature_flags.reshare_at_same_initial_version = true;
