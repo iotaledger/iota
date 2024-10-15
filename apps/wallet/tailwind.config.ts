@@ -30,7 +30,7 @@ export default {
                 15: '3.75rem',
                 'popup-height': '680px',
                 'popup-width': '360px',
-                'nav-height': '80px',
+                'nav-height': '60px',
             },
             boxShadow: {
                 'wallet-content': '0px -5px 20px 5px rgba(160, 182, 195, 0.15)',
@@ -62,11 +62,7 @@ export default {
                     '0px 10px 50px rgba(0, 0, 0, 0.15)',
                 ],
             },
-            fontFamily: {
-                frankfurter: ['Frankfurter Normal', 'sans-serif'],
-            },
             backgroundImage: {
-                google: 'url(_assets/images/google-background.png)',
                 'twitch-image': 'linear-gradient(165deg, #ECE5FA 5.6%, #C8BAE2 89.58%);',
             },
         },

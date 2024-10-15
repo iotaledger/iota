@@ -16,6 +16,7 @@ pub mod checked {
     use serde_with::serde_as;
 
     use crate::{
+        ObjectID,
         effects::{TransactionEffects, TransactionEffectsAPI},
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{
@@ -25,7 +26,6 @@ pub mod checked {
         iota_serde::{BigInt, Readable},
         object::Object,
         transaction::ObjectReadResult,
-        ObjectID,
     };
 
     #[enum_dispatch]

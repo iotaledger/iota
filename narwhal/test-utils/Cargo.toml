@@ -9,9 +9,7 @@ publish = false
 [dependencies]
 fdlimit.workspace = true
 indexmap.workspace = true
-itertools.workspace = true
 once_cell.workspace = true
-prometheus.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
@@ -20,18 +18,9 @@ tracing.workspace = true
 
 config = { path = "../config", package = "narwhal-config" }
 crypto = { path = "../crypto", package = "narwhal-crypto" }
-executor = { path = "../executor", package = "narwhal-executor" }
 fastcrypto.workspace = true
-iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-network = { path = "../network", package = "narwhal-network" }
-node = { path = "../node", package = "narwhal-node" }
-primary = { path = "../primary", package = "narwhal-primary" }
-storage = { path = "../storage", package = "narwhal-storage" }
-store = { path = "../../crates/typed-store", package = "typed-store" }
-telemetry-subscribers.workspace = true
 types = { path = "../types", package = "narwhal-types" }
-worker = { path = "../worker", package = "narwhal-worker" }
 
 anemo.workspace = true

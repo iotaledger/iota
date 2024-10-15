@@ -14,7 +14,10 @@ use iota_types::{
     dynamic_field::DynamicFieldName,
     event::EventID,
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{
+    core::{RpcResult, SubscriptionResult},
+    proc_macros::rpc,
+};
 
 /// Provides methods to query transactions, events, or objects and allows to
 /// subscribe to data streams.
@@ -73,15 +76,15 @@ pub trait IndexerApi {
     /// Subscribe to a stream of Iota event
     #[rustfmt::skip]
     #[subscription(name = "subscribeEvent", item = IotaEvent)]
-    async fn subscribe_event(
+    fn subscribe_event(
         &self,
         /// The filter criteria of the event stream. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
         filter: EventFilter,
-    );
+    ) -> SubscriptionResult;
 
     /// Subscribe to a stream of Iota transaction effects
     #[subscription(name = "subscribeTransaction", item = IotaTransactionBlockEffects)]
-    async fn subscribe_transaction(&self, filter: TransactionFilter);
+    fn subscribe_transaction(&self, filter: TransactionFilter) -> SubscriptionResult;
 
     /// Return the list of dynamic field objects owned by an object.
     #[rustfmt::skip]

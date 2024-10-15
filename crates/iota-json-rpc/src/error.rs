@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use fastcrypto::error::FastCryptoError;
 use hyper::header::InvalidHeaderValue;
 use iota_json_rpc_api::{
-    error_object_from_rpc, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE,
+    TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE, error_object_from_rpc,
 };
 use iota_types::{
     error::{IotaError, IotaObjectResponseError, UserInputError},
@@ -17,8 +17,8 @@ use itertools::Itertools;
 use jsonrpsee::{
     core::{ClientError as RpcError, RegisterMethodError},
     types::{
-        error::{ErrorCode, CALL_EXECUTION_FAILED_CODE, INTERNAL_ERROR_CODE},
         ErrorObject, ErrorObjectOwned,
+        error::{CALL_EXECUTION_FAILED_CODE, ErrorCode, INTERNAL_ERROR_CODE},
     },
 };
 use thiserror::Error;
@@ -261,7 +261,7 @@ impl From<Error> for RpcError {
                         );
                         RpcError::Call(error_object)
                     }
-                    QuorumDriverError::QuorumDriverInternalError(_) => {
+                    QuorumDriverError::QuorumDriverInternal(_) => {
                         let error_object = ErrorObject::owned::<()>(
                             INTERNAL_ERROR_CODE,
                             "Internal error occurred while executing transaction.",
@@ -283,6 +283,12 @@ impl From<Error> for RpcError {
                 None,
             )),
         }
+    }
+}
+
+impl From<Error> for ErrorObjectOwned {
+    fn from(value: Error) -> Self {
+        error_object_from_rpc(value.into())
     }
 }
 
@@ -483,7 +489,7 @@ mod tests {
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
-                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Balance of gas object 10 is lower than the needed amount: 100., Object (0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(0), o#11111111111111111111111111111111) is not available for consumption, its current version: SequenceNumber(10).."
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Balance of gas object 10 is lower than the needed amount: 100, Object (0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(0), o#11111111111111111111111111111111) is not available for consumption, its current version: SequenceNumber(10)."
             ];
             expected_message.assert_eq(error_object.message());
         }
@@ -516,7 +522,7 @@ mod tests {
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
-                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None.."
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None."
             ];
             expected_message.assert_eq(error_object.message());
         }
@@ -524,7 +530,7 @@ mod tests {
         #[test]
         fn test_quorum_driver_internal_error() {
             let quorum_driver_error =
-                QuorumDriverError::QuorumDriverInternalError(IotaError::UnexpectedMessage);
+                QuorumDriverError::QuorumDriverInternal(IotaError::UnexpectedMessage);
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 

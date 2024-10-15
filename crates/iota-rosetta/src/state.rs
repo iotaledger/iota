@@ -6,13 +6,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
-use iota_sdk::{rpc_types::Checkpoint, IotaClient};
+use iota_sdk::{IotaClient, rpc_types::Checkpoint};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use crate::{
+    Error,
     operations::Operations,
     types::{Block, BlockHash, BlockIdentifier, BlockResponse, Transaction, TransactionIdentifier},
-    Error,
 };
 
 #[cfg(test)]

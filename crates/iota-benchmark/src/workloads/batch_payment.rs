@@ -17,20 +17,20 @@ use iota_types::{
 use tracing::{debug, error};
 
 use crate::{
+    ExecutionEffects, ValidatorProxy,
     drivers::Interval,
     in_memory_wallet::InMemoryWallet,
     system_state_observer::SystemStateObserver,
     workloads::{
-        payload::Payload,
-        workload::{Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, STORAGE_COST_PER_COIN},
         Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+        payload::Payload,
+        workload::{ESTIMATED_COMPUTATION_COST, STORAGE_COST_PER_COIN, Workload, WorkloadBuilder},
     },
-    ExecutionEffects, ValidatorProxy,
 };
 
-/// Value of each address's "primary coin" in nanos. The first transaction
-/// gives each address a coin worth PRIMARY_COIN_VALUE, and all subsequent
-/// transfers send TRANSFER_AMOUNT coins each time
+/// Value of each address's "primary coin" in nanos. The first transaction gives
+/// each address a coin worth PRIMARY_COIN_VALUE, and all subsequent transfers
+/// send TRANSFER_AMOUNT coins each time
 const PRIMARY_COIN_VALUE: u64 = 100 * NANOS_PER_IOTA;
 
 /// Number of nanos sent to each address on each batch transfer
@@ -59,7 +59,7 @@ impl Payload for BatchPaymentTestPayload {
     fn make_new_payload(&mut self, effects: &ExecutionEffects) {
         if !effects.is_ok() {
             effects.print_gas_summary();
-            error!("Batch payment failed...");
+            error!("Batch payment failed... Status: {:?}", effects.status());
         }
 
         self.state.update(effects);

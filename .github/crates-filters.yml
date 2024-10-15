@@ -34,6 +34,8 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
+iota-bridge:
+  - "crates/iota-bridge/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-config:
@@ -138,8 +140,8 @@ iota-swarm-config:
   - "crates/iota-swarm-config/**"
 iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
-iota-test-validator:
-  - "crates/iota-test-validator/**"
+iota-tls:
+  - "crates/iota-tls/**"
 iota-tool:
   - "crates/iota-tool/**"
 iota-transaction-builder:
@@ -170,22 +172,12 @@ narwhal-config:
   - "narwhal/config/**"
 narwhal-crypto:
   - "narwhal/crypto/**"
-narwhal-executor:
-  - "narwhal/executor/**"
 narwhal-network:
   - "narwhal/network/**"
-narwhal-node:
-  - "narwhal/node/**"
-narwhal-primary:
-  - "narwhal/primary/**"
-narwhal-storage:
-  - "narwhal/storage/**"
 narwhal-test-utils:
   - "narwhal/test-utils/**"
 narwhal-types:
   - "narwhal/types/**"
-narwhal-worker:
-  - "narwhal/worker/**"
 iota-execution:
   - "iota-execution/**"
 iota-execution-cut:

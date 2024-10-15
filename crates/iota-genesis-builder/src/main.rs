@@ -6,25 +6,24 @@
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
 use std::{collections::BTreeMap, fs::File, io::BufWriter};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
+    OBJECT_SNAPSHOT_FILE_PATH,
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
         types::output_header::OutputHeader,
     },
-    OBJECT_SNAPSHOT_FILE_PATH,
 };
 use iota_sdk::types::block::{
     address::Address,
     output::{
-        unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
         AliasOutputBuilder, BasicOutputBuilder, FoundryOutputBuilder, NftOutputBuilder, Output,
+        unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
     },
 };
 use iota_types::{stardust::coin_type::CoinType, timelock::timelock::is_vested_reward};
-use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -101,9 +100,9 @@ fn main() -> Result<()> {
     match coin_type {
         CoinType::Shimmer => {
             // Run the migration and write the objects snapshot
-            snapshot_parser
-                .outputs()
-                .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+            itertools::process_results(snapshot_parser.outputs(), |outputs| {
+                migration.run(outputs, object_snapshot_writer)
+            })??;
         }
         CoinType::Iota => {
             struct MergingIterator<I> {
@@ -191,7 +190,7 @@ fn main() -> Result<()> {
                 }
             }
 
-            MergingIterator::new(
+            let merged_outputs = MergingIterator::new(
                 snapshot_parser.target_milestone_timestamp(),
                 snapshot_parser.outputs(),
             )
@@ -200,8 +199,10 @@ fn main() -> Result<()> {
                 scale_output_amount_for_iota(&mut output)?;
 
                 Ok::<_, anyhow::Error>((header, output))
-            })
-            .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+            });
+            itertools::process_results(merged_outputs, |outputs| {
+                migration.run(outputs, object_snapshot_writer)
+            })??;
         }
     }
 

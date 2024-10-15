@@ -5,7 +5,7 @@
 mod compatibility_tests {
     use std::collections::BTreeMap;
 
-    use iota_framework::{compare_system_package, BuiltInFramework};
+    use iota_framework::{BuiltInFramework, compare_system_package};
     use iota_framework_snapshot::{load_bytecode_snapshot, load_bytecode_snapshot_manifest};
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::execution_config_utils::to_binary_config;

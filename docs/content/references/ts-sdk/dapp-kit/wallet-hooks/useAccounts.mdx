@@ -1,17 +1,45 @@
-import { UseAccountsExample } from '@site/src/components/sdk-examples/wallet-hooks';
-
 # useAccounts
 
 The `useAccounts` hook retrieves a list of connected accounts the dApp authorizes.
 
-```ts
-import { ConnectButton, useAccounts } from '@iota/dapp-kit';
+```ts live noInline
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        mainnet: { url: getFullnodeUrl('mainnet') },
+    };
 
-function MyComponent() {
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+const UseAccountsExample = withProviders(() => {
     const accounts = useAccounts();
 
     return (
-        <div>
+        <div style={{ padding: 20 }}>
             <ConnectButton />
             <h2>Available accounts:</h2>
             {accounts.length === 0 && <div>No accounts detected</div>}
@@ -22,12 +50,10 @@ function MyComponent() {
             </ul>
         </div>
     );
-}
+});
+
+render(<UseAccountsExample/>)
 ```
-
-## Example
-
-<UseAccountsExample />
 
 ## Account properties
 

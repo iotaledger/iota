@@ -18,7 +18,7 @@ fn test_struct_tag_serde() {
     struct TestStructTag(#[serde_as(as = "IotaStructTag")] StructTag);
 
     // serialize to json should not trim the leading 0
-    let Value::String(json) = serde_json::to_value(&TestStructTag(tag.clone())).unwrap() else {
+    let Value::String(json) = serde_json::to_value(TestStructTag(tag.clone())).unwrap() else {
         panic!()
     };
     assert_eq!(

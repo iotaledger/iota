@@ -10,7 +10,7 @@ use test_cluster::TestClusterBuilder;
 #[sim_test]
 async fn test_create_randomness_state_object() {
     let test_cluster = TestClusterBuilder::new()
-        .with_protocol_version(31.into())
+        .with_protocol_version(1.into())
         .with_epoch_duration_ms(10000)
         .build()
         .await;
@@ -22,7 +22,7 @@ async fn test_create_randomness_state_object() {
         h.with(|node| {
             assert!(
                 node.state()
-                    .get_cache_reader()
+                    .get_object_cache_reader()
                     .get_latest_object_ref_or_tombstone(IOTA_RANDOMNESS_STATE_OBJECT_ID)
                     .unwrap()
                     .is_none()
@@ -39,7 +39,7 @@ async fn test_create_randomness_state_object() {
     for h in &handles {
         h.with(|node| {
             node.state()
-                .get_cache_reader()
+                .get_object_cache_reader()
                 .get_latest_object_ref_or_tombstone(IOTA_RANDOMNESS_STATE_OBJECT_ID)
                 .unwrap()
                 .expect("randomness state object should exist");

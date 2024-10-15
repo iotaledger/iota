@@ -13,37 +13,30 @@ mod checked {
     };
 
     use iota_move_natives::object_runtime::{
-        self, get_all_uids, max_event_error, LoadedRuntimeObject, ObjectRuntime, RuntimeResults,
+        self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         balance::Balance,
         base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
         coin::Coin,
-        error::{command_argument_error, ExecutionError, ExecutionErrorKind},
+        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
-        execution::{
-            CommandKind, ExecutionResults, ExecutionResultsV2, ExecutionState, InputObjectMetadata,
-            InputValue, ObjectContents, ObjectValue, RawValueType, ResultValue, TryFromValue,
-            UsageKind, Value,
-        },
-        execution_mode::ExecutionMode,
+        execution::{ExecutionResults, ExecutionResultsV2},
         execution_status::CommandArgumentError,
         metrics::LimitsMetrics,
         move_package::MovePackage,
         object::{Data, MoveObject, Object, ObjectInner, Owner},
-        storage::{BackingPackageStore, PackageObject},
+        storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{Argument, CallArg, ObjectArg},
-        type_resolver::TypeTagResolver,
     };
     use move_binary_format::{
+        CompiledModule,
         errors::{Location, PartialVMError, PartialVMResult, VMError, VMResult},
         file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
-        CompiledModule,
     };
     use move_core_types::{
         account_address::AccountAddress,
-        gas_algebra::NumBytes,
         identifier::IdentStr,
         language_storage::{ModuleId, StructTag, TypeTag},
         resolver::ModuleResolver,
@@ -54,14 +47,20 @@ mod checked {
         native_extensions::NativeContextExtensions,
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
-    use move_vm_types::{
-        data_store::DataStore, loaded_data::runtime_types::Type, values::GlobalValue,
-    };
+    use move_vm_types::{data_store::DataStore, loaded_data::runtime_types::Type};
     use tracing::instrument;
 
     use crate::{
-        adapter::new_native_extensions, error::convert_vm_error, gas_charger::GasCharger,
+        adapter::new_native_extensions,
+        error::convert_vm_error,
+        execution_mode::ExecutionMode,
+        execution_value::{
+            CommandKind, ExecutionState, InputObjectMetadata, InputValue, ObjectContents,
+            ObjectValue, RawValueType, ResultValue, TryFromValue, UsageKind, Value,
+        },
+        gas_charger::GasCharger,
         programmable_transactions::linkage_view::LinkageView,
+        type_resolver::TypeTagResolver,
     };
 
     /// Maintains all runtime state specific to programmable transactions
@@ -119,6 +118,12 @@ mod checked {
     }
 
     impl<'vm, 'state, 'a> ExecutionContext<'vm, 'state, 'a> {
+        /// Creates a new instance of the transaction execution context,
+        /// initializing the necessary components such as protocol
+        /// configuration, Move VM, gas management, inputs, and native
+        /// extensions. This function processes the input arguments, sets up gas
+        /// handling for the transaction, and prepares the state for
+        /// executing Move programs.
         #[instrument(name = "ExecutionContext::new", level = "trace", skip_all)]
         pub fn new(
             protocol_config: &'a ProtocolConfig,
@@ -553,6 +558,7 @@ mod checked {
             MovePackage::new_initial(
                 modules,
                 self.protocol_config.max_move_package_size(),
+                self.protocol_config.move_binary_format_version(),
                 dependencies,
             )
         }
@@ -617,6 +623,7 @@ mod checked {
                 inputs,
                 results,
                 user_events,
+                state_view,
                 ..
             } = self;
             let tx_digest = tx_context.digest();
@@ -639,13 +646,10 @@ mod checked {
                 else {
                     continue;
                 };
-                loaded_runtime_objects.insert(
-                    id,
-                    LoadedRuntimeObject {
-                        version,
-                        is_modified: true,
-                    },
-                );
+                loaded_runtime_objects.insert(id, LoadedRuntimeObject {
+                    version,
+                    is_modified: true,
+                });
                 if let Some(Value::Object(object_value)) = value {
                     add_additional_write(&mut additional_writes, owner, object_value)?;
                 } else if owner.is_shared() {
@@ -765,15 +769,23 @@ mod checked {
             }
 
             for (id, (recipient, ty, value)) in writes {
-                let abilities = vm
-                    .get_runtime()
-                    .get_type_abilities(&ty)
-                    .map_err(|e| convert_vm_error(e, vm, &linkage_view))?;
+                let abilities = vm.get_runtime().get_type_abilities(&ty).map_err(|e| {
+                    convert_vm_error(
+                        e,
+                        vm,
+                        &linkage_view,
+                        protocol_config.resolve_abort_locations_to_package_id(),
+                    )
+                })?;
                 let has_public_transfer = abilities.has_store();
-                let layout = vm
-                    .get_runtime()
-                    .type_to_type_layout(&ty)
-                    .map_err(|e| convert_vm_error(e, vm, &linkage_view))?;
+                let layout = vm.get_runtime().type_to_type_layout(&ty).map_err(|e| {
+                    convert_vm_error(
+                        e,
+                        vm,
+                        &linkage_view,
+                        protocol_config.resolve_abort_locations_to_package_id(),
+                    )
+                })?;
                 let Some(bytes) = value.simple_serialize(&layout) else {
                     invariant_violation!("Failed to deserialize already serialized Move value");
                 };
@@ -832,6 +844,15 @@ mod checked {
                 }
             }
 
+            if protocol_config.enable_coin_deny_list_v2() {
+                let DenyListResult {
+                    result,
+                    num_non_gas_coin_owners,
+                } = state_view.check_coin_deny_list(&written_objects);
+                gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
+                result?;
+            }
+
             let user_events = user_events
                 .into_iter()
                 .map(|(module_id, tag, contents)| {
@@ -859,7 +880,12 @@ mod checked {
 
         /// Convert a VM Error to an execution one
         pub fn convert_vm_error(&self, error: VMError) -> ExecutionError {
-            crate::error::convert_vm_error(error, self.vm, &self.linkage_view)
+            crate::error::convert_vm_error(
+                error,
+                self.vm,
+                &self.linkage_view,
+                self.protocol_config.resolve_abort_locations_to_package_id(),
+            )
         }
 
         /// Special case errors for type arguments to Move functions
@@ -951,6 +977,10 @@ mod checked {
             Ok((metadata, &mut result_value.value))
         }
 
+        /// Executes a Move function bypassing visibility checks, allowing the
+        /// execution of private or protected functions. This method
+        /// sets up the necessary gas status and data store, and then
+        /// delegates the execution to the Move VM runtime.
         pub(crate) fn execute_function_bypass_visibility(
             &mut self,
             module: &ModuleId,
@@ -971,6 +1001,10 @@ mod checked {
             )
         }
 
+        /// Loads a Move function from the specified module with the given type
+        /// arguments without executing it. This function initializes
+        /// the data store and delegates the loading process to the Move
+        /// VM runtime.
         pub(crate) fn load_function(
             &mut self,
             module_id: &ModuleId,
@@ -986,6 +1020,10 @@ mod checked {
             )
         }
 
+        /// Constructs an `ObjectValue` based on the provided Move object type,
+        /// transferability, usage context, and byte contents. This
+        /// function utilizes the protocol configuration, Move VM, and
+        /// linkage view to properly interpret and instantiate the object.
         pub(crate) fn make_object_value(
             &mut self,
             type_: MoveObjectType,
@@ -1005,6 +1043,10 @@ mod checked {
             )
         }
 
+        /// Publishes a bundle of Move modules to the blockchain under the
+        /// specified sender's account address. The function initializes
+        /// a data store and delegates the publishing operation to the Move VM
+        /// runtime.
         pub fn publish_module_bundle(
             &mut self,
             modules: Vec<Vec<u8>>,
@@ -1023,6 +1065,8 @@ mod checked {
     }
 
     impl<'vm, 'state, 'a> TypeTagResolver for ExecutionContext<'vm, 'state, 'a> {
+        /// Retrieves the `TypeTag` corresponding to the provided `Type` by
+        /// querying the Move VM runtime.
         fn get_type_tag(&self, type_: &Type) -> Result<TypeTag, ExecutionError> {
             self.vm
                 .get_runtime()
@@ -1054,6 +1098,11 @@ mod checked {
         }
     }
 
+    /// Loads a `Type` from the given `StructTag`, retrieving the corresponding
+    /// struct from the package in storage. The function sets up the linkage
+    /// context to resolve the struct's module and verifies
+    /// any type parameter constraints. If the struct has type parameters, they
+    /// are recursively loaded and verified.
     pub fn load_type_from_struct(
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
@@ -1087,7 +1136,7 @@ mod checked {
 
         let runtime_id = ModuleId::new(original_address, module.clone());
         let data_store = IotaDataStore::new(linkage_view, new_packages);
-        let res = vm.get_runtime().load_struct(&runtime_id, name, &data_store);
+        let res = vm.get_runtime().load_type(&runtime_id, name, &data_store);
         linkage_view.reset_linkage();
         let (idx, struct_type) = res?;
 
@@ -1098,7 +1147,7 @@ mod checked {
         }
 
         if type_params.is_empty() {
-            Ok(Type::Struct(idx))
+            Ok(Type::Datatype(idx))
         } else {
             let loaded_type_params = type_params
                 .iter()
@@ -1113,7 +1162,7 @@ mod checked {
                 }
             }
 
-            Ok(Type::StructInstantiation(Box::new((
+            Ok(Type::DatatypeInstantiation(Box::new((
                 idx,
                 loaded_type_params,
             ))))
@@ -1149,6 +1198,12 @@ mod checked {
         })
     }
 
+    /// Constructs an `ObjectValue` based on the provided `MoveObjectType`,
+    /// contents, and additional flags such as transferability and usage
+    /// context. If the object is a coin, it deserializes the contents into
+    /// a `Coin` type; otherwise, it treats the contents as raw data. The
+    /// function then loads the corresponding struct type from the Move
+    /// package and verifies its abilities if needed.
     pub(crate) fn make_object_value(
         protocol_config: &ProtocolConfig,
         vm: &MoveVM,
@@ -1169,13 +1224,23 @@ mod checked {
         };
 
         let tag: StructTag = type_.into();
-        let type_ = load_type_from_struct(vm, linkage_view, new_packages, &tag)
-            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+        let type_ = load_type_from_struct(vm, linkage_view, new_packages, &tag).map_err(|e| {
+            crate::error::convert_vm_error(
+                e,
+                vm,
+                linkage_view,
+                protocol_config.resolve_abort_locations_to_package_id(),
+            )
+        })?;
         let has_public_transfer = if protocol_config.recompute_has_public_transfer_in_execution() {
-            let abilities = vm
-                .get_runtime()
-                .get_type_abilities(&type_)
-                .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+            let abilities = vm.get_runtime().get_type_abilities(&type_).map_err(|e| {
+                crate::error::convert_vm_error(
+                    e,
+                    vm,
+                    linkage_view,
+                    protocol_config.resolve_abort_locations_to_package_id(),
+                )
+            })?;
             abilities.has_store()
         } else {
             has_public_transfer
@@ -1188,6 +1253,10 @@ mod checked {
         })
     }
 
+    /// Converts a provided `Object` into an `ObjectValue`, extracting and
+    /// validating the `MoveObjectType` and contents. This function assumes
+    /// the object contains Move-specific data and passes the extracted data
+    /// through `make_object_value` to create the corresponding `ObjectValue`.
     pub(crate) fn value_from_object(
         protocol_config: &ProtocolConfig,
         vm: &MoveVM,
@@ -1258,7 +1327,14 @@ mod checked {
             let fully_annotated_layout = vm
                 .get_runtime()
                 .type_to_fully_annotated_layout(&obj_value.type_)
-                .map_err(|e| convert_vm_error(e, vm, linkage_view))?;
+                .map_err(|e| {
+                    convert_vm_error(
+                        e,
+                        vm,
+                        linkage_view,
+                        protocol_config.resolve_abort_locations_to_package_id(),
+                    )
+                })?;
             let mut bytes = vec![];
             obj_value.write_bcs_bytes(&mut bytes);
             match get_all_uids(&fully_annotated_layout, &bytes) {
@@ -1421,10 +1497,14 @@ mod checked {
             .get(&id)
             .map(|obj: &LoadedRuntimeObject| obj.version);
 
-        let type_tag = vm
-            .get_runtime()
-            .get_type_tag(&type_)
-            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+        let type_tag = vm.get_runtime().get_type_tag(&type_).map_err(|e| {
+            crate::error::convert_vm_error(
+                e,
+                vm,
+                linkage_view,
+                protocol_config.resolve_abort_locations_to_package_id(),
+            )
+        })?;
 
         let struct_tag = match type_tag {
             TypeTag::Struct(inner) => *inner,
@@ -1520,18 +1600,6 @@ mod checked {
                     )
                 }
             }
-        }
-
-        // TODO: later we will clean up the interface with the runtime and the functions
-        // below       will likely be exposed via extensions
-        //
-
-        fn load_resource(
-            &mut self,
-            _addr: AccountAddress,
-            _ty: &Type,
-        ) -> PartialVMResult<(&mut GlobalValue, Option<Option<NumBytes>>)> {
-            panic!("load_resource should never be called for LinkageView")
         }
 
         fn publish_module(&mut self, _module_id: &ModuleId, _blob: Vec<u8>) -> VMResult<()> {

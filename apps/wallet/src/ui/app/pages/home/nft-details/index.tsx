@@ -4,14 +4,14 @@
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Collapsible } from '_app/shared/collapse';
-import { ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
+import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 import { truncateString } from '_src/ui/app/helpers';
 
@@ -62,10 +62,6 @@ function NFTDetailsPage() {
             'AddressOwner' in objectData.owner &&
             objectData.owner.AddressOwner) ||
         '';
-    const ownerExplorerLink = useExplorerLink({
-        type: ExplorerLinkType.Address,
-        address: ownerAddress,
-    });
     const isGuardLoading = useUnlockedGuard();
     const isPending = isNftLoading || isPendingDisplay || isGuardLoading;
 
@@ -88,14 +84,14 @@ function NFTDetailsPage() {
     function formatMetaValue(value: string) {
         if (value.includes('http')) {
             return {
-                valueText: value.startsWith('http')
+                value: value.startsWith('http')
                     ? truncateString(value, 20, 8)
                     : formatAddress(value),
                 valueLink: value,
             };
         }
         return {
-            valueText: value,
+            value: value,
             valueLink: undefined,
         };
     }
@@ -139,16 +135,21 @@ function NFTDetailsPage() {
                                                     {nftDisplayData?.projectUrl && (
                                                         <KeyValueInfo
                                                             keyText="Website"
-                                                            valueText={nftDisplayData?.projectUrl}
-                                                            valueLink={nftDisplayData?.projectUrl}
+                                                            value={
+                                                                <Link
+                                                                    to={nftDisplayData?.projectUrl}
+                                                                >
+                                                                    {nftDisplayData?.projectUrl}
+                                                                </Link>
+                                                            }
+                                                            fullwidth
                                                         />
                                                     )}
                                                     {nftDisplayData?.creator && (
                                                         <KeyValueInfo
                                                             keyText="Creator"
-                                                            valueText={
-                                                                nftDisplayData?.creator ?? '-'
-                                                            }
+                                                            value={nftDisplayData?.creator ?? '-'}
+                                                            fullwidth
                                                         />
                                                     )}
                                                 </div>
@@ -160,25 +161,34 @@ function NFTDetailsPage() {
                                                 {ownerAddress && (
                                                     <KeyValueInfo
                                                         keyText="Owner"
-                                                        valueText={formatAddress(ownerAddress)}
-                                                        valueLink={ownerExplorerLink || ''}
+                                                        value={
+                                                            <ExplorerLink
+                                                                type={ExplorerLinkType.Address}
+                                                                address={ownerAddress}
+                                                            >
+                                                                {formatAddress(ownerAddress)}
+                                                            </ExplorerLink>
+                                                        }
+                                                        fullwidth
                                                     />
                                                 )}
                                                 {nftId && (
                                                     <KeyValueInfo
                                                         keyText="Object ID"
-                                                        valueText={formatAddress(nftId)}
+                                                        value={formatAddress(nftId)}
+                                                        fullwidth
                                                     />
                                                 )}
                                                 <KeyValueInfo
                                                     keyText="Media Type"
-                                                    valueText={
+                                                    value={
                                                         filePath &&
                                                         fileExtensionType.name &&
                                                         fileExtensionType.type
                                                             ? `${fileExtensionType.name} ${fileExtensionType.type}`
                                                             : '-'
                                                     }
+                                                    fullwidth
                                                 />
                                             </div>
                                         </Collapsible>
@@ -186,14 +196,21 @@ function NFTDetailsPage() {
                                             <Collapsible defaultOpen title="Attributes">
                                                 <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
                                                     {metaKeys.map((aKey, idx) => {
-                                                        const { valueText, valueLink } =
+                                                        const { value, valueLink } =
                                                             formatMetaValue(metaValues[idx]);
                                                         return (
                                                             <KeyValueInfo
-                                                                key={aKey}
+                                                                key={idx}
                                                                 keyText={aKey}
-                                                                valueText={valueText}
-                                                                valueLink={valueLink}
+                                                                value={
+                                                                    <Link
+                                                                        key={aKey}
+                                                                        to={valueLink || ''}
+                                                                    >
+                                                                        {value}
+                                                                    </Link>
+                                                                }
+                                                                fullwidth
                                                             />
                                                         );
                                                     })}

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmount, formatDate } from '@iota/core';
+import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { type AllEpochsAddressMetrics } from '@iota/iota-sdk/client';
-import { Heading, LoadingIndicator, Text } from '@iota/ui';
+import { Heading, Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import { useMemo } from 'react';
 
@@ -12,7 +12,15 @@ import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import { useGetAddressMetrics } from '~/hooks/useGetAddressMetrics';
 import { useGetAllEpochAddressMetrics } from '~/hooks/useGetAllEpochAddressMetrics';
-import { LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
+import {
+    LabelText,
+    LabelTextSize,
+    LoadingIndicator,
+    Panel,
+    Title,
+    TitleSize,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 
 const GRAPH_DATA_FIELD = 'cumulativeAddresses';
 const GRAPH_DATA_TEXT = 'Total addresses';
@@ -35,12 +43,23 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JS
     );
 }
 
+const FALLBACK = '--';
+
 export function AddressesCardGraph(): JSX.Element {
     const { data: addressMetrics } = useGetAddressMetrics();
     const { data: allEpochMetrics, isPending } = useGetAllEpochAddressMetrics({
         descendingOrder: false,
     });
     const adjEpochAddressMetrics = useMemo(() => allEpochMetrics?.slice(-30), [allEpochMetrics]);
+
+    const cumulativeAddressesFormatted = addressMetrics?.cumulativeAddresses
+        ? formatBalance(addressMetrics.cumulativeAddresses, 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
+    const cumulativeActiveAddressesFormatted = addressMetrics?.cumulativeActiveAddresses
+        ? formatBalance(addressMetrics.cumulativeActiveAddresses, 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
     return (
         <Panel>
             <Title title="Addresses" size={TitleSize.Medium} />
@@ -50,12 +69,9 @@ export function AddressesCardGraph(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Total"
-                            text={
-                                addressMetrics?.cumulativeAddresses
-                                    ? addressMetrics.cumulativeAddresses.toString()
-                                    : '--'
-                            }
-                            showSupportingLabel={false}
+                            text={cumulativeAddressesFormatted}
+                            tooltipPosition={TooltipPosition.Right}
+                            tooltipText="The total amount of addresses that have been part of transactions since the network started."
                         />
                     </div>
 
@@ -63,12 +79,9 @@ export function AddressesCardGraph(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Total Active"
-                            text={
-                                addressMetrics?.cumulativeActiveAddresses
-                                    ? addressMetrics.cumulativeActiveAddresses.toString()
-                                    : '--'
-                            }
-                            showSupportingLabel={false}
+                            text={cumulativeActiveAddressesFormatted}
+                            tooltipPosition={TooltipPosition.Right}
+                            tooltipText="The total number of addresses that have signed transactions since the network started."
                         />
                     </div>
                 </div>
@@ -80,16 +93,12 @@ export function AddressesCardGraph(): JSX.Element {
                             ? addressMetrics.dailyActiveAddresses.toString()
                             : '--'
                     }
-                    showSupportingLabel={false}
+                    tooltipPosition={TooltipPosition.Right}
+                    tooltipText="The total number of addresses that have sent or received transactions during the last epoch."
                 />
                 <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-xl transition-colors">
                     {isPending ? (
-                        <div className="flex flex-col items-center gap-1">
-                            <LoadingIndicator />
-                            <Text color="steel" variant="body/medium">
-                                loading data
-                            </Text>
-                        </div>
+                        <LoadingIndicator text="Loading data" />
                     ) : adjEpochAddressMetrics?.length ? (
                         <div className="relative flex-1 self-stretch">
                             <ErrorBoundary>
@@ -99,8 +108,8 @@ export function AddressesCardGraph(): JSX.Element {
                                             data={adjEpochAddressMetrics}
                                             height={height}
                                             width={width}
-                                            getX={({ epoch }) => epoch}
-                                            getY={(data) => data[GRAPH_DATA_FIELD]}
+                                            getX={({ epoch }) => Number(epoch) || 0}
+                                            getY={(data) => Number(data[GRAPH_DATA_FIELD]) || 0}
                                             formatY={formatAmount}
                                             tooltipContent={TooltipContent}
                                         />

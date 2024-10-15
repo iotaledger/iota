@@ -1,17 +1,45 @@
-import { UseCurrentAccountExample } from '@site/src/components/sdk-examples/wallet-hooks';
-
 # useCurrentAccount
 
 The `useCurrentAccount` hook retrieves the wallet account that is currently selected, if one exists.
 
-```ts
-import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
+```ts live noInline
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        mainnet: { url: getFullnodeUrl('mainnet') },
+    };
 
-function MyComponent() {
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+const UseCurrentAccountExample = withProviders(() => {
     const account = useCurrentAccount();
 
     return (
-        <div>
+        <div style={{ padding: 20 }}>
             <ConnectButton />
             {!account && <div>No account connected</div>}
             {account && (
@@ -22,12 +50,10 @@ function MyComponent() {
             )}
         </div>
     );
-}
+});
+
+render(<UseCurrentAccountExample/>)
 ```
-
-## Example
-
-<UseCurrentAccountExample />
 
 ## Account properties
 

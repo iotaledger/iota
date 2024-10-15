@@ -7,8 +7,8 @@ use fastcrypto::traits::ToFromBytes;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        verify_proof_of_possession, AuthorityPublicKey, AuthorityPublicKeyBytes,
-        AuthoritySignature, NetworkPublicKey,
+        AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
+        verify_proof_of_possession,
     },
     multiaddr::Multiaddr,
 };

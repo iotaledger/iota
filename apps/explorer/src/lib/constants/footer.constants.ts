@@ -2,33 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SocialDiscord24, SocialLinkedin24, SocialTwitter24 } from '@iota/icons';
-
 export const FOOTER_LINKS = [
-    { title: 'Blog', href: 'https://blog.iota.org' },
+    { title: 'Youtube', href: 'https://www.youtube.com/c/iotafoundation' },
+    { title: 'Github', href: 'https://github.com/iotaledger' },
+    { title: 'Discord', href: 'https://discord.iota.org/' },
     {
-        title: 'Docs',
-        href: 'https://wiki.iota.org',
+        title: 'Twitter',
+        href: 'https://twitter.com/iota',
     },
     {
-        title: 'GitHub',
-        href: 'https://github.com/iotaledger',
-    },
-    { title: 'Press', href: 'https://iota.org/connect/contact' },
-];
-
-export const SOCIAL_LINKS = [
-    {
-        icon: SocialDiscord24,
-        href: 'https://discord.iota.org',
+        title: 'Reddit',
+        href: 'https://www.reddit.com/r/Iota/',
     },
     {
-        icon: SocialTwitter24,
-        href: 'https://x.com/iota',
-    },
-    {
-        icon: SocialLinkedin24,
+        title: 'LinkedIn',
         href: 'https://www.linkedin.com/company/iotafoundation/',
+    },
+    {
+        title: 'Instagram',
+        href: 'https://www.instagram.com/iotafoundation/',
     },
 ];
 

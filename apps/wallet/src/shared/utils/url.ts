@@ -3,7 +3,7 @@
 
 import { getUrlWithDeviceId } from '../analytics/amplitude';
 
-const IOTA_DAPPS = ['iotafrens.com', 'iotans.io'];
+const IOTA_DAPPS = ['iotafrens.com'];
 
 export function isValidUrl(url: string | null) {
     if (!url) {

@@ -44,6 +44,14 @@ yanked = "warn"
 ignore = [
   # we don't do RSA signing on Iota (only verifying for zklogin)
   "RUSTSEC-2023-0071",
+  # Cannot remove `proc-macro-error` until we can update `tabled`
+  "RUSTSEC-2024-0370",
+  # yaml-rust is unmaintained
+  "RUSTSEC-2024-0320",
+  # tui is unmaintained
+  "RUSTSEC-2023-0049",
+  # difference is unmaintained
+  "RUSTSEC-2020-0095",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -75,8 +83,6 @@ allow = [
   "Unlicense",
   "BSL-1.0",
   "Unicode-DFS-2016",
-  "Unicode-3.0",
-  "OpenSSL",
   # "Apache-2.0 WITH LLVM-exception",
 ]
 # The confidence threshold for detecting a license from license text.
@@ -197,8 +203,9 @@ skip = [
 # dependencies starting at the specified crate, up to a certain depth, which is
 # by default infinite
 skip-tree = [
-
-
+  { name = "anemo", version = "=0.0" },
+  { name = "iota-sdk" },
+  { name = "owo-colors", version = "=3.5" },
   # { name = "ansi_term", version = "=0.11.0", depth = 20 },
 ]
 
@@ -217,15 +224,15 @@ unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = [
-  "https://github.com/aya-rs/aya.git",
   "https://github.com/iotaledger/iota-sim.git",
   "https://github.com/MystenLabs/fastcrypto.git",
   "https://github.com/mystenlabs/anemo.git",
-  "https://github.com/mystenmark/async-task.git",
   "https://github.com/iotaledger/tokio-madsim-fork.git",
   "https://github.com/nextest-rs/datatest-stable.git",
-  "https://github.com/tokio-rs/prost",
   "https://github.com/zhiburt/tabled.git",
+  "ssh://git@github.com/iotaledger/iota-rust-sdk.git",
+  "https://github.com/bmwill/openapiv3.git",
+  "https://github.com/bmwill/axum-server.git",
 ]
 
 [sources.allow-org]

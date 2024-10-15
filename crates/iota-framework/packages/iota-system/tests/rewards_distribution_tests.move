@@ -23,6 +23,7 @@ module iota_system::rewards_distribution_tests {
         unstake
     };
     use iota::test_utils::{assert_eq, destroy};
+
     use iota::address;
 
     const VALIDATOR_ADDR_1: address = @0x1;
@@ -120,7 +121,7 @@ module iota_system::rewards_distribution_tests {
 
         let new_supply = total_supply(scenario);
         // The difference between target reward and computation reward should have been burned.
-        assert!(prev_supply - (computation_reward - validator_target_reward) * NANOS_PER_IOTA == new_supply, 0);
+        assert_eq(prev_supply - (computation_reward - validator_target_reward) * NANOS_PER_IOTA, new_supply);
 
         scenario_val.end();
     }
@@ -141,7 +142,7 @@ module iota_system::rewards_distribution_tests {
 
         let new_supply = total_supply(scenario);
         // The difference between target reward and computation reward should have been minted.
-        assert!(prev_supply + (validator_target_reward - computation_reward) * NANOS_PER_IOTA == new_supply, 0);
+        assert_eq(prev_supply + (validator_target_reward - computation_reward) * NANOS_PER_IOTA, new_supply);
 
         scenario_val.end();
     }
@@ -228,14 +229,14 @@ module iota_system::rewards_distribution_tests {
         // The computation reward is lower than the target reward, so 400 IOTA should be minted.
         // Each validator pool has 25% of the voting power and thus gets 25% of the reward (200 IOTA each).
         assert_validator_total_stake_amounts(
-          validator_addrs(),
-          vector[
-            (200 + 200) * NANOS_PER_IOTA,
-            (250 + 200) * NANOS_PER_IOTA,
-            (300 + 200) * NANOS_PER_IOTA,
-            (400 + 200) * NANOS_PER_IOTA,
-          ],
-          scenario
+            validator_addrs(),
+            vector[
+                (200 + 200) * NANOS_PER_IOTA,
+                (250 + 200) * NANOS_PER_IOTA,
+                (300 + 200) * NANOS_PER_IOTA,
+                (400 + 200) * NANOS_PER_IOTA,
+            ],
+            scenario
         );
 
         unstake(STAKER_ADDR_1, 0, scenario);
@@ -430,8 +431,8 @@ module iota_system::rewards_distribution_tests {
         unstake(STAKER_ADDR_2, 0, scenario);
 
         // Same analysis as above. Delegator 1 has 3 additional IOTA, and 10% of staker 2's rewards are slashed.
-        assert!(total_iota_balance(STAKER_ADDR_1, scenario) == 565 * NANOS_PER_IOTA, 0);
-        assert!(total_iota_balance(STAKER_ADDR_2, scenario) == 370 * NANOS_PER_IOTA, 0);
+        assert!(total_iota_balance(STAKER_ADDR_1, scenario) == 565 * NANOS_PER_IOTA);
+        assert!(total_iota_balance(STAKER_ADDR_2, scenario) == 370 * NANOS_PER_IOTA);
         scenario_val.end();
     }
 
@@ -471,8 +472,8 @@ module iota_system::rewards_distribution_tests {
         unstake(STAKER_ADDR_2, 0, scenario);
 
         // Same analysis as above. Staker 1 has 150 additional IOTA, and since all of staker 2's rewards are slashed she only gets back her principal.
-        assert!(total_iota_balance(STAKER_ADDR_1, scenario) == (550 + 150) * NANOS_PER_IOTA, 0);
-        assert!(total_iota_balance(STAKER_ADDR_2, scenario) == 100 * NANOS_PER_IOTA, 0);
+        assert!(total_iota_balance(STAKER_ADDR_1, scenario) == (550 + 150) * NANOS_PER_IOTA);
+        assert!(total_iota_balance(STAKER_ADDR_2, scenario) == 100 * NANOS_PER_IOTA);
         scenario_val.end();
     }
 

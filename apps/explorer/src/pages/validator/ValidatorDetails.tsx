@@ -5,14 +5,14 @@
 import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaSystemStateSummary } from '@iota/iota-sdk/client';
-import { LoadingIndicator, Text } from '@iota/ui';
+import { Text } from '@iota/ui';
 import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-
 import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { Banner } from '~/components/ui';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 const getAtRiskRemainingEpochs = (
     data: IotaSystemStateSummary | undefined,
@@ -56,15 +56,7 @@ function ValidatorDetails(): JSX.Element {
     }, [id, validatorEvents]);
 
     if (isPending || validatorsEventsLoading || validatorsApysLoading) {
-        return (
-            <PageLayout
-                content={
-                    <div className="mb-10 flex items-center justify-center">
-                        <LoadingIndicator />
-                    </div>
-                }
-            />
-        );
+        return <PageLayout content={<LoadingIndicator />} />;
     }
 
     if (!validatorData || !data || !validatorEvents || !id) {
@@ -93,19 +85,15 @@ function ValidatorDetails(): JSX.Element {
     return (
         <PageLayout
             content={
-                <div className="mb-10">
-                    <div className="flex flex-col flex-nowrap gap-5 md:flex-row md:gap-0">
-                        <ValidatorMeta validatorData={validatorData} />
-                    </div>
-                    <div className="mt-5 md:mt-8">
-                        <ValidatorStats
-                            validatorData={validatorData}
-                            epoch={data.epoch}
-                            epochRewards={validatorRewards}
-                            apy={isApyApproxZero ? '~0' : apy}
-                            tallyingScore={tallyingScore}
-                        />
-                    </div>
+                <div className="flex flex-col gap-2xl">
+                    <ValidatorMeta validatorData={validatorData} />
+                    <ValidatorStats
+                        validatorData={validatorData}
+                        epoch={data.epoch}
+                        epochRewards={validatorRewards}
+                        apy={isApyApproxZero ? '~0' : apy}
+                        tallyingScore={tallyingScore}
+                    />
                     {atRiskRemainingEpochs !== null && (
                         <div className="mt-5">
                             <Banner

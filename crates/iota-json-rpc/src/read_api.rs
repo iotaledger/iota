@@ -10,18 +10,17 @@ use futures::future::join_all;
 use indexmap::map::IndexMap;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
-    validate_limit, JsonRpcMetrics, ReadApiOpenRpc, ReadApiServer, QUERY_MAX_RESULT_LIMIT,
-    QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
+    JsonRpcMetrics, QUERY_MAX_RESULT_LIMIT, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS, ReadApiOpenRpc,
+    ReadApiServer, validate_limit,
 };
 use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
-    IotaEvent, IotaGetPastObjectRequest, IotaLoadedChildObject, IotaLoadedChildObjectsResponse,
-    IotaMoveStruct, IotaMoveValue, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
-    IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEvents,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    ProtocolConfigResponse,
+    IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
+    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange, ProtocolConfigResponse,
 };
-use iota_metrics::spawn_monitored_task;
+use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::key_value_store::TransactionKeyValueStore;
@@ -42,7 +41,7 @@ use iota_types::{
     transaction::{Transaction, TransactionDataAPI},
 };
 use itertools::Itertools;
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
@@ -52,11 +51,11 @@ use tap::TapFallible;
 use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
+    IotaRpcModule, ObjectProvider, ObjectProviderCache,
     authority_state::{StateRead, StateReadError, StateReadResult},
     error::{Error, IotaRpcInputError, RpcInterimResult},
     get_balance_changes_from_effect, get_object_changes,
     logger::FutureWithTracing as _,
-    IotaRpcModule, ObjectProviderCache,
 };
 
 const MAX_DISPLAY_NESTED_LEVEL: usize = 10;
@@ -464,6 +463,7 @@ impl ReadApi {
         }
 
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
         let converted_tx_block_resps = temp_response
             .into_iter()
             .map(|c| convert_to_response(c.1, &opts, epoch_store.module_cache()))
@@ -656,6 +656,27 @@ impl ReadApiServer for ReadApi {
     }
 
     #[instrument(skip(self))]
+    async fn try_get_object_before_version(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+    ) -> RpcResult<IotaPastObjectResponse> {
+        let version = self
+            .state
+            .find_object_lt_or_eq_version(&object_id, &version)
+            .await
+            .map_err(Error::from)?
+            .map(|obj| obj.version())
+            .unwrap_or_default();
+        self.try_get_past_object(
+            object_id,
+            version,
+            Some(IotaObjectDataOptions::bcs_lossless()),
+        )
+        .await
+    }
+
+    #[instrument(skip(self))]
     async fn try_multi_get_past_objects(
         &self,
         past_objects: Vec<IotaGetPastObjectRequest>,
@@ -682,7 +703,10 @@ impl ReadApiServer for ReadApi {
                         .map(|e| e.to_string())
                         .collect::<Vec<String>>()
                         .join("; ");
-                    Err(anyhow!("{error_string}").into()) // Collects errors not related to IotaPastObjectResponse variants
+                    Err(anyhow!("{error_string}").into()) // Collects errors not
+                // related to
+                // IotaPastObjectResponse
+                // variants
                 } else {
                     Ok(success)
                 }
@@ -722,10 +746,12 @@ impl ReadApiServer for ReadApi {
             // Fetch transaction to determine existence
             let transaction_kv_store = self.transaction_kv_store.clone();
             let transaction = spawn_monitored_task!(async move {
-                transaction_kv_store.get_tx(digest).await.map_err(|err| {
+                let ret = transaction_kv_store.get_tx(digest).await.map_err(|err| {
                     debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
                     Error::from(err)
-                })
+                });
+                add_server_timing("tx_kv_lookup");
+                ret
             })
             .await
             .map_err(Error::from)??;
@@ -862,6 +888,7 @@ impl ReadApiServer for ReadApi {
                 }
             }
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
             convert_to_response(temp_response, &opts, epoch_store.module_cache())
         }
         .trace()
@@ -1005,33 +1032,6 @@ impl ReadApiServer for ReadApi {
                 data,
                 next_cursor,
                 has_next_page,
-            })
-        }
-        .trace()
-        .await
-    }
-
-    #[instrument(skip(self))]
-    async fn get_loaded_child_objects(
-        &self,
-        digest: TransactionDigest,
-    ) -> RpcResult<IotaLoadedChildObjectsResponse> {
-        async move {
-            let res = self
-                .state
-                .loaded_child_object_versions(&digest)
-                .map_err(|e| {
-                    error!("Failed to get loaded child objects at {digest:?} with error: {e:?}");
-                    Error::StateReadError(e)
-                })?;
-            Ok(IotaLoadedChildObjectsResponse {
-                loaded_child_objects: match res {
-                    Some(v) => v
-                        .into_iter()
-                        .map(|q| IotaLoadedChildObject::new(q.0, q.1))
-                        .collect::<Vec<_>>(),
-                    None => vec![],
-                },
             })
         }
         .trace()
@@ -1306,6 +1306,17 @@ fn get_value_from_move_struct(
                     )))?;
                 }
             }
+            IotaMoveValue::Variant(IotaMoveVariant {
+                fields, variant, ..
+            }) => {
+                if let Some(value) = fields.get(part) {
+                    current_value = value;
+                } else {
+                    Err(anyhow!(
+                        "Field value {var_name} cannot be found in variant {variant}",
+                    ))?
+                }
+            }
             _ => {
                 Err(Error::UnexpectedError(format!(
                     "Unexpected move value type for field {var_name}"
@@ -1343,8 +1354,11 @@ fn convert_to_response(
     }
 
     if opts.show_input && cache.transaction.is_some() {
-        let tx_block =
-            IotaTransactionBlock::try_from(cache.transaction.unwrap().into_data(), module_cache)?;
+        let tx_block = IotaTransactionBlock::try_from(
+            cache.transaction.unwrap().into_data(),
+            module_cache,
+            cache.digest,
+        )?;
         response.transaction = Some(tx_block);
     }
 

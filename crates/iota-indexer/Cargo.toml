@@ -14,22 +14,26 @@ backoff.workspace = true
 bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
-diesel.workspace = true
+diesel = { workspace = true, optional = true }
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
+rayon.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 tap.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 url.workspace = true
 
 fastcrypto = { workspace = true, features = ["copy_key"] }
+iota-data-ingestion-core.workspace = true
 iota-json.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
@@ -39,6 +43,7 @@ iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
+iota-sdk.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
@@ -48,14 +53,23 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 
 cached.workspace = true
-diesel_migrations = "2.2"
+diesel_migrations.workspace = true
+downcast = "0.11.0"
+secrecy = "0.8.0"
 
 [features]
 pg_integration = []
+default = ["postgres-feature"]
+postgres-feature = ["diesel/postgres", "diesel/postgres_backend"]
+mysql-feature = ["diesel/mysql", "diesel/mysql_backend"]
 
 [dev-dependencies]
+iota-config.workspace = true
+iota-genesis-builder.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
+iota-swarm-config.workspace = true
+rand.workspace = true
 simulacrum.workspace = true
 
 [[bin]]
@@ -64,3 +78,7 @@ path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
 development = ["simulacrum"]
+
+[[example]]
+name = "index_genesis_transaction"
+path = "examples/index_genesis_transaction.rs"

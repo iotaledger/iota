@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{env, fs, path::PathBuf, sync::Arc};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use clap::*;
-use object_store::{aws::AmazonS3Builder, ClientOptions, DynObjectStore};
+use object_store::{ClientOptions, DynObjectStore, aws::AmazonS3Builder};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -138,18 +138,30 @@ impl ObjectStoreConfig {
         if let Some(bucket) = &self.bucket {
             builder = builder.with_bucket_name(bucket);
         }
+
         if let Some(key_id) = &self.aws_access_key_id {
             builder = builder.with_access_key_id(key_id);
+        } else if let Ok(secret) = env::var("ARCHIVE_READ_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
+        } else if let Ok(secret) = env::var("FORMAL_SNAPSHOT_WRITE_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
+        } else if let Ok(secret) = env::var("DB_SNAPSHOT_READ_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
         }
+
         if let Some(secret) = &self.aws_secret_access_key {
             builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("ARCHIVE_READ_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("FORMAL_SNAPSHOT_WRITE_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("DB_SNAPSHOT_READ_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
         }
+
         if let Some(endpoint) = &self.aws_endpoint {
             builder = builder.with_endpoint(endpoint);
         }
-        // if let Some(profile) = &self.aws_profile {
-        //     builder = builder.with_profile(profile);
-        // }
         Ok(Arc::new(LimitStore::new(
             builder.build().context("Invalid s3 config")?,
             self.object_store_connection_limit,

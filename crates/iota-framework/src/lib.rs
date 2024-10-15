@@ -5,19 +5,19 @@
 use std::fmt::Formatter;
 
 use iota_types::{
+    BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
     move_package::MovePackage,
-    object::{Object, OBJECT_START_VERSION},
+    object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,
-    DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
 };
 use move_binary_format::{
+    CompiledModule,
     binary_config::BinaryConfig,
     compatibility::Compatibility,
     file_format::{Ability, AbilitySet},
-    CompiledModule,
 };
 use move_core_types::gas_algebra::InternalGas;
 use once_cell::sync::Lazy;
@@ -95,7 +95,7 @@ macro_rules! define_system_packages {
             vec![
                 $(SystemPackage::new(
                     $id,
-                    include_bytes!(concat!(env!("OUT_DIR"), "/", $path)),
+                    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/packages_compiled", "/", $path)),
                     &$deps,
                 )),*
             ]
@@ -113,26 +113,26 @@ impl BuiltInFramework {
         // manually specifying them?
         define_system_packages!([
             (MOVE_STDLIB_PACKAGE_ID, "move-stdlib", []),
-            (
+            (IOTA_FRAMEWORK_PACKAGE_ID, "iota-framework", [
+                MOVE_STDLIB_PACKAGE_ID
+            ]),
+            (IOTA_SYSTEM_PACKAGE_ID, "iota-system", [
+                MOVE_STDLIB_PACKAGE_ID,
+                IOTA_FRAMEWORK_PACKAGE_ID
+            ]),
+            (DEEPBOOK_PACKAGE_ID, "deepbook", [
+                MOVE_STDLIB_PACKAGE_ID,
+                IOTA_FRAMEWORK_PACKAGE_ID
+            ]),
+            (BRIDGE_PACKAGE_ID, "bridge", [
+                MOVE_STDLIB_PACKAGE_ID,
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                "iota-framework",
-                [MOVE_STDLIB_PACKAGE_ID]
-            ),
-            (
-                IOTA_SYSTEM_PACKAGE_ID,
-                "iota-system",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            ),
-            (
-                DEEPBOOK_PACKAGE_ID,
-                "deepbook",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            ),
-            (
-                STARDUST_PACKAGE_ID,
-                "stardust",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            ),
+                IOTA_SYSTEM_PACKAGE_ID
+            ]),
+            (STARDUST_PACKAGE_ID, "stardust", [
+                MOVE_STDLIB_PACKAGE_ID,
+                IOTA_FRAMEWORK_PACKAGE_ID
+            ]),
         ])
         .iter()
     }
@@ -227,8 +227,8 @@ pub async fn compare_system_package<S: ObjectStore>(
     }
 
     let compatibility = Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
+        check_datatype_and_pub_function_linking: true,
+        check_datatype_layout: true,
         check_friend_linking: false,
         // Checking `entry` linkage is required because system packages are updated in-place, and a
         // transaction that was rolled back to make way for reconfiguration should still be runnable
@@ -240,7 +240,8 @@ pub async fn compare_system_package<S: ObjectStore>(
         // fail if one of its mutable inputs was being used in another private `entry` function.
         check_private_entry_linking: true,
         disallowed_new_abilities: AbilitySet::singleton(Ability::Key),
-        disallow_change_struct_type_params: true,
+        disallow_change_datatype_type_params: true,
+        disallow_new_variants: true,
     };
 
     let new_pkg = new_object

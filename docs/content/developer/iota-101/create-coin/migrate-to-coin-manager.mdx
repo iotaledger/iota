@@ -1,0 +1,317 @@
+---
+title: Migrating a Coin to Coin Manager
+---
+
+The previous articles in this section showcase how to create a [`Coin`](../../../references/framework/iota-framework/coin.mdx) object with different constructors. Namely,  [`create_currency`](create-coin.mdx) and [`create_regulated_currency`](regulated.mdx).
+
+This article will show how an existing `Coin` object can be migrated to [`CoinManager`](../../../references/framework/iota-framework/coin_manager.mdx). By doing so, the `Coin` deployer and its end-users will gain [extra-functionalites](../../standards/coin-manager.mdx). Generally, we recommend initially creating a `Coin` via `CoinManager` to avoid the need for migration later on. However, if you have an existing `Coin` and wish to migrate it to `CoinManager`, this article will guide you through the process.
+
+
+### Pre-requisites
+
+- [Installed Iota CLI](../../getting-started/install-iota.mdx)
+- [Created an address and received Testnet funds](../../getting-started/get-coins.mdx)  
+
+### 1. Create a Simple Coin
+
+First, we will create a simple coin to be migrated [`CoinManager`](../../../references/framework/iota-framework/coin_manager.mdx). 
+
+1. Create a new empty package called `my_coin`:
+``` bash
+iota move new my_coin
+```
+
+
+2. In `my_coin.move`, paste this simple move `Coin` module:
+```move
+module my_coin::my_coin {
+    use iota::coin::{Self, TreasuryCap};
+
+    /// The type identifier of coin. The coin will have a type
+    /// tag of kind: `Coin<package_object::mycoin::MYCOIN>`
+    /// Make sure that the name of the type matches the module's name.
+    public struct MYCOIN has drop {}
+
+    /// Module initializer is called once on module publish. A treasury
+    /// cap is sent to the publisher, who then controls minting and burning
+    fun init(witness: MYCOIN, ctx: &mut TxContext) {
+        let (treasury, metadata) = coin::create_currency(witness, 6, b"MYCOIN", b"", b"", option::none(), ctx);
+ transfer::public_freeze_object(metadata);
+ transfer::public_transfer(treasury, tx_context::sender(ctx))
+ }
+
+
+    public fun mint(
+ treasury_cap: &mut TreasuryCap<MYCOIN>, 
+ amount: u64, 
+ recipient: address, 
+ ctx: &mut TxContext,
+ ) {
+        let coin = coin::mint(treasury_cap, amount, ctx);
+ transfer::public_transfer(coin, recipient)
+ } 
+
+}
+
+```
+
+3. Deploy the `my_coin` package by running the following command:
+
+```bash
+iota client publish --gas-budget 100000000
+```
+
+4. The console will respond with the transaction effects. You should pay attention to the created objects to retrieve the object IDs:
+```
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                                              │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Created Objects:                                                                                                            │
+│  ┌──                                                                                                                        │
+│  │ ObjectID: <OBJECT-ID>                                             │
+│  │ Sender: <SENDER-ADDR>                                               │
+│  │ Owner: Account Address ( <SENDER-ADDR> )                            │
+│  │ ObjectType: 0x2::coin::TreasuryCap<<PACKAGE-ID>::mycoin::MYCOIN>   │
+│  │ Version: 3                                                                                                               │
+│  │ Digest: <DIGEST-HASH>                                                                     │
+│  └──                                                                                                                        │
+│  ┌──                                                                                                                        │
+│  │ ObjectID: <OBJECT-ID>                                             │
+│  │ Sender: <SENDER-ADDR>                                               │
+│  │ Owner: Account Address ( <SENDER-ADDR> )                            │
+│  │ ObjectType: 0x2::package::UpgradeCap                                                                                     │
+│  │ Version: 3                                                                                                               │
+│  │ Digest: <DIGEST-HASH>                                                                     │
+│  └──                                                                                                                        │
+│  ┌──                                                                                                                        │
+│  │ ObjectID: <OBJECT-ID>                                               │
+│  │ Sender: <SENDER-ADDR>                                               │
+│  │ Owner: Immutable                                                                                                         │
+│  │ ObjectType: 0x2::coin::CoinMetadata<<PACKAGE-ID>::mycoin::MYCOIN>  │
+│  │ Version: 3                                                                                                               │
+│  │ Digest: <DIGEST-HASH>                                                                     │
+│  └──                                                                                                                        │
+│ Mutated Objects:                                                                                                            │
+│  ┌──                                                                                                                        │
+│  │ ObjectID: 0x1d60b04477b67ebe99af085d02cef4601765976d215313f7bcdab95d7d771b9b                                             │
+│  │ Sender: <SENDER-ADDR>                                               │
+│  │ Owner: Account Address ( <SENDER-ADDR> )                            │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                                             │
+│  │ Version: 3                                                                                                               │
+│  │ Digest: <DIGEST-HASH>                                                                     │
+│  └──                                                                                                                        │
+│ Published Objects:                                                                                                          │
+│  ┌──                                                                                                                        │
+│  │ PackageID: <PACKAGE-ID>                                            │
+│  │ Version: 1                                                                                                               │
+│  │ Digest: <DIGEST-HASH>                                                                     │
+│  │ Modules: mycoin                                                                                                          │
+│  └──                                                                                                                        │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+
+
+## 2. Create a Coin Manager
+
+1. In the root folder, create a new package `my_coin_manager`:
+
+```bash
+iota move new my_coin_manager_manager
+```
+
+2. In the created `my_coin_manager.move`, paste the following module:
+
+
+```move
+module my_coin::exclusive_coin {
+    use iota::coin_manager;
+    use iota::event;
+    use iota::coin::{CoinMetadata, TreasuryCap};
+
+    /// Phantom parameter T can only be initialized in the `create_guardian`
+    /// function. But the types passed here must have `drop`.
+    public struct Guardian<phantom T: drop> has key, store {
+ id: UID
+ }
+
+    /// This type is the witness resource and is intended to be used only once.
+    public struct EXCLUSIVE_COIN has drop {}
+
+    /// The first argument of this function is an actual instance of the
+    /// type T with `drop` ability. It is dropped as soon as received.
+    public fun create_guardian<T: drop>(
+ _witness: T, ctx: &mut TxContext
+ ): Guardian<T> {
+        Guardian { id: object::new(ctx) }
+ }
+
+    /// Module initializer is the best way to ensure that the
+    /// code is called only once. With `Witness` pattern it is
+    /// often the best practice.
+    fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
+ transfer::transfer(
+            create_guardian(witness, ctx),
+ tx_context::sender(ctx)
+ )
+ }
+
+    public fun  migrate_to_manager<T, S: drop> (otw:Guardian<S> ,cap: TreasuryCap<T>, meta: &CoinMetadata<T>, ctx: &mut TxContext) {
+
+ transfer::public_freeze_object(otw);
+
+        let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, meta, ctx);
+
+        // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
+ transfer::public_transfer(cm_treasury_cap, ctx.sender());
+
+        // Publicly share the `CoinManager` object for convenient usage by anyone interested.
+ transfer::public_share_object(manager);
+ }
+
+}
+```
+Let's go quickly over it before publishing:
+
+What you want to achieve is creating a single instance of `CoinManager`. The most straightforward way to do it is in [`init()`](../move-overview/init.mdx), which is assured to be run only once.
+
+If you were creating a `CoinManager` from scratch, that would be relatively simple, as the init function would look like this:
+
+```move
+
+fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
+    // Create a `Coin` type and have it managed.
+ let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::create(
+ witness,
+ 0, 
+ b"EXCL",
+ b"Exclusive Coin",
+ b"There are only 100, never any more.",
+ option::none(),
+ ctx
+ );
+
+    // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
+ transfer::public_transfer(cm_treasury_cap, ctx.sender());
+    
+    // Transfer the `CoinManagerMetadataCap` to the creator of the `Coin`.
+ transfer::public_transfer(cm_meta_cap, ctx.sender());
+
+    // Publicly share the `CoinManager` object for convenient usage by anyone interested.
+ transfer::public_share_object(manager);
+}
+```
+
+However, since you are migrating from a `Coin`, you will use another constructor for `CoinManager`: [`CoinManager::new_with_immutable_metadata(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#0x2_coin_manager_new_with_immutable_metadata) if the metadata is already frozen, and [`CoinManager::new(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#0x2_coin_manager_new) if the metadata is mutable.
+
+In that case, `init` would have to take two extra parameters: the [`Coin`'s `CoinMetadata`](../../../references/framework/iota-framework/coin.mdx#0x2_coin_CoinMetadata) object and the [`TreasuryCap`](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap) object. Iota's Move only allows `TxContext` and an optional Witness. There is no means to pass in the extra argument.
+
+You can use the [`One Time Witness Pattern`](../../iota-101/move-overview/one-time-witness.mdx) to resolve this.
+
+You can use the `init` function to ensure that only one instance of `Guardian` is created. After that, you can pass Guardian to `migrate_to_coin_manager` and freeze it to ensure the call succeeds only once.
+
+
+Now, you should publish the `CoinManager`:
+
+```bash
+iota client publish --gas-budget 100000000
+```
+
+If you check the console, you will see the created objects:
+
+```bash
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                                                                                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Created Objects:                                                                                                                                                                                                 │
+│  ┌──                                                                                                                                                                                                             │
+│  │ ObjectID: <OBJECT-ID>                                                                                                                                    │
+│  │ Sender: <SENDER-ADDR>                                                                                                                                    │
+│  │ Owner: Account Address ( <SENDER-ADDR> )                                                                                                                 │
+│  │ ObjectType: 0x2::package::UpgradeCap                                                                                                                                                                          │
+│  │ Version: 3                                                                                                                                                                                                    │
+│  │ Digest: <DIGEST-HASH>                                                                                                                                                            │
+│  └──                                                                                                                                                                                                             │
+│  ┌──                                                                                                                                                                                                             │
+│  │ ObjectID: <OBJECT-ID>                                                                                                                                    │
+│  │ Sender: <SENDER-ADDR>                                                                                                                                    │
+│  │ Owner: Account Address ( <SENDER-ADDR> )                                                                                                                 │
+│  │ ObjectType: <PACKAGE-ID>::exclusive_coin::Guardian<<PACKAGE-ID>::exclusive_coin::EXCLUSIVE_COIN>  │
+│  │ Version: 3                                                                                                                                                                                                    │
+│  │ Digest: <DIGEST-HASH>                                                                                                                                                            │
+│  └──                                                                                                                                                                                                             │
+│ Mutated Objects:                                                                                                                                                                                                 │
+│  ┌──                                                                                                                                                                                                             │
+│  │ ObjectID: <OBJECT-ID>                                                                                                                                  │
+│  │ Sender: <SENDER-ADDR>                                                                                                                                    │
+│  │ Owner: Account Address ( <SENDER-ADDR> )                                                                                                                 │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                                                                                                                                  │
+│  │ Version: 3                                                                                                                                                                                                    │
+│  │ Digest: <DIGEST-HASH>                                                                                                                                                            │
+│  └──                                                                                                                                                                                                             │
+│ Published Objects:                                                                                                                                                                                               │
+│  ┌──                                                                                                                                                                                                             │
+│  │ PackageID: <PACKAGE-ID>                                                                                                                                 │
+│  │ Version: 1                                                                                                                                                                                                    │
+│  │ Digest: <DIGEST-HASH>                                                                                                                                                            │
+│  │ Modules: exclusive_coin                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+When publishing this module, you will get the `Guardian` object's ID. You should then pass this object to the `migrate_to_manager` function alongside the `Coin`'s `TreasuryCap` and `CoinMetadata` objects.
+
+```bash
+iota client call --package <COIN-MANAGER-PACKAGE-ID> --module exclusive_coin --function migrate_to_manager --gas-budget 100000000 --type-args <MYCOIN-PACKAGE-ID>::mycoin::MYCOIN <COIN-MANAGER-PACKAGE-ID>::exclusive_coin::EXCLUSIVE_COIN  --args <Guardian-OBJECT-ID> <TreasuryCap-OBJECT-ID> <CoinMetadata-OBJECT-ID>
+```
+
+The first time you run the command, the output should look similar to the following:
+
+```bash
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                                                                                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Created Objects:                                                                                                                                                                                                 │
+│  ┌──                                                                                                                                                                                                             │
+│  │ ObjectID: <OBJECT-ID>                                                                                                                                  │
+│  │ Sender: <SENDER-ADDR>                                                                                                                                    │
+│  │ Owner: Shared                                                                                                                                                                                                 │
+│  │ ObjectType: 0x2::coin_manager::CoinManager<<MYCOIN-PACKAGE-ID>::mycoin::MYCOIN>                                                                                │
+│  │ Version: 7                                                                                                                                                                                                    │
+│  │ Digest: <DIGEST-HASH>                                                                                                                                                          │
+│  └──                                                                                                                                                                                                             │
+│  ┌──                                                                                                                                                                                                             │
+│  │ ObjectID: <OBJECT-ID>                                                                                                                                  │
+│  │ Sender: <SENDER-ADDR>                                                                                                                                    │
+│  │ Owner: Account Address ( <SENDER-ADDR> )                                                                                                                 │
+│  │ ObjectType: 0x2::coin_manager::CoinManagerTreasuryCap<<MY-COIN-PACKAGE-ID>::mycoin::MYCOIN>                                                                     │
+│  │ Version: 7                                                                                                                                                                                                    │
+│  │ Digest: <DIGEST-HASH>                                                                                                                                                          │
+│  └──                                                                                                                                                                                                             │
+│ Mutated Objects:                                                                                                                                                                                                 │
+│  ┌──                                                                                                                                                                                                             │
+│  │ ObjectID: <OBJECT-ID>                                                                                                                                  │
+│  │ Sender: <SENDER-ADDR>                                                                                                                                    │
+│  │ Owner: Account Address ( <SENDER-ADDR> )                                                                                                                 │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                                                                                                                                  │
+│  │ Version: 7                                                                                                                                                                                                    │
+│  │ Digest: <DIGEST-HASH>                                                                                                                                                          │
+│  └──                                                                                                                                                                                                             │
+│  ┌──                                                                                                                                                                                                             │
+│  │ ObjectID: <GUARDIAN-OBJECT-ID>                                                                                                                                  │
+│  │ Sender: <SENDER-ADDR>                                                                                                                                    │
+│  │ Owner: Immutable                                                                                                                                                                                              │
+│  │ ObjectType: <COIN_MANAGER-PACKAGE-ID>::exclusive_coin::Guardian<<COIN_MANAGER-PACKAGE-ID>::exclusive_coin::EXCLUSIVE_COIN>  │
+│  │ Version: 7                                                                                                                                                                                                    │
+│  │ Digest: <DIGEST-HASH>                                                                                                                                                          │
+│  └──                                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+This command is a one-time operation. If you try to run it again, you will get an error message.
+
+### Conclusion
+
+This article demonstrated how to migrate a `Coin` object to a `CoinManager`. The process involves creating a `CoinManager` and passing the `Coin`'s `TreasuryCap` and `CoinMetadata` objects to the `migrate_to_manager` function. This function will create a `CoinManager` object and transfer the `CoinManagerTreasuryCap` to the `Coin`'s creator. The `CoinManager` object is then shared publicly for convenient usage by anyone interested.
+We used also used the `One Time Witness Pattern` to ensure that the `migrate_to_manager` function is called only once.

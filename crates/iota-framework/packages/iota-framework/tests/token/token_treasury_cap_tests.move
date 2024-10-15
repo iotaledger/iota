@@ -4,7 +4,7 @@
 
 #[test_only]
 /// This module implements tests for the TreasuryCap-related functionality such
-/// as spending, "flush"-ing, isiotang new coins and performing marketplace-like
+/// as spending, "flush"-ing, issuing new coins and performing marketplace-like
 /// operations.
 module iota::token_treasury_cap_tests {
     use iota::token_test_utils as test;
