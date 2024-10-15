@@ -1,3 +1,6 @@
+import Quiz from '@site/src/components/Quiz';
+import {questions} from '../../../site/static/json/about-iota/iota-architecture/transaction-lifecycle.json';
+
 # Transaction Life Cycle
 
 ## High-level Overview
@@ -124,3 +127,6 @@ Every ~24 hours, the IOTA network undergoes an epoch change, during which stakin
 If your wallet app crashes during a transaction, it stores the signed transaction locally. Upon restarting, it will verify if the transaction was finalized. If finalized, no further steps are required. If not, the app will need to resubmit the transaction.
 
 The wallet app can query the full node with the `getTransactionBlock` method to check if the transaction is finalized. If the response contains transaction details, it is finalized. If the response is `None`, the transaction may need to be resubmitted. This ensures that the coffee shop's full node will eventually recognize the transaction once it's included in a checkpoint and update the coffee shop's balance.
+
+## Quizzes
+<Quiz questions={questions} />
