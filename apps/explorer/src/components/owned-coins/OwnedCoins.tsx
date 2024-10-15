@@ -95,33 +95,29 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
         };
     }, [data, recognizedPackages]);
 
+    function handleFilterClick(filterValue: CoinFilter) {
+        setFilterValue(filterValue);
+        setCurrentSlice(1);
+    }
+
     const filterOptions: FilterOption[] = useMemo(
         () => [
             {
                 label: 'All',
                 counter: balances.allBalances.length,
-                onClick: () => {
-                    setFilterValue(CoinFilter.All);
-                    setCurrentSlice(1);
-                },
+                onClick: () => handleFilterClick(CoinFilter.All),
             },
             {
                 label: `Recognized`,
                 counter: balances.recognizedBalances.length,
                 isDisabled: !balances.recognizedBalances.length,
-                onClick: () => {
-                    setFilterValue(CoinFilter.Recognized);
-                    setCurrentSlice(1);
-                },
+                onClick: () => handleFilterClick(CoinFilter.Recognized),
             },
             {
                 label: `Unrecognized`,
                 counter: balances.unrecognizedBalances.length,
                 isDisabled: !balances.unrecognizedBalances.length,
-                onClick: () => {
-                    setFilterValue(CoinFilter.Unrecognized);
-                    setCurrentSlice(1);
-                },
+                onClick: () => handleFilterClick(CoinFilter.Unrecognized),
             },
         ],
         [balances],
