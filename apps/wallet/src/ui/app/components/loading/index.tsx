@@ -12,7 +12,7 @@ interface LoadingProps extends LoadingIndicatorProps {
 
 export function Loading({ loading, children, ...indicatorProps }: LoadingProps) {
     return loading ? (
-        <div className="flex h-full items-center justify-center">
+        <div className="flex h-full w-full items-center justify-center">
             <LoadingIndicator {...indicatorProps} />
         </div>
     ) : (

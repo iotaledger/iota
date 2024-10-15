@@ -16,7 +16,6 @@ use iota_types::{
     coin_manager::CoinManager,
     gas_coin::GAS,
     object::Object,
-    smr_coin::{SMR, SmrCoin},
     stardust::{coin_type::CoinType, stardust_to_iota_address, stardust_to_iota_address_owner},
 };
 use move_core_types::language_storage::TypeTag;
@@ -64,7 +63,7 @@ fn migrate_foundry(
     // * CoinManager
     // * CoinManagerTreasuryCap
     // * The total supply native token coin
-    // * The coin held by the foundry which can be a gas coin or a smr coin
+    // * The coin held by the foundry which is a gas coin
     assert_eq!(created_objects.len(), 5);
 
     let package_id = *created_objects_ids.package()?;
@@ -380,49 +379,6 @@ fn create_gas_coin() -> Result<()> {
     assert_eq!(gas_coin_object.coin_type_maybe().unwrap(), GAS::type_tag());
     assert_eq!(coin.value(), 1_000_000);
     assert_eq!(package_object.version(), gas_coin_object.version());
-
-    Ok(())
-}
-
-#[test]
-fn create_smr_coin() -> Result<()> {
-    let (foundry_header, foundry_output) = create_foundry(
-        1_000_000,
-        SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
-            .unwrap(),
-        Irc30Metadata::new("Rustcoin", "Rust", 0),
-        AliasId::null(),
-    )
-    .unwrap();
-
-    let output_id = foundry_header.output_id();
-    let alias_address = *foundry_output.alias_address();
-
-    let (
-        package_object,
-        smr_coin_object,
-        _native_token_coin_object,
-        _coin_manager_object,
-        _coin_manager_treasury_cap_object,
-        _coin_metadata_object,
-    ) = migrate_foundry(foundry_header, foundry_output, CoinType::Shimmer)?;
-
-    // Downcast the smr coin object to get the coin.
-    let coin = smr_coin_object.to_rust::<SmrCoin>().unwrap();
-
-    // Check if the gas coin id is the same as the output id.
-    assert_eq!(smr_coin_object.id(), ObjectID::new(output_id.hash()));
-
-    // Check if the owner of the gas coin is the package object.
-    assert_eq!(
-        smr_coin_object.owner.get_owner_address().unwrap(),
-        stardust_to_iota_address(alias_address).unwrap()
-    );
-
-    assert!(SmrCoin::is_smr_coin(&smr_coin_object.struct_tag().unwrap()));
-    assert_eq!(smr_coin_object.coin_type_maybe().unwrap(), SMR::type_tag());
-    assert_eq!(coin.value(), 1_000_000);
-    assert_eq!(package_object.version(), smr_coin_object.version());
 
     Ok(())
 }

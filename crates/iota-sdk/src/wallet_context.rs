@@ -122,10 +122,10 @@ impl WalletContext {
                 .read_api()
                 .get_owned_objects(
                     address,
-                    Some(IotaObjectResponseQuery::new(
+                    IotaObjectResponseQuery::new(
                         Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
                         Some(IotaObjectDataOptions::full_content()),
-                    )),
+                    ),
                     cursor,
                     None,
                 )
@@ -212,10 +212,10 @@ impl WalletContext {
             .read_api()
             .get_owned_objects(
                 address,
-                Some(IotaObjectResponseQuery::new(
+                IotaObjectResponseQuery::new(
                     Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
                     Some(IotaObjectDataOptions::full_content()),
-                )),
+                ),
                 None,
                 limit,
             )
@@ -235,7 +235,7 @@ impl WalletContext {
         address: IotaAddress,
     ) -> anyhow::Result<Option<ObjectRef>> {
         Ok(self
-            .get_gas_objects_owned_by_address(address, Some(1))
+            .get_gas_objects_owned_by_address(address, 1)
             .await?
             .pop())
     }
@@ -335,7 +335,7 @@ impl WalletContext {
                     .with_events()
                     .with_object_changes()
                     .with_balance_changes(),
-                Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
+                iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
             )
             .await?)
     }
