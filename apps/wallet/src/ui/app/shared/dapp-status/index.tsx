@@ -125,8 +125,6 @@ function DappStatus() {
                                     </span>
                                     <div className="break-all text-body-sm text-neutral-10">
                                         {activeOrigin}
-                                        {activeOrigin}
-                                        {activeOrigin}
                                     </div>
                                 </div>
                             </div>
