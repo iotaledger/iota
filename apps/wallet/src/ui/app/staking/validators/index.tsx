@@ -40,8 +40,8 @@ export function Validators() {
             title={isPending ? 'Loading' : pageTitle}
             closeOverlay={() => navigate('/')}
         >
-            <div className="flex min-h-full flex-1 flex-col">
-                <Loading loading={isPending}>
+            <Loading loading={isPending}>
+                <div className="flex min-h-full flex-1 flex-col">
                     {isError ? (
                         <div className="mb-2">
                             <InfoBox
@@ -54,8 +54,8 @@ export function Validators() {
                     ) : null}
 
                     {stakedValidators?.length ? <ValidatorsCard /> : <SelectValidatorCard />}
-                </Loading>
-            </div>
+                </div>
+            </Loading>
         </Overlay>
     );
 }
