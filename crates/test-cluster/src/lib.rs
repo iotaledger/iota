@@ -918,7 +918,7 @@ impl TestCluster {
     ) -> anyhow::Result<IotaTransactionBlockResponse> {
         let http_client = self.rpc_client();
         let transaction_bytes = http_client
-            .transfer_object(sender, object_id, Some(gas), 1_000_000.into(), receiver)
+            .transfer_object(sender, object_id, Some(gas), 10_000_000.into(), receiver)
             .await?;
 
         let tx = self

@@ -142,13 +142,13 @@ async fn get_transaction_block_with_options(options: IotaTransactionBlockRespons
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
     let transactions = cluster
-        .transfer_objects(address, address, object_ids, gas, Some(options.clone()))
+        .transfer_object(address, address, object_ids[0], gas, Some(options.clone()))
         .await
         .unwrap();
 
-    assert!(transactions.as_slice().match_response_options(&options));
+    assert!(transactions.matches_response_options(&options));
 
-    let digest = transactions[0].digest;
+    let digest = transactions.digest;
 
     let rpc_transaction_block = http_client
         .get_transaction_block(digest, Some(options.clone()))
@@ -174,7 +174,7 @@ async fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlock
 
     let digests = transactions
         .into_iter()
-        .map(|tx_block_resp| tx_block_resp.digest)
+        .map(|tx| tx.digest)
         .collect::<Vec<TransactionDigest>>();
 
     let transaction_blocks = http_client
@@ -260,19 +260,24 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
 
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
-    let transactions = cluster
-        .transfer_objects(
+    let transaction = cluster
+        .transfer_object(
             address,
             address,
-            object_ids,
+            object_ids[0],
             gas,
-            Some(IotaTransactionBlockResponseOptions::default().with_object_changes()),
+            Some(
+                IotaTransactionBlockResponseOptions::default()
+                    .with_effects()
+                    .with_object_changes(),
+            ),
         )
         .await
         .unwrap();
 
-    let (mutated_obj_id, mutated_obj_version, _) =
-        transactions[0].mutated_objects().next().unwrap();
+    assert_eq!(transaction.status_ok(), Some(true));
+
+    let (mutated_obj_id, mutated_obj_version, _) = transaction.mutated_objects().next().unwrap();
 
     let rpc_past_obj = http_client
         .try_get_past_object(mutated_obj_id, mutated_obj_version, Some(options.clone()))
@@ -319,7 +324,11 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
             address,
             object_ids,
             gas,
-            Some(IotaTransactionBlockResponseOptions::default().with_object_changes()),
+            Some(
+                IotaTransactionBlockResponseOptions::default()
+                    .with_effects()
+                    .with_object_changes(),
+            ),
         )
         .await
         .unwrap();
@@ -327,6 +336,7 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
     let mutated_past_objects_req = transactions
         .into_iter()
         .flat_map(|tx| {
+            assert_eq!(tx.status_ok(), Some(true));
             tx.mutated_objects()
                 .map(|(object_id, version, _)| IotaGetPastObjectRequest { object_id, version })
                 .collect::<Vec<IotaGetPastObjectRequest>>()
@@ -1399,7 +1409,11 @@ async fn try_get_past_object_version_not_found() {
             address,
             object_ids,
             gas,
-            Some(IotaTransactionBlockResponseOptions::default().with_object_changes()),
+            Some(
+                IotaTransactionBlockResponseOptions::default()
+                    .with_effects()
+                    .with_object_changes(),
+            ),
         )
         .await
         .unwrap();
@@ -1407,6 +1421,7 @@ async fn try_get_past_object_version_not_found() {
     let mutated_objects = transactions
         .into_iter()
         .flat_map(|tx| {
+            assert_eq!(tx.status_ok(), Some(true));
             tx.mutated_objects()
                 .filter(|(_, seq_num, _)| seq_num > &SequenceNumber::from_u64(2))
                 .map(|(object_id, _, _)| object_id)
@@ -1568,19 +1583,24 @@ async fn try_get_object_before_version() {
 
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
 
-    let transactions = cluster
-        .transfer_objects(
+    let transaction = cluster
+        .transfer_object(
             address,
             address,
-            object_ids,
+            object_ids[0],
             gas,
-            Some(IotaTransactionBlockResponseOptions::default().with_object_changes()),
+            Some(
+                IotaTransactionBlockResponseOptions::default()
+                    .with_effects()
+                    .with_object_changes(),
+            ),
         )
         .await
         .unwrap();
 
-    let (mutated_obj_id, mutated_obj_version, _) =
-        transactions[0].mutated_objects().next().unwrap();
+    assert_eq!(transaction.status_ok(), Some(true));
+
+    let (mutated_obj_id, mutated_obj_version, _) = transaction.mutated_objects().next().unwrap();
 
     let rpc_obj_before_ver = http_client
         .try_get_object_before_version(mutated_obj_id, mutated_obj_version)
