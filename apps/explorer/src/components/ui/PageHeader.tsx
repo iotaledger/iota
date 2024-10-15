@@ -85,7 +85,7 @@ export function PageHeader({
                                         <InfoBox
                                             title={error}
                                             icon={<Warning />}
-                                            type={InfoBoxType.Warning}
+                                            type={InfoBoxType.Error}
                                             style={InfoBoxStyle.Elevated}
                                         />
                                     </div>

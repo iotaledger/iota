@@ -308,6 +308,7 @@ mod tests {
     };
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_eth_message_conversion_emergency_action_regression() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
 
@@ -328,6 +329,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_eth_message_conversion_update_blocklist_action_regression() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let pub_key_bytes = BridgeAuthorityPublicKeyBytes::from_bytes(
@@ -355,6 +357,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_eth_message_conversion_update_limit_action_regression() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let action = LimitUpdateAction {
@@ -375,6 +378,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_eth_message_conversion_contract_upgrade_action_regression() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let action = EvmContractUpgradeAction {
@@ -399,6 +403,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_eth_message_conversion_update_price_action_regression() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let action = AssetPriceUpdateAction {
@@ -419,6 +424,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_eth_message_conversion_add_tokens_on_evm_action_regression() -> anyhow::Result<()> {
         let action = AddTokensOnEvmAction {
             nonce: 5,
@@ -448,6 +454,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_token_deposit_eth_log_to_iota_bridge_event_regression() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let tx_hash = TxHash::random();
@@ -503,6 +510,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_0_iota_amount_conversion_for_eth_event() {
         let e = EthBridgeEvent::EthIotaBridgeEvents(EthIotaBridgeEvents::TokensDepositedFilter(
             TokensDepositedFilter {

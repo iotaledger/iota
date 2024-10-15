@@ -14,8 +14,6 @@ derive_builder = "0.12.0"
 enum_dispatch.workspace = true
 futures.workspace = true
 indexmap.workspace = true
-mockall.workspace = true
-prometheus.workspace = true
 proptest.workspace = true
 proptest-derive.workspace = true
 prost.workspace = true
@@ -28,7 +26,6 @@ tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tonic.workspace = true
 tracing.workspace = true
 
-anemo.workspace = true
 anyhow.workspace = true
 config = { path = "../config", package = "narwhal-config" }
 crypto = { path = "../crypto", package = "narwhal-crypto" }
@@ -38,17 +35,16 @@ once_cell.workspace = true
 iota-common.workspace = true
 iota-network-stack.workspace = true
 iota-util-mem.workspace = true
-store = { path = "../../crates/typed-store", package = "typed-store" }
 
 [dev-dependencies]
 criterion.workspace = true
 iota-metrics.workspace = true
+prometheus.workspace = true
 serde_test = "1.0.147"
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
 
 [build-dependencies]
 tonic-build.workspace = true
-anemo-build.workspace = true
 
 [features]
 default = []

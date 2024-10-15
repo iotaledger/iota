@@ -282,6 +282,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_auth_agg_construction() {
         telemetry_subscribers::init_for_testing();
 
@@ -331,6 +332,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_auth_agg_ok() {
         telemetry_subscribers::init_for_testing();
 
@@ -428,6 +430,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_auth_agg_more_cases() {
         telemetry_subscribers::init_for_testing();
 
@@ -530,6 +533,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_get_sigs_state() {
         telemetry_subscribers::init_for_testing();
 

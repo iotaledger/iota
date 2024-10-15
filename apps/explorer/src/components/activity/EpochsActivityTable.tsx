@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Select } from '@iota/apps-ui-kit';
-import { useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { useIotaClientQuery, useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -25,7 +25,7 @@ export function EpochsActivityTable({
 }: EpochsActivityTableProps): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
-
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: count } = useQuery({
         queryKey: ['epochs', 'current'],
         queryFn: async () => client.getCurrentEpoch(),
@@ -39,7 +39,7 @@ export function EpochsActivityTable({
     const { data, isFetching, pagination, isPending, isError } =
         useCursorPagination(epochMetricsQuery);
 
-    const tableColumns = generateEpochsTableColumns();
+    const tableColumns = generateEpochsTableColumns(systemState?.epoch);
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">
