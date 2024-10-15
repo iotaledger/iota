@@ -334,13 +334,13 @@ module iota_system::iota_system_state_inner {
     /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
     /// can call `request_add_validator` to officially become an active validator at the next epoch.
     /// Aborts if the caller is already a pending or active validator, or a validator candidate.
-    /// Note: `proof_of_possession` MUST be a valid signature using iota_address and protocol_pubkey_bytes.
+    /// Note: `proof_of_possession` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     /// To produce a valid PoP, run [fn test_proof_of_possession].
     public(package) fun request_add_validator_candidate(
         self: &mut IotaSystemStateInnerV2,
-        pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -355,9 +355,9 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = validator::new(
             ctx.sender(),
-            pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name,
             description,
@@ -691,16 +691,16 @@ module iota_system::iota_system_state_inner {
         candidate.update_candidate_primary_address(primary_address);
     }
 
-    /// Update a validator's public key of protocol key and proof of possession.
+    /// Update a validator's public key of authority key and proof of possession.
     /// The change will only take effects starting from the next epoch.
-    public(package) fun update_validator_next_epoch_protocol_pubkey(
+    public(package) fun update_validator_next_epoch_authority_pubkey(
         self: &mut IotaSystemStateInnerV2,
-        protocol_pubkey: vector<u8>,
+        authority_pubkey: vector<u8>,
         proof_of_possession: vector<u8>,
         ctx: &TxContext,
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
-        validator.update_next_epoch_protocol_pubkey(protocol_pubkey, proof_of_possession);
+        validator.update_next_epoch_authority_pubkey(authority_pubkey, proof_of_possession);
         let validator :&Validator = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }

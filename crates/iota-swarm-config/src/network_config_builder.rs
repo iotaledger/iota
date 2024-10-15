@@ -337,7 +337,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 keys.into_iter()
                     .map(|authority_key| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
-                            .with_protocol_key_pair(authority_key);
+                            .with_authority_key_pair(authority_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
                         }
@@ -355,7 +355,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     .zip(protocol_keys)
                     .map(|(account_key, protocol_key)| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
-                            .with_protocol_key_pair(protocol_key)
+                            .with_authority_key_pair(protocol_key)
                             .with_account_key_pair(account_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
@@ -443,7 +443,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder = builder.with_token_distribution_schedule(token_distribution_schedule);
 
             for validator in &validators {
-                builder = builder.add_validator_signature(&validator.key_pair);
+                builder = builder.add_validator_signature(&validator.authority_key_pair);
             }
 
             builder.build()
@@ -489,7 +489,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         }
                         ProtocolVersionsConfig::Global(v) => *v,
                         ProtocolVersionsConfig::PerValidator(func) => {
-                            func(idx, Some(validator.key_pair.public().into()))
+                            func(idx, Some(validator.authority_key_pair.public().into()))
                         }
                     };
                     builder = builder.with_supported_protocol_versions(supported_versions);

@@ -890,7 +890,7 @@ mod tests {
 
             let state = TestAuthorityBuilder::new()
                 .with_protocol_config(protocol_config.clone())
-                .with_genesis_and_keypair(&network_config.genesis, validator.protocol_key_pair())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
                 .build()
                 .await;
             let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -909,7 +909,7 @@ mod tests {
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
                 iota_network::randomness::Handle::new_stub(),
-                validator.protocol_key_pair(),
+                validator.authority_key_pair(),
             )
             .await
             .unwrap();
@@ -1022,7 +1022,7 @@ mod tests {
 
             let state = TestAuthorityBuilder::new()
                 .with_protocol_config(protocol_config.clone())
-                .with_genesis_and_keypair(&network_config.genesis, validator.protocol_key_pair())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
                 .build()
                 .await;
             let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -1041,7 +1041,7 @@ mod tests {
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
                 iota_network::randomness::Handle::new_stub(),
-                validator.protocol_key_pair(),
+                validator.authority_key_pair(),
             )
             .await
             .unwrap();

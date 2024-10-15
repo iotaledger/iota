@@ -75,7 +75,7 @@ impl CommitteeFixture {
                                 .iter()
                                 .find(|config| config.protocol_public_key() == *name)
                                 .unwrap()
-                                .protocol_key_pair()
+                                .authority_key_pair()
                                 .copy(),
                             *stake,
                         ),

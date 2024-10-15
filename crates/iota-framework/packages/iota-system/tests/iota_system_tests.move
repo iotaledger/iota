@@ -408,13 +408,13 @@ module iota_system::iota_system_tests {
 
     }
 
-    // Note: `pop` MUST be a valid signature using iota_address and protocol_pubkey_bytes.
+    // Note: `pop` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     // To produce a valid PoP, run [fn test_proof_of_possession].
     fun update_metadata(
         scenario: &mut Scenario,
         system_state: &mut IotaSystemState,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
@@ -429,8 +429,8 @@ module iota_system::iota_system_tests {
         system_state.update_validator_next_epoch_network_address(network_address, ctx);
         system_state.update_validator_next_epoch_p2p_address(p2p_address, ctx);
         system_state.update_validator_next_epoch_primary_address(b"/ip4/168.168.168.168/udp/80", ctx);
-        system_state.update_validator_next_epoch_protocol_pubkey(
-            protocol_pub_key,
+        system_state.update_validator_next_epoch_authority_pubkey(
+            authority_pub_key,
             pop,
             ctx
         );
@@ -447,7 +447,7 @@ module iota_system::iota_system_tests {
         p2p_address: vector<u8>,
         network_pubkey: vector<u8>,
         protocol_pubkey: vector<u8>,
-        new_protocol_pub_key: vector<u8>,
+        new_authority_pub_key: vector<u8>,
         new_pop: vector<u8>,
         new_network_address: vector<u8>,
         new_p2p_address: vector<u8>,
@@ -472,7 +472,7 @@ module iota_system::iota_system_tests {
         assert!(validator.next_epoch_p2p_address() == &option::some(new_p2p_address.to_string()));
         assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()));
         assert!(
-            validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pub_key),
+            validator.next_epoch_authority_pubkey_bytes() == &option::some(new_authority_pub_key),
             0
         );
         assert!(
@@ -542,7 +542,7 @@ module iota_system::iota_system_tests {
         assert!(validator.next_epoch_network_address().is_none());
         assert!(validator.next_epoch_p2p_address().is_none());
         assert!(validator.next_epoch_primary_address().is_none());
-        assert!(validator.next_epoch_protocol_pubkey_bytes().is_none());
+        assert!(validator.next_epoch_authority_pubkey_bytes().is_none());
         assert!(validator.next_epoch_proof_of_possession().is_none());
         assert!(validator.next_epoch_worker_pubkey_bytes().is_none());
         assert!(validator.next_epoch_network_pubkey_bytes().is_none());

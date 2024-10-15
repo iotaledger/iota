@@ -82,7 +82,7 @@ pub struct ValidatorMetadataV1 {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_authority_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
     pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_worker_pubkey_bytes: Option<Vec<u8>>,
@@ -108,7 +108,7 @@ pub struct VerifiedValidatorMetadataV1 {
     pub net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
-    pub next_epoch_protocol_pubkey: Option<AuthorityPublicKey>,
+    pub next_epoch_authority_pubkey: Option<AuthorityPublicKey>,
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
     pub next_epoch_network_pubkey: Option<NetworkPublicKey>,
     pub next_epoch_worker_pubkey: Option<NetworkPublicKey>,
@@ -161,7 +161,7 @@ impl ValidatorMetadataV1 {
             .to_anemo_address()
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
 
-        let next_epoch_protocol_pubkey = match self.next_epoch_protocol_pubkey_bytes.clone() {
+        let next_epoch_authority_pubkey = match self.next_epoch_authority_pubkey_bytes.clone() {
             None => Ok::<Option<AuthorityPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
                 AuthorityPublicKey::from_bytes(bytes.as_ref())
@@ -176,13 +176,13 @@ impl ValidatorMetadataV1 {
                     .map_err(|_| E_METADATA_INVALID_POP)?,
             )),
         }?;
-        // Verify proof of possession for the next epoch protocol key
-        if let Some(ref next_epoch_protocol_pubkey) = next_epoch_protocol_pubkey {
+        // Verify proof of possession for the next epoch authority key
+        if let Some(ref next_epoch_authority_pubkey) = next_epoch_authority_pubkey {
             match next_epoch_pop {
                 Some(next_epoch_pop) => {
                     verify_proof_of_possession(
                         &next_epoch_pop,
-                        next_epoch_protocol_pubkey,
+                        next_epoch_authority_pubkey,
                         self.iota_address,
                     )
                     .map_err(|_| E_METADATA_INVALID_POP)?;
@@ -261,7 +261,7 @@ impl ValidatorMetadataV1 {
             net_address,
             p2p_address,
             primary_address,
-            next_epoch_protocol_pubkey,
+            next_epoch_authority_pubkey,
             next_epoch_proof_of_possession: self.next_epoch_proof_of_possession.clone(),
             next_epoch_network_pubkey,
             next_epoch_worker_pubkey,
@@ -315,7 +315,7 @@ impl ValidatorV1 {
                     net_address,
                     p2p_address,
                     primary_address,
-                    next_epoch_protocol_pubkey_bytes,
+                    next_epoch_authority_pubkey_bytes,
                     next_epoch_proof_of_possession,
                     next_epoch_network_pubkey_bytes,
                     next_epoch_worker_pubkey_bytes,
@@ -365,7 +365,7 @@ impl ValidatorV1 {
             net_address,
             p2p_address,
             primary_address,
-            next_epoch_protocol_pubkey_bytes,
+            next_epoch_authority_pubkey_bytes,
             next_epoch_proof_of_possession,
             next_epoch_network_pubkey_bytes,
             next_epoch_worker_pubkey_bytes,

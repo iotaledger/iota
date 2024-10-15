@@ -24,8 +24,8 @@ const MAX_VALIDATOR_METADATA_LENGTH: usize = 256;
 pub struct ValidatorInfo {
     pub name: String,
     pub account_address: IotaAddress,
-    pub protocol_key: AuthorityPublicKeyBytes,
-    pub worker_key: NetworkPublicKey,
+    pub authority_key: AuthorityPublicKeyBytes,
+    pub protocol_key: NetworkPublicKey,
     pub network_key: NetworkPublicKey,
     pub gas_price: u64,
     pub commission_rate: u64,
@@ -46,12 +46,12 @@ impl ValidatorInfo {
         self.account_address
     }
 
-    pub fn protocol_key(&self) -> AuthorityPublicKeyBytes {
-        self.protocol_key
+    pub fn authority_key(&self) -> AuthorityPublicKeyBytes {
+        self.authority_key
     }
 
-    pub fn worker_key(&self) -> &NetworkPublicKey {
-        &self.worker_key
+    pub fn protocol_key(&self) -> &NetworkPublicKey {
+        &self.protocol_key
     }
 
     pub fn network_key(&self) -> &NetworkPublicKey {
@@ -142,10 +142,10 @@ impl GenesisValidatorInfo {
             bail!("commissions rate must be lower than 100%");
         }
 
-        let protocol_pubkey = AuthorityPublicKey::from_bytes(self.info.protocol_key.as_ref())?;
+        let authority_pubkey = AuthorityPublicKey::from_bytes(self.info.authority_key.as_ref())?;
         if let Err(e) = verify_proof_of_possession(
             &self.proof_of_possession,
-            &protocol_pubkey,
+            &authority_pubkey,
             self.info.account_address,
         ) {
             bail!("proof of possession is incorrect: {e}");
@@ -170,10 +170,10 @@ impl From<GenesisValidatorInfo> for GenesisValidatorMetadata {
             iota_address: info.account_address,
             gas_price: info.gas_price,
             commission_rate: info.commission_rate,
-            protocol_public_key: info.protocol_key.as_bytes().to_vec(),
+            protocol_public_key: info.authority_key.as_bytes().to_vec(),
             proof_of_possession: proof_of_possession.as_ref().to_vec(),
             network_public_key: info.network_key.as_bytes().to_vec(),
-            worker_public_key: info.worker_key.as_bytes().to_vec(),
+            worker_public_key: info.protocol_key.as_bytes().to_vec(),
             network_address: info.network_address,
             p2p_address: info.p2p_address,
             primary_address: info.primary_address,

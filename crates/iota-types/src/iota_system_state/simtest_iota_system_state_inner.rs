@@ -73,9 +73,9 @@ impl SimTestValidatorV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestValidatorMetadataV1 {
     pub iota_address: IotaAddress,
-    pub protocol_pubkey_bytes: Vec<u8>,
+    pub authority_pubkey_bytes: Vec<u8>,
     pub network_pubkey_bytes: Vec<u8>,
-    pub worker_pubkey_bytes: Vec<u8>,
+    pub protocol_pubkey_bytes: Vec<u8>,
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
@@ -85,9 +85,9 @@ pub struct SimTestValidatorMetadataV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct VerifiedSimTestValidatorMetadataV1 {
     pub iota_address: IotaAddress,
-    pub protocol_pubkey: AuthorityPublicKey,
+    pub authority_pubkey: AuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
-    pub worker_pubkey: NetworkPublicKey,
+    pub protocol_pubkey: NetworkPublicKey,
     pub net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
@@ -95,20 +95,20 @@ pub struct VerifiedSimTestValidatorMetadataV1 {
 
 impl SimTestValidatorMetadataV1 {
     pub fn verify(&self) -> VerifiedSimTestValidatorMetadataV1 {
-        let protocol_pubkey =
-            AuthorityPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();
+        let authority_pubkey =
+            AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref()).unwrap();
         let network_pubkey =
             NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref()).unwrap();
-        let worker_pubkey =
-            NetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref()).unwrap();
+        let protocol_pubkey =
+            NetworkPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();
         let net_address = Multiaddr::try_from(self.net_address.clone()).unwrap();
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone()).unwrap();
         let primary_address = Multiaddr::try_from(self.primary_address.clone()).unwrap();
         VerifiedSimTestValidatorMetadataV1 {
             iota_address: self.iota_address,
-            protocol_pubkey,
+            authority_pubkey,
             network_pubkey,
-            worker_pubkey,
+            authority_pubkey: protocol_pubkey,
             net_address,
             p2p_address,
             primary_address,
@@ -118,7 +118,7 @@ impl SimTestValidatorMetadataV1 {
 
 impl VerifiedSimTestValidatorMetadataV1 {
     pub fn iota_pubkey_bytes(&self) -> AuthorityPublicKeyBytes {
-        (&self.protocol_pubkey).into()
+        (&self.authority_pubkey).into()
     }
 }
 
@@ -200,9 +200,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
-                        authority_pubkey: metadata.protocol_pubkey.clone(),
+                        authority_pubkey: metadata.authority_pubkey.clone(),
                         authority_network_pubkey: metadata.network_pubkey.clone(),
-                        authority_protocol_pubkey: metadata.worker_pubkey.clone(),
+                        authority_protocol_pubkey: metadata.protocol_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
@@ -312,9 +312,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
-                        authority_pubkey: metadata.protocol_pubkey.clone(),
+                        authority_pubkey: metadata.authority_pubkey.clone(),
                         authority_network_pubkey: metadata.network_pubkey.clone(),
-                        authority_protocol_pubkey: metadata.worker_pubkey.clone(),
+                        authority_protocol_pubkey: metadata.protocol_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
@@ -453,9 +453,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
-                        authority_pubkey: metadata.protocol_pubkey.clone(),
+                        authority_pubkey: metadata.authority_pubkey.clone(),
                         authority_network_pubkey: metadata.network_pubkey.clone(),
-                        authority_protocol_pubkey: metadata.worker_pubkey.clone(),
+                        authority_protocol_pubkey: metadata.protocol_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),

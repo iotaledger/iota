@@ -126,23 +126,23 @@ pub fn generate_proof_of_possession(
 }
 
 /// Verify proof of possession against the expected intent message,
-/// consisting of the protocol pubkey and the authority account address.
+/// consisting of the authority pubkey and the authority account address.
 pub fn verify_proof_of_possession(
     pop: &AuthoritySignature,
-    protocol_pubkey: &AuthorityPublicKey,
+    authority_pubkey: &AuthorityPublicKey,
     iota_address: IotaAddress,
 ) -> Result<(), IotaError> {
-    protocol_pubkey
+    authority_pubkey
         .validate()
         .map_err(|_| IotaError::InvalidSignature {
             error: "Fail to validate pubkey".to_string(),
         })?;
-    let mut msg = protocol_pubkey.as_bytes().to_vec();
+    let mut msg = authority_pubkey.as_bytes().to_vec();
     msg.extend_from_slice(iota_address.as_ref());
     pop.verify_secure(
         &IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg),
         DEFAULT_EPOCH_ID,
-        protocol_pubkey.into(),
+        authority_pubkey.into(),
     )
 }
 ///////////////////////////////////////////////

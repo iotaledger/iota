@@ -181,7 +181,7 @@ impl Builder {
         proof_of_possession: AuthoritySignature,
     ) -> Self {
         self.validators
-            .insert(validator.protocol_key(), GenesisValidatorInfo {
+            .insert(validator.authority_key(), GenesisValidatorInfo {
                 info: validator,
                 proof_of_possession,
             });
@@ -508,9 +508,9 @@ impl Builder {
                     .is_none()
             );
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
-            assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
+            assert_eq!(validator.info.authority_key(), metadata.iota_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.authority_network_pubkey);
-            assert_eq!(validator.info.worker_key, metadata.authority_protocol_pubkey);
+            assert_eq!(validator.info.protocol_key, metadata.authority_protocol_pubkey);
             assert_eq!(
                 validator.proof_of_possession.as_ref().to_vec(),
                 metadata.proof_of_possession_bytes
@@ -763,7 +763,7 @@ impl Builder {
             let path = entry.path();
             let validator_info: GenesisValidatorInfo = serde_yaml::from_slice(&fs::read(path)?)
                 .with_context(|| format!("unable to load validator info for {path}"))?;
-            committee.insert(validator_info.info.protocol_key(), validator_info);
+            committee.insert(validator_info.info.authority_key(), validator_info);
         }
 
         // Load Signatures
@@ -1645,8 +1645,8 @@ mod test {
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: "0".into(),
-            protocol_key: key.public().into(),
-            worker_key: worker_key.public().clone(),
+            authority_key: key.public().into(),
+            protocol_key: worker_key.public().clone(),
             account_address: IotaAddress::from(account_key.public()),
             network_key: network_key.public().clone(),
             gas_price: DEFAULT_VALIDATOR_GAS_PRICE,

@@ -100,7 +100,7 @@ module iota_system::validator {
 
         /// "next_epoch" metadata only takes effects in the next epoch.
         /// If none, current value will stay unchanged.
-        next_epoch_protocol_pubkey_bytes: Option<vector<u8>>,
+        next_epoch_authority_pubkey_bytes: Option<vector<u8>>,
         next_epoch_proof_of_possession: Option<vector<u8>>,
         next_epoch_network_pubkey_bytes: Option<vector<u8>>,
         next_epoch_worker_pubkey_bytes: Option<vector<u8>>,
@@ -184,7 +184,7 @@ module iota_system::validator {
             net_address,
             p2p_address,
             primary_address,
-            next_epoch_protocol_pubkey_bytes: option::none(),
+            next_epoch_authority_pubkey_bytes: option::none(),
             next_epoch_network_pubkey_bytes: option::none(),
             next_epoch_worker_pubkey_bytes: option::none(),
             next_epoch_proof_of_possession: option::none(),
@@ -482,8 +482,8 @@ module iota_system::validator {
         &self.metadata.next_epoch_primary_address
     }
 
-    public fun next_epoch_protocol_pubkey_bytes(self: &Validator): &Option<vector<u8>> {
-        &self.metadata.next_epoch_protocol_pubkey_bytes
+    public fun next_epoch_authority_pubkey_bytes(self: &Validator): &Option<vector<u8>> {
+        &self.metadata.next_epoch_authority_pubkey_bytes
     }
 
     public fun next_epoch_proof_of_possession(self: &Validator): &Option<vector<u8>> {
@@ -569,7 +569,7 @@ module iota_system::validator {
             // All next epoch parameters.
             || is_equal_some(&self.metadata.next_epoch_net_address, &other.metadata.next_epoch_net_address)
             || is_equal_some(&self.metadata.next_epoch_p2p_address, &other.metadata.next_epoch_p2p_address)
-            || is_equal_some(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.next_epoch_protocol_pubkey_bytes)
+            || is_equal_some(&self.metadata.next_epoch_authority_pubkey_bytes, &other.metadata.next_epoch_authority_pubkey_bytes)
             || is_equal_some(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.next_epoch_network_pubkey_bytes)
             || is_equal_some(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.next_epoch_worker_pubkey_bytes)
             || is_equal_some(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.next_epoch_worker_pubkey_bytes)
@@ -577,7 +577,7 @@ module iota_system::validator {
             // My next epoch parameters with other current epoch parameters.
             || is_equal_some_and_value(&self.metadata.next_epoch_net_address, &other.metadata.net_address)
             || is_equal_some_and_value(&self.metadata.next_epoch_p2p_address, &other.metadata.p2p_address)
-            || is_equal_some_and_value(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.authority_pubkey_bytes)
+            || is_equal_some_and_value(&self.metadata.next_epoch_authority_pubkey_bytes, &other.metadata.authority_pubkey_bytes)
             || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.network_pubkey_bytes)
             || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
             || is_equal_some_and_value(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
@@ -585,7 +585,7 @@ module iota_system::validator {
             // Other next epoch parameters with my current epoch parameters.
             || is_equal_some_and_value(&other.metadata.next_epoch_net_address, &self.metadata.net_address)
             || is_equal_some_and_value(&other.metadata.next_epoch_p2p_address, &self.metadata.p2p_address)
-            || is_equal_some_and_value(&other.metadata.next_epoch_protocol_pubkey_bytes, &self.metadata.authority_pubkey_bytes)
+            || is_equal_some_and_value(&other.metadata.next_epoch_authority_pubkey_bytes, &self.metadata.authority_pubkey_bytes)
             || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.network_pubkey_bytes)
             || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
             || is_equal_some_and_value(&other.metadata.next_epoch_worker_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
@@ -725,8 +725,8 @@ module iota_system::validator {
     }
 
     /// Update protocol public key of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_protocol_pubkey(self: &mut Validator, protocol_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
-        self.metadata.next_epoch_protocol_pubkey_bytes = option::some(protocol_pubkey);
+    public(package) fun update_next_epoch_authority_pubkey(self: &mut Validator, authority_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
+        self.metadata.next_epoch_authority_pubkey_bytes = option::some(authority_pubkey);
         self.metadata.next_epoch_proof_of_possession = option::some(proof_of_possession);
         validate_metadata(&self.metadata);
     }
@@ -784,9 +784,9 @@ module iota_system::validator {
             self.metadata.next_epoch_primary_address = option::none();
         };
 
-        if (next_epoch_protocol_pubkey_bytes(self).is_some()) {
-            self.metadata.authority_pubkey_bytes = self.metadata.next_epoch_protocol_pubkey_bytes.extract();
-            self.metadata.next_epoch_protocol_pubkey_bytes = option::none();
+        if (next_epoch_authority_pubkey_bytes(self).is_some()) {
+            self.metadata.authority_pubkey_bytes = self.metadata.next_epoch_authority_pubkey_bytes.extract();
+            self.metadata.next_epoch_authority_pubkey_bytes = option::none();
             self.metadata.proof_of_possession = self.metadata.next_epoch_proof_of_possession.extract();
             self.metadata.next_epoch_proof_of_possession = option::none();
         };

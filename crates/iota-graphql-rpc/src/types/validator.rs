@@ -139,9 +139,9 @@ impl Validator {
     async fn credentials(&self) -> Option<ValidatorCredentials> {
         let v = &self.validator_summary;
         let credentials = ValidatorCredentials {
-            protocol_pub_key: Some(Base64::from(v.authority_pubkey_bytes.clone())),
+            authority_pub_key: Some(Base64::from(v.authority_pubkey_bytes.clone())),
             network_pub_key: Some(Base64::from(v.authority_network_pubkey_bytes.clone())),
-            worker_pub_key: Some(Base64::from(v.authority_protocol_pubkey_bytes.clone())),
+            protocol_pub_key: Some(Base64::from(v.authority_protocol_pubkey_bytes.clone())),
             proof_of_possession: Some(Base64::from(v.proof_of_possession_bytes.clone())),
             net_address: Some(v.net_address.clone()),
             p2p_address: Some(v.p2p_address.clone()),
@@ -154,12 +154,12 @@ impl Validator {
     async fn next_epoch_credentials(&self) -> Option<ValidatorCredentials> {
         let v = &self.validator_summary;
         let credentials = ValidatorCredentials {
-            protocol_pub_key: v
-                .next_epoch_protocol_pubkey_bytes
+            authority_pub_key: v
+                .next_epoch_authority_pubkey_bytes
                 .as_ref()
                 .map(Base64::from),
             network_pub_key: v.next_epoch_network_pubkey_bytes.as_ref().map(Base64::from),
-            worker_pub_key: v.next_epoch_worker_pubkey_bytes.as_ref().map(Base64::from),
+            protocol_pub_key: v.next_epoch_worker_pubkey_bytes.as_ref().map(Base64::from),
             proof_of_possession: v.next_epoch_proof_of_possession.as_ref().map(Base64::from),
             net_address: v.next_epoch_net_address.clone(),
             p2p_address: v.next_epoch_p2p_address.clone(),

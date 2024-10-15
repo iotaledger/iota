@@ -52,9 +52,9 @@ pub const DEFAULT_COMMISSION_RATE: u64 = 200;
 #[serde(rename_all = "kebab-case")]
 pub struct NodeConfig {
     #[serde(default = "default_authority_key_pair")]
-    pub protocol_key_pair: AuthorityKeyPairWithPath,
+    pub authority_key_pair: AuthorityKeyPairWithPath,
     #[serde(default = "default_key_pair")]
-    pub worker_key_pair: KeyPairWithPath,
+    pub protocol_key_pair: KeyPairWithPath,
     #[serde(default = "default_key_pair")]
     pub account_key_pair: KeyPairWithPath,
     #[serde(default = "default_key_pair")]
@@ -368,12 +368,12 @@ fn is_true(value: &bool) -> bool {
 impl Config for NodeConfig {}
 
 impl NodeConfig {
-    pub fn protocol_key_pair(&self) -> &AuthorityKeyPair {
-        self.protocol_key_pair.authority_keypair()
+    pub fn authority_key_pair(&self) -> &AuthorityKeyPair {
+        self.authority_key_pair.authority_keypair()
     }
 
-    pub fn worker_key_pair(&self) -> &NetworkKeyPair {
-        match self.worker_key_pair.keypair() {
+    pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
+        match self.protocol_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
             other => panic!(
                 "Invalid keypair type: {:?}, only Ed25519 is allowed for worker key",
@@ -393,7 +393,7 @@ impl NodeConfig {
     }
 
     pub fn protocol_public_key(&self) -> AuthorityPublicKeyBytes {
-        self.protocol_key_pair().public().into()
+        self.authority_key_pair().public().into()
     }
 
     pub fn db_path(&self) -> PathBuf {
@@ -1167,17 +1167,17 @@ mod tests {
 
     #[test]
     fn load_key_pairs_to_node_config() {
-        let protocol_key_pair: AuthorityKeyPair =
+        let authority_key_pair: AuthorityKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let worker_key_pair: NetworkKeyPair =
+        let protocol_key_pair: NetworkKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
         let network_key_pair: NetworkKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
 
-        write_authority_keypair_to_file(&protocol_key_pair, PathBuf::from("protocol.key")).unwrap();
+        write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key")).unwrap();
         write_keypair_to_file(
-            &IotaKeyPair::Ed25519(worker_key_pair.copy()),
-            PathBuf::from("worker.key"),
+            &IotaKeyPair::Ed25519(protocol_key_pair.copy()),
+            PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
@@ -1189,16 +1189,16 @@ mod tests {
         const TEMPLATE: &str = include_str!("../data/fullnode-template-with-path.yaml");
         let template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
         assert_eq!(
-            template.protocol_key_pair().public(),
-            protocol_key_pair.public()
+            template.authority_key_pair().public(),
+            authority_key_pair.public()
         );
         assert_eq!(
             template.network_key_pair().public(),
             network_key_pair.public()
         );
         assert_eq!(
-            template.worker_key_pair().public(),
-            worker_key_pair.public()
+            template.protocol_key_pair().public(),
+            protocol_key_pair.public()
         );
     }
 }

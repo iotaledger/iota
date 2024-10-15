@@ -27,8 +27,8 @@ async fn main() {
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: format!("Validator {}", i),
-            protocol_key: key.public().into(),
-            worker_key: worker_key.public().clone(),
+            authority_key: key.public().into(),
+            protocol_key: worker_key.public().clone(),
             account_address: IotaAddress::from(account_key.public()),
             network_key: network_key.public().clone(),
             gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,

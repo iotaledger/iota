@@ -445,7 +445,7 @@ impl IotaNode {
 
         let genesis = config.genesis()?.clone();
 
-        let secret = Arc::pin(config.protocol_key_pair().copy());
+        let secret = Arc::pin(config.authority_key_pair().copy());
         let genesis_committee = genesis.committee()?;
         let committee_store = Arc::new(CommitteeStore::new(
             config.db_path().join("epochs"),
@@ -1285,7 +1285,7 @@ impl IotaNode {
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
                 randomness_handle,
-                config.protocol_key_pair(),
+                config.authority_key_pair(),
             )
             .await;
             if let Some(randomness_manager) = randomness_manager {

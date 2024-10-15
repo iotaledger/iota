@@ -122,7 +122,7 @@ impl ValidatorConfigBuilder {
     }
 
     pub fn build_without_genesis(self, validator: ValidatorGenesisConfig) -> NodeConfig {
-        let key_path = get_key_path(&validator.key_pair);
+        let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
@@ -173,12 +173,12 @@ impl ValidatorConfigBuilder {
         };
 
         NodeConfig {
-            protocol_key_pair: AuthorityKeyPairWithPath::new(validator.key_pair),
+            authority_key_pair: AuthorityKeyPairWithPath::new(validator.authority_key_pair),
             network_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
                 validator.network_key_pair,
             )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
-            worker_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(validator.worker_key_pair)),
+            protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(validator.protocol_key_pair)),
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
@@ -189,7 +189,7 @@ impl ValidatorConfigBuilder {
             consensus_config: Some(consensus_config),
             remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
-            genesis: iota_config::node::Genesis::new_empty(),
+            genesis: Genesis::new_empty(),
             grpc_load_shed: None,
             grpc_concurrency_limit: Some(DEFAULT_GRPC_CONCURRENCY_LIMIT),
             p2p_config,
@@ -400,7 +400,7 @@ impl FullnodeConfigBuilder {
             .ip()
             .to_string();
 
-        let key_path = get_key_path(&validator_config.key_pair);
+        let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
@@ -453,10 +453,10 @@ impl FullnodeConfigBuilder {
         };
 
         NodeConfig {
-            protocol_key_pair: AuthorityKeyPairWithPath::new(validator_config.key_pair),
+            authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
-            worker_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator_config.worker_key_pair,
+            protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
+                validator_config.protocol_key_pair,
             )),
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
                 IotaKeyPair::Ed25519(validator_config.network_key_pair),

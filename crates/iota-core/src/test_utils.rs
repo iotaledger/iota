@@ -113,7 +113,7 @@ where
         .build();
     let genesis = network_config.genesis;
     let authority_key = network_config.validator_configs[0]
-        .protocol_key_pair()
+        .authority_key_pair()
         .copy();
 
     (genesis, authority_key)
@@ -236,8 +236,8 @@ async fn init_genesis(
         let network_key_pair: NetworkKeyPair = get_key_pair().1;
         let validator_info = ValidatorInfo {
             name: format!("validator-{i}"),
-            protocol_key: authority_name,
-            worker_key: worker_name,
+            authority_key: authority_name,
+            protocol_key: worker_name,
             account_address: IotaAddress::from(&account_key_pair.public()),
             network_key: network_key_pair.public().clone(),
             gas_price: 1,

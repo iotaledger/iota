@@ -108,13 +108,13 @@ module iota_system::iota_system {
     /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
     /// can call `request_add_validator` to officially become an active validator at the next epoch.
     /// Aborts if the caller is already a pending or active validator, or a validator candidate.
-    /// Note: `proof_of_possession` MUST be a valid signature using iota_address and protocol_pubkey_bytes.
+    /// Note: `proof_of_possession` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     /// To produce a valid PoP, run [fn test_proof_of_possession].
     public entry fun request_add_validator_candidate(
         wrapper: &mut IotaSystemState,
-        pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -129,9 +129,9 @@ module iota_system::iota_system {
     ) {
         let self = load_system_state_mut(wrapper);
         self.request_add_validator_candidate(
-            pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name,
             description,
@@ -422,16 +422,16 @@ module iota_system::iota_system {
         self.update_candidate_validator_primary_address(primary_address, ctx)
     }
 
-    /// Update a validator's public key of protocol key and proof of possession.
+    /// Update a validator's public key of authority key and proof of possession.
     /// The change will only take effects starting from the next epoch.
-    public entry fun update_validator_next_epoch_protocol_pubkey(
+    public entry fun update_validator_next_epoch_authority_pubkey(
         self: &mut IotaSystemState,
-        protocol_pubkey: vector<u8>,
+        authority_pubkey: vector<u8>,
         proof_of_possession: vector<u8>,
         ctx: &TxContext,
     ) {
         let self = load_system_state_mut(self);
-        self.update_validator_next_epoch_protocol_pubkey(protocol_pubkey, proof_of_possession, ctx)
+        self.update_validator_next_epoch_authority_pubkey(authority_pubkey, proof_of_possession, ctx)
     }
 
     /// Update candidate validator's public key of authority key and proof of possession.
@@ -698,9 +698,9 @@ module iota_system::iota_system {
     #[test_only]
     public entry fun request_add_validator_candidate_for_testing(
         wrapper: &mut IotaSystemState,
-        pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -715,9 +715,9 @@ module iota_system::iota_system {
     ) {
         let self = load_system_state_mut(wrapper);
         self.request_add_validator_candidate_for_testing(
-            pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name,
             description,

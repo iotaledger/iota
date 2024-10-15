@@ -325,8 +325,8 @@ impl IotaValidatorCommand {
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
-                        protocol_key: keypair.public().into(),
-                        worker_key: worker_keypair.public().clone(),
+                        authority_key: keypair.public().into(),
+                        protocol_key: worker_keypair.public().clone(),
                         account_address: IotaAddress::from(&account_keypair.public()),
                         network_key: network_keypair.public().clone(),
                         gas_price,
@@ -367,7 +367,7 @@ impl IotaValidatorCommand {
                 let args = vec![
                     CallArg::Pure(
                         bcs::to_bytes(&AuthorityPublicKeyBytes::from_bytes(
-                            validator.protocol_key().as_bytes(),
+                            validator.authority_key().as_bytes(),
                         )?)
                         .unwrap(),
                     ),
@@ -375,7 +375,7 @@ impl IotaValidatorCommand {
                         bcs::to_bytes(&validator.network_key().as_bytes().to_vec()).unwrap(),
                     ),
                     CallArg::Pure(
-                        bcs::to_bytes(&validator.worker_key().as_bytes().to_vec()).unwrap(),
+                        bcs::to_bytes(&validator.protocol_key().as_bytes().to_vec()).unwrap(),
                     ),
                     CallArg::Pure(
                         bcs::to_bytes(&validator_info.proof_of_possession.as_ref().to_vec())
@@ -1275,7 +1275,7 @@ async fn update_metadata(
             ];
             call_0x5(
                 context,
-                "update_validator_next_epoch_protocol_pubkey",
+                "update_validator_next_epoch_authority_pubkey",
                 args,
                 gas_budget,
             )

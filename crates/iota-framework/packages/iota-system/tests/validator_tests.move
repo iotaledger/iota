@@ -327,7 +327,7 @@ module iota_system::validator_tests {
         let mut scenario_val = test_scenario::begin(sender);
         let scenario = &mut scenario_val;
         let ctx = scenario.ctx();
-        let new_protocol_pub_key = x"96d19c53f1bee2158c3fcfb5bb2f06d3a8237667529d2d8f0fbb22fe5c3b3e64748420b4103674490476d98530d063271222d2a59b0f7932909cc455a30f00c69380e6885375e94243f7468e9563aad29330aca7ab431927540e9508888f0e1c";
+        let new_authority_pub_key = x"96d19c53f1bee2158c3fcfb5bb2f06d3a8237667529d2d8f0fbb22fe5c3b3e64748420b4103674490476d98530d063271222d2a59b0f7932909cc455a30f00c69380e6885375e94243f7468e9563aad29330aca7ab431927540e9508888f0e1c";
         let new_pop = x"a8a0bcaf04e13565914eb22fa9f27a76f297db04446860ee2b923d10224cedb130b30783fb60b12556e7fc50e5b57a86";
         let new_worker_pub_key = vector[115, 220, 238, 151, 134, 159, 173, 41, 80, 2, 66, 196, 61, 17, 191, 76, 103, 39, 246, 127, 171, 85, 19, 235, 210, 106, 97, 97, 116, 48, 244, 191];
         let new_network_pub_key = vector[149, 128, 161, 13, 11, 183, 96, 45, 89, 20, 188, 205, 26, 127, 147, 254, 184, 229, 184, 102, 64, 170, 104, 29, 191, 171, 91, 99, 58, 178, 41, 156];
@@ -339,7 +339,7 @@ module iota_system::validator_tests {
             validator.update_next_epoch_network_address(b"/ip4/192.168.1.1/tcp/80");
             validator.update_next_epoch_p2p_address(b"/ip4/192.168.1.1/udp/80");
             validator.update_next_epoch_primary_address(b"/ip4/192.168.1.1/udp/80");
-            validator.update_next_epoch_protocol_pubkey(new_protocol_pub_key, new_pop);
+            validator.update_next_epoch_authority_pubkey(new_authority_pub_key, new_pop);
             validator.update_next_epoch_worker_pubkey( new_worker_pub_key);
             validator.update_next_epoch_network_pubkey(new_network_pub_key);
 
@@ -369,7 +369,7 @@ module iota_system::validator_tests {
             assert!(validator.next_epoch_p2p_address() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
             assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
             assert!(
-                validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pub_key),
+                validator.next_epoch_authority_pubkey_bytes() == &option::some(new_authority_pub_key),
                 0
             );
             assert!(
@@ -397,7 +397,7 @@ module iota_system::validator_tests {
 
         scenario.next_tx(sender);
         {
-            validator.update_next_epoch_protocol_pubkey(
+            validator.update_next_epoch_authority_pubkey(
                 x"96d19c53f1bee2158c3fcfb5bb2f06d3a8237667529d2d8f0fbb22fe5c3b3e64748420b4103674490476d98530d063271222d2a59b0f7932909cc455a30f00c69380e6885375e94243f7468e9563aad29330aca7ab431927540e9508888f0e1c",
                 // This is an invalid proof of possession, so we abort
                 x"8b9794dfd11b88e16ba8f6a4a2c1e7580738dce2d6910ee594bebd88297b22ae8c34d1ee3f5a081159d68e076ef5d300");

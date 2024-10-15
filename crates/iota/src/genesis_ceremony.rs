@@ -200,8 +200,8 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             builder = builder.add_validator(
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
-                    protocol_key: keypair.public().into(),
-                    worker_key: worker_keypair.public().clone(),
+                    authority_key: keypair.public().into(),
+                    protocol_key: worker_keypair.public().clone(),
                     account_address: IotaAddress::from(&account_keypair.public()),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
@@ -379,8 +379,8 @@ mod test {
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),
-                    protocol_key: keypair.public().into(),
-                    worker_key: worker_keypair.public().clone(),
+                    authority_key: keypair.public().into(),
+                    protocol_key: worker_keypair.public().clone(),
                     account_address: IotaAddress::from(account_keypair.public()),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,

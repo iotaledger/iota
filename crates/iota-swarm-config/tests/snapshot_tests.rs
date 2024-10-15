@@ -65,8 +65,8 @@ fn populated_genesis_snapshot_matches() {
     let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rng).1;
     let validator = ValidatorInfo {
         name: "0".into(),
-        protocol_key: key.public().into(),
-        worker_key: worker_key.public().clone(),
+        authority_key: key.public().into(),
+        protocol_key: worker_key.public().clone(),
         account_address: IotaAddress::from(account_key.public()),
         network_key: network_key.public().clone(),
         gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
