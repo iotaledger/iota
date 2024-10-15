@@ -1071,7 +1071,7 @@ fn build_unsigned_genesis_data<'info>(
 
 // Creates a map of transaction digest to transaction content involving data
 // coming from a migration. Migration objects come into a vector of objects,
-// here it splits this vector into chuncks and creates a `GenesisTransaction`
+// here it splits this vector into chunks and creates a `GenesisTransaction`
 // for each chunk.
 fn create_migration_tx_data(
     migration_objects: Vec<Object>,
