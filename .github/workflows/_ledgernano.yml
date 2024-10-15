@@ -1,0 +1,46 @@
+name: Ledgernano End-to-end Tests
+
+on: workflow_call
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ledgernano:
+    name: Ledgernano
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+
+      - name: Install Nodejs
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install ledgernano dependencies
+        run: |
+          sudo apt-get install qemu-user-static
+          sudo apt-get install libxcb-xinerama0
+          sudo pip install speculos --break-system-packages
+
+      # Currently disabled, as the repo is still private: https://github.com/iotaledger/iota/issues/3268
+      # - name: Download ledgernano bin
+      #   run: |
+      #     sudo apt-get install gh
+      #     gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz untagged-a706a550379839d8db15
+      #     tar -xvf nanos.tar.gz
+      #     mv nanos/iota sdk/ledgerjs-hw-app-iota/tests/iota
+      #   env:
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start speculos simulator
+        run: speculos --api-port 5000 --display headless ./sdk/ledgerjs-hw-app-iota/tests/iota &
+
+      - name: Run TS SDK ledgernano tests
+        run: pnpm --filter @iota/ledgerjs-hw-app-iota test
