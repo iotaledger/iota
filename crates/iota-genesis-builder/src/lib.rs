@@ -100,7 +100,10 @@ const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
 pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
-const MIGRATION_TX_MAX_AMOUNT: usize = 9999;
+
+// THe number of maximum transactions for the genesis checkpoint in the case of
+// migration
+const MAX_AMOUNT_OF_TX_PER_CHECKPOINT: u64 = 10_000;
 
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
@@ -1077,7 +1080,11 @@ fn create_migration_tx_data(
     epoch_data: &EpochData,
 ) -> TransactionsData {
     let mut txs_data = TransactionsData::new();
-    let chunk_size = migration_objects.len() / MIGRATION_TX_MAX_AMOUNT + 1;
+    let migration_tx_max_amount = protocol_config
+        .max_transactions_per_checkpoint_as_option()
+        .unwrap_or(MAX_AMOUNT_OF_TX_PER_CHECKPOINT)
+        - 1;
+    let chunk_size = migration_objects.len() / (migration_tx_max_amount as usize) + 1;
 
     for objects_per_chunk in migration_objects.chunks(chunk_size) {
         let (migration_transaction, migration_effects, migration_events, _) =
