@@ -20,14 +20,14 @@ module iota_system::validator {
     /// Invalid proof_of_possession field in ValidatorMetadata
     const EInvalidProofOfPossession: u64 = 0;
 
-    /// Invalid pubkey_bytes field in ValidatorMetadata
-    const EMetadataInvalidPubkey: u64 = 1;
+    /// Invalid authority_pubkey_bytes field in ValidatorMetadata
+    const EMetadataInvalidAuthorityPubkey: u64 = 1;
 
     /// Invalid network_pubkey_bytes field in ValidatorMetadata
     const EMetadataInvalidNetPubkey: u64 = 2;
 
-    /// Invalid worker_pubkey_bytes field in ValidatorMetadata
-    const EMetadataInvalidWorkerPubkey: u64 = 3;
+    /// Invalid protocol_pubkey_bytes field in ValidatorMetadata
+    const EMetadataInvalidProtocolPubkey: u64 = 3;
 
     /// Invalid net_address field in ValidatorMetadata
     const EMetadataInvalidNetAddr: u64 = 4;
@@ -77,13 +77,14 @@ module iota_system::validator {
         iota_address: address,
         /// The public key bytes corresponding to the private key that the validator
         /// holds to sign transactions. For now, this is the same as AuthorityName.
-        protocol_pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         /// The public key bytes corresponding to the private key that the validator
-        /// uses to establish TLS connections
+        /// uses to establish TLS connections.
         network_pubkey_bytes: vector<u8>,
-        /// The public key bytes correstponding to the Worker
-        worker_pubkey_bytes: vector<u8>,
-        /// This is a proof that the validator has ownership of the private key
+        /// The public key bytes corresponding to the private key that the validator
+        /// holds to sign consensus blocks.
+        protocol_pubkey_bytes: vector<u8>,
+        /// This is a proof that the validator has ownership of the private key.
         proof_of_possession: vector<u8>,
         /// A unique human-readable name of this validator.
         name: String,
@@ -157,9 +158,9 @@ module iota_system::validator {
 
     public(package) fun new_metadata(
         iota_address: address,
-        protocol_pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: String,
         description: String,
@@ -172,9 +173,9 @@ module iota_system::validator {
     ): ValidatorMetadata {
         let metadata = ValidatorMetadata {
             iota_address,
-            protocol_pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name,
             description,
@@ -197,9 +198,9 @@ module iota_system::validator {
 
     public(package) fun new(
         iota_address: address,
-        protocol_pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -227,9 +228,9 @@ module iota_system::validator {
 
         let metadata = new_metadata(
             iota_address,
-            protocol_pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name.to_ascii_string().to_string(),
             description.to_ascii_string().to_string(),
@@ -453,8 +454,8 @@ module iota_system::validator {
         &self.metadata.primary_address
     }
 
-    public fun protocol_pubkey_bytes(self: &Validator): &vector<u8> {
-        &self.metadata.protocol_pubkey_bytes
+    public fun authority_pubkey_bytes(self: &Validator): &vector<u8> {
+        &self.metadata.authority_pubkey_bytes
     }
 
     public fun proof_of_possession(self: &Validator): &vector<u8> {
@@ -465,8 +466,8 @@ module iota_system::validator {
         &self.metadata.network_pubkey_bytes
     }
 
-    public fun worker_pubkey_bytes(self: &Validator): &vector<u8> {
-        &self.metadata.worker_pubkey_bytes
+    public fun protocol_pubkey_bytes(self: &Validator): &vector<u8> {
+        &self.metadata.protocol_pubkey_bytes
     }
 
     public fun next_epoch_network_address(self: &Validator): &Option<String> {
@@ -560,11 +561,11 @@ module iota_system::validator {
             || self.metadata.name == other.metadata.name
             || self.metadata.net_address == other.metadata.net_address
             || self.metadata.p2p_address == other.metadata.p2p_address
-            || self.metadata.protocol_pubkey_bytes == other.metadata.protocol_pubkey_bytes
+            || self.metadata.authority_pubkey_bytes == other.metadata.authority_pubkey_bytes
             || self.metadata.network_pubkey_bytes == other.metadata.network_pubkey_bytes
-            || self.metadata.network_pubkey_bytes == other.metadata.worker_pubkey_bytes
-            || self.metadata.worker_pubkey_bytes == other.metadata.worker_pubkey_bytes
-            || self.metadata.worker_pubkey_bytes == other.metadata.network_pubkey_bytes
+            || self.metadata.network_pubkey_bytes == other.metadata.protocol_pubkey_bytes
+            || self.metadata.protocol_pubkey_bytes == other.metadata.protocol_pubkey_bytes
+            || self.metadata.protocol_pubkey_bytes == other.metadata.network_pubkey_bytes
             // All next epoch parameters.
             || is_equal_some(&self.metadata.next_epoch_net_address, &other.metadata.next_epoch_net_address)
             || is_equal_some(&self.metadata.next_epoch_p2p_address, &other.metadata.next_epoch_p2p_address)
@@ -576,18 +577,18 @@ module iota_system::validator {
             // My next epoch parameters with other current epoch parameters.
             || is_equal_some_and_value(&self.metadata.next_epoch_net_address, &other.metadata.net_address)
             || is_equal_some_and_value(&self.metadata.next_epoch_p2p_address, &other.metadata.p2p_address)
-            || is_equal_some_and_value(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.authority_pubkey_bytes)
             || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.network_pubkey_bytes)
-            || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.worker_pubkey_bytes)
-            || is_equal_some_and_value(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.worker_pubkey_bytes)
+            || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
             || is_equal_some_and_value(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.network_pubkey_bytes)
             // Other next epoch parameters with my current epoch parameters.
             || is_equal_some_and_value(&other.metadata.next_epoch_net_address, &self.metadata.net_address)
             || is_equal_some_and_value(&other.metadata.next_epoch_p2p_address, &self.metadata.p2p_address)
-            || is_equal_some_and_value(&other.metadata.next_epoch_protocol_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&other.metadata.next_epoch_protocol_pubkey_bytes, &self.metadata.authority_pubkey_bytes)
             || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.network_pubkey_bytes)
-            || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.worker_pubkey_bytes)
-            || is_equal_some_and_value(&other.metadata.next_epoch_worker_pubkey_bytes, &self.metadata.worker_pubkey_bytes)
+            || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&other.metadata.next_epoch_worker_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
             || is_equal_some_and_value(&other.metadata.next_epoch_worker_pubkey_bytes, &self.metadata.network_pubkey_bytes)
     }
 
@@ -731,9 +732,9 @@ module iota_system::validator {
     }
 
     /// Update protocol public key of this candidate validator
-    public(package) fun update_candidate_protocol_pubkey(self: &mut Validator, protocol_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
+    public(package) fun update_candidate_authority_pubkey(self: &mut Validator, authority_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
-        self.metadata.protocol_pubkey_bytes = protocol_pubkey;
+        self.metadata.authority_pubkey_bytes = authority_pubkey;
         self.metadata.proof_of_possession = proof_of_possession;
         validate_metadata(&self.metadata);
     }
@@ -757,10 +758,10 @@ module iota_system::validator {
         validate_metadata(&self.metadata);
     }
 
-    /// Update worker public key of this candidate validator
-    public(package) fun update_candidate_worker_pubkey(self: &mut Validator, worker_pubkey: vector<u8>) {
+    /// Update protocol public key of this candidate validator
+    public(package) fun update_candidate_protocol_pubkey(self: &mut Validator, protocol_pubkey: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
-        self.metadata.worker_pubkey_bytes = worker_pubkey;
+        self.metadata.protocol_pubkey_bytes = protocol_pubkey;
         validate_metadata(&self.metadata);
     }
 
@@ -784,7 +785,7 @@ module iota_system::validator {
         };
 
         if (next_epoch_protocol_pubkey_bytes(self).is_some()) {
-            self.metadata.protocol_pubkey_bytes = self.metadata.next_epoch_protocol_pubkey_bytes.extract();
+            self.metadata.authority_pubkey_bytes = self.metadata.next_epoch_protocol_pubkey_bytes.extract();
             self.metadata.next_epoch_protocol_pubkey_bytes = option::none();
             self.metadata.proof_of_possession = self.metadata.next_epoch_proof_of_possession.extract();
             self.metadata.next_epoch_proof_of_possession = option::none();
@@ -796,7 +797,7 @@ module iota_system::validator {
         };
 
         if (next_epoch_worker_pubkey_bytes(self).is_some()) {
-            self.metadata.worker_pubkey_bytes = self.metadata.next_epoch_worker_pubkey_bytes.extract();
+            self.metadata.protocol_pubkey_bytes = self.metadata.next_epoch_worker_pubkey_bytes.extract();
             self.metadata.next_epoch_worker_pubkey_bytes = option::none();
         };
     }
@@ -846,13 +847,13 @@ module iota_system::validator {
     // Creates a validator - bypassing the proof of possession check and other metadata
     // validation in the process.
     // Note: `proof_of_possession` MUST be a valid signature using iota_address and
-    // protocol_pubkey_bytes. To produce a valid PoP, run [fn test_proof_of_possession].
+    // authority_pubkey_bytes. To produce a valid PoP, run [fn test_proof_of_possession].
     #[test_only]
     public(package) fun new_for_testing(
         iota_address: address,
-        protocol_pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -870,9 +871,9 @@ module iota_system::validator {
         let mut validator = new_from_metadata(
             new_metadata(
                 iota_address,
-                protocol_pubkey_bytes,
+                authority_pubkey_bytes,
                 network_pubkey_bytes,
-                worker_pubkey_bytes,
+                protocol_pubkey_bytes,
                 proof_of_possession,
                 name.to_ascii_string().to_string(),
                 description.to_ascii_string().to_string(),

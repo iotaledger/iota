@@ -509,8 +509,8 @@ impl Builder {
             );
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
             assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
-            assert_eq!(validator.info.network_key, metadata.network_pubkey);
-            assert_eq!(validator.info.worker_key, metadata.worker_pubkey);
+            assert_eq!(validator.info.network_key, metadata.authority_network_pubkey);
+            assert_eq!(validator.info.worker_key, metadata.authority_protocol_pubkey);
             assert_eq!(
                 validator.proof_of_possession.as_ref().to_vec(),
                 metadata.proof_of_possession_bytes

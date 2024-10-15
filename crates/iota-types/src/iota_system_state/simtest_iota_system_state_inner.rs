@@ -200,9 +200,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
+                        authority_pubkey: metadata.protocol_pubkey.clone(),
+                        authority_network_pubkey: metadata.network_pubkey.clone(),
+                        authority_protocol_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
@@ -312,9 +312,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
+                        authority_pubkey: metadata.protocol_pubkey.clone(),
+                        authority_network_pubkey: metadata.network_pubkey.clone(),
+                        authority_protocol_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
@@ -453,9 +453,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
+                        authority_pubkey: metadata.protocol_pubkey.clone(),
+                        authority_network_pubkey: metadata.network_pubkey.clone(),
+                        authority_protocol_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),

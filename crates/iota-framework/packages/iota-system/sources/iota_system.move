@@ -434,15 +434,15 @@ module iota_system::iota_system {
         self.update_validator_next_epoch_protocol_pubkey(protocol_pubkey, proof_of_possession, ctx)
     }
 
-    /// Update candidate validator's public key of protocol key and proof of possession.
-    public entry fun update_candidate_validator_protocol_pubkey(
+    /// Update candidate validator's public key of authority key and proof of possession.
+    public entry fun update_candidate_validator_authority_pubkey(
         self: &mut IotaSystemState,
-        protocol_pubkey: vector<u8>,
+        authority_pubkey: vector<u8>,
         proof_of_possession: vector<u8>,
         ctx: &TxContext,
     ) {
         let self = load_system_state_mut(self);
-        self.update_candidate_validator_protocol_pubkey(protocol_pubkey, proof_of_possession, ctx)
+        self.update_candidate_validator_authority_pubkey(authority_pubkey, proof_of_possession, ctx)
     }
 
     /// Update a validator's public key of worker key.
@@ -456,14 +456,14 @@ module iota_system::iota_system {
         self.update_validator_next_epoch_worker_pubkey(worker_pubkey, ctx)
     }
 
-    /// Update candidate validator's public key of worker key.
-    public entry fun update_candidate_validator_worker_pubkey(
+    /// Update candidate validator's public key of protocol key.
+    public entry fun update_candidate_validator_protocol_pubkey(
         self: &mut IotaSystemState,
-        worker_pubkey: vector<u8>,
+        protocol_pubkey: vector<u8>,
         ctx: &TxContext,
     ) {
         let self = load_system_state_mut(self);
-        self.update_candidate_validator_worker_pubkey(worker_pubkey, ctx)
+        self.update_candidate_validator_protocol_pubkey(protocol_pubkey, ctx)
     }
 
     /// Update a validator's public key of network key.

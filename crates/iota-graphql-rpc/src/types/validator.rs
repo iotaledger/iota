@@ -139,9 +139,9 @@ impl Validator {
     async fn credentials(&self) -> Option<ValidatorCredentials> {
         let v = &self.validator_summary;
         let credentials = ValidatorCredentials {
-            protocol_pub_key: Some(Base64::from(v.protocol_pubkey_bytes.clone())),
-            network_pub_key: Some(Base64::from(v.network_pubkey_bytes.clone())),
-            worker_pub_key: Some(Base64::from(v.worker_pubkey_bytes.clone())),
+            protocol_pub_key: Some(Base64::from(v.authority_pubkey_bytes.clone())),
+            network_pub_key: Some(Base64::from(v.authority_network_pubkey_bytes.clone())),
+            worker_pub_key: Some(Base64::from(v.authority_protocol_pubkey_bytes.clone())),
             proof_of_possession: Some(Base64::from(v.proof_of_possession_bytes.clone())),
             net_address: Some(v.net_address.clone()),
             p2p_address: Some(v.p2p_address.clone()),

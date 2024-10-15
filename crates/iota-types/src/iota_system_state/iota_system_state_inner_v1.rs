@@ -31,9 +31,9 @@ use crate::{
 };
 
 const E_METADATA_INVALID_POP: u64 = 0;
-const E_METADATA_INVALID_PUBKEY: u64 = 1;
+const E_METADATA_INVALID_AUTHORITY_PUBKEY: u64 = 1;
 const E_METADATA_INVALID_NET_PUBKEY: u64 = 2;
-const E_METADATA_INVALID_WORKER_PUBKEY: u64 = 3;
+const E_METADATA_INVALID_PROTOCOL_PUBKEY: u64 = 3;
 const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
@@ -71,9 +71,9 @@ pub struct SystemParametersV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorMetadataV1 {
     pub iota_address: IotaAddress,
-    pub protocol_pubkey_bytes: Vec<u8>,
-    pub network_pubkey_bytes: Vec<u8>,
-    pub worker_pubkey_bytes: Vec<u8>,
+    pub authority_pubkey_bytes: Vec<u8>,
+    pub authority_network_pubkey_bytes: Vec<u8>,
+    pub authority_protocol_pubkey_bytes: Vec<u8>,
     pub proof_of_possession_bytes: Vec<u8>,
     pub name: String,
     pub description: String,
@@ -96,9 +96,9 @@ pub struct ValidatorMetadataV1 {
 #[derivative(Debug)]
 pub struct VerifiedValidatorMetadataV1 {
     pub iota_address: IotaAddress,
-    pub protocol_pubkey: AuthorityPublicKey,
-    pub network_pubkey: NetworkPublicKey,
-    pub worker_pubkey: NetworkPublicKey,
+    pub authority_pubkey: AuthorityPublicKey,
+    pub authority_network_pubkey: NetworkPublicKey,
+    pub authority_protocol_pubkey: NetworkPublicKey,
     #[derivative(Debug = "ignore")]
     pub proof_of_possession_bytes: Vec<u8>,
     pub name: String,
@@ -119,7 +119,7 @@ pub struct VerifiedValidatorMetadataV1 {
 
 impl VerifiedValidatorMetadataV1 {
     pub fn iota_pubkey_bytes(&self) -> AuthorityPublicKeyBytes {
-        (&self.protocol_pubkey).into()
+        (&self.authority_pubkey).into()
     }
 }
 
@@ -127,21 +127,21 @@ impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
-        let protocol_pubkey = AuthorityPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
-            .map_err(|_| E_METADATA_INVALID_PUBKEY)?;
+        let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
+            .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
         // Verify proof of possession for the protocol key
         let pop = AuthoritySignature::from_bytes(self.proof_of_possession_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_POP)?;
-        verify_proof_of_possession(&pop, &protocol_pubkey, self.iota_address)
+        verify_proof_of_possession(&pop, &authority_pubkey, self.iota_address)
             .map_err(|_| E_METADATA_INVALID_POP)?;
 
-        let network_pubkey = NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
+        let network_pubkey = NetworkPublicKey::from_bytes(self.authority_network_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
-        let worker_pubkey = NetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref())
-            .map_err(|_| E_METADATA_INVALID_WORKER_PUBKEY)?;
-        if worker_pubkey == network_pubkey {
-            return Err(E_METADATA_INVALID_WORKER_PUBKEY);
+        let protocol_pubkey = NetworkPublicKey::from_bytes(self.authority_protocol_pubkey_bytes.as_ref())
+            .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?;
+        if protocol_pubkey == network_pubkey {
+            return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
         }
 
         let net_address = Multiaddr::try_from(self.net_address.clone())
@@ -165,7 +165,7 @@ impl ValidatorMetadataV1 {
             None => Ok::<Option<AuthorityPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
                 AuthorityPublicKey::from_bytes(bytes.as_ref())
-                    .map_err(|_| E_METADATA_INVALID_PUBKEY)?,
+                    .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?,
             )),
         }?;
 
@@ -206,13 +206,13 @@ impl ValidatorMetadataV1 {
                 None => Ok::<Option<NetworkPublicKey>, u64>(None),
                 Some(bytes) => Ok(Some(
                     NetworkPublicKey::from_bytes(bytes.as_ref())
-                        .map_err(|_| E_METADATA_INVALID_WORKER_PUBKEY)?,
+                        .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?,
                 )),
             }?;
         if next_epoch_network_pubkey.is_some()
             && next_epoch_network_pubkey == next_epoch_worker_pubkey
         {
-            return Err(E_METADATA_INVALID_WORKER_PUBKEY);
+            return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
         }
 
         let next_epoch_net_address = match self.next_epoch_net_address.clone() {
@@ -250,9 +250,9 @@ impl ValidatorMetadataV1 {
 
         Ok(VerifiedValidatorMetadataV1 {
             iota_address: self.iota_address,
-            protocol_pubkey,
-            network_pubkey,
-            worker_pubkey,
+            authority_pubkey,
+            authority_network_pubkey: network_pubkey,
+            authority_protocol_pubkey: protocol_pubkey,
             proof_of_possession_bytes: self.proof_of_possession_bytes.clone(),
             name: self.name.clone(),
             description: self.description.clone(),
@@ -304,9 +304,9 @@ impl ValidatorV1 {
             metadata:
                 ValidatorMetadataV1 {
                     iota_address,
-                    protocol_pubkey_bytes,
-                    network_pubkey_bytes,
-                    worker_pubkey_bytes,
+                    authority_pubkey_bytes,
+                    authority_network_pubkey_bytes,
+                    authority_protocol_pubkey_bytes,
                     proof_of_possession_bytes,
                     name,
                     description,
@@ -354,9 +354,9 @@ impl ValidatorV1 {
         } = self;
         IotaValidatorSummary {
             iota_address,
-            protocol_pubkey_bytes,
-            network_pubkey_bytes,
-            worker_pubkey_bytes,
+            authority_pubkey_bytes,
+            authority_network_pubkey_bytes,
+            authority_protocol_pubkey_bytes,
             proof_of_possession_bytes,
             name,
             description,
@@ -544,9 +544,9 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
+                        authority_pubkey: metadata.authority_pubkey.clone(),
+                        authority_network_pubkey: metadata.authority_network_pubkey.clone(),
+                        authority_protocol_pubkey: metadata.authority_protocol_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),

@@ -497,6 +497,7 @@ pub struct ConsensusConfig {
 }
 
 impl ConsensusConfig {
+    // TODO: remove unused method
     pub fn address(&self) -> &Multiaddr {
         &self.address
     }

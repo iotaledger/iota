@@ -328,9 +328,9 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
     ) -> Self {
         let iota_types::iota_system_state::iota_system_state_summary::IotaValidatorSummary {
             iota_address,
-            protocol_pubkey_bytes,
-            network_pubkey_bytes,
-            worker_pubkey_bytes,
+            authority_pubkey_bytes: protocol_pubkey_bytes,
+            authority_network_pubkey_bytes: network_pubkey_bytes,
+            authority_protocol_pubkey_bytes: worker_pubkey_bytes,
             proof_of_possession_bytes,
             name,
             description,

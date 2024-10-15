@@ -705,15 +705,15 @@ module iota_system::iota_system_state_inner {
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
-    /// Update candidate validator's public key of protocol key and proof of possession.
-    public(package) fun update_candidate_validator_protocol_pubkey(
+    /// Update candidate validator's public key of authority key and proof of possession.
+    public(package) fun update_candidate_validator_authority_pubkey(
         self: &mut IotaSystemStateInnerV2,
-        protocol_pubkey: vector<u8>,
+        authority_pubkey: vector<u8>,
         proof_of_possession: vector<u8>,
         ctx: &TxContext,
     ) {
         let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-        candidate.update_candidate_protocol_pubkey(protocol_pubkey, proof_of_possession);
+        candidate.update_candidate_authority_pubkey(authority_pubkey, proof_of_possession);
     }
 
     /// Update a validator's public key of worker key.
@@ -729,14 +729,14 @@ module iota_system::iota_system_state_inner {
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
-    /// Update candidate validator's public key of worker key.
-    public(package) fun update_candidate_validator_worker_pubkey(
+    /// Update candidate validator's public key of protocol key.
+    public(package) fun update_candidate_validator_protocol_pubkey(
         self: &mut IotaSystemStateInnerV2,
-        worker_pubkey: vector<u8>,
+        protocol_pubkey: vector<u8>,
         ctx: &TxContext,
     ) {
         let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-        candidate.update_candidate_worker_pubkey(worker_pubkey);
+        candidate.update_candidate_protocol_pubkey(protocol_pubkey);
     }
 
     /// Update a validator's public key of network key.

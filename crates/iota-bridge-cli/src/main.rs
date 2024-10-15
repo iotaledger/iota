@@ -296,7 +296,7 @@ async fn main() -> anyhow::Result<()> {
                 .into_iter()
                 .map(|summary| {
                     let protocol_key =
-                        AuthorityPublicKeyBytes::from_bytes(&summary.protocol_pubkey_bytes)
+                        AuthorityPublicKeyBytes::from_bytes(&summary.authority_pubkey_bytes)
                             .unwrap();
                     (summary.iota_address, (protocol_key, summary.name))
                 })

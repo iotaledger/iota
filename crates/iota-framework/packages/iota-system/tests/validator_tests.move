@@ -16,12 +16,12 @@ module iota_system::validator_tests {
 
     const VALID_NET_PUBKEY: vector<u8> = vector[171, 2, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
 
-    const VALID_WORKER_PUBKEY: vector<u8> = vector[171, 3, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
+    const VALID_PROTOCOL_PUBKEY: vector<u8> = vector[171, 3, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
 
     // A valid proof of possession must be generated using the same account address and protocol public key.
-    // If either VALID_ADDRESS or VALID_PUBKEY changed, PoP must be regenerated using [fn test_proof_of_possession].
+    // If either VALID_ADDRESS or VALID_AUTHORITY_PUBKEY changed, PoP must be regenerated using [fn test_proof_of_possession].
     const VALID_ADDRESS: address = @0xaf76afe6f866d8426d2be85d6ef0b11f871a251d043b2f11e15563bf418f5a5a;
-    const VALID_PUBKEY: vector<u8> = x"99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10";
+    const VALID_AUTHORITY_PUBKEY: vector<u8> = x"99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10";
     const PROOF_OF_POSSESSION: vector<u8> = x"b01cc86f421beca7ab4cfca87c0799c4d038c199dd399fbec1924d4d4367866dba9e84d514710b91feb65316e4ceef43";
 
     const VALID_NET_ADDR: vector<u8> = b"/ip4/127.0.0.1/tcp/80";
@@ -35,9 +35,9 @@ module iota_system::validator_tests {
         let init_stake = coin::mint_for_testing(10_000_000_000, ctx).into_balance();
         let mut validator = validator::new(
             VALID_ADDRESS,
-            VALID_PUBKEY,
+            VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
-            VALID_WORKER_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
             PROOF_OF_POSSESSION,
             b"Validator1",
             b"Validator1",
@@ -146,9 +146,9 @@ module iota_system::validator_tests {
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
             VALID_ADDRESS,
-            VALID_PUBKEY,
+            VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
-            VALID_WORKER_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
             PROOF_OF_POSSESSION,
             b"Validator1".to_string(),
             b"Validator1".to_string(),
@@ -166,7 +166,7 @@ module iota_system::validator_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = validator::EMetadataInvalidPubkey)]
+    #[expected_failure(abort_code = validator::EMetadataInvalidAuthorityPubkey)]
     fun test_metadata_invalid_pubkey() {
         let mut scenario_val = test_scenario::begin(VALID_ADDRESS);
         let ctx = scenario_val.ctx();
@@ -174,7 +174,7 @@ module iota_system::validator_tests {
             VALID_ADDRESS,
             vector[42],
             VALID_NET_PUBKEY,
-            VALID_WORKER_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
             PROOF_OF_POSSESSION,
             b"Validator1".to_string(),
             b"Validator1".to_string(),
@@ -198,9 +198,9 @@ module iota_system::validator_tests {
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
             VALID_ADDRESS,
-            VALID_PUBKEY,
+            VALID_AUTHORITY_PUBKEY,
             vector[42],
-            VALID_WORKER_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
             PROOF_OF_POSSESSION,
             b"Validator1".to_string(),
             b"Validator1".to_string(),
@@ -218,13 +218,13 @@ module iota_system::validator_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = validator::EMetadataInvalidWorkerPubkey)]
-    fun test_metadata_invalid_worker_pubkey() {
+    #[expected_failure(abort_code = validator::EMetadataInvalidProtocolPubkey)]
+    fun test_metadata_invalid_protocol_pubkey() {
         let mut scenario_val = test_scenario::begin(VALID_ADDRESS);
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
             VALID_ADDRESS,
-            VALID_PUBKEY,
+            VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
             vector[42],
             PROOF_OF_POSSESSION,
@@ -250,9 +250,9 @@ module iota_system::validator_tests {
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
             VALID_ADDRESS,
-            VALID_PUBKEY,
+            VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
-            VALID_WORKER_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
             PROOF_OF_POSSESSION,
             b"Validator1".to_string(),
             b"Validator1".to_string(),
@@ -276,9 +276,9 @@ module iota_system::validator_tests {
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
             VALID_ADDRESS,
-            VALID_PUBKEY,
+            VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
-            VALID_WORKER_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
             PROOF_OF_POSSESSION,
             b"Validator1".to_string(),
             b"Validator1".to_string(),
@@ -302,9 +302,9 @@ module iota_system::validator_tests {
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
             VALID_ADDRESS,
-            VALID_PUBKEY,
+            VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
-            VALID_WORKER_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
             PROOF_OF_POSSESSION,
             b"Validator1".to_string(),
             b"Validator1".to_string(),
@@ -359,10 +359,10 @@ module iota_system::validator_tests {
             assert!(validator.network_address() == &VALID_NET_ADDR.to_string());
             assert!(validator.p2p_address() == &VALID_P2P_ADDR.to_string());
             assert!(validator.primary_address() == &VALID_CONSENSUS_ADDR.to_string());
-            assert!(validator.protocol_pubkey_bytes() == &VALID_PUBKEY);
+            assert!(validator.authority_pubkey_bytes() == &VALID_AUTHORITY_PUBKEY);
             assert!(validator.proof_of_possession() == &PROOF_OF_POSSESSION);
             assert!(validator.network_pubkey_bytes() == &VALID_NET_PUBKEY);
-            assert!(validator.worker_pubkey_bytes() == &VALID_WORKER_PUBKEY);
+            assert!(validator.protocol_pubkey_bytes() == &VALID_PROTOCOL_PUBKEY);
 
             // Next epoch
             assert!(validator.next_epoch_network_address() == &option::some(b"/ip4/192.168.1.1/tcp/80".to_string()));
@@ -419,7 +419,7 @@ module iota_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidWorkerPubkey)]
+    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidProtocolPubkey)]
     #[test]
     fun test_validator_update_metadata_invalid_worker_key() {
         let (sender, mut scenario, mut validator) = set_up();

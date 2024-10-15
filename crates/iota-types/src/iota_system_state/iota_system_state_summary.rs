@@ -183,7 +183,7 @@ impl IotaSystemStateSummary {
             .active_validators
             .iter()
             .map(|validator| {
-                let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
+                let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes).unwrap();
                 (
                     name,
                     (validator.voting_power, NetworkMetadata {
@@ -210,13 +210,13 @@ pub struct IotaValidatorSummary {
     pub iota_address: IotaAddress,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub protocol_pubkey_bytes: Vec<u8>,
+    pub authority_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub network_pubkey_bytes: Vec<u8>,
+    pub authority_network_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub worker_pubkey_bytes: Vec<u8>,
+    pub authority_protocol_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
     pub proof_of_possession_bytes: Vec<u8>,
@@ -353,9 +353,9 @@ impl Default for IotaValidatorSummary {
     fn default() -> Self {
         Self {
             iota_address: IotaAddress::default(),
-            protocol_pubkey_bytes: vec![],
-            network_pubkey_bytes: vec![],
-            worker_pubkey_bytes: vec![],
+            authority_pubkey_bytes: vec![],
+            authority_network_pubkey_bytes: vec![],
+            authority_protocol_pubkey_bytes: vec![],
             proof_of_possession_bytes: vec![],
             name: String::new(),
             description: String::new(),

@@ -351,7 +351,7 @@ module iota_system::iota_system_tests {
         scenario: &mut Scenario,
         system_state: &mut IotaSystemState,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
@@ -366,12 +366,12 @@ module iota_system::iota_system_tests {
         system_state.update_candidate_validator_network_address(network_address, ctx);
         system_state.update_candidate_validator_p2p_address(p2p_address, ctx);
         system_state.update_candidate_validator_primary_address(b"/ip4/127.0.0.1/udp/80", ctx);
-        system_state.update_candidate_validator_protocol_pubkey(
-            protocol_pub_key,
+        system_state.update_candidate_validator_authority_pubkey(
+            authority_pub_key,
             pop,
             ctx
         );
-        system_state.update_candidate_validator_worker_pubkey(vector[68, 55, 206, 25, 199, 14, 169, 53, 68, 92, 142, 136, 174, 149, 54, 215, 101, 63, 249, 206, 197, 98, 233, 80, 60, 12, 183, 32, 216, 88, 103, 25], ctx);
+        system_state.update_candidate_validator_protocol_pubkey(vector[68, 55, 206, 25, 199, 14, 169, 53, 68, 92, 142, 136, 174, 149, 54, 215, 101, 63, 249, 206, 197, 98, 233, 80, 60, 12, 183, 32, 216, 88, 103, 25], ctx);
         system_state.update_candidate_validator_network_pubkey(vector[32, 219, 38, 23, 242, 109, 116, 235, 225, 192, 219, 45, 40, 124, 162, 25, 33, 68, 52, 41, 123, 9, 98, 11, 184, 150, 214, 62, 60, 210, 121, 62], ctx);
 
         system_state.set_candidate_validator_commission_rate(commission_rate, ctx);
@@ -384,7 +384,7 @@ module iota_system::iota_system_tests {
     fun verify_candidate(
         validator: &Validator,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
@@ -395,7 +395,7 @@ module iota_system::iota_system_tests {
         verify_current_epoch_metadata(
             validator,
             name,
-            protocol_pub_key,
+            authority_pub_key,
             pop,
             b"/ip4/127.0.0.1/udp/80",
             network_address,
@@ -441,12 +441,12 @@ module iota_system::iota_system_tests {
     fun verify_metadata(
         validator: &Validator,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey: vector<u8>,
-        worker_pubkey: vector<u8>,
+        protocol_pubkey: vector<u8>,
         new_protocol_pub_key: vector<u8>,
         new_pop: vector<u8>,
         new_network_address: vector<u8>,
@@ -458,13 +458,13 @@ module iota_system::iota_system_tests {
         verify_current_epoch_metadata(
             validator,
             name,
-            protocol_pub_key,
+            authority_pub_key,
             pop,
             b"/ip4/127.0.0.1/udp/80",
             network_address,
             p2p_address,
             network_pubkey,
-            worker_pubkey,
+            protocol_pubkey,
         );
 
         // Next epoch
@@ -492,13 +492,13 @@ module iota_system::iota_system_tests {
     fun verify_current_epoch_metadata(
         validator: &Validator,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         primary_address: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
     ) {
         // Current epoch
         assert!(validator.name() == &name.to_string());
@@ -508,9 +508,9 @@ module iota_system::iota_system_tests {
         assert!(validator.network_address() == &network_address.to_string());
         assert!(validator.p2p_address() == &p2p_address.to_string());
         assert!(validator.primary_address() == &primary_address.to_string());
-        assert!(validator.protocol_pubkey_bytes() == &protocol_pub_key);
+        assert!(validator.authority_pubkey_bytes() == &authority_pub_key);
         assert!(validator.proof_of_possession() == &pop);
-        assert!(validator.worker_pubkey_bytes() == &worker_pubkey_bytes);
+        assert!(validator.protocol_pubkey_bytes() == &protocol_pubkey_bytes);
         assert!(validator.network_pubkey_bytes() == &network_pubkey_bytes);
     }
 
@@ -518,24 +518,24 @@ module iota_system::iota_system_tests {
     fun verify_metadata_after_advancing_epoch(
         validator: &Validator,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey: vector<u8>,
-        worker_pubkey: vector<u8>,
+        protocol_pubkey: vector<u8>,
     ) {
         // Current epoch
         verify_current_epoch_metadata(
             validator,
             name,
-            protocol_pub_key,
+            authority_pub_key,
             pop,
             b"/ip4/168.168.168.168/udp/80",
             network_address,
             p2p_address,
             network_pubkey,
-            worker_pubkey,
+            protocol_pubkey,
         );
 
         // Next epoch
@@ -809,7 +809,7 @@ module iota_system::iota_system_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = validator::EMetadataInvalidWorkerPubkey)]
+    #[expected_failure(abort_code = validator::EMetadataInvalidProtocolPubkey)]
     fun test_add_validator_candidate_failure_invalid_metadata() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
