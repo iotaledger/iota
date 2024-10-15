@@ -165,7 +165,7 @@ export function AreaGraph<D>({
                     x={(d) => xScale(getX(d))}
                     y={(d) => yScale(getY(d))}
                     stroke={`url(#${lineGradientID})`}
-                    stroke-width="2"
+                    strokeWidth="2"
                 />
                 <AxisBottom
                     left={5}
