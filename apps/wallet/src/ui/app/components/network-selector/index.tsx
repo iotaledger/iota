@@ -61,7 +61,7 @@ export function NetworkSelector() {
         <div className="flex w-full flex-col">
             <div>
                 {networks.map(([id, network]) => (
-                    <div className="px-md">
+                    <div className="px-md" key={id}>
                         <RadioButton
                             label={network.name}
                             isChecked={activeNetwork === id}
