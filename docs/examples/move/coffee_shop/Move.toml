@@ -34,7 +34,7 @@ coffee_shop = "0x0"
 # `--dev` modes. You can introduce test-only dependencies here.
 # Local = { local = "../path/to/dev-build" }
 
-[dev-addresses]
+# [dev-addresses]
 # The dev-addresses section allows overwriting named addresses for the `--test`
 # and `--dev` modes.
 # alice = "0xB0B"
