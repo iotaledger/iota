@@ -29,7 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Get the 2 checkpoints before the latest one
     let checkpoints = client
         .read_api()
-        .get_checkpoints(Some((latest_checkpoint_number - 3).into()), Some(2), false)
+        .get_checkpoints(Some((latest_checkpoint_number - 3).into()), 2, false)
         .await?;
     println!("Second and third last checkpoints:\n{:?}", checkpoints);
 
