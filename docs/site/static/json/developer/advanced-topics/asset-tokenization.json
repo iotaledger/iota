@@ -1,0 +1,39 @@
+[
+    {
+      "questionText": "What is the main purpose of asset tokenization?",
+      "answerOptions": [
+        { "answerText": "To represent real-world assets as digital tokens on the blockchain.", "isCorrect": true },
+        { "answerText": "To increase the value of real-world assets.", "isCorrect": false },
+        { "answerText": "To convert digital tokens into real-world assets.", "isCorrect": false },
+        { "answerText": "To trade only cryptocurrencies on the blockchain.", "isCorrect": false }
+      ]
+    },
+    {
+      "questionText": "Which type of asset can be tokenized on the blockchain?",
+      "answerOptions": [
+        { "answerText": "Only digital assets like cryptocurrencies.", "isCorrect": false },
+        { "answerText": "Only physical assets like real estate.", "isCorrect": false },
+        { "answerText": "Both physical and digital assets.", "isCorrect": true },
+        { "answerText": "Only stocks and bonds.", "isCorrect": false }
+      ]
+    },
+    {
+      "questionText": "What key benefit does tokenization bring to asset ownership?",
+      "answerOptions": [
+        { "answerText": "Makes ownership fractional and easily tradable.", "isCorrect": true },
+        { "answerText": "Increases asset prices.", "isCorrect": false },
+        { "answerText": "Reduces the need for legal documentation.", "isCorrect": false },
+        { "answerText": "Allows the asset to be destroyed.", "isCorrect": false }
+      ]
+    },
+    {
+      "questionText": "How does blockchain ensure the security of tokenized assets?",
+      "answerOptions": [
+        { "answerText": "By centralizing control over the assets.", "isCorrect": false },
+        { "answerText": "By using cryptography and decentralized verification.", "isCorrect": true },
+        { "answerText": "By allowing only selected users to trade assets.", "isCorrect": false },
+        { "answerText": "By relying on intermediaries to validate transactions.", "isCorrect": false }
+      ]
+    }
+  ]
+  
