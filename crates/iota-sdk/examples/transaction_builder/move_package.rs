@@ -36,7 +36,7 @@ async fn main() -> Result<(), anyhow::Error> {
             sender,
             module.get_package_bytes(false),
             module.published_dependency_ids(),
-            Some(gas_coin_object_id),
+            gas_coin_object_id,
             gas_budget,
         )
         .await?;
@@ -93,7 +93,7 @@ async fn main() -> Result<(), anyhow::Error> {
             upgrade_capability,
             0,
             package_digest.to_vec(),
-            Some(gas_coin_object_id),
+            gas_coin_object_id,
             gas_budget,
         )
         .await?;

@@ -59,14 +59,14 @@ impl CoinReadApi {
     pub async fn get_coins(
         &self,
         owner: IotaAddress,
-        coin_type: Option<String>,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
+        coin_type: impl Into<Option<String>>,
+        cursor: impl Into<Option<ObjectID>>,
+        limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
         Ok(self
             .api
             .http
-            .get_coins(owner, coin_type, cursor, limit)
+            .get_coins(owner, coin_type.into(), cursor.into(), limit.into())
             .await?)
     }
     /// Return a paginated response with all the coins for the given address, or
@@ -97,10 +97,14 @@ impl CoinReadApi {
     pub async fn get_all_coins(
         &self,
         owner: IotaAddress,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<ObjectID>>,
+        limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
-        Ok(self.api.http.get_all_coins(owner, cursor, limit).await?)
+        Ok(self
+            .api
+            .http
+            .get_all_coins(owner, cursor.into(), limit.into())
+            .await?)
     }
 
     /// Return the coins for the given address as a stream.
@@ -128,8 +132,10 @@ impl CoinReadApi {
     pub fn get_coins_stream(
         &self,
         owner: IotaAddress,
-        coin_type: Option<String>,
+        coin_type: impl Into<Option<String>>,
     ) -> impl Stream<Item = Coin> + '_ {
+        let coin_type = coin_type.into();
+
         stream::unfold(
             (
                 vec![],
@@ -194,13 +200,13 @@ impl CoinReadApi {
     pub async fn select_coins(
         &self,
         address: IotaAddress,
-        coin_type: Option<String>,
+        coin_type: impl Into<Option<String>>,
         amount: u128,
         exclude: Vec<ObjectID>,
     ) -> IotaRpcResult<Vec<Coin>> {
         let mut total = 0u128;
         let coins = self
-            .get_coins_stream(address, coin_type)
+            .get_coins_stream(address, coin_type.into())
             .filter(|coin: &Coin| future::ready(!exclude.contains(&coin.coin_object_id)))
             .take_while(|coin: &Coin| {
                 let ready = future::ready(total < amount);
@@ -242,9 +248,9 @@ impl CoinReadApi {
     pub async fn get_balance(
         &self,
         owner: IotaAddress,
-        coin_type: Option<String>,
+        coin_type: impl Into<Option<String>>,
     ) -> IotaRpcResult<Balance> {
-        Ok(self.api.http.get_balance(owner, coin_type).await?)
+        Ok(self.api.http.get_balance(owner, coin_type.into()).await?)
     }
 
     /// Return a list of balances for each coin type owned by the given address,
@@ -285,16 +291,16 @@ impl CoinReadApi {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let coin_metadata = iota
     ///         .coin_read_api()
-    ///         .get_coin_metadata("0x2::iota::IOTA".to_string())
+    ///         .get_coin_metadata("0x2::iota::IOTA")
     ///         .await?;
     ///     Ok(())
     /// }
     /// ```
     pub async fn get_coin_metadata(
         &self,
-        coin_type: String,
+        coin_type: impl Into<String>,
     ) -> IotaRpcResult<Option<IotaCoinMetadata>> {
-        Ok(self.api.http.get_coin_metadata(coin_type).await?)
+        Ok(self.api.http.get_coin_metadata(coin_type.into()).await?)
     }
 
     /// Return the total supply for a given coin type, or an error upon failure.
@@ -309,12 +315,12 @@ impl CoinReadApi {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let total_supply = iota
     ///         .coin_read_api()
-    ///         .get_total_supply("0x2::iota::IOTA".to_string())
+    ///         .get_total_supply("0x2::iota::IOTA")
     ///         .await?;
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_total_supply(&self, coin_type: String) -> IotaRpcResult<Supply> {
-        Ok(self.api.http.get_total_supply(coin_type).await?)
+    pub async fn get_total_supply(&self, coin_type: impl Into<String>) -> IotaRpcResult<Supply> {
+        Ok(self.api.http.get_total_supply(coin_type.into()).await?)
     }
 }
