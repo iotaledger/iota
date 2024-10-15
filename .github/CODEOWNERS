@@ -75,7 +75,7 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 
 # Scripts
 /scripts/dependency_graphs/ @muXxer
-/scripts/search_versions/ @muXxer
+/scripts/codesearch/ @muXxer
 /scripts/slipstream/ @muXxer
 
 # Disable code ownership for these auto-generated files
