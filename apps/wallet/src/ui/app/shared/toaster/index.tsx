@@ -6,7 +6,12 @@ import { useMenuIsOpen } from '_components';
 import { useAppSelector } from '_hooks';
 import { getNavIsVisible } from '_redux/slices/app';
 import cl from 'clsx';
-import toast, { Toaster as ToasterLib, type ToastType, resolveValue, useToasterStore } from 'react-hot-toast';
+import toast, {
+    Toaster as ToasterLib,
+    type ToastType,
+    resolveValue,
+    useToasterStore,
+} from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 import { Portal } from '../Portal';
 import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
