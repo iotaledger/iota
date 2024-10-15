@@ -19,7 +19,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     object::{Object, generate_test_gas_objects},
     quorum_driver_types::{
-        ExecuteTransactionRequestV3, QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
+        ExecuteTransactionRequestV1, QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
     transaction::Transaction,
 };
@@ -96,7 +96,7 @@ async fn test_quorum_driver_submit_transaction() {
         assert_eq!(*effects_cert.data().transaction_digest(), digest);
     });
     let ticket = quorum_driver_handler
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx))
         .await
         .unwrap();
     verify_ticket_response(ticket, &digest).await;
@@ -130,7 +130,7 @@ async fn test_quorum_driver_submit_transaction_no_ticket() {
     });
     quorum_driver_handler
         .submit_transaction_no_ticket(
-            ExecuteTransactionRequestV3::new_v2(tx),
+            ExecuteTransactionRequestV1::new_v2(tx),
             Some(SocketAddr::new([127, 0, 0, 1].into(), 0)),
         )
         .await
@@ -175,7 +175,7 @@ async fn test_quorum_driver_with_given_notify_read() {
     });
     let ticket1 = notifier.register_one(&digest);
     let ticket2 = quorum_driver_handler
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx))
         .await
         .unwrap();
     verify_ticket_response(ticket1, &digest).await;
@@ -212,7 +212,7 @@ async fn test_quorum_driver_update_validators_and_max_retry_times() {
         // This error should not happen in practice for benign validators and a working
         // client
         let ticket = quorum_driver
-            .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+            .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx))
             .await
             .unwrap();
         // We have a timeout here to make the test fail fast if fails
@@ -305,7 +305,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
 
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
     let res = quorum_driver
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx2))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx2))
         .await
         .unwrap()
         .await;
@@ -357,7 +357,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
 
     let res = quorum_driver
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx2))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx2))
         .await
         .unwrap()
         .await;
@@ -393,7 +393,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let tx2_digest = *tx2.digest();
 
     let res = quorum_driver
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx2))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx2))
         .await
         .unwrap()
         .await
@@ -432,7 +432,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let tx3 = make_tx(&gas, sender, &keypair, rgp);
 
     let res = quorum_driver
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx3))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx3))
         .await
         .unwrap()
         .await;
@@ -481,7 +481,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
             .is_ok()
     );
     let res = quorum_driver
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx2))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx2))
         .await
         .unwrap()
         .await;
@@ -531,7 +531,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     );
 
     let res = quorum_driver
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx))
         .await
         .unwrap()
         .await
@@ -566,7 +566,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
 
     let tx4 = make_tx(&gas, sender, &keypair, rgp);
     let res = quorum_driver
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx4.clone()))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx4.clone()))
         .await
         .unwrap()
         .await;
@@ -657,7 +657,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     // Submit the transaction, and check that it shouldn't return, and the number of
     // retries is within 300s timeout / 30s retry after duration = 10 times.
     let ticket = quorum_driver_handler
-        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+        .submit_transaction(ExecuteTransactionRequestV1::new_v2(tx))
         .await
         .unwrap();
     match timeout(Duration::from_secs(300), ticket).await {
