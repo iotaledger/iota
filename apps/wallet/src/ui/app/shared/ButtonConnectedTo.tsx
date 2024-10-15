@@ -19,7 +19,7 @@ export const ButtonConnectedTo = forwardRef<HTMLButtonElement, ButtonConnectedTo
             <button
                 {...rest}
                 ref={ref}
-                className="flex max-w-28 cursor-pointer flex-row items-center gap-1 rounded-full bg-neutral-96 p-xxxs hover:bg-neutral-92"
+                className="flex max-w-28 cursor-pointer flex-row items-center gap-1 rounded-full bg-neutral-96 p-xxxs pr-xs hover:bg-neutral-92"
             >
                 <div className="flex rounded-full bg-neutral-50 p-xxxs text-neutral-100">
                     {iconBefore}
