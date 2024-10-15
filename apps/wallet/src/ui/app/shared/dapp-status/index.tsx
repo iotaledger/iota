@@ -6,21 +6,14 @@ import { Loading } from '_components';
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { createDappStatusSelector } from '_redux/slices/permissions';
 import { ampli } from '_src/shared/analytics/ampli';
-import {
-    arrow,
-    offset,
-    useClick,
-    useDismiss,
-    useFloating,
-    useInteractions,
-} from '@floating-ui/react';
+import { useClick, useDismiss, useFloating, useInteractions } from '@floating-ui/react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { ButtonConnectedTo } from '../ButtonConnectedTo';
 import { appDisconnect } from './actions';
-import st from './DappStatus.module.scss';
-import { ArrowDown, CircleEmitter } from '@iota/ui-icons';
+import { Link } from '@iota/ui-icons';
+import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 
 function DappStatus() {
     const dispatch = useAppDispatch();
@@ -49,19 +42,10 @@ function DappStatus() {
         },
         [disconnecting],
     );
-    const arrowRef = useRef(null);
-    const {
-        x,
-        y,
-        context,
-        reference,
-        refs,
-        middlewareData: { arrow: arrowData },
-    } = useFloating({
+    const { x, y, context, reference, refs } = useFloating({
         open: visible,
         onOpenChange: onHandleClick,
         placement: 'bottom',
-        middleware: [offset(8), arrow({ element: arrowRef })],
     });
     const { getFloatingProps, getReferenceProps } = useInteractions([
         useClick(context),
@@ -100,9 +84,8 @@ function DappStatus() {
         <>
             <ButtonConnectedTo
                 truncate
-                iconBefore={<CircleEmitter className="text-success h-3 w-3" />}
+                iconBefore={<Link className="h-5 w-5" />}
                 text={activeOrigin || ''}
-                iconAfter={<ArrowDown className="h-3 w-3" />}
                 ref={reference}
                 {...getReferenceProps()}
             />
@@ -120,42 +103,43 @@ function DappStatus() {
                             duration: 0.3,
                             ease: 'anticipate',
                         }}
-                        className={st.popup}
+                        className="absolute right-6 top-[48px] z-50 max-w-72 rounded-2xl bg-neutral-96 p-sm shadow-xl"
                         style={{ top: y || 0, left: x || 0 }}
                         {...getFloatingProps()}
                         ref={refs.setFloating}
                     >
-                        <div className={st.popupContent}>
-                            <div className={st.originContainer}>
+                        <div className="flex flex-col items-center gap-xs">
+                            <div className="flex flex-row items-start gap-xs">
                                 {activeOriginFavIcon ? (
-                                    <img
-                                        src={activeOriginFavIcon}
-                                        className={st.favicon}
-                                        alt="App Icon"
-                                    />
+                                    <div className="h-7 w-7 shrink-0 rounded-full border border-shader-neutral-light-8 p-xxs">
+                                        <img
+                                            src={activeOriginFavIcon}
+                                            alt="App Icon"
+                                            className="h-full w-full object-contain"
+                                        />
+                                    </div>
                                 ) : null}
-                                <span className={st.originText}>
-                                    <div>Connected to</div>
-                                    <div className={st.originUrl}>{activeOrigin}</div>
-                                </span>
+                                <div>
+                                    <span className="text-label-md text-neutral-40">
+                                        Connected to
+                                    </span>
+                                    <div className="break-all text-body-sm text-neutral-10">
+                                        {activeOrigin}
+                                    </div>
+                                </div>
                             </div>
-                            <div className={st.divider} />
                             <Loading loading={disconnecting}>
-                                <button
-                                    type="button"
-                                    className={st.disconnect}
-                                    onClick={handleDisconnect}
-                                    disabled={disconnecting}
-                                >
-                                    Disconnect App
-                                </button>
+                                <div className="self-end">
+                                    <Button
+                                        onClick={handleDisconnect}
+                                        disabled={disconnecting}
+                                        size={ButtonSize.Small}
+                                        text="Disconnect App"
+                                        type={ButtonType.Ghost}
+                                    />
+                                </div>
                             </Loading>
                         </div>
-                        <div
-                            className={st.popupArrow}
-                            ref={arrowRef}
-                            style={{ left: arrowData?.x || 0 }}
-                        />
                     </motion.div>
                 ) : null}
             </AnimatePresence>

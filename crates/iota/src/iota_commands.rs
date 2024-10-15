@@ -223,7 +223,7 @@ pub enum IotaCommand {
         #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
         /// Remotely stored migration snapshots.
-        #[clap(long, name = "iota|smr|<full-url>")]
+        #[clap(long, name = "iota|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
@@ -267,7 +267,7 @@ pub enum IotaCommand {
         #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
         /// Remotely stored migration snapshots.
-        #[clap(long, name = "iota|smr|<full-url>")]
+        #[clap(long, name = "iota|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },

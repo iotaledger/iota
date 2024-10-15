@@ -93,7 +93,6 @@ const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
 
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
-pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
 
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
@@ -1559,11 +1558,10 @@ impl From<SnapshotUrl> for SnapshotSource {
     }
 }
 
-/// The URLs to download Iota or Shimmer object snapshots.
+/// The URLs to download Iota object snapshot.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum SnapshotUrl {
     Iota,
-    Shimmer,
     /// Custom migration snapshot for testing purposes.
     Test(Url),
 }
@@ -1572,7 +1570,6 @@ impl std::fmt::Display for SnapshotUrl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SnapshotUrl::Iota => "iota".fmt(f),
-            SnapshotUrl::Shimmer => "smr".fmt(f),
             SnapshotUrl::Test(url) => url.as_str().fmt(f),
         }
     }
@@ -1587,18 +1584,16 @@ impl FromStr for SnapshotUrl {
         }
         Ok(match s.to_lowercase().as_str() {
             "iota" => Self::Iota,
-            "smr" | "shimmer" => Self::Shimmer,
             e => bail!("unsupported snapshot url: {e}"),
         })
     }
 }
 
 impl SnapshotUrl {
-    /// Returns the Iota or Shimmer object snapshot download URL.
+    /// Returns the Iota object snapshot download URL.
     pub fn to_url(&self) -> Url {
         match self {
             Self::Iota => Url::parse(IOTA_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
-            Self::Shimmer => Url::parse(SHIMMER_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
             Self::Test(url) => url.clone(),
         }
     }
