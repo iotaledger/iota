@@ -1,6 +1,6 @@
 {
     "name": "@iota/iota-sdk",
-    "author": "IOTA Foundation <contact@iota.org>",
+    "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA TypeScript API",
     "version": "0.2.0",
     "license": "Apache-2.0",
