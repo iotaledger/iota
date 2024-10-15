@@ -2,7 +2,6 @@
 title: Getting Started with Move Coffee Token Tutorial
 tags:
   - tutorial
-  - defi
   - move
   - getting-started
 ---
@@ -24,7 +23,7 @@ Welcome to this beginner-friendly tutorial on [Move](../iota-101/move-overview/m
 
 - Basic understanding of blockchain concepts like [tokens](../../references/framework/iota-framework/token.mdx) and [transactions](https://www.scalingparrots.com/en/what-is-a-blockchain-transaction/).
 - Basic understanding of the [Move](../iota-101/move-overview/move-overview.mdx)
-- [Install Iota CLI](iota-install.mdx)
+- [Install Iota CLI](install-iota.mdx)
 
 ## 1. Create an IOTA Move Package
 
@@ -105,7 +104,7 @@ The `buy_coffee` function enables customers to purchase coffee using IOTA tokens
 ```move file=<rootDir>/examples/move/token/sources/coffee.move#L57-L69
 ```
 
-This function performs key tasks like checking the customer’s balance, minting 1 new `COFFEE` token, transferring it to the customer, and confirming the transaction.
+This function performs key tasks like checking the customer’s balance, minting 1 new `COFFEE` token, transferring it to the customer, and [confirming](../../developer/standards/closed-loop-token/action-request#request-confirmation) the transaction.
 
 ## 7. Control Flow with Assertions
 
