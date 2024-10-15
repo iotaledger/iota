@@ -288,7 +288,7 @@ impl TryFrom<i16> for ObjectStatus {
             0 => ObjectStatus::Active,
             1 => ObjectStatus::WrappedOrDeleted,
             value => {
-                return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
+                return Err(IndexerError::PersistentStorageDataCorruption(format!(
                     "{value} as ObjectStatus"
                 )));
             }
@@ -306,7 +306,7 @@ impl TryFrom<i16> for OwnerType {
             2 => OwnerType::Object,
             3 => OwnerType::Shared,
             value => {
-                return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
+                return Err(IndexerError::PersistentStorageDataCorruption(format!(
                     "{value} as OwnerType"
                 )));
             }
