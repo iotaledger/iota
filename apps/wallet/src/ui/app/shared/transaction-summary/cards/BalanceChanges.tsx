@@ -24,9 +24,9 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
             coinType={coinType}
             balance={BigInt(amount)}
             icon={
-                !unRecognizedToken ? (
+                unRecognizedToken ? undefined : (
                     <RecognizedBadge className="h-4 w-4 text-primary-40" />
-                ) : undefined
+                )
             }
         />
     );
