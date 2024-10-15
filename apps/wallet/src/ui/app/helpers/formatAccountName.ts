@@ -8,7 +8,7 @@ export function formatAccountName(
     nickname: string | undefined | null,
     address: string | undefined,
 ): string {
-    if (nickname && nickname?.length > 12) {
+    if (nickname) {
         return truncateString(nickname, 12);
     } else {
         return formatAddress(address || '');
