@@ -11,12 +11,13 @@ import {
     useFormatCoin,
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useActiveAddress, useTransactionDryRun } from '../../hooks';
 import { type FormValues } from './StakingCard';
-import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
 import { StakeTxnInfo } from '../../components/receipt-card/StakeTxnInfo';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { Exclamation } from '@iota/ui-icons';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -59,11 +60,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
 
-    const [maxToken, symbol, queryResult] = useFormatCoin(
-        coinBalance - gasBudget,
-        coinType,
-        CoinFormat.FULL,
-    );
+    const [maxToken, symbol] = useFormatCoin(coinBalance - gasBudget, coinType, CoinFormat.FULL);
     const isMaxValueSelected = values.amount === maxToken;
 
     return (
@@ -77,11 +74,6 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     form: { setFieldValue },
                     meta,
                 }: FieldProps<FormValues>) => {
-                    const setMaxToken = useCallback(() => {
-                        if (!maxToken) return;
-                        setFieldValue('amount', maxToken);
-                    }, [maxToken, setFieldValue]);
-
                     return (
                         <Input
                             {...field}
@@ -93,20 +85,20 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                             caption={coinBalance ? `~ ${maxToken} ${symbol} Available` : ''}
                             suffix={' ' + symbol}
                             prefix={isMaxValueSelected ? '~ ' : undefined}
-                            trailingElement={
-                                <ButtonPill
-                                    onClick={setMaxToken}
-                                    disabled={queryResult.isPending || isMaxValueSelected}
-                                >
-                                    Max
-                                </ButtonPill>
-                            }
                             errorMessage={values.amount && meta.error ? meta.error : undefined}
                             label="Amount"
                         />
                     );
                 }}
             </Field>
+            {isMaxValueSelected ? (
+                <InfoBox
+                    type={InfoBoxType.Error}
+                    supportingText="You have selected the maximum amount. This will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                    style={InfoBoxStyle.Elevated}
+                    icon={<Exclamation />}
+                />
+            ) : null}
             <StakeTxnInfo startEpoch={epoch} gasSummary={transaction ? gasSummary : undefined} />
         </Form>
     );
