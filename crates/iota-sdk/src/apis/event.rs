@@ -87,14 +87,14 @@ impl EventApi {
     pub async fn query_events(
         &self,
         query: EventFilter,
-        cursor: Option<EventID>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<EventID>>,
+        limit: impl Into<Option<usize>>,
         descending_order: bool,
     ) -> IotaRpcResult<EventPage> {
         Ok(self
             .api
             .http
-            .query_events(query, cursor, limit, Some(descending_order))
+            .query_events(query, cursor.into(), limit.into(), Some(descending_order))
             .await?)
     }
 
@@ -105,9 +105,11 @@ impl EventApi {
     pub fn get_events_stream(
         &self,
         query: EventFilter,
-        cursor: Option<EventID>,
+        cursor: impl Into<Option<EventID>>,
         descending_order: bool,
     ) -> impl Stream<Item = IotaEvent> + '_ {
+        let cursor = cursor.into();
+
         stream::unfold(
             (vec![], cursor, true, query),
             move |(mut data, cursor, first, query)| async move {

@@ -65,6 +65,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_governance_verifier() {
         let action_1 = BridgeAction::EmergencyAction(EmergencyAction {
             chain_id: BridgeChainId::EthCustom,
