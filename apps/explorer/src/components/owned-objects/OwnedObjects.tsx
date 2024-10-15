@@ -18,8 +18,11 @@ import {
     Select,
     DropdownPosition,
     SelectSize,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { ListViewLarge, ListViewMedium, ListViewSmall } from '@iota/ui-icons';
+import { ListViewLarge, ListViewMedium, ListViewSmall, Warning } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 import { ListView, SmallThumbnailsView, ThumbnailsView } from '~/components';
@@ -163,7 +166,15 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
 
     if (isError) {
         return (
-            <div className="pt-2 font-sans font-semibold text-issue-dark">Failed to load NFTs</div>
+            <div className="p-sm--rs">
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Assets"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
+            </div>
         );
     }
 
