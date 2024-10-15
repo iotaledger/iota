@@ -33,8 +33,8 @@ use serde_with::serde_as;
 use tracing::info;
 
 use crate::{
-    Config, certificate_deny_config::CertificateDenyConfig, genesis, migration_tx_data,
-    object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
+    Config, certificate_deny_config::CertificateDenyConfig, genesis,
+    migration_tx_data::MigrationTxData, object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
     transaction_deny_config::TransactionDenyConfig,
 };
 
@@ -124,7 +124,8 @@ pub struct NodeConfig {
     /// and `OnceCell` pointer to a genesis struct.
     pub genesis: Genesis,
 
-    pub migration_tx_data: MigrationTxData,
+    /// Contains the path where to find the migration blob.
+    pub migration_tx_data_path: Option<PathBuf>,
 
     /// Configuration for pruning of the authority store, to define when
     /// an old data is removed from the storage space.
@@ -425,8 +426,14 @@ impl NodeConfig {
         self.genesis.genesis()
     }
 
-    pub fn load_migration_tx_data(&self) -> Result<migration_tx_data::MigrationTxData> {
-        let migration_tx_data = self.migration_tx_data.load()?;
+    pub fn load_migration_tx_data(&self) -> Result<MigrationTxData> {
+        let Some(location) = &self.migration_tx_data_path else {
+            anyhow::bail!("no file location set");
+        };
+
+        // Load from file
+        let migration_tx_data = MigrationTxData::load(location)?;
+
         // Validate migration content in order to avoid corrupted or malicious data
         migration_tx_data.validate_from_genesis(self.genesis.genesis()?)?;
         Ok(migration_tx_data)
@@ -936,30 +943,6 @@ impl Default for AuthorityOverloadConfig {
 
 fn default_authority_overload_config() -> AuthorityOverloadConfig {
     AuthorityOverloadConfig::default()
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
-pub struct MigrationTxData {
-    location: Option<PathBuf>,
-}
-
-impl MigrationTxData {
-    pub fn new_from_file(path: impl Into<PathBuf>) -> Self {
-        Self {
-            location: Some(path.into()),
-        }
-    }
-
-    pub fn new_empty() -> Self {
-        Self { location: None }
-    }
-
-    pub fn load(&self) -> Result<migration_tx_data::MigrationTxData> {
-        let Some(location) = &self.location else {
-            anyhow::bail!("no file location set");
-        };
-        migration_tx_data::MigrationTxData::load(location)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
