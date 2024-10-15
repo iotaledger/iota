@@ -444,8 +444,13 @@ impl IotaNode {
         #[cfg(not(msim))]
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
+        // Clone the genesis
         let genesis = config.genesis()?.clone();
+        // If genesis come with some migration data then load them into memory from the
+        // file path specified in config.
         let migration_tx_data = if genesis.contains_migrations() {
+            // Here the load already verifies that the content of the migration blob is
+            // valid in respect to the content found in genesis
             Some(config.load_migration_tx_data()?)
         } else {
             None
@@ -715,11 +720,10 @@ impl IotaNode {
             )
             .await;
 
+            // Execute migration transactions if present
             if let Some(migration_tx_data) = migration_tx_data {
                 for (tx_digest, (tx, _, _)) in migration_tx_data.txs_data() {
                     let span = error_span!("migration_txn", tx_digest = ?tx_digest);
-
-                    // Execute migration transaction
                     Self::execute_transaction_immediately_at_zero_epoch(
                         &state,
                         &epoch_store,

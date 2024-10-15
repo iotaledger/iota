@@ -991,6 +991,8 @@ fn build_unsigned_genesis_data<'info>(
     let mut txs_data: TransactionsData = BTreeMap::new();
     let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
+    // In here the main genesis objects are created. This means the main system
+    // objects and the ones that are created at genesis like the network coin.
     let (genesis_objects, events) = create_genesis_objects(
         &mut genesis_ctx,
         objects,
@@ -1001,7 +1003,17 @@ fn build_unsigned_genesis_data<'info>(
         metrics.clone(),
     );
 
+    // If the genesis_stake is not empty, then it means we are dealing with a
+    // genesis with migration data. Thus we create the migration transaction data.
     if !genesis_stake.is_empty() {
+        // Part of the migration objects were already used above during the creation of
+        // genesis objects. In particular, when the genesis involves a migration, the
+        // token distribution schedule takes into account assets coming from the
+        // migration data. These are either timelocked coins or gas coins. The token
+        // distribution schedule logic assumes that these assets are indeed distributed
+        // to some addresses and this happens above during the creation of the genesis
+        // objects. Here then we need to burn those assets from the original set of
+        // migration objects.
         let migration_objects = burn_staked_migration_objects(
             &mut genesis_ctx,
             migration_objects.take_objects(),
@@ -1010,6 +1022,8 @@ fn build_unsigned_genesis_data<'info>(
             genesis_stake,
             metrics.clone(),
         );
+        // Finally, we can create the data structure representing migration transaction
+        // data.
         txs_data = create_migration_tx_data(
             migration_objects,
             &protocol_config,
@@ -1018,6 +1032,7 @@ fn build_unsigned_genesis_data<'info>(
         );
     }
 
+    // Create the main genesis transaction of kind `GenesisTransaction`
     let (genesis_transaction, genesis_effects, genesis_events, genesis_objects) =
         create_genesis_transaction(
             genesis_objects,
@@ -1027,6 +1042,8 @@ fn build_unsigned_genesis_data<'info>(
             &epoch_data,
         );
 
+    // Create the genesis checkpoint including the main transaction and, if present,
+    // the migration transactions
     let (checkpoint, checkpoint_contents) = create_genesis_checkpoint(
         &protocol_config,
         parameters,
@@ -1044,10 +1061,15 @@ fn build_unsigned_genesis_data<'info>(
             events: genesis_events,
             objects: genesis_objects,
         },
+        // Could be empty
         MigrationTxData::new(txs_data),
     )
 }
 
+// Creates a map of transaction digest to transaction content involving data
+// coming from a migration. Migration objects come into a vector of objects,
+// here it splits this vector into chuncks and creates a `GenesisTransaction`
+// for each chunk.
 fn create_migration_tx_data(
     migration_objects: Vec<Object>,
     protocol_config: &ProtocolConfig,
@@ -1510,6 +1532,10 @@ pub fn generate_genesis_system_object(
     Ok(())
 }
 
+// Migration objects as input to this function were previously used to create a
+// genesis stake, that in turn helps to create a token distribution schedule for
+// the genesis. In this function the objects needed for the stake are burned
+// (and if needed splitted) to provide a new set of migraiton object as output.
 fn burn_staked_migration_objects(
     genesis_ctx: &mut TxContext,
     migration_objects: Vec<Object>,
@@ -1566,6 +1592,7 @@ fn burn_staked_migration_objects(
     intermediate_store.into_values().collect()
 }
 
+// Splits timelock objects given an amount to split.
 pub fn split_timelocks(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,

@@ -277,28 +277,29 @@ impl AuthorityStore {
             .database_is_empty()
             .expect("database read should not fail at init.")
         {
+            // Initialize with genesis data
+            // First insert genesis objects
             store
                 .bulk_insert_genesis_objects(genesis.objects())
                 .expect("cannot bulk insert genesis objects");
 
-            // insert txn and effects of genesis
+            // Then insert txn and effects of genesis
             let transaction = VerifiedTransaction::new_unchecked(genesis.transaction().clone());
-
             store
                 .perpetual_tables
                 .transactions
                 .insert(transaction.digest(), transaction.serializable_ref())
                 .expect("cannot insert genesis transaction");
-
             store
                 .perpetual_tables
                 .effects
                 .insert(&genesis.effects().digest(), genesis.effects())
                 .expect("cannot insert genesis effects");
 
-            // We don't insert the effects to executed_effects yet because the genesis tx
-            // hasn't but will be executed. This is important for fullnodes to
-            // be able to generate indexing data right now.
+            // In the previous step we don't insert the effects to executed_effects yet
+            // because the genesis tx hasn't but will be executed. This is
+            // important for fullnodes to be able to generate indexing data
+            // right now.
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
@@ -308,19 +309,27 @@ impl AuthorityStore {
                 .map(|(i, e)| ((event_digests, i), e));
             store.perpetual_tables.events.multi_insert(events).unwrap();
 
+            // Initialize with migration data if genesis contained migration transactions
             if let Some(migration_transactions) = migration_tx_data {
+                // This migration data was validated during the loading into the node (invoked
+                // by the caller of this function)
                 let txs_data = migration_transactions.txs_data();
 
+                // We iterate over the contents of the genesis checkpoint, that includes all
+                // migration transactions execution digest. Thus we cover all transactions that
+                // were considered during the creation of the genesis blob.
                 for (_, execution_digest) in genesis
                     .checkpoint_contents()
                     .enumerate_transactions(&genesis.checkpoint())
                 {
                     let tx_digest = &execution_digest.transaction;
-                    // We skip the genesis transaction to process only migration transactions from
-                    // the migration.blob.
+                    // We can skip the genesis transaction and its data because above it was already
+                    // stored in the perpetual_tables.
                     if tx_digest == genesis.transaction().digest() {
                         continue;
                     }
+                    // Now we can store in the perpetual_tables this migration transaction, together
+                    // with its effects, events and created objects.
                     let Some((tx, effects, events)) = txs_data.get(tx_digest) else {
                         panic!("tx digest not found in migrated objects blob");
                     };
