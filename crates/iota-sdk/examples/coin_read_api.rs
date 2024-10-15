@@ -29,7 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let coin_type = "0x2::iota::IOTA".to_string();
     let coins = client
         .coin_read_api()
-        .get_coins(active_address, Some(coin_type.clone()), None, Some(5)) // get the first five coins
+        .get_coins(active_address, coin_type.clone(), None, 5) // get the first five coins
         .await?;
     println!(" *** Coins ***");
     println!("{:?}", coins);
@@ -41,7 +41,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // associated with this address
     let all_coins = client
         .coin_read_api()
-        .get_all_coins(active_address, None, Some(5)) // get the first five coins
+        .get_all_coins(active_address, None, 5) // get the first five coins
         .await?;
     println!(" *** All coins ***");
     println!("{:?}", all_coins);
@@ -66,7 +66,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // `None` for the default Iota coin
     let select_coins = client
         .coin_read_api()
-        .select_coins(active_address, Some(coin_type.clone()), 1, vec![])
+        .select_coins(active_address, coin_type.clone(), 1, vec![])
         .await?;
 
     println!(" *** Select Coins ***");
