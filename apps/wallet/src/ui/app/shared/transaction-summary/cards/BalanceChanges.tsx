@@ -8,10 +8,10 @@ import {
     type BalanceChangeSummary,
 } from '@iota/core';
 import { useMemo } from 'react';
-
-import { Badge, BadgeType, Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { CoinItem, ExplorerLink, ExplorerLinkType } from '_src/ui/app/components';
 import { formatAddress } from '@iota/iota-sdk/utils';
+import { RecognizedBadge } from '@iota/ui-icons';
 
 interface BalanceChangesProps {
     changes?: BalanceChangeSummary;
@@ -24,8 +24,8 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
             coinType={coinType}
             balance={BigInt(amount)}
             icon={
-                unRecognizedToken ? (
-                    <Badge type={BadgeType.PrimarySoft} label="Unrecognized" />
+                !unRecognizedToken ? (
+                    <RecognizedBadge className="h-4 w-4 text-primary-40" />
                 ) : undefined
             }
         />
