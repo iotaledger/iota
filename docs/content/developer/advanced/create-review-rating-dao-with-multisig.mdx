@@ -1,5 +1,10 @@
 ---
 title: Create Review Rating DAO with Multisig Tutorial
+tags:
+  - how-to
+  - tutorial
+  - move
+  - cli
 ---
 
 ## Introduction
@@ -81,7 +86,7 @@ To remove a review, moderators must sign a transaction using the multisig setup.
 Serialize the transaction to be signed by the multisig account:
 
 ```shell
-iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --gas-budget <GAS-AMOUNT> --serialize-unsigned-transaction
+iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --serialize-unsigned-transaction
 ```
 
 ### Step 6: Sign the Transaction
