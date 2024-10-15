@@ -221,6 +221,9 @@ pub enum IotaValidatorCommand {
         #[clap(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
+    /// Get a list of the validators in the network. Use the `display-metadata`
+    /// command to see the complete data for a validator.
+    Validators,
 }
 
 #[derive(Serialize)]
@@ -247,6 +250,7 @@ pub enum IotaValidatorCommandResponse {
         execution_response: Option<IotaTransactionBlockResponse>,
         serialized_unsigned_transaction: Option<String>,
     },
+    Validators,
 }
 
 fn make_key_files(
@@ -680,6 +684,31 @@ impl IotaValidatorCommand {
                     }
                 }
             }
+            IotaValidatorCommand::Validators => {
+                let client = context.get_client().await?;
+
+                let active_validators = client
+                    .governance_api()
+                    .get_latest_iota_system_state()
+                    .await?
+                    .active_validators;
+
+                println!(
+                    "{:<66} | {:<12} | {:<20} | {:<10}",
+                    "iota address", "name", "staking pool balance", "pending stake"
+                );
+
+                for validator in active_validators {
+                    println!(
+                        "{:<66} | {:<12} | {:<20} | {:<10}",
+                        validator.iota_address,
+                        validator.name,
+                        validator.staking_pool_iota_balance,
+                        validator.pending_stake
+                    );
+                }
+                IotaValidatorCommandResponse::Validators
+            }
         });
         ret
     }
@@ -958,6 +987,7 @@ impl Display for IotaValidatorCommandResponse {
                     )?;
                 }
             }
+            IotaValidatorCommandResponse::Validators => {}
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
