@@ -39,7 +39,7 @@ module test::regulated_coin {
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Deny account B.
-//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_with_config_key_v1_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Transfer the regulated coin to @B still works normally.
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
@@ -50,7 +50,7 @@ module test::regulated_coin {
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Undeny account B.
-//# run iota::coin::deny_list_v2_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_with_config_key_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Transfer the regulated coin to @B still does not work.
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A

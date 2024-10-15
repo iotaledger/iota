@@ -108,7 +108,7 @@ impl MoveTypeTagTrait for GlobalPauseKey {
     }
 }
 
-pub fn check_coin_deny_list_v2_during_signing(
+pub fn check_coin_deny_list_during_signing(
     address: IotaAddress,
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,
@@ -116,7 +116,7 @@ pub fn check_coin_deny_list_v2_during_signing(
 ) -> UserInputResult {
     let coin_types = input_object_coin_types_for_denylist_check(input_objects, receiving_objects);
     for coin_type in coin_types {
-        let Some(deny_list) = get_per_type_coin_deny_list_v2(&coin_type, object_store) else {
+        let Some(deny_list) = get_per_type_coin_deny_list(&coin_type, object_store) else {
             continue;
         };
         if check_global_pause(&deny_list, object_store, None) {
@@ -132,7 +132,7 @@ pub fn check_coin_deny_list_v2_during_signing(
 /// Returns 1) whether the coin deny list check passed,
 ///         2) the deny lists checked
 ///         2) the number of regulated coin owners checked.
-pub fn check_coin_deny_list_v2_during_execution(
+pub fn check_coin_deny_list_during_execution(
     written_objects: &BTreeMap<ObjectID, Object>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
@@ -157,7 +157,7 @@ pub fn check_coin_deny_list_v2_during_execution(
     let new_regulated_coin_owners = new_coin_owners
         .into_iter()
         .filter_map(|(coin_type, owners)| {
-            let deny_list_config = get_per_type_coin_deny_list_v2(&coin_type, object_store)?;
+            let deny_list_config = get_per_type_coin_deny_list(&coin_type, object_store)?;
             Some((coin_type, (deny_list_config, owners)))
         })
         .collect::<BTreeMap<_, _>>();
@@ -203,7 +203,7 @@ fn check_new_regulated_coin_owners(
     Ok(())
 }
 
-pub fn get_per_type_coin_deny_list_v2(
+pub fn get_per_type_coin_deny_list(
     coin_type: &String,
     object_store: &dyn ObjectStore,
 ) -> Option<Config> {

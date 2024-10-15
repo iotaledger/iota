@@ -1,5 +1,5 @@
 [package]
-name = "coin_deny_list_v2"
+name = "coin_deny_list_with_config_key_v1"
 version = "0.0.1"
 edition = "2024.beta"
 
@@ -7,4 +7,4 @@ edition = "2024.beta"
 Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
-coin_deny_list_v2 = "0x0"
+coin_deny_list_with_config_key_v1 = "0x0"

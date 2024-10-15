@@ -12,7 +12,7 @@ use iota_types::{
         IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
     },
     committee::EpochId,
-    deny_list_v2::check_coin_deny_list_v2_during_execution,
+    deny_list_with_config_key_v1::check_coin_deny_list_during_execution,
     effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
@@ -1061,7 +1061,7 @@ impl<'backing> Storage for TemporaryStore<'backing> {
     }
 
     fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult {
-        let result = check_coin_deny_list_v2_during_execution(
+        let result = check_coin_deny_list_during_execution(
             written_objects,
             self.cur_epoch,
             self.store.as_object_store(),

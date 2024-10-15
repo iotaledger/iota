@@ -331,7 +331,7 @@ module iota::coin {
     /// Adds the given address to the deny list, preventing it from interacting with the specified
     /// coin type as an input to a transaction. Additionally at the start of the next epoch, the
     /// address will be unable to receive objects of this coin type.
-    public fun deny_list_v2_add<T>(
+    public fun deny_list_with_config_key_v1_add<T>(
         deny_list: &mut DenyList,
         _deny_cap: &mut DenyCapV2<T>,
         addr: address,
@@ -341,10 +341,10 @@ module iota::coin {
         deny_list.v2_add(DENY_LIST_COIN_INDEX, ty, addr, ctx)
     }
 
-    /// Removes an address from the deny list. Similar to `deny_list_v2_add`, the effect for input
+    /// Removes an address from the deny list. Similar to `deny_list_with_config_key_v1_add`, the effect for input
     /// objects will be immediate, but the effect for receiving objects will be delayed until the
     /// next epoch.
-    public fun deny_list_v2_remove<T>(
+    public fun deny_list_with_config_key_v1_remove<T>(
         deny_list: &mut DenyList,
         _deny_cap: &mut DenyCapV2<T>,
         addr: address,
@@ -356,7 +356,7 @@ module iota::coin {
 
     /// Check if the deny list contains the given address for the current epoch. Denied addresses
     /// in the current epoch will be unable to receive objects of this coin type.
-    public fun deny_list_v2_contains_current_epoch<T>(
+    public fun deny_list_with_config_key_v1_contains_current_epoch<T>(
         deny_list: &DenyList,
         addr: address,
         ctx: &TxContext,
@@ -368,7 +368,7 @@ module iota::coin {
     /// Check if the deny list contains the given address for the next epoch. Denied addresses in
     /// the next epoch will immediately be unable to use objects of this coin type as inputs. At the
     /// start of the next epoch, the address will be unable to receive objects of this coin type.
-    public fun deny_list_v2_contains_next_epoch<T>(
+    public fun deny_list_with_config_key_v1_contains_next_epoch<T>(
         deny_list: &DenyList,
         addr: address,
     ): bool {
@@ -380,7 +380,7 @@ module iota::coin {
     /// from using objects of this coin type as inputs. At the start of the next epoch, all
     /// addresses will be unable to receive objects of this coin type.
     #[allow(unused_mut_parameter)]
-    public fun deny_list_v2_enable_global_pause<T>(
+    public fun deny_list_with_config_key_v1_enable_global_pause<T>(
         deny_list: &mut DenyList,
         deny_cap: &mut DenyCapV2<T>,
         ctx: &mut TxContext,
@@ -394,7 +394,7 @@ module iota::coin {
     /// to resume using objects of this coin type as inputs. However, receiving objects of this coin
     /// type will still be paused until the start of the next epoch.
     #[allow(unused_mut_parameter)]
-    public fun deny_list_v2_disable_global_pause<T>(
+    public fun deny_list_with_config_key_v1_disable_global_pause<T>(
         deny_list: &mut DenyList,
         deny_cap: &mut DenyCapV2<T>,
         ctx: &mut TxContext,
@@ -405,7 +405,7 @@ module iota::coin {
     }
 
     /// Check if the global pause is enabled for the given coin type in the current epoch.
-    public fun deny_list_v2_is_global_pause_enabled_current_epoch<T>(
+    public fun deny_list_with_config_key_v1_is_global_pause_enabled_current_epoch<T>(
         deny_list: &DenyList,
         ctx: &TxContext,
     ): bool {
@@ -414,7 +414,7 @@ module iota::coin {
     }
 
     /// Check if the global pause is enabled for the given coin type in the next epoch.
-    public fun deny_list_v2_is_global_pause_enabled_next_epoch<T>(
+    public fun deny_list_with_config_key_v1_is_global_pause_enabled_next_epoch<T>(
         deny_list: &DenyList,
     ): bool {
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
@@ -567,7 +567,7 @@ module iota::coin {
 
     /// Adds the given address to the deny list, preventing it
     /// from interacting with the specified coin type as an input to a transaction.
-    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_v2_add`")]
+    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_with_config_key_v1_add`")]
     public fun deny_list_add<T>(
        deny_list: &mut DenyList,
        _deny_cap: &mut DenyCap<T>,
@@ -585,7 +585,7 @@ module iota::coin {
 
     /// Removes an address from the deny list.
     /// Aborts with `ENotFrozen` if the address is not already in the list.
-    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_v2_remove`")]
+    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_with_config_key_v1_remove`")]
     public fun deny_list_remove<T>(
        deny_list: &mut DenyList,
        _deny_cap: &mut DenyCap<T>,
@@ -603,7 +603,7 @@ module iota::coin {
 
     /// Returns true iff the given address is denied for the given coin type. It will
     /// return false if given a non-coin type.
-    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_v2_contains_next_epoch` or `deny_list_v2_contains_current_epoch`")]
+    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_with_config_key_v1_contains_next_epoch` or `deny_list_with_config_key_v1_contains_current_epoch`")]
     public fun deny_list_contains<T>(
        deny_list: &DenyList,
        addr: address,

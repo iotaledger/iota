@@ -103,9 +103,9 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
             IOTA_FRAMEWORK_PACKAGE_ID,
             "coin",
             if deny {
-                "deny_list_v2_add"
+                "deny_list_with_config_key_v1_add"
             } else {
-                "deny_list_v2_remove"
+                "deny_list_with_config_key_v1_remove"
             },
             vec![
                 CallArg::Object(ObjectArg::SharedObject {

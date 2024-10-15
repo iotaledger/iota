@@ -55,7 +55,7 @@ pub struct PerTypeDenyList {
 /// Checks coin denylist v1 at signing time.
 /// It checks that none of the coin types in the transaction are denied for the
 /// sender.
-pub fn check_coin_deny_list_v1(
+pub fn check_global_coin_deny_list(
     sender: IotaAddress,
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,
@@ -71,7 +71,7 @@ pub fn check_coin_deny_list_v1(
             return Ok(());
         }
     };
-    check_deny_list_v1_impl(deny_list, sender, coin_types, object_store)
+    check_global_deny_list_impl(deny_list, sender, coin_types, object_store)
 }
 
 /// Returns all unique coin types in canonical string form from the input
@@ -97,7 +97,7 @@ pub(crate) fn input_object_coin_types_for_denylist_check(
         .collect()
 }
 
-fn check_deny_list_v1_impl(
+fn check_global_deny_list_impl(
     deny_list: PerTypeDenyList,
     address: IotaAddress,
     coin_types: BTreeSet<String>,

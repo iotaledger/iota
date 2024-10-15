@@ -1309,7 +1309,7 @@
                 "disallow_adding_abilities_on_upgrade": true,
                 "disallow_change_struct_type_params_on_upgrade": true,
                 "enable_coin_deny_list": true,
-                "enable_coin_deny_list_v2": true,
+                "enable_coin_deny_list_with_config_key_v1": true,
                 "enable_effects_v2": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_group_ops_native_functions": true,

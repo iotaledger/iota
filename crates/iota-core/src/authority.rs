@@ -57,8 +57,8 @@ use iota_types::{
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
-    deny_list_v1::check_coin_deny_list_v1,
-    deny_list_v2::check_coin_deny_list_v2_during_signing,
+    deny_list_v1::check_global_coin_deny_list,
+    deny_list_with_config_key_v1::check_coin_deny_list_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::{
@@ -885,7 +885,7 @@ impl AuthorityState {
             )?;
 
         if epoch_store.coin_deny_list_v1_enabled() {
-            check_coin_deny_list_v1(
+            check_global_coin_deny_list(
                 tx_data.sender(),
                 &checked_input_objects,
                 &receiving_objects,
@@ -893,8 +893,11 @@ impl AuthorityState {
             )?;
         }
 
-        if epoch_store.protocol_config().enable_coin_deny_list_v2() {
-            check_coin_deny_list_v2_during_signing(
+        if epoch_store
+            .protocol_config()
+            .enable_coin_deny_list_with_config_key_v1()
+        {
+            check_coin_deny_list_during_signing(
                 tx_data.sender(),
                 &checked_input_objects,
                 &receiving_objects,

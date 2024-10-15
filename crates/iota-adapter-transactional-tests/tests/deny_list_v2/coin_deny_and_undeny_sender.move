@@ -41,7 +41,7 @@ module test::regulated_coin {
         addr: address,
         expected: bool,
     ) {
-        let status = coin::deny_list_v2_contains_next_epoch<REGULATED_COIN>(deny_list, addr);
+        let status = coin::deny_list_with_config_key_v1_contains_next_epoch<REGULATED_COIN>(deny_list, addr);
         assert!(status == expected, 0);
     }
 }
@@ -53,7 +53,7 @@ module test::regulated_coin {
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Deny account B.
-//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_with_config_key_v1_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that the address is denied.
 //# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B true --sender A
@@ -65,7 +65,7 @@ module test::regulated_coin {
 //# run iota::pay::split_and_transfer --args object(3,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
 
 // Undeny account B.
-//# run iota::coin::deny_list_v2_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_with_config_key_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that the address is no longer denied.
 //# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B false --sender A

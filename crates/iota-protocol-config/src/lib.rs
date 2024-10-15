@@ -353,7 +353,7 @@ struct FeatureFlags {
 
     // If true, enable the coin deny list V2.
     #[serde(skip_serializing_if = "is_false")]
-    enable_coin_deny_list_v2: bool,
+    enable_coin_deny_list_with_config_key_v1: bool,
 
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
@@ -1372,8 +1372,8 @@ impl ProtocolConfig {
         self.feature_flags.enable_coin_deny_list
     }
 
-    pub fn enable_coin_deny_list_v2(&self) -> bool {
-        self.feature_flags.enable_coin_deny_list_v2
+    pub fn enable_coin_deny_list_with_config_key_v1(&self) -> bool {
+        self.feature_flags.enable_coin_deny_list_with_config_key_v1
     }
 
     pub fn enable_group_ops_native_functions(&self) -> bool {
@@ -2082,7 +2082,7 @@ impl ProtocolConfig {
 
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 
-        cfg.feature_flags.enable_coin_deny_list_v2 = true;
+        cfg.feature_flags.enable_coin_deny_list_with_config_key_v1 = true;
 
         // Enable soft bundle.
         cfg.feature_flags.soft_bundle = true;

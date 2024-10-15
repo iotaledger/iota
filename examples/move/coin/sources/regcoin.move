@@ -32,7 +32,7 @@ module examples::regcoin {
         denyaddy: address,
         ctx: &mut TxContext,
     ) {
-        coin::deny_list_v2_add(denylist, denycap, denyaddy, ctx);
+        coin::deny_list_with_config_key_v1_add(denylist, denycap, denyaddy, ctx);
     }
 
     public fun remove_addr_from_deny_list(
@@ -41,6 +41,6 @@ module examples::regcoin {
         denyaddy: address,
         ctx: &mut TxContext,
     ) {
-        coin::deny_list_v2_remove(denylist, denycap, denyaddy, ctx);
+        coin::deny_list_with_config_key_v1_remove(denylist, denycap, denyaddy, ctx);
     }
 }

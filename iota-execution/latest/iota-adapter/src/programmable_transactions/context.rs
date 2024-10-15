@@ -844,7 +844,7 @@ mod checked {
                 }
             }
 
-            if protocol_config.enable_coin_deny_list_v2() {
+            if protocol_config.enable_coin_deny_list_with_config_key_v1() {
                 let DenyListResult {
                     result,
                     num_non_gas_coin_owners,

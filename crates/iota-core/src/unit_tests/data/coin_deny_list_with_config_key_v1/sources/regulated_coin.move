@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module coin_deny_list_v2::regulated_coin {
+module coin_deny_list_with_config_key_v1::regulated_coin {
     use iota::coin;
 
     public struct REGULATED_COIN has drop {}

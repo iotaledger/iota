@@ -11,7 +11,7 @@ pub mod checked {
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         base_types::{ObjectID, ObjectRef},
-        deny_list_v2::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
+        deny_list_with_config_key_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         digests::TransactionDigest,
         error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
