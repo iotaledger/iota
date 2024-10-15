@@ -1542,7 +1542,7 @@ pub fn generate_genesis_system_object(
 // Migration objects as input to this function were previously used to create a
 // genesis stake, that in turn helps to create a token distribution schedule for
 // the genesis. In this function the objects needed for the stake are burned
-// (and if needed splitted) to provide a new set of migraiton object as output.
+// (and, if needed, split) to provide a new set of migraiton object as output.
 fn burn_staked_migration_objects(
     genesis_ctx: &mut TxContext,
     migration_objects: Vec<Object>,
