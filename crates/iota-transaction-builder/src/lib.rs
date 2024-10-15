@@ -118,14 +118,14 @@ impl TransactionBuilder {
         kind: TransactionKind,
         gas_budget: u64,
         gas_price: u64,
-        gas_payment: Option<Vec<ObjectID>>,
-        gas_sponsor: Option<IotaAddress>,
+        gas_payment: impl Into<Option<Vec<ObjectID>>>,
+        gas_sponsor: impl Into<Option<IotaAddress>>,
     ) -> TransactionData {
         let gas_payment = self
-            .input_refs(gas_payment.unwrap_or_default().as_ref())
+            .input_refs(gas_payment.into().unwrap_or_default().as_ref())
             .await
             .unwrap_or_default();
-        let gas_sponsor = gas_sponsor.unwrap_or(sender);
+        let gas_sponsor = gas_sponsor.into().unwrap_or(sender);
         TransactionData::new_with_gas_coins_allow_sponsor(
             kind,
             sender,
@@ -147,7 +147,7 @@ impl TransactionBuilder {
         gas_budget: u64,
         gas_price: u64,
         gas_payment: Vec<ObjectID>,
-        gas_sponsor: Option<IotaAddress>,
+        gas_sponsor: impl Into<Option<IotaAddress>>,
     ) -> Result<TransactionData, anyhow::Error> {
         let gas_payment = if gas_payment.is_empty() {
             let input_objs = kind
@@ -171,7 +171,7 @@ impl TransactionBuilder {
             gas_payment,
             gas_budget,
             gas_price,
-            gas_sponsor.unwrap_or(sender),
+            gas_sponsor.into().unwrap_or(sender),
         ))
     }
 
@@ -224,10 +224,10 @@ impl TransactionBuilder {
     pub fn transfer_iota_tx_kind(
         &self,
         recipient: IotaAddress,
-        amount: Option<u64>,
+        amount: impl Into<Option<u64>>,
     ) -> TransactionKind {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_iota(recipient, amount);
+        builder.transfer_iota(recipient, amount.into());
         let pt = builder.finish();
         TransactionKind::programmable(pt)
     }
@@ -751,9 +751,12 @@ impl TransactionBuilder {
     pub async fn split_coin_tx_kind(
         &self,
         coin_object_id: ObjectID,
-        split_amounts: Option<Vec<u64>>,
-        split_count: Option<u64>,
+        split_amounts: impl Into<Option<Vec<u64>>>,
+        split_count: impl Into<Option<u64>>,
     ) -> Result<TransactionKind, anyhow::Error> {
+        let split_amounts = split_amounts.into();
+        let split_count = split_count.into();
+
         if split_amounts.is_none() && split_count.is_none() {
             bail!(
                 "Either split_amounts or split_count must be provided for split_coin transaction."
