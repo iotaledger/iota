@@ -1003,8 +1003,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                 let digest = MovePackage::compute_digest_for_modules_and_deps(
                     module_bytes.iter(),
                     &dependencies,
-                    // hash_modules
-                    true,
                 )
                 .to_vec();
                 let staged = StagedPackage {
@@ -1337,13 +1335,8 @@ impl<'a> IotaTestAdapter {
         // Argument::Input(0)
         IotaValue::Object(upgrade_capability, None).into_argument(&mut builder, self)?;
         let upgrade_arg = builder.pure(policy).unwrap();
-        let digest: Vec<u8> = MovePackage::compute_digest_for_modules_and_deps(
-            &modules_bytes,
-            &dependencies,
-            // hash_modules
-            true,
-        )
-        .into();
+        let digest: Vec<u8> =
+            MovePackage::compute_digest_for_modules_and_deps(&modules_bytes, &dependencies).into();
         let digest_arg = builder.pure(digest).unwrap();
 
         let upgrade_ticket = builder.programmable_move_call(
