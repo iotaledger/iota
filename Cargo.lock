@@ -6369,6 +6369,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bcs",
+ "bip32",
  "clap",
  "coset",
  "fastcrypto",
