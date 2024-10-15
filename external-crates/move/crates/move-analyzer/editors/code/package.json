@@ -1,11 +1,11 @@
 {
-  "name": "move",
-  "displayName": "Move",
+  "name": "iota-move",
+  "displayName": "Iota Move",
   "description": "A Move language integrated development environment for Iota.",
-  "publisher": "IOTA Foundation",
+  "publisher": "iota-foundation",
   "icon": "images/move.png",
   "license": "Apache-2.0",
-  "version": "1.0.11",
+  "version": "1.0.0",
   "preview": true,
   "repository": {
     "url": "https://github.com/iotaledger/iota.git",
@@ -52,17 +52,17 @@
       "type": "object",
       "title": "Move",
       "properties": {
-        "move.inlay-hints.type": {
+        "iota-move.inlay-hints.type": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Enable/disable type inlay hints"
         },
-        "move.inlay-hints.param": {
+        "iota-move.inlay-hints.param": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Enable/disable parameter inlay hints"
         },
-        "move.lint": {
+        "iota-move.lint": {
           "type": "string",
           "enum": [
             "default",
@@ -72,7 +72,7 @@
           "default": "default",
           "markdownDescription": "Move source code linting level."
         },
-        "move.server.path": {
+        "iota-move.server.path": {
           "type": [
             "null",
             "string"
@@ -81,7 +81,7 @@
           "default": null,
           "markdownDescription": "Path to rust-analyzer executable (points to `~/.iota/bin/move-analyzer` by default)."
         },
-        "move.iota.path": {
+        "iota-move.iota.path": {
           "type": [
             "null",
             "string"
@@ -90,7 +90,7 @@
           "default": null,
           "markdownDescription": "Path to Iota executable (by default assumes that `iota` is on the systems path)."
         },
-        "move.trace.server": {
+        "iota-move.trace.server": {
           "type": "string",
           "scope": "window",
           "enum": [
@@ -145,7 +145,7 @@
     "test": "node ./out/tests/runTests.js",
     "dev": "npm run pretest && cross-env mode=dev node ./out/tests/runTests.js",
     "vscode:prepublish": "npm run pretest",
-    "package": "npm run pretest && vsce package -o move.vsix",
+    "package": "npm run pretest && vsce package -o iota-move.vsix",
     "publish": "npm run pretest && npm run test && vsce publish"
   },
   "extensionDependencies": [
@@ -180,9 +180,9 @@
     "vscode-test": "^1.6.1"
   },
   "__metadata": {
-    "id": "71e74fc8-23c2-47b7-8594-ed00192d96a6",
-    "publisherDisplayName": "move",
-    "publisherId": "40d7def1-c662-4965-9ead-c06109c7cc6d",
+    "id": "227cd049-67e6-468e-bc8f-b60e02b79e36",
+    "publisherDisplayName": "iota-move",
+    "publisherId": "af4b9db3-cc45-4876-a5ad-e9ec96971b48",
     "isPreReleaseVersion": false
   }
 }
