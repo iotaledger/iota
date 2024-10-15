@@ -37,6 +37,7 @@ import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -297,6 +298,12 @@ function StakingCard() {
                                         !isValid || isSubmitting || (unstake && !delegationId)
                                     }
                                     text={unstake ? 'Unstake' : 'Stake'}
+                                    icon={
+                                        isSubmitting ? (
+                                            <Loader className="animate-spin" />
+                                        ) : undefined
+                                    }
+                                    iconAfterText
                                 />
                             </div>
                         </>
