@@ -55,7 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Some(sponsor_derivation_path),
         None,
     )?;
-    println!("Sponsor address: {sponsor:?}");
+    println!("Sponsor address: {}", sponsor);
 
     // Derive the address of the sender
     let sender = keystore.import_from_mnemonic(
@@ -64,7 +64,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Some(sender_derivation_path),
         None,
     )?;
-    println!("Sender address: {sender:?}");
+    println!("Sender address: {}", sender);
 
     // This object id was fetched manually. It refers to a Basic Output object that
     // contains some Native Tokens.

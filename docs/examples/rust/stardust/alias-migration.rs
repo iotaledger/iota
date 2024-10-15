@@ -42,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the first account and set it as default
     let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
 
-    println!("{sender:?}");
+    println!("Sender address: {}", sender);
 
     // Publish the package of a custom NFT collection and then get the package id.
     // The custom NFT module is obtained from a Move example in the docs.

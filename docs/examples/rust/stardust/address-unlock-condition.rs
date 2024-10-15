@@ -47,7 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // because we need an alias output that owns an Nft Output. In this case, we can
     // derive the address index "/2'" of the "/0'" account.
     let derivation_path = DerivationPath::from_str("m/44'/4218'/0'/0'/2'")?;
-    println!("{derivation_path:?}");
+    println!("Derivation path: {}", derivation_path);
 
     // Derive the address of the first account and set it as default
     let sender = keystore.import_from_mnemonic(
@@ -57,7 +57,7 @@ async fn main() -> Result<(), anyhow::Error> {
         None,
     )?;
 
-    println!("Sender address - {sender:?}");
+    println!("Sender address: {}", sender);
 
     fund_address(&iota_client, &mut keystore, sender).await?;
 
