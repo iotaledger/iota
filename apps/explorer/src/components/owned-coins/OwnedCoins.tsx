@@ -100,19 +100,28 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
             {
                 label: 'All',
                 counter: balances.allBalances.length,
-                onClick: () => setFilterValue(CoinFilter.All),
+                onClick: () => {
+                    setFilterValue(CoinFilter.All);
+                    setCurrentSlice(1);
+                },
             },
             {
                 label: `Recognized`,
                 counter: balances.recognizedBalances.length,
                 isDisabled: !balances.recognizedBalances.length,
-                onClick: () => setFilterValue(CoinFilter.Recognized),
+                onClick: () => {
+                    setFilterValue(CoinFilter.Recognized);
+                    setCurrentSlice(1);
+                },
             },
             {
                 label: `Unrecognized`,
                 counter: balances.unrecognizedBalances.length,
                 isDisabled: !balances.unrecognizedBalances.length,
-                onClick: () => setFilterValue(CoinFilter.Unrecognized),
+                onClick: () => {
+                    setFilterValue(CoinFilter.Unrecognized);
+                    setCurrentSlice(1);
+                },
             },
         ],
         [balances],
