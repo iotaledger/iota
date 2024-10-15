@@ -34,8 +34,8 @@ const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash
 
 #[sim_test]
 async fn test_full_node_load_migration_data() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let snapshot_source = SnapshotSource::Local(PathBuf::from_str(MIGRATION_DATA_PATH).unwrap());
-    // telemetry_subscribers::init_for_testing();
     let test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
         .build()
