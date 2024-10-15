@@ -1,0 +1,32 @@
+{
+    "questions": [
+      {
+        "questionText": "What is the primary purpose of an epoch in the IOTA network?",
+        "answerOptions": [
+          { "answerText": "To finalize all transactions instantly.", "isCorrect": false },
+          { "answerText": "To keep the validator set and stakes constant for a fixed period.", "isCorrect": true },
+          { "answerText": "To allow users to withdraw their tokens.", "isCorrect": false },
+          { "answerText": "To upgrade the protocol daily.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "When does reconfiguration occur in the IOTA network?",
+        "answerOptions": [
+          { "answerText": "At the beginning of each epoch.", "isCorrect": false },
+          { "answerText": "During validator downtime.", "isCorrect": false },
+          { "answerText": "At the end of each epoch.", "isCorrect": true },
+          { "answerText": "When a transaction expires.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What happens during the validator set change at the end of an epoch?",
+        "answerOptions": [
+          { "answerText": "Validators are chosen randomly.", "isCorrect": false },
+          { "answerText": "Stakers receive their rewards instantly.", "isCorrect": false },
+          { "answerText": "Pending staking and unstaking requests are finalized.", "isCorrect": true },
+          { "answerText": "The gas fee structure is modified.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  
