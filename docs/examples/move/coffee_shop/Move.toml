@@ -4,12 +4,12 @@ edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 # license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
-# [dependencies]
-# Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
-
 [dependencies]
-Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
-Stardust = { local = "../../../../crates/iota-framework/packages/stardust" }
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+
+# [dependencies]
+# Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+# Stardust = { local = "../../../../crates/iota-framework/packages/stardust" }
 
 # For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
 # Revision can be a branch, a tag, and a commit hash.
