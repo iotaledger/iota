@@ -4,6 +4,9 @@ description: Learn how to tokenize assets on the IOTA blockchain. Asset tokeniza
 ---
 import InitClient from '../../_snippets/initialize-iota-client-cli.mdx';
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/advanced-topics/asset-tokenization.json';
+
 Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network. This involves converting the ownership or rights of an asset into digital tokens, which are then recorded and managed on the blockchain.
 
 ## High-level Overview
@@ -659,7 +662,6 @@ public fun burn_with_ticket<T>(
 	self: TokenizedAsset<T>,
 	ticket: BurnTicket<T>)
 ```
-
 ## Deployment
 
 <InitClient />
@@ -1090,3 +1092,5 @@ In a terminal or console within the project's setup directory, utilize the follo
 - **Get Total Supply**
 
   By executing the command `npm run call get-total-supply`, you can retrieve the value representing the current circulating supply of the asset.
+
+<Quiz questions={questions} />
