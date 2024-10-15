@@ -12,6 +12,10 @@ methods exposed by the `iota-node` inner rpc services.
 
 ## How to run the tests
 
+Certain test cases rely on the test execution model, such as `nextest` or `simtest`, due to one test per process design. One example of this is the `get_all_coins_limit_zero_with_env_var` test case from the `CoinApi`.
+When running all `coin_api` tests using `cargo test`, failures may occur because the `QUERY_MAX_RESULT_LIMIT` is initialized upon first access (as a Singleton). This behavior complicates testing, as subsequent tests
+that rely on this data will be affected by the initial test's configuration. Moreover, some test cases may need different values for `QUERY_MAX_RESULT_LIMIT`, further complicating the testing process.
+
 ### Using `tokio`
 
 - `cargo nextest run -p iota-json-rpc-tests
@@ -31,12 +35,12 @@ instances.
 
 That is, expect for the `WriteApi` methods that serve requests relayed by `iota-indexer`
 
-### `CoinReadApi` (4/6)
+### `CoinReadApi` (6/6)
 
 - [x] `get_coins`
-- [ ] `get_all_coins`
+- [x] `get_all_coins`
 - [x] `get_balance`
-- [ ] `get_all_balances`
+- [x] `get_all_balances`
 - [x] `get_coin_metadata`
 - [x] `get_total_supply`
 
