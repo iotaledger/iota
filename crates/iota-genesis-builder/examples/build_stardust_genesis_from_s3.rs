@@ -16,9 +16,9 @@ struct Args {
     /// Remotely stored migration snapshots.
     #[clap(
         long,
-        name = "iota|smr|<full-url>",
+        name = "iota|<full-url>",
         help = "Remote migration snapshots.",
-        default_values_t = vec![SnapshotUrl::Iota, SnapshotUrl::Shimmer],
+        default_values_t = vec![SnapshotUrl::Iota],
     )]
     #[arg(num_args(0..))]
     migration_snapshots: Vec<SnapshotUrl>,
