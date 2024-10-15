@@ -146,6 +146,6 @@ fn network_config_snapshot_matches() {
     assert_yaml_snapshot!(network_config, {
         ".genesis" => "[fake genesis]",
         ".validator_configs[].genesis.genesis" => "[fake genesis]",
-        ".validator_configs[].*.location" => "[fake migration location]",
+        ".validator_configs[][\"migration-tx-data-path\"]" => "[fake migration path]",
     });
 }
