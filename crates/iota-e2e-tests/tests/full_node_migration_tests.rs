@@ -345,7 +345,7 @@ pub async fn fund_address(
     let signature = keystore.sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?;
 
     // Execute the transaction.
-    let transaction_response = iota_client
+    iota_client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![signature]),
