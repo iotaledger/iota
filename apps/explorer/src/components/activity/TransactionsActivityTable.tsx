@@ -12,8 +12,9 @@ import {
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
 import { numberSuffix } from '~/lib/utils';
-import { Select } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Select } from '@iota/apps-ui-kit';
 import { generateTransactionsTableColumns } from '~/lib/ui';
+import { Warning } from '@iota/ui-icons';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
@@ -53,9 +54,13 @@ export function TransactionsActivityTable({
     return (
         <div data-testid="tx">
             {isError && (
-                <div className="pt-2 font-sans font-semibold text-issue-dark">
-                    Failed to load Transactions
-                </div>
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Transactions"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
             )}
             <div className="flex flex-col space-y-3 text-left">
                 {isPending || isFetching || !data?.data ? (
