@@ -79,7 +79,7 @@ jobs:
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust
         run: pnpm --filter iota-explorer playwright test
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: playwright-report-explorer
@@ -97,7 +97,7 @@ jobs:
         if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: playwright-report-wallet

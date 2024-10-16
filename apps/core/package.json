@@ -3,7 +3,7 @@
     "main": "src/index.ts",
     "private": true,
     "sideEffects": false,
-    "author": "IOTA Foundation <contact@iota.org>",
+    "author": "IOTA Foundation <info@iota.org>",
     "repository": {
         "type": "git",
         "url": "github.com:iotaledger/iota.git"
