@@ -1564,7 +1564,8 @@ fn burn_staked_migration_objects(
         store.insert_object(object);
     }
 
-    // First operation: split timelock objects that needs it
+    // First operation: split the timelock objects that are needed to be split
+    // because of the genesis stake
     split_timelocks(
         &mut store,
         executor.as_ref(),
