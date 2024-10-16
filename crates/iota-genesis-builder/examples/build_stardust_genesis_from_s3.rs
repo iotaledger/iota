@@ -18,9 +18,7 @@ fn main() -> anyhow::Result<()> {
 
     // Start building
     info!("Building the genesis..");
-    let mut builder = Builder::new()
-        .add_migration_source(SnapshotUrl::Iota.into())
-        .add_migration_source(SnapshotUrl::Shimmer.into());
+    let mut builder = Builder::new().add_migration_source(SnapshotUrl::Iota.into());
 
     let mut key_pairs = Vec::new();
     let mut rng = OsRng;
