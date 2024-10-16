@@ -24,7 +24,7 @@ const PRIMITIVE_TYPES = ['u8', 'u16', 'u32', 'u64', 'u128', 'u256', 'bool', 'vec
 
 Mocha.suite('LSP', () => {
     Mocha.test('textDocument/documentSymbol', async () => {
-        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -45,7 +45,7 @@ Mocha.suite('LSP', () => {
 
         const syms: Array<lc.DocumentSymbol> | undefined = await
             vscode.commands.executeCommand(
-                'move-analyzer.textDocumentDocumentSymbol', params,
+                'iota-move.textDocumentDocumentSymbol', params,
             );
 
         assert.ok(syms);
@@ -69,7 +69,7 @@ Mocha.suite('LSP', () => {
     });
 
     Mocha.test('textDocument/hover for definition in the same module', async () => {
-        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -96,19 +96,19 @@ Mocha.suite('LSP', () => {
 
         const hoverResult: lc.Hover | undefined =
             await vscode.commands.executeCommand(
-                'move-analyzer.textDocumentHover',
+                'iota-move.textDocumentHover',
                 params,
             );
 
         assert.ok(hoverResult);
         assert.deepStrictEqual((hoverResult.contents as MarkupContent).value,
             // eslint-disable-next-line max-len
-            'fun Symbols::M2::other_doc_struct(): Symbols::M3::OtherDocStruct\n\n\nThis is a multiline docstring\n\nThis docstring has empty lines.\n\nIt uses the ** format instead of ///\n\n');
+            '```rust\nfun Symbols::M2::other_doc_struct(): Symbols::M3::OtherDocStruct\n```\n\nThis is a multiline docstring\n\nThis docstring has empty lines.\n\nIt uses the ** format instead of ///\n\n');
 
     });
 
     Mocha.test('textDocument/hover for definition in an external module', async () => {
-        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -135,18 +135,19 @@ Mocha.suite('LSP', () => {
 
         const hoverResult: lc.Hover | undefined =
             await vscode.commands.executeCommand(
-                'move-analyzer.textDocumentHover',
+                'iota-move.textDocumentHover',
                 params,
             );
 
 
         assert.ok(hoverResult);
         assert.deepStrictEqual((hoverResult.contents as MarkupContent).value,
-            'Symbols::M3::OtherDocStruct\n\nDocumented struct in another module\n');
+            // eslint-disable-next-line max-len
+            '```rust\nstruct Symbols::M3::OtherDocStruct has drop {\n\tsome_field: u64\n}\n```\nDocumented struct in another module\n');
     });
 
     Mocha.test('textDocument/completion', async () => {
-        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -172,7 +173,7 @@ Mocha.suite('LSP', () => {
         };
 
         const items = await vscode.commands.executeCommand<Array<vscode.CompletionItem>>(
-            'move-analyzer.textDocumentCompletion',
+            'iota-move.textDocumentCompletion',
             params,
         );
 
@@ -200,7 +201,7 @@ Mocha.suite('LSP', () => {
         };
 
         const itemsOnColon = await vscode.commands.executeCommand<Array<vscode.CompletionItem>>(
-            'move-analyzer.textDocumentCompletion',
+            'iota-move.textDocumentCompletion',
             colonParams,
         );
 

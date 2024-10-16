@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 
 Mocha.suite('ext', () => {
     Mocha.test('ext_exists', () => {
-        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
     });
 });

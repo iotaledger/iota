@@ -33,17 +33,17 @@
   "contributes": {
     "commands": [
       {
-        "command": "move.serverVersion",
+        "command": "iota-move.serverVersion",
         "title": "Show Server Version",
         "category": "Move"
       },
       {
-        "command": "move.build",
+        "command": "iota-move.build",
         "title": "Build a Move package",
         "category": "Move"
       },
       {
-        "command": "move.test",
+        "command": "iota-move.test",
         "title": "Test a Move package",
         "category": "Move"
       }
