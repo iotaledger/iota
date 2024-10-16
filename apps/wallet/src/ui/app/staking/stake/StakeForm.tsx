@@ -11,7 +11,7 @@ import {
     useFormatCoin,
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { useActiveAddress, useTransactionDryRun } from '../../hooks';
 import { type FormValues } from './StakingCard';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
@@ -27,7 +27,7 @@ export interface StakeFromProps {
 }
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
-    const { values } = useFormikContext<FormValues>();
+    const { values, setFieldValue } = useFormikContext<FormValues>();
     const activeAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
@@ -51,7 +51,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const stakeAllTransaction = useMemo(() => {
         return createStakeTransaction(coinBalance, validatorAddress);
-    }, [values.amount, validatorAddress, decimals]);
+    }, [coinBalance, validatorAddress, decimals]);
 
     const { data: stakeAllTransactionDryRun } = useTransactionDryRun(
         activeAddress ?? undefined,
@@ -60,8 +60,18 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
 
-    const [maxToken, symbol] = useFormatCoin(coinBalance - gasBudget, coinType, CoinFormat.FULL);
-    const isMaxValueSelected = values.amount === maxToken;
+    useEffect(() => {
+        setFieldValue('gasBudget', gasBudget);
+    }, [gasBudget]);
+
+    const maxTokenBalance = coinBalance - gasBudget;
+    const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
+    const isMaxValueSelected = values.amount === maxTokenFormatted;
+
+    const hasEnoughRemaingBalance =
+        maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
+    const shouldShowInsufficientRemainingFundsWarning =
+        maxTokenFormatted >= values.amount && !hasEnoughRemaingBalance;
 
     return (
         <Form
@@ -82,7 +92,9 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                             name="amount"
                             placeholder={`0 ${symbol}`}
                             value={values.amount}
-                            caption={coinBalance ? `~ ${maxToken} ${symbol} Available` : ''}
+                            caption={
+                                coinBalance ? `~ ${maxTokenFormatted} ${symbol} Available` : ''
+                            }
                             suffix={' ' + symbol}
                             prefix={isMaxValueSelected ? '~ ' : undefined}
                             errorMessage={values.amount && meta.error ? meta.error : undefined}
@@ -91,10 +103,10 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     );
                 }}
             </Field>
-            {isMaxValueSelected ? (
+            {shouldShowInsufficientRemainingFundsWarning ? (
                 <InfoBox
                     type={InfoBoxType.Error}
-                    supportingText="You have selected the maximum amount. This will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                    supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
                     style={InfoBoxStyle.Elevated}
                     icon={<Exclamation />}
                 />
