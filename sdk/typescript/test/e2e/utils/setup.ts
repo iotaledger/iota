@@ -326,11 +326,9 @@ export async function payIota(
             showEffects: true,
             showObjectChanges: true,
         },
+        requestType: 'WaitForLocalExecution',
     });
 
-    await client.waitForTransaction({
-        digest: txn.digest,
-    });
     expect(txn.effects?.status.status).toEqual('success');
     return txn;
 }

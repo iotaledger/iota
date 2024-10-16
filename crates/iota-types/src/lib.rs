@@ -84,7 +84,6 @@ pub mod quorum_driver_types;
 pub mod randomness_state;
 pub mod signature;
 pub mod signature_verification;
-pub mod smr_coin;
 pub mod stardust;
 pub mod storage;
 pub mod supported_protocol_versions;
