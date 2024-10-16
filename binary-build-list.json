@@ -14,7 +14,6 @@
         "stress",
         "iota-metric-checker",
         "iota-analytics-indexer",
-        "iota-security-watchdog",
-		"iotaop"
+        "iotaop"
 	]
 }
