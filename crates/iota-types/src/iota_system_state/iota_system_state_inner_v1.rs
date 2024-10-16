@@ -251,8 +251,8 @@ impl ValidatorMetadataV1 {
         Ok(VerifiedValidatorMetadataV1 {
             iota_address: self.iota_address,
             authority_pubkey,
-            network_pubkey: network_pubkey,
-            protocol_pubkey: protocol_pubkey,
+            network_pubkey,
+            protocol_pubkey,
             proof_of_possession_bytes: self.proof_of_possession_bytes.clone(),
             name: self.name.clone(),
             description: self.description.clone(),
