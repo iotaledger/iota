@@ -23,6 +23,7 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
+use tempfile::tempdir;
 use test_cluster::TestClusterBuilder;
 
 const MIGRATION_DATA_PATH: &str = "tests/migration/stardust_object_snapshot.bin";
@@ -59,7 +60,9 @@ async fn address_unlock_condition(
     iota_client: IotaClient,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     // Setup the temporary file based keystore
-    let mut keystore = setup_keystore()?;
+    let dir = tempdir()?;
+    let keystore_path = dir.path().join(PathBuf::from("iotatempdb"));
+    let mut keystore = FileBasedKeystore::new(&keystore_path)?;
 
     // For this example we need to derive an address that is not at index 0. This
     // because we need an alias output that owns an Nft Output. In this case, we can
@@ -283,22 +286,7 @@ async fn address_unlock_condition(
         )
         .await?;
 
-    // Finish and clean the temporary keystore file
-    fs::remove_file("iotatempdb")?;
-    fs::remove_file("iotatempdb.aliases")?;
-
     Ok(transaction_response)
-}
-
-/// Creates a temporary keystore.
-fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    let keystore_path = PathBuf::from("iotatempdb");
-    if !keystore_path.exists() {
-        let keystore = FileBasedKeystore::new(&keystore_path)?;
-        keystore.save()?;
-    }
-    // Read iota keystore
-    FileBasedKeystore::new(&keystore_path)
 }
 
 /// Utility function for funding an address using the transfer of a coin.
