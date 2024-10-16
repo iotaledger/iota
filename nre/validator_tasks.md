@@ -1,10 +1,11 @@
 ## Overview
 
-This document is focused on running the Iota Node software as a Validator.
+This document focuses on running the Iota Node software as a Validator.
 
 <div className="hidden-text">
 
 ## Contents
+
 - [Requirements](#requirements)
 - [Deployment](#deployment)
 - [Configuration](#configuration)
