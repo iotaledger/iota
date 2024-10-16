@@ -48,7 +48,9 @@ jobs:
           [
             self-hosted, # ubuntu-x86_64
             macos-latest, # macos-arm64
-            # windows-latest, # windows-x86_64
+            # windows-latest (windows-x86_64) is disabled because we need to add custom logic for authenticating
+            # git for private repositories during the build (needed for iota-msim)
+            # MrSquaare/ssh-setup-action@v3 does not support windows
           ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
