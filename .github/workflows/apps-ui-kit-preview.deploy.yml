@@ -25,10 +25,10 @@ jobs:
       pull-requests: write
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4
       - name: Install Nodejs
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # pin@v4
         with:
           node-version: "20"
           cache: "pnpm"
@@ -44,7 +44,7 @@ jobs:
         id: deploy_url
         run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
       - name: Comment on pull request
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # pin@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

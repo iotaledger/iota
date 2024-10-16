@@ -11,13 +11,13 @@ jobs:
     name: cutting a new execution layer
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       - name: Install cargo-hakari, and cache the binary
-        uses: baptiste0928/cargo-install@v3
+        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # pin@v3
         with:
           crate: cargo-hakari
           locked: true
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       - name: Make cut
         run: ./scripts/execution_layer.py cut for_ci_test
       - name: Check execution builds

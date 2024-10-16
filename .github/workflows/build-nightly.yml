@@ -53,7 +53,7 @@ jobs:
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # pin@v1
 
       - name: Install PostgreSQL library headers
         shell: bash
@@ -69,7 +69,7 @@ jobs:
           echo "os_type=${system_os}-${arch}" >> $GITHUB_ENV
 
       - name: Checking out ${{ env.iota_branch }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
         with:
           ref: ${{ env.iota_branch }}
 
@@ -79,7 +79,7 @@ jobs:
           [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --bin iota --bin iota-indexer --features indexer
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         with:
           name: ${{ env.artifact_name }}
           path: |

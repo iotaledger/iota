@@ -37,17 +37,17 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v4
-      - uses: bmwill/rust-cache@v1
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: bmwill/rust-cache@fb63fcd7a959767755b88b5af2f5cbf65fb8a127 # pin@v1
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+        uses: taiki-e/install-action@125e82eef6e60d2b0c20d4d1f4cf81db37f68bf3 # pin@cargo-llvm-cov
 
       - name: Install nextest
-        uses: taiki-e/install-action@nextest
+        uses: taiki-e/install-action@7e58f89e24a544d88f7a74c6eed8a3df3fd4c658 # pin@nextest
 
       - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # pin@master
         with:
           swap-size-gb: 256
 
@@ -58,7 +58,7 @@ jobs:
         run: IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --lcov --output-path lcov.info nextest
 
       - name: Upload report to Codecov for nextest
-        uses: codecov/codecov-action@e0b68c6749509c5f83f984dd99a76a1c1a231044 # pin v4.0.1
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # pin@v4
         with:
           files: lcov.info
 
@@ -68,7 +68,7 @@ jobs:
           ./scripts/simtest/codecov.sh
 
       - name: Upload report to Codecov for simtest
-        uses: codecov/codecov-action@e0b68c6749509c5f83f984dd99a76a1c1a231044 # pin v4.0.1
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # pin@v4
         with:
           files: lcov-simtest.info
 
@@ -79,10 +79,10 @@ jobs:
     if: always() # always notify
 
     steps:
-      - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # Pin v4.1.1
+      - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # pin@v3
 
       - name: Checkout iota repo develop branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
 
       - name: Get iota commit
         env:
@@ -127,7 +127,7 @@ jobs:
           echo "oncall_name=$(echo ${oncall_name})" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # pin@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -139,7 +139,7 @@ jobs:
           echo "slack_id=$(echo ${slack_id} | tr -d '"')" >> $GITHUB_ENV
 
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.24.0 # pin@v1.21.0
+        uses: slackapi/slack-github-action@936158bbe252e9a6062e793ea4609642c966e302 # pin@v1.21.0
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           IOTA_SHA: ${{ env.iota_sha }}

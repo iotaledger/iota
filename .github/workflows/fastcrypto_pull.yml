@@ -12,11 +12,10 @@ jobs:
     runs-on: self-hosted
     # Important settings as we don't want to open a PR when the update fails
     continue-on-error: false
-    strategy:
-      fail-fast: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      # Fork of 'Swatinem/rust-cache' which allows caching additional paths
+      - uses: bmwill/rust-cache@fb63fcd7a959767755b88b5af2f5cbf65fb8a127 # pin@v1
       - name: Install cargo-hakari, and cache the binary
         uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
         with:
@@ -26,7 +25,7 @@ jobs:
         run: |
           scripts/update_fastcrypto.sh
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f # pin@v5
         with:
           # TODO: change the token to something FC-specific?
           token: ${{ secrets.NW_AUTO_UPDATE }}
