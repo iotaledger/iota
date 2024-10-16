@@ -57,11 +57,9 @@ impl ApiTestSetup {
         GLOBAL_API_TEST_SETUP.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
-            let (cluster, store, client) =
-                runtime.block_on(start_test_cluster_with_read_write_indexer(
-                    None,
-                    Some("shared_test_indexer_db".to_string()),
-                ));
+            let (cluster, store, client) = runtime.block_on(
+                start_test_cluster_with_read_write_indexer(None, Some("shared_test_indexer_db")),
+            );
 
             Self {
                 runtime,
@@ -96,7 +94,7 @@ impl SimulacrumApiTestEnvDefinition {
             let sim = Arc::new((self.env_initializer)());
             let db_name = format!("simulacrum_env_db_{}", self.unique_env_name);
             let (_, store, _, client) = runtime.block_on(
-                start_simulacrum_rest_api_with_read_write_indexer(sim.clone(), Some(db_name)),
+                start_simulacrum_rest_api_with_read_write_indexer(sim.clone(), Some(&db_name)),
             );
 
             InitializedSimulacrumEnv {
@@ -113,7 +111,7 @@ impl SimulacrumApiTestEnvDefinition {
 /// `Write` indexer
 pub async fn start_test_cluster_with_read_write_indexer(
     stop_cluster_after_checkpoint_seq: Option<u64>,
-    database_name: Option<String>,
+    database_name: Option<&str>,
 ) -> (TestCluster, PgIndexerStore<PgConnection>, HttpClient) {
     let temp = tempdir().unwrap().into_path();
     let mut builder = TestClusterBuilder::new().with_data_ingestion_dir(temp.clone());
@@ -133,7 +131,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         cluster.rpc_url().to_string(),
         ReaderWriterConfig::writer_mode(None),
         temp.clone(),
-        database_name.clone(),
+        database_name,
     )
     .await;
 
@@ -148,7 +146,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
     (cluster, pg_store, rpc_client)
 }
 
-fn get_indexer_db_url(database_name: Option<String>) -> String {
+fn get_indexer_db_url(database_name: Option<&str>) -> String {
     database_name.map_or_else(
         || format!("{POSTGRES_URL}/{DEFAULT_DB}"),
         |db_name| format!("{POSTGRES_URL}/{db_name}"),
@@ -242,7 +240,7 @@ pub async fn indexer_wait_for_transaction(
 }
 
 /// Start an Indexer instance in `Read` mode
-fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path: PathBuf, database_name: Option<String>) -> u16 {
+fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path: PathBuf, database_name: Option<&str>) -> u16 {
     let db_url = get_indexer_db_url(database_name);
     let port = get_available_port(DEFAULT_INDEXER_IP);
     let config = IndexerConfig {
@@ -287,7 +285,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
     server_url: Option<SocketAddr>,
-    database_name: Option<String>,
+    database_name: Option<&str>,
 ) -> (
     JoinHandle<()>,
     PgIndexerStore<PgConnection>,
@@ -314,7 +312,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
 pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
-    database_name: Option<String>,
+    database_name: Option<&str>,
 ) -> (
     JoinHandle<()>,
     PgIndexerStore<PgConnection>,
@@ -326,7 +324,7 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
         sim,
         data_ingestion_path.clone()
         Some(simulacrum_server_url),
-        database_name.clone(),
+        database_name,
     )
     .await;
 

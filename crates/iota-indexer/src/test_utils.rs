@@ -45,7 +45,7 @@ pub async fn start_test_indexer<T: R2D2Connection + Send + 'static>(
     rpc_url: String,
     reader_writer_config: ReaderWriterConfig,
     data_ingestion_path: PathBuf,
-    new_database: Option<String>,
+    new_database: Option<&str>,
 ) -> (PgIndexerStore<T>, JoinHandle<Result<(), IndexerError>>) {
     start_test_indexer_impl(
         db_url,
@@ -67,6 +67,7 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
     db_url: Option<String>,
     rpc_url: String,
     reader_writer_config: ReaderWriterConfig,
+    new_database: Option<&str>,
     reset_database: bool,
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
@@ -139,6 +140,7 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
 pub fn create_pg_store<T: R2D2Connection + Send + 'static>(
     db_url: Secret<String>,
     reset_database: bool,
+    new_database: Option<&str>
 ) -> PgIndexerStore<T> {
     // Reduce the connection pool size to 10 for testing
     // to prevent maxing out
