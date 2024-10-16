@@ -2,14 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    net::{SocketAddr, TcpListener},
+    net::{SocketAddr},
     path::PathBuf,
     sync::{Arc, OnceLock},
     time::Duration,
 };
 
 use diesel::PgConnection;
-use iota_config::node::RunWithRange;
+use iota_config::{
+    local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing},
+    node::RunWithRange,
+};
 use iota_indexer::{
     IndexerConfig,
     errors::IndexerError,
@@ -230,15 +233,6 @@ pub async fn indexer_wait_for_transaction(
     .expect("Timeout waiting for indexer to catchup to given transaction");
 }
 
-fn get_available_port() -> u16 {
-    // Let the OS assign some available port, read it, and then make it available
-    // again.
-    // This results in a race condition, some other app can use this port in a short
-    // time window between this function call and a place where we use it
-    let tl = TcpListener::bind(("127.0.0.1", 0)).unwrap();
-    tl.local_addr().unwrap().port()
-}
-
 fn replace_db_name(db_url: &str, new_db_name: &str) -> String {
     let pos = db_url.rfind('/').expect("Unable to find / in db_url");
     format!("{}/{}", &db_url[..pos], new_db_name)
@@ -251,7 +245,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path
         None => DEFAULT_DB_URL.to_owned(),
     };
 
-    let port = get_available_port();
+    let port = get_available_port(DEFAULT_INDEXER_IP);
     let config = IndexerConfig {
         db_url: Some(db_url.clone()),
         rpc_client_url: fullnode_rpc_url.into(),
@@ -288,11 +282,6 @@ pub fn rpc_call_error_msg_matches<T>(
     })
 }
 
-pub fn get_available_fullnode_rpc_api_addr() -> SocketAddr {
-    let port = get_available_port();
-    format!("127.0.0.1:{}", port).parse().unwrap()
-}
-
 /// Set up a test indexer fetching from a REST endpoint served by the given
 /// Simulacrum.
 pub async fn start_simulacrum_rest_api_with_write_indexer(
@@ -305,7 +294,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     PgIndexerStore<PgConnection>,
     JoinHandle<Result<(), IndexerError>>,
 ) {
-    let server_url = server_url.unwrap_or_else(get_available_fullnode_rpc_api_addr);
+    let server_url = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
     let server_handle = tokio::spawn(async move {
         iota_rest_api::RestService::new_without_version(sim)
             .start_service(server_url)
@@ -333,7 +322,7 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     JoinHandle<Result<(), IndexerError>>,
     HttpClient,
 ) {
-    let server_url = get_available_fullnode_rpc_api_addr();
+    let server_url = new_local_tcp_socket_for_testing();
     let (server_handle, pg_store, pg_handle) =
         start_simulacrum_rest_api_with_write_indexer(sim, data_ingestion_path.clone(), Some(server_url), database_name.clone())
             .await;
