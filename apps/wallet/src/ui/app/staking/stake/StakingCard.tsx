@@ -316,6 +316,12 @@ function StakingCard() {
                                     }
                                     iconAfterText
                                     text={unstake ? 'Unstake' : 'Stake'}
+                                    icon={
+                                        isSubmitting ? (
+                                            <Loader className="animate-spin" />
+                                        ) : undefined
+                                    }
+                                    iconAfterText
                                 />
                             </div>
                         </>

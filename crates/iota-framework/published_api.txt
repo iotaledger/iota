@@ -3145,15 +3145,6 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
-SMR
-	public struct
-	0x2::smr
-init
-	fun
-	0x2::smr
-transfer
-	public entry fun
-	0x2::smr
 TableVec
 	public struct
 	0x2::table_vec

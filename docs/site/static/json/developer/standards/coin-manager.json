@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the primary advantage of splitting management functionality into `CoinManagerTreasuryCap` and `CoinManagerMetadataCap` within the `CoinManager`?",
+        "answerOptions": [
+            { "answerText": "It allows different entities to independently manage supply adjustments and metadata", "isCorrect": true },
+            { "answerText": "It optimizes gas consumption for supply and metadata management", "isCorrect": false },
+            { "answerText": "It prevents the metadata and supply from ever becoming immutable", "isCorrect": false },
+            { "answerText": "It automatically freezes supply and metadata after the coin is created", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "When migrating an existing `Coin` to a `CoinManager`, what restriction exists if the metadata is already frozen?",
+        "answerOptions": [
+            { "answerText": "The `CoinManager` must have immutable metadata from the start, and no `CoinManagerMetadataCap` will be received", "isCorrect": true },
+            { "answerText": "The `CoinManager` cannot manage the coin and the `TreasuryCap` will remain the sole authority", "isCorrect": false },
+            { "answerText": "The supply will automatically become immutable as well", "isCorrect": false },
+            { "answerText": "The `CoinManager` must reject the migration due to frozen metadata", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How does the `CoinManager` enhance transparency for end-users regarding the total supply of a coin?",
+        "answerOptions": [
+            { "answerText": "It allows anyone on-chain to query the total supply, maximum supply, and metadata", "isCorrect": true },
+            { "answerText": "It grants end-users the ability to directly adjust the supply limits", "isCorrect": false },
+            { "answerText": "It removes the need for a `TreasuryCap` to manage supply", "isCorrect": false },
+            { "answerText": "It lets users query the metadata and supply without the need for any cap", "isCorrect": false }
+        ]
+    }
+]

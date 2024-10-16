@@ -91,6 +91,7 @@ members = [
   "crates/iota-framework-snapshot",
   "crates/iota-framework-tests",
   "crates/iota-genesis-builder",
+  "crates/iota-genesis-common",
   "crates/iota-graphql-config",
   "crates/iota-graphql-e2e-tests",
   "crates/iota-graphql-rpc",
@@ -166,16 +167,8 @@ members = [
   "iota-execution/v0/iota-adapter",
   "iota-execution/v0/iota-move-natives",
   "iota-execution/v0/iota-verifier",
-  "narwhal/config",
-  "narwhal/crypto",
-  "narwhal/executor",
   "narwhal/network",
-  "narwhal/node",
-  "narwhal/primary",
-  "narwhal/storage",
-  "narwhal/test-utils",
   "narwhal/types",
-  "narwhal/worker",
 ]
 
 [workspace.package]
@@ -508,6 +501,7 @@ iota-framework = { path = "crates/iota-framework" }
 iota-framework-snapshot = { path = "crates/iota-framework-snapshot" }
 iota-framework-tests = { path = "crates/iota-framework-tests" }
 iota-genesis-builder = { path = "crates/iota-genesis-builder" }
+iota-genesis-common = { path = "crates/iota-genesis-common" }
 iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
@@ -573,16 +567,8 @@ typed-store-error = { path = "crates/typed-store-error" }
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
 
-narwhal-config = { path = "narwhal/config" }
-narwhal-crypto = { path = "narwhal/crypto" }
-narwhal-executor = { path = "narwhal/executor" }
 narwhal-network = { path = "narwhal/network" }
-narwhal-node = { path = "narwhal/node" }
-narwhal-primary = { path = "narwhal/primary" }
-narwhal-storage = { path = "narwhal/storage" }
-narwhal-test-utils = { path = "narwhal/test-utils" }
 narwhal-types = { path = "narwhal/types" }
-narwhal-worker = { path = "narwhal/worker" }
 
 iota-execution = { path = "iota-execution" }
 
