@@ -62,6 +62,8 @@ iota-framework-tests:
   - "crates/iota-framework-tests/**"
 iota-genesis-builder:
   - "crates/iota-genesis-builder/**"
+iota-genesis-common:
+  - "crates/iota-genesis-common/**"
 iota-graphql-e2e-tests:
   - "crates/iota-graphql-e2e-tests/**"
 iota-graphql-rpc:
