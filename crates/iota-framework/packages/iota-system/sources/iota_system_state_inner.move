@@ -716,15 +716,15 @@ module iota_system::iota_system_state_inner {
         candidate.update_candidate_authority_pubkey(authority_pubkey, proof_of_possession);
     }
 
-    /// Update a validator's public key of worker key.
+    /// Update a validator's public key of protocol key.
     /// The change will only take effects starting from the next epoch.
-    public(package) fun update_validator_next_epoch_worker_pubkey(
+    public(package) fun update_validator_next_epoch_protocol_pubkey(
         self: &mut IotaSystemStateInnerV2,
-        worker_pubkey: vector<u8>,
+        protocol_pubkey: vector<u8>,
         ctx: &TxContext,
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
-        validator.update_next_epoch_worker_pubkey(worker_pubkey);
+        validator.update_next_epoch_protocol_pubkey(protocol_pubkey);
         let validator :&Validator = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
@@ -1067,7 +1067,7 @@ module iota_system::iota_system_state_inner {
         self: &mut IotaSystemStateInnerV2,
         pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -1084,7 +1084,7 @@ module iota_system::iota_system_state_inner {
             ctx.sender(),
             pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name,
             description,

@@ -419,7 +419,7 @@ module iota_system::iota_system_tests {
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey: vector<u8>,
-        worker_pubkey: vector<u8>,
+        protocol_pubkey: vector<u8>,
     ) {
         let ctx = scenario.ctx();
         system_state.update_validator_name(name, ctx);
@@ -435,7 +435,7 @@ module iota_system::iota_system_tests {
             ctx
         );
         system_state.update_validator_next_epoch_network_pubkey(network_pubkey, ctx);
-        system_state.update_validator_next_epoch_worker_pubkey(worker_pubkey, ctx);
+        system_state.update_validator_next_epoch_protocol_pubkey(protocol_pubkey, ctx);
     }
 
     fun verify_metadata(
@@ -452,7 +452,7 @@ module iota_system::iota_system_tests {
         new_network_address: vector<u8>,
         new_p2p_address: vector<u8>,
         new_network_pubkey: vector<u8>,
-        new_worker_pubkey: vector<u8>,
+        new_protocol_pubkey: vector<u8>,
     ) {
         // Current epoch
         verify_current_epoch_metadata(
@@ -480,7 +480,7 @@ module iota_system::iota_system_tests {
             0
         );
         assert!(
-            validator.next_epoch_worker_pubkey_bytes() == &option::some(new_worker_pubkey),
+            validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pubkey),
             0
         );
         assert!(
@@ -544,7 +544,7 @@ module iota_system::iota_system_tests {
         assert!(validator.next_epoch_primary_address().is_none());
         assert!(validator.next_epoch_authority_pubkey_bytes().is_none());
         assert!(validator.next_epoch_proof_of_possession().is_none());
-        assert!(validator.next_epoch_worker_pubkey_bytes().is_none());
+        assert!(validator.next_epoch_protocol_pubkey_bytes().is_none());
         assert!(validator.next_epoch_network_pubkey_bytes().is_none());
     }
 
