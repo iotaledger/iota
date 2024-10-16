@@ -1321,7 +1321,6 @@
                 "include_consensus_digest_in_prologue": true,
                 "loaded_child_object_format": true,
                 "loaded_child_object_format_type": true,
-                "loaded_child_objects_fixed": true,
                 "missing_type_is_compatibility_error": true,
                 "mysticeti_leader_scoring_and_schedule": true,
                 "mysticeti_use_committed_subdag_digest": true,

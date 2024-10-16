@@ -117,10 +117,6 @@ struct FeatureFlags {
     // Pass epoch start time to advance_epoch safe mode function.
     #[serde(skip_serializing_if = "is_false")]
     advance_epoch_start_time_in_safe_mode: bool,
-    // If true, apply the fix to correctly capturing loaded child object versions in execution's
-    // object runtime.
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_objects_fixed: bool,
     // If true, treat missing types in the upgraded modules when creating an upgraded package as a
     // compatibility error.
     #[serde(skip_serializing_if = "is_false")]
@@ -1124,10 +1120,6 @@ impl ProtocolConfig {
         self.feature_flags.advance_epoch_start_time_in_safe_mode
     }
 
-    pub fn loaded_child_objects_fixed(&self) -> bool {
-        self.feature_flags.loaded_child_objects_fixed
-    }
-
     pub fn missing_type_is_compatibility_error(&self) -> bool {
         self.feature_flags.missing_type_is_compatibility_error
     }
@@ -1963,7 +1955,6 @@ impl ProtocolConfig {
         // removed:
         cfg.feature_flags
             .disallow_change_struct_type_params_on_upgrade = true;
-        cfg.feature_flags.loaded_child_objects_fixed = true;
         cfg.feature_flags.ban_entry_init = true;
 
         // Enable consensus digest in consensus commit prologue on all networks..
