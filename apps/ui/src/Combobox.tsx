@@ -14,9 +14,7 @@ import {
     type ReactNode,
     type RefObject,
 } from 'react';
-
 import { useOnClickOutside } from './hooks/useOnClickOutside';
-import { LoadingIndicator } from './LoadingIndicator';
 import { Text } from './Text';
 
 export type ComboboxItem = {
@@ -115,9 +113,7 @@ export function ComboboxList<T extends ComboboxItem = ComboboxItem>({
 
             {isLoading ? (
                 <Command.Loading>
-                    <div className="flex items-center justify-center">
-                        <LoadingIndicator />
-                    </div>
+                    <div className="flex items-center justify-center"></div>
                 </Command.Loading>
             ) : options.length > 0 ? (
                 options.map((item) => (

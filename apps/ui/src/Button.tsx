@@ -6,8 +6,6 @@ import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ButtonHTMLAttributes, forwardRef, type ReactNode } from 'react';
 
-import { LoadingIndicator } from './LoadingIndicator';
-
 const buttonStyles = cva(['inline-flex flex-nowrap items-center justify-center gap-2 relative'], {
     variants: {
         variant: {
@@ -59,11 +57,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                     children
                 ) : (
                     <>
-                        {loading && (
-                            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                                <LoadingIndicator />
-                            </div>
-                        )}
                         {before}
                         {children}
                         {after}
