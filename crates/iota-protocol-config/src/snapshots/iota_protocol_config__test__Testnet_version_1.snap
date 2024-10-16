@@ -19,7 +19,6 @@ feature_flags:
   simplified_unwrap_then_delete: true
   txn_base_cost_as_multiplier: true
   shared_object_deletion: true
-  narwhal_new_leader_election_schedule: true
   loaded_child_object_format: true
   end_of_epoch_transaction_supported: true
   simple_conservation_checks: true

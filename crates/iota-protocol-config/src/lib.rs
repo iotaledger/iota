@@ -174,10 +174,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     shared_object_deletion: bool,
 
-    // If true, then the new algorithm for the leader election schedule will be used
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_new_leader_election_schedule: bool,
-
     // A list of supported OIDC providers that can be used for zklogin.
     #[serde(skip_serializing_if = "is_empty")]
     zklogin_supported_providers: BTreeSet<String>,
@@ -1216,10 +1212,6 @@ impl ProtocolConfig {
         self.feature_flags.shared_object_deletion
     }
 
-    pub fn narwhal_new_leader_election_schedule(&self) -> bool {
-        self.feature_flags.narwhal_new_leader_election_schedule
-    }
-
     pub fn loaded_child_object_format(&self) -> bool {
         self.feature_flags.loaded_child_object_format
     }
@@ -1970,7 +1962,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.simplified_unwrap_then_delete = true;
         cfg.feature_flags.txn_base_cost_as_multiplier = true;
-        cfg.feature_flags.narwhal_new_leader_election_schedule = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
         cfg.feature_flags.simple_conservation_checks = true;
@@ -2202,11 +2193,7 @@ impl ProtocolConfig {
     pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
         self.feature_flags.reshare_at_same_initial_version = val;
     }
-
-    pub fn set_narwhal_new_leader_election_schedule_for_testing(&mut self, val: bool) {
-        self.feature_flags.narwhal_new_leader_election_schedule = val;
-    }
-
+    
     pub fn set_receive_object_for_testing(&mut self, val: bool) {
         self.feature_flags.receive_objects = val
     }
