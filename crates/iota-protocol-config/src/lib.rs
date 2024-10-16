@@ -110,8 +110,6 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
-    #[serde(skip_serializing_if = "is_false")]
-    package_upgrades: bool,
     // If true, validators will commit to the root state digest
     // in end of epoch checkpoint proposals
     #[serde(skip_serializing_if = "is_false")]
@@ -1114,23 +1112,8 @@ impl ProtocolConfig {
     //     }
     // }
 
-    pub fn check_package_upgrades_supported(&self) -> Result<(), Error> {
-        if self.feature_flags.package_upgrades {
-            Ok(())
-        } else {
-            Err(Error(format!(
-                "package upgrades are not supported at {:?}",
-                self.version
-            )))
-        }
-    }
-
     pub fn allow_receiving_object_id(&self) -> bool {
         self.feature_flags.allow_receiving_object_id
-    }
-
-    pub fn package_upgrades_supported(&self) -> bool {
-        self.feature_flags.package_upgrades
     }
 
     pub fn check_commit_root_state_digest_supported(&self) -> bool {
@@ -1978,7 +1961,6 @@ impl ProtocolConfig {
         // Following flags are implied by the execution version.
         // Once support for earlier protocol versions is dropped, these flags can be
         // removed:
-        cfg.feature_flags.package_upgrades = true;
         cfg.feature_flags
             .disallow_change_struct_type_params_on_upgrade = true;
         cfg.feature_flags.loaded_child_objects_fixed = true;
