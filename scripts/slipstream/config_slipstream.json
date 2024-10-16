@@ -118,15 +118,15 @@
         "patterns": [
             {
                 "regex": "authors = \\[\"Mysten Labs <build@mystenlabs\\.com>\"\\]",
-                "replacement": "authors = [\"IOTA Foundation <contact@iota.org>\"]"
+                "replacement": "authors = [\"IOTA Foundation <info@iota.org>\"]"
             },
             {
                 "regex": "authors = \\[\"Mysten Labs <eng@mystenlabs\\.com>\"\\]",
-                "replacement": "authors = [\"IOTA Foundation <contact@iota.org>\"]"
+                "replacement": "authors = [\"IOTA Foundation <info@iota.org>\"]"
             },
             {
                 "regex": "\"author\": \"Mysten Labs <build@mystenlabs\\.com>\"",
-                "replacement": "\"author\": \"IOTA Foundation <contact@iota.org>\""
+                "replacement": "\"author\": \"IOTA Foundation <info@iota.org>\""
             },
             {
                 "regex": "(?<!# Modifications Copyright \\(c\\) 2024 IOTA Stiftung\\s)(?<!# Copyright \\(c\\) 2024 IOTA Stiftung\\s)(^# SPDX-License-Identifier: Apache-2\\.0)",

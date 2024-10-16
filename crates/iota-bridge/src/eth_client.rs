@@ -294,6 +294,7 @@ mod tests {
     use crate::test_utils::{get_test_log_and_action, mock_last_finalized_block};
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_get_finalized_bridge_action_maybe() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
@@ -368,6 +369,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_get_finalized_bridge_action_maybe_unrecognized_contract() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();

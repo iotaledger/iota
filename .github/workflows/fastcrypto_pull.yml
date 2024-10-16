@@ -21,7 +21,7 @@ jobs:
         with:
           crate: cargo-hakari
           locked: true
-      - name: Update the Narwhal pointer
+      - name: Update the fastcrypto pointer
         run: |
           scripts/update_fastcrypto.sh
       - name: Create Pull Request

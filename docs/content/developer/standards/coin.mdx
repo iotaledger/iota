@@ -4,6 +4,9 @@ description: The IOTA Coin standard enables you to create a broad range of fungi
 sidebar_label: Coin
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/coin.json';
+
 The Coin standard is the technical standard used for smart contracts on IOTA for creating coins on the IOTA blockchain. The standardization of coin creation on IOTA means that wallets, exchanges, and other smart contracts can manage coins created on IOTA the same as they manage IOTA, without any additional processing logic. 
 
 See [IOTA Tokenomics](../../about-iota/tokenomics/tokenomics.mdx) to learn more about the IOTA native coin and its use on the IOTA network.
@@ -271,3 +274,4 @@ Check out the following content for more information about coins and tokens on I
 - [`token` module documentation](../../references/framework/iota-framework/token.mdx): Automated documentation output for the IOTA framework `token` module.
 - [Tokenomics](../../about-iota/tokenomics/tokenomics.mdx): Discover the IOTA ecosystem and where IOTA coins fit within it.
 
+<Quiz questions={questions} />
