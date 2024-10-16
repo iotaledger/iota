@@ -1297,7 +1297,6 @@
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": true,
-                "advance_epoch_start_time_in_safe_mode": true,
                 "advance_to_highest_supported_protocol_version": true,
                 "allow_receiving_object_id": true,
                 "authority_capabilities_v2": true,

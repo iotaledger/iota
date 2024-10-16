@@ -47,8 +47,7 @@ mod checked {
         id::UID,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
-            ADVANCE_EPOCH_FUNCTION_NAME, ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME, AdvanceEpochParams,
-            IOTA_SYSTEM_MODULE_NAME,
+            ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams, IOTA_SYSTEM_MODULE_NAME,
         },
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
@@ -891,58 +890,6 @@ mod checked {
         Ok(builder.finish())
     }
 
-    /// Constructs a `ProgrammableTransaction` to advance the epoch in safe
-    /// mode.
-    pub fn construct_advance_epoch_safe_mode_pt(
-        params: &AdvanceEpochParams,
-        protocol_config: &ProtocolConfig,
-    ) -> Result<ProgrammableTransaction, ExecutionError> {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        // Step 1: Create storage charges and computation rewards.
-        let (storage_charges, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
-
-        // Step 2: Advance the epoch.
-        let mut arguments = vec![storage_charges, computation_rewards];
-
-        let mut args = vec![
-            CallArg::IOTA_SYSTEM_MUT,
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
-        ];
-
-        if protocol_config.get_advance_epoch_start_time_in_safe_mode() {
-            args.push(CallArg::Pure(
-                bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap(),
-            ));
-        }
-
-        let call_arg_arguments = args
-            .into_iter()
-            .map(|a| builder.input(a))
-            .collect::<Result<_, _>>();
-
-        assert_invariant!(
-            call_arg_arguments.is_ok(),
-            "Unable to generate args for advance_epoch transaction!"
-        );
-
-        arguments.append(&mut call_arg_arguments.unwrap());
-
-        info!("Call arguments to advance_epoch transaction: {:?}", params);
-
-        builder.programmable_move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME.to_owned(),
-            vec![],
-            arguments,
-        );
-
-        Ok(builder.finish())
-    }
-
     /// Advances the epoch by constructing a `ProgrammableTransaction` with
     /// `construct_advance_epoch_pt` and executing it.
     /// If the transaction fails, it switches to safe mode and retries the
@@ -996,22 +943,7 @@ mod checked {
             // Must reset the storage rebate since we are re-executing.
             gas_charger.reset_storage_cost_and_rebate();
 
-            if protocol_config.get_advance_epoch_start_time_in_safe_mode() {
-                temporary_store.advance_epoch_safe_mode(&params, protocol_config);
-            } else {
-                let advance_epoch_safe_mode_pt =
-                    construct_advance_epoch_safe_mode_pt(&params, protocol_config)?;
-                programmable_transactions::execution::execute::<execution_mode::System>(
-                    protocol_config,
-                    metrics.clone(),
-                    move_vm,
-                    temporary_store,
-                    tx_ctx,
-                    gas_charger,
-                    advance_epoch_safe_mode_pt,
-                )
-                .expect("Advance epoch with safe mode must succeed");
-            }
+            temporary_store.advance_epoch_safe_mode(&params, protocol_config);
         }
 
         if protocol_config.fresh_vm_on_framework_upgrade() {
