@@ -372,16 +372,13 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             address: iota_address.into(),
             authority_public_key: iota_sdk2::types::Bls12381PublicKey::from_bytes(
                 authority_pubkey_bytes,
-            )
-                .unwrap(),
+            ).unwrap(),
             network_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(
                 authority_network_pubkey_bytes,
-            )
-                .unwrap(),
+            ).unwrap(),
             protocol_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(
                 authority_protocol_pubkey_bytes
-            )
-                .unwrap(),
+            ).unwrap(),
             proof_of_possession_bytes,
             name,
             description,

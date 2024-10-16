@@ -197,8 +197,8 @@ pub struct GenesisValidatorMetadata {
     pub authority_public_key: Vec<u8>, // AuthorityPublicKeyBytes,
     pub proof_of_possession: Vec<u8>,  // AuthoritySignature,
 
-    pub network_public_key: Vec<u8>,   // NetworkPublicKey,
-    pub protocol_public_key: Vec<u8>,  // NetworkPublicKey,
+    pub network_public_key: Vec<u8>,  // NetworkPublicKey,
+    pub protocol_public_key: Vec<u8>, // NetworkPublicKey,
 
     pub network_address: Multiaddr,
     pub p2p_address: Multiaddr,

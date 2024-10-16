@@ -224,7 +224,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 pop,
             );
             builder.save(dir)?;
-            println!("Successfully added validator", );
+            println!("Successfully added validator");
         }
 
         CeremonyCommand::ListValidators => {
@@ -439,7 +439,7 @@ mod test {
             protocol_key_file,
             network_key_file,
             account_key_file,
-            validator
+            validator,
         ) in &validators
         {
             let command = Ceremony {
