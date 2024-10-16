@@ -24,7 +24,7 @@ const PRIMITIVE_TYPES = ['u8', 'u16', 'u32', 'u64', 'u128', 'u256', 'bool', 'vec
 
 Mocha.suite('LSP', () => {
     Mocha.test('textDocument/documentSymbol', async () => {
-        const ext = vscode.extensions.getExtension('move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -69,7 +69,7 @@ Mocha.suite('LSP', () => {
     });
 
     Mocha.test('textDocument/hover for definition in the same module', async () => {
-        const ext = vscode.extensions.getExtension('move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -108,7 +108,7 @@ Mocha.suite('LSP', () => {
     });
 
     Mocha.test('textDocument/hover for definition in an external module', async () => {
-        const ext = vscode.extensions.getExtension('move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -146,7 +146,7 @@ Mocha.suite('LSP', () => {
     });
 
     Mocha.test('textDocument/completion', async () => {
-        const ext = vscode.extensions.getExtension('move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-move.move-analyzer');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
