@@ -3,7 +3,7 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_execution::{self};
+use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_types::{
     digests::ChainIdentifier,
@@ -16,6 +16,7 @@ use iota_types::{
     object::Object,
     transaction::{CheckedInputObjects, Transaction, TransactionDataAPI, TransactionKind},
 };
+use prometheus::Registry;
 
 /// Gets a `ProtocolConfig` for genesis based on a `ProtocolVersion`.
 pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
@@ -37,7 +38,7 @@ pub fn prepare_and_execute_genesis_transaction(
     protocol_version: ProtocolVersion,
     genesis_transaction: &Transaction,
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
-    let registry = prometheus::Registry::new();
+    let registry = Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let epoch_data = EpochData::new_genesis(chain_start_timestamp_ms);
     let protocol_config = get_genesis_protocol_config(protocol_version);
@@ -67,8 +68,8 @@ pub fn execute_genesis_transaction(
     // execute txn to effects
     let silent = true;
 
-    let executor = iota_execution::executor(protocol_config, silent, None)
-        .expect("Creating an executor should not fail here");
+    let executor =
+        executor(protocol_config, silent, None).expect("Creating an executor should not fail here");
 
     let expensive_checks = false;
     let certificate_deny_set = HashSet::new();

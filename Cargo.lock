@@ -6615,38 +6615,10 @@ dependencies = [
 name = "iota-genesis-common"
 version = "0.0.0"
 dependencies = [
- "anyhow",
- "bcs",
- "clap",
- "fastcrypto",
- "flate2",
- "iota-adapter-v0",
  "iota-execution",
- "iota-move-natives-v0",
  "iota-protocol-config",
- "iota-sdk 1.1.5",
  "iota-types",
- "itertools 0.13.0",
- "move-binary-format",
- "move-compiler",
- "move-core-types",
- "move-vm-runtime-v0",
- "packable",
- "prefix-hex",
  "prometheus",
- "rand 0.8.5",
- "regex",
- "reqwest 0.12.7",
- "schemars",
- "serde",
- "serde_json",
- "serde_with",
- "serde_yaml",
- "shared-crypto",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
 ]
 
 [[package]]

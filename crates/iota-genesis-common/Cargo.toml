@@ -10,36 +10,8 @@ publish = false
 workspace = true
 
 [dependencies]
-anyhow.workspace = true
-bcs.workspace = true
-clap.workspace = true
-fastcrypto.workspace = true
-flate2.workspace = true
-iota-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"] }
-itertools.workspace = true
-packable = { version = "0.8", default-features = false, features = ["io"] }
-prefix-hex = "0.7"
 prometheus.workspace = true
-rand = { workspace = true, features = ["std_rng"] }
-regex.workspace = true
-reqwest.workspace = true
-schemars.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-serde_with.workspace = true
-serde_yaml.workspace = true
-shared-crypto.workspace = true
-tempfile.workspace = true
-thiserror.workspace = true
-tokio.workspace = true
-tracing.workspace = true
 
-iota-adapter-v0 = { path = "../../iota-execution/v0/iota-adapter/" }
 iota-execution.workspace = true
-iota-move-natives-v0 = { path = "../../iota-execution/v0/iota-move-natives" }
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-move-binary-format.workspace = true
-move-compiler.workspace = true
-move-core-types.workspace = true
-move-vm-runtime-v0 = { path = "../../external-crates/move/move-execution/v0/crates/move-vm-runtime" }

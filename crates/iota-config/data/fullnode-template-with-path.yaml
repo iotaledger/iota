@@ -12,8 +12,8 @@ genesis:
   # Update this to the location of where the genesis file is stored
   genesis-file-location: "genesis.blob"
 
-migration-tx-data:
-  location: "/opt/iota/config/migration.blob"
+# Update this to the location of where the migration file is stored
+migration-tx-data-path: "migration.blob"
 
 authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3

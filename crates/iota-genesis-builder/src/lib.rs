@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::BTreeMap,
     fs::{self, File},
     io::{BufReader, BufWriter, prelude::Read},
     path::{Path, PathBuf},
@@ -1314,7 +1314,10 @@ pub(crate) fn process_package(
     // yet to be published.
     #[cfg(debug_assertions)]
     {
+        use std::collections::HashSet;
+
         use move_core_types::account_address::AccountAddress;
+
         let to_be_published_addresses: HashSet<_> = modules
             .iter()
             .map(|module| *module.self_id().address())
