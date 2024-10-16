@@ -15,8 +15,8 @@ interface PlaceholderProps {
 }
 
 export function Placeholder({ width, height }: PlaceholderProps) {
-    const widthClass = width ? `w-${width}` : 'w-full';
-    const heightClass = height ? `h-${height}` : 'h-4';
+    const widthClass = width ? `${width}` : 'w-full';
+    const heightClass = height ? `${height}` : 'h-4';
 
     return (
         <div
