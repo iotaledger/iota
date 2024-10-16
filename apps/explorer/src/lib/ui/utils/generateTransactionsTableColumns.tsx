@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getTotalGasUsed } from '@iota/core';
+import { CoinFormat, formatBalance, getTotalGasUsed } from '@iota/core';
 import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
@@ -68,10 +68,16 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
             cell: ({ getValue }) => {
                 const effects = getValue<IotaTransactionBlockResponse['effects']>();
                 const totalGasUsed = effects ? getTotalGasUsed(effects)?.toString() : undefined;
-                const totalGasUsedFormatted = totalGasUsed ? totalGasUsed : '--';
+                const totalGasUsedFormatted = totalGasUsed
+                    ? formatBalance(
+                          Number(totalGasUsed) / Number(NANOS_PER_IOTA),
+                          0,
+                          CoinFormat.ROUNDED,
+                      )
+                    : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText supportingLabel={totalGasUsed ? 'nano' : undefined}>
+                        <TableCellText supportingLabel={totalGasUsed ? 'IOTA' : undefined}>
                             {totalGasUsedFormatted}
                         </TableCellText>
                     </TableCellBase>
