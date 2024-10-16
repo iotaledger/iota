@@ -186,11 +186,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     end_of_epoch_transaction_supported: bool,
 
-    // Perform simple conservation checks keeping into account out of gas scenarios
-    // while charging for storage.
-    #[serde(skip_serializing_if = "is_false")]
-    simple_conservation_checks: bool,
-
     // If true, use the new child object format type logging
     #[serde(skip_serializing_if = "is_false")]
     loaded_child_object_format_type: bool,
@@ -1196,10 +1191,6 @@ impl ProtocolConfig {
         ret
     }
 
-    pub fn simple_conservation_checks(&self) -> bool {
-        self.feature_flags.simple_conservation_checks
-    }
-
     pub fn loaded_child_object_format_type(&self) -> bool {
         self.feature_flags.loaded_child_object_format_type
     }
@@ -1931,7 +1922,6 @@ impl ProtocolConfig {
         cfg.feature_flags.txn_base_cost_as_multiplier = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.simple_conservation_checks = true;
         cfg.feature_flags.end_of_epoch_transaction_supported = true;
         cfg.feature_flags.enable_effects_v2 = true;
 
