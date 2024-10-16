@@ -1342,7 +1342,6 @@
                 "reshare_at_same_initial_version": true,
                 "resolve_abort_locations_to_package_id": true,
                 "rethrow_serialization_type_layout_errors": true,
-                "scoring_decision_with_validity_cutoff": true,
                 "shared_object_deletion": true,
                 "simple_conservation_checks": true,
                 "simplified_unwrap_then_delete": true,

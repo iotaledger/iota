@@ -127,10 +127,6 @@ struct FeatureFlags {
     // compatibility error.
     #[serde(skip_serializing_if = "is_false")]
     missing_type_is_compatibility_error: bool,
-    // If true, then the scoring decision mechanism will not get disabled when we do have more than
-    // f low scoring authorities, but it will simply flag as low scoring only up to f authorities.
-    #[serde(skip_serializing_if = "is_false")]
-    scoring_decision_with_validity_cutoff: bool,
 
     // DEPRECATED: this was an ephemeral feature flag only used by consensus handler, which has now
     // been deployed everywhere.
@@ -1181,10 +1177,6 @@ impl ProtocolConfig {
         self.feature_flags.missing_type_is_compatibility_error
     }
 
-    pub fn scoring_decision_with_validity_cutoff(&self) -> bool {
-        self.feature_flags.scoring_decision_with_validity_cutoff
-    }
-
     pub fn narwhal_versioned_metadata(&self) -> bool {
         self.feature_flags.narwhal_versioned_metadata
     }
@@ -1996,7 +1988,6 @@ impl ProtocolConfig {
 
         cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
         cfg.feature_flags.missing_type_is_compatibility_error = true;
-        cfg.feature_flags.scoring_decision_with_validity_cutoff = true;
         cfg.feature_flags.consensus_order_end_of_epoch_last = true;
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
