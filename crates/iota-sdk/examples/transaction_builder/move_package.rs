@@ -67,8 +67,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let upgrade_capability = object_changes
         .iter()
         .find_map(|c| {
-            if let ObjectChange::Created { .. } = c {
-                Some(c.object_id())
+            if let ObjectChange::Created { object_type, .. } = c {
+                if object_type.name.as_ident_str().as_str() == "UpgradeCap" {
+                    Some(c.object_id())
+                } else {
+                    None
+                }
             } else {
                 None
             }
