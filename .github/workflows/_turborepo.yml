@@ -55,7 +55,7 @@ jobs:
         with:
           version: "latest"
       - name: Build
-        run: pnpm turbo build
+        run: pnpm turbo build --force
       - name: Test
         run: pnpm turbo test
       # Pack wallet extension and upload it as an artifact for easy developer use:
