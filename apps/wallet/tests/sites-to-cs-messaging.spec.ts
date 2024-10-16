@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import 'tsconfig-paths/register';
-
 import { type Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';

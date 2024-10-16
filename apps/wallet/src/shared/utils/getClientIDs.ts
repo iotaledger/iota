@@ -1,9 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export function getClientIDs(appName?: string) {
-    const cleanAppName = (appName: string) => appName.replace(/\s+/g, '-').toLowerCase();
-    const id = appName ? cleanAppName(appName) : 'iota';
+export function getClientIDs(appName: string) {
+    const id = appName.replace(/\s+/g, '-').toLowerCase();
 
     return {
         name: `${id}_in-page`,
