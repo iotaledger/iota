@@ -26,7 +26,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Owned Objects
     let owned_objects = client
         .read_api()
-        .get_owned_objects(active_address, None, None, Some(5))
+        .get_owned_objects(active_address, None, None, 5)
         .await?;
     println!(" *** Owned Objects ***");
     println!("{owned_objects:?}");
