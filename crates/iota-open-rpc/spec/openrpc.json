@@ -1331,7 +1331,6 @@
                 "passkey_auth": true,
                 "prepend_prologue_tx_in_consensus_commit_in_checkpoints": true,
                 "random_beacon": true,
-                "receive_objects": true,
                 "recompute_has_public_transfer_in_execution": true,
                 "record_consensus_determined_version_assignments_in_prologue": true,
                 "reject_mutable_random_on_entry_functions": true,

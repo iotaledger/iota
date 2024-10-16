@@ -197,10 +197,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     loaded_child_object_format_type: bool,
 
-    // Enable receiving sent objects
-    #[serde(skip_serializing_if = "is_false")]
-    receive_objects: bool,
-
     // Enable random beacon protocol
     #[serde(skip_serializing_if = "is_false")]
     random_beacon: bool,
@@ -1137,10 +1133,6 @@ impl ProtocolConfig {
         self.feature_flags.allow_receiving_object_id
     }
 
-    pub fn receiving_objects_supported(&self) -> bool {
-        self.feature_flags.receive_objects
-    }
-
     pub fn package_upgrades_supported(&self) -> bool {
         self.feature_flags.package_upgrades
     }
@@ -1966,7 +1958,6 @@ impl ProtocolConfig {
         cfg.feature_flags.loaded_child_object_format_type = true;
         cfg.feature_flags.simple_conservation_checks = true;
         cfg.feature_flags.end_of_epoch_transaction_supported = true;
-        cfg.feature_flags.receive_objects = true;
         cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.narwhal_certificate_v2 = true;
@@ -2193,10 +2184,7 @@ impl ProtocolConfig {
     pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
         self.feature_flags.reshare_at_same_initial_version = val;
     }
-    
-    pub fn set_receive_object_for_testing(&mut self, val: bool) {
-        self.feature_flags.receive_objects = val
-    }
+
     pub fn set_narwhal_certificate_v2_for_testing(&mut self, val: bool) {
         self.feature_flags.narwhal_certificate_v2 = val
     }
