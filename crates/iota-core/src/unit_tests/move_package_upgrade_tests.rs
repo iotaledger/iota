@@ -48,13 +48,13 @@ macro_rules! move_call {
     }
 }
 
-fn build_upgrade_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
+fn build_upgrade_test_modules(test_dir: &str) -> ([u8; 32], Vec<Vec<u8>>) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "move_upgrade", test_dir]);
     let with_unpublished_deps = false;
     let package = BuildConfig::new_for_testing().build(&path).unwrap();
     (
-        package.get_package_digest(with_unpublished_deps).to_vec(),
+        package.get_package_digest(with_unpublished_deps),
         package.get_package_bytes(with_unpublished_deps),
     )
 }
@@ -178,7 +178,7 @@ impl UpgradeStateRunner {
     pub async fn upgrade(
         &mut self,
         policy: u8,
-        digest: Vec<u8>,
+        digest: [u8; 32],
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectID>,
     ) -> TransactionEffects {
@@ -395,7 +395,7 @@ async fn test_upgrade_incompatible() {
 async fn test_upgrade_package_incorrect_digest() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
-    let bad_digest = vec![0; digest.len()];
+    let bad_digest = [0; 32];
 
     let effects = runner
         .upgrade(UpgradePolicy::COMPATIBLE, bad_digest, modules, vec![])
@@ -404,9 +404,7 @@ async fn test_upgrade_package_incorrect_digest() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::DigestDoesNotMatch {
-                digest: digest.try_into().unwrap()
-            }
+            upgrade_error: PackageUpgradeError::DigestDoesNotMatch { digest }
         }
     );
 }

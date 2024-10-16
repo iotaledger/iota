@@ -222,15 +222,16 @@ impl MovePackage {
         modules: impl IntoIterator<Item = &'a Vec<u8>>,
         object_ids: impl IntoIterator<Item = &'a ObjectID>,
     ) -> [u8; 32] {
-        let mut components: Vec<[u8; 32]> = vec![];
+        let mut components = object_ids
+            .into_iter()
+            .map(|o| ***o)
+            .chain(
+                modules
+                    .into_iter()
+                    .map(|module| DefaultHash::digest(module).digest),
+            )
+            .collect::<Vec<_>>();
 
-        for module in modules {
-            let mut digest = DefaultHash::default();
-            digest.update(module);
-            components.push(digest.finalize().digest);
-        }
-
-        components.extend(object_ids.into_iter().map(|o| ***o));
         // NB: sorting so the order of the modules and the order of the dependencies
         // does not matter.
         components.sort();
