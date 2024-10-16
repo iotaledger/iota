@@ -1329,7 +1329,6 @@
                 "narwhal_new_leader_election_schedule": true,
                 "narwhal_versioned_metadata": true,
                 "no_extraneous_module_bytes": true,
-                "package_digest_hash_module": true,
                 "package_upgrades": true,
                 "passkey_auth": true,
                 "prepend_prologue_tx_in_consensus_commit_in_checkpoints": true,

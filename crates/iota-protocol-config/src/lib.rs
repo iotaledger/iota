@@ -143,9 +143,6 @@ struct FeatureFlags {
     // If true, disallow entry modifiers on entry functions
     #[serde(skip_serializing_if = "is_false")]
     ban_entry_init: bool,
-    // If true, hash module bytes individually when calculating package digests for upgrades
-    #[serde(skip_serializing_if = "is_false")]
-    package_digest_hash_module: bool,
     // If true, disallow changing struct type parameters during package upgrades
     #[serde(skip_serializing_if = "is_false")]
     disallow_change_struct_type_params_on_upgrade: bool,
@@ -1196,10 +1193,6 @@ impl ProtocolConfig {
         self.feature_flags.ban_entry_init
     }
 
-    pub fn package_digest_hash_module(&self) -> bool {
-        self.feature_flags.package_digest_hash_module
-    }
-
     pub fn disallow_change_struct_type_params_on_upgrade(&self) -> bool {
         self.feature_flags
             .disallow_change_struct_type_params_on_upgrade
@@ -1984,7 +1977,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_order_end_of_epoch_last = true;
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
-        cfg.feature_flags.package_digest_hash_module = true;
         cfg.feature_flags.no_extraneous_module_bytes = true;
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
