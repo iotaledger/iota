@@ -170,10 +170,10 @@ impl From<GenesisValidatorInfo> for GenesisValidatorMetadata {
             iota_address: info.account_address,
             gas_price: info.gas_price,
             commission_rate: info.commission_rate,
-            protocol_public_key: info.authority_key.as_bytes().to_vec(),
+            authority_public_key: info.authority_key.as_bytes().to_vec(),
             proof_of_possession: proof_of_possession.as_ref().to_vec(),
             network_public_key: info.network_key.as_bytes().to_vec(),
-            worker_public_key: info.protocol_key.as_bytes().to_vec(),
+            protocol_public_key: info.protocol_key.as_bytes().to_vec(),
             network_address: info.network_address,
             p2p_address: info.p2p_address,
             primary_address: info.primary_address,
@@ -194,11 +194,11 @@ pub struct GenesisValidatorMetadata {
     pub gas_price: u64,
     pub commission_rate: u64,
 
-    pub protocol_public_key: Vec<u8>, // AuthorityPublicKeyBytes,
+    pub authority_public_key: Vec<u8>, // AuthorityPublicKeyBytes,
     pub proof_of_possession: Vec<u8>, // AuthoritySignature,
 
     pub network_public_key: Vec<u8>, // NetworkPublicKey,
-    pub worker_public_key: Vec<u8>,  // NetworkPublicKey,
+    pub protocol_public_key: Vec<u8>,  // NetworkPublicKey,
 
     pub network_address: Multiaddr,
     pub p2p_address: Multiaddr,

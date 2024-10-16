@@ -244,7 +244,7 @@ async fn update_next_epoch_metadata(
     // update worker pubkey on chain
     update_metadata_on_chain(
         account_key,
-        "update_validator_next_epoch_worker_pubkey",
+        "update_validator_next_epoch_protocol_pubkey",
         vec![CallArg::Pure(
             bcs::to_bytes(&new_protocol_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
         )],

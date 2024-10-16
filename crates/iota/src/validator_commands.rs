@@ -69,7 +69,7 @@ const DEFAULT_GAS_BUDGET: u64 = 200_000_000; // 0.2 IOTA
 #[clap(rename_all = "kebab-case")]
 pub enum IotaValidatorCommand {
     /// Generate a `validator.info` file and 4 key pair files (account, network,
-    /// protocol, worker).
+    /// authority, protocol).
     #[clap(name = "make-validator-info")]
     MakeValidatorInfo {
         name: String,
@@ -251,13 +251,13 @@ pub enum IotaValidatorCommandResponse {
 
 fn make_key_files(
     file_name: PathBuf,
-    is_protocol_key: bool,
+    is_authority_key: bool,
     key: Option<IotaKeyPair>,
 ) -> Result<()> {
     if file_name.exists() {
         println!("Use existing {:?} key file.", file_name);
         return Ok(());
-    } else if is_protocol_key {
+    } else if is_authority_key {
         let (_, keypair) = get_authority_key_pair();
         write_authority_keypair_to_file(&keypair, file_name.clone())?;
         println!("Generated new key file: {:?}.", file_name);
@@ -298,7 +298,7 @@ impl IotaValidatorCommand {
                 gas_price,
             } => {
                 let dir = std::env::current_dir()?;
-                let protocol_key_file_name = dir.join("protocol.key");
+                let authority_key_file_name = dir.join("authority.key");
                 let account_key = match context.config.keystore.get_key(&iota_address)? {
                     IotaKeyPair::Ed25519(account_key) => IotaKeyPair::Ed25519(account_key.copy()),
                     _ => panic!(
@@ -307,26 +307,26 @@ impl IotaValidatorCommand {
                 };
                 let account_key_file_name = dir.join("account.key");
                 let network_key_file_name = dir.join("network.key");
-                let worker_key_file_name = dir.join("worker.key");
-                make_key_files(protocol_key_file_name.clone(), true, None)?;
+                let protocol_key_file_name = dir.join("protocol.key");
+                make_key_files(authority_key_file_name.clone(), true, None)?;
                 make_key_files(account_key_file_name.clone(), false, Some(account_key))?;
                 make_key_files(network_key_file_name.clone(), false, None)?;
-                make_key_files(worker_key_file_name.clone(), false, None)?;
+                make_key_files(protocol_key_file_name.clone(), false, None)?;
 
-                let keypair: AuthorityKeyPair =
-                    read_authority_keypair_from_file(protocol_key_file_name)?;
+                let authority_keypair: AuthorityKeyPair =
+                    read_authority_keypair_from_file(authority_key_file_name)?;
                 let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file_name)?;
-                let worker_keypair: NetworkKeyPair =
-                    read_network_keypair_from_file(worker_key_file_name)?;
+                let protocol_keypair: NetworkKeyPair =
+                    read_network_keypair_from_file(protocol_key_file_name)?;
                 let network_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(network_key_file_name)?;
                 let pop =
-                    generate_proof_of_possession(&keypair, (&account_keypair.public()).into());
+                    generate_proof_of_possession(&authority_keypair, (&account_keypair.public()).into());
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
-                        authority_key: keypair.public().into(),
-                        protocol_key: worker_keypair.public().clone(),
+                        authority_key: authority_keypair.public().into(),
+                        protocol_key: protocol_keypair.public().clone(),
                         account_address: IotaAddress::from(&account_keypair.public()),
                         network_key: network_keypair.public().clone(),
                         gas_price,
@@ -1143,15 +1143,15 @@ pub enum MetadataUpdate {
         #[clap(name = "network-key-path")]
         file: PathBuf,
     },
-    /// Update Worker Public Key. Effectuate from next epoch.
-    WorkerPubKey {
-        #[clap(name = "worker-key-path")]
-        file: PathBuf,
-    },
-    /// Update Protocol Public Key and Proof and Possession. Effectuate from
-    /// next epoch.
+    /// Update Protocol Public Key. Effectuate from next epoch.
     ProtocolPubKey {
         #[clap(name = "protocol-key-path")]
+        file: PathBuf,
+    },
+    /// Update Authority Public Key and Proof and Possession. Effectuate from
+    /// next epoch.
+    AuthorityPubKey {
+        #[clap(name = "authority-key-path")]
         file: PathBuf,
     },
 }
@@ -1243,31 +1243,31 @@ async fn update_metadata(
             )
             .await
         }
-        MetadataUpdate::WorkerPubKey { file } => {
+        MetadataUpdate::ProtocolPubKey { file } => {
             let _status = check_status(context, HashSet::from([Pending, Active])).await?;
-            let worker_pub_key: NetworkPublicKey =
+            let protocol_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
             let args = vec![CallArg::Pure(
-                bcs::to_bytes(&worker_pub_key.as_bytes().to_vec()).unwrap(),
+                bcs::to_bytes(&protocol_pub_key.as_bytes().to_vec()).unwrap(),
             )];
             call_0x5(
                 context,
-                "update_validator_next_epoch_worker_pubkey",
+                "update_validator_next_epoch_protocol_pubkey",
                 args,
                 gas_budget,
             )
             .await
         }
-        MetadataUpdate::ProtocolPubKey { file } => {
+        MetadataUpdate::AuthorityPubKey { file } => {
             let _status = check_status(context, HashSet::from([Pending, Active])).await?;
             let iota_address = context.active_address()?;
-            let protocol_key_pair: AuthorityKeyPair = read_authority_keypair_from_file(file)?;
-            let protocol_pub_key: AuthorityPublicKey = protocol_key_pair.public().clone();
-            let pop = generate_proof_of_possession(&protocol_key_pair, iota_address);
+            let authority_key_pair: AuthorityKeyPair = read_authority_keypair_from_file(file)?;
+            let authority_pub_key: AuthorityPublicKey = authority_key_pair.public().clone();
+            let pop = generate_proof_of_possession(&authority_key_pair, iota_address);
             let args = vec![
                 CallArg::Pure(
                     bcs::to_bytes(&AuthorityPublicKeyBytes::from_bytes(
-                        protocol_pub_key.as_bytes(),
+                        authority_pub_key.as_bytes(),
                     )?)
                     .unwrap(),
                 ),

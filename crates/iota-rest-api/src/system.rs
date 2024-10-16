@@ -231,6 +231,7 @@ pub struct SystemStateSummary {
 pub struct ValidatorSummary {
     // Metadata
     pub address: Address,
+    // TODO: rename those fields back
     pub authority_public_key: iota_sdk2::types::Bls12381PublicKey,
     pub network_public_key: iota_sdk2::types::Ed25519PublicKey,
     pub protocol_public_key: iota_sdk2::types::Ed25519PublicKey,
@@ -244,6 +245,7 @@ pub struct ValidatorSummary {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
+    // TODO: rename those fields
     pub next_epoch_protocol_public_key: Option<iota_sdk2::types::Bls12381PublicKey>,
     pub next_epoch_network_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
     pub next_epoch_worker_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
@@ -342,7 +344,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             next_epoch_authority_pubkey_bytes,
             next_epoch_proof_of_possession,
             next_epoch_network_pubkey_bytes,
-            next_epoch_worker_pubkey_bytes,
+            next_epoch_protocol_pubkey_bytes,
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,
@@ -392,7 +394,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
                 .map(|bytes| iota_sdk2::types::Bls12381PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_network_public_key: next_epoch_network_pubkey_bytes
                 .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
-            next_epoch_worker_public_key: next_epoch_worker_pubkey_bytes
+            next_epoch_worker_public_key: next_epoch_protocol_pubkey_bytes
                 .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_proof_of_possession,
             next_epoch_net_address,

@@ -238,7 +238,7 @@ pub struct IotaValidatorSummary {
     pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
     #[schemars(with = "Option<Base64>")]
     #[serde_as(as = "Option<Base64>")]
-    pub next_epoch_worker_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,
     pub next_epoch_primary_address: Option<String>,
@@ -367,7 +367,7 @@ impl Default for IotaValidatorSummary {
             next_epoch_authority_pubkey_bytes: None,
             next_epoch_proof_of_possession: None,
             next_epoch_network_pubkey_bytes: None,
-            next_epoch_worker_pubkey_bytes: None,
+            next_epoch_protocol_pubkey_bytes: None,
             next_epoch_net_address: None,
             next_epoch_p2p_address: None,
             next_epoch_primary_address: None,

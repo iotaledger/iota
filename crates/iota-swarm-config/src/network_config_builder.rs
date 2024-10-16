@@ -350,12 +350,12 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
             CommitteeConfig::AccountKeys(keys) => {
                 // See above re fixed protocol keys
-                let (_, protocol_keys) = Committee::new_simple_test_committee_of_size(keys.len());
+                let (_, authority_keys) = Committee::new_simple_test_committee_of_size(keys.len());
                 keys.into_iter()
-                    .zip(protocol_keys)
-                    .map(|(account_key, protocol_key)| {
+                    .zip(authority_keys)
+                    .map(|(account_key, authority_key)| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
-                            .with_authority_key_pair(protocol_key)
+                            .with_authority_key_pair(authority_key)
                             .with_account_key_pair(account_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);

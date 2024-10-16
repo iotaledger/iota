@@ -361,7 +361,7 @@ pub struct ExportedKey {
 pub struct KeypairData {
     account_keypair: String,
     network_keypair: Option<String>,
-    worker_keypair: Option<String>,
+    protocol_keypair: Option<String>,
     key_scheme: String,
 }
 
@@ -677,16 +677,16 @@ impl KeyToolCommand {
                 let output = match read_keypair_from_file(&file) {
                     Ok(keypair) => {
                         // Account keypair is encoded with the key scheme flag {},
-                        // and network and worker keypair are not.
-                        let network_worker_keypair = match &keypair {
+                        // and network and protocol keypair are not.
+                        let network_protocol_keypair = match &keypair {
                             IotaKeyPair::Ed25519(kp) => kp.encode_base64(),
                             IotaKeyPair::Secp256k1(kp) => kp.encode_base64(),
                             IotaKeyPair::Secp256r1(kp) => kp.encode_base64(),
                         };
                         KeypairData {
                             account_keypair: keypair.encode_base64(),
-                            network_keypair: Some(network_worker_keypair.clone()),
-                            worker_keypair: Some(network_worker_keypair),
+                            network_keypair: Some(network_protocol_keypair.clone()),
+                            protocol_keypair: Some(network_protocol_keypair),
                             key_scheme: keypair.public().scheme().to_string(),
                         }
                     }
@@ -697,7 +697,7 @@ impl KeyToolCommand {
                             Ok(keypair) => KeypairData {
                                 account_keypair: keypair.encode_base64(),
                                 network_keypair: None,
-                                worker_keypair: None,
+                                protocol_keypair: None,
                                 key_scheme: SignatureScheme::BLS12381.to_string(),
                             },
                             Err(e) => {

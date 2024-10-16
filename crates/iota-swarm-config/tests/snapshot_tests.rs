@@ -59,14 +59,14 @@ fn populated_genesis_snapshot_matches() {
         .generate_accounts(StdRng::from_seed([0; 32]))
         .unwrap();
     let mut rng = StdRng::from_seed([0; 32]);
-    let key: AuthorityKeyPair = get_key_pair_from_rng(&mut rng).1;
-    let worker_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
+    let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rng).1;
+    let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
     let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
     let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rng).1;
     let validator = ValidatorInfo {
         name: "0".into(),
-        authority_key: key.public().into(),
-        protocol_key: worker_key.public().clone(),
+        authority_key: authority_key.public().into(),
+        protocol_key: protocol_key.public().clone(),
         account_address: IotaAddress::from(account_key.public()),
         network_key: network_key.public().clone(),
         gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
@@ -78,7 +78,7 @@ fn populated_genesis_snapshot_matches() {
         image_url: String::new(),
         project_url: String::new(),
     };
-    let pop = generate_proof_of_possession(&key, account_key.public().into());
+    let pop = generate_proof_of_possession(&authority_key, account_key.public().into());
 
     let token_distribution_schedule = {
         let mut builder = TokenDistributionScheduleBuilder::new();
@@ -96,7 +96,7 @@ fn populated_genesis_snapshot_matches() {
             chain_start_timestamp_ms: 10,
             ..GenesisCeremonyParameters::new()
         })
-        .add_validator_signature(&key)
+        .add_validator_signature(&authority_key)
         .build();
     assert_yaml_snapshot!(genesis.iota_system_wrapper_object());
     assert_yaml_snapshot!(

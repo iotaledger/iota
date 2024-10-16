@@ -61,10 +61,10 @@ pub enum CeremonyCommand {
         name: String,
         /// The path to the BLS12381 authority key file for the validator.
         #[clap(long)]
-        validator_key_file: PathBuf,
-        /// The path to the Ed25519 network key file for the worker.
+        authority_key_file: PathBuf,
+        /// The path to the Ed25519 network key file for the consensus protocol.
         #[clap(long)]
-        worker_key_file: PathBuf,
+        protocol_key_file: PathBuf,
         /// The path to the Ed25519 network key file for the account.
         #[clap(long)]
         account_key_file: PathBuf,
@@ -180,8 +180,8 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
         CeremonyCommand::AddValidator {
             name,
-            validator_key_file,
-            worker_key_file,
+            authority_key_file,
+            protocol_key_file,
             account_key_file,
             network_key_file,
             network_address,
@@ -192,16 +192,16 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             project_url,
         } => {
             let mut builder = Builder::load(&dir).await?;
-            let keypair: AuthorityKeyPair = read_authority_keypair_from_file(validator_key_file)?;
+            let authority_keypair: AuthorityKeyPair = read_authority_keypair_from_file(authority_key_file)?;
             let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
-            let worker_keypair: NetworkKeyPair = read_network_keypair_from_file(worker_key_file)?;
+            let protocol_keypair: NetworkKeyPair = read_network_keypair_from_file(protocol_key_file)?;
             let network_keypair: NetworkKeyPair = read_network_keypair_from_file(network_key_file)?;
-            let pop = generate_proof_of_possession(&keypair, (&account_keypair.public()).into());
+            let pop = generate_proof_of_possession(&authority_keypair, (&account_keypair.public()).into());
             builder = builder.add_validator(
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
-                    authority_key: keypair.public().into(),
-                    protocol_key: worker_keypair.public().clone(),
+                    authority_key: authority_keypair.public().into(),
+                    protocol_key: protocol_keypair.public().clone(),
                     account_address: IotaAddress::from(&account_keypair.public()),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
@@ -370,8 +370,8 @@ mod test {
 
         let validators = (0..10)
             .map(|i| {
-                let keypair: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-                let worker_keypair: NetworkKeyPair =
+                let authority_keypair: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+                let protocol_keypair: NetworkKeyPair =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let network_keypair: NetworkKeyPair =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
@@ -379,8 +379,8 @@ mod test {
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),
-                    authority_key: keypair.public().into(),
-                    protocol_key: worker_keypair.public().clone(),
+                    authority_key: authority_keypair.public().into(),
+                    protocol_key: protocol_keypair.public().clone(),
                     account_address: IotaAddress::from(account_keypair.public()),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
@@ -392,11 +392,11 @@ mod test {
                     image_url: String::new(),
                     project_url: String::new(),
                 };
-                let key_file = dir.path().join(format!("{}-0.key", info.name));
-                write_authority_keypair_to_file(&keypair, &key_file).unwrap();
+                let authority_key_file = dir.path().join(format!("{}-0.key", info.name));
+                write_authority_keypair_to_file(&authority_keypair, &authority_key_file).unwrap();
 
-                let worker_key_file = dir.path().join(format!("{}.key", info.name));
-                write_keypair_to_file(&IotaKeyPair::Ed25519(worker_keypair), &worker_key_file)
+                let protocol_key_file = dir.path().join(format!("{}.key", info.name));
+                write_keypair_to_file(&IotaKeyPair::Ed25519(protocol_keypair), &protocol_key_file)
                     .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
@@ -408,8 +408,8 @@ mod test {
                     .unwrap();
 
                 (
-                    key_file,
-                    worker_key_file,
+                    authority_key_file,
+                    protocol_key_file,
                     network_key_file,
                     account_key_file,
                     info,
@@ -426,7 +426,7 @@ mod test {
         command.run().await?;
 
         // Add the validators
-        for (key_file, worker_key_file, network_key_file, account_key_file, validator) in
+        for (authority_key_file, protocol_key_file, network_key_file, account_key_file, validator) in
             &validators
         {
             let command = Ceremony {
@@ -434,8 +434,8 @@ mod test {
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::AddValidator {
                     name: validator.name().to_owned(),
-                    validator_key_file: key_file.into(),
-                    worker_key_file: worker_key_file.into(),
+                    authority_key_file: authority_key_file.into(),
+                    protocol_key_file: protocol_key_file.into(),
                     network_key_file: network_key_file.into(),
                     account_key_file: account_key_file.into(),
                     network_address: validator.network_address().to_owned(),
@@ -469,12 +469,12 @@ mod test {
         command.run().await?;
 
         // Have all the validators verify and sign genesis
-        for (key, _worker_key, _network_key, _account_key, _validator) in &validators {
+        for (authority_key, _protocol_key, _network_key, _account_key, _validator) in &validators {
             let command = Ceremony {
                 path: Some(dir.path().into()),
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::VerifyAndSign {
-                    key_file: key.into(),
+                    key_file: authority_key.into(),
                 },
             };
             command.run().await?;

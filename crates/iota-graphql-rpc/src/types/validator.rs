@@ -159,7 +159,7 @@ impl Validator {
                 .as_ref()
                 .map(Base64::from),
             network_pub_key: v.next_epoch_network_pubkey_bytes.as_ref().map(Base64::from),
-            protocol_pub_key: v.next_epoch_worker_pubkey_bytes.as_ref().map(Base64::from),
+            protocol_pub_key: v.next_epoch_protocol_pubkey_bytes.as_ref().map(Base64::from),
             proof_of_possession: v.next_epoch_proof_of_possession.as_ref().map(Base64::from),
             net_address: v.next_epoch_net_address.clone(),
             p2p_address: v.next_epoch_p2p_address.clone(),

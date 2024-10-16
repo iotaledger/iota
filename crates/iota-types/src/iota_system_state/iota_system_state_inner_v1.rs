@@ -85,7 +85,7 @@ pub struct ValidatorMetadataV1 {
     pub next_epoch_authority_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
     pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
-    pub next_epoch_worker_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,
     pub next_epoch_primary_address: Option<String>,
@@ -111,7 +111,7 @@ pub struct VerifiedValidatorMetadataV1 {
     pub next_epoch_authority_pubkey: Option<AuthorityPublicKey>,
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
     pub next_epoch_network_pubkey: Option<NetworkPublicKey>,
-    pub next_epoch_worker_pubkey: Option<NetworkPublicKey>,
+    pub next_epoch_protocol_pubkey: Option<NetworkPublicKey>,
     pub next_epoch_net_address: Option<Multiaddr>,
     pub next_epoch_p2p_address: Option<Multiaddr>,
     pub next_epoch_primary_address: Option<Multiaddr>,
@@ -147,7 +147,7 @@ impl ValidatorMetadataV1 {
         let net_address = Multiaddr::try_from(self.net_address.clone())
             .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
 
-        // Ensure p2p, primary, and worker addresses are both Multiaddr's and valid
+        // Ensure p2p and primary address are both Multiaddr's and valid
         // anemo addresses
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
@@ -201,8 +201,8 @@ impl ValidatorMetadataV1 {
             )),
         }?;
 
-        let next_epoch_worker_pubkey: Option<NetworkPublicKey> =
-            match self.next_epoch_worker_pubkey_bytes.clone() {
+        let next_epoch_protocol_pubkey: Option<NetworkPublicKey> =
+            match self.next_epoch_protocol_pubkey_bytes.clone() {
                 None => Ok::<Option<NetworkPublicKey>, u64>(None),
                 Some(bytes) => Ok(Some(
                     NetworkPublicKey::from_bytes(bytes.as_ref())
@@ -210,7 +210,7 @@ impl ValidatorMetadataV1 {
                 )),
             }?;
         if next_epoch_network_pubkey.is_some()
-            && next_epoch_network_pubkey == next_epoch_worker_pubkey
+            && next_epoch_network_pubkey == next_epoch_protocol_pubkey
         {
             return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
         }
@@ -264,7 +264,7 @@ impl ValidatorMetadataV1 {
             next_epoch_authority_pubkey,
             next_epoch_proof_of_possession: self.next_epoch_proof_of_possession.clone(),
             next_epoch_network_pubkey,
-            next_epoch_worker_pubkey,
+            next_epoch_protocol_pubkey,
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,
@@ -318,7 +318,7 @@ impl ValidatorV1 {
                     next_epoch_authority_pubkey_bytes,
                     next_epoch_proof_of_possession,
                     next_epoch_network_pubkey_bytes,
-                    next_epoch_worker_pubkey_bytes,
+                    next_epoch_protocol_pubkey_bytes,
                     next_epoch_net_address,
                     next_epoch_p2p_address,
                     next_epoch_primary_address,
@@ -368,7 +368,7 @@ impl ValidatorV1 {
             next_epoch_authority_pubkey_bytes,
             next_epoch_proof_of_possession,
             next_epoch_network_pubkey_bytes,
-            next_epoch_worker_pubkey_bytes,
+            next_epoch_protocol_pubkey_bytes,
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,

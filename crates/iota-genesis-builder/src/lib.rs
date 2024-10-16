@@ -1639,14 +1639,14 @@ mod test {
     async fn ceremony() {
         let dir = tempfile::TempDir::new().unwrap();
 
-        let key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-        let worker_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: "0".into(),
-            authority_key: key.public().into(),
-            protocol_key: worker_key.public().clone(),
+            authority_key: authority_key.public().into(),
+            protocol_key: protocol_key.public().clone(),
             account_address: IotaAddress::from(account_key.public()),
             network_key: network_key.public().clone(),
             gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
@@ -1658,7 +1658,7 @@ mod test {
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop = generate_proof_of_possession(&key, account_key.public().into());
+        let pop = generate_proof_of_possession(&authority_key, account_key.public().into());
         let mut builder = Builder::new().add_validator(validator, pop);
 
         let genesis = builder.get_or_build_unsigned_genesis();

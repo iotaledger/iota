@@ -187,8 +187,6 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         for validator in self.active_validators.iter() {
             authorities.push(Authority {
                 stake: validator.voting_power as consensus_config::Stake,
-                // TODO(mysticeti): Add EpochStartValidatorInfoV2 with new field for mysticeti
-                // address.
                 address: validator.primary_address.clone(),
                 hostname: validator.hostname.clone(),
                 authority_key: consensus_config::AuthorityPublicKey::new(
