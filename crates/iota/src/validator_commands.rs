@@ -54,6 +54,7 @@ use iota_types::{
 use move_core_types::ident_str;
 use serde::Serialize;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
+use tabled::{builder::Builder, settings::Style};
 use tap::tap::TapOptional;
 use url::{ParseError, Url};
 
@@ -693,20 +694,34 @@ impl IotaValidatorCommand {
                     .await?
                     .active_validators;
 
-                println!(
-                    "{:<66} | {:<12} | {:<20} | {:<10}",
-                    "iota address", "name", "staking pool balance", "pending stake"
-                );
+                let mut builder = Builder::default();
 
-                for validator in active_validators {
-                    println!(
-                        "{:<66} | {:<12} | {:<20} | {:<10}",
-                        validator.iota_address,
-                        validator.name,
-                        validator.staking_pool_iota_balance,
-                        validator.pending_stake
-                    );
+                builder.push_record(vec![
+                    "iota address",
+                    "name",
+                    "staking pool balance",
+                    "pending stake",
+                ]);
+
+                for IotaValidatorSummary {
+                    iota_address,
+                    name,
+                    staking_pool_iota_balance,
+                    pending_stake,
+                    ..
+                } in active_validators
+                {
+                    builder.push_record(vec![
+                        iota_address.to_string(),
+                        name,
+                        staking_pool_iota_balance.to_string(),
+                        pending_stake.to_string(),
+                    ]);
                 }
+
+                let table = builder.build().with(Style::rounded()).to_string();
+                println!("{table}");
+
                 IotaValidatorCommandResponse::List
             }
         });
