@@ -696,7 +696,7 @@ impl IotaValidatorCommand {
 
                 let mut builder = Builder::default();
 
-                builder.push_record(vec![
+                builder.set_header([
                     "iota address",
                     "name",
                     "staking pool balance",
@@ -711,7 +711,7 @@ impl IotaValidatorCommand {
                     ..
                 } in active_validators
                 {
-                    builder.push_record(vec![
+                    builder.push_record([
                         iota_address.to_string(),
                         name,
                         staking_pool_iota_balance.to_string(),
