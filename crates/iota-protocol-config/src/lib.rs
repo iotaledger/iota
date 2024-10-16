@@ -138,9 +138,6 @@ struct FeatureFlags {
     // consecutive protocol version.
     #[serde(skip_serializing_if = "is_false")]
     advance_to_highest_supported_protocol_version: bool,
-    // If true, disallow entry modifiers on entry functions
-    #[serde(skip_serializing_if = "is_false")]
-    ban_entry_init: bool,
     // If true, disallow changing struct type parameters during package upgrades
     #[serde(skip_serializing_if = "is_false")]
     disallow_change_struct_type_params_on_upgrade: bool,
@@ -1146,10 +1143,6 @@ impl ProtocolConfig {
             .advance_to_highest_supported_protocol_version
     }
 
-    pub fn ban_entry_init(&self) -> bool {
-        self.feature_flags.ban_entry_init
-    }
-
     pub fn disallow_change_struct_type_params_on_upgrade(&self) -> bool {
         self.feature_flags
             .disallow_change_struct_type_params_on_upgrade
@@ -1964,7 +1957,6 @@ impl ProtocolConfig {
         cfg.feature_flags
             .disallow_change_struct_type_params_on_upgrade = true;
         cfg.feature_flags.loaded_child_objects_fixed = true;
-        cfg.feature_flags.ban_entry_init = true;
 
         // Enable consensus digest in consensus commit prologue on all networks..
         cfg.feature_flags.include_consensus_digest_in_prologue = true;

@@ -1301,7 +1301,6 @@
                 "advance_to_highest_supported_protocol_version": true,
                 "allow_receiving_object_id": true,
                 "authority_capabilities_v2": true,
-                "ban_entry_init": true,
                 "bridge": true,
                 "commit_root_state_digest": true,
                 "consensus_order_end_of_epoch_last": true,
