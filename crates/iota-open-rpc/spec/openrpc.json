@@ -1306,7 +1306,6 @@
                 "commit_root_state_digest": true,
                 "consensus_order_end_of_epoch_last": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
-                "disallow_adding_abilities_on_upgrade": true,
                 "disallow_change_struct_type_params_on_upgrade": true,
                 "enable_coin_deny_list": true,
                 "enable_coin_deny_list_v2": true,

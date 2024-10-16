@@ -133,9 +133,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     consensus_order_end_of_epoch_last: bool,
 
-    // Disallow adding abilities to types during package upgrades.
-    #[serde(skip_serializing_if = "is_false")]
-    disallow_adding_abilities_on_upgrade: bool,
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
     #[serde(skip_serializing_if = "is_false")]
     disable_invariant_violation_check_in_swap_loc: bool,
@@ -1185,10 +1182,6 @@ impl ProtocolConfig {
         self.feature_flags.consensus_order_end_of_epoch_last
     }
 
-    pub fn disallow_adding_abilities_on_upgrade(&self) -> bool {
-        self.feature_flags.disallow_adding_abilities_on_upgrade
-    }
-
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
         self.feature_flags
             .disable_invariant_violation_check_in_swap_loc
@@ -2037,7 +2030,6 @@ impl ProtocolConfig {
         // Once support for earlier protocol versions is dropped, these flags can be
         // removed:
         cfg.feature_flags.package_upgrades = true;
-        cfg.feature_flags.disallow_adding_abilities_on_upgrade = true;
         cfg.feature_flags
             .disallow_change_struct_type_params_on_upgrade = true;
         cfg.feature_flags.loaded_child_objects_fixed = true;
