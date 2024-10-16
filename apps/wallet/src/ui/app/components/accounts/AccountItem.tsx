@@ -10,7 +10,7 @@ import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useExplorerLink } from '../../hooks/useExplorerLink';
 import { ExplorerLinkType } from '_components';
 import { Account } from '@iota/apps-ui-kit';
-import { truncateString } from '../../helpers';
+import { formatAccountName } from '../../helpers';
 
 interface AccountItemProps {
     accountID: string;
@@ -31,9 +31,7 @@ export function AccountItem({
 }: AccountItemProps) {
     const { data: accounts } = useAccounts();
     const account = accounts?.find((account) => account.id === accountID);
-    const accountName =
-        (account?.nickname && truncateString(account?.nickname, 12)) ??
-        formatAddress(account?.address || '');
+    const accountName = formatAccountName(account?.nickname, account?.address);
     const copyAddress = useCopyToClipboard(account?.address || '', {
         copySuccessMessage: 'Address copied',
     });

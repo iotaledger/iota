@@ -8,7 +8,9 @@ use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use futures::future::join_all;
 use iota_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
 use iota_framework::BuiltInFramework;
-use iota_genesis_builder::validator_info::ValidatorInfo;
+use iota_genesis_builder::{
+    genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
+};
 use iota_macros::nondeterministic;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_protocol_config::ProtocolConfig;
@@ -257,7 +259,8 @@ async fn init_genesis(
     for (_, key) in &key_pairs {
         builder = builder.add_validator_signature(key);
     }
-    let genesis = builder.build();
+
+    let GenesisBuildEffects { genesis, .. } = builder.build();
     (genesis, key_pairs, pkg_id)
 }
 
