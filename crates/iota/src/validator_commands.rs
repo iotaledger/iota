@@ -223,7 +223,7 @@ pub enum IotaValidatorCommand {
     },
     /// Get a list of the validators in the network. Use the `display-metadata`
     /// command to see the complete data for a validator.
-    Validators,
+    List,
 }
 
 #[derive(Serialize)]
@@ -250,7 +250,7 @@ pub enum IotaValidatorCommandResponse {
         execution_response: Option<IotaTransactionBlockResponse>,
         serialized_unsigned_transaction: Option<String>,
     },
-    Validators,
+    List,
 }
 
 fn make_key_files(
@@ -684,7 +684,7 @@ impl IotaValidatorCommand {
                     }
                 }
             }
-            IotaValidatorCommand::Validators => {
+            IotaValidatorCommand::List => {
                 let client = context.get_client().await?;
 
                 let active_validators = client
@@ -707,7 +707,7 @@ impl IotaValidatorCommand {
                         validator.pending_stake
                     );
                 }
-                IotaValidatorCommandResponse::Validators
+                IotaValidatorCommandResponse::List
             }
         });
         ret
@@ -987,7 +987,7 @@ impl Display for IotaValidatorCommandResponse {
                     )?;
                 }
             }
-            IotaValidatorCommandResponse::Validators => {}
+            IotaValidatorCommandResponse::List => {}
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
