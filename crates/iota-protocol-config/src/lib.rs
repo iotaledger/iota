@@ -126,11 +126,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     missing_type_is_compatibility_error: bool,
 
-    // DEPRECATED: this was an ephemeral feature flag only used by consensus handler, which has now
-    // been deployed everywhere.
-    #[serde(skip_serializing_if = "is_false")]
-    consensus_order_end_of_epoch_last: bool,
-
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
     #[serde(skip_serializing_if = "is_false")]
     disable_invariant_violation_check_in_swap_loc: bool,
@@ -1132,10 +1127,6 @@ impl ProtocolConfig {
         self.feature_flags.missing_type_is_compatibility_error
     }
 
-    pub fn consensus_order_end_of_epoch_last(&self) -> bool {
-        self.feature_flags.consensus_order_end_of_epoch_last
-    }
-
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
         self.feature_flags
             .disable_invariant_violation_check_in_swap_loc
@@ -1919,7 +1910,6 @@ impl ProtocolConfig {
 
         cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
         cfg.feature_flags.missing_type_is_compatibility_error = true;
-        cfg.feature_flags.consensus_order_end_of_epoch_last = true;
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
         cfg.feature_flags.no_extraneous_module_bytes = true;

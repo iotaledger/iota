@@ -8,7 +8,6 @@ feature_flags:
   advance_epoch_start_time_in_safe_mode: true
   loaded_child_objects_fixed: true
   missing_type_is_compatibility_error: true
-  consensus_order_end_of_epoch_last: true
   disable_invariant_violation_check_in_swap_loc: true
   advance_to_highest_supported_protocol_version: true
   ban_entry_init: true
