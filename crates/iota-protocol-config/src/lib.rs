@@ -121,10 +121,6 @@ struct FeatureFlags {
     // object runtime.
     #[serde(skip_serializing_if = "is_false")]
     loaded_child_objects_fixed: bool,
-    // If true, treat missing types in the upgraded modules when creating an upgraded package as a
-    // compatibility error.
-    #[serde(skip_serializing_if = "is_false")]
-    missing_type_is_compatibility_error: bool,
 
     // DEPRECATED: this was an ephemeral feature flag only used by consensus handler, which has now
     // been deployed everywhere.
@@ -1128,10 +1124,6 @@ impl ProtocolConfig {
         self.feature_flags.loaded_child_objects_fixed
     }
 
-    pub fn missing_type_is_compatibility_error(&self) -> bool {
-        self.feature_flags.missing_type_is_compatibility_error
-    }
-
     pub fn consensus_order_end_of_epoch_last(&self) -> bool {
         self.feature_flags.consensus_order_end_of_epoch_last
     }
@@ -1918,7 +1910,6 @@ impl ProtocolConfig {
         };
 
         cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
-        cfg.feature_flags.missing_type_is_compatibility_error = true;
         cfg.feature_flags.consensus_order_end_of_epoch_last = true;
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
