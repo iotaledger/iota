@@ -297,14 +297,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         let transaction_deny_config = self.transaction_deny_config.unwrap_or_default();
         let certificate_deny_config = self.certificate_deny_config.unwrap_or_default();
         let authority_overload_config = self.authority_overload_config.unwrap_or_default();
-        let mut pruning_config = AuthorityStorePruningConfig::default();
-        if !epoch_store
-            .protocol_config()
-            .simplified_unwrap_then_delete()
-        {
-            // We cannot prune tombstones if simplified_unwrap_then_delete is not enabled.
-            pruning_config.set_killswitch_tombstone_pruning(true);
-        }
+        let pruning_config = AuthorityStorePruningConfig::default();
 
         config.transaction_deny_config = transaction_deny_config;
         config.certificate_deny_config = certificate_deny_config;

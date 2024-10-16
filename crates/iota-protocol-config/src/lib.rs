@@ -155,15 +155,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    // Previously, the unwrapped_then_deleted field in TransactionEffects makes a distinction
-    // between whether an object has existed in the store previously (i.e. whether there is a
-    // tombstone). Such dependency makes effects generation inefficient, and requires us to
-    // include wrapped tombstone in state root hash.
-    // To prepare for effects V2, with this flag set to true, we simplify the definition of
-    // unwrapped_then_deleted to always include unwrapped then deleted objects,
-    // regardless of their previous state in the store.
-    #[serde(skip_serializing_if = "is_false")]
-    simplified_unwrap_then_delete: bool,
     // If true minimum txn charge is a multiplier of the gas price
     #[serde(skip_serializing_if = "is_false")]
     txn_base_cost_as_multiplier: bool,
@@ -1171,10 +1162,6 @@ impl ProtocolConfig {
         self.feature_flags.consensus_transaction_ordering
     }
 
-    pub fn simplified_unwrap_then_delete(&self) -> bool {
-        self.feature_flags.simplified_unwrap_then_delete
-    }
-
     pub fn txn_base_cost_as_multiplier(&self) -> bool {
         self.feature_flags.txn_base_cost_as_multiplier
     }
@@ -1927,7 +1914,6 @@ impl ProtocolConfig {
             .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.commit_root_state_digest = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
-        cfg.feature_flags.simplified_unwrap_then_delete = true;
         cfg.feature_flags.txn_base_cost_as_multiplier = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
