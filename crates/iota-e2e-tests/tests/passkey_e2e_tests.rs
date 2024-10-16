@@ -222,7 +222,7 @@ fn make_good_passkey_tx(response: PasskeyResponse<TransactionData>) -> Transacti
     Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig])
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/3359"]
+#[ignore = "https://github.com/iotaledger/iota/issues/3365"]
 #[sim_test]
 async fn test_passkey_feature_deny() {
     use iota_protocol_config::ProtocolConfig;
