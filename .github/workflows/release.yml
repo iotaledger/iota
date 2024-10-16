@@ -83,7 +83,7 @@ jobs:
         shell: bash
         run: |
           export arch=$(uname -m)
-          export os_type="${linux}-${arch}"
+          export os_type="linux-${arch}"
           echo "os_type=${os_type}" >> $GITHUB_ENV
 
       - name: Set os/arch variables
