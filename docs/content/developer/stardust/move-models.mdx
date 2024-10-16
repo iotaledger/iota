@@ -11,15 +11,15 @@ Move Package is discussed that emulates the legacy UTXO models in object-based m
 
  ## Summary
 
-| Stardust Output (UTXO)                                                               | Move Container or Migrated Object                                                                                                                                                                                                                                                                                                                                           | Encapsulated Move Assets Inside the Container                                                                                                                                                                                                                                                  |
-|--------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Basic Output with IOTA/SMR only                                                      | [`Coin<IOTA/SMR>`](../../references/framework/iota-framework/coin.mdx#resource-coin)                                                                                                                                                                                                                                                                                         | ready to be used, no need to extract any assets                                                                                                                                                                                                                                                |
-| Basic Output with IOTA/SMR and native tokens                                         | [`Coin<IOTA/SMR>`](../../references/framework/iota-framework/coin.mdx#resource-coin) and one or more [`Coin<NATIVE_TOKEN>`](../../references/framework/iota-framework/coin.mdx#resource-coin)                                                                                                                                                                                 | ready to be used, no need to extract any assets                                                                                                                                                                                                                                                |
-| Basic Output with unlock conditions or features                                      | [`BasicOutput<IOTA/SMR>`](../../references/framework/stardust/basic_output#resource-basicoutput)                                                                                                                                                                                                                                                                            | [`Balance<IOTA/SMR>`](../../references/framework/iota-framework/balance#struct-balance), [`Bag`](../../references/framework/iota-framework/bag#resource-bag) of `Balance<NATIVE_TOKEN>` key-ed by `"NATIVE_TOKEN"`                                                                             |
-| Alias Output                                                                         | [`AliasOutput<IOTA/SMR`](../../references/framework/stardust/alias_output#resource-aliasoutput)                                                                                                                                                                                                                                                                             | [`Balance<IOTA/SMR>`](../../references/framework/iota-framework/balance#struct-balance), [`Bag`](../../references/framework/iota-framework/bag#resource-bag) of `Balance<NATIVE_TOKEN>` key-ed by `"NATIVE_TOKEN"`, [`Alias`](../../references/framework/stardust/alias#resource-alias) object |
-| Nft Output                                                                           | [`NftOutput<IOTA/SMR`](../../references/framework/stardust/nft_output#resource-nftoutput)                                                                                                                                                                                                                                                                                   | [`Balance<IOTA/SMR>`](../../references/framework/iota-framework/balance#struct-balance), [`Bag`](../../references/framework/iota-framework/bag#resource-bag) of `Balance<NATIVE_TOKEN>` key-ed by `"NATIVE_TOKEN"`, [`Nft`](../../references/framework/stardust/nft#resource-nft) object       |
-| Foundry Output                                                                       | Migrated to a Move Package with [template](https://github.com/iotaledger/iota/blob/develop/crates/iota-genesis-builder/src/stardust/native_token/package_template/sources/native_token_template.move) and [`CoinManager`](../../references/framework/iota-framework/coin_manager). Base tokens of the output are sent to the controlling alias as `Coin<IOTA/SMR>` objects. | -                                                                                                                                                                                                                                                                                              |
-| [Vested Rewards From the Stardust Upgrade](https://github.com/iotaledger/new_supply) | [`Timelock<Balance<IOTA>>`](../../references/framework/iota-framework/timelock.mdx#resource-timelock) objects.                                                                                                                                                                                                                                                                     | -                                                                                                                                                                                                                                                                                              |
+| Stardust Output (UTXO)                                                               | Move Container or Migrated Object                                                                                                                                                                                                                                                                                                                                       | Encapsulated Move Assets Inside the Container                                                                                                                                                                                                                                              |
+|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Basic Output with IOTA only                                                          | [`Coin<IOTA>`](../../references/framework/iota-framework/coin.mdx#resource-coin)                                                                                                                                                                                                                                                                                        | ready to be used, no need to extract any assets                                                                                                                                                                                                                                            |
+| Basic Output with IOTA and native tokens                                             | [`Coin<IOTA>`](../../references/framework/iota-framework/coin.mdx#resource-coin) and one or more [`Coin<NATIVE_TOKEN>`](../../references/framework/iota-framework/coin.mdx#resource-coin)                                                                                                                                                                               | ready to be used, no need to extract any assets                                                                                                                                                                                                                                            |
+| Basic Output with unlock conditions or features                                      | [`BasicOutput<IOTA>`](../../references/framework/stardust/basic_output#resource-basicoutput)                                                                                                                                                                                                                                                                            | [`Balance<IOTA>`](../../references/framework/iota-framework/balance#struct-balance), [`Bag`](../../references/framework/iota-framework/bag#resource-bag) of `Balance<NATIVE_TOKEN>` key-ed by `"NATIVE_TOKEN"`                                                                             |
+| Alias Output                                                                         | [`AliasOutput<IOTA`](../../references/framework/stardust/alias_output#resource-aliasoutput)                                                                                                                                                                                                                                                                             | [`Balance<IOTA>`](../../references/framework/iota-framework/balance#struct-balance), [`Bag`](../../references/framework/iota-framework/bag#resource-bag) of `Balance<NATIVE_TOKEN>` key-ed by `"NATIVE_TOKEN"`, [`Alias`](../../references/framework/stardust/alias#resource-alias) object |
+| Nft Output                                                                           | [`NftOutput<IOTA`](../../references/framework/stardust/nft_output#resource-nftoutput)                                                                                                                                                                                                                                                                                   | [`Balance<IOTA>`](../../references/framework/iota-framework/balance#struct-balance), [`Bag`](../../references/framework/iota-framework/bag#resource-bag) of `Balance<NATIVE_TOKEN>` key-ed by `"NATIVE_TOKEN"`, [`Nft`](../../references/framework/stardust/nft#resource-nft) object       |
+| Foundry Output                                                                       | Migrated to a Move Package with [template](https://github.com/iotaledger/iota/blob/develop/crates/iota-genesis-builder/src/stardust/native_token/package_template/sources/native_token_template.move) and [`CoinManager`](../../references/framework/iota-framework/coin_manager). Base tokens of the output are sent to the controlling alias as `Coin<IOTA>` objects. | -                                                                                                                                                                                                                                                                                          |
+| [Vested Rewards From the Stardust Upgrade](https://github.com/iotaledger/new_supply) | [`Timelock<Balance<IOTA>>`](../../references/framework/iota-framework/timelock.mdx#resource-timelock) objects.                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                          |
 
 
 ## Design Principles
@@ -56,7 +56,7 @@ genesis of the network.
     - [`irc27`](../../references/framework/stardust/irc27.mdx): Defines how an IRC-27 metadata is modeled.
     - [`utilities`](../../references/framework/stardust/utilities.mdx): Contains utility functions for the stardust package, primarily to help with extracting assets from containers.
  - There is no dedicated module for foundries and native tokens, since they are converted to [move-native tokens](../evm-to-move/creating-token.mdx)
-   along with the base tokens (IOTA/SMR). These models are already part of the [`iota-framework`](../../references/framework/iota-framework).
+   along with the base tokens (IOTA). These models are already part of the [`iota-framework`](../../references/framework/iota-framework).
 
 There is intentionally no constructor for any of the object types defined in the Stardust package, since they can
 only originate from the migrated legacy stardust ledger state. The only way to create these objects is via the migration script.
@@ -99,14 +99,14 @@ public struct Coin<phantom T> has key, store {
     balance: Balance<T>
 }
 ```
-Majority of the funds on both IOTA and SMR networks are held in basic outputs, without any special unlock conditions,
-as this is the most common way a wallet stores IOTA/SMR tokens. To make the migration as seamless as possible, all
+Majority of the funds on the IOTA network are held in basic outputs, without any special unlock conditions,
+as this is the most common way a wallet stores IOTA tokens. To make the migration as seamless as possible, all
 [Basic outputs](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#basic-output) from the Stardust ledger that:
-    - contain IOTA or SMR tokens only (no native tokens),
+    - contain IOTA tokens only (no native tokens),
     - have only an `Address Unlock Condition` and no other [unlock conditions](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#unlock-conditions),
     - have no [output features](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#features)
 
-will be migrated to a `Coin<IOTA>` or `Coin<SMR>` object, respectively. The `Coin` object will be owned by the address
+will be migrated to a `Coin<IOTA>` object. The `Coin` object will be owned by the address
 in the `Address Unlock Condition` of the Stardust output.
 
 :::info
@@ -118,7 +118,7 @@ ready to be used.
 
 :::warning
 
-IOTA and SMR `amounts` from Stardust that are locked behind unlock conditions (timelock, expiration, etc.), or reside in other types of outputs,
+IOTA `amounts` from Stardust that are locked behind unlock conditions (timelock, expiration, etc.), or reside in other types of outputs,
 will be migrated into the [containers](#containers) and have to be extracted from there during the claiming process.
 
 :::
@@ -146,7 +146,7 @@ A native token and its foundry from the Stardust ledger therefore translate to t
 :::warning
 
 Foundry outputs are migrated to move packages and coin manager objects. The base token funds present in the foundry
-output will be sent to the address of the controlling alias as `Coin<IOTA>` or `Coin<SMR>` object.
+output will be sent to the address of the controlling alias as a `Coin<IOTA>` object.
 
 :::
 
@@ -220,8 +220,7 @@ Such a feature is not needed in IOTA Rebased anymore due to the revised storage 
 paid in transactions.
 
 However, there are outputs in Stardust with such unlock conditions that are still locked behind them. The migration script
-therefore makes sure that the storage deposit amount is returned to the original sender as a `Coin<IOTA>` or `Coin<SMR>` object
-during the claiming process.
+therefore makes sure that the storage deposit amount is returned to the original sender as a `Coin<IOTA>` object during the claiming process.
 
 The move model [`StorageDepositReturnUnlockCondition`](../../references/framework/stardust/storage_deposit_return_unlock_condition.mdx#struct-storagedepositreturnunlockcondition)
 is added to the containers during the migration process where applicable. The [`unlock()`](../../references/framework/stardust/storage_deposit_return_unlock_condition.mdx#function-unlock)
@@ -293,8 +292,8 @@ Containers lock assets behind unlock conditions and ensure that the spending rul
 
 ### BasicOutput Move Model
 
-As mentioned above, all basic outputs from the legacy ledger state that simply lock simply base tokens (IOTA/SMR) behind an
-address unlock condition will be migrated to `Coin<IOTA>` or `Coin<SMR>` objects. Funds however that are locked in basic
+As mentioned above, all basic outputs from the legacy ledger state that simply lock simply base tokens (IOTA) behind an
+address unlock condition will be migrated to `Coin<IOTA>` objects. Funds however that are locked in basic
 outputs behind other spending conditions (timelock, expiration, etc.) or have special features (sender, metadata, etc.)
 will be migrated to [`BasicOutput`](../../references/framework/stardust/basic_output#resource-basicoutput) containers.
 
@@ -333,7 +332,7 @@ will be migrated to [`BasicOutput`](../../references/framework/stardust/basic_ou
         sender: Option<address>
     }
 ```
- - `T` is a type parameter that is either `IOTA` or `SMR`.
+ - `T` is a type parameter that is either `IOTA`.
  - A [`Bag`](../../references/framework/iota-framework/bag) is a heterogeneous map-like collection of values. The `native_tokens` bag
    stores `Balance<TOKEN-TYPE>` structs under the stringified type of the token.
  - The unlock conditions are all defined as [`Options`](../../references/framework/move-stdlib/option.mdx) since not all outputs have them.
@@ -373,7 +372,7 @@ There are two ways to interact with `BasicOutputs` in move:
 
 The [`AliasOutput`](../../references/framework/stardust/alias_output#resource-aliasoutput) container contains the
 following assets:
- - Base token balance (IOTA/SMR) of the migrated Stardust output.
+ - Base token balance (IOTA) of the migrated Stardust output.
  - A `Bag` that holds native tokens of the migrated Stardust output.
  - The [`Alias`](../../references/framework/stardust/alias#resource-alias) object that represents the alias in the move ledger.
    While this latter asset is not part of the container as a field, it is added to it as a [`dynamic object field`](../iota-101/objects/dynamic-fields/dynamic-fields.mdx)
@@ -395,7 +394,7 @@ following assets:
         native_tokens: Bag,
     }
 ```
- - `T` is a type parameter that is either `IOTA` or `SMR`.
+ - `T` is a type parameter that is either `IOTA`.
  - The `AliasOutput` object is owned by the governor of the alias in Stardust.
 
 #### Alias Model
@@ -450,7 +449,7 @@ public fun extract_assets<T>(mut output: AliasOutput<T>): (Balance<T>, Bag, Alia
 ### NftOutput Move Model
 
 The [`NftOutput`](../../references/framework/stardust/nft_output#resource-nftoutput) container contains the:
- - Base token balance (IOTA/SMR) of the migrated Stardust output.
+ - Base token balance (IOTA) of the migrated Stardust output.
  - A `Bag` that holds native tokens of the migrated Stardust output.
  - The [`Nft`](../../references/framework/stardust/nft#resource-nft) object that represents the NFT in the move ledger.
    While this latter asset is not part of the container as a field, it is added to it as a [`dynamic object field`](../iota-101/objects/dynamic-fields/dynamic-fields.mdx)
@@ -479,7 +478,7 @@ The [`NftOutput`](../../references/framework/stardust/nft_output#resource-nftout
         expiration_uc: Option<ExpirationUnlockCondition>,
     }
 ```
- - `T` is a type parameter that is either `IOTA` or `SMR`.
+ - `T` is a type parameter that is either `IOTA`.
  - The unlock conditions are optional based on content of the migrated Stardust output. When present however, they are
    checked during the claiming process.
  - The `NftOutput` object is owned by the address that was in the `Address Unlock Condition` of the Stardust output, unless
