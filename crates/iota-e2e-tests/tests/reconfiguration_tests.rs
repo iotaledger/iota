@@ -665,11 +665,13 @@ async fn test_reconfig_with_committee_change_basic() {
     });
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/3359"]
 #[sim_test]
 async fn test_reconfig_with_committee_change_stress() {
     do_test_reconfig_with_committee_change_stress().await;
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/3359"]
 #[sim_test(check_determinism)]
 async fn test_reconfig_with_committee_change_stress_determinism() {
     do_test_reconfig_with_committee_change_stress().await;

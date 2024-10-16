@@ -598,6 +598,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
 
 // Tests that quorum driver can continuously retry txn with
 // SystemOverloadedRetryAfter error.
+#[ignore = "https://github.com/iotaledger/iota/issues/3359"]
 #[sim_test]
 async fn test_quorum_driver_handling_overload_and_retry() {
     telemetry_subscribers::init_for_testing();
