@@ -3,21 +3,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Page } from '@playwright/test';
-
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
 import { demoDappConnect } from './utils/dapp-connect';
-import { getClientIDs } from '../src/shared/utils/getClientIDs';
+import { generateWalletMessageStreamIdentifiers } from '../src/shared/utils/generateWalletMessageStreamIdentifiers';
+import dotenv from 'dotenv';
 
-let walletName: string;
+dotenv.config();
 
 function getInAppMessage(page: Page, id: string) {
-    const clientIDs = getClientIDs(walletName);
+    const walletMessageStreamIDs = generateWalletMessageStreamIdentifiers(process.env.APP_NAME);
     return page.evaluate(
-        ({ clientIDs, anId }) => {
+        ({ walletMessageStreamIDs, anId }) => {
             return new Promise((resolve, reject) => {
                 const callBackFN = (msg: MessageEvent) => {
-                    if (msg.data.target === clientIDs.name && msg.data.payload.id === anId) {
+                    if (
+                        msg.data.target === walletMessageStreamIDs.name &&
+                        msg.data.payload.id === anId
+                    ) {
                         window.removeEventListener('message', callBackFN);
                         if (msg.data.payload.payload.error) {
                             reject(msg.data.payload);
@@ -29,13 +32,12 @@ function getInAppMessage(page: Page, id: string) {
                 window.addEventListener('message', callBackFN);
             });
         },
-        { clientIDs, anId: id },
+        { walletMessageStreamIDs, anId: id },
     );
 }
 
 test.beforeEach(async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
-    walletName = await page.title();
     await page.close();
 });
 
@@ -84,19 +86,21 @@ test.describe('site to content script messages', () => {
         test(aLabel, async ({ context, demoPageUrl }) => {
             const page = await context.newPage();
             await page.goto(demoPageUrl);
-            const clientIDs = getClientIDs(walletName);
+            const walletMessageStreamIDs = generateWalletMessageStreamIdentifiers(
+                process.env.APP_NAME,
+            );
             const nextMessage = getInAppMessage(page, aLabel);
             await page.evaluate(
-                ({ aPayload: payload, aLabel: label, clientIDs }) => {
+                ({ aPayload: payload, aLabel: label, walletMessageStreamIDs }) => {
                     window.postMessage({
-                        target: clientIDs.target,
+                        target: walletMessageStreamIDs.target,
                         payload: {
                             id: label,
                             payload,
                         },
                     });
                 },
-                { aPayload, aLabel, clientIDs },
+                { aPayload, aLabel, walletMessageStreamIDs },
             );
             if (result) {
                 expect(await nextMessage).toMatchObject(result);
