@@ -705,6 +705,7 @@ async fn test_expired_epoch_zklogin_in_multisig() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_max_epoch_too_large_fail_zklogin_in_multisig() {
     use iota_protocol_config::ProtocolConfig;
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
