@@ -189,31 +189,31 @@ Mocha.suite('LSP', () => {
             assert.strictEqual(isKeywordInCompletionItems(primitive, items), true);
         });
 
-        const colonParams: lc.CompletionParams = {
+        const parameterTypeParams: lc.CompletionParams = {
             textDocument: {
                 uri: docs.uri.toString(),
             },
-            // The position of the character ":"
+            // The position of the character "u"
             position: {
                 line: 9,
-                character: 15,
+                character: 17,
             },
         };
 
-        const itemsOnColon = await vscode.commands.executeCommand<Array<vscode.CompletionItem>>(
+        const itemsOnParameterType = await vscode.commands.executeCommand<Array<vscode.CompletionItem>>(
             'iota-move.textDocumentCompletion',
-            colonParams,
+            parameterTypeParams,
         );
 
-        assert.ok(itemsOnColon);
+        assert.ok(itemsOnParameterType);
 
-        const keywordsOnColon = itemsOnColon.filter(i => i.kind === CompletionItemKind.Keyword);
-        // Primitive types are the only keywords returned after inserting the colon
-        assert.strictEqual(keywordsOnColon.length, PRIMITIVE_TYPES.length);
+        const keywordsOnParameterType = itemsOnParameterType.filter(i => i.kind === CompletionItemKind.Keyword);
+        // Primitive types + `address` are the only keywords returned
+        assert.strictEqual(keywordsOnParameterType.length, PRIMITIVE_TYPES.length + 1);
 
         // Final safety check
         PRIMITIVE_TYPES.forEach((primitive) => {
-            assert.strictEqual(isKeywordInCompletionItems(primitive, keywordsOnColon), true);
+            assert.strictEqual(isKeywordInCompletionItems(primitive, keywordsOnParameterType), true);
         });
     });
 });
