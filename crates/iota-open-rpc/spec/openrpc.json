@@ -1345,7 +1345,6 @@
                 "soft_bundle": true,
                 "throughput_aware_consensus_submission": false,
                 "txn_base_cost_as_multiplier": true,
-                "upgraded_multisig_supported": true,
                 "verify_legacy_zklogin_address": true,
                 "zklogin_auth": true
               },

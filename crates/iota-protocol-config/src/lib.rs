@@ -166,9 +166,6 @@ struct FeatureFlags {
     // regardless of their previous state in the store.
     #[serde(skip_serializing_if = "is_false")]
     simplified_unwrap_then_delete: bool,
-    // Enable upgraded multisig support
-    #[serde(skip_serializing_if = "is_false")]
-    upgraded_multisig_supported: bool,
     // If true minimum txn charge is a multiplier of the gas price
     #[serde(skip_serializing_if = "is_false")]
     txn_base_cost_as_multiplier: bool,
@@ -1211,10 +1208,6 @@ impl ProtocolConfig {
         self.feature_flags.simplified_unwrap_then_delete
     }
 
-    pub fn supports_upgraded_multisig(&self) -> bool {
-        self.feature_flags.upgraded_multisig_supported
-    }
-
     pub fn txn_base_cost_as_multiplier(&self) -> bool {
         self.feature_flags.txn_base_cost_as_multiplier
     }
@@ -1976,7 +1969,6 @@ impl ProtocolConfig {
         cfg.feature_flags.commit_root_state_digest = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.simplified_unwrap_then_delete = true;
-        cfg.feature_flags.upgraded_multisig_supported = true;
         cfg.feature_flags.txn_base_cost_as_multiplier = true;
         cfg.feature_flags.narwhal_new_leader_election_schedule = true;
         cfg.feature_flags.loaded_child_object_format = true;
@@ -2195,9 +2187,6 @@ impl ProtocolConfig {
         self.feature_flags.random_beacon = val
     }
 
-    pub fn set_upgraded_multisig_for_testing(&mut self, val: bool) {
-        self.feature_flags.upgraded_multisig_supported = val
-    }
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_zklogin_in_multisig = val
     }
