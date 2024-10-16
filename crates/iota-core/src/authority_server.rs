@@ -921,7 +921,7 @@ impl ValidatorService {
         request: tonic::Request<CheckpointRequest>,
     ) -> WrappedServiceResponse<CheckpointResponse> {
         let request = request.into_inner();
-        let response = self.state.handle_checkpoint_request_v2(&request)?;
+        let response = self.state.handle_checkpoint_request(&request)?;
         Ok((tonic::Response::new(response), Weight::one()))
     }
 

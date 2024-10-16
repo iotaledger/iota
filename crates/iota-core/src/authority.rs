@@ -2583,7 +2583,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn handle_checkpoint_request_v2(
+    pub fn handle_checkpoint_request(
         &self,
         request: &CheckpointRequest,
     ) -> IotaResult<CheckpointResponse> {

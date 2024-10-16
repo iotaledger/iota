@@ -150,7 +150,7 @@ impl AuthorityAPI for LocalAuthorityClient {
     ) -> Result<CheckpointResponse, IotaError> {
         let state = self.state.clone();
 
-        state.handle_checkpoint_request_v2(&request)
+        state.handle_checkpoint_request(&request)
     }
 
     async fn handle_system_state_object(
