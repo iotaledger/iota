@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    net::{SocketAddr},
+    net::SocketAddr,
     path::PathBuf,
     sync::{Arc, OnceLock},
     time::Duration,
@@ -36,7 +36,8 @@ use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{runtime::Runtime, task::JoinHandle};
 
-const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
+const POSTGRES_URL: &str = "postgres://postgres:postgrespw@localhost:5432";
+const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
 const DEFAULT_INDEXER_PORT: u16 = 9005;
 const DEFAULT_SERVER_PORT: u16 = 3000;
@@ -128,7 +129,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
 
     // start indexer in write mode
     let (pg_store, _pg_store_handle) = start_test_indexer(
-        Some(DEFAULT_DB_URL.to_owned()),
+        Some(get_indexer_db_url(None)),
         cluster.rpc_url().to_string(),
         ReaderWriterConfig::writer_mode(None),
         temp.clone(),
@@ -145,6 +146,13 @@ pub async fn start_test_cluster_with_read_write_indexer(
         .unwrap();
 
     (cluster, pg_store, rpc_client)
+}
+
+fn get_indexer_db_url(database_name: Option<String>) -> String {
+    database_name.map_or_else(
+        || format!("{POSTGRES_URL}/{DEFAULT_DB}"),
+        |db_name| format!("{POSTGRES_URL}/{db_name}"),
+    )
 }
 
 /// Wait for the indexer to catch up to the given checkpoint sequence number
@@ -233,18 +241,9 @@ pub async fn indexer_wait_for_transaction(
     .expect("Timeout waiting for indexer to catchup to given transaction");
 }
 
-fn replace_db_name(db_url: &str, new_db_name: &str) -> String {
-    let pos = db_url.rfind('/').expect("Unable to find / in db_url");
-    format!("{}/{}", &db_url[..pos], new_db_name)
-}
-
 /// Start an Indexer instance in `Read` mode
 fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path: PathBuf, database_name: Option<String>) -> u16 {
-    let db_url = match database_name {
-        Some(database_name) => replace_db_name(DEFAULT_DB_URL, &database_name),
-        None => DEFAULT_DB_URL.to_owned(),
-    };
-
+    let db_url = get_indexer_db_url(database_name);
     let port = get_available_port(DEFAULT_INDEXER_IP);
     let config = IndexerConfig {
         db_url: Some(db_url.clone()),
@@ -302,7 +301,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     });
     // Starts indexer
     let (pg_store, pg_handle) = start_test_indexer(
-        Some(DEFAULT_DB_URL.to_owned()),
+        Some(get_indexer_db_url(None)),
         format!("http://{}", server_url),
         ReaderWriterConfig::writer_mode(None),
         data_ingestion_path,
@@ -322,13 +321,18 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     JoinHandle<Result<(), IndexerError>>,
     HttpClient,
 ) {
-    let server_url = new_local_tcp_socket_for_testing();
-    let (server_handle, pg_store, pg_handle) =
-        start_simulacrum_rest_api_with_write_indexer(sim, data_ingestion_path.clone(), Some(server_url), database_name.clone())
-            .await;
+    let simulacrum_server_url = new_local_tcp_socket_for_testing();
+    let (server_handle, pg_store, pg_handle) = start_simulacrum_rest_api_with_write_indexer(
+        sim,
+        data_ingestion_path.clone()
+        Some(simulacrum_server_url),
+        database_name.clone(),
+    )
+    .await;
 
     // start indexer in read mode
-    let indexer_port = start_indexer_reader(format!("http://{}", server_url), data_ingestion_path, database_name);
+    let indexer_port =
+        start_indexer_reader(format!("http://{}", simulacrum_server_url), data_ingestion_path, database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
