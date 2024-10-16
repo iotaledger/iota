@@ -1325,7 +1325,6 @@
                 "missing_type_is_compatibility_error": true,
                 "mysticeti_leader_scoring_and_schedule": true,
                 "mysticeti_use_committed_subdag_digest": true,
-                "narwhal_certificate_v2": true,
                 "no_extraneous_module_bytes": true,
                 "package_upgrades": true,
                 "passkey_auth": true,

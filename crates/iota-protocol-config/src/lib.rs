@@ -208,10 +208,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_effects_v2: bool,
 
-    // If true, then use CertificateV2 in narwhal.
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_certificate_v2: bool,
-
     // If true, allow verify with legacy zklogin address
     #[serde(skip_serializing_if = "is_false")]
     verify_legacy_zklogin_address: bool,
@@ -1274,10 +1270,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_effects_v2
     }
 
-    pub fn narwhal_certificate_v2(&self) -> bool {
-        self.feature_flags.narwhal_certificate_v2
-    }
-
     pub fn verify_legacy_zklogin_address(&self) -> bool {
         self.feature_flags.verify_legacy_zklogin_address
     }
@@ -1960,7 +1952,6 @@ impl ProtocolConfig {
         cfg.feature_flags.end_of_epoch_transaction_supported = true;
         cfg.feature_flags.enable_effects_v2 = true;
 
-        cfg.feature_flags.narwhal_certificate_v2 = true;
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
         cfg.feature_flags.shared_object_deletion = true;
         cfg.feature_flags.hardened_otw_check = true;
@@ -2185,9 +2176,6 @@ impl ProtocolConfig {
         self.feature_flags.reshare_at_same_initial_version = val;
     }
 
-    pub fn set_narwhal_certificate_v2_for_testing(&mut self, val: bool) {
-        self.feature_flags.narwhal_certificate_v2 = val
-    }
     pub fn set_verify_legacy_zklogin_address_for_testing(&mut self, val: bool) {
         self.feature_flags.verify_legacy_zklogin_address = val
     }
