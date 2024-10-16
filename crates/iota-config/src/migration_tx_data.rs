@@ -130,7 +130,7 @@ impl MigrationTxData {
     }
 
     /// Validates the content of the migration data through a `Genesis`. The
-    /// vaidation is based on cryptographic links (i.e., hash digests) between
+    /// validation is based on cryptographic links (i.e., hash digests) between
     /// transactions, transaction effects and events.
     pub fn validate_from_genesis(&self, genesis: &Genesis) -> anyhow::Result<()> {
         self.validate_from_genesis_components(
@@ -141,7 +141,7 @@ impl MigrationTxData {
     }
 
     /// Validates the content of the migration data through an
-    /// `UnsignedGenesis`. The vaidation is based on cryptographic links
+    /// `UnsignedGenesis`. The validation is based on cryptographic links
     /// (i.e., hash digests) between transactions, transaction effects and
     /// events.
     pub fn validate_from_unsigned_genesis(
