@@ -404,7 +404,9 @@ async fn test_upgrade_package_incorrect_digest() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::DigestDoesNotMatch { digest }
+            upgrade_error: PackageUpgradeError::DigestDoesNotMatch {
+                digest: digest.try_into().unwrap()
+            }
         }
     );
 }
