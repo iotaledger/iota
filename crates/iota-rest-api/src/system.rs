@@ -372,13 +372,16 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             address: iota_address.into(),
             authority_public_key: iota_sdk2::types::Bls12381PublicKey::from_bytes(
                 authority_pubkey_bytes,
-            ).unwrap(),
+            )
+            .unwrap(),
             network_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(
                 authority_network_pubkey_bytes,
-            ).unwrap(),
+            )
+            .unwrap(),
             protocol_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(
-                authority_protocol_pubkey_bytes
-            ).unwrap(),
+                authority_protocol_pubkey_bytes,
+            )
+            .unwrap(),
             proof_of_possession_bytes,
             name,
             description,
@@ -388,14 +391,11 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             p2p_address,
             primary_address,
             next_epoch_protocol_public_key: next_epoch_authority_pubkey_bytes
-                .map(|bytes| iota_sdk2::types::Bls12381PublicKey::from_bytes(bytes)
-                    .unwrap()),
+                .map(|bytes| iota_sdk2::types::Bls12381PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_network_public_key: next_epoch_network_pubkey_bytes
-                .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes)
-                    .unwrap()),
+                .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_worker_public_key: next_epoch_protocol_pubkey_bytes
-                .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes)
-                    .unwrap()),
+                .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_proof_of_possession,
             next_epoch_net_address,
             next_epoch_p2p_address,

@@ -180,7 +180,7 @@ impl ValidatorConfigBuilder {
             )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
             protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator.protocol_key_pair
+                validator.protocol_key_pair,
             )),
             db_path,
             network_address,
@@ -199,7 +199,7 @@ impl ValidatorConfigBuilder {
             p2p_config,
             authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
-            default_end_of_epoch_broadcast_channel_capacity(),
+                default_end_of_epoch_broadcast_channel_capacity(),
             checkpoint_executor_config,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: Default::default(),
@@ -491,7 +491,7 @@ impl FullnodeConfigBuilder {
             p2p_config,
             authority_store_pruning_config: AuthorityStorePruningConfig::default(),
             end_of_epoch_broadcast_channel_capacity:
-            default_end_of_epoch_broadcast_channel_capacity(),
+                default_end_of_epoch_broadcast_channel_capacity(),
             checkpoint_executor_config,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: self.db_checkpoint_config.unwrap_or_default(),
