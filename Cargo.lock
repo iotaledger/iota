@@ -6130,6 +6130,7 @@ dependencies = [
  "csv",
  "dirs 5.0.1",
  "fastcrypto",
+ "iota-genesis-common",
  "iota-keys",
  "iota-protocol-config",
  "iota-types",
@@ -6575,6 +6576,7 @@ dependencies = [
  "iota-execution",
  "iota-framework",
  "iota-framework-snapshot",
+ "iota-genesis-common",
  "iota-move-build",
  "iota-move-natives-v0",
  "iota-protocol-config",
@@ -6607,6 +6609,16 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "iota-genesis-common"
+version = "0.0.0"
+dependencies = [
+ "iota-execution",
+ "iota-protocol-config",
+ "iota-types",
+ "prometheus",
 ]
 
 [[package]]
@@ -8027,7 +8039,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64 0.21.7",
  "bcs",
  "bimap",
  "clap",

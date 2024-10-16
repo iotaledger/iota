@@ -30,7 +30,6 @@ const aboutIota = [
         },
         items: [
             'about-iota/tokenomics/iota-token',
-            'about-iota/tokenomics/smr-token',
             'about-iota/tokenomics/proof-of-stake',
             'about-iota/tokenomics/validators-staking',
             'about-iota/tokenomics/staking-unstaking',
