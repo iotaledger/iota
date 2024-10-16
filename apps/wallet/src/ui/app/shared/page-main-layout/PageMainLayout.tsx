@@ -4,7 +4,6 @@
 
 import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
-import { BadgeType, Badge } from '@iota/apps-ui-kit';
 import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
@@ -17,7 +16,7 @@ import { Link } from 'react-router-dom';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { isMainAccount } from '_src/background/accounts/isMainAccount';
+import { truncateString } from '../../helpers';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -95,9 +94,9 @@ function LeftContent({
     isLedgerAccount: boolean | null;
     isLocked?: boolean;
 }) {
-    const isMain = isMainAccount(account);
-
-    const accountName = account?.nickname ?? formatAddress(account?.address || '');
+    const accountName =
+        (account?.nickname && truncateString(account?.nickname, 12)) ??
+        formatAddress(account?.address || '');
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
         <Link
@@ -113,8 +112,7 @@ function LeftContent({
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="text-title-sm text-neutral-10">{accountName}</span>
-            {isMain && <Badge type={BadgeType.PrimarySoft} label="Main" />}
+            <span className="shrink-0 text-title-sm text-neutral-10">{accountName}</span>
         </Link>
     );
 }

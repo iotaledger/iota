@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What is the primary purpose of the transferable witness pattern?",
+    "answerOptions": [
+      { "answerText": "To enable cross-chain transactions", "isCorrect": false },
+      { "answerText": "To provide flexible and controlled authorization mechanisms", "isCorrect": true },
+      { "answerText": "To manage token transfers", "isCorrect": false },
+      { "answerText": "To enhance data storage efficiency", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is NOT a typical use case for the transferable witness pattern?",
+    "answerOptions": [
+      { "answerText": "Cross-module authorization", "isCorrect": false },
+      { "answerText": "Deferred authorization", "isCorrect": false },
+      { "answerText": "Single-use access control", "isCorrect": false },
+      { "answerText": "Gas fee reduction", "isCorrect": true }
+    ]
+  },
+  {
+    "questionText": "What ability is required for the `WITNESS` struct in the transferable witness pattern?",
+    "answerOptions": [
+      { "answerText": "key", "isCorrect": false },
+      { "answerText": "store and drop", "isCorrect": true },
+      { "answerText": "copy", "isCorrect": false },
+      { "answerText": "freeze", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How does the `get_witness` function ensure single-use access control?",
+    "answerOptions": [
+      { "answerText": "By consuming the `WitnessCarrier` when extracting the witness", "isCorrect": true },
+      { "answerText": "By locking the witness after it is accessed", "isCorrect": false },
+      { "answerText": "By encrypting the witness", "isCorrect": false },
+      { "answerText": "By requiring multiple signatures for access", "isCorrect": false }
+    ]
+  }
+]

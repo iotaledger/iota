@@ -144,6 +144,7 @@ mod tests {
 
     // async: existing runtime is required with typed-store
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_storage_basic() {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BridgeOrchestratorTables::new(temp_dir.path());

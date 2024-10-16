@@ -20,7 +20,7 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
@@ -39,6 +39,7 @@ import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -142,7 +143,7 @@ function StakingCard() {
         },
         onSuccess: (_, { amount, validatorAddress }) => {
             ampli.stakedIota({
-                stakedAmount: Number(amount / NANO_PER_IOTA),
+                stakedAmount: Number(amount / NANOS_PER_IOTA),
                 validatorAddress: validatorAddress,
             });
         },
@@ -306,6 +307,12 @@ function StakingCard() {
                                         !isValid || isSubmitting || (unstake && !delegationId)
                                     }
                                     text={unstake ? 'Unstake' : 'Stake'}
+                                    icon={
+                                        isSubmitting ? (
+                                            <Loader className="animate-spin" />
+                                        ) : undefined
+                                    }
+                                    iconAfterText
                                 />
                             </div>
                         </>

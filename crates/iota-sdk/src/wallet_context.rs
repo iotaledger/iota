@@ -34,8 +34,8 @@ pub struct WalletContext {
 impl WalletContext {
     pub fn new(
         config_path: &Path,
-        request_timeout: Option<std::time::Duration>,
-        max_concurrent_requests: Option<u64>,
+        request_timeout: impl Into<Option<std::time::Duration>>,
+        max_concurrent_requests: impl Into<Option<u64>>,
     ) -> Result<Self, anyhow::Error> {
         let config: IotaClientConfig = PersistedConfig::read(config_path).map_err(|err| {
             anyhow!(
@@ -47,9 +47,9 @@ impl WalletContext {
         let config = config.persisted(config_path);
         let context = Self {
             config,
-            request_timeout,
+            request_timeout: request_timeout.into(),
             client: Default::default(),
-            max_concurrent_requests,
+            max_concurrent_requests: max_concurrent_requests.into(),
         };
         Ok(context)
     }
@@ -122,10 +122,10 @@ impl WalletContext {
                 .read_api()
                 .get_owned_objects(
                     address,
-                    Some(IotaObjectResponseQuery::new(
+                    IotaObjectResponseQuery::new(
                         Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
                         Some(IotaObjectDataOptions::full_content()),
-                    )),
+                    ),
                     cursor,
                     None,
                 )
@@ -205,17 +205,17 @@ impl WalletContext {
     pub async fn get_gas_objects_owned_by_address(
         &self,
         address: IotaAddress,
-        limit: Option<usize>,
+        limit: impl Into<Option<usize>>,
     ) -> anyhow::Result<Vec<ObjectRef>> {
         let client = self.get_client().await?;
         let results: Vec<_> = client
             .read_api()
             .get_owned_objects(
                 address,
-                Some(IotaObjectResponseQuery::new(
+                IotaObjectResponseQuery::new(
                     Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
                     Some(IotaObjectDataOptions::full_content()),
-                )),
+                ),
                 None,
                 limit,
             )
@@ -235,7 +235,7 @@ impl WalletContext {
         address: IotaAddress,
     ) -> anyhow::Result<Option<ObjectRef>> {
         Ok(self
-            .get_gas_objects_owned_by_address(address, Some(1))
+            .get_gas_objects_owned_by_address(address, 1)
             .await?
             .pop())
     }
@@ -284,8 +284,8 @@ impl WalletContext {
     }
 
     /// Add an account
-    pub fn add_account(&mut self, alias: Option<String>, keypair: IotaKeyPair) {
-        self.config.keystore.add_key(alias, keypair).unwrap();
+    pub fn add_account(&mut self, alias: impl Into<Option<String>>, keypair: IotaKeyPair) {
+        self.config.keystore.add_key(alias.into(), keypair).unwrap();
     }
 
     /// Sign a transaction with a key currently managed by the WalletContext
@@ -335,7 +335,7 @@ impl WalletContext {
                     .with_events()
                     .with_object_changes()
                     .with_balance_changes(),
-                Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
+                iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
             )
             .await?)
     }

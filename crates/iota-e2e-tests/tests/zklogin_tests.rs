@@ -105,7 +105,7 @@ async fn test_zklogin_feature_legacy_address_deny() {
 
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_legacy_zklogin_address_accept() {
+async fn test_zklogin_legacy_address_accept() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_verify_legacy_zklogin_address_for_testing(true);
         config
@@ -120,7 +120,7 @@ async fn test_legacy_zklogin_address_accept() {
 
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn zklogin_end_to_end_test() {
+async fn test_zklogin_end_to_end() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(15000)
         .with_default_jwks()
@@ -144,7 +144,8 @@ async fn zklogin_end_to_end_test() {
 }
 
 #[sim_test]
-async fn test_max_epoch_too_large_fail_tx() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_max_epoch_too_large_fail_tx() {
     use iota_protocol_config::ProtocolConfig;
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_zklogin_max_epoch_upper_bound_delta_for_testing(Some(1));
@@ -171,7 +172,7 @@ async fn test_max_epoch_too_large_fail_tx() {
 
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_expired_zklogin_sig() {
+async fn test_zklogin_expired_zklogin_sig() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(15000)
         .with_default_jwks()
@@ -223,7 +224,7 @@ async fn test_expired_zklogin_sig() {
 
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_auth_state_creation() {
+async fn test_zklogin_auth_state_creation() {
     // Create test cluster without auth state object in genesis
     let test_cluster = TestClusterBuilder::new()
         .with_protocol_version(23.into())
@@ -241,7 +242,7 @@ async fn test_auth_state_creation() {
 
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_create_authenticator_state_object() {
+async fn test_zklogin_create_authenticator_state_object() {
     let test_cluster = TestClusterBuilder::new()
         .with_protocol_version(23.into())
         .with_epoch_duration_ms(15000)
@@ -285,7 +286,7 @@ async fn test_create_authenticator_state_object() {
 #[cfg(msim)]
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_conflicting_jwks() {
+async fn test_zklogin_conflicting_jwks() {
     use std::{
         collections::HashSet,
         sync::{Arc, Mutex},

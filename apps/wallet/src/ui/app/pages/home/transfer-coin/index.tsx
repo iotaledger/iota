@@ -28,6 +28,7 @@ import { useActiveAddress, useCoinsReFetchingConfig } from '_src/ui/app/hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { CoinBalance } from '@iota/iota-sdk/client';
 import { ImageIconSize } from '_src/ui/app/shared/image-icon';
+import { Loader } from '@iota/ui-icons';
 
 function TransferCoinPage() {
     const [searchParams] = useSearchParams();
@@ -93,6 +94,9 @@ function TransferCoinPage() {
                         {getSignerOperationErrorMessage(error)}
                     </small>
                 </div>,
+                {
+                    duration: 10000,
+                },
             );
         },
     });
@@ -133,6 +137,12 @@ function TransferCoinPage() {
                             }}
                             text="Send Now"
                             disabled={coinType === null || executeTransfer.isPending}
+                            icon={
+                                executeTransfer.isPending ? (
+                                    <Loader className="animate-spin" />
+                                ) : undefined
+                            }
+                            iconAfterText
                         />
                     </div>
                 ) : (

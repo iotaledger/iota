@@ -80,7 +80,7 @@ export type StructTag = {
 };
 
 /**
- * Iota TypeTag object. A decoupled `0x...::module::Type<???>` parameter.
+ * IOTA TypeTag object. A decoupled `0x...::module::Type<???>` parameter.
  */
 export type TypeTag =
     | { bool: null | true }

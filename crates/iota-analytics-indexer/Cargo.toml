@@ -1,7 +1,7 @@
 [package]
 name = "iota-analytics-indexer"
 version.workspace = true
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -36,11 +36,11 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
-parquet = "52.1"
+parquet = "53.1"
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-snowflake-api = { version = "0.9" }
+snowflake-api = "0.10"
 strum.workspace = true
 tap = "1.0"
 telemetry-subscribers.workspace = true

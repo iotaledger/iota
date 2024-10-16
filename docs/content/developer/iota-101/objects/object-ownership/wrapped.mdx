@@ -1,6 +1,8 @@
 ---
 title: Wrapped Objects
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/object-ownership/wrapped.json';
 
 In programming, nesting complex data structures within others is common for organizing information.
 Move allows you to structure data by embedding a `struct` type within another `struct`, which is known as wrapping.
@@ -267,3 +269,5 @@ public struct Farm has key {
 ```
 
 The `Farm` object can now contain a collection of `Pet` objects, which can only be accessed through the `Farm`.
+
+<Quiz questions={questions} />

@@ -185,7 +185,7 @@ jobs:
           choco push iota.${{ env.iota_version }}.nupkg --source https://push.chocolatey.org/
 
       - name: Upload release artifacts for ${{ matrix.os }} platform
-        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # pin@v3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: iota-binaries-${{ matrix.os }}
           if-no-files-found: error
@@ -249,7 +249,7 @@ jobs:
 
       # Download all artifacts from the previous job
       - name: Download all artifacts
-        uses: actions/download-artifact@cbed621e49e4c01b044d60f6c80ea4ed6328b281 # pin@v2
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
 
       - name: Fetch Ubuntu x86_64 Binary and Compute SHA256
         shell: bash

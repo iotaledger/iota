@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What function is used to create a new NFT in the examples::devnet_nft module?",
+        "answerOptions": [
+            { "answerText": "burn", "isCorrect": false },
+            { "answerText": "mint_to_sender", "isCorrect": true },
+            { "answerText": "transfer", "isCorrect": false },
+            { "answerText": "update_description", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What event is emitted when an NFT is created?",
+        "answerOptions": [
+            { "answerText": "NFTMinted", "isCorrect": true },
+            { "answerText": "TransferCompleted", "isCorrect": false },
+            { "answerText": "BurnCompleted", "isCorrect": false },
+            { "answerText": "ObjectCreated", "isCorrect": false }
+        ]
+    }
+]

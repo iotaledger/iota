@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
     ButtonSegment,
     ButtonSegmentType,
+    LoadingIndicator,
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';

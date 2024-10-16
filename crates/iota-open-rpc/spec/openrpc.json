@@ -6,7 +6,7 @@
     "contact": {
       "name": "IOTA Foundation",
       "url": "https://iota.org",
-      "email": "contact@iota.org"
+      "email": "info@iota.org"
     },
     "license": {
       "name": "Apache-2.0",
@@ -8365,6 +8365,7 @@
           "inactivePoolsId",
           "inactivePoolsSize",
           "iotaTotalSupply",
+          "iotaTreasuryCapId",
           "maxValidatorCount",
           "minValidatorJoiningStake",
           "pendingActiveValidatorsId",
@@ -8460,6 +8461,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "iotaTreasuryCapId": {
+            "description": "The `TreasuryCap<IOTA>` object ID.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
               }
             ]
           },

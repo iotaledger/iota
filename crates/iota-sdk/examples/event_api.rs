@@ -29,7 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let descending = true;
     let query_events = client
         .event_api()
-        .query_events(EventFilter::All(vec![]), None, Some(5), descending) // query first 5 events in descending order
+        .query_events(EventFilter::All(vec![]), None, 5, descending) // query first 5 events in descending order
         .await?;
     println!(" *** Query events *** ");
     println!("{:?}", query_events);

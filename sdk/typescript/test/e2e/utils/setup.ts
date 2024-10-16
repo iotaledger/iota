@@ -4,6 +4,7 @@
 
 import { execSync } from 'child_process';
 import { mkdtemp } from 'fs/promises';
+import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import tmp from 'tmp';
@@ -25,6 +26,18 @@ import { IOTA_TYPE_ARG } from '../../../src/utils/index.js';
 
 const DEFAULT_FAUCET_URL = import.meta.env.VITE_FAUCET_URL ?? getFaucetHost('localnet');
 const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getFullnodeUrl('localnet');
+
+const CONFIG_DATA = `
+---
+keystore:
+  File: ~/.iota/iota_config/iota.keystore
+envs:
+  - alias: localnet
+    rpc: "http://localhost:9000"
+    ws: ~
+    basic_auth: ~
+active_env: localnet
+`;
 
 const IOTA_BIN =
     import.meta.env.VITE_IOTA_BIN ?? path.resolve(__dirname, '../../../../../target/debug/iota');
@@ -124,6 +137,7 @@ export async function setup(options: { graphQLURL?: string; rpcURL?: string } = 
     const tmpDirPath = path.join(tmpdir(), 'config-');
     const tmpDir = await mkdtemp(tmpDirPath);
     const configPath = path.join(tmpDir, 'client.yaml');
+    writeFileSync(configPath, CONFIG_DATA, { flag: 'w', flush: true });
     return setupWithFundedAddress(keypair, address, configPath, options);
 }
 
@@ -312,11 +326,9 @@ export async function payIota(
             showEffects: true,
             showObjectChanges: true,
         },
+        requestType: 'WaitForLocalExecution',
     });
 
-    await client.waitForTransaction({
-        digest: txn.digest,
-    });
     expect(txn.effects?.status.status).toEqual('success');
     return txn;
 }
