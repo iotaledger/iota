@@ -21,7 +21,7 @@ export function Placeholder({ width, height }: PlaceholderProps) {
     return (
         <div
             className={cx(
-                'animate-pulse rounded-md bg-gradient-to-r from-shader-primary-light-8 bg-[length:1000px_100%]',
+                'animate-pulse rounded-md bg-gradient-to-r from-shader-primary-light-8 bg-[length:1000px_100%] dark:from-shader-primary-dark-8',
                 widthClass,
                 heightClass,
             )}
