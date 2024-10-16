@@ -136,12 +136,10 @@ impl ValidatorMetadataV1 {
         verify_proof_of_possession(&pop, &authority_pubkey, self.iota_address)
             .map_err(|_| E_METADATA_INVALID_POP)?;
 
-        let network_pubkey =
-            NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
-                .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
-        let protocol_pubkey =
-            NetworkPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
-                .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?;
+        let network_pubkey = NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
+            .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
+        let protocol_pubkey = NetworkPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
+            .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?;
         if protocol_pubkey == network_pubkey {
             return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
         }
