@@ -49,8 +49,8 @@ pub fn prepare_and_execute_genesis_transaction(
 /// Takes as input a transaction of kind Genesis and executes it. This can be
 /// used to obtain the `TransactionEffects`, `TransactionEvents` and
 /// `Vec<Object>` (vector of created objects) that result from the execution.
-/// Some `EpochData`, `ProtocolConfig` and `LimitsMetrics` are needed as input t
-/// obe passed to the transaction executor.
+/// Some `EpochData`, `ProtocolConfig` and `LimitsMetrics` are needed as input
+/// to be passed to the transaction executor.
 pub fn execute_genesis_transaction(
     epoch_data: &EpochData,
     protocol_config: &ProtocolConfig,
