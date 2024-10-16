@@ -186,7 +186,6 @@ mod tests {
             queries:
               - query: 'max(current_epoch{network="testnet"})'
                 type: Instant
-    
               - query: 'histogram_quantile(0.50, sum by(le) (rate(round_latency{network="testnet"}[15m])))'
                 type: 
                   Range:
