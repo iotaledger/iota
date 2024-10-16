@@ -195,11 +195,16 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             project_url,
         } => {
             let mut builder = Builder::load(&dir).await?;
-            let authority_keypair: AuthorityKeyPair = read_authority_keypair_from_file(authority_key_file)?;
+            let authority_keypair: AuthorityKeyPair =
+                read_authority_keypair_from_file(authority_key_file)?;
             let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
-            let protocol_keypair: NetworkKeyPair = read_network_keypair_from_file(protocol_key_file)?;
+            let protocol_keypair: NetworkKeyPair =
+                read_network_keypair_from_file(protocol_key_file)?;
             let network_keypair: NetworkKeyPair = read_network_keypair_from_file(network_key_file)?;
-            let pop = generate_proof_of_possession(&authority_keypair, (&account_keypair.public()).into());
+            let pop = generate_proof_of_possession(
+                &authority_keypair,
+                (&account_keypair.public()).into(),
+            );
             builder = builder.add_validator(
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
@@ -219,7 +224,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 pop,
             );
             builder.save(dir)?;
-            println!("Successfully added validator",);
+            println!("Successfully added validator", );
         }
 
         CeremonyCommand::ListValidators => {
@@ -372,7 +377,8 @@ mod test {
 
         let validators = (0..10)
             .map(|i| {
-                let authority_keypair: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+                let authority_keypair: AuthorityKeyPair =
+                    get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let protocol_keypair: NetworkKeyPair =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let network_keypair: NetworkKeyPair =
@@ -428,8 +434,13 @@ mod test {
         command.run().await?;
 
         // Add the validators
-        for (authority_key_file, protocol_key_file, network_key_file, account_key_file, validator) in
-            &validators
+        for (
+            authority_key_file,
+            protocol_key_file,
+            network_key_file,
+            account_key_file,
+            validator
+        ) in &validators
         {
             let command = Ceremony {
                 path: Some(dir.path().into()),

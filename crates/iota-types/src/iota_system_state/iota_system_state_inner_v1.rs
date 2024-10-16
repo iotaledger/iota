@@ -127,19 +127,23 @@ impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
-        let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
-            .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
+        let authority_pubkey =
+            AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
+                .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
         // Verify proof of possession for the protocol key
-        let pop = AuthoritySignature::from_bytes(self.proof_of_possession_bytes.as_ref())
-            .map_err(|_| E_METADATA_INVALID_POP)?;
+        let pop =
+            AuthoritySignature::from_bytes(self.proof_of_possession_bytes.as_ref())
+                .map_err(|_| E_METADATA_INVALID_POP)?;
         verify_proof_of_possession(&pop, &authority_pubkey, self.iota_address)
             .map_err(|_| E_METADATA_INVALID_POP)?;
 
-        let network_pubkey = NetworkPublicKey::from_bytes(self.authority_network_pubkey_bytes.as_ref())
-            .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
-        let protocol_pubkey = NetworkPublicKey::from_bytes(self.authority_protocol_pubkey_bytes.as_ref())
-            .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?;
+        let network_pubkey =
+            NetworkPublicKey::from_bytes(self.authority_network_pubkey_bytes.as_ref())
+                .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
+        let protocol_pubkey =
+            NetworkPublicKey::from_bytes(self.authority_protocol_pubkey_bytes.as_ref())
+                .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?;
         if protocol_pubkey == network_pubkey {
             return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
         }

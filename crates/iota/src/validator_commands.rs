@@ -320,8 +320,10 @@ impl IotaValidatorCommand {
                     read_network_keypair_from_file(protocol_key_file_name)?;
                 let network_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(network_key_file_name)?;
-                let pop =
-                    generate_proof_of_possession(&authority_keypair, (&account_keypair.public()).into());
+                let pop = generate_proof_of_possession(
+                    &authority_keypair,
+                    (&account_keypair.public()).into(),
+                );
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,

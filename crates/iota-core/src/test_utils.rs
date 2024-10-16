@@ -251,7 +251,8 @@ async fn init_genesis(
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop = generate_proof_of_possession(&authority_key_pair, (&account_key_pair.public()).into());
+        let pop =
+            generate_proof_of_possession(&authority_key_pair, (&account_key_pair.public()).into());
         builder = builder.add_validator(validator_info, pop);
         key_pairs.push((authority_pubkey_bytes, authority_key_pair));
     }

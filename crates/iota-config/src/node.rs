@@ -1189,7 +1189,8 @@ mod tests {
         let network_key_pair: NetworkKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
 
-        write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key")).unwrap();
+        write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
+            .unwrap();
         write_keypair_to_file(
             &IotaKeyPair::Ed25519(protocol_key_pair.copy()),
             PathBuf::from("protocol.key"),

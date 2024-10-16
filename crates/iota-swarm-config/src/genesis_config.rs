@@ -85,8 +85,9 @@ impl ValidatorGenesisConfig {
             image_url: String::new(),
             project_url: String::new(),
         };
-        let proof_of_possession =
-            generate_proof_of_possession(&self.authority_key_pair, (&self.account_key_pair.public()).into());
+        let proof_of_possession = generate_proof_of_possession(
+            &self.authority_key_pair, (&self.account_key_pair.public()).into(),
+        );
         GenesisValidatorInfo {
             info,
             proof_of_possession,
