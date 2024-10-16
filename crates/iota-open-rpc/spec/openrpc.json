@@ -1315,7 +1315,6 @@
                 "enable_jwk_consensus_updates": true,
                 "enable_poseidon": true,
                 "enable_vdf": true,
-                "end_of_epoch_transaction_supported": true,
                 "fresh_vm_on_framework_upgrade": true,
                 "hardened_otw_check": true,
                 "include_consensus_digest_in_prologue": true,

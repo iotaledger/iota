@@ -19,7 +19,6 @@ feature_flags:
   txn_base_cost_as_multiplier: true
   shared_object_deletion: true
   loaded_child_object_format: true
-  end_of_epoch_transaction_supported: true
   simple_conservation_checks: true
   loaded_child_object_format_type: true
   random_beacon: true
