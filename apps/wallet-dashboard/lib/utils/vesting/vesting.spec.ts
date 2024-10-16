@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    dynamicDateTimelockedStackedObjects,
     MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS,
     MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
@@ -71,9 +72,8 @@ describe('build supply increase staker vesting portfolio', () => {
         );
     });
 
-    // TODO Fix and unskip
-    it.skip('should build properly with mocked timelocked staked objects', () => {
-        const timelockedStakedObjects = MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS;
+    it('should build properly with mocked timelocked staked objects', () => {
+        const timelockedStakedObjects = dynamicDateTimelockedStackedObjects;
         const extendedTimelockedStakedObjects =
             formatDelegatedTimelockedStake(timelockedStakedObjects);
         const lastPayout = getLastSupplyIncreaseVestingPayout(extendedTimelockedStakedObjects);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TimelockedObject } from '../interfaces';
+import { getDistributedTimelockedStakedObjects } from '../utils/vesting/getDistributedTimelockedStakedObjects';
 import { DAYS_PER_WEEK, DAYS_PER_YEAR, MILLISECONDS_PER_DAY } from './time.constants';
 import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
 
@@ -661,3 +662,7 @@ export const MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS: DelegatedTimelockedStake[
         ],
     },
 ];
+
+export const dynamicDateTimelockedStackedObjects = getDistributedTimelockedStakedObjects(
+    MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
+);
