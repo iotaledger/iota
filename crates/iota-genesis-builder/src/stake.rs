@@ -76,7 +76,7 @@ impl GenesisStake {
         builder.build()
     }
 
-    /// Extend a vanilla [`TokenDistributionSchedule`] with the
+    /// Extend a [`TokenDistributionSchedule`] without migration with the
     /// inner token allocations.
     ///
     /// The resulting schedule is guaranteed to contain allocations
@@ -85,16 +85,16 @@ impl GenesisStake {
     /// ## Errors
     ///
     /// The method fails if the resulting schedule contains is invalid.
-    pub fn extend_vanilla_token_distribution_schedule(
+    pub fn extend_token_distribution_schedule_without_migration(
         &self,
-        mut vanilla_schedule: TokenDistributionSchedule,
+        mut schedule_without_migration: TokenDistributionSchedule,
     ) -> TokenDistributionSchedule {
-        vanilla_schedule
+        schedule_without_migration
             .allocations
             .extend(self.token_allocation.clone());
-        vanilla_schedule.pre_minted_supply = self.calculate_pre_minted_supply();
-        vanilla_schedule.validate();
-        vanilla_schedule
+        schedule_without_migration.pre_minted_supply = self.calculate_pre_minted_supply();
+        schedule_without_migration.validate();
+        schedule_without_migration
     }
 
     /// Calculates the part of the IOTA supply that is pre-minted.
