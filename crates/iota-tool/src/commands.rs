@@ -619,7 +619,7 @@ impl ToolCommand {
                             metadata.name,
                             metadata.iota_pubkey_bytes().concise(),
                             metadata.net_address,
-                            anemo::PeerId(metadata.authority_network_pubkey.0.to_bytes()),
+                            anemo::PeerId(metadata.network_pubkey.0.to_bytes()),
                         )
                     }
                 }

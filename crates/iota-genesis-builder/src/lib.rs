@@ -518,11 +518,11 @@ impl Builder {
             assert_eq!(validator.info.authority_key(), metadata.iota_pubkey_bytes());
             assert_eq!(
                 validator.info.network_key,
-                metadata.authority_network_pubkey
+                metadata.network_pubkey
             );
             assert_eq!(
                 validator.info.protocol_key,
-                metadata.authority_protocol_pubkey
+                metadata.protocol_pubkey
             );
             assert_eq!(
                 validator.proof_of_possession.as_ref().to_vec(),

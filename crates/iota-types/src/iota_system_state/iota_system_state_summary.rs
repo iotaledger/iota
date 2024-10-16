@@ -213,10 +213,10 @@ pub struct IotaValidatorSummary {
     pub authority_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub authority_network_pubkey_bytes: Vec<u8>,
+    pub network_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub authority_protocol_pubkey_bytes: Vec<u8>,
+    pub protocol_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
     pub proof_of_possession_bytes: Vec<u8>,
@@ -354,8 +354,8 @@ impl Default for IotaValidatorSummary {
         Self {
             iota_address: IotaAddress::default(),
             authority_pubkey_bytes: vec![],
-            authority_network_pubkey_bytes: vec![],
-            authority_protocol_pubkey_bytes: vec![],
+            network_pubkey_bytes: vec![],
+            protocol_pubkey_bytes: vec![],
             proof_of_possession_bytes: vec![],
             name: String::new(),
             description: String::new(),

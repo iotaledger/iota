@@ -242,7 +242,7 @@ async fn update_next_epoch_metadata(
     )
     .await?;
 
-    // update worker pubkey on chain
+    // update protocol pubkey on chain
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_protocol_pubkey",

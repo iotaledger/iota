@@ -193,10 +193,10 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                     validator.authority_pubkey.clone(),
                 ),
                 protocol_key: consensus_config::ProtocolPublicKey::new(
-                    validator.authority_protocol_pubkey.clone(),
+                    validator.protocol_pubkey.clone(),
                 ),
                 network_key: consensus_config::NetworkPublicKey::new(
-                    validator.authority_network_pubkey.clone(),
+                    validator.network_pubkey.clone(),
                 ),
             });
         }
@@ -231,7 +231,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                     .to_anemo_address()
                     .into_iter()
                     .collect::<Vec<_>>();
-                let peer_id = PeerId(validator.authority_network_pubkey.0.to_bytes());
+                let peer_id = PeerId(validator.network_pubkey.0.to_bytes());
                 if address.is_empty() {
                     warn!(
                         ?peer_id,
@@ -252,7 +252,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .iter()
             .map(|validator| {
                 let name = validator.authority_name();
-                let peer_id = PeerId(validator.authority_network_pubkey.0.to_bytes());
+                let peer_id = PeerId(validator.network_pubkey.0.to_bytes());
 
                 (name, peer_id)
             })
@@ -276,8 +276,8 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
 pub struct EpochStartValidatorInfoV1 {
     pub iota_address: IotaAddress,
     pub authority_pubkey: AuthorityPublicKey,
-    pub authority_network_pubkey: NetworkPublicKey,
-    pub authority_protocol_pubkey: NetworkPublicKey,
+    pub network_pubkey: NetworkPublicKey,
+    pub protocol_pubkey: NetworkPublicKey,
     pub iota_net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
@@ -319,8 +319,8 @@ mod test {
             active_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
                 authority_pubkey: protocol_key.public().clone(),
-                authority_network_pubkey: consensus_network_key.public().clone(),
-                authority_protocol_pubkey: consensus_network_key.public().clone(),
+                network_pubkey: consensus_network_key.public().clone(),
+                protocol_pubkey: consensus_network_key.public().clone(),
                 iota_net_address: Multiaddr::empty(),
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),

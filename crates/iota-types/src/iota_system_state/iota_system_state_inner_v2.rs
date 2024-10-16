@@ -173,8 +173,8 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
                         authority_pubkey: metadata.authority_pubkey.clone(),
-                        authority_network_pubkey: metadata.authority_network_pubkey.clone(),
-                        authority_protocol_pubkey: metadata.authority_protocol_pubkey.clone(),
+                        network_pubkey: metadata.network_pubkey.clone(),
+                        protocol_pubkey: metadata.protocol_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
