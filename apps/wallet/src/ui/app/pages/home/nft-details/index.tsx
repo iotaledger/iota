@@ -88,7 +88,12 @@ function NFTDetailsPage() {
     }
 
     return (
-        <PageTemplate title="Visual Asset" isTitleCentered onClose={() => navigate(-1)}>
+        <PageTemplate
+            title="Visual Asset"
+            isTitleCentered
+            onClose={() => navigate(-1)}
+            showBackButton
+        >
             <div
                 className={cl('flex h-full flex-1 flex-col flex-nowrap gap-5', {
                     'items-center': isPending,
