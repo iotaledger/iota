@@ -149,9 +149,6 @@ struct FeatureFlags {
     // If true, checks no extra bytes in a compiled module
     #[serde(skip_serializing_if = "is_false")]
     no_extraneous_module_bytes: bool,
-    // If true, then use the versioned metadata format in narwhal entities.
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_versioned_metadata: bool,
 
     // Enable zklogin auth
     #[serde(skip_serializing_if = "is_false")]
@@ -1171,10 +1168,6 @@ impl ProtocolConfig {
         self.feature_flags.missing_type_is_compatibility_error
     }
 
-    pub fn narwhal_versioned_metadata(&self) -> bool {
-        self.feature_flags.narwhal_versioned_metadata
-    }
-
     pub fn consensus_order_end_of_epoch_last(&self) -> bool {
         self.feature_flags.consensus_order_end_of_epoch_last
     }
@@ -1980,7 +1973,6 @@ impl ProtocolConfig {
         cfg.feature_flags.no_extraneous_module_bytes = true;
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
-        cfg.feature_flags.narwhal_versioned_metadata = true;
         cfg.feature_flags.commit_root_state_digest = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.simplified_unwrap_then_delete = true;

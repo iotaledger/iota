@@ -1327,7 +1327,6 @@
                 "mysticeti_use_committed_subdag_digest": true,
                 "narwhal_certificate_v2": true,
                 "narwhal_new_leader_election_schedule": true,
-                "narwhal_versioned_metadata": true,
                 "no_extraneous_module_bytes": true,
                 "package_upgrades": true,
                 "passkey_auth": true,
