@@ -108,6 +108,9 @@ importers:
 
   apps/apps-backend:
     dependencies:
+      '@iota/core':
+        specifier: workspace:*
+        version: link:../core
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
