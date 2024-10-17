@@ -36,14 +36,6 @@ macro_rules! bcs_convert_impl {
 bcs_convert_impl!(crate::object::Object, Object);
 bcs_convert_impl!(crate::transaction::TransactionData, Transaction);
 bcs_convert_impl!(crate::effects::TransactionEffects, TransactionEffects);
-// bcs_convert_impl!(
-//     crate::messages_checkpoint::CheckpointSummary,
-//     CheckpointSummary
-// );
-// bcs_convert_impl!(
-//     crate::messages_checkpoint::CertifiedCheckpointSummary,
-//     SignedCheckpointSummary
-// );
 bcs_convert_impl!(
     crate::messages_checkpoint::CheckpointContents,
     CheckpointContents

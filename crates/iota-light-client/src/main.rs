@@ -588,7 +588,7 @@ mod tests {
         let committee = Committee::new(checkpoint.epoch().checked_add(1).unwrap(), prev_committee);
 
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push(format!("example_config/1073.chk"));
+        d.push("example_config/1073.chk");
 
         let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
 
