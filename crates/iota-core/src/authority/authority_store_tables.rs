@@ -577,8 +577,7 @@ impl LiveSetIter<'_> {
                     .expect("Constructing object from store cannot fail");
                 Some(LiveObject::Normal(object))
             }
-            StoreObject::Wrapped => None,
-            StoreObject::Deleted => None,
+            StoreObject::Wrapped | StoreObject::Deleted => None,
         }
     }
 }
