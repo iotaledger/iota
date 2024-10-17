@@ -9,12 +9,12 @@ description = "tools for rustls-based certificate generation and verification"
 
 [dependencies]
 anyhow.workspace = true
-ed25519.workspace = true
-pkcs8.workspace = true
-rcgen.workspace = true
+ed25519 = { version = "2.2", features = ["pkcs8", "alloc", "zeroize"] }
+pkcs8 = { version = "0.10", features = ["std"] }
+rcgen = "0.13"
 rustls.workspace = true
-webpki.workspace = true
-x509-parser.workspace = true
+webpki = { version = "0.102", package = "rustls-webpki", features = ["alloc", "std"] }
+x509-parser = "0.14.0"
 
 fastcrypto.workspace = true
 
@@ -23,10 +23,10 @@ reqwest.workspace = true
 
 # Axum support
 axum.workspace = true
-axum-server.workspace = true
+axum-server = { git = "https://github.com/bmwill/axum-server.git", rev = "f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7", version = "0.6", default-features = false, features = ["tls-rustls"] }
 tokio.workspace = true
 tokio-rustls.workspace = true
-tower-layer.workspace = true
+tower-layer = "0.3.2"
 
 [dev-dependencies]
 rand.workspace = true
