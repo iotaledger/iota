@@ -110,26 +110,9 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
-    // If true, validators will commit to the root state digest
-    // in end of epoch checkpoint proposals
-    #[serde(skip_serializing_if = "is_false")]
-    commit_root_state_digest: bool,
     // Pass epoch start time to advance_epoch safe mode function.
     #[serde(skip_serializing_if = "is_false")]
     advance_epoch_start_time_in_safe_mode: bool,
-    // If true, apply the fix to correctly capturing loaded child object versions in execution's
-    // object runtime.
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_objects_fixed: bool,
-    // If true, treat missing types in the upgraded modules when creating an upgraded package as a
-    // compatibility error.
-    #[serde(skip_serializing_if = "is_false")]
-    missing_type_is_compatibility_error: bool,
-
-    // DEPRECATED: this was an ephemeral feature flag only used by consensus handler, which has now
-    // been deployed everywhere.
-    #[serde(skip_serializing_if = "is_false")]
-    consensus_order_end_of_epoch_last: bool,
 
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
     #[serde(skip_serializing_if = "is_false")]
@@ -141,9 +124,6 @@ struct FeatureFlags {
     // If true, disallow entry modifiers on entry functions
     #[serde(skip_serializing_if = "is_false")]
     ban_entry_init: bool,
-    // If true, disallow changing struct type parameters during package upgrades
-    #[serde(skip_serializing_if = "is_false")]
-    disallow_change_struct_type_params_on_upgrade: bool,
     // If true, checks no extra bytes in a compiled module
     #[serde(skip_serializing_if = "is_false")]
     no_extraneous_module_bytes: bool,
@@ -179,9 +159,6 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    #[serde(skip_serializing_if = "is_false")]
-    end_of_epoch_transaction_supported: bool,
 
     // If true, use the new child object format type logging
     #[serde(skip_serializing_if = "is_false")]
@@ -1108,24 +1085,8 @@ impl ProtocolConfig {
         self.feature_flags.allow_receiving_object_id
     }
 
-    pub fn check_commit_root_state_digest_supported(&self) -> bool {
-        self.feature_flags.commit_root_state_digest
-    }
-
     pub fn get_advance_epoch_start_time_in_safe_mode(&self) -> bool {
         self.feature_flags.advance_epoch_start_time_in_safe_mode
-    }
-
-    pub fn loaded_child_objects_fixed(&self) -> bool {
-        self.feature_flags.loaded_child_objects_fixed
-    }
-
-    pub fn missing_type_is_compatibility_error(&self) -> bool {
-        self.feature_flags.missing_type_is_compatibility_error
-    }
-
-    pub fn consensus_order_end_of_epoch_last(&self) -> bool {
-        self.feature_flags.consensus_order_end_of_epoch_last
     }
 
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
@@ -1140,11 +1101,6 @@ impl ProtocolConfig {
 
     pub fn ban_entry_init(&self) -> bool {
         self.feature_flags.ban_entry_init
-    }
-
-    pub fn disallow_change_struct_type_params_on_upgrade(&self) -> bool {
-        self.feature_flags
-            .disallow_change_struct_type_params_on_upgrade
     }
 
     pub fn no_extraneous_module_bytes(&self) -> bool {
@@ -1176,25 +1132,11 @@ impl ProtocolConfig {
     }
 
     pub fn enable_jwk_consensus_updates(&self) -> bool {
-        let ret = self.feature_flags.enable_jwk_consensus_updates;
-        if ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
+        self.feature_flags.enable_jwk_consensus_updates
     }
 
     pub fn loaded_child_object_format_type(&self) -> bool {
         self.feature_flags.loaded_child_object_format_type
-    }
-
-    pub fn end_of_epoch_transaction_supported(&self) -> bool {
-        let ret = self.feature_flags.end_of_epoch_transaction_supported;
-        if !ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(!self.feature_flags.enable_jwk_consensus_updates);
-        }
-        ret
     }
 
     pub fn recompute_has_public_transfer_in_execution(&self) -> bool {
@@ -1217,12 +1159,7 @@ impl ProtocolConfig {
     }
 
     pub fn enable_bridge(&self) -> bool {
-        let ret = self.feature_flags.bridge;
-        if ret {
-            // bridge required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
+        self.feature_flags.bridge
     }
 
     pub fn should_try_to_finalize_bridge_committee(&self) -> bool {
@@ -1902,19 +1839,15 @@ impl ProtocolConfig {
         };
 
         cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
-        cfg.feature_flags.missing_type_is_compatibility_error = true;
-        cfg.feature_flags.consensus_order_end_of_epoch_last = true;
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
         cfg.feature_flags.no_extraneous_module_bytes = true;
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
-        cfg.feature_flags.commit_root_state_digest = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.simplified_unwrap_then_delete = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.end_of_epoch_transaction_supported = true;
         cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
@@ -1943,9 +1876,6 @@ impl ProtocolConfig {
         // Following flags are implied by the execution version.
         // Once support for earlier protocol versions is dropped, these flags can be
         // removed:
-        cfg.feature_flags
-            .disallow_change_struct_type_params_on_upgrade = true;
-        cfg.feature_flags.loaded_child_objects_fixed = true;
         cfg.feature_flags.ban_entry_init = true;
 
         // Enable consensus digest in consensus commit prologue on all networks..
@@ -2110,9 +2040,6 @@ impl ProtocolConfig {
     pub fn set_advance_to_highest_supported_protocol_version_for_testing(&mut self, val: bool) {
         self.feature_flags
             .advance_to_highest_supported_protocol_version = val
-    }
-    pub fn set_commit_root_state_digest_supported_for_testing(&mut self, val: bool) {
-        self.feature_flags.commit_root_state_digest = val
     }
     pub fn set_zklogin_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.zklogin_auth = val
