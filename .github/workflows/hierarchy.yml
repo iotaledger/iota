@@ -12,7 +12,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 env:
-  IS_DEVELOP: github.ref_name == "tooling-ci/run-ts-e2e-tests-on-develop"
+  IS_DEVELOP: false
 
 jobs:
   diff:
