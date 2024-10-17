@@ -11,7 +11,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-use iota_json_rpc::{get_balance_changes_from_effect, get_object_changes, ObjectProvider};
+use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_rest_api::CheckpointData;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
@@ -21,14 +22,11 @@ use iota_types::{
     object::Object,
     transaction::{TransactionData, TransactionDataAPI},
 };
-use move_binary_format::CompiledModule;
-use move_core_types::language_storage::ModuleId;
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
 use tokio::{
     sync::watch,
     time::{Duration, Instant},
 };
-use tracing::debug;
+use tracing::info;
 
 use crate::{
     errors::IndexerError,
@@ -44,78 +42,6 @@ pub const BUFFER_GC_INTERVAL: Duration = Duration::from_secs(300);
 /// field), it has not been persisted in the database yet. So it works as an
 /// in-mem store for package resolution. To avoid bloating memory, we GC modules
 /// that are older than the committed checkpoints.
-pub struct IndexingModuleBuffer {
-    modules: HashMap<(ObjectID, String), (Arc<CompiledModule>, CheckpointSequenceNumber)>,
-}
-
-impl IndexingModuleBuffer {
-    pub fn start(
-        commit_watcher: watch::Receiver<Option<CheckpointSequenceNumber>>,
-    ) -> Arc<Mutex<Self>> {
-        let cache = Arc::new(Mutex::new(Self {
-            modules: HashMap::new(),
-        }));
-        let cache_clone = cache.clone();
-        spawn_monitored_task!(Self::remove_committed(cache_clone, commit_watcher));
-        cache
-    }
-
-    pub async fn remove_committed(
-        cache: Arc<Mutex<Self>>,
-        commit_watcher: watch::Receiver<Option<CheckpointSequenceNumber>>,
-    ) {
-        let mut interval = tokio::time::interval_at(Instant::now(), BUFFER_GC_INTERVAL);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        loop {
-            interval.tick().await;
-            let _scope = monitored_scope("IndexingModuleBuffer::remove_committed");
-            let Some(committed_checkpoint) = *commit_watcher.borrow() else {
-                continue;
-            };
-            debug!("About to GC modules older than: {committed_checkpoint}");
-
-            let mut cache = cache.lock().unwrap();
-            let mut to_remove = vec![];
-            for (id, (_, checkpoint_seq)) in cache.modules.iter() {
-                if *checkpoint_seq <= committed_checkpoint {
-                    to_remove.push(id.clone());
-                }
-            }
-            for id in to_remove {
-                cache.modules.remove(&id);
-            }
-        }
-    }
-
-    pub fn insert_modules(&mut self, new_packages: &[IndexedPackage]) {
-        let new_packages = new_packages
-            .iter()
-            .flat_map(|p| {
-                p.move_package
-                    .serialized_module_map()
-                    .iter()
-                    .map(|(module_name, bytes)| {
-                        let module = CompiledModule::deserialize_with_defaults(bytes).unwrap();
-                        (
-                            (p.package_id, module_name.clone()),
-                            (Arc::new(module), p.checkpoint_sequence_number),
-                        )
-                    })
-            })
-            .collect::<HashMap<_, _>>();
-        self.modules.extend(new_packages);
-    }
-
-    pub fn get_module_by_id(&self, id: &ModuleId) -> Option<Arc<CompiledModule>> {
-        let package_id = ObjectID::from(*id.address());
-        let name = id.name().to_string();
-        self.modules
-            .get(&(package_id, name))
-            .as_ref()
-            .map(|(m, _)| m.clone())
-    }
-}
-
 pub struct IndexingPackageBuffer {
     packages: HashMap<
         ObjectID,
@@ -151,9 +77,11 @@ impl IndexingPackageBuffer {
             let Some(committed_checkpoint) = *commit_watcher.borrow() else {
                 continue;
             };
-            debug!("About to GC packages older than: {committed_checkpoint}");
-
             let mut cache = cache.lock().unwrap();
+            info!(
+                "About to GC packages older than: {committed_checkpoint}. Cache size is {}",
+                cache.packages.len()
+            );
             let mut to_remove = vec![];
             for (id, (_, _, checkpoint_seq)) in cache.packages.iter() {
                 if *checkpoint_seq <= committed_checkpoint {
@@ -166,14 +94,14 @@ impl IndexingPackageBuffer {
         }
     }
 
-    pub fn insert_packages(&mut self, new_package_objects: &[(IndexedPackage, Object)]) {
+    pub fn insert_packages(&mut self, new_package_objects: Vec<(IndexedPackage, Object)>) {
         let new_packages = new_package_objects
-            .iter()
+            .into_iter()
             .map(|(p, obj)| {
                 (
                     p.package_id,
                     (
-                        Arc::new(obj.clone()),
+                        Arc::new(obj),
                         p.move_package.version().value(),
                         p.checkpoint_sequence_number,
                     ),
@@ -364,9 +292,8 @@ pub(crate) struct EpochEndIndexingObjectStore<'a> {
 
 impl<'a> EpochEndIndexingObjectStore<'a> {
     pub fn new(data: &'a CheckpointData) -> Self {
-        // We only care about output objects for end-of-epoch indexing
         Self {
-            objects: data.output_objects(),
+            objects: data.latest_live_output_objects(),
         }
     }
 }

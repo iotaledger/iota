@@ -3,9 +3,10 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import * as ButtonStory from '../atoms/Button.stories';
-import { Title, TooltipPosition } from '@/lib/components';
+import * as BadgeStory from '../atoms/Badge.stories';
+import { Badge, BadgeType, Button, Title, TooltipPosition } from '@/lib/components';
 
-const meta = {
+const meta: Meta<typeof Title> = {
     component: Title,
     tags: ['autodocs'],
     render: (props) => {
@@ -21,9 +22,6 @@ export const Default: Story = {
     args: {
         title: 'Title',
         subtitle: 'Subtitle',
-        button: {
-            ...ButtonStory.Default.args,
-        },
     },
     argTypes: {
         title: {
@@ -35,14 +33,44 @@ export const Default: Story = {
         tooltipText: {
             control: 'text',
         },
-        button: {
-            control: 'object',
-        },
         tooltipPosition: {
             control: {
                 type: 'select',
                 options: Object.values(TooltipPosition),
             },
         },
+    },
+};
+
+export const WithTooltip: Story = {
+    args: {
+        title: 'Title',
+        subtitle: 'Subtitle',
+        tooltipText: 'Tooltip',
+        tooltipPosition: TooltipPosition.Top,
+    },
+};
+
+export const WithButton: Story = {
+    args: {
+        title: 'Title',
+        subtitle: 'Subtitle',
+    },
+    render: (props) => {
+        return <Title {...props} trailingElement={<Button {...ButtonStory.Default.args} />} />;
+    },
+};
+
+export const WithSupportingElement: Story = {
+    args: {
+        title: 'Title',
+    },
+    render: (props) => {
+        return (
+            <Title
+                {...props}
+                supportingElement={<Badge {...BadgeStory.Default.args} type={BadgeType.Neutral} />}
+            />
+        );
     },
 };

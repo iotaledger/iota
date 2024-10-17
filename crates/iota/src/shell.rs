@@ -17,12 +17,12 @@ use async_trait::async_trait;
 use clap::*;
 use colored::Colorize;
 use rustyline::{
+    Config, Context, Editor,
     completion::{Completer, Pair},
     error::ReadlineError,
     highlight::Highlighter,
     hint::Hinter,
     validate::Validator,
-    Config, Context, Editor,
 };
 use rustyline_derive::Helper;
 use unescape::unescape;
@@ -66,10 +66,10 @@ impl<P: Display, S: Send, H: AsyncHandler<S>> Shell<P, S, H> {
         let config = Config::builder()
             .auto_add_history(true)
             .history_ignore_space(true)
-            .history_ignore_dups(true)
+            .history_ignore_dups(true)?
             .build();
 
-        let mut rl = Editor::with_config(config);
+        let mut rl = Editor::with_config(config)?;
 
         let completion_cache = Arc::new(RwLock::new(BTreeMap::new()));
 

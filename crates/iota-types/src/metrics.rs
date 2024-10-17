@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
-    register_histogram_with_registry, register_int_counter_vec_with_registry, Histogram,
-    IntCounterVec,
+    Histogram, IntCounterVec, register_histogram_with_registry,
+    register_int_counter_vec_with_registry,
 };
 
 pub struct LimitsMetrics {
@@ -90,13 +90,19 @@ pub struct BytecodeVerifierMetrics {
 }
 
 impl BytecodeVerifierMetrics {
+    /// DEPRECATED in latest metered verifier, which only report overall success
+    /// or timeout.
     pub const MOVE_VERIFIER_TAG: &'static str = "move_verifier";
+
+    /// DEPRECATED in latest metered verifier, which only report overall success
+    /// or timeout.
     pub const IOTA_VERIFIER_TAG: &'static str = "iota_verifier";
+
     pub const OVERALL_TAG: &'static str = "overall";
     pub const SUCCESS_TAG: &'static str = "success";
     pub const TIMEOUT_TAG: &'static str = "failed";
     const LATENCY_SEC_BUCKETS: &'static [f64] = &[
-        0.000_010, 0.000_025, 0.000_050, 0.000_100, // sub 100 micros
+        0.000_010, 0.000_025, 0.000_050, 0.000_100, // sub 100 nanos
         0.000_250, 0.000_500, 0.001_000, 0.002_500, 0.005_000, 0.010_000, // sub 10 ms: p99
         0.025_000, 0.050_000, 0.100_000, 0.250_000, 0.500_000, 1.000_000, // sub 1 s
         10.000_000, 20.000_000, 50.000_000, 100.0, // We should almost never get here

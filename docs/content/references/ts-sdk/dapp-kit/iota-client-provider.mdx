@@ -13,7 +13,7 @@ currently active network.
 
 ```tsx
 import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl } from '@iota/iota.js/client';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
@@ -49,7 +49,7 @@ The following example demonstrates a `IotaClientProvider` used as a controlled c
 
 ```tsx
 import { createNetworkConfig, IotaClientProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl } from '@iota/iota.js/client';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { useState } from 'react';
 
 // Config options for the networks you want to connect to
@@ -81,7 +81,7 @@ The following example demonstrates how to create a custom `IotaClient`.
 
 ```tsx
 import { IotaClientProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
 
 // Config options for the networks you want to connect to
 const networks = {
@@ -166,7 +166,7 @@ to get the variables defined in your configuration.
 import { createNetworkConfig, IotaClientProvider } from '@iota/dapp-kit';
 
 import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl } from '@iota/iota.js/client';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to

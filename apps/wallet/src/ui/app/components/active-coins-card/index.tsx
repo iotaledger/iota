@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import Loading from '_components/loading';
+import { Loading } from '_components';
 import { useCoinsReFetchingConfig } from '_hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Link } from 'react-router-dom';
 import { CoinItem } from './CoinItem';
 import { filterAndSortTokenBalances } from '@iota/core';
@@ -50,7 +50,6 @@ export function ActiveCoinsCard({
                             <CoinItem
                                 coinType={activeCoin.coinType}
                                 balance={BigInt(activeCoin.totalBalance)}
-                                isActive
                             />
                         </Link>
                     )

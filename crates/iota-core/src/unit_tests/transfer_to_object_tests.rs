@@ -6,7 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -14,14 +14,15 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, ObjectArg, ProgrammableTransaction, VerifiedCertificate,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        CallArg, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        VerifiedCertificate,
     },
 };
 use move_core_types::ident_str;
 
 use crate::{
     authority::{
+        AuthorityState,
         authority_test_utils::{certify_transaction, send_consensus},
         authority_tests::{
             build_programmable_transaction, execute_programmable_transaction,
@@ -29,7 +30,6 @@ use crate::{
         },
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     move_call,
 };
@@ -242,10 +242,7 @@ impl TestRunner {
             .authority_state
             .execute_certificate(&ct, &epoch_store)
             .await
-            .unwrap()
-            .inner()
-            .clone()
-            .into_data();
+            .unwrap();
 
         if self.aggressive_pruning_enabled {
             self.authority_state
@@ -356,7 +353,7 @@ async fn test_tto_intersection_input_and_receiving_objects() {
         let child_receiving_arg = CallArg::Object(ObjectArg::Receiving(child.0));
 
         // Duplicate object reference between receiving and input object arguments.
-        let IotaError::UserInputError { error } = runner
+        let IotaError::UserInput { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
@@ -375,7 +372,7 @@ async fn test_tto_intersection_input_and_receiving_objects() {
         assert!(matches!(error, UserInputError::DuplicateObjectRefInput));
 
         // Duplicate object reference in receiving object arguments.
-        let IotaError::UserInputError { error } = runner
+        let IotaError::UserInput { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
@@ -482,7 +479,7 @@ async fn test_tto_invalid_receiving_arguments() {
         ];
 
         for (i, (mutate, expect)) in mutations.into_iter().enumerate() {
-            let IotaError::UserInputError { error } = runner.signing_error({
+            let IotaError::UserInput { error } = runner.signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
                 let child = builder.obj(ObjectArg::Receiving(mutate(child.0))).unwrap();
@@ -1751,7 +1748,7 @@ async fn test_have_deleted_owned_object() {
 
         let (new_parent, new_child) = get_parent_and_child(effects.mutated());
 
-        let cache = runner.authority_state.get_cache_reader().clone();
+        let cache = runner.authority_state.get_object_cache_reader().clone();
 
         assert!(cache.get_object(&new_child.0.0).unwrap().is_some());
         // Should not show as deleted for either versions

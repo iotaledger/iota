@@ -5,13 +5,16 @@
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
 
-test('account lock-unlock', async ({ page, context, extensionUrl }) => {
+test('account lock-unlock', async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
-    await page.getByTestId('lock-account-button').click();
-    await page.getByTestId('unlock-account-button').click();
-    await page.getByPlaceholder('Password').fill('mystenlabs');
+    await page.getByTestId('accounts-manage').click();
+    await page.getByText('Main').hover();
+    await page.getByTestId('account-lock').click();
+    await page.getByTestId('account-unlock').click();
+    await page.getByPlaceholder('Password').fill('iotae2etests');
     await page.getByRole('button', { name: /Unlock/ }).click();
-    await expect(page.getByTestId('coin-balance')).toBeVisible();
+    await page.getByText('Main').hover();
+    await expect(page.getByTestId('account-lock')).toBeVisible();
 });
 
 test('wallet auto-lock', async ({ page, extensionUrl }) => {
@@ -19,18 +22,16 @@ test('wallet auto-lock', async ({ page, extensionUrl }) => {
         process.env.CI !== 'true',
         'Runs only on CI since it takes at least 1 minute to complete',
     );
-    test.setTimeout(65 * 1000);
+    test.setTimeout(100 * 1000);
     await createWallet(page, extensionUrl);
     await page.getByLabel(/Open settings menu/).click();
-    await page.getByText(/Auto-lock/).click();
-    await page.getByLabel(/Auto-lock after I am inactive for/i).click();
-    await page.getByTestId('auto-lock-timer').fill('1');
-    await page.getByRole('combobox').click();
-    await page.getByRole('option', { name: /Minute/ }).click();
+    await page.getByText(/Auto Lock Profile/).click();
+    await page.getByText(/Auto-lock after/i, { exact: false }).click();
+    await page.getByRole('button', { name: /Hour/ }).click();
+    await page.getByRole('button', { name: /Minute/ }).click();
     await page.getByText('Save').click();
-    await page.getByText(/Saved/i);
+    await expect(page.getByText(/Saved/i)).toBeVisible({ timeout: 30_000 });
     await page.getByTestId('close-icon').click();
-    await page.getByLabel(/Close settings menu/).click();
-    await page.waitForTimeout(60 * 1000);
-    await expect(page.getByRole('button', { name: /Unlock/ })).toBeVisible();
+    await page.waitForTimeout(62 * 1000);
+    await expect(page.getByText(/Unlock your Account/)).toBeVisible();
 });

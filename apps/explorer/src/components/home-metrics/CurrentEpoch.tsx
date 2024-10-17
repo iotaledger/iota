@@ -2,18 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmountParts, formatDate } from '@iota/core';
-import { Heading, Text } from '@iota/ui';
+import { LabelText, LabelTextSize, Panel, Title } from '@iota/apps-ui-kit';
+import { formatDate } from '@iota/core';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useMemo } from 'react';
 
-import { Checkpoint } from '~/components';
-import { Card, LinkWithQuery, ProgressBar } from '~/components/ui';
+import { LinkWithQuery, ProgressBar } from '~/components/ui';
+import { useGetNetworkMetrics } from '~/hooks';
 import { ampli } from '~/lib/utils';
 import { useEpochProgress } from '~/pages/epochs/utils';
 
 export function CurrentEpoch(): JSX.Element {
     const { epoch, progress, label, end, start } = useEpochProgress();
+    const { data: networkData } = useGetNetworkMetrics();
 
     const formattedDateString = useMemo(() => {
         if (!start) {
@@ -33,32 +34,43 @@ export function CurrentEpoch(): JSX.Element {
         return `${formattedTime}, ${formattedDate}`;
     }, [start]);
 
+    const epochSubtitle =
+        !progress && end
+            ? `End ${formatDate(end)}`
+            : formattedDateString
+              ? `Started ${formattedDateString}`
+              : '--';
+
     return (
         <LinkWithQuery
+            className="flex w-full"
             to={`/epoch/${epoch}`}
             onClick={() => ampli.clickedCurrentEpochCard({ epoch: Number(epoch) })}
         >
-            <Card growOnHover bg="white/80" height="full" spacing="lg">
-                <div className="flex flex-col gap-2">
-                    <Heading color="success-dark" variant="heading4/semibold">
-                        Epoch {formatAmountParts(epoch)}
-                    </Heading>
-                    <Text variant="pSubtitle/semibold" color="steel-dark">
-                        {!progress && end
-                            ? `End ${formatDate(end)}`
-                            : formattedDateString
-                              ? `Started ${formattedDateString}`
-                              : '--'}
-                    </Text>
-                    <div className="space-y-1.5">
-                        <Heading variant="heading6/medium" color="steel-darker">
-                            {label ?? '--'}
-                        </Heading>
-                        <ProgressBar animate progress={progress || 0} />
+            <Panel>
+                <Title title={`Epoch ${epoch}`} subtitle={epochSubtitle} />
+                <div className="flex flex-col gap-md p-md--rs">
+                    <div className="flex flex-row gap-md">
+                        <div className="flex flex-1">
+                            <LabelText size={LabelTextSize.Medium} label="Time Left" text={label} />
+                        </div>
+                        <div className="flex flex-1">
+                            <LabelText
+                                size={LabelTextSize.Medium}
+                                label="Checkpoint"
+                                text={
+                                    networkData?.currentCheckpoint
+                                        ? BigInt(
+                                              networkData.currentCheckpoint || 0,
+                                          ).toLocaleString()
+                                        : '--'
+                                }
+                            />
+                        </div>
                     </div>
-                    <Checkpoint />
+                    <ProgressBar progress={progress || 0} />
                 </div>
-            </Card>
+            </Panel>
         </LinkWithQuery>
     );
 }

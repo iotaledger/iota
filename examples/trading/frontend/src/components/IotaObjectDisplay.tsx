@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { IotaObjectData } from "@iota/iota.js/client";
+import { IotaObjectData } from "@iota/iota-sdk/client";
 import { Avatar, Box, Card, Flex, Inset, Text } from "@radix-ui/themes";
 import { ReactNode } from "react";
 import { ExplorerLink } from "./ExplorerLink";

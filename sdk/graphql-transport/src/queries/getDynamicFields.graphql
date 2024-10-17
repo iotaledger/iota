@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query getDynamicFields($parentId: IotaAddress!, $first: Int, $cursor: String) {
-    object(address: $parentId) {
+    owner(address: $parentId) {
         dynamicFields(first: $first, after: $cursor) {
             pageInfo {
                 hasNextPage

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getUrlWithDeviceId } from '_src/shared/analytics/amplitude';
-import { getNetwork, Network } from '@iota/iota.js/client';
+import { getNetwork, Network } from '@iota/iota-sdk/client';
 
 function getExplorerUrl(path: string, network: Network, customExplorer: string) {
     const networkConfig = getNetwork(network);

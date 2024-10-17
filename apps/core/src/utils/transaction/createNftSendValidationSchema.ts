@@ -2,19 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaClient } from '@iota/iota.js/client';
 import * as Yup from 'yup';
 import { createIotaAddressValidation } from '../validation';
 import { ValidationError } from 'yup';
 
-export function createNftSendValidationSchema(
-    senderAddress: string,
-    objectId: string,
-    client?: IotaClient,
-    iotaNSEnabled?: boolean,
-) {
+export function createNftSendValidationSchema(senderAddress: string, objectId: string) {
     return Yup.object({
-        to: createIotaAddressValidation(client, iotaNSEnabled)
+        to: createIotaAddressValidation()
             .test(
                 'sender-address',
                 'NFT is owned by this address',

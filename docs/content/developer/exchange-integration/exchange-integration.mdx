@@ -4,7 +4,8 @@ description: Learn the primary tasks necessary to integrate IOTA, the token nati
 ---
 
 import AlphaNet from "../../_snippets/alphanet.mdx";
-
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/exchange-intergration/exchange-integration.json';
 
 This topic describes how to integrate IOTA, the token native to the IOTA network, into a cryptocurrency exchange. The specific requirements and processes to implement an integration vary between exchanges. Rather than provide a step-by-step guide, this topic provides information about the primary tasks necessary to complete an integration. After the guidance about how to configure an integration, you can also find information and code samples related to staking on the IOTA network.
 
@@ -73,7 +74,7 @@ println!("Address: 0x{}", iota_address_string);
 This example generates a new address with the TypeScript SDK:
 
 ```ts
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
  
 const keypair = new Ed25519Keypair();
 const address = keypair.getPublicKey().toIotaAddress();
@@ -159,7 +160,7 @@ async fn main() -> Result<(), anyhow::Error> {
 This example does the same with TypeScript:
 
 ```ts
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
 
@@ -241,4 +242,6 @@ IOTA supports the following API operations related to transferring IOTA between 
 
 ## Signing transactions
 
-Refer to [IOTA Signatures](../cryptography/explanations/transaction-auth/signatures.mdx) for more details on signature validity requirements.
+Refer to [IOTA Signatures](../cryptography/transaction-auth/signatures.mdx) for more details on signature validity requirements.
+
+<Quiz questions={questions} />

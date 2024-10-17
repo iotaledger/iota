@@ -1,4 +1,4 @@
-# Iota dApp Starter Template
+# IOTA dApp Starter Template
 
 This dApp was created using `@iota/create-dapp` that sets up a basic React
 Client dApp using the following tools:
@@ -8,25 +8,28 @@ Client dApp using the following tools:
 - [Vite](https://vitejs.dev/) for build tooling
 - [Radix UI](https://www.radix-ui.com/) for pre-built UI components
 - [ESLint](https://eslint.org/) for linting
-- [`@iota/dapp-kit`](https://sdk.mystenlabs.com/dapp-kit) for connecting to
-  wallets and loading data
+- [`@iota/dapp-kit`](https://wiki.iota.org/references/ts-sdk/dapp-kit) for
+  connecting to wallets and loading data
 - [pnpm](https://pnpm.io/) for package management
+
+For a full guide on how to build this dApp from scratch, visit this
+[guide](http://wiki.iota.org/guides/developer/app-examples/e2e-counter#frontend).
 
 ## Deploying your Move code
 
-### Install Iota cli
+### Install IOTA cli
 
-Before deploying your move code, ensure that you have installed the Iota CLI.
+Before deploying your move code, ensure that you have installed the IOTA CLI.
 You can follow the
-[Iota installation instruction](https://docs.iota.io/build/install) to get
+[IOTA installation instruction](https://wiki.iota.org/build/install) to get
 everything set up.
 
-This template uses `devnet` by default, so we'll need to set up a devnet
+This template uses `testnet` by default, so we'll need to set up a testnet
 environment in the CLI:
 
 ```bash
-iota client new-env --alias devnet --rpc https://fullnode.devnet.iota.io:443
-iota client switch --env devnet
+iota client new-env --alias testnet --rpc https://fullnode.testnet.iota.io:443
+iota client switch --env testnet
 ```
 
 If you haven't set up an address in the iota client yet, you can use the
@@ -44,11 +47,11 @@ with your new address:
 iota client switch --address 0xYOUR_ADDRESS...
 ```
 
-We can ensure we have some Iota in our new wallet by requesting Iota from the
+We can ensure we have some IOTA in our new wallet by requesting IOTA from the
 faucet (make sure to replace the address with your address):
 
 ```bash
-curl --location --request POST 'https://faucet.devnet.iota.io/gas' \
+curl --location --request POST 'https://faucet.testnet.iota.io/gas' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "FixedAmountRequest": {
@@ -60,7 +63,7 @@ curl --location --request POST 'https://faucet.devnet.iota.io/gas' \
 ### Publishing the move package
 
 The move code for this template is located in the `move` directory. To publish
-it, you can enter the `move` directory, and publish it with the Iota CLI:
+it, you can enter the `move` directory, and publish it with the IOTA CLI:
 
 ```bash
 cd move
@@ -71,7 +74,7 @@ In the output there will be an object with a `"packageId"` property. You'll want
 to save that package ID to the `src/constants.ts` file as `PACKAGE_ID`:
 
 ```ts
-export const DEVNET_COUNTER_PACKAGE_ID = "<YOUR_PACKAGE_ID>";
+export const TESTNET_COUNTER_PACKAGE_ID = "<YOUR_PACKAGE_ID>";
 ```
 
 Now that we have published the move code, and update the package ID, we can

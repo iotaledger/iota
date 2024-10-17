@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 import useAppSelector from './useAppSelector';
 import { DEFAULT_RECOGNIZED_PACKAGES } from '@iota/core';
 

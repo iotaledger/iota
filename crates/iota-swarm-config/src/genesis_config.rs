@@ -7,24 +7,24 @@ use std::net::{IpAddr, SocketAddr};
 use anyhow::Result;
 use fastcrypto::traits::KeyPair;
 use iota_config::{
+    Config,
     genesis::{GenesisCeremonyParameters, TokenAllocation},
     local_ip_utils,
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
-    Config,
 };
 use iota_genesis_builder::{
-    validator_info::{GenesisValidatorInfo, ValidatorInfo},
     SnapshotSource,
+    validator_info::{GenesisValidatorInfo, ValidatorInfo},
 };
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair, NetworkPublicKey, PublicKey,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
+        NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
     multiaddr::Multiaddr,
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -58,7 +58,6 @@ pub struct ValidatorGenesisConfig {
     pub narwhal_primary_address: Multiaddr,
     pub narwhal_worker_address: Multiaddr,
     pub consensus_address: Multiaddr,
-    pub consensus_internal_worker_address: Option<Multiaddr>,
     #[serde(default = "default_stake")]
     pub stake: u64,
     pub name: Option<String>,
@@ -217,7 +216,6 @@ impl ValidatorGenesisConfigBuilder {
             narwhal_primary_address,
             narwhal_worker_address,
             consensus_address,
-            consensus_internal_worker_address: None,
             stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             name: None,
         }

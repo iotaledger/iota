@@ -8,4 +8,4 @@ A = "0x1"
 
 [dependencies]
 C = { local = "./deps_only/C" }
-D = { local = "./deps_only/D" , addr_subst = {"DA" = "A" } }
+D = { local = "./deps_only/D", addr_subst = { "DA" = "A" } }

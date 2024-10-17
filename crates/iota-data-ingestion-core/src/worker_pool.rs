@@ -8,14 +8,14 @@ use std::{
     time::Instant,
 };
 
+use iota_metrics::spawn_monitored_task;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
-use mysten_metrics::spawn_monitored_task;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 
-use crate::{executor::MAX_CHECKPOINTS_IN_PROGRESS, Worker};
+use crate::{Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
 
 pub struct WorkerPool<W: Worker> {
     pub task_name: String,
@@ -132,6 +132,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     if sequence_number < current_checkpoint_number {
                         continue;
                     }
+                    self.worker.preprocess_hook(checkpoint.clone()).expect("failed to preprocess task");
                     if idle.is_empty() {
                         checkpoints.push_back(checkpoint);
                     } else {

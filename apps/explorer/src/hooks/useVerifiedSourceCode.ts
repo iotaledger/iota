@@ -4,7 +4,7 @@
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 type UseVerifiedSourceCodeArgs = {
@@ -37,7 +37,7 @@ export function useVerifiedSourceCode({
         queryKey: ['verified-source-code', packageId, moduleName, network],
         queryFn: async () => {
             const response = await fetch(
-                `https://source.mystenlabs.com/api?network=${network.toLowerCase()}&address=${packageId}&module=${moduleName}`,
+                `https://source.iota.org/api?network=${network.toLowerCase()}&address=${packageId}&module=${moduleName}`,
             );
             if (!response.ok) {
                 throw new Error(`Encountered unexpected response: ${response.status}`);

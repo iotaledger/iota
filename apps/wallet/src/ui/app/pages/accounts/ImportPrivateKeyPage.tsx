@@ -2,45 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_app/shared/text';
 import { useNavigate } from 'react-router-dom';
 
 import {
     AccountsFormType,
+    ImportPrivateKeyForm,
+    PageTemplate,
     useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ImportPrivateKeyForm } from '../../components/accounts/ImportPrivateKeyForm';
-import { Heading } from '../../shared/heading';
+} from '_components';
 
 export function ImportPrivateKeyPage() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
 
+    function handleOnSubmit({ privateKey }: { privateKey: string }) {
+        setAccountsFormValues({
+            type: AccountsFormType.ImportPrivateKey,
+            keyPair: privateKey,
+        });
+        navigate(
+            `/accounts/protect-account?${new URLSearchParams({
+                accountsFormType: AccountsFormType.ImportPrivateKey,
+            }).toString()}`,
+        );
+    }
+
     return (
-        <div className="bg-iota-lightest flex h-full w-full flex-col items-center rounded-20 px-6 py-10 shadow-wallet-content">
-            <Text variant="caption" color="steel-dark" weight="semibold">
-                Wallet Setup
-            </Text>
-            <div className="mt-2.5 text-center">
-                <Heading variant="heading1" color="gray-90" as="h1" weight="bold">
-                    Import Private Key
-                </Heading>
+        <PageTemplate title="Import Private Key" isTitleCentered showBackButton>
+            <div className="flex h-full w-full flex-col items-center ">
+                <div className="w-full grow">
+                    <ImportPrivateKeyForm onSubmit={handleOnSubmit} />
+                </div>
             </div>
-            <div className="mt-6 w-full grow">
-                <ImportPrivateKeyForm
-                    onSubmit={({ privateKey }) => {
-                        setAccountsFormValues({
-                            type: AccountsFormType.ImportPrivateKey,
-                            keyPair: privateKey,
-                        });
-                        navigate(
-                            `/accounts/protect-account?${new URLSearchParams({
-                                accountsFormType: AccountsFormType.ImportPrivateKey,
-                            }).toString()}`,
-                        );
-                    }}
-                />
-            </div>
-        </div>
+        </PageTemplate>
     );
 }

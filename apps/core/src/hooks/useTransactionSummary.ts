@@ -4,7 +4,7 @@
 import {
     DryRunTransactionBlockResponse,
     type IotaTransactionBlockResponse,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
 import { getBalanceChangeSummary } from '../utils/transaction/getBalanceChangeSummary';

@@ -1,20 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+mod simple_faucet;
+mod write_ahead_log;
+
+use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
+
 use async_trait::async_trait;
+use clap::Parser;
 use iota_types::base_types::{IotaAddress, ObjectID, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::FaucetError;
-
-mod simple_faucet;
-mod write_ahead_log;
-use std::{net::Ipv4Addr, path::PathBuf};
-
-use clap::Parser;
-
 pub use self::simple_faucet::SimpleFaucet;
+use crate::FaucetError;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FaucetReceipt {
@@ -46,6 +46,17 @@ pub enum BatchSendStatusType {
     INPROGRESS,
     SUCCEEDED,
     DISCARDED,
+}
+
+pub struct AppState<F = Arc<SimpleFaucet>> {
+    pub faucet: F,
+    pub config: FaucetConfig,
+}
+
+impl<F> AppState<F> {
+    pub fn new(faucet: F, config: FaucetConfig) -> Self {
+        Self { faucet, config }
+    }
 }
 
 #[async_trait]

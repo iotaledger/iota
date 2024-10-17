@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAddress, isValidIotaAddress } from '@iota/iota.js/utils';
+import { formatAddress, isValidIotaAddress } from '@iota/iota-sdk/utils';
 
 export function getOwnerDisplay(
     owner?: string,
@@ -19,7 +19,7 @@ export function getOwnerDisplay(
 
     const isOwner = activeAddress === owner;
 
-    let ownerDisplay = null;
+    let ownerDisplay: string | null = null;
     if (ownerType === 'Shared') {
         ownerDisplay = 'Shared';
     }

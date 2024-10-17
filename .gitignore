@@ -17,7 +17,6 @@ build/
 storage/
 !consensus/core/src/storage/
 !crates/iota-types/src/storage/
-!narwhal/storage/
 
 # Move-related files
 Move.lock
@@ -45,6 +44,7 @@ node_modules/
 .tsbuildinfo
 *.tsbuildinfo
 .turbo
+.pnpm-store
 
 # App build directories
 dist/
@@ -72,8 +72,6 @@ yarn-error.log*
 .env
 checkpoints_dir/*
 light_client.yaml
-docs/content/references/iota-api/iota-graphql/*
-docs/content/references/framework/**
 scripts/dependency_graphs/output/*
 
 lcov.info

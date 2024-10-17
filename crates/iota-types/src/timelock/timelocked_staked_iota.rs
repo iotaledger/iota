@@ -5,13 +5,13 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_SYSTEM_ADDRESS,
     base_types::ObjectID,
     committee::EpochId,
     error::IotaError,
     governance::StakedIota,
     id::UID,
     object::{Data, Object},
-    IOTA_SYSTEM_ADDRESS,
 };
 
 pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: &IdentStr = ident_str!("timelocked_staking");
@@ -92,7 +92,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
         match &object.data {
             Data::Move(o) => {
                 if o.type_().is_timelocked_staked_iota() {
-                    return bcs::from_bytes(o.contents()).map_err(|err| IotaError::TypeError {
+                    return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!(
                             "Unable to deserialize TimelockedStakedIota object: {:?}",
                             err
@@ -103,7 +103,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
             Data::Package(_) => {}
         }
 
-        Err(IotaError::TypeError {
+        Err(IotaError::Type {
             error: format!("Object type is not a TimelockedStakedIota: {:?}", object),
         })
     }

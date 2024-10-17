@@ -39,7 +39,7 @@ module stardust::address_unlock_condition {
     }
 
     /// Unlock a `CoinManagerTreasuryCap` locked to the alias address.
-    public fun unlock_alias_address_owned_coinmanager_treasury<T: key + store>(
+    public fun unlock_alias_address_owned_coinmanager_treasury<T>(
       self: &mut Alias,
       treasury_to_unlock: Receiving<CoinManagerTreasuryCap<T>>,
     ): CoinManagerTreasuryCap<T> {

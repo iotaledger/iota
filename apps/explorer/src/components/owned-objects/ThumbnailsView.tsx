@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaObjectResponse } from '@iota/iota.js/client';
-import { formatAddress } from '@iota/iota.js/utils';
-import { Placeholder, Text } from '@iota/ui';
-
+import { type IotaObjectResponse } from '@iota/iota-sdk/client';
+import { formatAddress } from '@iota/iota-sdk/utils';
+import { Loader } from '@iota/ui-icons';
 import { ObjectLink, ObjectVideoImage } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
@@ -35,10 +34,8 @@ function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
                             video={video}
                             variant="medium"
                         />
-                        <div className="absolute bottom-2 left-1/2 hidden w-10/12 -translate-x-1/2 justify-center rounded-lg bg-white/80 px-2 py-1 backdrop-blur group-hover:flex">
-                            <Text variant="subtitle/medium" color="steel-dark" truncate>
-                                {displayName}
-                            </Text>
+                        <div className="absolute bottom-0 flex h-full w-full items-end justify-start rounded-xl p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-48 group-hover:opacity-100 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48">
+                            <span className="text-label-lg text-neutral-100">{displayName}</span>
                         </div>
                     </div>
                 }
@@ -51,8 +48,8 @@ function ThumbnailsOnlyLoading({ limit }: { limit: number }): JSX.Element {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
-                <div key={index} className="h-16 w-16 md:h-31.5 md:w-31.5">
-                    <Placeholder rounded="lg" height="100%" />
+                <div key={index} className="h-16 w-16 text-primary-30 md:h-31.5 md:w-31.5">
+                    <Loader className="animate-spin" />
                 </div>
             ))}
         </>

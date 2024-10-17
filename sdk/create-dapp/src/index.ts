@@ -97,7 +97,7 @@ async function collectFiles(template: string, dAppName: string) {
                 if (entry === 'package.json') {
                     const json = JSON.parse(content.toString());
                     json.name = dAppName;
-                    json.dependencies['@iota/iota.js'] = dependencies['@iota/iota.js'];
+                    json.dependencies['@iota/iota-sdk'] = dependencies['@iota/iota-sdk'];
                     json.dependencies['@iota/dapp-kit'] = dependencies['@iota/dapp-kit'];
 
                     content = Buffer.from(JSON.stringify(json, null, 2));

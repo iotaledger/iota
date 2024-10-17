@@ -2,15 +2,15 @@
 # names instead of original when dependency lock files are present. The
 # resulting error massage in Move.resolved should print `C-rename` instead
 # of `C-resolved`.
-#                                                             
-#             +----------+      1                               
-#    +------->|    B     |-------------+                        
-#    |        +----------+             |                        
-#    |                                 |                        
-#    |                                 v                        
-#  +----+     +----------+   2   +----------+                   
-#  |Root|---->| A-rename | ----->| C-rename |                   
-#  +----+     +----------+       +----------+                   
+#
+#             +----------+      1
+#    +------->|    B     |-------------+
+#    |        +----------+             |
+#    |                                 |
+#    |                                 v
+#  +----+     +----------+   2   +----------+
+#  |Root|---->| A-rename | ----->| C-rename |
+#  +----+     +----------+       +----------+
 #
 #
 

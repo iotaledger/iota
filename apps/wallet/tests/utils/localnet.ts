@@ -4,8 +4,8 @@
 
 import 'tsconfig-paths/register';
 
-import { requestIotaFromFaucetV0 } from '@iota/iota.js/faucet';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 

@@ -8,5 +8,5 @@ export function formatPercentageDisplay(
     nullDisplay = '--',
     isApyApprox = false,
 ) {
-    return value === null ? nullDisplay : `${isApyApprox ? '~' : ''}${value}%`;
+    return value === null || value === 0 ? nullDisplay : `${isApyApprox ? '~' : ''}${value}%`;
 }

@@ -2,15 +2,10 @@
 description: The ISC Core Contracts allows VMs to access ISC functionality.
 image: /img/logo/WASP_logo_dark.png
 tags:
-    - configure
-    - using
-    - EVM
-    - magic
-    - Ethereum
-    - Solidity
-    - metamask
-    - JSON
-    - RPC
+  - evm
+  - magic
+  - solidity
+  - rpc
 ---
 
 # The Core Contracts

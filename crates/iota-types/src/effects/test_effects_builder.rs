@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     base_types::{ObjectID, SequenceNumber},
-    digests::ObjectDigest,
+    digests::{ObjectDigest, TransactionEventsDigest},
     effects::{EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects},
     execution::SharedInput,
     execution_status::ExecutionStatus,
@@ -22,6 +22,7 @@ pub struct TestEffectsBuilder {
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
     shared_input_versions: BTreeMap<ObjectID, SequenceNumber>,
+    events_digest: Option<TransactionEventsDigest>,
 }
 
 impl TestEffectsBuilder {
@@ -30,6 +31,7 @@ impl TestEffectsBuilder {
             transaction: transaction.clone(),
             status: None,
             shared_input_versions: BTreeMap::new(),
+            events_digest: None,
         }
     }
 
@@ -44,6 +46,11 @@ impl TestEffectsBuilder {
     ) -> Self {
         assert!(self.shared_input_versions.is_empty());
         self.shared_input_versions = versions;
+        self
+    }
+
+    pub fn with_events_digest(mut self, digest: TransactionEventsDigest) -> Self {
+        self.events_digest = Some(digest);
         self
     }
 
@@ -81,9 +88,8 @@ impl TestEffectsBuilder {
             .unwrap()
             .iter()
             .filter_map(|kind| match kind {
-                InputObjectKind::ImmOrOwnedMoveObject(oref) => Some((
-                    oref.0,
-                    EffectsObjectChange {
+                InputObjectKind::ImmOrOwnedMoveObject(oref) => {
+                    Some((oref.0, EffectsObjectChange {
                         input_state: ObjectIn::Exist((
                             (oref.1, oref.2),
                             Owner::AddressOwner(sender),
@@ -94,48 +100,46 @@ impl TestEffectsBuilder {
                             Owner::AddressOwner(sender),
                         )),
                         id_operation: IDOperation::None,
-                    },
-                )),
+                    }))
+                }
                 InputObjectKind::MovePackage(_) => None,
                 InputObjectKind::SharedMoveObject {
                     id,
                     initial_shared_version,
                     mutable,
-                } => mutable.then_some((
-                    *id,
-                    EffectsObjectChange {
-                        input_state: ObjectIn::Exist((
-                            (
-                                *self
-                                    .shared_input_versions
-                                    .get(id)
-                                    .unwrap_or(initial_shared_version),
-                                ObjectDigest::MIN,
-                            ),
-                            Owner::Shared {
-                                initial_shared_version: *initial_shared_version,
-                            },
-                        )),
-                        output_state: ObjectOut::ObjectWrite((
-                            // Digest must change with a mutation.
-                            ObjectDigest::MAX,
-                            Owner::Shared {
-                                initial_shared_version: *initial_shared_version,
-                            },
-                        )),
-                        id_operation: IDOperation::None,
-                    },
-                )),
+                } => mutable.then_some((*id, EffectsObjectChange {
+                    input_state: ObjectIn::Exist((
+                        (
+                            *self
+                                .shared_input_versions
+                                .get(id)
+                                .unwrap_or(initial_shared_version),
+                            ObjectDigest::MIN,
+                        ),
+                        Owner::Shared {
+                            initial_shared_version: *initial_shared_version,
+                        },
+                    )),
+                    output_state: ObjectOut::ObjectWrite((
+                        // Digest must change with a mutation.
+                        ObjectDigest::MAX,
+                        Owner::Shared {
+                            initial_shared_version: *initial_shared_version,
+                        },
+                    )),
+                    id_operation: IDOperation::None,
+                })),
             })
             .collect();
         let gas_object_id = self.transaction.transaction_data().gas()[0].0;
-        let event_digest = None;
+        let event_digest = self.events_digest;
         let dependencies = vec![];
         TransactionEffects::new_from_execution_v2(
             status,
             executed_epoch,
             GasCostSummary::default(),
             shared_objects,
+            BTreeSet::new(),
             self.transaction.digest(),
             lamport_version,
             changed_objects,

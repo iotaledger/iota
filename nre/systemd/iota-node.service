@@ -5,7 +5,7 @@ Description=Iota Node
 User=iota
 WorkingDirectory=/opt/iota/
 Environment=RUST_BACKTRACE=1
-Environment=RUST_LOG=info,iota_core=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error
+Environment=RUST_LOG=info,iota_core=debug,narwhal=debug,consensus=debug,jsonrpsee=error
 ExecStart=/opt/iota/bin/iota-node --config-path /opt/iota/config/validator.yaml
 Restart=always
 

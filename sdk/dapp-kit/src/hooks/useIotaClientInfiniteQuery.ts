@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaClient } from '@iota/iota.js/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 import type {
     InfiniteData,
     UseInfiniteQueryOptions,
@@ -81,6 +81,7 @@ export function useIotaClientInfiniteQuery<
                 ...(params ?? {}),
                 cursor: pageParam,
             } as never),
-        getNextPageParam: (lastPage) => (lastPage.hasNextPage ? lastPage.nextCursor ?? null : null),
+        getNextPageParam: (lastPage) =>
+            lastPage.hasNextPage ? (lastPage.nextCursor ?? null) : null,
     });
 }

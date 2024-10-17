@@ -2,15 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isIotaNSName, useIotaNSEnabled } from '@iota/core';
 import { useIotaClientQuery, useIotaClient } from '@iota/dapp-kit';
-import { type IotaClient, type IotaSystemStateSummary } from '@iota/iota.js/client';
+import { type IotaClient, type IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import {
     isValidTransactionDigest,
     isValidIotaAddress,
     isValidIotaObjectId,
     normalizeIotaObjectId,
-} from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/utils';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
@@ -67,23 +66,7 @@ const getResultsForCheckpoint = async (
     ];
 };
 
-const getResultsForAddress = async (
-    client: IotaClient,
-    query: string,
-    iotaNSEnabled: boolean,
-): Promise<Results | null> => {
-    if (iotaNSEnabled && isIotaNSName(query)) {
-        const resolved = await client.resolveNameServiceAddress({ name: query.toLowerCase() });
-        if (!resolved) return null;
-        return [
-            {
-                id: resolved,
-                label: resolved,
-                type: 'address',
-            },
-        ];
-    }
-
+const getResultsForAddress = async (client: IotaClient, query: string): Promise<Results | null> => {
     const normalized = normalizeIotaObjectId(query);
     if (!isValidIotaAddress(normalized) || isGenesisLibAddress(normalized)) return null;
 
@@ -98,7 +81,15 @@ const getResultsForAddress = async (
         }),
     ]);
 
-    if (!from.data?.length && !to.data?.length) return null;
+    // Note: we need to query owned objects separately
+    // because genesis addresses might not be involved in any transaction yet.
+    let ownedObjects = [];
+    if (!from.data?.length && !to.data?.length) {
+        const response = await client.getOwnedObjects({ owner: normalized, limit: 1 });
+        ownedObjects = response.data;
+    }
+
+    if (!from.data?.length && !to.data?.length && !ownedObjects?.length) return null;
 
     return [
         {
@@ -140,7 +131,6 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
 export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
     const { data: systemStateSummery } = useIotaClientQuery('getLatestIotaSystemState');
-    const iotaNSEnabled = useIotaNSEnabled();
 
     return useQuery<Results, Error>({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -150,7 +140,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                 await Promise.allSettled([
                     getResultsForTransaction(client, query),
                     getResultsForCheckpoint(client, query),
-                    getResultsForAddress(client, query, iotaNSEnabled),
+                    getResultsForAddress(client, query),
                     getResultsForObject(client, query),
                     getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummery || null, query),
                 ])

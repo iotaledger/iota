@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaObjectChangeWithDisplay } from '..';
-import { IotaObjectChange } from '@iota/iota.js/client';
+import { IotaObjectChange } from '@iota/iota-sdk/client';
 
 type ObjectChangeWithObjectType = Extract<
     IotaObjectChange | IotaObjectChangeWithDisplay,

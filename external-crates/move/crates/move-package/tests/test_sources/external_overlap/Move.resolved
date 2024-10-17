@@ -60,7 +60,7 @@ ResolvedGraph {
             "ADep",
             "Root",
         },
-        manifest_digest: "2401A97D2FE979752E0726963BFC3F677A4FA8041F3C6FAE5A4302401B165463",
+        manifest_digest: "2B4FEA0B5D338A2EDB2A81621AB1A0477D98DC5B8CE02638646C8C2233A3E735",
         deps_digest: "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600",
     },
     build_options: BuildConfig {
@@ -81,6 +81,7 @@ ResolvedGraph {
         deps_as_root: false,
         silence_warnings: false,
         warnings_are_errors: false,
+        json_errors: false,
         additional_named_addresses: {},
         lint_flag: LintFlag {
             no_lint: false,

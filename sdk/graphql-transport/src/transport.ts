@@ -7,8 +7,8 @@ import type {
     IotaTransport,
     IotaTransportRequestOptions,
     IotaTransportSubscribeOptions,
-} from '@iota/iota.js/client';
-import { IotaHTTPTransport } from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
+import { IotaHTTPTransport } from '@iota/iota-sdk/client';
 import type { DocumentNode } from 'graphql';
 import { print } from 'graphql';
 
@@ -17,7 +17,7 @@ import { RPC_METHODS, UnsupportedMethodError, UnsupportedParamError } from './me
 
 export interface IotaClientGraphQLTransportOptions {
     url: string;
-    fallbackFullNodeUrl?: string;
+    fallbackTransportUrl?: string;
     fallbackMethods?: (keyof typeof RPC_METHODS)[];
 }
 
@@ -68,9 +68,9 @@ export class IotaClientGraphQLTransport implements IotaTransport {
             'devInspectTransactionBlock',
         ];
 
-        if (options.fallbackFullNodeUrl) {
+        if (options.fallbackTransportUrl) {
             this.#fallbackTransport = new IotaHTTPTransport({
-                url: options.fallbackFullNodeUrl,
+                url: options.fallbackTransportUrl,
             });
         }
     }

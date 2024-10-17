@@ -4,7 +4,7 @@ description: Allows for flexible logging and tracing of the node.
 ---
 
 The `telemetry-subscribers` crate is used for logging and tracing the node.
-It provides a tracing subscriber with flexible options to monitor the nodes performance and behavior.
+It provides a [`tracing`](https://docs.rs/tracing/latest/tracing/) subscriber with flexible options to monitor the nodes performance and behavior.
 It is currently used in different main functions of the node, including tests and is typically initialized at the
 beginning of a main function like:
 
@@ -89,7 +89,7 @@ They should be kept active in the main function to ensure logging and tracing th
 
 The `telemetry-subscriber` allows to measure Tokio-tracing [span](https://docs.rs/tracing/latest/tracing/span/index.html) latencies that will be recorded into Prometheus histograms directly.
 For that, a `prometheus::Registry` must be passed to the `TelemetryConfig` using the `with_prom_registry` function.
-The name of the Prometheus histogram is `tracing_span_latencies(_sum/count/bucket)´. For example, in the `iota-node` it is set up as follows:
+The name of the Prometheus histogram is `tracing_span_latencies(_sum/count/bucket)`. For example, in the `iota-node` it is set up as follows:
 
 ```rust
 let runtimes = IotaRuntimes::new( & config);

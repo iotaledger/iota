@@ -2,11 +2,9 @@
 description: State manager is Wasp component, which is responsible for keeping the store up to date.
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - state manager
   - pruning
   - snapshot
-  - write ahead log
-  - WAL
+  - evm
 ---
 
 # State Manager

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getAmount } from '_helpers';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
 type Props = {
@@ -34,6 +34,8 @@ export function useGetTxnRecipientAddress({ txn, address }: Props) {
         //         ({ receiverAddress }) => receiverAddress !== address
         //     )?.receiverAddress;
 
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
         return null ?? transferObjectRecipientAddress ?? txn.transaction?.data.sender;
     }, [address, amountByRecipient, txn]);
     // }, [address, amountByRecipient, eventsSummary, txn]);

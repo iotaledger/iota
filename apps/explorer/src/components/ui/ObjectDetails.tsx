@@ -1,13 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ArrowUpRight16 } from '@iota/icons';
 import { Text, Heading } from '@iota/ui';
 import { cva } from 'class-variance-authority';
 import { useState } from 'react';
 
 import { ObjectLink } from './InternalLink';
 import { ObjectVideoImage } from '~/components/ui';
+import { ArrowTopRight } from '@iota/ui-icons';
 
 const textStyles = cva(['flex min-w-0 flex-col flex-nowrap'], {
     variants: {
@@ -73,7 +73,7 @@ export function ObjectDetails({
                         className="mt-2.5 flex cursor-pointer items-center gap-1 text-steel-dark"
                     >
                         <Text variant="caption/semibold">Preview</Text>
-                        <ArrowUpRight16 className="inline-block" />
+                        <ArrowTopRight className="inline-block h-4 w-4" />
                     </div>
                 ) : null}
             </div>

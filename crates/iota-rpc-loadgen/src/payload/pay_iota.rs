@@ -13,8 +13,8 @@ use iota_types::{
 use tracing::debug;
 
 use crate::payload::{
-    rpc_command_processor::DEFAULT_GAS_BUDGET, PayIota, ProcessPayload, RpcCommandProcessor,
-    SignerInfo,
+    PayIota, ProcessPayload, RpcCommandProcessor, SignerInfo,
+    rpc_command_processor::DEFAULT_GAS_BUDGET,
 };
 
 #[async_trait]
@@ -39,7 +39,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             IotaKeyPair::decode_base64(&encoded_keypair).expect("Decoding keypair should not fail");
 
         debug!(
-            "Transfer Iota {} time to {recipient} with {amount} MICROS with {gas_payments:?}",
+            "Transfer Iota {} time to {recipient} with {amount} NANOS with {gas_payments:?}",
             gas_payments.len()
         );
 

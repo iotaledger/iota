@@ -4,7 +4,7 @@
 
 import { parseObjectType } from '../../lib/utils';
 
-import type { IotaObjectResponse, ObjectOwner, MoveStruct } from '@iota/iota.js/client';
+import type { IotaObjectResponse, ObjectOwner, MoveStruct } from '@iota/iota-sdk/client';
 
 export type DataType = {
     id: string;

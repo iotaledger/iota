@@ -20,23 +20,25 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        load_package_object_from_object_store, BackingPackageStore, ChildObjectResolver,
-        ObjectStore, PackageObject, ParentSync, ReadStore,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        ReadStore, RestStateReader, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
+use move_core_types::{
+    language_storage::{ModuleId, StructTag},
+    resolver::ModuleResolver,
+};
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use typed_store::{
+    DBMapUtils, Map,
     metrics::SamplingInterval,
     rocks::{DBMap, MetricConf},
     traits::{TableSummary, TypedStoreDebug},
-    Map,
 };
-use typed_store_derive::DBMapUtils;
 
 use super::SimulatorStore;
 
@@ -184,7 +186,7 @@ impl SimulatorStore for PersistedStore {
             .and_then(|sequence_number| self.get_checkpoint_by_sequence_number(sequence_number))
     }
 
-    fn get_highest_checkpint(&self) -> Option<VerifiedCheckpoint> {
+    fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint> {
         self.read_write
             .checkpoints
             .unbounded_iter()
@@ -440,7 +442,7 @@ impl ChildObjectResolver for PersistedStore {
         }
 
         if child_object.version() > child_version_upper_bound {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "TODO InMemoryStorage::read_child_object does not yet support bounded reads"
                     .to_owned(),
             });
@@ -572,7 +574,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .skip_to_last()
             .next()
             .map(|(_, checkpoint)| checkpoint.into())
-            .ok_or(IotaError::UserInputError {
+            .ok_or(IotaError::UserInput {
                 error: UserInputError::LatestCheckpointSequenceNumberNotFound,
             })
             .map_err(iota_types::storage::error::Error::custom)
@@ -695,6 +697,66 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     }
 }
 
+impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
+    fn get_transaction_checkpoint(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        todo!()
+    }
+
+    fn get_lowest_available_checkpoint_objects(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        Ok(0)
+    }
+
+    fn get_chain_identifier(
+        &self,
+    ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
+        Ok((*self
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap()
+            .digest())
+        .into())
+    }
+
+    fn account_owned_objects_info_iter(
+        &self,
+        _owner: IotaAddress,
+        _cursor: Option<ObjectID>,
+    ) -> iota_types::storage::error::Result<
+        Box<dyn Iterator<Item = iota_types::storage::AccountOwnedObjectInfo> + '_>,
+    > {
+        todo!()
+    }
+
+    fn dynamic_field_iter(
+        &self,
+        _parent: ObjectID,
+        _cursor: Option<ObjectID>,
+    ) -> iota_types::storage::error::Result<
+        Box<
+            dyn Iterator<
+                    Item = (
+                        iota_types::storage::DynamicFieldKey,
+                        iota_types::storage::DynamicFieldIndexInfo,
+                    ),
+                > + '_,
+        >,
+    > {
+        todo!()
+    }
+
+    fn get_coin_info(
+        &self,
+        _coin_type: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
+        todo!()
+    }
+}
+
 impl PersistedStoreInnerReadOnlyWrapper {
     pub fn sync(&self) {
         self.inner
@@ -720,7 +782,7 @@ impl Clone for PersistedStoreInnerReadOnlyWrapper {
 
 #[cfg(test)]
 mod tests {
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
 
     use super::*;
 

@@ -2,9 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountItemApproveConnection } from '_components/accounts/AccountItemApproveConnection';
-import Loading from '_components/loading';
-import { UserApproveContainer } from '_components/user-approve-container';
+import {
+    AccountItemApproveConnection,
+    AccountMultiSelectWithControls,
+    Loading,
+    SectionHeader,
+    UserApproveContainer,
+} from '_components';
 import { useAppDispatch, useAppSelector } from '_hooks';
 import type { RootState } from '_redux/RootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
@@ -12,14 +16,11 @@ import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-
-import { AccountMultiSelectWithControls } from '../../components/accounts/AccountMultiSelect';
-import Alert from '../../components/alert';
-import { SectionHeader } from '../../components/SectionHeader';
 import { useAccountGroups } from '../../hooks/useAccountGroups';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
-import st from './SiteConnectPage.module.scss';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Warning, Info } from '@iota/ui-icons';
 
 function SiteConnectPage() {
     const { requestID } = useParams();
@@ -97,6 +98,7 @@ function SiteConnectPage() {
                     <UserApproveContainer
                         origin={permissionRequest.origin}
                         originFavIcon={permissionRequest.favIcon}
+                        headerTitle="Insecure Website"
                         approveTitle="Continue"
                         rejectTitle="Reject"
                         onSubmit={handleHideWarning}
@@ -105,20 +107,29 @@ function SiteConnectPage() {
                         blended
                     >
                         <PageMainLayoutTitle title="Insecure Website" />
-                        <div className={st.warningWrapper}>
-                            <h1 className={st.warningTitle}>Your Connection is Not Secure</h1>
-                        </div>
-
-                        <div className={st.warningMessage}>
-                            If you connect your wallet to this site your data could be exposed to
-                            attackers. Click **Reject** if you don't trust this site.
-                            <br />
-                            <br />
-                            Continue at your own risk.
+                        <div className="flex flex-col gap-lg">
+                            <InfoBox
+                                title="Your connection is insecure"
+                                supportingText="Proceed at your own risk."
+                                type={InfoBoxType.Default}
+                                style={InfoBoxStyle.Elevated}
+                                icon={<Warning />}
+                            />
+                            <div className="flex flex-col gap-xs">
+                                <span className="text-label-lg text-neutral-60">
+                                    Connecting your wallet to this site could expose your data to
+                                    attackers.
+                                </span>
+                                <span className="text-label-lg text-neutral-60">
+                                    If you don't have confidence in this site, reject the
+                                    connection.
+                                </span>
+                            </div>
                         </div>
                     </UserApproveContainer>
                 ) : (
                     <UserApproveContainer
+                        headerTitle="Approve Connection"
                         origin={permissionRequest.origin}
                         originFavIcon={permissionRequest.favIcon}
                         permissions={permissionRequest.permissions}
@@ -128,8 +139,7 @@ function SiteConnectPage() {
                         approveDisabled={!accountsToConnect.length}
                         blended
                     >
-                        <PageMainLayoutTitle title="Approve Connection" />
-                        <div className="flex flex-col gap-8 py-6">
+                        <div className="flex flex-col gap-md">
                             {unlockedAccounts.length > 0 ? (
                                 <AccountMultiSelectWithControls
                                     selectedAccountIDs={accountsToConnect.map(
@@ -143,9 +153,12 @@ function SiteConnectPage() {
                                     }}
                                 />
                             ) : (
-                                <Alert mode="warning">
-                                    All accounts are currently locked. Unlock accounts to connect.
-                                </Alert>
+                                <InfoBox
+                                    icon={<Info />}
+                                    style={InfoBoxStyle.Elevated}
+                                    type={InfoBoxType.Default}
+                                    title="All accounts are currently locked. Unlock accounts to connect."
+                                />
                             )}
                             {lockedAccounts?.length > 0 && (
                                 <div className="flex flex-col gap-3">
@@ -153,9 +166,7 @@ function SiteConnectPage() {
                                     {lockedAccounts?.map((account) => (
                                         <AccountItemApproveConnection
                                             key={account.id}
-                                            showLock
                                             account={account}
-                                            disabled={account.isLocked}
                                         />
                                     ))}
                                 </div>

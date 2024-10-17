@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import ExternalLink from '_src/ui/app/components/external-link';
-import { X32 } from '@iota/icons';
+import { ExternalLink } from '_components';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Portal } from '../../../shared/Portal';
+import { Close } from '@iota/ui-icons';
 
 export type InterstitialConfig = {
     enabled: boolean;
@@ -63,7 +63,7 @@ function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: Int
                     className="absolute bottom-0 w-full cursor-pointer appearance-none border-none bg-transparent pb-5"
                     onClick={() => closeInterstitial(dismissKey)}
                 >
-                    <X32 className="h-8 w-8 text-black" />
+                    <Close className="h-8 w-8 text-black" />
                 </button>
             </div>
         </Portal>

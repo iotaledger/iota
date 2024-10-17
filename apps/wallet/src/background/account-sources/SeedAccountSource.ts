@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import { Ed25519Keypair, type Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519Keypair, type Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
 import Dexie from 'dexie';

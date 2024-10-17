@@ -1,26 +1,37 @@
 processed 7 tasks
 
-task 1 'publish'. lines 7-23:
+task 1, lines 7-23:
+//# publish
 created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 6862800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'programmable'. lines 25-26:
+task 2, lines 25-26:
+//# programmable --inputs immshared(1,0)
+//> 0: P0::m::get(Input(0))
 mutated: object(0,0)
+unchanged_shared: object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3 'programmable'. lines 28-29:
+task 3, lines 28-29:
+//# programmable --inputs object(1,0)
+//> 0: P0::m::inc(Input(0))
 mutated: object(0,0), object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2272400, non_refundable_storage_fee: 0
 
-task 4 'programmable'. lines 31-33:
+task 4, lines 31-33:
+//# programmable --inputs object(1,0)
+//> 0: P0::m::get(Input(0));
+//> P0::m::inc(Input(0))
 mutated: object(0,0), object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2272400, non_refundable_storage_fee: 0
 
-task 5 'create-checkpoint'. lines 35-35:
+task 5, line 35:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 6 'run-graphql'. lines 37-85:
+task 6, lines 37-85:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {
@@ -31,7 +42,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xafad65e8a17af12626bd707fd5aa877a0996ff99c002f54ac23c64a5795d9dd9",
+                  "package": "0x3494297da819914058c3b7dc6341a77b7f0b2f402d5f45abd1e4f12564f4121e",
                   "module": "m",
                   "functionName": "get"
                 }
@@ -44,17 +55,17 @@ Response: {
               "nodes": [
                 {
                   "__typename": "SharedObjectRead",
-                  "address": "0xe81b04597767d007852cb2321382eac67b5feedc3eb82350e146d75824cc4278",
+                  "address": "0xb384d9a5029209466a64a4b6ba968b6288751b5d9740d05eceaaf48668c0d1ac",
                   "version": 2,
-                  "digest": "rb2d5orhEsKSMQMzuJfqTCaJ5r6ZNW2CvuzNGPmHvKi",
+                  "digest": "9BFpPSt1yXFzUzcpmgFdEHGzspVJ8da6YmQ3xkNt7pLW",
                   "object": {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0xafad65e8a17af12626bd707fd5aa877a0996ff99c002f54ac23c64a5795d9dd9::m::Foo"
+                          "repr": "0x3494297da819914058c3b7dc6341a77b7f0b2f402d5f45abd1e4f12564f4121e::m::Foo"
                         },
                         "json": {
-                          "id": "0xe81b04597767d007852cb2321382eac67b5feedc3eb82350e146d75824cc4278",
+                          "id": "0xb384d9a5029209466a64a4b6ba968b6288751b5d9740d05eceaaf48668c0d1ac",
                           "x": "0"
                         }
                       }
@@ -71,7 +82,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xafad65e8a17af12626bd707fd5aa877a0996ff99c002f54ac23c64a5795d9dd9",
+                  "package": "0x3494297da819914058c3b7dc6341a77b7f0b2f402d5f45abd1e4f12564f4121e",
                   "module": "m",
                   "functionName": "inc"
                 }
@@ -91,12 +102,12 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xafad65e8a17af12626bd707fd5aa877a0996ff99c002f54ac23c64a5795d9dd9",
+                  "package": "0x3494297da819914058c3b7dc6341a77b7f0b2f402d5f45abd1e4f12564f4121e",
                   "module": "m",
                   "functionName": "get"
                 },
                 {
-                  "package": "0xafad65e8a17af12626bd707fd5aa877a0996ff99c002f54ac23c64a5795d9dd9",
+                  "package": "0x3494297da819914058c3b7dc6341a77b7f0b2f402d5f45abd1e4f12564f4121e",
                   "module": "m",
                   "functionName": "inc"
                 }

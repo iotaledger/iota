@@ -2,22 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This crate provides various APIs for interacting with the IOTA blockchain.
+//! It includes methods for querying data, building and executing transactions,
+//! managing governance-related data, and more.
+
 use anyhow::anyhow;
+pub use bridge::{BridgeReadApiClient, BridgeReadApiOpenRpc, BridgeReadApiServer};
 pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
 pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
 pub use governance::{GovernanceReadApiClient, GovernanceReadApiOpenRpc, GovernanceReadApiServer};
 pub use indexer::{IndexerApiClient, IndexerApiOpenRpc, IndexerApiServer};
+use iota_metrics::histogram::Histogram;
 use jsonrpsee::{
     core::ClientError,
     types::{
-        error::{INTERNAL_ERROR_CODE, UNKNOWN_ERROR_CODE},
         ErrorObjectOwned,
+        error::{INTERNAL_ERROR_CODE, UNKNOWN_ERROR_CODE},
     },
 };
 pub use move_utils::{MoveUtilsClient, MoveUtilsOpenRpc, MoveUtilsServer};
-use mysten_metrics::histogram::Histogram;
 use once_cell::sync::Lazy;
-use prometheus::{register_int_counter_with_registry, IntCounter};
+use prometheus::{IntCounter, register_int_counter_with_registry};
 pub use read::{ReadApiClient, ReadApiOpenRpc, ReadApiServer};
 use tap::TapFallible;
 use tracing::warn;
@@ -26,6 +31,7 @@ pub use transaction_builder::{
 };
 pub use write::{WriteApiClient, WriteApiOpenRpc, WriteApiServer};
 
+mod bridge;
 mod coin;
 mod extended;
 mod governance;
@@ -298,7 +304,7 @@ pub const TRANSACTION_EXECUTION_CLIENT_ERROR_CODE: i32 = -32002;
 /// Convert a jsonrpsee client error into a generic error object.
 pub fn error_object_from_rpc(rpc_err: ClientError) -> ErrorObjectOwned {
     match rpc_err {
-        ClientError::Call(e) => ErrorObjectOwned::owned(e.code(), e.message().to_owned(), e.data()),
+        ClientError::Call(e) => e,
         _ => ErrorObjectOwned::owned::<()>(UNKNOWN_ERROR_CODE, rpc_err.to_string(), None),
     }
 }

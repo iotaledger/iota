@@ -10,7 +10,7 @@ import {
     useInfiniteQuery,
 } from '@tanstack/react-query';
 
-import { type PaginatedTransactionResponse, type TransactionFilter } from '@iota/iota.js/client';
+import { type PaginatedTransactionResponse, type TransactionFilter } from '@iota/iota-sdk/client';
 
 export const DEFAULT_TRANSACTIONS_LIMIT = 20;
 

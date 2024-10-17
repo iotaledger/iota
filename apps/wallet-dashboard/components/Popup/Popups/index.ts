@@ -9,4 +9,5 @@ export { default as SendCoinPopup } from './SendCoinPopup/SendCoinPopup';
 export { default as SendAssetPopup } from './SendAssetPopup';
 
 export * from './SendCoinPopup';
+export * from './VestingPopup';
 export * from './NewStakePopup';

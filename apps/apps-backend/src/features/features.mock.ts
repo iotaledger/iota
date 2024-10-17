@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getDefaultNetwork, Network } from '@iota/iota.js/client';
+import { getDefaultNetwork, Network } from '@iota/iota-sdk/client';
 
 const walletDapps = [
     {
@@ -12,16 +12,9 @@ const walletDapps = [
         tags: ['Social'],
     },
     {
-        name: 'Iota Name Service (IotaNS)',
-        description: 'Find your .iota name!',
-        link: 'https://iotans.io/',
-        icon: 'https://raw.githubusercontent.com/IotaNSdapp/docs/main/IotaNS-small2.jpg',
-        tags: ['Infra'],
-    },
-    {
         name: 'Wormhole Connect',
         description:
-            'Bridge tokens from any Wormhole supported chain into Iota and get dropped off with extra Iota to pay gas fees. Developers can also embed the Connect bridge directly into their own websites and Dapps.',
+            'Bridge tokens from any Wormhole supported chain into IOTA and get dropped off with extra IOTA to pay gas fees. Developers can also embed the Connect bridge directly into their own websites and Dapps.',
         link: 'https://www.portalbridge.com/iota',
         icon: 'https://www.portalbridge.com/favicon.ico',
         tags: ['DeFi'],
@@ -29,14 +22,14 @@ const walletDapps = [
     {
         name: 'Bullshark Quests',
         description: 'Earn rewards through engaging with apps on Iota!',
-        link: 'https://quests.mystenlabs.com/',
+        link: 'https://quests.iota.org/',
         icon: 'https://user-images.githubusercontent.com/122397493/251579441-3c84de97-fc6e-46d2-b561-cd7bbef7dac7.png',
         tags: ['Social'],
     },
     {
         name: 'Aftermath Finance',
         description:
-            'The all-in-one DEX on Iota, featuring a fully on-chain perpetuals exchange, smart-order routing, liquid staking, and a novel spot AMM.',
+            'The all-in-one DEX on IOTA, featuring a fully on-chain perpetuals exchange, smart-order routing, liquid staking, and a novel spot AMM.',
         link: 'https://aftermath.finance',
         icon: 'https://github-production-user-asset-6210df.s3.amazonaws.com/122397493/289710788-57f6935c-f930-4668-aa01-86a1579e406a.png',
         tags: ['DeFi', 'DEX', 'Infra'],
@@ -78,14 +71,14 @@ const walletDapps = [
     },
     {
         name: 'FlowX Finance',
-        description: 'Ecosystem-focused native DEX & aggregator on the Iota Network.',
+        description: 'Ecosystem-focused native DEX & aggregator on the IOTA Network.',
         link: 'https://flowx.finance/swap',
         icon: 'https://3458959336-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2FpEOgAVtfjtpMXMM550M8%2Fuploads%2FiunglJ6f4i7xbVyrPZTD%2FFlowX%20Logo%20Black.png?alt=media&token=6dfa923c-41f6-4252-831f-ac6d1ddd1afe',
         tags: ['DeFi', 'DEX'],
     },
     {
         name: 'Bucket Protocol',
-        description: 'The first native stablecoin on Iota Network.',
+        description: 'The first native stablecoin on IOTA Network.',
         link: 'https://app.bucketprotocol.io/',
         icon: 'https://d3h53g0wjfwuec.cloudfront.net/bucket_avatar.png',
         tags: ['DeFi'],
@@ -106,14 +99,14 @@ const walletDapps = [
     },
     {
         name: 'Keepsake',
-        description: 'One of the first NFT Marketplaces on Iota Network.',
+        description: 'One of the first NFT Marketplaces on IOTA Network.',
         link: 'https://keepsake.gg/',
         icon: 'https://keepsake.gg/assets/icon/Favicon.png',
         tags: ['Marketplace'],
     },
 ];
 
-export const developmentFeatures = {
+export const featuresMock = {
     'mainnet-selection': {
         defaultValue: true,
     },
@@ -158,9 +151,6 @@ export const developmentFeatures = {
             '0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b',
             '0x30a644c3485ee9b604f52165668895092191fcaf5489a846afa7fc11cdb9b24a',
         ],
-    },
-    iotans: {
-        defaultValue: false,
     },
     'team-address-overrides': {
         defaultValue: {
@@ -215,15 +205,7 @@ export const developmentFeatures = {
         defaultValue: 0.0025,
     },
     'wallet-dapps': {
-        defaultValue: [
-            {
-                name: 'Iota Name Service (IotaNS)',
-                description: 'Find your .iota name!',
-                link: 'https://iotans.io/',
-                icon: 'https://raw.githubusercontent.com/IotaNSdapp/docs/main/IotaNS-small2.jpg',
-                tags: ['Infra'],
-            },
-        ],
+        defaultValue: [],
         rules: [
             {
                 condition: {
@@ -306,7 +288,7 @@ export const developmentFeatures = {
         defaultValue: {
             enabled: true,
             bannerUrl: 'https://iotawallet.com',
-            imageUrl: 'https://fe-assets.mystenlabs.com/wallet-next/iotawallet-mobile.svg',
+            imageUrl: 'https://fe-assets.iota.org/wallet-next/iotawallet-mobile.svg',
         },
         rules: [
             {
@@ -318,8 +300,7 @@ export const developmentFeatures = {
                 force: {
                     enabled: false,
                     bannerUrl: 'https://iota.io/basecamp',
-                    imageUrl:
-                        'https://fe-assets.mystenlabs.com/basecamp/wallet_basecamp_banner.png',
+                    imageUrl: 'https://fe-assets.iota.org/basecamp/wallet_basecamp_banner.png',
                 },
             },
         ],
@@ -328,8 +309,8 @@ export const developmentFeatures = {
         defaultValue: {
             enabled: false,
             dismissKey: 'winter-quest',
-            imageUrl: 'https://fe-assets.mystenlabs.com/quests/winter-apps-interstitial.svg',
-            bannerUrl: 'https://www.mystenlabs.com/blog/winter-quest',
+            imageUrl: 'https://fe-assets.iota.org/quests/winter-apps-interstitial.svg',
+            bannerUrl: 'https://www.blog.iota.org/winter-quest',
         },
     },
     'wallet-defi': {
@@ -398,83 +379,6 @@ export const developmentFeatures = {
             },
         ],
     },
-    'iotans-enable-okx-wallet': {
-        defaultValue: false,
-        rules: [
-            {
-                condition: {
-                    network: {
-                        $ne: 'mainnet',
-                    },
-                },
-                force: true,
-            },
-        ],
-    },
-    'iotans-enable-day-one-nft-domain-claim': {
-        defaultValue: false,
-    },
-    'iotans-nft-personalization': {
-        defaultValue: false,
-        rules: [
-            {
-                condition: {
-                    network: {
-                        $ne: 'mainnet',
-                    },
-                },
-                force: true,
-            },
-        ],
-    },
-    'iotans-front-page-banner': {
-        defaultValue: {
-            enabled: false,
-            dismissKey: 'quests-3-interstitial-live',
-            imageUrl: 'https://fe-assets.mystenlabs.com/quests_3_updated_large_corrected.svg',
-            bannerUrl: 'https://tech.mystenlabs.com/quest-3/',
-        },
-    },
-    'iotans-enable-coupons': {
-        defaultValue: false,
-    },
-    'iotans-enable-discord': {
-        defaultValue: false,
-        rules: [
-            {
-                condition: {
-                    network: {
-                        $ne: 'mainnet',
-                    },
-                },
-                force: true,
-            },
-        ],
-    },
-    'iotans-free-claims': {
-        defaultValue: false,
-    },
-    'iotans-banner': {
-        defaultValue: {
-            content:
-                "IotaNS is experiencing some issues. We're working to fix the problem and appreciate your patience.",
-            isActive: false,
-            isDismissable: true,
-        },
-    },
-    'iotans-enable-subname': {
-        defaultValue: false,
-        rules: [
-            {
-                condition: {
-                    network: {
-                        $ne: 'mainnet',
-                    },
-                },
-                force: true,
-            },
-        ],
-    },
     expiration_period: {
         defaultValue: 30,
         rules: [
@@ -485,22 +389,6 @@ export const developmentFeatures = {
                     },
                 },
                 force: 120,
-            },
-        ],
-    },
-    'iotans-name-burn-expired-name': {
-        defaultValue: false,
-        rules: [
-            {
-                force: true,
-            },
-        ],
-    },
-    'iotans-name-enable-v2-design': {
-        defaultValue: false,
-        rules: [
-            {
-                force: true,
             },
         ],
     },
@@ -545,5 +433,8 @@ export const developmentFeatures = {
                 force: true,
             },
         ],
+    },
+    'account-finder': {
+        defaultValue: false,
     },
 };

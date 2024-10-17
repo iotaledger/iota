@@ -1,7 +1,7 @@
 [package]
 name = "iota-sdk"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -9,11 +9,12 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+base64.workspace = true
 bcs.workspace = true
 clap.workspace = true
 colored.workspace = true
 futures.workspace = true
-futures-core.workspace = true
+futures-core = "0.3.21"
 jsonrpsee.workspace = true
 reqwest.workspace = true
 serde.workspace = true
@@ -31,6 +32,7 @@ iota-keys.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
+rustls.workspace = true
 shared-crypto.workspace = true
 tracing.workspace = true
 
@@ -39,27 +41,14 @@ tracing.workspace = true
 # to not have to pull in the entire iota repo for it.
 
 [dev-dependencies]
-async-recursion.workspace = true
-clap.workspace = true
 dirs.workspace = true
-futures.workspace = true
-futures-core.workspace = true
+iota-move-build.workspace = true
 rand.workspace = true
-rustls.workspace = true
 tempfile.workspace = true
-
-[[example]]
-name = "tic_tac_toe"
-path = "examples/tic_tac_toe.rs"
-test = false
 
 [[example]]
 name = "coin_read_api"
 path = "examples/coin_read_api.rs"
-
-[[example]]
-name = "read_api"
-path = "examples/read_api.rs"
 
 [[example]]
 name = "event_api"
@@ -70,18 +59,113 @@ name = "governance_api"
 path = "examples/governance_api.rs"
 
 [[example]]
-name = "programmable_transactions_api"
-path = "examples/programmable_transactions_api.rs"
-
-[[example]]
 name = "iota_client"
 path = "examples/iota_client.rs"
 
 [[example]]
-name = "sign_tx_guide"
-path = "examples/sign_tx_guide.rs"
+name = "json_rpc_errors"
+path = "examples/json_rpc_errors.rs"
 
 [[example]]
 name = "utils"
 path = "examples/utils.rs"
 crate-type = ["staticlib"]
+
+# Read API folder
+
+[[example]]
+name = "checkpoints"
+path = "examples/read_api/checkpoints.rs"
+
+[[example]]
+name = "read_api_objects"
+path = "examples/read_api/read_api_objects.rs"
+
+[[example]]
+name = "read_api_package"
+path = "examples/read_api/read_api_package.rs"
+
+[[example]]
+name = "read_api"
+path = "examples/read_api/read_api.rs"
+
+[[example]]
+name = "read_api_transactions"
+path = "examples/read_api/read_api_transactions.rs"
+
+[[example]]
+name = "read_api_tx"
+path = "examples/read_api/read_api_tx.rs"
+
+[[example]]
+name = "simulate_transaction"
+path = "examples/read_api/simulate_transaction.rs"
+
+[[example]]
+name = "transaction_subscription"
+path = "examples/read_api/transaction_subscription.rs"
+
+[[example]]
+name = "transactions_with_options"
+path = "examples/read_api/transactions_with_options.rs"
+
+# Transaction builder folder
+[[example]]
+name = "batch_tx"
+path = "examples/transaction_builder/batch_tx.rs"
+
+[[example]]
+name = "consolidate"
+path = "examples/transaction_builder/consolidate.rs"
+
+[[example]]
+name = "function_move_call"
+path = "examples/transaction_builder/function_move_call.rs"
+
+[[example]]
+name = "move_package"
+path = "examples/transaction_builder/move_package.rs"
+
+[[example]]
+name = "object_ref"
+path = "examples/transaction_builder/object_ref.rs"
+
+[[example]]
+name = "pay_iota"
+path = "examples/transaction_builder/pay_iota.rs"
+
+[[example]]
+name = "pay"
+path = "examples/transaction_builder/pay.rs"
+
+[[example]]
+name = "programmable_transactions_api"
+path = "examples/transaction_builder/programmable_transactions_api.rs"
+
+[[example]]
+name = "sign_tx_guide"
+path = "examples/transaction_builder/sign_tx_guide.rs"
+
+[[example]]
+name = "single_move_call"
+path = "examples/transaction_builder/single_move_call.rs"
+
+[[example]]
+name = "split_merge_coins"
+path = "examples/transaction_builder/split_merge_coins.rs"
+
+[[example]]
+name = "stake"
+path = "examples/transaction_builder/stake.rs"
+
+[[example]]
+name = "timelocked_stake"
+path = "examples/transaction_builder/timelocked_stake.rs"
+
+[[example]]
+name = "transfer"
+path = "examples/transaction_builder/transfer.rs"
+
+[[example]]
+name = "tx_data"
+path = "examples/transaction_builder/tx_data.rs"

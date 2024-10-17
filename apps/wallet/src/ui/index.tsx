@@ -5,7 +5,7 @@
 import '@fontsource-variable/inter';
 import '@fontsource-variable/red-hat-mono';
 
-import { ErrorBoundary } from '_components/error-boundary';
+import { ErrorBoundary } from '_components';
 import { initAppType } from '_redux/slices/app';
 import { AppType, getFromLocationSearch } from '_redux/slices/app/AppType';
 // import { initAmplitude } from '_src/shared/analytics/amplitude';
@@ -34,7 +34,7 @@ import { useAppSelector } from './app/hooks';
 
 import './styles/global.scss';
 import 'bootstrap-icons/font/bootstrap-icons.scss';
-import { type Query } from '@tanstack/react-query';
+import { defaultShouldDehydrateQuery, type Query } from '@tanstack/react-query';
 
 async function init() {
     if (process.env.NODE_ENV === 'development') {
@@ -79,8 +79,12 @@ function AppWrapper() {
                             persistOptions={{
                                 persister,
                                 dehydrateOptions: {
-                                    shouldDehydrateQuery: ({ meta }: Query) =>
-                                        !meta?.skipPersistedCache,
+                                    shouldDehydrateQuery: (query: Query) => {
+                                        return (
+                                            !query.meta?.skipPersistedCache &&
+                                            defaultShouldDehydrateQuery(query)
+                                        );
+                                    },
                                 },
                             }}
                         >

@@ -4,49 +4,15 @@
 
 use std::{collections::HashSet, path::PathBuf};
 
-use iota_core::authority_client::AuthorityAPI;
 use iota_macros::*;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::IotaError,
     object::Owner,
     transaction::{CallArg, ObjectArg, Transaction},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
-
-#[sim_test]
-async fn receive_object_feature_deny() {
-    use iota_protocol_config::ProtocolConfig;
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_receive_object_for_testing(false);
-        config
-    });
-
-    let env = TestEnvironment::new().await;
-    let (parent, child) = env.start().await;
-    let arguments = vec![
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(parent)),
-        CallArg::Object(ObjectArg::Receiving(child)),
-    ];
-    let txn = env.create_move_call("receiver", arguments).await;
-    let err = env
-        .test_cluster
-        .authority_aggregator()
-        .authority_clients
-        .values()
-        .next()
-        .unwrap()
-        .authority_client()
-        .handle_transaction(txn)
-        .await
-        .map(|_| ())
-        .unwrap_err();
-
-    assert!(matches!(err, IotaError::UnsupportedFeatureError { .. }));
-}
 
 #[sim_test]
 async fn receive_of_object() {

@@ -16,20 +16,6 @@ module iota_system::validator {
     use iota::event;
     use iota::bag::Bag;
     use iota::bag;
-    /* friend iota_system::genesis; */
-    /* friend iota_system::iota_system_state_inner; */
-    /* friend iota_system::validator_wrapper; */
-    /* friend iota_system::validator_set; */
-    /* friend iota_system::voting_power; */
-
-    /* #[test_only] */
-    /* friend iota_system::validator_tests; */
-    /* #[test_only] */
-    /* friend iota_system::validator_set_tests; */
-    /* #[test_only] */
-    /* friend iota_system::iota_system_tests; */
-    /* #[test_only] */
-    /* friend iota_system::governance_test_utils; */
 
     /// Invalid proof_of_possession field in ValidatorMetadata
     const EInvalidProofOfPossession: u64 = 0;
@@ -85,7 +71,7 @@ module iota_system::validator {
     const MAX_VALIDATOR_METADATA_LENGTH: u64 = 256;
 
     // TODO: Move this to onchain config when we have a good way to do it.
-    /// Max gas price a validator can set is 100K MICROS.
+    /// Max gas price a validator can set is 100K NANOS.
     const MAX_VALIDATOR_GAS_PRICE: u64 = 100_000;
 
     public struct ValidatorMetadata has store {
@@ -248,7 +234,7 @@ module iota_system::validator {
             EValidatorMetadataExceedingLengthLimit
         );
         assert!(commission_rate <= MAX_COMMISSION_RATE, ECommissionRateTooHigh);
-        assert!(gas_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(gas_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
 
         let metadata = new_metadata(
             iota_address,
@@ -393,7 +379,7 @@ module iota_system::validator {
         verified_cap: ValidatorOperationCap,
         new_price: u64,
     ) {
-        assert!(new_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
         let validator_address = *verified_cap.verified_operation_cap_address();
         assert!(validator_address == self.metadata.iota_address, EInvalidCap);
         self.next_epoch_gas_price = new_price;
@@ -406,7 +392,7 @@ module iota_system::validator {
         new_price: u64
     ) {
         assert!(is_preactive(self), ENotValidatorCandidate);
-        assert!(new_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
         let validator_address = *verified_cap.verified_operation_cap_address();
         assert!(validator_address == self.metadata.iota_address, EInvalidCap);
         self.next_epoch_gas_price = new_price;

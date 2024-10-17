@@ -2,13 +2,10 @@
 description: How to interact with the L1 ledger in Solo.
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - testing
+  - how-to
+  - evm
   - solo
-  - UTXO
-  - tokens
-  - ledger
-  - l1
-  - how-tos
+  - testing
 ---
 
 # The L1 Ledger

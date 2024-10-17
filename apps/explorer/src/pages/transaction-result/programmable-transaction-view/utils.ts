@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { type IotaArgument } from '@iota/iota.js/client';
+import { type IotaArgument } from '@iota/iota-sdk/client';
 
 export function flattenIotaArguments(data: (IotaArgument | IotaArgument[])[]): string {
     if (!data) {

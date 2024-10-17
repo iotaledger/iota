@@ -51,8 +51,11 @@ impl Container {
     pub async fn spawn(config: NodeConfig, runtime: RuntimeType) -> Self {
         let (startup_sender, startup_receiver) = tokio::sync::oneshot::channel();
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
+        let name = AuthorityPublicKeyBytes::from(config.protocol_key_pair().public())
+            .concise()
+            .to_string();
 
-        let thread = thread::spawn(move || {
+        let thread = thread::Builder::new().name(name).spawn(move || {
             let span = if get_global_telemetry_config()
                 .map(|c| c.enable_otlp_tracing)
                 .unwrap_or(false)
@@ -98,7 +101,7 @@ impl Container {
             let runtime = builder.enable_all().build().unwrap();
 
             runtime.block_on(async move {
-                let registry_service = mysten_metrics::start_prometheus_server(config.metrics_address);
+                let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
                 info!(
                     "Started Prometheus HTTP endpoint. To query metrics use\n\tcurl -s http://{}/metrics",
                     config.metrics_address
@@ -111,7 +114,7 @@ impl Container {
 
                 trace!("cancellation received; shutting down thread");
             });
-        });
+        }).unwrap();
 
         let node = startup_receiver.await.unwrap();
 

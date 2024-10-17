@@ -5,7 +5,7 @@
 import { LinkGroup } from './LinkGroup';
 import { Banner } from '~/components/ui';
 
-import type { IotaTransactionBlockResponse, OwnedObjectRef } from '@iota/iota.js/client';
+import type { IotaTransactionBlockResponse, OwnedObjectRef } from '@iota/iota-sdk/client';
 
 interface ToObjectLink {
     text: string;

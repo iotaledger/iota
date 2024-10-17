@@ -7,7 +7,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use iota_config::genesis::TokenDistributionScheduleBuilder;
-use iota_genesis_builder::{Builder, SnapshotSource, OBJECT_SNAPSHOT_FILE_PATH};
+use iota_genesis_builder::{
+    Builder, OBJECT_SNAPSHOT_FILE_PATH, SnapshotSource, genesis_build_effects::GenesisBuildEffects,
+};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 
@@ -16,13 +18,6 @@ use rand::rngs::OsRng;
     about = "Example Tool for generating a genesis file from a Stardust Migration Objects snapshot"
 )]
 struct Cli {
-    #[clap(
-        short,
-        long,
-        default_value_t = false,
-        help = "Decompress the input object snapshot"
-    )]
-    decompress: bool,
     #[clap(long, default_value_t = OBJECT_SNAPSHOT_FILE_PATH.to_string(), help = "Path to the Stardust Migration Objects snapshot file")]
     snapshot_path: String,
 }
@@ -34,11 +29,7 @@ fn main() -> anyhow::Result<()> {
 
     // Prepare the reader for the objects snapshot
     let path = PathBuf::from(cli.snapshot_path);
-    let object_snapshot_source = if cli.decompress {
-        SnapshotSource::LocalBrotli(path)
-    } else {
-        SnapshotSource::Local(path)
-    };
+    let object_snapshot_source = SnapshotSource::Local(path);
 
     // Start building
     let mut builder = Builder::new().add_migration_source(object_snapshot_source);
@@ -66,7 +57,12 @@ fn main() -> anyhow::Result<()> {
         builder = builder.add_validator_signature(key);
     }
 
+    let GenesisBuildEffects {
+        genesis,
+        migration_tx_data,
+    } = builder.build();
     // Save to file
-    builder.build().save("genesis.blob")?;
+    genesis.save("genesis.blob")?;
+    migration_tx_data.unwrap().save("migration.blob")?;
     Ok(())
 }

@@ -7,7 +7,7 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAcco
 import { useIotaClient } from '@iota/dapp-kit';
 
 import { walletApiProvider } from '../ApiProvider';
-import { useIotaLedgerClient } from '../components/ledger/IotaLedgerClientProvider';
+import { useIotaLedgerClient } from '_components';
 import { LedgerSigner } from '../LedgerSigner';
 import { type WalletSigner } from '../WalletSigner';
 import { useBackgroundClient } from './useBackgroundClient';

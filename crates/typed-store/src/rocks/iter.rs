@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{marker::PhantomData, sync::Arc};
 
 use bincode::Options;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::Direction;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
-use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
-use crate::{metrics::RocksDBPerfContext, DBMetrics};
+use super::{RocksDBRawIter, TypedStoreError, be_fix_int_ser};
+use crate::{DBMetrics, metrics::RocksDBPerfContext};
 
 /// An iterator over all key-value pairs in a data map.
 pub struct Iter<'a, K, V> {

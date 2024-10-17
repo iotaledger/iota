@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro::TokenStream;
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::{
-    fold::{fold_expr, fold_item_macro, fold_stmt, Fold},
-    parse::Parser,
-    parse2, parse_macro_input,
-    punctuated::Punctuated,
-    spanned::Spanned,
     Attribute, BinOp, Data, DataEnum, DeriveInput, Expr, ExprBinary, ExprMacro, Item, ItemMacro,
     Stmt, StmtMacro, Token, UnOp,
+    fold::{Fold, fold_expr, fold_item_macro, fold_stmt},
+    parse::Parser,
+    parse_macro_input, parse2,
+    punctuated::Punctuated,
+    spanned::Spanned,
 };
 
 #[proc_macro_attribute]
@@ -58,13 +58,12 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                     use iota_simulator::move_package::package_hooks::register_package_hooks;
 
                     register_package_hooks(Box::new(IotaPackageHooks {}));
-                    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                    path.extend(["..", "..", "iota_programmability", "examples", "basics"]);
+                    let mut path = PathBuf::from(env!("SIMTEST_STATIC_INIT_MOVE"));
                     let mut build_config = BuildConfig::default();
 
                     build_config.config.install_dir = Some(TempDir::new().unwrap().into_path());
                     let _all_module_bytes = build_config
-                        .build(path)
+                        .build(&path)
                         .unwrap()
                         .get_package_bytes(/* with_unpublished_deps */ false);
                 }
@@ -181,14 +180,16 @@ pub fn iota_test(args: TokenStream, item: TokenStream) -> TokenStream {
     result.into()
 }
 
-/// The sim_test macro will invoke `#[msim::test]` if the simulator config var
-/// is enabled.
+/// The `sim_test` macro will invoke `#[msim::test]` if the simulator config var
+/// (`msim`) is enabled.
 ///
-/// Otherwise, it will emit an ignored test - if forcibly run, the ignored test
-/// will panic.
+/// On this premise, this macro can be used in order to pass any
+/// simulator-specific arguments, such as `check_determinism`,
+/// which is not understood by tokio.
 ///
-/// This macro must be used in order to pass any simulator-specific arguments,
-/// such as `check_determinism`, which is not understood by tokio.
+/// If the simulator config var is disabled, tests will run via
+/// `#[tokio::test]`, unless disabled by setting the environment variable
+/// `IOTA_SKIP_SIMTESTS`.
 #[proc_macro_attribute]
 pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemFn);

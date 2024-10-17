@@ -4,7 +4,7 @@
 
 import { Listbox, Transition } from '@headlessui/react';
 import { KioskOwnerCap } from '@iota/kiosk';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import classNames from 'clsx';
 import { Fragment } from 'react';
 
@@ -68,9 +68,7 @@ export function KioskSelector({
                                     {({ selected }) => (
                                         <>
                                             <span
-                                                className={`block truncate ${
-                                                    selected ? 'font-medium' : 'font-normal'
-                                                }`}
+                                                className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}
                                             >
                                                 {formatAddress(cap.kioskId)}
                                             </span>

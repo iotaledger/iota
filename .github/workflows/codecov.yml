@@ -7,10 +7,11 @@ on:
   pull_request:
     branches:
       - develop
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 jobs:
   diff:
+    if: github.event.pull_request.draft == false
     runs-on: [self-hosted]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}

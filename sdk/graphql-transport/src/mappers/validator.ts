@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaValidatorSummary } from '@iota/iota.js/client';
+import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
 
 import type { Rpc_Validator_FieldsFragment } from '../generated/queries.js';
 

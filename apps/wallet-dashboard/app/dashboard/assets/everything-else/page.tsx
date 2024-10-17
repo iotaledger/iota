@@ -4,7 +4,7 @@
 'use client';
 
 import React from 'react';
-import { IotaObjectData, getNetwork } from '@iota/iota.js/client';
+import { IotaObjectData, getNetwork } from '@iota/iota-sdk/client';
 import { VirtualList } from '@/components/index';
 import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';

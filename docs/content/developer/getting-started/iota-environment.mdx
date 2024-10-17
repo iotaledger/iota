@@ -1,99 +1,39 @@
 ---
-title: IOTA Environment Setup
-description: Get the background information you need before you start developing on IOTA. Learn the layout of the IOTA monorepository and the suggested development environment for working with Move.
+description: "A guide to familiarizing yourself with the IOTA repository, branch and network structure, SDKs, CLI, and recommended IDEs and plugins."
+tags:
+  - explanation
+  - setup
+  - cli
+  - sdk
+  - typescript
+  - rust
+  - move
 ---
 
-Before you start developing with IOTA and Move, you should familiarize yourself with how to contribute to IOTA, how IOTA is structured, what tools and SDKs exist, and what plugins are available to use in your IDE.
+# Before You Start
 
-## Fork the IOTA repository {#fork}
+It's a good idea to look at the toolbox before you start building. This section will give you a quick overview
+of the most important tools to get started:
 
-The recommended way to contribute to the IOTA repository is to fork the project, make changes on your fork, then submit a pull request (PR). The IOTA repository is available on GitHub: https://github.com/iotaledger/iota.
+* How you can interact with IOTA Nodes using the [CLI](#iota-cli) or the [available SDKs](#iota-sdks).
+* IDEs and plugins.
 
-To create a local IOTA repository:
+## Interact with IOTA
 
-1. Go to the [IOTA repository](https://github.com/iotaledger/iota) on GitHub.
-1. Click the **Fork** button to create a copy of the repository in your account.
+### IOTA CLI
 
-    ![Fork IOTA repo](/img/developer/getting-started/iota-env/fork.png)
+The [IOTA CLI](../../references/cli.mdx) provides a handy interface you can use to perform all sorts of operation with
+IOTA nodes.
 
-1. In your forked repository on GitHub, click the green `Code <>` button and copy the **HTTPS** URL GitHub provides.
+### IOTA SDKs
 
-    ![Copy URL](/img/developer/getting-started/iota-env/copy-URL.png)
+IOTA provides two official SDKs that you can use to interact with the IOTA network from your dApp:
 
-1. Open a terminal or console on your system at the location you want to save the repository locally. Type `git clone ` and paste the URL you copied in the previous step and press `Enter`.
-1. Type `cd iota` to make `iota` the active directory.
-
-You can use any [branching strategy](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-and-deleting-branches-within-your-repository) you prefer on your IOTA fork. Make your changes locally and push to your repository, submitting PRs to the official IOTA repository from your fork as needed.
-
-:::tip
-
-Be sure to synchronize your fork frequently to keep it up-to-date with active development.
-
-:::
-
-
-## Using IOTA from command line
-
-You can interact with the IOTA network through two official SDKs (TypeScript SDK and Rust SDK), and by using the IOTA CLI. For more details about using the IOTA CLI, see [Install IOTA](iota-install.mdx) and the [IOTA CLI](/references/cli.mdx) reference.
+* [Typescript SDK](../../references/ts-sdk/typescript/index.mdx)
+* [Rust SDK](../../references/rust-sdk.mdx)
 
 ## Move IDEs and plugins
 
-The recommended IDE for Move development is Visual Studio Code with the `move-analyzer` extension. Follow the Visual Studio Marketplace instructions to install the move-analyzer extension, then install the `move-analyzer` language server passing `address32` using the `--features` flag and passing `iota-move` to the branch flag:
+We recommend that you use the [Visual Studio Code](https://code.visualstudio.com/) IDE.
 
-```shell
-cargo install --git https://github.com/move-language/move move-analyzer --branch iota-move --features "address32"
-```
-
-After you install VS Code and the `move-analyzer` extension, check out the [Move code examples](https://github.com/iotaledger/iota/tree/develop/examples/move).
-
-To test or run a Move example on IOTA, use the `iota move` command from the IOTA CLI.
-
-## IOTA repository and how to contribute
-
-The IOTA repo is a monorepo, containing all the source code that is used to build and run the IOTA network, as well as this documentation.
-
-The root folder of the IOTA monorepo has the following top-level folders:
-
-- [apps](https://github.com/iotaledger/iota/tree/develop/apps): Contains the source code for the main web applications that the IOTA Foundation runs, `IOTA Wallet`.
-- [crates](https://github.com/iotaledger/iota/tree/develop/crates): Contains all the Rust crates that are part of the IOTA system.
-- [dapps](https://github.com/iotaledger/iota/tree/develop/dapps): Contains some examples of decentralized applications built on top of IOTA, such as Kiosk or Sponsored Transactions.
-- [dashboards](https://github.com/iotaledger/iota/tree/develop/dashboards): Currently empty.
-- [doc](https://github.com/iotaledger/iota/tree/develop/doc): Contains deprecated documentation related to Move and IOTA.
-- [docker](https://github.com/iotaledger/iota/tree/develop/docker): Contains the docker files needed to spin up a node, an indexer, a Full node or other services.
-- [docs](https://github.com/iotaledger/iota/tree/develop/docs): Contains this documentation and the source for this site.
-- [examples](https://github.com/iotaledger/iota/tree/develop/examples): Contains examples of apps written for IOTA and smart contracts written in Move.
-- [external-crates](https://github.com/iotaledger/iota/tree/develop/external-crates): Contains the source code for the Move programming language.
-- [kiosk](https://github.com/iotaledger/iota/tree/develop/kiosk): Contains the source code of the IOTA Foundation Kiosk extensions and rules, as well as examples.
-- [narwhal](https://github.com/iotaledger/iota/tree/develop/narwhal): Contains the source code of Narwhal and partially synchronous Bullshark, a DAG-based mempool, and efficient BFT consensus.
-- [nre](https://github.com/iotaledger/iota/tree/develop/nre): Contains information about node and network reliability engineering.
-- [scripts](https://github.com/iotaledger/iota/tree/develop/scripts): Contains a number of scripts that are used internally.
-- [sdk](https://github.com/iotaledger/iota/tree/develop/sdk): Contains the source code for different tools and SDKs, such as the IOTA TypeScript SDK, Kiosk SDK, BCS, dApp kit, and others.
-- [iota-execution](https://github.com/iotaledger/iota/tree/develop/iota-execution): Contains the source code responsible for abstracting access to the execution layer.
-
-The following primary directories offer a good starting point for exploring the IOTA codebase:
-
-- [move](https://github.com/iotaledger/iota/tree/develop/external-crates/move) - Move VM, compiler, and tools.
-- [narwhal](https://github.com/iotaledger/iota/tree/develop/narwhal) - Mempool and consensus.
-- [typescript-sdk](https://github.com/iotaledger/iota/tree/develop/sdk/typescript/) - the IOTA TypeScript SDK.
-- [wallet](https://github.com/iotaledger/iota/tree/develop/apps/wallet) - Chrome extension wallet for IOTA.
-- [iota](https://github.com/iotaledger/iota/tree/develop/crates/iota) - the IOTA command line tool.
-- [iota-core](https://github.com/iotaledger/iota/tree/develop/crates/iota-core) - Core IOTA components.
-- [iota-execution](https://github.com/iotaledger/iota/tree/develop/iota-execution) - Execution Layer (programmable transactions, execution integration).
-- [iota-framework](https://github.com/iotaledger/iota/tree/develop/crates/iota-framework) - Move system packages (0x1, 0x2, 0x3, 0xdee9).
-- [iota-network](https://github.com/iotaledger/iota/tree/develop/crates/iota-network) - Networking interfaces.
-- [iota-node](https://github.com/iotaledger/iota/tree/develop/crates/iota-node) - Validator and Full node software.
-- [iota-protocol-config](https://github.com/iotaledger/iota/tree/develop/crates/iota-protocol-config) - On-chain system configuration and limits.
-- [iota-sdk](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk) - The IOTA Rust SDK.
-- [iota-types](https://github.com/iotaledger/iota/tree/develop/crates/iota-types) - IOTA object types, such as coins and gas.
-
-## Development branches
-
-The IOTA repository includes four primary branches: `devnet`, `testnet`, `mainnet`, and `main`.
-
-The `devnet` branch includes the latest stable build of IOTA. Choose the `devnet` branch if you want to build or test on IOTA Devnet. If you encounter an issue or find a bug, it may already be fixed in the `main` branch. To submit a PR, you should push commits to your fork of the `main` branch.
-
-The `testnet` branch includes the code running on the IOTA Testnet network.
-
-The `mainnet` branch includes the code running on the IOTA Mainnet network.
-
-The `main` branch includes the most recent changes and updates. Use the `main` branch if you want to contribute to the IOTA project or to experiment with cutting-edge functionality. The `main` branch might include unreleased changes and experimental features, so use it at your own risk.
+We are currently developing a code analyzer plugin for Visual Studio Code - details to follow soon.

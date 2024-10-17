@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { RadioButton } from '@/components/atoms';
 import { useEffect, useState } from 'react';
 
-const meta = {
+const meta: Meta<typeof RadioButton> = {
     component: RadioButton,
     tags: ['autodocs'],
     render: (props) => {

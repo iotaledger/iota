@@ -10,7 +10,7 @@ import {
     IotaObjectChangePublished,
     IotaObjectChangeTransferred,
     IotaObjectChangeWrapped,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 
 import { groupByOwner } from './groupByOwner';
 import { IotaObjectChangeTypes } from './types';

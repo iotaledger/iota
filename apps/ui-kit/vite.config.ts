@@ -43,6 +43,14 @@ const plugins = isPackageProduction
 const buildPackageConfig = {
     build: isPackageProduction ? packageConfig : {},
     plugins,
+    resolve: {
+        alias: [
+            {
+                find: 'fs',
+                replacement: 'memfs',
+            },
+        ],
+    },
 };
 
 export default defineConfig(buildPackageConfig);

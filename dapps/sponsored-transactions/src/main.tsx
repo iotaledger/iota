@@ -12,7 +12,7 @@ import { App } from './App';
 import '@iota/dapp-kit/dist/index.css';
 import './index.css';
 
-import { getFullnodeUrl } from '@iota/iota.js/client';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 
 const queryClient = new QueryClient();
 

@@ -3,16 +3,11 @@ description: Invoking smart contracts with on-ledger and off-ledger requests wit
 image: /img/iota-evm/tutorial/send_request.png
 tags:
   - how-to
-  - explanation
-  - testing
-  - PostRequestSync
-  - PostRequestOffLedger
-  - send
-  - requests
-  - post
-  - solo
   - on-ledger
   - off-ledger
+  - evm
+  - solo
+  - testing
 ---
 
 # Invoking Smart Contracts

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ObjectChangesByOwner, IotaObjectChangeTypes } from '@iota/core';
-import { IotaObjectChange } from '@iota/iota.js/client';
+import { IotaObjectChange } from '@iota/iota-sdk/client';
 import { ObjectDetail } from './';
 import React from 'react';
 

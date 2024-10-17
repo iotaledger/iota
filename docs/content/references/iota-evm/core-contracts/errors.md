@@ -3,15 +3,8 @@ description: 'The errors contract keeps a map of error codes to error message te
 request receipts.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-
-- smart contracts
-- core
-- root
-- initialization
-- entry points
-- fees
-- ownership
-- views
+- core-contract
+- core-contract-errors
 - reference
 ---
 

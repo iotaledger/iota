@@ -13,7 +13,6 @@ module iota_system::genesis {
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set;
     use iota_system::iota_system_state_inner;
-    use iota_system::stake_subsidy;
     use iota_system::timelocked_staking;
 
     public struct GenesisValidatorMetadata has drop, copy {
@@ -43,12 +42,6 @@ module iota_system::genesis {
         protocol_version: u64,
         chain_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
-
-        // Stake Subsidy parameters
-        stake_subsidy_start_epoch: u64,
-        stake_subsidy_initial_distribution_amount: u64,
-        stake_subsidy_period_length: u64,
-        stake_subsidy_decrease_rate: u16,
 
         // Validator committee parameters
         max_validator_count: u64,
@@ -106,7 +99,6 @@ module iota_system::genesis {
 
         assert!(iota_treasury_cap.total_supply() == pre_minted_supply, EWrongPreMintedSupply);
 
-        let subsidy_fund = balance::zero();
         let storage_fund = balance::zero();
 
         // Create all the `Validator` structs
@@ -176,7 +168,6 @@ module iota_system::genesis {
 
         let system_parameters = iota_system_state_inner::create_system_parameters(
             genesis_chain_parameters.epoch_duration_ms,
-            genesis_chain_parameters.stake_subsidy_start_epoch,
 
             // Validator committee parameters
             genesis_chain_parameters.max_validator_count,
@@ -188,14 +179,6 @@ module iota_system::genesis {
             ctx,
         );
 
-        let stake_subsidy = stake_subsidy::create(
-            subsidy_fund,
-            genesis_chain_parameters.stake_subsidy_initial_distribution_amount,
-            genesis_chain_parameters.stake_subsidy_period_length,
-            genesis_chain_parameters.stake_subsidy_decrease_rate,
-            ctx,
-        );
-
         iota_system::create(
             iota_system_state_id,
             iota_treasury_cap,
@@ -204,7 +187,6 @@ module iota_system::genesis {
             genesis_chain_parameters.protocol_version,
             genesis_chain_parameters.chain_start_timestamp_ms,
             system_parameters,
-            stake_subsidy,
             system_timelock_cap,
             ctx,
         );

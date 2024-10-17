@@ -43,7 +43,7 @@ paths = [
 [[packages]]
 source = "Repository"
 [packages.values]
-repository = "https://github.com/mystenlabs/apps"
+repository = "https://github.com/iotaledger/apps"
 network = "mainnet"
 [[packages.values.branches]]
 branch = "main"
@@ -54,7 +54,7 @@ paths = [
 [[packages]]
 source = "Repository"
 [packages.values]
-repository = "https://github.com/mystenlabs/apps"
+repository = "https://github.com/iotaledger/apps"
 network = "testnet"
 [[packages.values.branches]]
 branch = "testnet"

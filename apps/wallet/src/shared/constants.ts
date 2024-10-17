@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export const ToS_LINK = 'https://mystenlabs.com/legal#iotawallettermsofservice';
-export const PRIVACY_POLICY_LINK = 'https://mystenlabs.com/legal#privacypolicy';
-export const FAQ_LINK = 'https://docs.mystenlabs.com/faq';
+export const ToS_LINK = 'https://www.iota.org/terms-of-use';
+export const PRIVACY_POLICY_LINK = 'https://www.iota.org/privacy-policy';
+export const FAQ_LINK = 'https://wiki.iota.org/';
 
 // number of epochs before earning
 // Staking Rewards Redeemable

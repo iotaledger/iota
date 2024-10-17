@@ -8,8 +8,8 @@ import {
     parseObjectChangeDetails,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { DisplayFieldsResponse, IotaObjectChange } from '@iota/iota.js/client';
-import { formatAddress, isValidIotaAddress } from '@iota/iota.js/utils';
+import { DisplayFieldsResponse, IotaObjectChange } from '@iota/iota-sdk/client';
+import { formatAddress, isValidIotaAddress } from '@iota/iota-sdk/utils';
 
 enum ObjectDetailLabel {
     Package = 'Package',
@@ -81,6 +81,7 @@ export default function ObjectDetail({ change, owner, ownerType, displayData }: 
                 </div>
 
                 {displayData && displayData.data && (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                         src={displayData.data.image_url}
                         alt={displayData.data.name}

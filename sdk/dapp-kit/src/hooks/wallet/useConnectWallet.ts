@@ -58,7 +58,12 @@ export function useConnectWallet({
                 );
                 const selectedAccount = getSelectedAccount(connectedIotaAccounts, accountAddress);
 
-                setWalletConnected(wallet, connectedIotaAccounts, selectedAccount);
+                setWalletConnected(
+                    wallet,
+                    connectedIotaAccounts,
+                    selectedAccount,
+                    connectResult.supportedIntents,
+                );
 
                 return { accounts: connectedIotaAccounts };
             } catch (error) {

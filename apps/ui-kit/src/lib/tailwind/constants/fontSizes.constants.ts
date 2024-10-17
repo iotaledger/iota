@@ -3,7 +3,25 @@
 
 import { ThemeConfig } from 'tailwindcss/types/config';
 
-export type TailwindCustomFonts = ThemeConfig['fontSize'];
+type TailwindFontSize = ThemeConfig['fontSize'];
+
+export type TailwindFontSizeConfig = Partial<{
+    lineHeight: string;
+    letterSpacing: string;
+    fontWeight: string | number;
+}>;
+
+export type TailwindCustomFonts = Record<
+    string,
+    [
+        string,
+        Partial<{
+            lineHeight: string;
+            letterSpacing: string;
+            fontWeight: string | number;
+        }>,
+    ]
+>;
 
 export const TEXT_LABEL_CLASSES: TailwindCustomFonts = {
     'text-label-sm': [
@@ -30,7 +48,7 @@ export const TEXT_LABEL_CLASSES: TailwindCustomFonts = {
             fontWeight: 500,
         },
     ],
-};
+} satisfies TailwindFontSize;
 
 export const TEXT_BODY_CLASSES: TailwindCustomFonts = {
     'text-body-sm': [
@@ -64,7 +82,7 @@ export const TEXT_BODY_DISAMBIGUOUS_CLASSES: TailwindCustomFonts = {
         '12px',
         {
             lineHeight: '16px',
-            letterSpacing: '0.2px',
+            letterSpacing: '0.1px',
             fontWeight: 400,
         },
     ],
@@ -80,7 +98,7 @@ export const TEXT_BODY_DISAMBIGUOUS_CLASSES: TailwindCustomFonts = {
         '16px',
         {
             lineHeight: '24px',
-            letterSpacing: '0.1px',
+            letterSpacing: '0.2px',
             fontWeight: 400,
         },
     ],
@@ -119,7 +137,7 @@ export const TEXT_HEADLINE_CLASSES: TailwindCustomFonts = {
         {
             lineHeight: '120%',
             letterSpacing: '-0.2px',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
     'text-headline-md': [
@@ -127,7 +145,7 @@ export const TEXT_HEADLINE_CLASSES: TailwindCustomFonts = {
         {
             lineHeight: '120%',
             letterSpacing: '-0.4px',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
     'text-headline-lg': [
@@ -135,7 +153,7 @@ export const TEXT_HEADLINE_CLASSES: TailwindCustomFonts = {
         {
             lineHeight: '120%',
             letterSpacing: '-0.4px',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
 };
@@ -145,21 +163,21 @@ export const TEXT_DISPLAY_CLASSES: TailwindCustomFonts = {
         '36px',
         {
             lineHeight: '120%',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
     'text-display-md': [
         '48px',
         {
             lineHeight: '120%',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
     'text-display-lg': [
         '60px',
         {
             lineHeight: '120%',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
 };

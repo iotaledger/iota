@@ -12,12 +12,12 @@ use std::{
 
 use anyhow::anyhow;
 use fastcrypto::{
-    encoding::{decode_bytes_hex, Encoding, Hex},
+    encoding::{Encoding, Hex, decode_bytes_hex},
     hash::HashFunction,
     traits::AllowedRng,
 };
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-use move_binary_format::{binary_views::BinaryIndexedView, file_format::SignatureToken};
+use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
     account_address::AccountAddress,
@@ -27,13 +27,17 @@ use move_core_types::{
 };
 use rand::Rng;
 use schemars::JsonSchema;
-use serde::{ser::Error, Deserialize, Serialize};
+use serde::{
+    Deserialize, Serialize, Serializer,
+    ser::{Error, SerializeSeq},
+};
 use serde_with::serde_as;
 use shared_crypto::intent::HashingIntentScope;
 
 use crate::{
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
     balance::Balance,
-    coin::{Coin, CoinMetadata, TreasuryCap, COIN_MODULE_NAME, COIN_STRUCT_NAME},
+    coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
     crypto::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
         SignatureScheme,
@@ -42,19 +46,22 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    gas_coin::{GasCoin, GAS},
-    governance::{StakedIota, STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME},
+    gas_coin::{GAS, GasCoin},
+    governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
-    iota_serde::{to_iota_struct_tag_string, HexAccountAddress, Readable},
+    iota_serde::{HexAccountAddress, Readable, to_iota_struct_tag_string},
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    timelock::{timelock, timelock::TimeLock, timelocked_staked_iota::TimelockedStakedIota},
+    stardust::output::Nft,
+    timelock::{
+        timelock::{self, TimeLock},
+        timelocked_staked_iota::TimelockedStakedIota,
+    },
     transaction::{Transaction, VerifiedTransaction},
     zk_login_authenticator::ZkLoginAuthenticator,
-    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
 };
 pub use crate::{
     committee::EpochId,
@@ -192,6 +199,10 @@ impl MoveObjectType {
 
     pub fn timelocked_staked_iota() -> Self {
         Self(MoveObjectType_::Other(TimelockedStakedIota::type_()))
+    }
+
+    pub fn stardust_nft() -> Self {
+        Self(MoveObjectType_::Other(Nft::tag()))
     }
 
     pub fn address(&self) -> AccountAddress {
@@ -332,6 +343,12 @@ impl MoveObjectType {
             && self.name().as_str() == "DenyCap"
     }
 
+    pub fn is_coin_deny_cap_v2(&self) -> bool {
+        self.address() == IOTA_FRAMEWORK_ADDRESS
+            && self.module().as_str() == "coin"
+            && self.name().as_str() == "DenyCapV2"
+    }
+
     pub fn is_dynamic_field(&self) -> bool {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
@@ -371,7 +388,7 @@ impl MoveObjectType {
     pub fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                Err(IotaError::ObjectDeserializationError {
+                Err(IotaError::ObjectDeserialization {
                     error: "Error extracting dynamic object name from Coin object".to_string(),
                 })
             }
@@ -382,7 +399,7 @@ impl MoveObjectType {
     pub fn try_extract_field_value(&self) -> IotaResult<TypeTag> {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                Err(IotaError::ObjectDeserializationError {
+                Err(IotaError::ObjectDeserialization {
                     error: "Error extracting dynamic object value from Coin object".to_string(),
                 })
             }
@@ -398,6 +415,14 @@ impl MoveObjectType {
                 Coin::is_coin(s) && s.type_params.len() == 1 && inner == &s.type_params[0]
             }
             MoveObjectType_::Other(o) => s == o,
+        }
+    }
+
+    pub fn other(&self) -> Option<&StructTag> {
+        if let MoveObjectType_::Other(s) = &self.0 {
+            Some(s)
+        } else {
+            None
         }
     }
 
@@ -531,6 +556,17 @@ impl ObjectInfo {
             type_: o.into(),
             owner: o.owner,
             previous_transaction: o.previous_transaction,
+        }
+    }
+
+    pub fn from_object(object: &Object) -> Self {
+        Self {
+            object_id: object.id(),
+            version: object.version(),
+            digest: object.digest(),
+            type_: object.into(),
+            owner: object.owner,
+            previous_transaction: object.previous_transaction,
         }
     }
 }
@@ -776,6 +812,7 @@ impl TryFrom<&GenericSignature> for IotaAddress {
             GenericSignature::ZkLoginAuthenticator(zklogin) => {
                 IotaAddress::try_from_unpadded(&zklogin.inputs)
             }
+            GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
         }
     }
 }
@@ -956,7 +993,7 @@ impl TxContext {
 
     /// Returns whether the type signature is &mut TxContext, &TxContext, or
     /// none of the above.
-    pub fn kind(view: &BinaryIndexedView<'_>, s: &SignatureToken) -> TxContextKind {
+    pub fn kind(view: &CompiledModule, s: &SignatureToken) -> TxContextKind {
         use SignatureToken as S;
         let (kind, s) = match s {
             S::MutableReference(s) => (TxContextKind::Mutable, s),
@@ -964,7 +1001,7 @@ impl TxContext {
             _ => return TxContextKind::None,
         };
 
-        let S::Struct(idx) = &**s else {
+        let S::Datatype(idx) = &**s else {
             return TxContextKind::None;
         };
 
@@ -1045,6 +1082,10 @@ impl TxContext {
 impl SequenceNumber {
     pub const MIN: SequenceNumber = SequenceNumber(u64::MIN);
     pub const MAX: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
+    pub const CANCELLED_READ: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 1);
+    pub const CONGESTED: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 2);
+    pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
+        SequenceNumber(SequenceNumber::MAX.value() + 3);
 
     pub const fn new() -> Self {
         SequenceNumber(0)
@@ -1091,6 +1132,16 @@ impl SequenceNumber {
         assert_ne!(max_input.0, u64::MAX);
 
         SequenceNumber(max_input.0 + 1)
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self == &SequenceNumber::CANCELLED_READ
+            || self == &SequenceNumber::CONGESTED
+            || self == &SequenceNumber::RANDOMNESS_UNAVAILABLE
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self < &SequenceNumber::MAX
     }
 }
 
@@ -1389,4 +1440,88 @@ impl fmt::Display for ObjectType {
             ObjectType::Struct(t) => write!(f, "{}", t),
         }
     }
+}
+
+// SizeOneVec is a wrapper around Vec<T> that enforces the size of the vec to be
+// 1. This seems pointless, but it allows us to have fields in protocol messages
+// that are current enforced to be of size 1, but might later allow other sizes,
+// and to have that constraint enforced in the serialization/deserialization
+// layer, instead of requiring manual input validation.
+#[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[serde(try_from = "Vec<T>")]
+pub struct SizeOneVec<T> {
+    e: T,
+}
+
+impl<T> SizeOneVec<T> {
+    pub fn new(e: T) -> Self {
+        Self { e }
+    }
+
+    pub fn element(&self) -> &T {
+        &self.e
+    }
+
+    pub fn element_mut(&mut self) -> &mut T {
+        &mut self.e
+    }
+
+    pub fn into_inner(self) -> T {
+        self.e
+    }
+
+    pub fn iter(&self) -> std::iter::Once<&T> {
+        std::iter::once(&self.e)
+    }
+}
+
+impl<T> Serialize for SizeOneVec<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(1))?;
+        seq.serialize_element(&self.e)?;
+        seq.end()
+    }
+}
+
+impl<T> TryFrom<Vec<T>> for SizeOneVec<T> {
+    type Error = anyhow::Error;
+
+    fn try_from(mut v: Vec<T>) -> Result<Self, Self::Error> {
+        if v.len() != 1 {
+            Err(anyhow!("Expected a vec of size 1"))
+        } else {
+            Ok(SizeOneVec {
+                e: v.pop().unwrap(),
+            })
+        }
+    }
+}
+
+#[test]
+fn test_size_one_vec_is_transparent() {
+    let regular = vec![42u8];
+    let size_one = SizeOneVec::new(42u8);
+
+    // Vec -> SizeOneVec serialization is transparent
+    let regular_ser = bcs::to_bytes(&regular).unwrap();
+    let size_one_deser = bcs::from_bytes::<SizeOneVec<u8>>(&regular_ser).unwrap();
+    assert_eq!(size_one, size_one_deser);
+
+    // other direction works too
+    let size_one_ser = bcs::to_bytes(&SizeOneVec::new(43u8)).unwrap();
+    let regular_deser = bcs::from_bytes::<Vec<u8>>(&size_one_ser).unwrap();
+    assert_eq!(regular_deser, vec![43u8]);
+
+    // we get a deserialize error when deserializing a vec with size != 1
+    let empty_ser = bcs::to_bytes(&Vec::<u8>::new()).unwrap();
+    bcs::from_bytes::<SizeOneVec<u8>>(&empty_ser).unwrap_err();
+
+    let size_greater_than_one_ser = bcs::to_bytes(&vec![1u8, 2u8]).unwrap();
+    bcs::from_bytes::<SizeOneVec<u8>>(&size_greater_than_one_ser).unwrap_err();
 }

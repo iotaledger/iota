@@ -17,7 +17,7 @@ export const BORDER_RADIUS: TailwindScale = {
     full: pxToRem(120),
 };
 
-export const PADDINGS: TailwindScale = {
+export const CUSTOM_SPACING: TailwindScale = {
     none: pxToRem(0),
     xxxs: pxToRem(2),
     xxs: pxToRem(4),

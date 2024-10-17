@@ -5,8 +5,8 @@
 import { Box } from '..';
 import { TransactionAmount } from './';
 import { formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
-import type { IotaEvent } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import type { IotaEvent } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface StakeTransactionCardProps {
     event: IotaEvent;

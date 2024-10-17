@@ -1,13 +1,7 @@
 ---
-keywords:
-- Smart Contract Testing
-- Automated Testing
-- Unit Tests
-- Integration Tests
-- Testing Frameworks
-- EVM Testnet
-- Solidity Testing
-description: Learn how to test smart contracts before deploying them on public networks to avoid vulnerabilities and ensure functionality aligns with requirements using unit, and integration testing, alongside frameworks and testing with the IOTA Sandbox and the EVM Testnet. 
+description: Learn how to test smart contracts before deploying them on public networks to avoid vulnerabilities and ensure functionality aligns with requirements using unit, and integration testing, alongside frameworks and testing with the IOTA Sandbox and the EVM Testnet.
+tags:
+  - evm
 ---
 
 # Testing Smart Contracts

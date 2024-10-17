@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import type { DelegatedStake } from '@iota/iota.js/client';
+import type { DelegatedStake } from '@iota/iota-sdk/client';
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 
 type UseGetDelegatedStakesOptions = {

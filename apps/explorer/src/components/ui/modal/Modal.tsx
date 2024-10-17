@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Dialog, Transition } from '@headlessui/react';
-import { X12 } from '@iota/icons';
 import { Heading } from '@iota/ui';
+import { Close } from '@iota/ui-icons';
 import { Fragment, type ReactNode } from 'react';
 
 export interface ModalProps {
@@ -24,7 +24,7 @@ export function CloseButton({ onClick }: CloseButtonProps): JSX.Element {
             type="button"
             className="absolute right-0 top-0 p-4 text-steel hover:text-steel-darker"
         >
-            <X12 />
+            <Close className="h-3 w-3" />
         </button>
     );
 }
@@ -62,7 +62,10 @@ export function Modal({ open, onClose, children }: ModalProps): JSX.Element {
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="fixed inset-0 z-10 bg-gray-100/80" aria-hidden="true" />
+                    <div
+                        className="fixed inset-0 z-10 bg-shader-neutral-light-48"
+                        aria-hidden="true"
+                    />
                 </Transition.Child>
                 <div className="fixed inset-0 z-10 overflow-y-auto">
                     <div className="flex min-h-full items-center justify-center">

@@ -2,16 +2,16 @@ consensus-config:
   - "consensus/config/**"
 consensus-core:
   - "consensus/core/**"
-mysten-common:
-  - "crates/mysten-common/**"
-mysten-metrics:
-  - "crates/mysten-metrics/**"
-mysten-network:
-  - "crates/mysten-network/**"
-mysten-util-mem:
-  - "crates/mysten-util-mem/**"
-mysten-util-mem-derive:
-  - "crates/mysten-util-mem-derive/**"
+iota-common:
+  - "crates/iota-common/**"
+iota-metrics:
+  - "crates/iota-metrics/**"
+iota-network-stack:
+  - "crates/iota-network-stack/**"
+iota-util-mem:
+  - "crates/iota-util-mem/**"
+iota-util-mem-derive:
+  - "crates/iota-util-mem-derive/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 shared-crypto:
@@ -34,6 +34,8 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
+iota-bridge:
+  - "crates/iota-bridge/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-config:
@@ -60,6 +62,8 @@ iota-framework-tests:
   - "crates/iota-framework-tests/**"
 iota-genesis-builder:
   - "crates/iota-genesis-builder/**"
+iota-genesis-common:
+  - "crates/iota-genesis-common/**"
 iota-graphql-e2e-tests:
   - "crates/iota-graphql-e2e-tests/**"
 iota-graphql-rpc:
@@ -116,6 +120,8 @@ iota-rosetta:
   - "crates/iota-rosetta/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
+iota-sdk:
+  - "crates/iota-sdk/**"
 iota-simulator:
   - "crates/iota-simulator/**"
 iota-single-node-benchmark:
@@ -136,8 +142,8 @@ iota-swarm-config:
   - "crates/iota-swarm-config/**"
 iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
-iota-test-validator:
-  - "crates/iota-test-validator/**"
+iota-tls:
+  - "crates/iota-tls/**"
 iota-tool:
   - "crates/iota-tool/**"
 iota-transaction-builder:
@@ -152,8 +158,6 @@ iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
-iotans-indexer:
-  - "crates/iotans-indexer/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:
@@ -170,22 +174,12 @@ narwhal-config:
   - "narwhal/config/**"
 narwhal-crypto:
   - "narwhal/crypto/**"
-narwhal-executor:
-  - "narwhal/executor/**"
 narwhal-network:
   - "narwhal/network/**"
-narwhal-node:
-  - "narwhal/node/**"
-narwhal-primary:
-  - "narwhal/primary/**"
-narwhal-storage:
-  - "narwhal/storage/**"
 narwhal-test-utils:
   - "narwhal/test-utils/**"
 narwhal-types:
   - "narwhal/types/**"
-narwhal-worker:
-  - "narwhal/worker/**"
 iota-execution:
   - "iota-execution/**"
 iota-execution-cut:

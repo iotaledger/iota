@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! SuiNodeHandle wraps SuiNode in a way suitable for access by test code.
+//! IotaNodeHandle wraps IotaNode in a way suitable for access by test code.
 //!
 //! When starting a IotaNode directly, in a test (as opposed to using Swarm),
 //! the node may be running inside of a simulator node. It is therefore a
-//! microsake to do something like:
+//! mistake to do something like:
 //!
 //! ```ignore
 //!     use test_utils::authority::{start_node, spawn_checkpoint_processes};

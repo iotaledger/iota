@@ -2,23 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type TransactionBlock } from '@iota/iota.js/transactions';
+import { type Transaction } from '@iota/iota-sdk/transactions';
 import { useQuery } from '@tanstack/react-query';
 
 import { useAccountByAddress } from './useAccountByAddress';
 import { useSigner } from './useSigner';
 
-export function useTransactionDryRun(
-    sender: string | undefined,
-    transactionBlock: TransactionBlock,
-) {
+export function useTransactionDryRun(sender: string | undefined, transaction: Transaction) {
     const { data: account } = useAccountByAddress(sender);
     const signer = useSigner(account || null);
     const response = useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['dryRunTransaction', transactionBlock.serialize()],
+        queryKey: ['dryRunTransaction', transaction.getData()],
         queryFn: () => {
-            return signer!.dryRunTransactionBlock({ transactionBlock });
+            return signer!.dryRunTransactionBlock({ transactionBlock: transaction });
         },
         enabled: !!signer,
     });

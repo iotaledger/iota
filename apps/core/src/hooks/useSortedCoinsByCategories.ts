@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CoinBalance } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { type CoinBalance } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import { DEFAULT_RECOGNIZED_PACKAGES } from '../constants';
 
@@ -17,22 +17,20 @@ function sortCoins(balances: CoinBalance[]) {
     });
 }
 
-export function useSortedCoinsByCategories(coinBalances: CoinBalance[]) {
+export function useSortedCoinsByCategories(
+    coinBalances: CoinBalance[],
+    pinnedCoinTypes?: string[],
+) {
     const recognizedPackages = DEFAULT_RECOGNIZED_PACKAGES; // previous: useRecognizedPackages();
-
-    // Commented out pinnedCoinTypes until https://github.com/iotaledger/iota/issues/832 is resolved
-    // const [pinnedCoinTypes] = usePinnedCoinTypes();
 
     return useMemo(() => {
         const reducedCoinBalances = coinBalances?.reduce(
             (acc, coinBalance) => {
                 if (recognizedPackages.includes(coinBalance.coinType.split('::')[0])) {
                     acc.recognized.push(coinBalance);
-                }
-                // else if (pinnedCoinTypes.includes(coinBalance.coinType)) {
-                //     acc.pinned.push(coinBalance);
-                // }
-                else {
+                } else if (pinnedCoinTypes?.includes(coinBalance.coinType)) {
+                    acc.pinned.push(coinBalance);
+                } else {
                     acc.unrecognized.push(coinBalance);
                 }
                 return acc;
@@ -49,5 +47,5 @@ export function useSortedCoinsByCategories(coinBalances: CoinBalance[]) {
             pinned: sortCoins(reducedCoinBalances.pinned),
             unrecognized: sortCoins(reducedCoinBalances.unrecognized),
         };
-    }, [coinBalances, recognizedPackages /*pinnedCoinTypes*/]);
+    }, [coinBalances, recognizedPackages, pinnedCoinTypes]);
 }

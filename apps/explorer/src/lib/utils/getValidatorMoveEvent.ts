@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaEvent } from '@iota/iota.js/client';
+import { type IotaEvent } from '@iota/iota-sdk/client';
 
 export function getValidatorMoveEvent(
     validatorsEvent: IotaEvent[],

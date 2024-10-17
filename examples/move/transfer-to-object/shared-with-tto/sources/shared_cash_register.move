@@ -6,17 +6,14 @@ module shared_with_tto::shared_cash_register {
     use common::identified_payment::{Self, IdentifiedPayment, EarmarkedPayment};
     use iota::iota::IOTA;
     use iota::coin::Coin;
-    use iota::object::{Self, UID};
-    use iota::transfer::{Self, Receiving};
-    use iota::tx_context::{Self, TxContext};
+    use iota::transfer::Receiving;
     use iota::vec_set::{Self, VecSet};
-    use std::vector;
     use std::string::String;
 
     const EInvalidOwner: u64 = 0;
     const ENotAuthorized: u64 = 2;
 
-    struct CashRegister has key {
+    public struct CashRegister has key {
         id: UID,
         authorized_individuals: VecSet<address>,
         business_name: String,
@@ -27,11 +24,11 @@ module shared_with_tto::shared_cash_register {
     /// business name, and authorized set of individuals that can process
     /// payments.
     public fun create_cash_register(
-        authorized_individuals_vec: vector<address>,
+        mut authorized_individuals_vec: vector<address>,
         business_name: String,
         ctx: &mut TxContext,
     ) {
-        let authorized_individuals = vec_set::empty();
+        let mut authorized_individuals = vec_set::empty();
 
         while (!vector::is_empty(&authorized_individuals_vec)) {
             let addr = vector::pop_back(&mut authorized_individuals_vec);
@@ -80,7 +77,7 @@ module shared_with_tto::shared_cash_register {
             vec_set::remove(&mut register.authorized_individuals, &addr);
         } else {
             vec_set::insert(&mut register.authorized_individuals, addr);
-        } 
+        }
     }
 
     //--------------------------------------------------------------------------------

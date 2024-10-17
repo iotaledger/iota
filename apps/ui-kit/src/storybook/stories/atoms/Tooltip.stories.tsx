@@ -5,7 +5,7 @@ import { Tooltip, TooltipPosition } from '@/lib/components';
 import { Info } from '@iota/ui-icons';
 import type { Meta, StoryObj } from '@storybook/react';
 
-const meta = {
+const meta: Meta<typeof Tooltip> = {
     component: Tooltip,
     tags: ['autodocs'],
     render: (props) => {

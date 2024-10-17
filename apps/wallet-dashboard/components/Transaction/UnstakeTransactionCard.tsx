@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFormatCoin } from '@iota/core';
-import type { IotaEvent } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import type { IotaEvent } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Box } from '..';
 import { TransactionAmount } from './';
 
@@ -36,7 +36,7 @@ export default function UnstakeTransactionCard({ event }: UnstakeTransactionCard
                 )}
 
                 <div className="flex w-full justify-between py-3.5">
-                    <div className="text-steel flex items-baseline gap-1">Your SUI Stake</div>
+                    <div className="text-steel flex items-baseline gap-1">Your IOTA Stake</div>
 
                     <div className="text-steel flex items-baseline gap-1">
                         {formatPrinciple} {symbol}

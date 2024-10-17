@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BalanceChange, CoinFormat, useFormatCoin, useCoinMetadata } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface BalanceChangeEntryProps {
     balanceChange: BalanceChange;

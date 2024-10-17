@@ -3,11 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module entry_functions::example {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
-    struct Foo has key {
+    public struct Foo has key {
         id: UID,
         bar: u64,
     }

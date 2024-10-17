@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
@@ -11,19 +12,20 @@ use std::{
 };
 
 use anyhow::Result;
+use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
-use iota_protocol_config::{Chain, SupportedProtocolVersions};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     committee::EpochId,
     crypto::{
-        get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        IotaKeyPair, KeypairTraits, NetworkKeyPair,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
+        NetworkKeyPair, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
+    supported_protocol_versions::{Chain, SupportedProtocolVersions},
+    traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use narwhal_config::Parameters as ConsensusParameters;
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -31,15 +33,15 @@ use serde_with::serde_as;
 use tracing::info;
 
 use crate::{
-    certificate_deny_config::CertificateDenyConfig, genesis,
-    object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
-    transaction_deny_config::TransactionDenyConfig, Config,
+    Config, certificate_deny_config::CertificateDenyConfig, genesis,
+    migration_tx_data::MigrationTxData, object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
+    transaction_deny_config::TransactionDenyConfig,
 };
 
 // Default max number of concurrent requests served
 pub const DEFAULT_GRPC_CONCURRENCY_LIMIT: usize = 20000000000;
 
-/// Default gas price of 100 Micros
+/// Default gas price of 1000 Nanos
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VALIDATOR_GAS_PRICE;
 
 /// Default commission rate of 2%
@@ -57,46 +59,76 @@ pub struct NodeConfig {
     pub account_key_pair: KeyPairWithPath,
     #[serde(default = "default_key_pair")]
     pub network_key_pair: KeyPairWithPath,
-
     pub db_path: PathBuf,
+
+    /// The network address for gRPC communication.
+    ///
+    /// Can be overwritten with args `listen-address` parameters.
     #[serde(default = "default_grpc_address")]
     pub network_address: Multiaddr,
     #[serde(default = "default_json_rpc_address")]
     pub json_rpc_address: SocketAddr,
 
+    /// Flag to enable the experimental REST API under `/rest`
+    /// endpoint on the same interface as `json` `rpc` server.
     #[serde(default)]
     pub enable_experimental_rest_api: bool,
 
+    /// The address for Prometheus metrics.
     #[serde(default = "default_metrics_address")]
     pub metrics_address: SocketAddr,
+
+    /// The port for the admin interface that is
+    /// run in the metrics separate runtime and provides access to
+    /// admin node commands such as logging and tracing options.
     #[serde(default = "default_admin_interface_port")]
     pub admin_interface_port: u16,
 
+    /// Configuration struct for the consensus.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consensus_config: Option<ConsensusConfig>,
 
-    // TODO: Remove this as it's no longer used.
-    #[serde(default)]
-    pub enable_event_processing: bool,
-
+    /// Flag to enable index processing for a full node.
+    ///
+    /// If set to true, node creates `IndexStore` for transaction
+    /// data including ownership and balance information.
     #[serde(default = "default_enable_index_processing")]
     pub enable_index_processing: bool,
 
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub remove_deprecated_tables: bool,
+
     // only allow websocket connections for jsonrpc traffic
     #[serde(default)]
-    pub websocket_only: bool,
+    /// Determines the jsonrpc server type as either:
+    /// - 'websocket' for a websocket based service (deprecated)
+    /// - 'http' for an http based service
+    /// - 'both' for both a websocket and http based service (deprecated)
+    pub jsonrpc_server_type: Option<ServerType>,
 
+    /// Flag to enable gRPC load shedding to manage and
+    /// mitigate overload conditions by shedding excess
+    /// load with `LoadShedLayer` middleware.
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
     #[serde(default = "default_concurrency_limit")]
     pub grpc_concurrency_limit: Option<usize>,
 
+    /// Configuration struct for P2P.
     #[serde(default)]
     pub p2p_config: P2pConfig,
 
+    /// Contains genesis location that might be `InPlace`
+    /// for reading all genesis data to memory or `InFile`,
+    /// and `OnceCell` pointer to a genesis struct.
     pub genesis: Genesis,
 
+    /// Contains the path where to find the migration blob.
+    pub migration_tx_data_path: Option<PathBuf>,
+
+    /// Configuration for pruning of the authority store, to define when
+    /// an old data is removed from the storage space.
     #[serde(default = "default_authority_store_pruning_config")]
     pub authority_store_pruning_config: AuthorityStorePruningConfig,
 
@@ -107,6 +139,9 @@ pub struct NodeConfig {
     #[serde(default = "default_end_of_epoch_broadcast_channel_capacity")]
     pub end_of_epoch_broadcast_channel_capacity: usize,
 
+    /// Configuration for the checkpoint executor for limiting
+    /// the number of checkpoints to execute concurrently,
+    /// and to allow for checkpoint post-processing.
     #[serde(default)]
     pub checkpoint_executor_config: CheckpointExecutorConfig,
 
@@ -117,39 +152,50 @@ pub struct NodeConfig {
     #[serde(skip)]
     pub supported_protocol_versions: Option<SupportedProtocolVersions>,
 
+    /// Configuration to manage database checkpoints,
+    /// including whether to perform checkpoints at the end of an epoch,
+    /// the path for storing checkpoints, and other related settings.
     #[serde(default)]
     pub db_checkpoint_config: DBCheckpointConfig,
 
+    /// Defines a threshold for an object size above which object
+    /// is stored separately as `IndirectObject`. Used in `AuthorityStore`.
     #[serde(default)]
     pub indirect_objects_threshold: usize,
 
+    /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name_service_package_address: Option<IotaAddress>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name_service_registry_id: Option<ObjectID>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name_service_reverse_registry_id: Option<ObjectID>,
-
+    /// Configuration to specify rules for denying transactions
+    /// based on `objectsIDs`, `addresses`, or enable/disable many
+    /// features such as publishing new packages or using shared objects.
     #[serde(default)]
     pub transaction_deny_config: TransactionDenyConfig,
 
+    /// Config used to deny execution for certificate digests
+    /// know for crashing or hanging validator nodes.
+    ///
+    /// Should be used for a fast temporary fixes and
+    /// removed once the issue is fixed.
     #[serde(default)]
     pub certificate_deny_config: CertificateDenyConfig,
 
+    /// Used to determine how state debug information is dumped
+    /// when a node forks.
     #[serde(default)]
     pub state_debug_dump_config: StateDebugDumpConfig,
 
+    /// Configuration for writing state archive. If `ObjectStorage`
+    /// config is provided, `ArchiveWriter` will be created
+    /// for checkpoints archival.
     #[serde(default)]
     pub state_archive_write_config: StateArchiveConfig,
 
     #[serde(default)]
     pub state_archive_read_config: Vec<StateArchiveConfig>,
 
+    /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
     pub state_snapshot_write_config: StateSnapshotConfig,
 
@@ -159,6 +205,7 @@ pub struct NodeConfig {
     #[serde(default = "default_transaction_kv_store_config")]
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
 
+    // TODO: write config seem to be unused.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_kv_store_write_config: Option<TransactionKeyValueStoreWriteConfig>,
 
@@ -168,11 +215,55 @@ pub struct NodeConfig {
     #[serde(default = "default_zklogin_oauth_providers")]
     pub zklogin_oauth_providers: BTreeMap<Chain, BTreeSet<String>>,
 
+    /// Configuration for defining thresholds and settings
+    /// for managing system overload conditions in a node.
     #[serde(default = "default_authority_overload_config")]
     pub authority_overload_config: AuthorityOverloadConfig,
 
+    /// Specifies the ending epoch for a node for debugging purposes.
+    ///
+    ///  Ignored if set by config, can be configured only by cli arguments.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_with_range: Option<RunWithRange>,
+
+    // For killswitch use None
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_config: Option<PolicyConfig>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub firewall_config: Option<RemoteFirewallConfig>,
+
+    #[serde(default)]
+    pub execution_cache: ExecutionCacheConfig,
+
+    // step 1 in removing the old state accumulator
+    #[serde(skip)]
+    #[serde(default = "bool_true")]
+    pub state_accumulator_v2: bool,
+
+    #[serde(default = "bool_true")]
+    pub enable_soft_bundle: bool,
+
+    #[serde(default = "bool_true")]
+    pub enable_validator_tx_finalizer: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExecutionCacheConfig {
+    #[default]
+    PassthroughCache,
+    WritebackCache {
+        max_cache_size: Option<usize>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ServerType {
+    WebSocket,
+    Http,
+    Both,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -187,6 +278,8 @@ fn default_jwk_fetch_interval_seconds() -> u64 {
 
 pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
     let mut map = BTreeMap::new();
+
+    // providers that are available on devnet only.
     let experimental_providers = BTreeSet::from([
         "Google".to_string(),
         "Facebook".to_string(),
@@ -194,12 +287,20 @@ pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
         "Kakao".to_string(),
         "Apple".to_string(),
         "Slack".to_string(),
+        "TestIssuer".to_string(),
+        "Microsoft".to_string(),
+        "KarrierOne".to_string(),
+        "Credenza3".to_string(),
     ]);
+
+    // providers that are available for mainnet and testnet.
     let providers = BTreeSet::from([
         "Google".to_string(),
         "Facebook".to_string(),
         "Twitch".to_string(),
         "Apple".to_string(),
+        "KarrierOne".to_string(),
+        "Credenza3".to_string(),
     ]);
     map.insert(Chain::Mainnet, providers.clone());
     map.insert(Chain::Testnet, providers);
@@ -262,6 +363,10 @@ pub fn bool_true() -> bool {
     true
 }
 
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
 impl Config for NodeConfig {}
 
 impl NodeConfig {
@@ -273,7 +378,7 @@ impl NodeConfig {
         match self.worker_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
             other => panic!(
-                "Invalid keypair type: {:?}, only Ed25519 is allowed for worker key",
+                "invalid keypair type: {:?}, only Ed25519 is allowed for worker key",
                 other
             ),
         }
@@ -283,7 +388,7 @@ impl NodeConfig {
         match self.network_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
             other => panic!(
-                "Invalid keypair type: {:?}, only Ed25519 is allowed for network key",
+                "invalid keypair type: {:?}, only Ed25519 is allowed for network key",
                 other
             ),
         }
@@ -321,6 +426,19 @@ impl NodeConfig {
         self.genesis.genesis()
     }
 
+    pub fn load_migration_tx_data(&self) -> Result<MigrationTxData> {
+        let Some(location) = &self.migration_tx_data_path else {
+            anyhow::bail!("no file location set");
+        };
+
+        // Load from file
+        let migration_tx_data = MigrationTxData::load(location)?;
+
+        // Validate migration content in order to avoid corrupted or malicious data
+        migration_tx_data.validate_from_genesis(self.genesis.genesis()?)?;
+        Ok(migration_tx_data)
+    }
+
     pub fn iota_address(&self) -> IotaAddress {
         (&self.account_key_pair.keypair().public()).into()
     }
@@ -341,12 +459,14 @@ impl NodeConfig {
             })
             .collect()
     }
+
+    pub fn jsonrpc_server_type(&self) -> ServerType {
+        self.jsonrpc_server_type.unwrap_or(ServerType::Http)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum ConsensusProtocol {
-    #[serde(rename = "narwhal")]
-    Narwhal,
     #[serde(rename = "mysticeti")]
     Mysticeti,
 }
@@ -354,37 +474,41 @@ pub enum ConsensusProtocol {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
-    pub address: Multiaddr,
+    // Base consensus DB path for all epochs.
     pub db_path: PathBuf,
 
-    /// Optional alternative address preferentially used by a primary to talk to
-    /// its own worker. For example, this could be used to connect to
-    /// co-located workers over a private LAN address.
-    pub internal_worker_address: Option<Multiaddr>,
+    // The number of epochs for which to retain the consensus DBs. Setting it to 0 will make a
+    // consensus DB getting dropped as soon as system is switched to a new epoch.
+    pub db_retention_epochs: Option<u64>,
+
+    // Pruner will run on every epoch change but it will also check periodically on every
+    // `db_pruner_period_secs` seconds to see if there are any epoch DBs to remove.
+    pub db_pruner_period_secs: Option<u64>,
 
     /// Maximum number of pending transactions to submit to consensus, including
     /// those in submission wait.
-    /// Assuming 10_000 txn tps * 10 sec consensus latency = 100_000 inflight
-    /// consensus txns, Default to 100_000.
+    ///
+    /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
+    /// consensus latency.
     pub max_pending_transactions: Option<usize>,
 
     /// When defined caps the calculated submission position to the
-    /// max_submit_position. Even if the is elected to submit from a higher
+    /// max_submit_position.
+    ///
+    /// Even if the is elected to submit from a higher
     /// position than this, it will "reset" to the max_submit_position.
     pub max_submit_position: Option<usize>,
 
-    /// The submit delay step to consensus defined in milliseconds. When
-    /// provided it will override the current back off logic otherwise the
+    /// The submit delay step to consensus defined in milliseconds.
+    ///
+    /// When provided it will override the current back off logic otherwise the
     /// default backoff logic will be applied based on consensus latency
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    pub narwhal_config: ConsensusParameters,
+    pub address: Multiaddr,
 
-    /// The choice of consensus protocol to run. We default to Narwhal.
-    #[serde(skip)]
-    #[serde(default = "default_consensus_protocol")]
-    pub protocol: ConsensusProtocol,
+    pub parameters: Option<ConsensusParameters>,
 }
 
 impl ConsensusConfig {
@@ -397,7 +521,7 @@ impl ConsensusConfig {
     }
 
     pub fn max_pending_transactions(&self) -> usize {
-        self.max_pending_transactions.unwrap_or(100_000)
+        self.max_pending_transactions.unwrap_or(20_000)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {
@@ -405,20 +529,23 @@ impl ConsensusConfig {
             .map(Duration::from_millis)
     }
 
-    pub fn narwhal_config(&self) -> &ConsensusParameters {
-        &self.narwhal_config
+    pub fn db_retention_epochs(&self) -> u64 {
+        self.db_retention_epochs.unwrap_or(0)
     }
-}
 
-pub fn default_consensus_protocol() -> ConsensusProtocol {
-    ConsensusProtocol::Narwhal
+    pub fn db_pruner_period(&self) -> Duration {
+        // Default to 1 hour
+        self.db_pruner_period_secs
+            .map(Duration::from_secs)
+            .unwrap_or(Duration::from_secs(3_600))
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct CheckpointExecutorConfig {
     /// Upper bound on the number of checkpoints that can be concurrently
-    /// executed
+    /// executed.
     ///
     /// If unspecified, this will default to `200`
     #[serde(default = "default_checkpoint_execution_max_concurrency")]
@@ -426,15 +553,16 @@ pub struct CheckpointExecutorConfig {
 
     /// Number of seconds to wait for effects of a batch of transactions
     /// before logging a warning. Note that we will continue to retry
-    /// indefinitely
+    /// indefinitely.
     ///
     /// If unspecified, this will default to `10`.
     #[serde(default = "default_local_execution_timeout_sec")]
     pub local_execution_timeout_sec: u64,
 
-    /// Optional directory used for data ingestion pipeline
+    /// Optional directory used for data ingestion pipeline.
+    ///
     /// When specified, each executed checkpoint will be saved in a local
-    /// directory for post processing
+    /// directory for post-processing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_ingestion_dir: Option<PathBuf>,
 }
@@ -451,7 +579,7 @@ pub struct ExpensiveSafetyCheckConfig {
 
     /// If enabled, we will check that the total IOTA in all input objects of a
     /// tx (both the Move part and the storage rebate) matches the total IOTA
-    /// in all output objects of the tx + gas fees
+    /// in all output objects of the tx + gas fees.
     #[serde(default)]
     enable_deep_per_tx_iota_conservation_check: bool,
 
@@ -542,7 +670,7 @@ impl Default for CheckpointExecutorConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AuthorityStorePruningConfig {
     /// number of the latest epoch dbs to retain
@@ -582,7 +710,7 @@ pub struct AuthorityStorePruningConfig {
     /// default value, false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub killswitch_tombstone_pruning: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
     pub smooth: bool,
 }
 
@@ -602,6 +730,10 @@ fn default_max_checkpoints_in_batch() -> usize {
     10
 }
 
+fn default_smoothing() -> bool {
+    cfg!(not(test))
+}
+
 impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
@@ -614,7 +746,7 @@ impl Default for AuthorityStorePruningConfig {
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             killswitch_tombstone_pruning: false,
-            smooth: false,
+            smooth: true,
         }
     }
 }
@@ -737,8 +869,16 @@ pub struct AuthorityOverloadConfig {
     // is overloaded.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub check_system_overload_at_execution: bool,
-    // TODO: Move other thresholds here as well, including `MAX_TM_QUEUE_LENGTH`
-    // and `MAX_PER_OBJECT_QUEUE_LENGTH`.
+
+    // Reject a transaction if transaction manager queue length is above this threshold.
+    // 100_000 = 10k TPS * 5s resident time in transaction manager (pending + executing) * 2.
+    #[serde(default = "default_max_transaction_manager_queue_length")]
+    pub max_transaction_manager_queue_length: usize,
+
+    // Reject a transaction if the number of pending transactions depending on the object
+    // is above the threshold.
+    #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
+    pub max_transaction_manager_per_object_queue_length: usize,
 }
 
 fn default_max_txn_age_in_queue() -> Duration {
@@ -773,6 +913,14 @@ fn default_check_system_overload_at_signing() -> bool {
     true
 }
 
+fn default_max_transaction_manager_queue_length() -> usize {
+    100_000
+}
+
+fn default_max_transaction_manager_per_object_queue_length() -> usize {
+    100
+}
+
 impl Default for AuthorityOverloadConfig {
     fn default() -> Self {
         Self {
@@ -786,6 +934,9 @@ impl Default for AuthorityOverloadConfig {
             safe_transaction_ready_rate: default_safe_transaction_ready_rate(),
             check_system_overload_at_signing: true,
             check_system_overload_at_execution: false,
+            max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
+            max_transaction_manager_per_object_queue_length:
+                default_max_transaction_manager_per_object_queue_length(),
         }
     }
 }
@@ -883,7 +1034,7 @@ impl KeyPairWithPath {
         let arc_kp = Arc::new(kp);
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
-        cell.set(arc_kp.clone()).expect("Failed to set keypair");
+        cell.set(arc_kp.clone()).expect("failed to set keypair");
         Self {
             location: KeyPairLocation::InPlace { value: arc_kp },
             keypair: cell,
@@ -895,9 +1046,9 @@ impl KeyPairWithPath {
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
-            |e| panic!("Invalid keypair file at path {:?}: {e}", &path),
+            |e| panic!("invalid keypair file at path {:?}: {e}", &path),
         )))
-        .expect("Failed to set keypair");
+        .expect("failed to set keypair");
         Self {
             location: KeyPairLocation::File { path },
             keypair: cell,
@@ -913,7 +1064,7 @@ impl KeyPairWithPath {
                     // loaded.
                     Arc::new(
                         read_keypair_from_file(path).unwrap_or_else(|e| {
-                            panic!("Invalid keypair file at path {:?}: {e}", path)
+                            panic!("invalid keypair file at path {:?}: {e}", path)
                         }),
                     )
                 }
@@ -948,7 +1099,7 @@ impl AuthorityKeyPairWithPath {
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(arc_kp.clone())
-            .expect("Failed to set authority keypair");
+            .expect("failed to set authority keypair");
         Self {
             location: AuthorityKeyPairLocation::InPlace { value: arc_kp },
             keypair: cell,
@@ -961,9 +1112,9 @@ impl AuthorityKeyPairWithPath {
         // loaded.
         cell.set(Arc::new(
             read_authority_keypair_from_file(&path)
-                .unwrap_or_else(|_| panic!("Invalid authority keypair file at path {:?}", &path)),
+                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {:?}", &path)),
         ))
-        .expect("Failed to set authority keypair");
+        .expect("failed to set authority keypair");
         Self {
             location: AuthorityKeyPairLocation::File { path },
             keypair: cell,
@@ -979,7 +1130,7 @@ impl AuthorityKeyPairWithPath {
                     // loaded.
                     Arc::new(
                         read_authority_keypair_from_file(path).unwrap_or_else(|_| {
-                            panic!("Invalid authority keypair file {:?}", &path)
+                            panic!("invalid authority keypair file {:?}", &path)
                         }),
                     )
                 }
@@ -1004,9 +1155,9 @@ mod tests {
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_types::crypto::{
-        get_key_pair_from_rng, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
+        AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, get_key_pair_from_rng,
     };
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
 
     use super::Genesis;
     use crate::NodeConfig;

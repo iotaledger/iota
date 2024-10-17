@@ -4,7 +4,7 @@
 
 import { useIotaClientContext } from '@iota/dapp-kit';
 import { KIOSK_ITEM, KioskClient, KioskItem, KioskOwnerCap } from '@iota/kiosk';
-import { IotaClient } from '@iota/iota.js/client';
+import { IotaClient } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { getKioskIdFromOwnerCap, ORIGINBYTE_KIOSK_OWNER_TOKEN } from '../utils/kiosk';

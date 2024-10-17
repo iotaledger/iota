@@ -3,18 +3,8 @@ description: 'The `governance` contract defines the set of identities that const
 who is the chain owner, and the fees for request execution.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-
-- core contracts
-- governance
-- state controller
-- identities
-- chain owner
-- rotate
-- remove
-- claim
-- add
-- chain info
-- fee info
+- core-contract
+- core-contract-governance
 - reference
 ---
 

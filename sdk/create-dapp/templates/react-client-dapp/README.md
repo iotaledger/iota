@@ -1,4 +1,4 @@
-# Iota dApp Starter Template
+# IOTA dApp Starter Template
 
 This dApp was created using `@iota/create-dapp` that sets up a basic React
 Client dApp using the following tools:
@@ -8,8 +8,8 @@ Client dApp using the following tools:
 - [Vite](https://vitejs.dev/) for build tooling
 - [Radix UI](https://www.radix-ui.com/) for pre-built UI components
 - [ESLint](https://eslint.org/)
-- [`@iota/dapp-kit`](https://sdk.mystenlabs.com/dapp-kit) for connecting to
-  wallets and loading data
+- [`@iota/dapp-kit`](https://wiki.iota.org/references/ts-sdk/dapp-kit) for
+  connecting to wallets and loading data
 - [pnpm](https://pnpm.io/) for package management
 
 ## Starting your dApp

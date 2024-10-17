@@ -2,16 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl } from '_components/menu/hooks';
-import NetworkSelector from '_components/network-selector';
-
-import { MenuLayout } from './MenuLayout';
+import { NetworkSelector, Overlay } from '_components';
+import { useNavigate } from 'react-router-dom';
 
 export function NetworkSettings() {
-    const mainMenuUrl = useNextMenuUrl(true, '/');
+    const navigate = useNavigate();
     return (
-        <MenuLayout title="Network" back={mainMenuUrl}>
+        <Overlay showModal title="Network" closeOverlay={() => navigate('/')} showBackButton>
             <NetworkSelector />
-        </MenuLayout>
+        </Overlay>
     );
 }

@@ -1,10 +1,10 @@
 # BCS
 
-The `@iota/iota.js/bcs` package extends `@iota/bcs` with Iota specific scheme definitions.
+The `@iota/iota-sdk/bcs` package extends `@iota/bcs` with IOTA specific scheme definitions.
 
 To learn more about using BCS see the [BCS documentation](../bcs.mdx).
 
-the `bcs` export of `@iota/iota.js/bcs` contains all the same exports as `bcs` from `@iota/bcs`
+the `bcs` export of `@iota/iota-sdk/bcs` contains all the same exports as `bcs` from `@iota/bcs`
 plus the following pre-defined schemes:
 
 -   `U8`
@@ -44,7 +44,7 @@ All the upper-cased values are `BcsType` instances, and can be used directly to 
 data.
 
 ```typescript
-import { bcs } from '@iota/iota.js/bcs';
+import { bcs } from '@iota/iota-sdk/bcs';
 
 bcs.U8.serialize(1);
 bcs.Address.serialize('0x1');

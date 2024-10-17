@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getCustomNetwork } from '_src/shared/api-env';
-import { getNetwork, Network } from '@iota/iota.js/client';
+import { getNetwork, Network } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
 import {
@@ -11,8 +11,8 @@ import {
     getObjectUrl,
     getTransactionUrl,
     getValidatorUrl,
-} from '../components/explorer-link//Explorer';
-import { ExplorerLinkType } from '../components/explorer-link/ExplorerLinkType';
+    ExplorerLinkType,
+} from '_components';
 import { useActiveAddress } from './useActiveAddress';
 import useAppSelector from './useAppSelector';
 

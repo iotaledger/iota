@@ -1,57 +1,80 @@
----
-title: About IOTA
----
+# About IOTA
 
 
-The name IOTA is the ninth letter of the Greek alphabet (Ι, ι) and is used figuratively in English to mean a very small amount, reflecting its status as one of the smallest Greek letters.
+The IOTA ecosystem enables programmability in both [Layer 1](#layer-1) and [Layer 2](#layer-2) using [Move](#move) and [EVM/Solidity](#evm) smart contracts respectively.
 
-When you read about IOTA in this documentation, it's referencing all the pieces of the system that comprise the blockchain. This includes the blockchain itself, its various networks (Mainnet, for example), the activity on the blockchain (transaction blocks), the distributed entities that verify this activity (validators), and the Full nodes that execute transaction blocks. The documentation refers to the entirety of these elements as the IOTA platform, or simply IOTA.
+## Layer 1
 
-## The IOTA blockchain
+### Move
 
-IOTA is defined as a Layer 1 protocol blockchain. In basic terms, this means that IOTA performs its own consensus and validation for transaction blocks (activity) on its networks using its own native token (IOTA, in this case). Ethereum (ETH) and Bitcoin (BTC) are other examples of Layer 1 blockchains.
+Move is a powerful, secure programming language designed specifically for digital asset management and smart contracts. Its unique features make it an ideal choice for developers working in the blockchain space. Here are the key features of Move:
 
-Layer 2 blockchains, by contrast, leverage the infrastructure of Layer 1 networks, relying on the Layer 1 blockchain to finalize transaction blocks. Polygon (MATIC) is an example of a Layer 2 blockchain that extends Ethereum.
+#### Object-Centric Design
 
-## IOTA tokens
+Move is fundamentally object-centric, allowing developers to intuitively model complex data structures and interactions. In Move, you can define objects representing assets, users, contracts, and more, facilitating a natural and straightforward way to manage state and behavior.
 
-The native token for the IOTA network is IOTA. Transaction blocks on IOTA often deal with small fractions of the value of one IOTA. To make these transaction blocks easier to work with, IOTA provides NANOS. It takes one billion NANOS to equal one IOTA.
+#### Performance
 
-It costs money to provide computational power to process transaction blocks and store their results. The term for the cost of processing transaction blocks is "gas". You pay for gas and the cost of storing data with a blockchain's native tokens, in this case, IOTA (or NANOS).
+Move is based on the object model, not a shared global state. This allows transactions to be executed in parallel, which translates into a network with high throughput, less congestion, and therefore lower [gas](#gas-on-iota) fees.
 
-To learn more about the tokenomics of IOTA, see the following topics:
+#### Security
 
-- [IOTA Tokenomics](./tokenomics.mdx)
-- [IOTA Token](./tokenomics/iota-token.mdx)
-- [Gas in IOTA](./tokenomics/gas-in-iota.mdx)
+Move is based on Rust, a programming language known for its [performance and safety](iota-architecture/iota-security.mdx). It's almost impossible to make a programming mistake that the compiler won't catch before you deploy your smart contract. Additionally, given the object-centric approach, assets that reside in your account can't be accessed without your account keys. These features allow for more complex smart contract applications, as any mistakes outside implementation logic will be caught before deploying.
 
-## Delegated proof-of-stake consensus
+:::warning
 
-IOTA uses a delegated proof-of-stake (DPoS) consensus mechanism to validate on-chain transaction blocks. This means that validators on the IOTA network must have a certain amount of IOTA secured on IOTA Mainnet, either with their own funds or in partnership with IOTA Foundation, to prove their interest in the security of the blockchain. This approach aligns the interest of all validators with that of IOTA users (an efficient, secure blockchain), without the high energy-resource demands of earlier blockchains.
+While the Move compiler catches many development mistakes, smart contracts can still have unintended edge cases and issues within their written logic. For this reason, it's still highly recommended to have smart contracts audited and double-checked, even when written in Move. 
 
-To learn more about consensus on IOTA, see the following guides and topics:
+:::
 
-- [Validator Committee](../operator/validator-committee.mdx)
-- [IOTA Full Node Data Management](../operator/data-management.mdx) 
-  
+### Networks
 
+#### IOTA Mainnet
 
-## IOTA networks
+The IOTA Mainnet processes production transaction blocks. The IOTA Mainnet's tokens have a real-world value, so we recommend that you use the IOTA Testnet or Devnet to develop your application.
 
-IOTA has several networks available, each serving a different purpose.
+#### IOTA Testnet
 
-- **Mainnet:** The network that processes production transaction blocks. When you trade IOTA or NFTs that are ultimately based on fiat currency, you are doing so on the Mainnet network of IOTA.
-- **Testnet:** Staging network to provide quality assurance that any planned changes to IOTA do not adversely impact performance. Developers can use this network to test their code before placing it in production.
-- **Devnet:** A more unstable network that is used to develop new features. Developers can leverage this network to code against the latest planned features of IOTA.
-- **Localnet:** You can run an IOTA network on your local computer. Developing on a local network provides an optimized workflow in an environment you control.
+The IOTA Testnet serves as a staging network and quality assurance. You can use this network to test your dApps and verify that planned changes do not adversely impact performance before deploying them to production.
 
-To learn more about these networks and how to interact with them, see the following guides:
+#### IOTA Devnet
 
-- [Create a Local IOTA Network](../developer/getting-started/local-network.mdx)
-- [Connect to IOTA](../developer/getting-started/connect.mdx)
+The IOTA Devnet is used to develop new features. You can use this network to code with the latest planned features of IOTA.
 
-## Move
+## Layer 2
 
-The Move language provides the logic for all activity on IOTA, like trading NFTs, playing IOTA-integrated games (dApps), and all other transaction-based events. The IOTA platform uses a concept novel to earlier blockchains, where blocks on the chain are actually objects that define assets rather than simple key-value stores that define addresses. The increased programmability inherent with objects required a more robust logic engine to maximize the benefits of this new approach to blockchain technology.
+### EVM
 
-To learn more about Move, see [Move Concepts](../developer/iota-101/iota-move-concepts/iota-move-concepts.mdx).
+[EVM](https://ethereum.org/en/developers/docs/evm/) stands for "Ethereum Virtual Machine" and is currently the tried and tested virtual machine running most smart contract networks.
+
+[Solidity](https://soliditylang.org/) is the programming language of choice for the EVM. It was created for this specific purpose.
+
+The main benefit of using EVM/Solidity is its sheer amount of resources from years of development. The [IOTA Smart Contracts](../developer/iota-evm/introduction.mdx) implementation is fully compatible with these resources, allowing you to leverage all existing EVM developer tools for developing on the IOTA EVM. Any contracts you've previously written can be deployed on IOTA Smart Contracts without modification.
+
+Keep in mind that while EVM has become a standard for smart contract execution on L2s, 
+it is not inherently designed for the unique features and capabilities of L1s like Move smart contracts. 
+Move, with its focus on asset safety, resource management, and formal verification,
+offers a fundamentally different approach at the L1 level.
+
+### Networks
+
+#### IOTA EVM and Shimmer EVM
+
+IOTA EVM and Shimmer EVM are two distinct Layer 2 EVMs
+running on top of the [IOTA Mainnet](./tokenomics/iota-token.mdx).
+
+#### IOTA EVM Testnet
+
+IOTA EVM Testnet is the Layer 2 EVM running on top of the IOTA Testnet network. This network is subject to occasional resets (no data retention), usually announced with a one-week grace period.
+
+## IOTA Tokens
+
+The [IOTA token](./tokenomics/iota-token.mdx) is the main token in the IOTA ecosystem. One IOTA can be divided into smaller units called NANOs, with one IOTA being equivalent to one billion NANOs.
+
+### Gas on IOTA
+
+Transactions on the IOTA network require [gas](./tokenomics/gas-in-iota.mdx) fees, which are paid using IOTA or NANOs.
+
+## Consensus on IOTA
+
+IOTA uses a delegated proof-of-stake (DPoS) consensus mechanism to validate on-chain transaction blocks. [Validators](../operator/validator-committee.mdx) on the IOTA network must secure a certain amount of IOTA tokens on the IOTA Mainnet to demonstrate their commitment to the network's security. This approach aligns the interests of all validators with those of IOTA users, ensuring an efficient and secure blockchain without the high energy demands of earlier blockchains.

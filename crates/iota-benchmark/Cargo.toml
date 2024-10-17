@@ -1,10 +1,13 @@
 [package]
 name = "iota-benchmark"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
@@ -12,7 +15,7 @@ async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
 comfy-table.workspace = true
-duration-str.workspace = true
+duration-str = "0.5.0"
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 hdrhistogram.workspace = true
@@ -36,15 +39,15 @@ roaring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
+strum_macros.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
 
+iota-metrics.workspace = true
 move-core-types.workspace = true
-mysten-metrics.workspace = true
-narwhal-node.workspace = true
-sysinfo.workspace = true
+sysinfo = "0.31"
 test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]
@@ -53,6 +56,3 @@ iota-framework-snapshot.workspace = true
 iota-macros.workspace = true
 iota-simulator.workspace = true
 typed-store.workspace = true
-
-[features]
-benchmark = ["narwhal-node/benchmark"]

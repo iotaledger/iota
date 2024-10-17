@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::VecDeque, ops::Mul};
 
 use fastcrypto_zkp::bn254::poseidon::poseidon_bytes;
@@ -15,7 +16,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 pub const NON_CANONICAL_INPUT: u64 = 0;
 pub const NOT_SUPPORTED_ERROR: u64 = 1;
@@ -106,10 +107,9 @@ pub fn poseidon_bn254_internal(
         .collect::<Result<Vec<_>, _>>()?;
 
     match poseidon_bytes(&field_elements) {
-        Ok(result) => Ok(NativeResult::ok(
-            context.gas_used(),
-            smallvec![Value::vector_u8(result)],
-        )),
+        Ok(result) => Ok(NativeResult::ok(context.gas_used(), smallvec![
+            Value::vector_u8(result)
+        ])),
         // This is also checked in the poseidon_bn254 move function but to be sure we handle it here
         // also.
         Err(_) => Ok(NativeResult::err(context.gas_used(), NON_CANONICAL_INPUT)),

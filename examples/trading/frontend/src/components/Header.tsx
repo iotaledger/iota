@@ -47,8 +47,8 @@ export function Header() {
                   isPending
                     ? "pending"
                     : isActive
-                    ? "font-bold text-blue-600"
-                    : ""
+                      ? "font-bold text-blue-600"
+                      : ""
                 }`
               }
             >

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { type CheckpointPage } from '@iota/iota.js/client';
+import { type CheckpointPage } from '@iota/iota-sdk/client';
 import {
     type InfiniteData,
     type UseInfiniteQueryResult,

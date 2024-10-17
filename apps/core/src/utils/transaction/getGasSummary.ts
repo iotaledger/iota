@@ -7,7 +7,7 @@ import {
     IotaGasData,
     IotaTransactionBlockResponse,
     TransactionEffects,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 
 type Optional<T> = {
     [K in keyof T]?: T[K];

@@ -2,22 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl } from '_components/menu/hooks';
+import { useNextMenuUrl, Loading, Overlay, AutoLockSelector, zodSchema } from '_components';
 import {
     autoLockDataToMinutes,
     parseAutoLock,
     useAutoLockMinutes,
 } from '_src/ui/app/hooks/useAutoLockMinutes';
 import { useAutoLockMinutesMutation } from '_src/ui/app/hooks/useAutoLockMinutesMutation';
-import { Button } from '_src/ui/app/shared/ButtonUI';
 import { Form } from '_src/ui/app/shared/forms/Form';
 import { useZodForm } from '@iota/core';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
-import { AutoLockSelector, zodSchema } from '../../accounts/AutoLockSelector';
-import Loading from '../../loading';
-import Overlay from '../../overlay';
+import { Button, ButtonHtmlType, ButtonType } from '@iota/apps-ui-kit';
 
 export function AutoLockAccounts() {
     const mainMenuUrl = useNextMenuUrl(true, '/');
@@ -35,41 +31,36 @@ export function AutoLockAccounts() {
         formState: { isSubmitting, isValid, isDirty },
     } = form;
     const setAutoLockMutation = useAutoLockMinutesMutation();
+
+    async function handleSave(data: { autoLock: ReturnType<typeof parseAutoLock> }) {
+        await setAutoLockMutation.mutateAsync(
+            { minutes: autoLockDataToMinutes(data.autoLock) },
+            {
+                onSuccess: () => {
+                    toast.success('Saved');
+                    navigate(mainMenuUrl);
+                },
+                onError: (error) => {
+                    toast.error((error as Error)?.message || 'Failed, something went wrong');
+                },
+            },
+        );
+    }
     return (
         <Overlay
             showModal={true}
-            title={'Auto-lock Accounts'}
+            title="Auto Lock Profile"
             closeOverlay={() => navigate(mainMenuUrl)}
         >
             <Loading loading={autoLock.isPending}>
-                <Form
-                    className="flex h-full flex-col pt-5"
-                    form={form}
-                    onSubmit={async (data) => {
-                        await setAutoLockMutation.mutateAsync(
-                            { minutes: autoLockDataToMinutes(data.autoLock) },
-                            {
-                                onSuccess: () => {
-                                    toast.success('Saved');
-                                },
-                                onError: (error) => {
-                                    toast.error(
-                                        (error as Error)?.message || 'Failed, something went wrong',
-                                    );
-                                },
-                            },
-                        );
-                    }}
-                >
+                <Form className="flex h-full flex-col pt-5" form={form} onSubmit={handleSave}>
                     <AutoLockSelector disabled={isSubmitting} />
                     <div className="flex-1" />
                     <Button
-                        type="submit"
-                        variant="primary"
-                        size="tall"
+                        type={ButtonType.Primary}
+                        htmlType={ButtonHtmlType.Submit}
                         text="Save"
                         disabled={!isValid || !isDirty}
-                        loading={isSubmitting}
                     />
                 </Form>
             </Loading>

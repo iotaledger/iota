@@ -2,6 +2,9 @@
 title: Action Request
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/closed-loop-token/action-request.json';
+
 The main difference between tokens and coins is that tokens do not allow transfers, conversions, or spends by default. There is an authorization mechanism, however, that allows these actions. This mechanism is called an `ActionRequest`. You can choose to allow or disallow any of the actions independently (see the [Request confirmation](#request-confirmation) section).
 
 ## Protected actions
@@ -36,7 +39,7 @@ public fun transfer<T>(
 ): ActionRequest<T>;
 ```
 
-## Request confirmation {#request-confirmation}
+## Request confirmation
 
 There are three ways to confirm an `ActionRequest` using a:
 
@@ -65,10 +68,10 @@ public fun confirm_with_treasury_cap<T>(
 ): (String, u64, address, Option<address>);
 ```
 
-An example of a transaction implemented in TypeScript with iota.js, confirming an action request with a `TreasuryCap`. Here the admin account owns the `TreasuryCap`, which is used to mint and confirm the transfer request for the token:
+An example of a transaction implemented in TypeScript with @iota/iota-sdk, confirming an action request with a `TreasuryCap`. Here the admin account owns the `TreasuryCap`, which is used to mint and confirm the transfer request for the token:
 
 ```js
-let tx = new TransactionBlock();
+let tx = new Transaction();
 let tokenType = '0x....::my_token::MY_TOKEN';
 let treasuryCapArg = tx.object('0x....');
 
@@ -121,7 +124,7 @@ If it's a `spend` request, use the `confirm_request_mut` function instead.
 An example of a client transfer request confirmation in JavaScript:
 
 ```js
-let tx = new TransactionBlock();
+let tx = new Transaction();
 let tokenType = '0x....::my_token::MY_TOKEN';
 let myTokenArg = tx.object('0x...token_object');
 let receiverArg = tx.pure.address('0x...receiver');
@@ -146,7 +149,7 @@ tx.moveCall({
 
 ### Confirming with TokenPolicyCap
 
-Use `TokenPolicyCap` to confirm action requests. A convenient approach when the `TreasuryCap` is wrapped in another object, and `TokenPolicy` does not allow certain action or has rules that make the default way of confirming impossible.
+Use `TokenPolicyCap` to confirm action requests. A convenient approach when the `TreasuryCap` is wrapped in another object, and `TokenPolicy` does not allow a certain action or has rules that make the default way of confirming impossible.
 
 :::info
 
@@ -167,7 +170,7 @@ public fun confirm_with_policy_cap<T>(
 An example of a client transfer request confirmation in JavaScript:
 
 ```js
-let tx = new TransactionBlock();
+let tx = new Transaction();
 let tokenType = '0x....::my_token::MY_TOKEN';
 let myTokenArg = tx.object('0x...token_object');
 let receiverArg = tx.pure.address('0x...receiver');
@@ -192,7 +195,7 @@ tx.moveCall({
 
 ## Approving actions
 
-`ActionRequest`s can collect approvals - witness stamps from applications or rules. They carry the confirmation that a certain module or a rule has approved the action. This mechanic allows gating actions behind certain requirements.
+`ActionRequest`s can collect approvals - witness stamps from applications or rules. They carry the confirmation that a certain module or a rule has approved the action. This mechanism allows gating actions behind certain requirements.
 
 The signature for the `token::add_approval` function is:
 
@@ -226,3 +229,5 @@ public fun new_request<T>(
     ctx: &mut TxContext
 ): ActionRequest<T>;
 ```
+
+<Quiz questions={questions} />

@@ -6,7 +6,7 @@ import { walletApiProvider } from '_app/ApiProvider';
 import type { RootState } from '_redux/RootReducer';
 import type { NetworkEnvType } from '_src/shared/api-env';
 import type { AppThunkConfig } from '_store/thunk-extras';
-import { getDefaultNetwork, type Network } from '@iota/iota.js/client';
+import { getDefaultNetwork, type Network } from '@iota/iota-sdk/client';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 

@@ -4,14 +4,14 @@
 
 import { Tab } from '@headlessui/react';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 
 import { useKioskDetails } from '../../hooks/kiosk';
 import { useWithdrawMutation } from '../../mutations/kiosk';
 import { TANSTACK_KIOSK_DATA_KEY } from '../../utils/constants';
-import { formatIota, microsToIota } from '../../utils/utils';
+import { formatIota, nanosToIota } from '../../utils/utils';
 import { Button } from '../Base/Button';
 import { ExplorerLink } from '../Base/ExplorerLink';
 import { Loading } from '../Base/Loading';
@@ -33,7 +33,7 @@ export function KioskData({ kioskId }: { kioskId: string }) {
         },
     });
 
-    const profits = formatIota(microsToIota(kiosk?.profits));
+    const profits = formatIota(nanosToIota(kiosk?.profits));
 
     if (isPending) return <Loading />;
     return (

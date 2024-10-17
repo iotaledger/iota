@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useCallback, useState } from 'react';
-import { IotaObjectData } from '@iota/iota.js/client';
+import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetCard, Input } from '@/components';
 import { Button } from '@/components/Buttons';
 import { FlexDirection } from '@/lib/ui/enums';

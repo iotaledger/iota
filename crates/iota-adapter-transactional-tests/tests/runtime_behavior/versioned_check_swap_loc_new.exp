@@ -1,14 +1,17 @@
 processed 4 tasks
 
-task 1 'publish'. lines 9-43:
+task 1, lines 9-43:
+//# publish
 created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 4491600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 45-45:
+task 2, line 45:
+//# run test::m::t1 --args true
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 47-47:
+task 3, line 47:
+//# run test::m::t2 --args true
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0

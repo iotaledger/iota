@@ -26,14 +26,14 @@ The second phase of the analysis checks that each operation, primitive or define
 
 Resources represent the assets of the blockchain. As such, there are certain restrictions on these types that do not apply to normal values. Intuitively, resource values cannot be copied and must be used by the end of the transaction (this means that they are moved to global storage or destroyed). Concretely, the following restrictions apply:
 
--   `CopyLoc` and `StLoc` require that the type of local is not of resource kind.
--   `WriteRef`, `Eq`, and `Neq` require that the type of the reference is not of resource kind.
--   At the end of a function (when `Ret` is reached), no local whose type is of resource kind must be empty, i.e., the value must have been moved out of the local.
+- `CopyLoc` and `StLoc` require that the type of local is not of resource kind.
+- `WriteRef`, `Eq`, and `Neq` require that the type of the reference is not of resource kind.
+- At the end of a function (when `Ret` is reached), no local whose type is of resource kind must be empty, i.e., the value must have been moved out of the local.
 
 As mentioned above, this last rule around `Ret` implies that the resource _must_ have been either:
 
--   Moved to global storage via `MoveTo`.
--   Destroyed via `Unpack`.
+- Moved to global storage via `MoveTo`.
+- Destroyed via `Unpack`.
 
 Both `MoveTo` and `Unpack` are internal to the module in which the resource is declared.
 
@@ -41,24 +41,24 @@ Both `MoveTo` and `Unpack` are internal to the module in which the resource is d
 
 References are first-class in the bytecode language. Fresh references become available to a function in several ways:
 
--   Inputting parameters.
--   Taking the address of the value in a local variable.
--   Taking the address of the globally published value in an address.
--   Taking the address of a field from a reference to the containing struct.
--   Returning value from a function.
+- Inputting parameters.
+- Taking the address of the value in a local variable.
+- Taking the address of the globally published value in an address.
+- Taking the address of a field from a reference to the containing struct.
+- Returning value from a function.
 
 The goal of reference safety checking is to ensure that there are no dangling references. Here are some examples of dangling references:
 
--   Local variable `y` contains a reference to the value in a local variable `x`; `x` is then moved.
--   Local variable `y` contains a reference to the value in a local variable `x`; `x` is then bound to a new value.
--   Reference is taken to a local variable that has not been initialized.
--   Reference to a value in a local variable is returned from a function.
--   Reference `r` is taken to a globally published value `v`; `v` is then unpublished.
+- Local variable `y` contains a reference to the value in a local variable `x`; `x` is then moved.
+- Local variable `y` contains a reference to the value in a local variable `x`; `x` is then bound to a new value.
+- Reference is taken to a local variable that has not been initialized.
+- Reference to a value in a local variable is returned from a function.
+- Reference `r` is taken to a globally published value `v`; `v` is then unpublished.
 
 References can be either exclusive or shared; the latter allow read-only access. A secondary goal of reference safety checking is to ensure that in the execution context of the bytecode program, including the entire evaluation stack and all function frames, if there are two distinct storage locations containing references `r1` and `r2` such that `r2` extends `r1`, then both of the following conditions hold:
 
--   If `r1` is tagged as exclusive, then it must be inactive, i.e. it is impossible to reach a control location where `r1` is dereferenced or mutated.
--   If `r1` is shared, then `r2` is shared.
+- If `r1` is tagged as exclusive, then it must be inactive, i.e. it is impossible to reach a control location where `r1` is dereferenced or mutated.
+- If `r1` is shared, then `r2` is shared.
 
 The two conditions above establish the property of referential transparency, important for scalable program verification, which looks roughly as follows: consider the piece of code `v1 = *r; S; v2 = *r`, where `S` is an arbitrary computation that does not perform any write through the syntactic reference `r` (and no writes to any `r'` that extends `r`). Then `v1 == v2`.
 
@@ -68,8 +68,8 @@ The reference safety analysis is set up as a flow analysis (or abstract interpre
 
 **Errors.** As mentioned earlier, an error is reported by the checker in one of the following situations:
 
--   An instruction cannot be proven to be safe during the propagation of the abstract state through a block.
--   Join of abstract states propagated via different incoming edges into a block fails.
+- An instruction cannot be proven to be safe during the propagation of the abstract state through a block.
+- Join of abstract states propagated via different incoming edges into a block fails.
 
 ## How is this module organized?
 

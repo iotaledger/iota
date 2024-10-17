@@ -3,5 +3,4 @@ name = "B"
 version = "1"
 
 [dependencies]
-C = { local = "../C-loc-2"  }
-
+C = { local = "../C-loc-2" }

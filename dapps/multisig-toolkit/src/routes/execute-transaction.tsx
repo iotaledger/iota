@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { parseSerializedSignature } from '@iota/iota.js/cryptography';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { parseSerializedSignature } from '@iota/iota-sdk/cryptography';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -94,10 +94,10 @@ export default function ExecuteTransaction() {
                         <div className="grid w-full gap-1.5">
                             <Label htmlFor="network">Select Network</Label>
                             <select
-                                style={{ color: 'black' }}
                                 id="network"
+                                className="bg-background border rounded-sm p-3 text-white"
                                 value={network}
-                                onChange={(e) => setNetwork(e.target.value)}
+                                onChange={(e) => setNetwork(e.target.value as NetworkType)}
                             >
                                 <option value="devnet">Devnet</option>
                                 <option value="testnet">Testnet</option>
@@ -123,14 +123,14 @@ export default function ExecuteTransaction() {
                 <TabsContent value="digest">
                     <Card key={digest}>
                         <CardHeader>
-                            <CardTitle>Iota Transaction Digest</CardTitle>
+                            <CardTitle>IOTA Transaction Digest</CardTitle>
                             <CardDescription>
                                 View TX Digest on{' '}
                                 <a
                                     className="text-blue-500"
-                                    href={`https://iotaexplorer.com/txblock/${digest}`}
+                                    href={`https://explorer.iota.org/txblock/${digest}`}
                                 >
-                                    Iota Explorer
+                                    IOTA Explorer
                                 </a>
                             </CardDescription>
                         </CardHeader>

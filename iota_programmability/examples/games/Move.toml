@@ -1,9 +1,0 @@
-[package]
-name = "Games"
-version = "0.0.1"
-
-[dependencies]
-Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
-
-[addresses]
-games = "0x0"

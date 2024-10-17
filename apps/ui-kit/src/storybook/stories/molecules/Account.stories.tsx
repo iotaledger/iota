@@ -5,7 +5,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { Account, BadgeType } from '@/components';
 import cx from 'classnames';
 
-const meta = {
+const meta: Meta<typeof Account> = {
     component: Account,
     tags: ['autodocs'],
     render: (props) => {

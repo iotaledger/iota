@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { CodegenConfig } from '@graphql-codegen/cli';
@@ -12,7 +13,7 @@ const header = `
 
 const config: CodegenConfig = {
     overwrite: true,
-    schema: '../../crates/iota-graphql-rpc/schema/current_progress_schema.graphql',
+    schema: '../typescript/src/graphql/generated/2024.9/schema.graphql',
     documents: ['src/queries/*.graphql'],
     ignoreNoDocuments: true,
     generates: {

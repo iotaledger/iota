@@ -4,13 +4,13 @@
 
 const aboutIota = [
     'about-iota/about-iota',
+    'about-iota/why-move',
     {
         type: 'category',
         label: 'IOTA Architecture',
-        collapsed: false,
         link: {
             type: 'doc',
-            id: 'about-iota/iota-architecture',
+            id: 'about-iota/iota-architecture/iota-architecture',
         },
         items: [
             'about-iota/iota-architecture/iota-security',
@@ -24,14 +24,12 @@ const aboutIota = [
     {
         type: 'category',
         label: 'Tokenomics',
-        collapsed: false,
         link: {
             type: 'doc',
-            id: 'about-iota/tokenomics',
+            id: 'about-iota/tokenomics/tokenomics',
         },
         items: [
             'about-iota/tokenomics/iota-token',
-            'about-iota/tokenomics/smr-token',
             'about-iota/tokenomics/proof-of-stake',
             'about-iota/tokenomics/validators-staking',
             'about-iota/tokenomics/staking-unstaking',
@@ -41,17 +39,21 @@ const aboutIota = [
     },
     {
         type: 'category',
-        label: 'Expert topics',
+        label: 'IOTA Wallet',
         items: [
+            'about-iota/iota-wallet/getting-started',
             {
-                type: 'category',
-                label: 'Execution Architecture',
-                items: [
-                    'about-iota/execution-architecture/iota-execution',
-                    'about-iota/execution-architecture/adapter',
-                    'about-iota/execution-architecture/natives',
-                ],
+                type:'category',
+                label:'How To',
+                items:[
+                     'about-iota/iota-wallet/how-to/basics',
+                     'about-iota/iota-wallet/how-to/stake',
+                     'about-iota/iota-wallet/how-to/multi-account',
+                    'about-iota/iota-wallet/how-to/get-test-tokens',
+                     'about-iota/iota-wallet/how-to/integrate-ledger',
+                ]
             },
+            'about-iota/iota-wallet/FAQ',
         ],
     },
 ];

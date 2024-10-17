@@ -1,0 +1,24 @@
+name: Execution cut
+
+on: workflow_call
+
+concurrency:
+  group: execution-cut-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+jobs:
+  execution-cut:
+    name: cutting a new execution layer
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Install cargo-hakari, and cache the binary
+        uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
+        with:
+          crate: cargo-hakari
+          locked: true
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Make cut
+        run: ./scripts/execution_layer.py cut for_ci_test
+      - name: Check execution builds
+        run: cargo build -p iota-execution

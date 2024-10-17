@@ -16,7 +16,7 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();

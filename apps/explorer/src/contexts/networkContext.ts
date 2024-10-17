@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createContext, useContext } from 'react';
-import { type Network } from '@iota/iota.js/client';
+import { type Network } from '@iota/iota-sdk/client';
 
 export const NetworkContext = createContext<
     [Network | string, (network: Network | string) => void]

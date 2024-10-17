@@ -6,7 +6,7 @@
     "background": {
         "service_worker": "background.js"
     },
-    "permissions": ["storage", "tabs", "alarms", "unlimitedStorage", "identity"],
+    "permissions": ["storage", "tabs", "alarms", "unlimitedStorage"],
     "action": {
         "default_popup": "ui.html?type=popup"
     },
@@ -39,6 +39,6 @@
         }
     ],
     "content_security_policy": {
-        "extension_pages": "default-src 'none'; object-src 'none'; connect-src *; font-src 'self'; img-src * data:; media-src *; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'self'; form-action 'none'; frame-ancestors 'none';"
+        "extension_pages": "default-src 'none'; object-src 'none'; connect-src *; font-src 'self' data: https://webassets.iota.org; img-src * data:; media-src *; script-src 'self'; style-src 'self' 'unsafe-inline' https://webassets.iota.org; base-uri 'self'; form-action 'none'; frame-ancestors 'none';"
     }
 }

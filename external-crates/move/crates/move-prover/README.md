@@ -4,15 +4,13 @@ title: Formal verification code
 custom_edit_url: https://github.com/move-language/move/edit/main/language/move-prover/README.md
 ---
 
-
-
 ## Code under this subtree is experimental. It is out of scope for [the Diem Bug Bounty](https://hackerone.com/diem) until it is no longer marked experimental.
 
 # The Move Prover
 
 The Move Prover supports formal specification and verification of Move code. It can automatically prove
 logical properties of Move smart contracts, while providing a user experience similar to a type checker or linter.
-It's purpose is to make contracts more *trustworthy*, specifically:
+It's purpose is to make contracts more _trustworthy_, specifically:
 
 - Protect massive assets managed by the Diem blockchain from smart contract bugs
 - Protect against well-resourced adversaries
@@ -22,9 +20,9 @@ It's purpose is to make contracts more *trustworthy*, specifically:
 
 For more information, refer to the documentation:
 
--  [To be done] Move Prover Whitepaper
--  [Move Prover User Guide](./doc/user/prover-guide.md)
--  [Move Specification Language](./doc/user/spec-lang.md)
--  [Installation](./doc/user/install.md)
--  [Testing](./tests/README.md)
--  [To be done] Move Prover Developer Guide
+- [To be done] Move Prover Whitepaper
+- [Move Prover User Guide](./doc/user/prover-guide.md)
+- [Move Specification Language](./doc/user/spec-lang.md)
+- [Installation](./doc/user/install.md)
+- [Testing](./tests/README.md)
+- [To be done] Move Prover Developer Guide

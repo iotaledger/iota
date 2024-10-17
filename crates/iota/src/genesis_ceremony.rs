@@ -9,10 +9,13 @@ use camino::Utf8PathBuf;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
-    genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
     IOTA_GENESIS_FILENAME,
+    genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
-use iota_genesis_builder::{Builder, SnapshotSource, SnapshotUrl, GENESIS_BUILDER_PARAMETERS_FILE};
+use iota_genesis_builder::{
+    Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
+    genesis_build_effects::GenesisBuildEffects,
+};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
@@ -21,7 +24,7 @@ use iota_types::{
     base_types::IotaAddress,
     committee::ProtocolVersion,
     crypto::{
-        generate_proof_of_possession, AuthorityKeyPair, IotaKeyPair, KeypairTraits, NetworkKeyPair,
+        AuthorityKeyPair, IotaKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession,
     },
     message_envelope::Message,
     multiaddr::Multiaddr,
@@ -116,9 +119,9 @@ pub enum CeremonyCommand {
         local_migration_snapshots: Vec<PathBuf>,
         #[clap(
             long,
-            name = "iota|smr|<full-url>",
+            name = "iota|<full-url>",
             help = "Remote migration snapshots.",
-            default_values_t = vec![SnapshotUrl::Iota, SnapshotUrl::Shimmer],
+            default_values_t = vec![SnapshotUrl::Iota],
         )]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
@@ -327,8 +330,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
             check_protocol_version(&builder, protocol_version)?;
 
-            let genesis = builder.build();
-
+            let GenesisBuildEffects { genesis, .. } = builder.build();
             genesis.save(dir.join(IOTA_GENESIS_FILENAME))?;
 
             println!("Successfully built {IOTA_GENESIS_FILENAME}");
@@ -364,7 +366,7 @@ mod test {
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_macros::nondeterministic;
     use iota_types::crypto::{
-        get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, IotaKeyPair,
+        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, get_key_pair_from_rng,
     };
 
     use super::*;

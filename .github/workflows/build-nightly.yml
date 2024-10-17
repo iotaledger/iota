@@ -60,7 +60,7 @@ jobs:
         run: sudo apt-get install -y libpq-dev
 
       - name: Set os/arch variables
-        if: ${{ matrix.os != 'windows-ghcloud' }}
+        if: matrix.os != 'windows-ghcloud'
         shell: bash
         run: |
           export arch=$(uname -m)
@@ -76,12 +76,12 @@ jobs:
       - name: cargo build (release) for ${{ matrix.os }} platform
         shell: bash
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --bin iota --bin iota-test-validator
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --bin iota --bin iota-indexer --features indexer
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: ${{ env.artifact_name }}
           path: |
             ./target/release/iota
-            ./target/release/iota-test-validator
+            ./target/release/iota-indexer

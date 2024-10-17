@@ -11,9 +11,9 @@ import {
     type WalletSigner,
 } from '_src/ui/app/WalletSigner';
 import type { AppThunkConfig } from '_store/thunk-extras';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { fromB64 } from '@iota/iota.js/utils';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { fromB64 } from '@iota/iota-sdk/utils';
 import { createAsyncThunk, createEntityAdapter, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
@@ -62,7 +62,7 @@ export const respondToTransactionRequest = createAsyncThunk<
                         clientIdentifier,
                     );
                 } else if (txRequest.tx.type === 'transaction') {
-                    const tx = TransactionBlock.from(txRequest.tx.data);
+                    const tx = Transaction.from(txRequest.tx.data);
                     if (txRequest.tx.justSign) {
                         // Just a signing request, do not submit
                         txSigned = await signer.signTransactionBlock(
@@ -72,7 +72,7 @@ export const respondToTransactionRequest = createAsyncThunk<
                             clientIdentifier,
                         );
                     } else {
-                        txResult = await signer.signAndExecuteTransactionBlock(
+                        txResult = await signer.signAndExecuteTransaction(
                             {
                                 transactionBlock: tx,
                                 options: txRequest.tx.options,

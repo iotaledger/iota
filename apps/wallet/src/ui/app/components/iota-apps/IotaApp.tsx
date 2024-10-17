@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ImageIcon } from '_app/shared/image-icon';
-import ExternalLink from '_components/external-link';
+import { ImageIcon, ImageIconSize } from '_app/shared/image-icon';
+import { ExternalLink } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getDAppUrl } from '_src/shared/utils';
 import { Text } from '_src/ui/app/shared/text';
 import { useState } from 'react';
+import { Card, CardImage, CardBody, ImageShape } from '@iota/apps-ui-kit';
 
 import DisconnectApp from './DisconnectApp';
 
@@ -30,22 +31,18 @@ function CardView({ name, link, icon }: CardViewProps) {
     const appUrl = getDAppUrl(link);
     const originLabel = appUrl.hostname;
     return (
-        <div className="border-gray-45 hover:border-iota/30 hover:bg-iota/10 box-border flex h-32 w-full flex-col rounded-2xl border border-solid bg-white p-3.75">
-            <div className="mb-1 flex">
-                <ImageIcon src={icon || null} label={name} fallback={name} size="lg" rounded="lg" />
-            </div>
-
-            <div className="item-start flex flex-col justify-start gap-1">
-                <div className="line-clamp-2 break-all">
-                    <Text variant="body" weight="semibold" color="gray-90">
-                        {name}
-                    </Text>
-                </div>
-                <Text variant="bodySmall" weight="medium" color="steel" truncate>
-                    {originLabel}
-                </Text>
-            </div>
-        </div>
+        <Card>
+            <CardImage shape={ImageShape.SquareRounded}>
+                <ImageIcon
+                    src={icon || null}
+                    label={name}
+                    fallback={name}
+                    rounded={false}
+                    size={ImageIconSize.Small}
+                />
+            </CardImage>
+            <CardBody isTextTruncated title={name} subtitle={originLabel} />
+        </Card>
     );
 }
 
@@ -59,7 +56,7 @@ interface ListViewProps {
 function ListView({ name, icon, description, tags }: ListViewProps) {
     return (
         <div className="item-center hover:bg-iota/10 box-border flex gap-3 rounded bg-white px-1.25 py-3.5">
-            <ImageIcon src={icon || null} label={name} fallback={name} size="xxl" rounded="lg" />
+            <ImageIcon src={icon || null} label={name} fallback={name} />
             <div className="flex flex-col justify-center gap-1">
                 <Text variant="body" weight="semibold" color="iota-dark">
                     {name}
@@ -131,11 +128,7 @@ export function IotaApp({
 
     if (permissionID && !openAppSite) {
         return (
-            <div
-                className="w-full cursor-pointer bg-transparent text-left"
-                onClick={() => setShowDisconnectApp(true)}
-                role="button"
-            >
+            <div onClick={() => setShowDisconnectApp(true)} role="button">
                 {AppDetails}
             </div>
         );

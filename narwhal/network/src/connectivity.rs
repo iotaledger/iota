@@ -4,10 +4,10 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use anemo::{types::PeerEvent, PeerId};
+use anemo::{PeerId, types::PeerEvent};
 use dashmap::DashMap;
 use futures::future;
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
 use quinn_proto::ConnectionStats;
 use tokio::{task::JoinHandle, time};
 use types::ConditionalBroadcastReceiver;
@@ -242,11 +242,11 @@ impl ConnectionMonitor {
         self.connection_metrics
             .network_peer_udp_transmits
             .with_label_values(&[peer_id, "transmitted"])
-            .set(stats.udp_tx.transmits as i64);
+            .set(stats.udp_tx.ios as i64);
         self.connection_metrics
             .network_peer_udp_transmits
             .with_label_values(&[peer_id, "received"])
-            .set(stats.udp_rx.transmits as i64);
+            .set(stats.udp_rx.ios as i64);
     }
 }
 

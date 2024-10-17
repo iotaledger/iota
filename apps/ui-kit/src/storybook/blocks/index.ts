@@ -3,3 +3,4 @@
 
 export * from './TypeSet';
 export * from './TypeSetItem';
+export * from './Showcase';

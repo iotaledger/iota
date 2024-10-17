@@ -15,6 +15,7 @@ export { useTransactionDryRun } from './useTransactionDryRun';
 export { useGetTxnRecipientAddress } from './useGetTxnRecipientAddress';
 export { useGetTransferAmount } from './useGetTransferAmount';
 export { useOwnedNFT } from './useOwnedNFT';
+export { useCopyToClipboard } from './useCopyToClipboard';
 
 export * from './useTransactionData';
 export * from './useActiveAddress';

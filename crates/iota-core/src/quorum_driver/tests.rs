@@ -2,23 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    net::SocketAddr,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
+use iota_common::sync::notify_read::{NotifyRead, Registration};
+use iota_macros::{register_fail_point, sim_test};
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
-    crypto::{deterministic_random_account_key, get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair},
     effects::TransactionEffectsAPI,
-    object::{generate_test_gas_objects, Object},
-    quorum_driver_types::{QuorumDriverError, QuorumDriverResponse, QuorumDriverResult},
+    object::{Object, generate_test_gas_objects},
+    quorum_driver_types::{
+        ExecuteTransactionRequestV3, QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
+    },
     transaction::Transaction,
 };
-use mysten_common::sync::notify_read::{NotifyRead, Registration};
 use tokio::time::timeout;
 
 use crate::{
     quorum_driver::{
-        reconfig_observer::DummyReconfigObserver, AuthorityAggregator, QuorumDriverHandlerBuilder,
-        QuorumDriverMetrics,
+        AuthorityAggregator, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
+        reconfig_observer::DummyReconfigObserver,
     },
     test_authority_clients::{LocalAuthorityClient, LocalAuthorityClientFaultConfig},
     test_utils::{init_local_authorities, make_transfer_iota_transaction},
@@ -85,7 +95,10 @@ async fn test_quorum_driver_submit_transaction() {
         assert_eq!(tx.digest(), &digest);
         assert_eq!(*effects_cert.data().transaction_digest(), digest);
     });
-    let ticket = quorum_driver_handler.submit_transaction(tx).await.unwrap();
+    let ticket = quorum_driver_handler
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+        .await
+        .unwrap();
     verify_ticket_response(ticket, &digest).await;
 
     handle.await.unwrap();
@@ -116,7 +129,10 @@ async fn test_quorum_driver_submit_transaction_no_ticket() {
         assert_eq!(*effects_cert.data().transaction_digest(), digest);
     });
     quorum_driver_handler
-        .submit_transaction_no_ticket(tx)
+        .submit_transaction_no_ticket(
+            ExecuteTransactionRequestV3::new_v2(tx),
+            Some(SocketAddr::new([127, 0, 0, 1].into(), 0)),
+        )
         .await
         .unwrap();
     handle.await.unwrap();
@@ -158,7 +174,10 @@ async fn test_quorum_driver_with_given_notify_read() {
         assert_eq!(*effects_cert.data().transaction_digest(), digest);
     });
     let ticket1 = notifier.register_one(&digest);
-    let ticket2 = quorum_driver_handler.submit_transaction(tx).await.unwrap();
+    let ticket2 = quorum_driver_handler
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+        .await
+        .unwrap();
     verify_ticket_response(ticket1, &digest).await;
     verify_ticket_response(ticket2, &digest).await;
 
@@ -192,7 +211,10 @@ async fn test_quorum_driver_update_validators_and_max_retry_times() {
         // server's epoch is 0 but client's is 10
         // This error should not happen in practice for benign validators and a working
         // client
-        let ticket = quorum_driver.submit_transaction(tx).await.unwrap();
+        let ticket = quorum_driver
+            .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+            .await
+            .unwrap();
         // We have a timeout here to make the test fail fast if fails
         match tokio::time::timeout(Duration::from_secs(20), ticket).await {
             Ok(Err(QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts {
@@ -224,6 +246,7 @@ async fn test_quorum_driver_update_validators_and_max_retry_times() {
 async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let gas_objects = generate_test_gas_objects();
     let (sender, keypair): (IotaAddress, AccountKeyPair) = deterministic_random_account_key();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
     let (aggregator, authorities, genesis, _) =
         init_local_authorities(4, gas_objects.clone()).await;
@@ -267,11 +290,25 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let client2 = aggregator.clone_client_test_only(names[2]);
 
     println!("Case 0 - two validators lock the object with the same tx");
-    assert!(client0.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client1.handle_transaction(tx.clone()).await.is_ok());
+    assert!(
+        client0
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client1
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
 
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
-    let res = quorum_driver.submit_transaction(tx2).await.unwrap().await;
+    let res = quorum_driver
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx2))
+        .await
+        .unwrap()
+        .await;
 
     // Aggregator waits for all responses when it sees a conflicting tx and because
     // there are not enough retryable errors to push the original tx or the most
@@ -298,13 +335,32 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let gas = gas_objects.pop().unwrap();
     let tx = make_tx(&gas, sender, &keypair, rgp);
 
-    assert!(client0.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client1.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client2.handle_transaction(tx.clone()).await.is_ok());
+    assert!(
+        client0
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client1
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok(),
+    );
+    assert!(
+        client2
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok(),
+    );
 
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
 
-    let res = quorum_driver.submit_transaction(tx2).await.unwrap().await;
+    let res = quorum_driver
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx2))
+        .await
+        .unwrap()
+        .await;
     // Aggregator gets three bad responses, and tries tx, which should succeed.
     if let Err(QuorumDriverError::ObjectsDoubleUsed {
         conflicting_txes,
@@ -326,13 +382,18 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     println!("Case 2 - one validator locks the object");
     let gas = gas_objects.pop().unwrap();
     let tx = make_tx(&gas, sender, &keypair, rgp);
-    assert!(client0.handle_transaction(tx.clone()).await.is_ok());
+    assert!(
+        client0
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
 
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
     let tx2_digest = *tx2.digest();
 
     let res = quorum_driver
-        .submit_transaction(tx2)
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx2))
         .await
         .unwrap()
         .await
@@ -349,13 +410,32 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let tx = make_tx(&gas, sender, &keypair, rgp);
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
 
-    assert!(client0.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client1.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client2.handle_transaction(tx2.clone()).await.is_ok());
+    assert!(
+        client0
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client1
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client2
+            .handle_transaction(tx2.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
 
     let tx3 = make_tx(&gas, sender, &keypair, rgp);
 
-    let res = quorum_driver.submit_transaction(tx3).await.unwrap().await;
+    let res = quorum_driver
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx3))
+        .await
+        .unwrap()
+        .await;
 
     if let Err(QuorumDriverError::ObjectsDoubleUsed {
         conflicting_txes,
@@ -382,10 +462,29 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let gas = gas_objects.pop().unwrap();
     let tx = make_tx(&gas, sender, &keypair, rgp);
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
-    assert!(client0.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client1.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client2.handle_transaction(tx2.clone()).await.is_ok());
-    let res = quorum_driver.submit_transaction(tx2).await.unwrap().await;
+    assert!(
+        client0
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client1
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client2
+            .handle_transaction(tx2.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    let res = quorum_driver
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx2))
+        .await
+        .unwrap()
+        .await;
 
     if let Err(QuorumDriverError::ObjectsDoubleUsed {
         conflicting_txes,
@@ -412,12 +511,27 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let tx_digest = *tx.digest();
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
 
-    assert!(client0.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client1.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client2.handle_transaction(tx2).await.is_ok());
+    assert!(
+        client0
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client1
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client2
+            .handle_transaction(tx2, Some(client_ip))
+            .await
+            .is_ok()
+    );
 
     let res = quorum_driver
-        .submit_transaction(tx)
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
         .await
         .unwrap()
         .await
@@ -431,13 +545,28 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let tx = make_tx(&gas, sender, &keypair, rgp);
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
     let tx3 = make_tx(&gas, sender, &keypair, rgp);
-    assert!(client0.handle_transaction(tx.clone()).await.is_ok());
-    assert!(client1.handle_transaction(tx2.clone()).await.is_ok());
-    assert!(client2.handle_transaction(tx3.clone()).await.is_ok());
+    assert!(
+        client0
+            .handle_transaction(tx.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client1
+            .handle_transaction(tx2.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
+    assert!(
+        client2
+            .handle_transaction(tx3.clone(), Some(client_ip))
+            .await
+            .is_ok()
+    );
 
     let tx4 = make_tx(&gas, sender, &keypair, rgp);
     let res = quorum_driver
-        .submit_transaction(tx4.clone())
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx4.clone()))
         .await
         .unwrap()
         .await;
@@ -469,7 +598,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
 
 // Tests that quorum driver can continuously retry txn with
 // SystemOverloadedRetryAfter error.
-#[tokio::test(flavor = "current_thread", start_paused = true)]
+#[sim_test]
 async fn test_quorum_driver_handling_overload_and_retry() {
     telemetry_subscribers::init_for_testing();
 
@@ -482,7 +611,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     // Make local authority client to always return SystemOverloadedRetryAfter
     // error.
     let fault_config = LocalAuthorityClientFaultConfig {
-        overload_retry_after_handle_transaction: true,
+        overload_retry_after_handle_transaction: Some(Duration::from_secs(30)),
         ..Default::default()
     };
     let mut clients = aggregator.clone_inner_clients_test_only();
@@ -505,6 +634,14 @@ async fn test_quorum_driver_handling_overload_and_retry() {
         .unwrap();
     let tx = make_tx(gas_object, sender, &keypair, rgp);
 
+    // Use a fail point to count the number of retries to test that the quorum
+    // backoff logic respects above `overload_retry_after_handle_transaction`.
+    let retry_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let retry_count_clone = retry_count.clone();
+    register_fail_point("count_retry_times", move || {
+        retry_count_clone.fetch_add(1, Ordering::SeqCst);
+    });
+
     // Create a quorum driver with max_retry_times = 0.
     let arc_aggregator = Arc::new(aggregator.clone());
     let quorum_driver_handler = Arc::new(
@@ -517,10 +654,17 @@ async fn test_quorum_driver_handling_overload_and_retry() {
         .start(),
     );
 
-    // Submit the transaction, and check that it shouldn't return.
-    let ticket = quorum_driver_handler.submit_transaction(tx).await.unwrap();
+    // Submit the transaction, and check that it shouldn't return, and the number of
+    // retries is within 300s timeout / 30s retry after duration = 10 times.
+    let ticket = quorum_driver_handler
+        .submit_transaction(ExecuteTransactionRequestV3::new_v2(tx))
+        .await
+        .unwrap();
     match timeout(Duration::from_secs(300), ticket).await {
         Ok(result) => panic!("Process transaction should timeout! {:?}", result),
-        Err(_) => eprintln!("Waiting for txn timed out! This is desired behavior."),
+        Err(_) => {
+            assert!(retry_count.load(Ordering::SeqCst) <= 10);
+            println!("Waiting for txn timed out! This is desired behavior.")
+        }
     }
 }

@@ -14,7 +14,7 @@ import {
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { KioskTransaction } from '@iota/kiosk';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 
 const ORIGINBYTE_PACKAGE_ID = '0x083b02db943238dcea0ff0938a54a17d7575f5b48034506446e501e963391480';
@@ -49,9 +49,9 @@ export function useTransferKioskItem({
             }
 
             if (kiosk.type === KioskTypes.IOTA && objectData?.data?.data?.type && kiosk?.ownerCap) {
-                const txb = new TransactionBlock();
+                const txb = new Transaction();
 
-                new KioskTransaction({ transactionBlock: txb, kioskClient, cap: kiosk.ownerCap })
+                new KioskTransaction({ transaction: txb, kioskClient, cap: kiosk.ownerCap })
                     .transfer({
                         itemType: objectData.data.data.type as string,
                         itemId: objectId,
@@ -59,7 +59,7 @@ export function useTransferKioskItem({
                     })
                     .finalize();
 
-                return signer.signAndExecuteTransactionBlock(
+                return signer.signAndExecuteTransaction(
                     {
                         transactionBlock: txb,
                         options: {
@@ -73,7 +73,7 @@ export function useTransferKioskItem({
             }
 
             if (kiosk.type === KioskTypes.ORIGINBYTE && objectData?.data?.data?.type) {
-                const tx = new TransactionBlock();
+                const tx = new Transaction();
                 const recipientKiosks = await client.getOwnedObjects({
                     owner: to,
                     options: { showContent: true },
@@ -91,17 +91,17 @@ export function useTransferKioskItem({
                         arguments: [
                             tx.object(kioskId),
                             tx.object(recipientKioskId),
-                            tx.pure(objectId),
+                            tx.pure.id(objectId),
                         ],
                     });
                 } else {
                     tx.moveCall({
                         target: `${obPackageId}::ob_kiosk::p2p_transfer_and_create_target_kiosk`,
                         typeArguments: [objectType],
-                        arguments: [tx.object(kioskId), tx.pure(to), tx.pure(objectId)],
+                        arguments: [tx.object(kioskId), tx.pure.address(to), tx.pure.id(objectId)],
                     });
                 }
-                return signer.signAndExecuteTransactionBlock(
+                return signer.signAndExecuteTransaction(
                     {
                         transactionBlock: tx,
                         options: {

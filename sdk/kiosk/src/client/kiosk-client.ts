@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { NetworkId } from '@iota/iota.js/client';
-import { getNetwork } from '@iota/iota.js/client';
-import type { IotaClient } from '@iota/iota.js/client';
+import type { NetworkId } from '@iota/iota-sdk/client';
+import { getNetwork } from '@iota/iota-sdk/client';
+import type { PaginationArguments, IotaClient } from '@iota/iota-sdk/client';
 
 import { getBaseRules, rules } from '../constants.js';
 import type { BaseRulePackageIds, TransferPolicyRule } from '../constants.js';
@@ -49,15 +49,23 @@ export class KioskClient {
     /**
      * Get an addresses's owned kiosks.
      * @param address The address for which we want to retrieve the kiosks.
+     * @param pagination Optional pagination arguments.
      * @returns An Object containing all the `kioskOwnerCap` objects as well as the kioskIds.
      */
-    async getOwnedKiosks({ address }: { address: string }): Promise<OwnedKiosks> {
+    async getOwnedKiosks({
+        address,
+        pagination,
+    }: {
+        address: string;
+        pagination?: PaginationArguments<string>;
+    }): Promise<OwnedKiosks> {
         const personalPackageId =
             this.packageIds?.personalKioskRulePackageId ||
             getNetwork(this.network).kiosk?.personalKioskRulePackageId ||
             '';
 
         return getOwnedKiosks(this.client, address, {
+            pagination,
             personalKioskType: personalPackageId
                 ? `${personalPackageId}::personal_kiosk::PersonalKioskCap`
                 : '',

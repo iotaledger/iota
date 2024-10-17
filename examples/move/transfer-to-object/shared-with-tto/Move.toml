@@ -1,9 +1,10 @@
 [package]
 name = "shared-with-tto"
 version = "0.0.1"
+edition = "2024.beta"
 
 [dependencies]
-Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/devnet" }
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
 common = { local = "../common" }
 
 [addresses]

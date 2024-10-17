@@ -153,7 +153,7 @@ impl GasStatus {
     }
 
     #[allow(dead_code)]
-    fn to_micros(&self, val: InternalGas) -> u64 {
+    fn to_nanos(&self, val: InternalGas) -> u64 {
         let gas: Gas = InternalGas::to_unit_round_down(val);
         u64::from(gas) * self.gas_price
     }
@@ -554,6 +554,11 @@ impl GasMeter for GasStatus {
         // We perform `num_fields` number of pushes.
         let num_fields = args.len() as u64;
         self.charge(1, num_fields, 1, 0, STRUCT_SIZE.into())
+    }
+
+    fn charge_variant_switch(&mut self, val: impl ValueView) -> PartialVMResult<()> {
+        // We perform a single pop of a value from the stack.
+        self.charge(1, 0, 1, 0, self.abstract_memory_size(val).into())
     }
 
     fn charge_read_ref(&mut self, ref_val: impl ValueView) -> PartialVMResult<()> {

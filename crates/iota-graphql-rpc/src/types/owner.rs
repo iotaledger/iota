@@ -3,45 +3,52 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_json_rpc::name_service::NameServiceConfig;
 use iota_types::{dynamic_field::DynamicFieldType, gas_coin::GAS};
 
-use super::{
+use crate::types::{
     address::Address,
+    balance::{self, Balance},
+    coin::Coin,
     coin_metadata::CoinMetadata,
     cursor::Page,
     dynamic_field::{DynamicField, DynamicFieldName},
-    iotans_registration::{DomainFormat, IotansRegistration, NameService},
+    iota_address::IotaAddress,
+    move_object::MoveObject,
     move_package::MovePackage,
-    object::ObjectLookupKey,
+    object::{self, Object, ObjectFilter},
     stake::StakedIota,
-};
-use crate::{
-    data::Db,
-    types::{
-        balance::{self, Balance},
-        coin::Coin,
-        iota_address::IotaAddress,
-        move_object::MoveObject,
-        object::{self, Object, ObjectFilter},
-        type_filter::ExactTypeFilter,
-    },
+    type_filter::ExactTypeFilter,
 };
 
 #[derive(Clone, Debug)]
 pub(crate) struct Owner {
     pub address: IotaAddress,
-    /// The checkpoint sequence number at which this was viewed at, or None if
-    /// the data was requested at the latest checkpoint.
-    pub checkpoint_viewed_at: Option<u64>,
+    /// The checkpoint sequence number at which this was viewed at.
+    pub checkpoint_viewed_at: u64,
+    /// Root parent object version for dynamic fields.
+    ///
+    /// This enables consistent dynamic field reads in the case of chained
+    /// dynamic object fields, e.g., `Parent -> DOF1 -> DOF2`. In such
+    /// cases, the object versions may end up like `Parent >= DOF1, DOF2`
+    /// but `DOF1 < DOF2`. Thus, database queries for dynamic fields must
+    /// bound the object versions by the version of the root object of the tree.
+    ///
+    /// Also, if this Owner is an object itself, `root_version` will be used to
+    /// bound its version from above in [`Owner::as_object`].
+    ///
+    /// Essentially, lamport timestamps of objects are updated for all top-level
+    /// mutable objects provided as inputs to a transaction as well as any
+    /// mutated dynamic child objects. However, any dynamic child objects
+    /// that were loaded but not actually mutated don't end up having
+    /// their versions updated.
+    pub root_version: Option<u64>,
 }
 
 /// Type to implement GraphQL fields that are shared by all Owners.
 pub(crate) struct OwnerImpl {
     pub address: IotaAddress,
-    /// The checkpoint sequence number at which this was viewed at, or None if
-    /// the data was requested at the latest checkpoint.
-    pub checkpoint_viewed_at: Option<u64>,
+    /// The checkpoint sequence number at which this was viewed at.
+    pub checkpoint_viewed_at: u64,
 }
 
 /// Interface implemented by GraphQL types representing entities that can own
@@ -99,23 +106,6 @@ pub(crate) struct OwnerImpl {
         arg(name = "before", ty = "Option<object::Cursor>"),
         ty = "Connection<String, StakedIota>",
         desc = "The `0x3::staking_pool::StakedIota` objects owned by this object or address."
-    ),
-    field(
-        name = "default_iotans_name",
-        arg(name = "format", ty = "Option<DomainFormat>"),
-        ty = "Option<String>",
-        desc = "The domain explicitly configured as the default domain pointing to this object or \
-                address."
-    ),
-    field(
-        name = "iotans_registrations",
-        arg(name = "first", ty = "Option<u64>"),
-        arg(name = "after", ty = "Option<object::Cursor>"),
-        arg(name = "last", ty = "Option<u64>"),
-        arg(name = "before", ty = "Option<object::Cursor>"),
-        ty = "Connection<String, IotansRegistration>",
-        desc = "The IotansRegistration NFTs owned by this object or address. These grant the owner \
-                the capability to manage the associated domain."
     )
 )]
 pub(crate) enum IOwner {
@@ -127,7 +117,6 @@ pub(crate) enum IOwner {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotansRegistration(IotansRegistration),
 }
 
 /// An Owner is an entity that can own an object. Each Owner is identified by a
@@ -212,31 +201,6 @@ impl Owner {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this
-    /// object or address.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(self).default_iotans_name(ctx, format).await
-    }
-
-    /// The IotansRegistration NFTs owned by this object or address. These grant
-    /// the owner the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotansRegistration>> {
-        OwnerImpl::from(self)
-            .iotans_registrations(ctx, first, after, last, before)
-            .await
-    }
-
     async fn as_address(&self) -> Option<Address> {
         // For now only addresses can be owners
         Some(Address {
@@ -247,11 +211,12 @@ impl Owner {
 
     async fn as_object(&self, ctx: &Context<'_>) -> Result<Option<Object>> {
         Object::query(
-            ctx.data_unchecked(),
+            ctx,
             self.address,
-            match self.checkpoint_viewed_at {
-                Some(checkpoint_viewed_at) => ObjectLookupKey::LatestAt(checkpoint_viewed_at),
-                None => ObjectLookupKey::Latest,
+            if let Some(parent_version) = self.root_version {
+                Object::under_parent(parent_version, self.checkpoint_viewed_at)
+            } else {
+                Object::latest_at(self.checkpoint_viewed_at)
             },
         )
         .await
@@ -270,7 +235,7 @@ impl Owner {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_field(ctx, name, /* parent_version */ None)
+            .dynamic_field(ctx, name, self.root_version)
             .await
     }
 
@@ -288,7 +253,7 @@ impl Owner {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_object_field(ctx, name, /* parent_version */ None)
+            .dynamic_object_field(ctx, name, self.root_version)
             .await
     }
 
@@ -305,10 +270,7 @@ impl Owner {
         before: Option<object::Cursor>,
     ) -> Result<Connection<String, DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_fields(
-                ctx, first, after, last, before, // parent_version
-                None,
-            )
+            .dynamic_fields(ctx, first, after, last, before, self.root_version)
             .await
     }
 }
@@ -422,39 +384,6 @@ impl OwnerImpl {
         .extend()
     }
 
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        Ok(
-            NameService::reverse_resolve_to_name(ctx, self.address, self.checkpoint_viewed_at)
-                .await
-                .extend()?
-                .map(|d| d.format(format.unwrap_or(DomainFormat::Dot).into())),
-        )
-    }
-
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotansRegistration>> {
-        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        IotansRegistration::paginate(
-            ctx.data_unchecked::<Db>(),
-            ctx.data_unchecked::<NameServiceConfig>(),
-            page,
-            self.address,
-            self.checkpoint_viewed_at,
-        )
-        .await
-        .extend()
-    }
-
     // Dynamic field related functions are part of the `IMoveObject` interface, but
     // are provided here to implement convenience functions on `Owner` and
     // `Object` to access dynamic fields.
@@ -467,7 +396,7 @@ impl OwnerImpl {
     ) -> Result<Option<DynamicField>> {
         use DynamicFieldType as T;
         DynamicField::query(
-            ctx.data_unchecked(),
+            ctx,
             self.address,
             parent_version,
             name,
@@ -486,7 +415,7 @@ impl OwnerImpl {
     ) -> Result<Option<DynamicField>> {
         use DynamicFieldType as T;
         DynamicField::query(
-            ctx.data_unchecked(),
+            ctx,
             self.address,
             parent_version,
             name,

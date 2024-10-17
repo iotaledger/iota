@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SignedTransaction } from '_src/ui/app/WalletSigner';
-import type { IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import {
     type IotaSignAndExecuteTransactionBlockInput,
     type IotaSignMessageOutput,

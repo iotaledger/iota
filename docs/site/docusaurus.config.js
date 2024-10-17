@@ -56,7 +56,7 @@ const config = {
       "@graphql-markdown/docusaurus",
       {
         schema:
-          "../../crates/iota-graphql-rpc/schema/current_progress_schema.graphql",
+          "../../crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
         baseURL: "references/iota-api/iota-graphql/reference",
         loaders: {
@@ -76,7 +76,6 @@ const config = {
       };
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
-    path.resolve(__dirname, `./src/plugins/framework`),
   ],
   presets: [
     [
@@ -87,8 +86,23 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
+          async sidebarItemsGenerator({
+            isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
+            defaultSidebarItemsGenerator,
+            ...args
+          }) {
+            return defaultSidebarItemsGenerator({
+              ...args,
+              isCategoryIndex() {
+                // No doc will be automatically picked as category index
+                return false;
+              },
+            });
+          },
           // the double docs below is a fix for having the path set to ../content
           editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
+          onInlineTags: "throw",
+          
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
@@ -137,38 +151,28 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid"],
+  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      algolia: {
-        // The application ID provided by Algolia
-        appId: "ZF283DJAYX",
-
-        // Public API key: it is safe to commit it
-        apiKey: "7f24db6c4ec06d6905592deb228f4460",
-
-        indexName: "iota",
-
-        // Optional: see doc section below
-        contextualSearch: false,
-
-        // Optional: Specify domains where the navigation should occur through window.location instead on history.push. Useful when our Algolia config crawls multiple documentation sites and we want to navigate with window.location.href to them.
-        // externalUrlRegex: "external\\.com|domain\\.com",
-
-        // Optional: Replace parts of the item URLs from Algolia. Useful when using the same search index for multiple deployments using a different baseUrl. You can use regexp or string in the `from` param. For example: localhost:3000 vs myCompany.com/docs
-        //replaceSearchResultPathname: {
-        //from: "/docs/", // or as RegExp: /\/docs\//
-        //to: "/",
-        //},
-
-        // Optional: Algolia search parameters
-        //searchParameters: {},
-
-        // Optional: path for search page that enabled by default (`false` to disable it)
-        searchPagePath: "search",
-
-        //... other Algolia params
+      typesense: {
+        // Replace this with the name of your index/collection.
+        // It should match the "index_name" entry in the scraper's "config.json" file.
+        typesenseCollectionName: 'IOTADocs_1724878003',
+        typesenseServerConfig: {
+          nodes: [
+            {
+              host: 'docs-search.iota.org',
+              port: '',
+              protocol: 'https',
+            },
+          ],
+          apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
+        },
+        // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
+        typesenseSearchParameters: {},
+        // Optional
+        contextualSearch: true,
       },
       image: "img/iota-doc-og.png",
       docs: {
@@ -212,10 +216,6 @@ const config = {
           },
         ],
       },
-      colorMode: {
-        defaultMode: "dark",
-        disableSwitch: false,
-      },
       footer: {
         logo: {
           alt: "IOTA Wiki Logo",
@@ -224,9 +224,18 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
                     The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
+      socials: [
+        'https://www.youtube.com/c/iotafoundation',
+        'https://www.github.com/iotaledger/',
+        'https://discord.iota.org/',
+        'https://www.twitter.com/iota/',
+        'https://www.reddit.com/r/iota/',
+        'https://www.linkedin.com/company/iotafoundation/',
+        'https://www.instagram.com/iotafoundation/',
+      ],
       prism: {
-        theme: themes.github,
-        darkTheme: themes.jettwaveDark,
+        theme: themes.vsLight,
+        darkTheme: themes.vsDark,
         additionalLanguages: ["rust", "typescript", "toml", "solidity"],
       },
     }),

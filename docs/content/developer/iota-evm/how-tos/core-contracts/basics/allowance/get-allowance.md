@@ -3,9 +3,10 @@ description: How to get the allowance of native assets and base token
 image: /img/logo/WASP_logo_dark.png
 tags:
   - allowance
-  - EVM
+  - evm
   - magic
   - solidity
+  - how-to
 ---
 
 # Get Allowance

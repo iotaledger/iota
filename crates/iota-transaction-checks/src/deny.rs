@@ -14,7 +14,7 @@ use iota_types::{
 macro_rules! deny_if_true {
     ($cond:expr, $msg:expr) => {
         if ($cond) {
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::TransactionDenied {
                     error: $msg.to_string(),
                 },
@@ -175,7 +175,7 @@ fn check_package_dependencies(
             }
             Command::MoveCall(call) => {
                 let package = package_store.get_package_object(&call.package)?.ok_or(
-                    IotaError::UserInputError {
+                    IotaError::UserInput {
                         error: UserInputError::ObjectNotFound {
                             object_id: call.package,
                             version: None,

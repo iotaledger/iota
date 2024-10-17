@@ -5,13 +5,33 @@
 
 use std::{fs::File, path::Path};
 
+use clap::{Parser, Subcommand};
 use iota_genesis_builder::stardust::{
     parse::HornetSnapshotParser,
-    test_outputs::{add_snapshot_test_outputs, to_micros},
+    test_outputs::{add_snapshot_test_outputs, to_nanos},
 };
-use iota_types::gas_coin::STARDUST_TOTAL_SUPPLY_IOTA;
+use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 
-fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<()> {
+#[derive(Parser, Debug)]
+#[clap(about = "Tool for adding test data to Iota Hornet full-snapshot")]
+struct Cli {
+    #[clap(subcommand)]
+    snapshot: Snapshot,
+}
+
+#[derive(Subcommand, Debug)]
+enum Snapshot {
+    #[clap(about = "Parse an Iota Hornet full-snapshot file")]
+    Iota {
+        #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
+        snapshot_path: String,
+    },
+}
+
+fn parse_snapshot<const VERIFY: bool>(
+    path: impl AsRef<Path>,
+    coin_type: CoinType,
+) -> anyhow::Result<()> {
     let file = File::open(path)?;
     let mut parser = HornetSnapshotParser::new::<VERIFY>(file)?;
 
@@ -21,8 +41,11 @@ fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
 
-    // Total supply is in IOTA, snapshot supply is Micros
-    assert_eq!(total_supply, to_micros(STARDUST_TOTAL_SUPPLY_IOTA));
+    let expected_total_supply = match coin_type {
+        CoinType::Iota => to_nanos(STARDUST_TOTAL_SUPPLY_IOTA),
+    };
+
+    assert_eq!(total_supply, expected_total_supply);
 
     println!("Total supply: {total_supply}");
 
@@ -31,8 +54,9 @@ fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let Some(current_path) = std::env::args().nth(1) else {
-        anyhow::bail!("please provide path to the full-snapshot file");
+    let cli = Cli::parse();
+    let (current_path, coin_type) = match cli.snapshot {
+        Snapshot::Iota { snapshot_path } => (snapshot_path, CoinType::Iota),
     };
     let mut new_path = String::from("test-");
     // prepend "test-" before the file name
@@ -44,13 +68,22 @@ async fn main() -> anyhow::Result<()> {
         new_path.push_str(&current_path);
     }
 
-    parse_snapshot::<false>(&current_path)?;
+    parse_snapshot::<false>(&current_path, coin_type)?;
 
-    let randomness_seed = 0;
-    add_snapshot_test_outputs::<false>(&current_path, &new_path, randomness_seed, None, false)
-        .await?;
+    let randomness_seed = match coin_type {
+        CoinType::Iota => 0,
+    };
+    add_snapshot_test_outputs::<false>(
+        &current_path,
+        &new_path,
+        coin_type,
+        randomness_seed,
+        None,
+        false,
+    )
+    .await?;
 
-    parse_snapshot::<false>(&new_path)?;
+    parse_snapshot::<false>(&current_path, coin_type)?;
 
     Ok(())
 }
