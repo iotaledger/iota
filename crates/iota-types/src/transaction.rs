@@ -2245,8 +2245,7 @@ impl SenderSignedData {
                     }
                 }
                 GenericSignature::Signature(_)
-                | GenericSignature::MultiSig(_)
-                | GenericSignature::MultiSigLegacy(_) => (),
+                | GenericSignature::MultiSig(_) => (),
             }
         }
 
