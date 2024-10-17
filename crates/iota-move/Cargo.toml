@@ -1,7 +1,7 @@
 [package]
 name = "iota-move"
 version.workspace = true
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -37,7 +37,7 @@ iota-protocol-config.workspace = true
 iota-types.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemalloc-ctl.workspace = true
+jemalloc-ctl = "^0.5"
 
 [dev-dependencies]
 futures.workspace = true

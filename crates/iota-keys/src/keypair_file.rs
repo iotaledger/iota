@@ -12,12 +12,12 @@ use fastcrypto::{
 };
 use iota_types::crypto::{AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, ToFromBytes};
 
-/// Write Base64 encoded `flag || privkey` to file.
+/// Write Bech32 encoded `flag || privkey` to file.
 pub fn write_keypair_to_file<P: AsRef<std::path::Path>>(
     keypair: &IotaKeyPair,
     path: P,
 ) -> anyhow::Result<()> {
-    let contents = keypair.encode_base64();
+    let contents = keypair.encode().map_err(|e| anyhow!(e))?;
     std::fs::write(path, contents)?;
     Ok(())
 }
@@ -40,10 +40,10 @@ pub fn read_authority_keypair_from_file<P: AsRef<std::path::Path>>(
     AuthorityKeyPair::decode_base64(contents.as_str().trim()).map_err(|e| anyhow!(e))
 }
 
-/// Read from file as Base64 encoded `flag || privkey` and return a IotaKeypair.
+/// Read from file as Bech32 encoded `flag || privkey` and return a IotaKeypair.
 pub fn read_keypair_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<IotaKeyPair> {
     let contents = std::fs::read_to_string(path)?;
-    IotaKeyPair::decode_base64(contents.as_str().trim()).map_err(|e| anyhow!(e))
+    IotaKeyPair::decode(contents.as_str().trim()).map_err(|e| anyhow!(e))
 }
 
 /// Read from file as Base64 encoded `flag || privkey` and return a

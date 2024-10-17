@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useTransferKioskItem } from './useTransferKioskItem';
 import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
+import { Loader } from '@iota/ui-icons';
 
 interface TransferNFTFormProps {
     objectId: string;
@@ -92,7 +93,7 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             validationSchema={validationSchema}
             onSubmit={({ to }) => transferNFT.mutateAsync(to)}
         >
-            {({ isValid, dirty }) => (
+            {({ isValid, dirty, isSubmitting }) => (
                 <Form autoComplete="off" className="h-full">
                     <div className="flex h-full flex-col justify-between">
                         <Field
@@ -104,8 +105,10 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
 
                         <Button
                             htmlType={ButtonHtmlType.Submit}
-                            disabled={!(isValid && dirty)}
+                            disabled={!(isValid && dirty) || isSubmitting}
                             text="Send"
+                            icon={isSubmitting ? <Loader className="animate-spin" /> : undefined}
+                            iconAfterText
                         />
                     </div>
                 </Form>

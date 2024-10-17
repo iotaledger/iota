@@ -1,7 +1,7 @@
 [package]
 name = "iota-sdk"
 version.workspace = true
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -14,7 +14,7 @@ bcs.workspace = true
 clap.workspace = true
 colored.workspace = true
 futures.workspace = true
-futures-core.workspace = true
+futures-core = "0.3.21"
 jsonrpsee.workspace = true
 reqwest.workspace = true
 serde.workspace = true
