@@ -176,13 +176,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
     {
         // Always evaluate the unpadded address derivation.
         if author != IotaAddress::try_from_unpadded(&self.inputs)? {
-            // If the verify_legacy_zklogin_address flag is set, also evaluate the padded
-            // address derivation.
-            if !aux_verify_data.verify_legacy_zklogin_address
-                || author != IotaAddress::try_from_padded(&self.inputs)?
-            {
-                return Err(IotaError::InvalidAddress);
-            }
+            return Err(IotaError::InvalidAddress);
         }
 
         // Only when supported_providers list is not empty, we check if the provider is

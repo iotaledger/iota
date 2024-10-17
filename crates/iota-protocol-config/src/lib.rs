@@ -168,10 +168,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_effects_v2: bool,
 
-    // If true, allow verify with legacy zklogin address
-    #[serde(skip_serializing_if = "is_false")]
-    verify_legacy_zklogin_address: bool,
-
     // Enable throughput aware consensus submission
     #[serde(skip_serializing_if = "is_false")]
     throughput_aware_consensus_submission: bool,
@@ -1159,10 +1155,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_effects_v2
     }
 
-    pub fn verify_legacy_zklogin_address(&self) -> bool {
-        self.feature_flags.verify_legacy_zklogin_address
-    }
-
     pub fn accept_zklogin_in_multisig(&self) -> bool {
         self.feature_flags.accept_zklogin_in_multisig
     }
@@ -1854,7 +1846,6 @@ impl ProtocolConfig {
             cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
             cfg.feature_flags.accept_zklogin_in_multisig = false;
-            cfg.feature_flags.verify_legacy_zklogin_address = true;
         }
 
         // Enable consensus digest in consensus commit prologue on all networks..
@@ -2044,10 +2035,6 @@ impl ProtocolConfig {
 
     pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
         self.feature_flags.reshare_at_same_initial_version = val;
-    }
-
-    pub fn set_verify_legacy_zklogin_address_for_testing(&mut self, val: bool) {
-        self.feature_flags.verify_legacy_zklogin_address = val
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(
