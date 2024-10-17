@@ -4,10 +4,9 @@
 
 import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { type AllEpochsAddressMetrics } from '@iota/iota-sdk/client';
-import { Heading, Text } from '@iota/ui';
+import { Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import { useMemo } from 'react';
-
 import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import { useGetAddressMetrics } from '~/hooks/useGetAddressMetrics';
@@ -33,9 +32,7 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JS
             <Text variant="subtitleSmallExtra/medium" color="steel-darker">
                 {dateFormatted}, Epoch {data.epoch}
             </Text>
-            <Heading variant="heading6/semibold" color="steel-darker">
-                {totalFormatted}
-            </Heading>
+            <span className="text-label-lg text-neutral-12">{totalFormatted}</span>
             <Text variant="subtitleSmallExtra/medium" color="steel-darker" uppercase>
                 {GRAPH_DATA_TEXT}
             </Text>
