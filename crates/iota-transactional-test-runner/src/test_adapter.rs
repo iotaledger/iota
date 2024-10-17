@@ -1256,16 +1256,7 @@ impl<'a> IotaTestAdapter {
 
                 variables.insert(format!("cursor_{idx}"), base64d);
             } else {
-                use base64::Engine;
-
-                // To comply with how `iota-graphql-rpc` decodes the json cursor
-                // (see `iota_graphql_rpc::types::cursor::JsonCursor`).
-                //
-                // This traces back to `async_graphql = 7.0.7` that uses no padding for
-                // encoding/decoding.
-                let base64d = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(s);
-
-                variables.insert(format!("cursor_{idx}"), base64d);
+                variables.insert(format!("cursor_{idx}"), Base64::encode(s));
             }
         }
 

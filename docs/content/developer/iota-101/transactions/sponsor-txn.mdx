@@ -1,6 +1,8 @@
 ---
 title: Sponsored Transaction
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/sponsor-txn.json';
 
 Sponsored transactions are a primitive on the IOTA blockchain that enable the execution of a transaction without a user paying the gas. It also discusses the roles in Sponsored Transaction, and a few common use cases. Then it discusses the flow of Sponsored Transaction, mostly for developers who are interested in building a Gas Station or integrate with one. Finally it talks about risk considerations of Sponsored Transaction.
 
@@ -125,3 +127,5 @@ Both the user and the sponsor need to sign over the entire `TransactionData`, in
 If you chooses to submit the dual-signed transaction to the sponsor or gas station rather than a Full node, the transaction might be subject to sponsor or gas station censorship. Namely, the sponsor might choose not to submit the transaction to the network, or delay the submission. 
 
 You can mitigate this risk by submitting the transaction directly to a Full node.
+
+<Quiz questions={questions} />

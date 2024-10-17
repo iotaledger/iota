@@ -2,6 +2,8 @@
 title: Building Programmable Transaction Blocks
 description: Using the IOTA TypeScript SDK, you can create programmable transaction blocks to perform multiple commands in a single transaction.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/building-ptb.json';
 
 This guide explores creating a programmable transaction block (PTB) on IOTA using the TypeScript SDK. For an overview of what a PTB is, see [Programmable Transaction Blocks](prog-txn-blocks.mdx) in the Concepts section. If you don't already have the IOTA TypeScript SDK, follow the [install instructions](../../../../references/ts-sdk/typescript/install.mdx) on the IOTA TypeScript SDK site.
 
@@ -240,3 +242,5 @@ sponsoredTxb.setSender(sender);
 sponsoredTxb.setGasOwner(sponsor);
 sponsoredTxb.setGasPayment(sponsorCoins);
 ```
+
+<Quiz questions={questions} />

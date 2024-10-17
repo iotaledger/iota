@@ -9,8 +9,8 @@ use fastcrypto::{
     traits::KeyPair,
 };
 use iota_config::{
-    AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, ConsensusConfig, FULL_NODE_DB_PATH, NodeConfig,
-    local_ip_utils,
+    AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, ConsensusConfig, FULL_NODE_DB_PATH,
+    IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, NodeConfig, local_ip_utils,
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
@@ -26,7 +26,6 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use narwhal_config::{NetworkAdminServerParameters, PrometheusMetricsParameters};
 
 use crate::{
     genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder},
@@ -127,10 +126,11 @@ impl ValidatorConfigBuilder {
         let config_directory = self
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
+        let migration_tx_data_path =
+            Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
         let db_path = config_directory
             .join(AUTHORITIES_DB_NAME)
             .join(key_path.clone());
-
         let network_address = validator.network_address;
         let consensus_address = validator.consensus_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
@@ -143,20 +143,6 @@ impl ValidatorConfigBuilder {
             max_pending_transactions: None,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            narwhal_config: narwhal_config::Parameters {
-                network_admin_server: NetworkAdminServerParameters {
-                    primary_network_admin_server_port: local_ip_utils::get_available_port(
-                        &localhost,
-                    ),
-                    worker_network_admin_server_base_port: local_ip_utils::get_available_port(
-                        &localhost,
-                    ),
-                },
-                prometheus_metrics: PrometheusMetricsParameters {
-                    socket_addr: validator.narwhal_metrics_address,
-                },
-                ..Default::default()
-            },
             parameters: Default::default(),
         };
 
@@ -205,6 +191,7 @@ impl ValidatorConfigBuilder {
             remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis: iota_config::node::Genesis::new_empty(),
+            migration_tx_data_path,
             grpc_load_shed: None,
             grpc_concurrency_limit: Some(DEFAULT_GRPC_CONCURRENCY_LIMIT),
             p2p_config,
@@ -420,6 +407,9 @@ impl FullnodeConfigBuilder {
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
 
+        let migration_tx_data_path =
+            Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
+
         let p2p_config = {
             let seed_peers = validator_configs
                 .iter()
@@ -493,6 +483,7 @@ impl FullnodeConfigBuilder {
             remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis,
+            migration_tx_data_path,
             grpc_load_shed: None,
             grpc_concurrency_limit: None,
             p2p_config,

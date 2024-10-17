@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is wrapping in Move?",
+        "answerOptions": [
+            { "answerText": "Embedding one struct type within another.", "isCorrect": true },
+            { "answerText": "Creating a loop in the ownership of objects.", "isCorrect": false },
+            { "answerText": "Converting an object into a primitive type.", "isCorrect": false },
+            { "answerText": "Sharing an object with multiple addresses.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What happens to an object when it is wrapped within another object in Move?",
+        "answerOptions": [
+            { "answerText": "It can be accessed directly via its ID on-chain.", "isCorrect": false },
+            { "answerText": "It no longer exists independently and can only be accessed through the wrapping object.", "isCorrect": true },
+            { "answerText": "It becomes immutable.", "isCorrect": false },
+            { "answerText": "It is deleted from the network.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which method of wrapping allows an object to optionally contain another object that can be replaced later?",
+        "answerOptions": [
+            { "answerText": "Direct wrapping", "isCorrect": false },
+            { "answerText": "Wrapping with `Option`", "isCorrect": true },
+            { "answerText": "Wrapping with `vector`", "isCorrect": false },
+            { "answerText": "Circular wrapping", "isCorrect": false }
+        ]
+    }
+]

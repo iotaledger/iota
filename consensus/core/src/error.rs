@@ -175,12 +175,6 @@ pub(crate) enum ConsensusError {
     #[error("RocksDB failure: {0}")]
     RocksDBFailure(#[from] TypedStoreError),
 
-    #[error("Unknown network peer: {0}")]
-    UnknownNetworkPeer(String),
-
-    #[error("Peer {0} is disconnected.")]
-    PeerDisconnected(String),
-
     #[error("Network config error: {0:?}")]
     NetworkConfig(String),
 

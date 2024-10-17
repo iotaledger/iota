@@ -32,7 +32,7 @@ export function WalletList({ selectedWalletName, onPlaceholderClick, onSelect }:
                 ))
             ) : (
                 <WalletListItem
-                    name="Iota Wallet"
+                    name="IOTA Wallet"
                     icon={<IotaIcon />}
                     onClick={onPlaceholderClick}
                     isSelected

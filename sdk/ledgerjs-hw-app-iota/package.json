@@ -1,16 +1,16 @@
 {
     "name": "@iota/ledgerjs-hw-app-iota",
     "version": "0.1.1",
-    "description": "Ledger Hardware Wallet Iota Application API",
+    "description": "Ledger Hardware Wallet IOTA Application API",
     "keywords": [
         "Ledger",
         "LedgerWallet",
-        "Iota",
+        "IOTA",
         "NanoS",
         "Blue",
         "Hardware Wallet"
     ],
-    "author": "IOTA Foundation <contact@iota.org>",
+    "author": "IOTA Foundation <info@iota.org>",
     "license": "Apache-2.0",
     "repository": {
         "type": "git",

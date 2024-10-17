@@ -4,41 +4,18 @@ expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
 version: 1
 feature_flags:
-  package_upgrades: true
-  commit_root_state_digest: true
-  advance_epoch_start_time_in_safe_mode: true
-  loaded_child_objects_fixed: true
-  missing_type_is_compatibility_error: true
-  scoring_decision_with_validity_cutoff: true
-  consensus_order_end_of_epoch_last: true
-  disallow_adding_abilities_on_upgrade: true
   disable_invariant_violation_check_in_swap_loc: true
   advance_to_highest_supported_protocol_version: true
-  ban_entry_init: true
-  package_digest_hash_module: true
-  disallow_change_struct_type_params_on_upgrade: true
   no_extraneous_module_bytes: true
-  narwhal_versioned_metadata: true
-  zklogin_auth: true
   consensus_transaction_ordering: ByGasPrice
   simplified_unwrap_then_delete: true
-  upgraded_multisig_supported: true
-  txn_base_cost_as_multiplier: true
   shared_object_deletion: true
-  narwhal_new_leader_election_schedule: true
   loaded_child_object_format: true
-  enable_jwk_consensus_updates: true
-  end_of_epoch_transaction_supported: true
-  simple_conservation_checks: true
   loaded_child_object_format_type: true
-  receive_objects: true
   random_beacon: true
-  bridge: true
   enable_effects_v2: true
-  narwhal_certificate_v2: true
   verify_legacy_zklogin_address: true
   recompute_has_public_transfer_in_execution: true
-  accept_zklogin_in_multisig: true
   include_consensus_digest_in_prologue: true
   hardened_otw_check: true
   allow_receiving_object_id: true
@@ -48,8 +25,6 @@ feature_flags:
   enable_group_ops_native_function_msm: true
   reject_mutable_random_on_entry_functions: true
   per_object_congestion_control_mode: TotalTxCount
-  consensus_choice: Mysticeti
-  consensus_network: Tonic
   zklogin_max_epoch_upper_bound_delta: 30
   mysticeti_leader_scoring_and_schedule: true
   reshare_at_same_initial_version: true

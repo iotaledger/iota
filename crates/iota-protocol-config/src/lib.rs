@@ -110,36 +110,6 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
-    #[serde(skip_serializing_if = "is_false")]
-    package_upgrades: bool,
-    // If true, validators will commit to the root state digest
-    // in end of epoch checkpoint proposals
-    #[serde(skip_serializing_if = "is_false")]
-    commit_root_state_digest: bool,
-    // Pass epoch start time to advance_epoch safe mode function.
-    #[serde(skip_serializing_if = "is_false")]
-    advance_epoch_start_time_in_safe_mode: bool,
-    // If true, apply the fix to correctly capturing loaded child object versions in execution's
-    // object runtime.
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_objects_fixed: bool,
-    // If true, treat missing types in the upgraded modules when creating an upgraded package as a
-    // compatibility error.
-    #[serde(skip_serializing_if = "is_false")]
-    missing_type_is_compatibility_error: bool,
-    // If true, then the scoring decision mechanism will not get disabled when we do have more than
-    // f low scoring authorities, but it will simply flag as low scoring only up to f authorities.
-    #[serde(skip_serializing_if = "is_false")]
-    scoring_decision_with_validity_cutoff: bool,
-
-    // DEPRECATED: this was an ephemeral feature flag only used by consensus handler, which has now
-    // been deployed everywhere.
-    #[serde(skip_serializing_if = "is_false")]
-    consensus_order_end_of_epoch_last: bool,
-
-    // Disallow adding abilities to types during package upgrades.
-    #[serde(skip_serializing_if = "is_false")]
-    disallow_adding_abilities_on_upgrade: bool,
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
     #[serde(skip_serializing_if = "is_false")]
     disable_invariant_violation_check_in_swap_loc: bool,
@@ -147,21 +117,9 @@ struct FeatureFlags {
     // consecutive protocol version.
     #[serde(skip_serializing_if = "is_false")]
     advance_to_highest_supported_protocol_version: bool,
-    // If true, disallow entry modifiers on entry functions
-    #[serde(skip_serializing_if = "is_false")]
-    ban_entry_init: bool,
-    // If true, hash module bytes individually when calculating package digests for upgrades
-    #[serde(skip_serializing_if = "is_false")]
-    package_digest_hash_module: bool,
-    // If true, disallow changing struct type parameters during package upgrades
-    #[serde(skip_serializing_if = "is_false")]
-    disallow_change_struct_type_params_on_upgrade: bool,
     // If true, checks no extra bytes in a compiled module
     #[serde(skip_serializing_if = "is_false")]
     no_extraneous_module_bytes: bool,
-    // If true, then use the versioned metadata format in narwhal entities.
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_versioned_metadata: bool,
 
     // Enable zklogin auth
     #[serde(skip_serializing_if = "is_false")]
@@ -179,20 +137,10 @@ struct FeatureFlags {
     // regardless of their previous state in the store.
     #[serde(skip_serializing_if = "is_false")]
     simplified_unwrap_then_delete: bool,
-    // Enable upgraded multisig support
-    #[serde(skip_serializing_if = "is_false")]
-    upgraded_multisig_supported: bool,
-    // If true minimum txn charge is a multiplier of the gas price
-    #[serde(skip_serializing_if = "is_false")]
-    txn_base_cost_as_multiplier: bool,
 
     // If true, the ability to delete shared objects is in effect
     #[serde(skip_serializing_if = "is_false")]
     shared_object_deletion: bool,
-
-    // If true, then the new algorithm for the leader election schedule will be used
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_new_leader_election_schedule: bool,
 
     // A list of supported OIDC providers that can be used for zklogin.
     #[serde(skip_serializing_if = "is_empty")]
@@ -205,21 +153,9 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
 
-    #[serde(skip_serializing_if = "is_false")]
-    end_of_epoch_transaction_supported: bool,
-
-    // Perform simple conservation checks keeping into account out of gas scenarios
-    // while charging for storage.
-    #[serde(skip_serializing_if = "is_false")]
-    simple_conservation_checks: bool,
-
     // If true, use the new child object format type logging
     #[serde(skip_serializing_if = "is_false")]
     loaded_child_object_format_type: bool,
-
-    // Enable receiving sent objects
-    #[serde(skip_serializing_if = "is_false")]
-    receive_objects: bool,
 
     // Enable random beacon protocol
     #[serde(skip_serializing_if = "is_false")]
@@ -231,10 +167,6 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_effects_v2: bool,
-
-    // If true, then use CertificateV2 in narwhal.
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_certificate_v2: bool,
 
     // If true, allow verify with legacy zklogin address
     #[serde(skip_serializing_if = "is_false")]
@@ -290,11 +222,11 @@ struct FeatureFlags {
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
     // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_narwhal")]
+    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
-    #[serde(skip_serializing_if = "ConsensusNetwork::is_anemo")]
+    #[serde(skip_serializing_if = "ConsensusNetwork::is_tonic")]
     consensus_network: ConsensusNetwork,
 
     // Set the upper bound allowed for max_epoch in zklogin signature.
@@ -412,14 +344,12 @@ impl PerObjectCongestionControlMode {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
-    Narwhal,
-    SwapEachEpoch,
     Mysticeti,
 }
 
 impl ConsensusChoice {
-    pub fn is_narwhal(&self) -> bool {
-        matches!(self, ConsensusChoice::Narwhal)
+    pub fn is_mysticeti(&self) -> bool {
+        matches!(self, ConsensusChoice::Mysticeti)
     }
 }
 
@@ -427,13 +357,12 @@ impl ConsensusChoice {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusNetwork {
     #[default]
-    Anemo,
     Tonic,
 }
 
 impl ConsensusNetwork {
-    pub fn is_anemo(&self) -> bool {
-        matches!(self, ConsensusNetwork::Anemo)
+    pub fn is_tonic(&self) -> bool {
+        matches!(self, ConsensusNetwork::Tonic)
     }
 }
 
@@ -1145,59 +1074,8 @@ impl ProtocolConfig {
     //     }
     // }
 
-    pub fn check_package_upgrades_supported(&self) -> Result<(), Error> {
-        if self.feature_flags.package_upgrades {
-            Ok(())
-        } else {
-            Err(Error(format!(
-                "package upgrades are not supported at {:?}",
-                self.version
-            )))
-        }
-    }
-
     pub fn allow_receiving_object_id(&self) -> bool {
         self.feature_flags.allow_receiving_object_id
-    }
-
-    pub fn receiving_objects_supported(&self) -> bool {
-        self.feature_flags.receive_objects
-    }
-
-    pub fn package_upgrades_supported(&self) -> bool {
-        self.feature_flags.package_upgrades
-    }
-
-    pub fn check_commit_root_state_digest_supported(&self) -> bool {
-        self.feature_flags.commit_root_state_digest
-    }
-
-    pub fn get_advance_epoch_start_time_in_safe_mode(&self) -> bool {
-        self.feature_flags.advance_epoch_start_time_in_safe_mode
-    }
-
-    pub fn loaded_child_objects_fixed(&self) -> bool {
-        self.feature_flags.loaded_child_objects_fixed
-    }
-
-    pub fn missing_type_is_compatibility_error(&self) -> bool {
-        self.feature_flags.missing_type_is_compatibility_error
-    }
-
-    pub fn scoring_decision_with_validity_cutoff(&self) -> bool {
-        self.feature_flags.scoring_decision_with_validity_cutoff
-    }
-
-    pub fn narwhal_versioned_metadata(&self) -> bool {
-        self.feature_flags.narwhal_versioned_metadata
-    }
-
-    pub fn consensus_order_end_of_epoch_last(&self) -> bool {
-        self.feature_flags.consensus_order_end_of_epoch_last
-    }
-
-    pub fn disallow_adding_abilities_on_upgrade(&self) -> bool {
-        self.feature_flags.disallow_adding_abilities_on_upgrade
     }
 
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
@@ -1208,19 +1086,6 @@ impl ProtocolConfig {
     pub fn advance_to_highest_supported_protocol_version(&self) -> bool {
         self.feature_flags
             .advance_to_highest_supported_protocol_version
-    }
-
-    pub fn ban_entry_init(&self) -> bool {
-        self.feature_flags.ban_entry_init
-    }
-
-    pub fn package_digest_hash_module(&self) -> bool {
-        self.feature_flags.package_digest_hash_module
-    }
-
-    pub fn disallow_change_struct_type_params_on_upgrade(&self) -> bool {
-        self.feature_flags
-            .disallow_change_struct_type_params_on_upgrade
     }
 
     pub fn no_extraneous_module_bytes(&self) -> bool {
@@ -1243,20 +1108,8 @@ impl ProtocolConfig {
         self.feature_flags.simplified_unwrap_then_delete
     }
 
-    pub fn supports_upgraded_multisig(&self) -> bool {
-        self.feature_flags.upgraded_multisig_supported
-    }
-
-    pub fn txn_base_cost_as_multiplier(&self) -> bool {
-        self.feature_flags.txn_base_cost_as_multiplier
-    }
-
     pub fn shared_object_deletion(&self) -> bool {
         self.feature_flags.shared_object_deletion
-    }
-
-    pub fn narwhal_new_leader_election_schedule(&self) -> bool {
-        self.feature_flags.narwhal_new_leader_election_schedule
     }
 
     pub fn loaded_child_object_format(&self) -> bool {
@@ -1264,29 +1117,11 @@ impl ProtocolConfig {
     }
 
     pub fn enable_jwk_consensus_updates(&self) -> bool {
-        let ret = self.feature_flags.enable_jwk_consensus_updates;
-        if ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
-    }
-
-    pub fn simple_conservation_checks(&self) -> bool {
-        self.feature_flags.simple_conservation_checks
+        self.feature_flags.enable_jwk_consensus_updates
     }
 
     pub fn loaded_child_object_format_type(&self) -> bool {
         self.feature_flags.loaded_child_object_format_type
-    }
-
-    pub fn end_of_epoch_transaction_supported(&self) -> bool {
-        let ret = self.feature_flags.end_of_epoch_transaction_supported;
-        if !ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(!self.feature_flags.enable_jwk_consensus_updates);
-        }
-        ret
     }
 
     pub fn recompute_has_public_transfer_in_execution(&self) -> bool {
@@ -1309,12 +1144,7 @@ impl ProtocolConfig {
     }
 
     pub fn enable_bridge(&self) -> bool {
-        let ret = self.feature_flags.bridge;
-        if ret {
-            // bridge required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
+        self.feature_flags.bridge
     }
 
     pub fn should_try_to_finalize_bridge_committee(&self) -> bool {
@@ -1327,10 +1157,6 @@ impl ProtocolConfig {
 
     pub fn enable_effects_v2(&self) -> bool {
         self.feature_flags.enable_effects_v2
-    }
-
-    pub fn narwhal_certificate_v2(&self) -> bool {
-        self.feature_flags.narwhal_certificate_v2
     }
 
     pub fn verify_legacy_zklogin_address(&self) -> bool {
@@ -1441,6 +1267,18 @@ impl ProtocolConfig {
 
     pub fn authority_capabilities_v2(&self) -> bool {
         self.feature_flags.authority_capabilities_v2
+    }
+
+    pub fn max_transaction_size_bytes(&self) -> u64 {
+        // Provide a default value if protocol config version is too low.
+        self.consensus_max_transaction_size_bytes
+            .unwrap_or(256 * 1024)
+    }
+
+    pub fn max_transactions_in_block_bytes(&self) -> u64 {
+        // Provide a default value if protocol config version is too low.
+        self.consensus_max_transactions_in_block_bytes
+            .unwrap_or(512 * 1024)
     }
 
     pub fn max_num_transactions_in_block(&self) -> u64 {
@@ -1985,33 +1823,17 @@ impl ProtocolConfig {
             // new_constant: None,
         };
 
-        cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
-        cfg.feature_flags.missing_type_is_compatibility_error = true;
-        cfg.feature_flags.scoring_decision_with_validity_cutoff = true;
-        cfg.feature_flags.consensus_order_end_of_epoch_last = true;
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
-        cfg.feature_flags.package_digest_hash_module = true;
         cfg.feature_flags.no_extraneous_module_bytes = true;
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
-        cfg.feature_flags.narwhal_versioned_metadata = true;
-        cfg.feature_flags.commit_root_state_digest = true;
-        cfg.feature_flags.zklogin_auth = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.simplified_unwrap_then_delete = true;
-        cfg.feature_flags.upgraded_multisig_supported = true;
-        cfg.feature_flags.txn_base_cost_as_multiplier = true;
-        cfg.feature_flags.narwhal_new_leader_election_schedule = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.simple_conservation_checks = true;
-        cfg.feature_flags.end_of_epoch_transaction_supported = true;
-        cfg.feature_flags.enable_jwk_consensus_updates = true;
-        cfg.feature_flags.receive_objects = true;
         cfg.feature_flags.enable_effects_v2 = true;
-        cfg.feature_flags.verify_legacy_zklogin_address = true;
-        cfg.feature_flags.narwhal_certificate_v2 = true;
+
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
         cfg.feature_flags.shared_object_deletion = true;
         cfg.feature_flags.hardened_otw_check = true;
@@ -2022,22 +1844,18 @@ impl ProtocolConfig {
         // Enable group ops and all networks (but not msm)
         cfg.feature_flags.enable_group_ops_native_functions = true;
 
-        // zklogin_supported_providers config is deprecated, zklogin
-        // signature verifier will use the fetched jwk map to determine
-        // whether the provider is supported based on node config.
-        cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
-
-        // Following flags are implied by the execution version.
-        // Once support for earlier protocol versions is dropped, these flags can be
-        // removed:
-        cfg.feature_flags.package_upgrades = true;
-        cfg.feature_flags.disallow_adding_abilities_on_upgrade = true;
-        cfg.feature_flags
-            .disallow_change_struct_type_params_on_upgrade = true;
-        cfg.feature_flags.loaded_child_objects_fixed = true;
-        cfg.feature_flags.ban_entry_init = true;
-
-        cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
+        // zkLogin related flags
+        {
+            cfg.feature_flags.zklogin_auth = false;
+            cfg.feature_flags.enable_jwk_consensus_updates = false;
+            // zklogin_supported_providers config is deprecated, zklogin
+            // signature verifier will use the fetched jwk map to determine
+            // whether the provider is supported based on node config.
+            cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
+            cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
+            cfg.feature_flags.accept_zklogin_in_multisig = false;
+            cfg.feature_flags.verify_legacy_zklogin_address = true;
+        }
 
         // Enable consensus digest in consensus commit prologue on all networks..
         cfg.feature_flags.include_consensus_digest_in_prologue = true;
@@ -2047,8 +1865,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
-
-        cfg.feature_flags.accept_zklogin_in_multisig = true;
 
         // Enable resharing at same initial version
         cfg.feature_flags.reshare_at_same_initial_version = true;
@@ -2086,7 +1902,7 @@ impl ProtocolConfig {
 
         cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
 
-        cfg.feature_flags.bridge = true;
+        cfg.feature_flags.bridge = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
@@ -2204,9 +2020,6 @@ impl ProtocolConfig {
         self.feature_flags
             .advance_to_highest_supported_protocol_version = val
     }
-    pub fn set_commit_root_state_digest_supported_for_testing(&mut self, val: bool) {
-        self.feature_flags.commit_root_state_digest = val
-    }
     pub fn set_zklogin_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.zklogin_auth = val
     }
@@ -2217,9 +2030,6 @@ impl ProtocolConfig {
         self.feature_flags.random_beacon = val
     }
 
-    pub fn set_upgraded_multisig_for_testing(&mut self, val: bool) {
-        self.feature_flags.upgraded_multisig_supported = val
-    }
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_zklogin_in_multisig = val
     }
@@ -2236,16 +2046,6 @@ impl ProtocolConfig {
         self.feature_flags.reshare_at_same_initial_version = val;
     }
 
-    pub fn set_narwhal_new_leader_election_schedule_for_testing(&mut self, val: bool) {
-        self.feature_flags.narwhal_new_leader_election_schedule = val;
-    }
-
-    pub fn set_receive_object_for_testing(&mut self, val: bool) {
-        self.feature_flags.receive_objects = val
-    }
-    pub fn set_narwhal_certificate_v2_for_testing(&mut self, val: bool) {
-        self.feature_flags.narwhal_certificate_v2 = val
-    }
     pub fn set_verify_legacy_zklogin_address_for_testing(&mut self, val: bool) {
         self.feature_flags.verify_legacy_zklogin_address = val
     }

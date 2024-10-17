@@ -1,7 +1,7 @@
 [package]
 name = "iota-core"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -19,7 +19,7 @@ bytes.workspace = true
 chrono.workspace = true
 consensus-config.workspace = true
 consensus-core.workspace = true
-count-min-sketch.workspace = true
+count-min-sketch = "0.1.7"
 dashmap.workspace = true
 diffy = { version = "0.3", default-features = false }
 either.workspace = true
@@ -87,13 +87,7 @@ iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
-narwhal-config.workspace = true
-narwhal-crypto.workspace = true
-narwhal-executor.workspace = true
-narwhal-network.workspace = true
-narwhal-node.workspace = true
 narwhal-types.workspace = true
-narwhal-worker.workspace = true
 nonempty.workspace = true
 shared-crypto.workspace = true
 zeroize = "1.6"

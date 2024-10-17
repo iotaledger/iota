@@ -74,7 +74,7 @@ pub fn iota_rpc_doc(version: &str) -> Project {
         "Iota JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://fullnode.NETWORK.iota.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
         "IOTA Foundation",
         "https://iota.org",
-        "contact@iota.org",
+        "info@iota.org",
         "Apache-2.0",
         "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE",
     )

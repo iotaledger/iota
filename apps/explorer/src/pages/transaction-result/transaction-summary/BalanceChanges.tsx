@@ -22,7 +22,6 @@ import {
     useFormatCoin,
 } from '@iota/core';
 import { RecognizedBadge } from '@iota/ui-icons';
-import clsx from 'clsx';
 import { useMemo } from 'react';
 import { CoinIcon } from '~/components';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
@@ -97,9 +96,9 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                 ) : null
             }
         >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-md px-md--rs py-sm">
                 {recognizedTokenChanges.map((change, index) => (
-                    <div key={index + change.coinType} className="px-md--rs pb-lg pt-xs">
+                    <div key={index + change.coinType}>
                         <Accordion>
                             <AccordionContent isExpanded>
                                 <BalanceChangeEntry change={change} />
@@ -108,14 +107,9 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                     </div>
                 ))}
                 {unRecognizedTokenChanges.length > 0 && (
-                    <div
-                        className={clsx(
-                            'flex flex-col gap-2',
-                            recognizedTokenChanges?.length && 'border-t border-gray-45 pt-2',
-                        )}
-                    >
+                    <div className="flex flex-col gap-md">
                         {unRecognizedTokenChanges.map((change, index) => (
-                            <div key={index + change.coinType} className="px-md--rs pb-lg pt-xs">
+                            <div key={index + change.coinType}>
                                 <Accordion hideBorder>
                                     <AccordionContent isExpanded>
                                         <BalanceChangeEntry change={change} />

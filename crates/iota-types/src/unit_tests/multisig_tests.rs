@@ -336,7 +336,8 @@ fn multisig_get_indices() {
 }
 
 #[test]
-fn multisig_zklogin_scenarios() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_multisig_zklogin_scenarios() {
     // consistency test with
     // iota/sdk/typescript/test/unit/cryptography/multisig.test.ts
     let mut seed = StdRng::from_seed([0; 32]);
@@ -381,7 +382,8 @@ fn multisig_zklogin_scenarios() {
 }
 
 #[test]
-fn zklogin_in_multisig_works_with_both_addresses() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_zklogin_in_multisig_works_with_both_addresses() {
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
     let ikp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
@@ -480,7 +482,8 @@ fn zklogin_in_multisig_works_with_both_addresses() {
 }
 
 #[test]
-fn test_derive_multisig_address() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_zklogin_derive_multisig_address() {
     // consistency test with typescript:
     // /sdk/typescript/test/unit/cryptography/multisig.test.ts
     let pk1 = PublicKey::ZkLogin(

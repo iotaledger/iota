@@ -261,6 +261,16 @@ impl IotaTransactionBlockResponse {
     pub fn status_ok(&self) -> Option<bool> {
         self.effects.as_ref().map(|e| e.status().is_ok())
     }
+
+    /// Get mutated objects if any
+    pub fn mutated_objects(&self) -> impl Iterator<Item = ObjectRef> + '_ {
+        self.object_changes.iter().flat_map(|obj_changes| {
+            obj_changes
+                .iter()
+                .filter(|change| matches!(change, ObjectChange::Mutated { .. }))
+                .map(|change| change.object_ref())
+        })
+    }
 }
 
 /// We are specifically ignoring events for now until events become more stable.
@@ -1606,12 +1616,10 @@ impl Display for IotaTransactionBlock {
         for tx_sig in &self.tx_signatures {
             builder.push_record(vec![format!("   {}\n", match tx_sig {
                 Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
-                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(), /* the signatures for
-                                                                     * multisig and zklogin
-                                                                     * are not suited to be
-                                                                     * parsed out. they
-                                                                     * should be interpreted
-                                                                     * as a whole */
+                // the signatures for multisig and zklogin
+                // are not suited to be parsed out. they
+                // should be interpreted as a whole
+                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
             })]);
         }
 
