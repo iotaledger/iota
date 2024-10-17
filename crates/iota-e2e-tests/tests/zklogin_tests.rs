@@ -16,10 +16,7 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     transaction::Transaction,
-    utils::{
-        get_zklogin_user_address, load_test_vectors,
-        make_zklogin_tx,
-    },
+    utils::{get_zklogin_user_address, load_test_vectors, make_zklogin_tx},
     zk_login_authenticator::ZkLoginAuthenticator,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
