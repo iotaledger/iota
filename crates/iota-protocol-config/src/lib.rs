@@ -9,6 +9,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
+
 use clap::*;
 use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
 use move_vm_config::verifier::{MeterConfig, VerifierConfig};
