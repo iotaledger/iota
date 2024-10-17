@@ -4,8 +4,6 @@ expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
 version: 1
 feature_flags:
-  advance_epoch_start_time_in_safe_mode: true
-  consensus_order_end_of_epoch_last: true
   disable_invariant_violation_check_in_swap_loc: true
   advance_to_highest_supported_protocol_version: true
   ban_entry_init: true
@@ -14,7 +12,6 @@ feature_flags:
   simplified_unwrap_then_delete: true
   shared_object_deletion: true
   loaded_child_object_format: true
-  simple_conservation_checks: true
   loaded_child_object_format_type: true
   random_beacon: true
   enable_effects_v2: true
