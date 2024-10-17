@@ -636,7 +636,7 @@ impl KeyToolCommand {
                                         seed.len()
                                     ));
                                 }
-                                keystore.import_from_seed(&seed, key_scheme, derivation_path)?
+                                keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
                             },
                             Err(_) => {
                                 info!("Importing mnemonic to keystore");
@@ -644,6 +644,7 @@ impl KeyToolCommand {
                                     &input_string,
                                     key_scheme,
                                     derivation_path,
+                                    alias
                                 )?
                             }
                         };
