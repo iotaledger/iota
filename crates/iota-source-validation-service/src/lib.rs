@@ -6,6 +6,7 @@ use std::{
     collections::BTreeMap,
     ffi::OsString,
     fmt, fs,
+    net::TcpListener,
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, RwLock},
@@ -36,7 +37,7 @@ use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize};
-use tokio::{net::TcpListener, sync::oneshot::Sender};
+use tokio::sync::oneshot::Sender;
 use tower::ServiceBuilder;
 use tracing::{debug, info};
 use url::Url;
@@ -460,7 +461,9 @@ pub async fn serve(app_state: Arc<RwLock<AppState>>) -> anyhow::Result<()> {
                 .layer(middleware::from_fn(check_version_header)),
         )
         .with_state(app_state);
-    let listener = TcpListener::bind(host_port()).await?;
+    let listener = TcpListener::bind(host_port())?;
+    listener.set_nonblocking(true).unwrap();
+    let listener = tokio::net::TcpListener::from_std(listener)?;
     axum::serve(listener, app).await?;
     Ok(())
 }
@@ -609,6 +612,8 @@ pub fn start_prometheus_server(listener: TcpListener) -> RegistryService {
         .layer(Extension(registry_service.clone()));
 
     tokio::spawn(async move {
+        listener.set_nonblocking(true).unwrap();
+        let listener = tokio::net::TcpListener::from_std(listener).unwrap();
         axum::serve(listener, app).await.unwrap();
     });
 

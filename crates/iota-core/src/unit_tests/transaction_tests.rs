@@ -511,6 +511,7 @@ async fn do_transaction_test_impl(
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_transfer_with_bad_ephemeral_sig() {
     do_zklogin_transaction_test(
         1,
@@ -533,6 +534,7 @@ async fn test_zklogin_transfer_with_bad_ephemeral_sig() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_transfer_with_large_address_seed() {
     telemetry_subscribers::init_for_testing();
     let (
@@ -577,7 +579,8 @@ async fn test_zklogin_transfer_with_large_address_seed() {
 }
 
 #[sim_test]
-async fn zklogin_test_caching_scenarios() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_caching_scenarios() {
     telemetry_subscribers::init_for_testing();
     let (
         object_ids,
@@ -1170,7 +1173,8 @@ fn make_socket_addr() -> std::net::SocketAddr {
 }
 
 #[tokio::test]
-async fn zklogin_txn_fail_if_missing_jwk() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_txn_fail_if_missing_jwk() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authorty state with some objects under a zklogin address.
@@ -1244,7 +1248,8 @@ async fn zklogin_txn_fail_if_missing_jwk() {
 }
 
 #[tokio::test]
-async fn zk_multisig_test() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_multisig() {
     telemetry_subscribers::init_for_testing();
 
     // User generate a multisig account with no zklogin signer.

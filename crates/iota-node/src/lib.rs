@@ -109,6 +109,7 @@ use iota_types::{
     },
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
+    transaction::Transaction,
 };
 use narwhal_network::metrics::{
     MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
@@ -443,7 +444,17 @@ impl IotaNode {
         #[cfg(not(msim))]
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
+        // Clone the genesis
         let genesis = config.genesis()?.clone();
+        // If genesis come with some migration data then load them into memory from the
+        // file path specified in config.
+        let migration_tx_data = if genesis.contains_migrations() {
+            // Here the load already verifies that the content of the migration blob is
+            // valid in respect to the content found in genesis
+            Some(config.load_migration_tx_data()?)
+        } else {
+            None
+        };
 
         let secret = Arc::pin(config.protocol_key_pair().copy());
         let genesis_committee = genesis.committee()?;
@@ -461,9 +472,14 @@ impl IotaNode {
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
-
-        let store =
-            AuthorityStore::open(perpetual_tables, &genesis, &config, &prometheus_registry).await?;
+        let store = AuthorityStore::open(
+            perpetual_tables,
+            &genesis,
+            &config,
+            &prometheus_registry,
+            migration_tx_data.as_ref(),
+        )
+        .await?;
 
         let cur_epoch = store.get_recovery_epoch_at_restart()?;
         let committee = committee_store
@@ -654,6 +670,11 @@ impl IotaNode {
                 .set_killswitch_tombstone_pruning(true);
         }
 
+        let mut genesis_objects = genesis.objects().to_vec();
+        if let Some(migration_tx_data) = migration_tx_data.as_ref() {
+            genesis_objects.extend(migration_tx_data.get_objects());
+        }
+
         let authority_name = config.protocol_public_key();
         let validator_tx_finalizer =
             config
@@ -677,7 +698,7 @@ impl IotaNode {
             rest_index,
             checkpoint_store.clone(),
             &prometheus_registry,
-            genesis.objects(),
+            &genesis_objects,
             &db_checkpoint_config,
             config.clone(),
             config.indirect_objects_threshold,
@@ -685,22 +706,33 @@ impl IotaNode {
             validator_tx_finalizer,
         )
         .await;
-        // ensure genesis txn was executed
+
+        // ensure genesis and migration txs were executed
         if epoch_store.epoch() == 0 {
-            let txn = &genesis.transaction();
-            let span = error_span!("genesis_txn", tx_digest = ?txn.digest());
-            let transaction =
-                iota_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
-                    iota_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
-                        genesis.transaction().data().clone(),
-                        iota_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
-                    ),
-                );
-            state
-                .try_execute_immediately(&transaction, None, &epoch_store)
-                .instrument(span)
-                .await
-                .unwrap();
+            let genesis_tx = &genesis.transaction();
+            let span = error_span!("genesis_txn", tx_digest = ?genesis_tx.digest());
+            // Execute genesis transaction
+            Self::execute_transaction_immediately_at_zero_epoch(
+                &state,
+                &epoch_store,
+                genesis_tx,
+                span,
+            )
+            .await;
+
+            // Execute migration transactions if present
+            if let Some(migration_tx_data) = migration_tx_data {
+                for (tx_digest, (tx, _, _)) in migration_tx_data.txs_data() {
+                    let span = error_span!("migration_txn", tx_digest = ?tx_digest);
+                    Self::execute_transaction_immediately_at_zero_epoch(
+                        &state,
+                        &epoch_store,
+                        tx,
+                        span,
+                    )
+                    .await;
+                }
+            }
         }
 
         checkpoint_store
@@ -1864,6 +1896,26 @@ impl IotaNode {
 
     pub fn get_config(&self) -> &NodeConfig {
         &self.config
+    }
+
+    async fn execute_transaction_immediately_at_zero_epoch(
+        state: &Arc<AuthorityState>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        tx: &Transaction,
+        span: tracing::Span,
+    ) {
+        let transaction =
+            iota_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
+                iota_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
+                    tx.data().clone(),
+                    iota_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
+                ),
+            );
+        state
+            .try_execute_immediately(&transaction, None, epoch_store)
+            .instrument(span)
+            .await
+            .unwrap();
     }
 
     pub fn randomness_handle(&self) -> randomness::Handle {

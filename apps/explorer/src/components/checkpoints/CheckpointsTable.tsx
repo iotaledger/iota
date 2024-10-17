@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Select } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Select } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { Warning } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import { DEFAULT_CHECKPOINTS_LIMIT, useGetCheckpoints } from '~/hooks/useGetCheckpoints';
@@ -50,9 +51,13 @@ export function CheckpointsTable({
     return (
         <div className="flex flex-col gap-md text-left xl:pr-10">
             {isError && (
-                <div className="pt-2 font-sans font-semibold text-issue-dark">
-                    Failed to load Checkpoints
-                </div>
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Checkpoints"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
             )}
             {isPending || isFetching || !data?.data ? (
                 <PlaceholderTable

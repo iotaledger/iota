@@ -12,7 +12,10 @@ use iota_config::{
     IOTA_GENESIS_FILENAME,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
-use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl};
+use iota_genesis_builder::{
+    Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
+    genesis_build_effects::GenesisBuildEffects,
+};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
@@ -116,9 +119,9 @@ pub enum CeremonyCommand {
         local_migration_snapshots: Vec<PathBuf>,
         #[clap(
             long,
-            name = "iota|smr|<full-url>",
+            name = "iota|<full-url>",
             help = "Remote migration snapshots.",
-            default_values_t = vec![SnapshotUrl::Iota, SnapshotUrl::Shimmer],
+            default_values_t = vec![SnapshotUrl::Iota],
         )]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
@@ -327,8 +330,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
             check_protocol_version(&builder, protocol_version)?;
 
-            let genesis = builder.build();
-
+            let GenesisBuildEffects { genesis, .. } = builder.build();
             genesis.save(dir.join(IOTA_GENESIS_FILENAME))?;
 
             println!("Successfully built {IOTA_GENESIS_FILENAME}");
