@@ -11,9 +11,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
-env:
-  IS_DEVELOP: false
-
 jobs:
   diff:
     runs-on: [self-hosted]
@@ -133,7 +130,7 @@ jobs:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
-    if: (!cancelled() && !failure() && !github.event.pull_request.draft) || ${{ env.IS_DEVELOP }}
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft) || ${{ github.ref_name == "tooling-ci/run-ts-e2e-tests-on-develop" }}
     needs:
       - diff
       - dprint-format
@@ -146,4 +143,4 @@ jobs:
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
-      isDevelop: ${{ IS_DEVELOP }}
+      isDevelop: ${{ github.ref_name == "tooling-ci/run-ts-e2e-tests-on-develop" }}
