@@ -9,7 +9,7 @@ tags:
 
 ## Introduction
 
-The example illustrates the creation of a review rating platform for the food service industry, utilizing multisignature functionality on IOTA. Unlike conventional review platforms, which frequently conceal the algorithms used to rate reviews, this model leverages a transparent, on-chain algorithm that anyone can access and verify. IOTA's low transaction costs make it economically viable to submit, evaluate, and rank all reviews directly on-chain.
+The example illustrates the creation of a review rating platform for the food service industry, utilizing [multisignature](../cryptography/transaction-auth/multisig.mdx) functionality on IOTA. Unlike conventional review platforms, which frequently conceal the algorithms used to rate reviews, this model leverages a transparent, on-chain algorithm that anyone can access and verify. IOTA's low [transaction costs](../../about-iota/tokenomics/gas-in-iota.mdx) make it economically viable to submit, evaluate, and rank all reviews directly on-chain.
 
 **Multisig Setup for Moderators**: The platform uses a multisig account to ensure that key actions like removing inappropriate reviews or approving reward distributions are authorized by multiple trusted moderators.
 
@@ -44,7 +44,7 @@ Reviewers are customers who utilize the platform to share their experiences. The
 
 Review readers use the platform to access feedback, helping them make informed decisions when choosing services. They contribute by voting on reviews, and these votes influence the algorithm that ranks the reviews. Authors of the highest-rated reviews are rewarded based on this ranking. Although not part of this guide, the system could be expanded to reward readers for participating by casting votes on reviews.
 
-### Moderators (Multisig)
+### Moderators
 
 Moderators operate within a multisignature setup, ensuring that significant actions, such as removing reviews or distributing rewards, require authorization from multiple parties. This approach enhances security and transparency, as decisions are made collectively, promoting accountability in the moderation process. Moderators review the content and have the authority to remove reviews containing inappropriate material.
 
@@ -56,7 +56,7 @@ Moderators work within a multisig environment, meaning key actions—such as rem
 
 To implement multisig for moderators, follow these steps:
 
-### Step 1: Create Keys for Each Moderator
+### 1. Create Keys for Each Moderator
 Each moderator needs a unique key. To generate these keys, use the following commands to create an IOTA address and corresponding key for each moderator:
 
 ```shell
@@ -64,14 +64,14 @@ iota client new-address ed25519
 iota client new-address secp256k1
 iota client new-address secp256r1
 ```
-### Step 2: Add Keys to IOTA Keystore
+### 2. Add Keys to IOTA Keystore
 
 ```shell
 iota keytool list
 ```
 This command will list the generated keys with their corresponding addresses and public keys.
 
-### Step 3: Create a Multisig Address
+### 3. Create a Multisig Address
 Create the multisig address by combining the public keys of all moderators and setting their weights and a threshold:
 
 ```shell
@@ -79,30 +79,30 @@ iota keytool multi-sig-address --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> <PUBLIC-KEY-3
 ```
 This command sets up a multisig address where at least two out of the three keys must sign to authorize a transaction.
 
-### Step 4: Moderator Multisig Transaction Workflow
+### 4. Moderator Multisig Transaction Workflow
 To remove a review, moderators must sign a transaction using the multisig setup. The transaction will require signatures from two out of the three moderators to be executed.
 
-### Step 5: Serialize a Transaction
+### 5. Serialize a Transaction
 Serialize the transaction to be signed by the multisig account:
 
 ```shell
 iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --serialize-unsigned-transaction
 ```
 
-### Step 6: Sign the Transaction
+### 6. Sign the Transaction
 Each moderator signs the serialized transaction:
 
 ```shell
 iota keytool sign --address <IOTA-ADDRESS> --data <TX_BYTES>
 ```
 
-### Step 7: Combine Signatures
+### 7. Combine Signatures
 Once two moderators have signed, combine their signatures into a single multisig signature:
 
 ```shell
 iota keytool multi-sig-combine-partial-sig --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> --weights 1 1 1 --threshold 2 --sigs <SIGNATURE-1> <SIGNATURE-2>
 ```
-### Step 8: Execute the Multisig Transaction
+### 8. Execute the Multisig Transaction
 Finally, execute the multisig transaction using the combined signatures:
 
 ```shell
@@ -147,7 +147,7 @@ A service may be registered to multiple dashboards at the same time. For example
 
 #### Code Explanation
 
-`create_dashboard` Function:
+##### `create_dashboard` Function:
 - **Purpose**: This function creates a new `Dashboard` for a specific service type.
 - **Parameters**:
     - **`service_type: String`**: A string representing the type of service the dashboard is created for.
@@ -156,7 +156,7 @@ A service may be registered to multiple dashboards at the same time. For example
     - A new `Dashboard` is created with an ID generated by `object::new(ctx)`, and the `service_type` is stored.
     - The `Dashboard` object is then shared with others using `transfer::share_object(db)`, making it accessible for further use.
 
-`register_service` Function:
+##### `register_service` Function:
 - **Purpose**: This function registers a service to an existing `Dashboard`.
 - **Parameters**:
     - **`db: &mut Dashboard`**: A mutable reference to the `Dashboard` to which the service is being registered.
@@ -199,11 +199,11 @@ After `total_score` is updated, the [`update_top_reviews`](#casting-votes) funct
 - **`total_score: u64`**: The overall calculated score of the review.
 - **`overall_rate: u8`**: The overall rating given in the review.
 
-`update_total_score` Function:
+##### `update_total_score` Function:
 
 - This function updates the `total_score` of the review by calling the `calculate_total_score` function.
 
-`calculate_total_score` Function:
+##### `calculate_total_score` Function:
 
 - This function calculates the `total_score` based on both intrinsic and extrinsic factors.
     - **`intrinsic_score`**: The score based on the length of the review (`len`). It is capped at 150.
@@ -225,7 +225,7 @@ The pool of `IOTA` tokens to be distributed to reviewers is stored in the `rewar
 
 ### Storage for Reviews
 
-Because anyone can submit a review for a service, `Service` is defined as a shared object. All the reviews are stored in the `reviews` field, which has [ObjectTable](../iota-101/move-overview/collections.mdx)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
+Because anyone can submit a review for a service, `Service` is defined as a [shared object](../iota-101/objects/shared-owned.mdx). All the reviews are stored in the `reviews` field, which has [ObjectTable](../iota-101/move-overview/collections.mdx)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
 In other words, anyone can go to a transaction explorer and find a review object by its object ID, but they won't be able to use a review as an input to a transaction by its object ID.
 
 
@@ -242,7 +242,7 @@ A reader can cast a vote on a review to rate it as follows:
 #### Code Explanation
 
 
-### `upvote` Function
+##### `upvote` Function
 
 The `upvote` function is responsible for recording an upvote for a specific review. It takes two key pieces of information: the review’s ID and a reference to the `Service` that contains all the reviews.
 
@@ -252,7 +252,7 @@ The `upvote` function is responsible for recording an upvote for a specific revi
 
 - **Reordering the Top Reviews**: After the score is updated, the `upvote` function calls another function, `service.reorder()`. This step ensures that the list of top reviews reflects the new score, potentially moving the upvoted review to a higher position or introducing it to the list if it wasn’t previously in the top reviews.
 
-### `reorder` Function
+##### `reorder` Function
 
 The `reorder` function takes care of updating the order of the `top_reviews` list when a review’s score changes. It works as follows:
 
@@ -262,7 +262,7 @@ The `reorder` function takes care of updating the order of the `top_reviews` lis
 
 - **Adding New Reviews to Top Reviews**: If the review isn’t currently in the `top_reviews`, it calls another function, `service.update_top_reviews()`, to determine if the review now qualifies to be part of the top reviews based on its new score.
 
-### `update_top_reviews` Function
+##### `update_top_reviews` Function
 
 This function ensures that the top reviews list is always up to date with the most highly rated reviews. It does the following:
 
@@ -272,7 +272,7 @@ This function ensures that the top reviews list is always up to date with the mo
 
 - **Ensuring Top Reviews Limit**: After inserting the review, it checks if the number of top reviews exceeds the allowed limit. If it does, the review with the lowest score is removed from the list.
 
-### `find_idx` Function
+##### `find_idx` Function
 
 The `find_idx` function determines where a review should be placed in the `top_reviews` list based on its total score. Here’s how it works:
 
@@ -280,7 +280,7 @@ The `find_idx` function determines where a review should be placed in the `top_r
 
 - **Finding the Right Spot**: The loop stops when it finds a review with a higher score, meaning the new review should be inserted right before it. This ensures that the list remains sorted in descending order of scores.
 
-### `prune_top_reviews` Function
+##### `prune_top_reviews` Function
 
 Finally, the `prune_top_reviews` function ensures that the `top_reviews` list never exceeds a certain number of entries (defined by `MAX_REVIEWERS_TO_REWARD`).
 
@@ -315,7 +315,7 @@ To learn more about the capabilities pattern, see [The Move Book](https://move-b
 
 Navigate to the [`publish.sh`](https://github.com/iotaledger/iota/blob/devx/tutorial-for-review-rating-with-multisig/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps for deployment of the contract. 
 
-### Step 1: Create the `.env` File
+### 1. Create the `.env` File
 You need to create a `.env` file that contains important environment variables required for the deployment. Here's an example of what the .env file should look like:
 
 ```shell
@@ -333,14 +333,14 @@ IOTA_FAUCET="iota-network-faucet-link-here"
 ```
 Replace `your-secret-mnemonic-phrase-here` with the secret phrase for the admin account that will be used to deploy the contracts. Also, update the `ADMIN_ADDRESS` with the corresponding account address.
 
-### Step 2: Running the publish.sh Script
+### 2.  Run the `publish.sh` Script
 The `publish.sh` script automates the process of deploying a Move contract to the IOTA Alphanet. Here’s how you can run it:
 
 ```shell
 sh publish.sh
 ```
 
-### Output
+### 3. Output
 On successful deployment below text will be returned.
 ```shell
 Contract Deployment finished!
