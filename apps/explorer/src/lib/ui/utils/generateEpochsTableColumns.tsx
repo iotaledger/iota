@@ -8,6 +8,8 @@ import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { CheckpointSequenceLink, EpochLink } from '~/components';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
+import { CoinFormat, formatBalance } from '@iota/core';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
 /**
  * Generate table columns renderers for the epochs data.
@@ -51,13 +53,21 @@ export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<Epo
                 const isCurrentEpoch = epochMetrics.epoch === currentEpoch;
                 const totalStakeRewardsDistributed =
                     epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
-                const displayedTotalStakeRewardsDistributed =
+                const totalStakeRewardsDistributedFormatted =
                     isCurrentEpoch || !totalStakeRewardsDistributed
                         ? '--'
-                        : totalStakeRewardsDistributed;
+                        : formatBalance(
+                              Number(totalStakeRewardsDistributed) / Number(NANOS_PER_IOTA),
+                              0,
+                              CoinFormat.ROUNDED,
+                          );
                 return (
                     <TableCellBase>
-                        <TableCellText>{displayedTotalStakeRewardsDistributed}</TableCellText>
+                        <TableCellText
+                            supportingLabel={totalStakeRewardsDistributed ? 'IOTA' : undefined}
+                        >
+                            {totalStakeRewardsDistributedFormatted ?? '0'}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },
@@ -83,11 +93,15 @@ export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<Epo
             accessorKey: 'endOfEpochInfo',
             cell: ({ getValue }) => {
                 const endOfEpochInfo = getValue<EpochMetrics['endOfEpochInfo']>();
-                const storageNetInflow =
-                    getEpochStorageFundFlow(endOfEpochInfo).netInflow?.toString() ?? '--';
+                const storageNetInflow = getEpochStorageFundFlow(endOfEpochInfo).netInflow;
+                const storageNetInflowFormatted = storageNetInflow
+                    ? formatBalance(storageNetInflow / NANOS_PER_IOTA, 0, CoinFormat.ROUNDED)
+                    : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText>{storageNetInflow}</TableCellText>
+                        <TableCellText supportingLabel={storageNetInflow ? 'IOTA' : undefined}>
+                            {storageNetInflowFormatted}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },

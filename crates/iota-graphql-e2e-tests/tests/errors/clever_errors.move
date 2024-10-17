@@ -117,7 +117,7 @@ module P0::m {
   }
 }
 
-//# upgrade --package P0 --upgrade-capability 1,1 --sender A
+//# upgrade --package P0 --upgrade-capability 1,0 --sender A
 // Upgrade the module with new error values but using the same constant names
 // (etc) to make sure we properly resolve the module location for clever
 // errors.
