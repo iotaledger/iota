@@ -130,11 +130,15 @@ export function ObjectFieldsCard({
                                     searchValue={query}
                                     onSearchValueChange={setQuery}
                                     placeholder="Search"
-                                    suggestions={filteredFieldNames.map((item) => ({
-                                        id: item.name,
-                                        type: item.name,
-                                        label: item.name,
-                                    }))}
+                                    suggestions={
+                                        query.length > 0
+                                            ? filteredFieldNames.map((item) => ({
+                                                  id: item.name,
+                                                  type: item.name,
+                                                  label: item.name,
+                                              }))
+                                            : []
+                                    }
                                     onSuggestionClick={(suggestion) => {
                                         setActiveFieldName(suggestion.id);
                                     }}
