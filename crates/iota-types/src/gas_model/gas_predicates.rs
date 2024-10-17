@@ -6,8 +6,6 @@
 // Predicates and utility functions based on gas versions.
 //
 
-use iota_protocol_config::ProtocolConfig;
-
 use crate::gas_model::{
     tables::{
         initial_cost_schedule_v1, initial_cost_schedule_v2, initial_cost_schedule_v3,
@@ -35,12 +33,6 @@ pub fn charge_input_as_memory(gas_model_version: u64) -> bool {
 /// If true, calculate value sizes using the legacy size calculation.
 pub fn use_legacy_abstract_size(gas_model_version: u64) -> bool {
     gas_model_version <= 7
-}
-
-// If true, use the value of txn_base_cost as a multiplier of transaction gas
-// price to determine the minimum cost of a transaction.
-pub fn txn_base_cost_as_multiplier(protocol_config: &ProtocolConfig) -> bool {
-    protocol_config.txn_base_cost_as_multiplier()
 }
 
 // If true, charge differently for package upgrades

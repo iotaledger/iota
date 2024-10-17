@@ -4,9 +4,7 @@ expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
 version: 1
 feature_flags:
-  commit_root_state_digest: true
   advance_epoch_start_time_in_safe_mode: true
-  loaded_child_objects_fixed: true
   consensus_order_end_of_epoch_last: true
   disable_invariant_violation_check_in_swap_loc: true
   advance_to_highest_supported_protocol_version: true
@@ -15,7 +13,6 @@ feature_flags:
   no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
   simplified_unwrap_then_delete: true
-  txn_base_cost_as_multiplier: true
   shared_object_deletion: true
   loaded_child_object_format: true
   end_of_epoch_transaction_supported: true
