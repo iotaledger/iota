@@ -36,9 +36,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [
-            self-hosted, # ubuntu-x86_64
-            macos-latest, # macos-arm64
-          ]
+          self-hosted, # ubuntu-x86_64
+          macos-latest, # macos-arm64
+        ]
     steps:
       # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
       - name: Set up SSH (MacOs only)
