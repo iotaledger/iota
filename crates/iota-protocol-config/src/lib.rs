@@ -1252,7 +1252,7 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        if let Some(override_fn) = &*CONFIG_OVERRIDE.write().unwrap() {
+        if let Some(override_fn) = &*CONFIG_OVERRIDE.read().unwrap() {
             warn!(
                 "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
             );
