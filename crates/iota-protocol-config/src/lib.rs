@@ -117,9 +117,6 @@ struct FeatureFlags {
     // consecutive protocol version.
     #[serde(skip_serializing_if = "is_false")]
     advance_to_highest_supported_protocol_version: bool,
-    // If true, disallow entry modifiers on entry functions
-    #[serde(skip_serializing_if = "is_false")]
-    ban_entry_init: bool,
     // If true, checks no extra bytes in a compiled module
     #[serde(skip_serializing_if = "is_false")]
     no_extraneous_module_bytes: bool,
@@ -1091,10 +1088,6 @@ impl ProtocolConfig {
             .advance_to_highest_supported_protocol_version
     }
 
-    pub fn ban_entry_init(&self) -> bool {
-        self.feature_flags.ban_entry_init
-    }
-
     pub fn no_extraneous_module_bytes(&self) -> bool {
         self.feature_flags.no_extraneous_module_bytes
     }
@@ -1863,11 +1856,6 @@ impl ProtocolConfig {
             cfg.feature_flags.accept_zklogin_in_multisig = false;
             cfg.feature_flags.verify_legacy_zklogin_address = true;
         }
-
-        // Following flags are implied by the execution version.
-        // Once support for earlier protocol versions is dropped, these flags can be
-        // removed:
-        cfg.feature_flags.ban_entry_init = true;
 
         // Enable consensus digest in consensus commit prologue on all networks..
         cfg.feature_flags.include_consensus_digest_in_prologue = true;

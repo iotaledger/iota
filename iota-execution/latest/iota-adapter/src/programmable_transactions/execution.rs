@@ -1042,8 +1042,8 @@ mod checked {
             ));
         };
 
-        // entry on init is now banned, so ban invoking it
-        if !from_init && function == INIT_FN_NAME && context.protocol_config.ban_entry_init() {
+        // entry on init is banned, so ban invoking it
+        if !from_init && function == INIT_FN_NAME {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 "Cannot call 'init'",
