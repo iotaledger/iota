@@ -48,16 +48,9 @@ jobs:
           images: docker-registry.iota.org/iota-node
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=alphanet-,group=1,enable=${{ contains(github.ref, 'alphanet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=devnet-,group=1,enable=${{ contains(github.ref, 'devnet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=testnet-,group=1,enable=${{ contains(github.ref, 'testnet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=mainnet-,group=1,enable=${{ contains(github.ref, 'mainnet-') && github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -106,16 +99,9 @@ jobs:
           images: docker-registry.iota.org/iota-indexer
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=alphanet-,group=1,enable=${{ contains(github.ref, 'alphanet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=devnet-,group=1,enable=${{ contains(github.ref, 'devnet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=testnet-,group=1,enable=${{ contains(github.ref, 'testnet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=mainnet-,group=1,enable=${{ contains(github.ref, 'mainnet-') && github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -164,16 +150,9 @@ jobs:
           images: docker-registry.iota.org/iota-tools
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=alphanet-,group=1,enable=${{ contains(github.ref, 'alphanet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=devnet-,group=1,enable=${{ contains(github.ref, 'devnet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=testnet-,group=1,enable=${{ contains(github.ref, 'testnet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=mainnet-,group=1,enable=${{ contains(github.ref, 'mainnet-') && github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -222,16 +201,9 @@ jobs:
           images: docker-registry.iota.org/iota-graphql-rpc
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=alphanet-,group=1,enable=${{ contains(github.ref, 'alphanet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=devnet-,group=1,enable=${{ contains(github.ref, 'devnet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=testnet-,group=1,enable=${{ contains(github.ref, 'testnet-') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+.\d+),prefix=mainnet-,group=1,enable=${{ contains(github.ref, 'mainnet-') && github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
