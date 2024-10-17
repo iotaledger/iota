@@ -318,6 +318,17 @@ h4 {
   }
 }
 @media screen and (max-width: 599px) {
+  .pagination-nav{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .pagination-nav__link{
+    width: 100%;
+  } 
+  .backgroundImage{
+    background-size: 125%
+  }
   h2,
   .h2 {
     font-size: 1.7rem;
