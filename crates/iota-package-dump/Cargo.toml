@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
-cynic.workspace = true
+cynic = { version = "3.7.3", features = ["http-reqwest"] }
 fastcrypto.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
@@ -19,4 +19,4 @@ serde_json.workspace = true
 tracing.workspace = true
 
 [build-dependencies]
-cynic-codegen.workspace = true
+cynic-codegen = "=3.7.3"

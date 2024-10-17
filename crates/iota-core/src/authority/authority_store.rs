@@ -8,7 +8,7 @@ use either::Either;
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
-use iota_config::node::AuthorityStorePruningConfig;
+use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
 use iota_macros::fail_point_arg;
 use iota_storage::mutex_table::{MutexGuard, MutexTable, RwLockGuard, RwLockTable};
 use iota_types::{
@@ -154,6 +154,7 @@ impl AuthorityStore {
         genesis: &Genesis,
         config: &NodeConfig,
         registry: &Registry,
+        migration_tx_data: Option<&MigrationTxData>,
     ) -> IotaResult<Arc<Self>> {
         let indirect_objects_threshold = config.indirect_objects_threshold;
         let enable_epoch_iota_conservation_check = config
@@ -194,6 +195,7 @@ impl AuthorityStore {
             indirect_objects_threshold,
             enable_epoch_iota_conservation_check,
             registry,
+            migration_tx_data,
         )
         .await?;
         this.update_epoch_flags_metrics(&[], epoch_start_configuration.flags());
@@ -247,6 +249,7 @@ impl AuthorityStore {
             indirect_objects_threshold,
             true,
             &Registry::new(),
+            None,
         )
         .await
     }
@@ -257,6 +260,7 @@ impl AuthorityStore {
         indirect_objects_threshold: usize,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
+        migration_tx_data: Option<&MigrationTxData>,
     ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
@@ -271,30 +275,31 @@ impl AuthorityStore {
         // Only initialize an empty database.
         if store
             .database_is_empty()
-            .expect("Database read should not fail at init.")
+            .expect("database read should not fail at init.")
         {
+            // Initialize with genesis data
+            // First insert genesis objects
             store
                 .bulk_insert_genesis_objects(genesis.objects())
-                .expect("Cannot bulk insert genesis objects");
+                .expect("cannot bulk insert genesis objects");
 
-            // insert txn and effects of genesis
+            // Then insert txn and effects of genesis
             let transaction = VerifiedTransaction::new_unchecked(genesis.transaction().clone());
-
             store
                 .perpetual_tables
                 .transactions
                 .insert(transaction.digest(), transaction.serializable_ref())
-                .unwrap();
-
+                .expect("cannot insert genesis transaction");
             store
                 .perpetual_tables
                 .effects
                 .insert(&genesis.effects().digest(), genesis.effects())
-                .unwrap();
-            // We don't insert the effects to executed_effects yet because the genesis tx
-            // hasn't but will be executed. This is important for fullnodes to
-            // be able to generate indexing data right now.
+                .expect("cannot insert genesis effects");
 
+            // In the previous step we don't insert the effects to executed_effects yet
+            // because the genesis tx hasn't but will be executed. This is
+            // important for fullnodes to be able to generate indexing data
+            // right now.
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
@@ -303,6 +308,56 @@ impl AuthorityStore {
                 .enumerate()
                 .map(|(i, e)| ((event_digests, i), e));
             store.perpetual_tables.events.multi_insert(events).unwrap();
+
+            // Initialize with migration data if genesis contained migration transactions
+            if let Some(migration_transactions) = migration_tx_data {
+                // This migration data was validated during the loading into the node (invoked
+                // by the caller of this function)
+                let txs_data = migration_transactions.txs_data();
+
+                // We iterate over the contents of the genesis checkpoint, that includes all
+                // migration transactions execution digest. Thus we cover all transactions that
+                // were considered during the creation of the genesis blob.
+                for (_, execution_digest) in genesis
+                    .checkpoint_contents()
+                    .enumerate_transactions(&genesis.checkpoint())
+                {
+                    let tx_digest = &execution_digest.transaction;
+                    // We can skip the genesis transaction and its data because above it was already
+                    // stored in the perpetual_tables.
+                    if tx_digest == genesis.transaction().digest() {
+                        continue;
+                    }
+                    // Now we can store in the perpetual_tables this migration transaction, together
+                    // with its effects, events and created objects.
+                    let Some((tx, effects, events)) = txs_data.get(tx_digest) else {
+                        panic!("tx digest not found in migrated objects blob");
+                    };
+                    let transaction = VerifiedTransaction::new_unchecked(tx.clone());
+                    let objects = migration_transactions
+                        .objects_by_tx_digest(*tx_digest)
+                        .expect("the migration data is corrupted");
+                    store
+                        .bulk_insert_genesis_objects(&objects)
+                        .expect("cannot bulk insert migrated objects");
+                    store
+                        .perpetual_tables
+                        .transactions
+                        .insert(transaction.digest(), transaction.serializable_ref())
+                        .expect("cannot insert migration transaction");
+                    store
+                        .perpetual_tables
+                        .effects
+                        .insert(&effects.digest(), effects)
+                        .expect("cannot insert migration effects");
+                    let events = events
+                        .data
+                        .iter()
+                        .enumerate()
+                        .map(|(i, e)| ((events.digest(), i), e));
+                    store.perpetual_tables.events.multi_insert(events).unwrap();
+                }
+            }
         }
 
         Ok(store)

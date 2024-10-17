@@ -15,7 +15,7 @@ interface OverlayProps {
     closeOverlay?: () => void;
     closeIcon?: ReactNode | null;
     setShowModal?: (showModal: boolean) => void;
-    background?: 'bg-iota-lightest';
+    background?: 'bg-neutral-100';
     titleCentered?: boolean;
     showBackButton?: boolean;
     onBack?: () => void;
