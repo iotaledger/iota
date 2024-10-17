@@ -627,22 +627,27 @@ impl KeyToolCommand {
                         CommandOutput::Import(key)
                     }
                     Err(_) => {
-                        info!("Importing mnemonics to keystore");
-                        let mut iota_address = keystore.import_from_mnemonic(
-                            &input_string,
-                            key_scheme,
-                            derivation_path,
-                            alias,
-                        )?;
-                        if iota_address.is_err() {
-                            if let Ok(seed) = Hex::decode(&input_string) {
-                                info!(
-                                    "Importing mnemonic to keystore failed, importing from seed now"
-                                );
-                                iota_address =
-                                    keystore.import_from_seed(&seed, key_scheme, derivation_path);
+                        let iota_address = match Hex::decode(&input_string.replace("0x", "")) {
+                            Ok(seed) => {
+                                info!("Importing seed to keystore");
+                                if seed.len() != 64 {
+                                    return Err(anyhow!(
+                                        "Invalid seed length: {}, only 64 byte seeds are supported",
+                                        seed.len()
+                                    ));
+                                }
+                                keystore.import_from_seed(&seed, key_scheme, derivation_path)?
+                            },
+                            Err(_) => {
+                                info!("Importing mnemonic to keystore");
+                                keystore.import_from_mnemonic(
+                                    &input_string,
+                                    key_scheme,
+                                    derivation_path,
+                                )?
                             }
-                        }
+                        };
+
                         let ikp = keystore.get_key(&iota_address)?;
                         let key = Key::from(ikp);
                         CommandOutput::Import(key)
