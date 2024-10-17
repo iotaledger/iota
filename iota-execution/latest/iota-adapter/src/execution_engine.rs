@@ -404,7 +404,6 @@ mod checked {
             gas_charger,
             tx_ctx,
             move_vm,
-            protocol_config.simple_conservation_checks(),
             enable_expensive_checks,
             &cost_summary,
             is_genesis_or_epoch_change_tx,
@@ -431,7 +430,6 @@ mod checked {
         gas_charger: &mut GasCharger,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
-        simple_conservation_checks: bool,
         enable_expensive_checks: bool,
         cost_summary: &GasCostSummary,
         is_genesis_or_epoch_change_tx: bool,
@@ -443,7 +441,7 @@ mod checked {
             // if the check fails
             let conservation_result = {
                 temporary_store
-                    .check_iota_conserved(simple_conservation_checks, cost_summary)
+                    .check_iota_conserved(cost_summary)
                     .and_then(|()| {
                         if enable_expensive_checks {
                             // ensure that this transaction did not create or destroy IOTA, try to
@@ -470,7 +468,7 @@ mod checked {
                 // check conservation once more more
                 if let Err(recovery_err) = {
                     temporary_store
-                        .check_iota_conserved(simple_conservation_checks, cost_summary)
+                        .check_iota_conserved(cost_summary)
                         .and_then(|()| {
                             if enable_expensive_checks {
                                 // ensure that this transaction did not create or destroy IOTA, try
