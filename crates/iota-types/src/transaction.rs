@@ -1375,12 +1375,6 @@ impl TransactionKind {
                 }
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                if !config.end_of_epoch_transaction_supported() {
-                    return Err(UserInputError::Unsupported(
-                        "EndOfEpochTransaction is not supported".to_string(),
-                    ));
-                }
-
                 for tx in txns {
                     tx.validity_check(config)?;
                 }
