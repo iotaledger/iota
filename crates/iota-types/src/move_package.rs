@@ -291,8 +291,7 @@ impl MovePackage {
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
         let runtime_id = ObjectID::from(*module.address());
-        let type_origin_table =
-            build_upgraded_type_origin_table(self, modules, storage_id, protocol_config)?;
+        let type_origin_table = build_upgraded_type_origin_table(self, modules, storage_id)?;
         let mut new_version = self.version();
         new_version.increment();
         Self::from_module_iter_with_type_origin_table(
@@ -740,7 +739,6 @@ fn build_upgraded_type_origin_table(
     predecessor: &MovePackage,
     modules: &[CompiledModule],
     storage_id: ObjectID,
-    protocol_config: &ProtocolConfig,
 ) -> Result<Vec<TypeOrigin>, ExecutionError> {
     let mut new_table = vec![];
     let mut existing_table = predecessor.type_origin_map();
@@ -777,17 +775,11 @@ fn build_upgraded_type_origin_table(
     }
 
     if !existing_table.is_empty() {
-        if protocol_config.missing_type_is_compatibility_error() {
-            Err(ExecutionError::from_kind(
-                ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                },
-            ))
-        } else {
-            Err(ExecutionError::invariant_violation(
-                "Package upgrade missing type from previous version.",
-            ))
-        }
+        Err(ExecutionError::from_kind(
+            ExecutionErrorKind::PackageUpgradeError {
+                upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+            },
+        ))
     } else {
         Ok(new_table)
     }

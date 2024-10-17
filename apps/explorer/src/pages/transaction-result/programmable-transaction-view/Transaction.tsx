@@ -70,10 +70,7 @@ export function Transaction({
 
     return (
         <ErrorBoundary>
-            <ArrayArgument
-                type={type}
-                data={type !== 'Publish' ? (data as (IotaArgument | IotaArgument[])[]) : undefined}
-            />
+            <ArrayArgument type={type} data={data as (IotaArgument | IotaArgument[])[]} />
         </ErrorBoundary>
     );
 }

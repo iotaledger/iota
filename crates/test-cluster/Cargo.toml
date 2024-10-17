@@ -14,6 +14,7 @@ anyhow.workspace = true
 bcs.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
+iota-genesis-builder.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
 rand.workspace = true
