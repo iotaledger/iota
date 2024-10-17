@@ -170,11 +170,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
 
-    // If true, consensus prologue transaction also includes the consensus output digest.
-    // It can be used to detect consensus output folk.
-    #[serde(skip_serializing_if = "is_false")]
-    include_consensus_digest_in_prologue: bool,
-
     // If true, use the hardened OTW check
     #[serde(skip_serializing_if = "is_false")]
     hardened_otw_check: bool,
@@ -1143,10 +1138,6 @@ impl ProtocolConfig {
         self.feature_flags.throughput_aware_consensus_submission
     }
 
-    pub fn include_consensus_digest_in_prologue(&self) -> bool {
-        self.feature_flags.include_consensus_digest_in_prologue
-    }
-
     pub fn record_consensus_determined_version_assignments_in_prologue(&self) -> bool {
         self.feature_flags
             .record_consensus_determined_version_assignments_in_prologue
@@ -1818,8 +1809,6 @@ impl ProtocolConfig {
             cfg.feature_flags.accept_zklogin_in_multisig = false;
         }
 
-        // Enable consensus digest in consensus commit prologue on all networks..
-        cfg.feature_flags.include_consensus_digest_in_prologue = true;
         // Enable Mysticeti on mainnet.
         cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
         // Use tonic networking for Mysticeti.

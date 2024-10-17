@@ -1359,14 +1359,8 @@ impl TransactionKind {
             // and no validity or limit checks are performed.
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologue(_) => (),
-            TransactionKind::ConsensusCommitPrologueV2(_) => {
-                if !config.include_consensus_digest_in_prologue() {
-                    return Err(UserInputError::Unsupported(
-                        "ConsensusCommitPrologueV2 is not supported".to_string(),
-                    ));
-                }
-            }
+            | TransactionKind::ConsensusCommitPrologue(_)
+            | TransactionKind::ConsensusCommitPrologueV2(_) => (),
             TransactionKind::ConsensusCommitPrologueV3(_) => {
                 if !config.record_consensus_determined_version_assignments_in_prologue() {
                     return Err(UserInputError::Unsupported(

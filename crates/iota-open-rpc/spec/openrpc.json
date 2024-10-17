@@ -1312,7 +1312,6 @@
                 "enable_vdf": true,
                 "fresh_vm_on_framework_upgrade": true,
                 "hardened_otw_check": true,
-                "include_consensus_digest_in_prologue": true,
                 "loaded_child_object_format": true,
                 "loaded_child_object_format_type": true,
                 "mysticeti_leader_scoring_and_schedule": true,

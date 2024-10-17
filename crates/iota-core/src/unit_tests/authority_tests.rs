@@ -4805,14 +4805,6 @@ async fn test_consensus_commit_prologue_generation() {
     let processed_consensus_transactions =
         send_batch_consensus_no_execution(&authority_state, &certificates, false).await;
 
-    // Consensus commit prologue V2 should be turned on everywhere.
-    assert!(
-        authority_state
-            .epoch_store_for_testing()
-            .protocol_config()
-            .include_consensus_digest_in_prologue()
-    );
-
     // Tests that new consensus commit prologue transaction is added to the batch,
     // and it is the first transaction.
     assert_eq!(processed_consensus_transactions.len(), 3);
