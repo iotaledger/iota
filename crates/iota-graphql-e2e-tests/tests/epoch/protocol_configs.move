@@ -21,7 +21,7 @@
 
 //# run-graphql
 {
-    protocolConfig(protocolVersion: 8) {
+    protocolConfig(protocolVersion: 1) {
         protocolVersion
         config(key: "max_move_identifier_len") {
             value

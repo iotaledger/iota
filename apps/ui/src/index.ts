@@ -6,5 +6,3 @@ export * from './Button';
 export * from './LoadingIndicator';
 export * from './IconButton';
 export * from './Placeholder';
-export * from './Toggle';
-export * from './Combobox';
