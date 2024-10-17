@@ -36,14 +36,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [
-          self-hosted, # ubuntu-x86_64
-          macos-latest, # macos-arm64
-        ]
+            self-hosted, # ubuntu-x86_64
+            macos-latest, # macos-arm64
+          ]
     steps:
       # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
       - name: Set up SSH (MacOs only)
         if: ${{ matrix.os == 'macos-latest' }}
-        uses: MrSquaare/ssh-setup-action@v3
+        uses: MrSquaare/ssh-setup-action@2d028b70b5e397cf8314c6eaea229a6c3e34977a # pin@v3
         with:
           host: github.com
           private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
