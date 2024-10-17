@@ -232,7 +232,7 @@ CongestedObjects:
 ConsensusCommitDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
-ConsensusCommitPrologueV3:
+ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
     - round: U64
@@ -1011,9 +1011,9 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: GenesisTransaction
     3:
-      ConsensusCommitPrologueV3:
+      ConsensusCommitPrologueV1:
         NEWTYPE:
-          TYPENAME: ConsensusCommitPrologueV3
+          TYPENAME: ConsensusCommitPrologueV1
     4:
       AuthenticatorStateUpdate:
         NEWTYPE:

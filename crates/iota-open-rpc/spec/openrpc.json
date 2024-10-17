@@ -11374,7 +11374,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "ConsensusCommitPrologueV3"
+                  "ConsensusCommitPrologueV1"
                 ]
               },
               "round": {

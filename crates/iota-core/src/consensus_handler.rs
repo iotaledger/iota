@@ -817,12 +817,12 @@ impl ConsensusCommitInfo {
         self.skip_consensus_commit_prologue_in_test
     }
 
-    fn consensus_commit_prologue_v3_transaction(
+    fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> VerifiedExecutableTransaction {
-        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
+        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
@@ -837,7 +837,7 @@ impl ConsensusCommitInfo {
         epoch: u64,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> VerifiedExecutableTransaction {
-        self.consensus_commit_prologue_v3_transaction(epoch, cancelled_txn_version_assignment)
+        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
     }
 }
 

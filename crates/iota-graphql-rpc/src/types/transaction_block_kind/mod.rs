@@ -53,7 +53,7 @@ impl TransactionBlockKind {
                 native: g,
                 checkpoint_viewed_at,
             }),
-            K::ConsensusCommitPrologueV3(ccp) => {
+            K::ConsensusCommitPrologueV1(ccp) => {
                 T::ConsensusCommitPrologue(ConsensusCommitPrologueTransaction {
                     native: ccp,
                     checkpoint_viewed_at,

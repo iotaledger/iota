@@ -412,7 +412,7 @@ pub enum IotaTransactionBlockKind {
     Genesis(IotaGenesisTransaction),
     /// A system transaction marking the start of a series of transactions
     /// scheduled as part of a checkpoint
-    ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3),
+    ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1),
     /// A series of transactions where the results of one transaction can be
     /// used in future transactions
     ProgrammableTransaction(IotaProgrammableTransactionBlock),
@@ -440,8 +440,8 @@ impl Display for IotaTransactionBlockKind {
             Self::Genesis(_) => {
                 writeln!(writer, "Transaction Kind: Genesis Transaction")?;
             }
-            Self::ConsensusCommitPrologueV3(p) => {
-                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V3")?;
+            Self::ConsensusCommitPrologueV1(p) => {
+                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V1")?;
                 writeln!(
                     writer,
                     "Epoch: {}, Round: {}, SubDagIndex: {:?}, Timestamp: {}, ConsensusCommitDigest: {}",
@@ -487,8 +487,8 @@ impl IotaTransactionBlockKind {
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
-            TransactionKind::ConsensusCommitPrologueV3(p) => {
-                Self::ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3 {
+            TransactionKind::ConsensusCommitPrologueV1(p) => {
+                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
                     sub_dag_index: p.sub_dag_index,
@@ -576,8 +576,8 @@ impl IotaTransactionBlockKind {
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
-            TransactionKind::ConsensusCommitPrologueV3(p) => {
-                Self::ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3 {
+            TransactionKind::ConsensusCommitPrologueV1(p) => {
+                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
                     sub_dag_index: p.sub_dag_index,
@@ -662,7 +662,7 @@ impl IotaTransactionBlockKind {
         match self {
             Self::ChangeEpoch(_) => "ChangeEpoch",
             Self::Genesis(_) => "Genesis",
-            Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
+            Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1591,7 +1591,7 @@ pub struct IotaGenesisTransaction {
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaConsensusCommitPrologueV3 {
+pub struct IotaConsensusCommitPrologueV1 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch: u64,

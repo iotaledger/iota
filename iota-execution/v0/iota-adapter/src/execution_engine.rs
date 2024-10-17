@@ -604,7 +604,7 @@ mod checked {
 
                 Ok(Mode::empty_results())
             }
-            TransactionKind::ConsensusCommitPrologueV3(prologue) => {
+            TransactionKind::ConsensusCommitPrologueV1(prologue) => {
                 setup_consensus_commit(
                     prologue.commit_timestamp_ms,
                     temporary_store,
@@ -614,7 +614,7 @@ mod checked {
                     protocol_config,
                     metrics,
                 )
-                .expect("ConsensusCommitPrologueV3 cannot fail");
+                .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
             }
             TransactionKind::ProgrammableTransaction(pt) => {

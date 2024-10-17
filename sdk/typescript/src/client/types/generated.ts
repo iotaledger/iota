@@ -1497,7 +1497,7 @@ export type IotaTransactionBlockKind =
           consensus_commit_digest: string;
           consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments;
           epoch: string;
-          kind: 'ConsensusCommitPrologueV3';
+          kind: 'ConsensusCommitPrologueV1';
           round: string;
           sub_dag_index?: string | null;
       } /** A series of transactions where the results of one transaction can be used in future transactions */

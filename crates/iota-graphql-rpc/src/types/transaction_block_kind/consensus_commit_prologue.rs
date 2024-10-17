@@ -4,13 +4,13 @@
 
 use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
-use iota_types::messages_consensus::ConsensusCommitPrologueV3 as NativeConsensusCommitPrologueTransactionV3;
+use iota_types::messages_consensus::ConsensusCommitPrologueV1 as NativeConsensusCommitPrologueTransactionV1;
 
 use crate::types::{date_time::DateTime, epoch::Epoch, uint53::UInt53};
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ConsensusCommitPrologueTransaction {
-    pub native: NativeConsensusCommitPrologueTransactionV3,
+    pub native: NativeConsensusCommitPrologueTransactionV1,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }

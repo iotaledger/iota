@@ -49,7 +49,7 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    messages_consensus::{ConsensusCommitPrologueV3, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -285,7 +285,7 @@ pub enum TransactionKind {
     /// is still used by EndOfEpochTransaction below).
     ChangeEpoch(ChangeEpoch),
     Genesis(GenesisTransaction),
-    ConsensusCommitPrologueV3(ConsensusCommitPrologueV3),
+    ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
     AuthenticatorStateUpdate(AuthenticatorStateUpdate),
 
     /// EndOfEpochTransaction replaces ChangeEpoch with a list of transactions
@@ -1170,7 +1170,7 @@ impl TransactionKind {
         match self {
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologueV3(_)
+            | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdate(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => true,
@@ -1219,7 +1219,7 @@ impl TransactionKind {
                 Either::Left(Either::Left(iter::once(SharedInputObject::IOTA_SYSTEM_OBJ)))
             }
 
-            Self::ConsensusCommitPrologueV3(_) => {
+            Self::ConsensusCommitPrologueV1(_) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
                     id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
@@ -1261,7 +1261,7 @@ impl TransactionKind {
         match &self {
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologueV3(_)
+            | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdate(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => vec![],
@@ -1286,7 +1286,7 @@ impl TransactionKind {
             Self::Genesis(_) => {
                 vec![]
             }
-            Self::ConsensusCommitPrologueV3(_) => {
+            Self::ConsensusCommitPrologueV1(_) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
@@ -1344,7 +1344,7 @@ impl TransactionKind {
             // and no validity or limit checks are performed.
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologueV3(_) => (),
+            | TransactionKind::ConsensusCommitPrologueV1(_) => (),
             TransactionKind::EndOfEpochTransaction(txns) => {
                 for tx in txns {
                     tx.validity_check(config)?;
@@ -1396,7 +1396,7 @@ impl TransactionKind {
         match self {
             Self::ChangeEpoch(_) => "ChangeEpoch",
             Self::Genesis(_) => "Genesis",
-            Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
+            Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1420,8 +1420,8 @@ impl Display for TransactionKind {
             Self::Genesis(_) => {
                 writeln!(writer, "Transaction Kind : Genesis")?;
             }
-            Self::ConsensusCommitPrologueV3(p) => {
-                writeln!(writer, "Transaction Kind : Consensus Commit Prologue V3")?;
+            Self::ConsensusCommitPrologueV1(p) => {
+                writeln!(writer, "Transaction Kind : Consensus Commit Prologue V1")?;
                 writeln!(writer, "Timestamp : {}", p.commit_timestamp_ms)?;
                 writeln!(writer, "Consensus Digest: {}", p.consensus_commit_digest)?;
                 writeln!(
@@ -2468,14 +2468,14 @@ impl VerifiedTransaction {
             .pipe(Self::new_system_transaction)
     }
 
-    pub fn new_consensus_commit_prologue_v3(
+    pub fn new_consensus_commit_prologue_v1(
         epoch: u64,
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> Self {
-        ConsensusCommitPrologueV3 {
+        ConsensusCommitPrologueV1 {
             epoch,
             round,
             // sub_dag_index is reserved for when we have multi commits per round.
@@ -2487,7 +2487,7 @@ impl VerifiedTransaction {
                     cancelled_txn_version_assignment,
                 ),
         }
-        .pipe(TransactionKind::ConsensusCommitPrologueV3)
+        .pipe(TransactionKind::ConsensusCommitPrologueV1)
         .pipe(Self::new_system_transaction)
     }
 

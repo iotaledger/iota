@@ -1089,8 +1089,8 @@ fn test_change_epoch_transaction() {
 }
 
 #[test]
-fn test_consensus_commit_prologue_v3_transaction() {
-    let tx = VerifiedTransaction::new_consensus_commit_prologue_v3(
+fn test_consensus_commit_prologue_v1_transaction() {
+    let tx = VerifiedTransaction::new_consensus_commit_prologue_v1(
         0,
         0,
         42,
