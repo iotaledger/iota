@@ -133,7 +133,7 @@ jobs:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
-    if: (!cancelled() && !failure() && !github.event.pull_request.draft) || ${{ IS_DEVELOP }}
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft) || ${{ env.IS_DEVELOP }}
     needs:
       - diff
       - dprint-format
