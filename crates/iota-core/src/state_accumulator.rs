@@ -177,15 +177,11 @@ where
     } else if protocol_config.simplified_unwrap_then_delete() {
         accumulate_effects_v2(store, effects)
     } else {
-        accumulate_effects_v1(store, effects, protocol_config)
+        accumulate_effects_v1(store, effects)
     }
 }
 
-fn accumulate_effects_v1<T, S>(
-    store: S,
-    effects: Vec<TransactionEffects>,
-    protocol_config: &ProtocolConfig,
-) -> Accumulator
+fn accumulate_effects_v1<T, S>(store: S, effects: Vec<TransactionEffects>) -> Accumulator
 where
     S: std::ops::Deref<Target = T>,
     T: AccumulatorStore + ?Sized,
@@ -296,11 +292,7 @@ where
                 .expect("read cannot fail");
 
             objref.map(|(id, version, digest)| {
-                assert!(
-                    !protocol_config.loaded_child_objects_fixed() || digest.is_wrapped(),
-                    "{:?}",
-                    id
-                );
+                assert!(digest.is_wrapped(), "{:?}", id);
                 WrappedObject::new(id, version)
             })
         })
