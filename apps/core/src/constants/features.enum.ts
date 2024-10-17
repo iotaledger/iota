@@ -17,4 +17,5 @@ export enum Feature {
     PollingTxnTable = 'polling-txn-table',
     NetworkOutageOverride = 'network-outage-override',
     ModuleSourceVerification = 'module-source-verification',
+    WalletEffectsOnlySharedTransaction = 'wallet-effects-only-shared-transaction',
 }
