@@ -14,16 +14,13 @@ interface PlaceholderProps {
     height?: string;
 }
 
-export function Placeholder({ width, height }: PlaceholderProps) {
-    const widthClass = width ? `${width}` : 'w-full';
-    const heightClass = height ? `${height}` : 'h-4';
-
+export function Placeholder({ width = 'w-full', height = 'h-4' }: PlaceholderProps) {
     return (
         <div
             className={cx(
                 'animate-pulse rounded-md bg-gradient-to-r from-shader-primary-light-8 bg-[length:1000px_100%] dark:from-shader-primary-dark-8',
-                widthClass,
-                heightClass,
+                width,
+                height,
             )}
         />
     );
