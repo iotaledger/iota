@@ -141,7 +141,7 @@ impl Default for IndexerConfig {
     fn default() -> Self {
         Self {
             db_url: Some(secrecy::Secret::new(
-                "postgres://postgres:postgres@localhost:5432/iota_indexer".to_string(),
+                "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string(),
             )),
             db_user_name: None,
             db_password: None,
