@@ -1297,7 +1297,6 @@
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": true,
-                "advance_epoch_start_time_in_safe_mode": true,
                 "advance_to_highest_supported_protocol_version": true,
                 "allow_receiving_object_id": true,
                 "authority_capabilities_v2": true,
@@ -1331,7 +1330,6 @@
                 "resolve_abort_locations_to_package_id": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "shared_object_deletion": true,
-                "simple_conservation_checks": true,
                 "simplified_unwrap_then_delete": true,
                 "soft_bundle": true,
                 "throughput_aware_consensus_submission": false,
