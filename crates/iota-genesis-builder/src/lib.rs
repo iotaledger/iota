@@ -62,6 +62,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
     stardust::stardust_to_iota_address,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
@@ -1418,8 +1419,8 @@ pub fn generate_genesis_system_object(
         // Create the randomness state_object
         builder.move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("random").to_owned(),
-            ident_str!("create").to_owned(),
+            RANDOMNESS_MODULE_NAME.to_owned(),
+            RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
             vec![],
             vec![],
         )?;

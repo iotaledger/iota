@@ -972,12 +972,6 @@ impl AuthorityPerEpochStore {
             .is_some()
     }
 
-    pub fn randomness_state_exists(&self) -> bool {
-        self.epoch_start_configuration
-            .randomness_obj_initial_shared_version()
-            .is_some()
-    }
-
     pub fn randomness_reporter(&self) -> Option<RandomnessReporter> {
         self.randomness_reporter.get().cloned()
     }
