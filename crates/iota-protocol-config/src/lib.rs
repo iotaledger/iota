@@ -110,17 +110,9 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
-    // If true, validators will commit to the root state digest
-    // in end of epoch checkpoint proposals
-    #[serde(skip_serializing_if = "is_false")]
-    commit_root_state_digest: bool,
     // Pass epoch start time to advance_epoch safe mode function.
     #[serde(skip_serializing_if = "is_false")]
     advance_epoch_start_time_in_safe_mode: bool,
-    // If true, apply the fix to correctly capturing loaded child object versions in execution's
-    // object runtime.
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_objects_fixed: bool,
     // If true, treat missing types in the upgraded modules when creating an upgraded package as a
     // compatibility error.
     #[serde(skip_serializing_if = "is_false")]
@@ -161,9 +153,6 @@ struct FeatureFlags {
     // regardless of their previous state in the store.
     #[serde(skip_serializing_if = "is_false")]
     simplified_unwrap_then_delete: bool,
-    // If true minimum txn charge is a multiplier of the gas price
-    #[serde(skip_serializing_if = "is_false")]
-    txn_base_cost_as_multiplier: bool,
 
     // If true, the ability to delete shared objects is in effect
     #[serde(skip_serializing_if = "is_false")]
@@ -1113,16 +1102,8 @@ impl ProtocolConfig {
         self.feature_flags.allow_receiving_object_id
     }
 
-    pub fn check_commit_root_state_digest_supported(&self) -> bool {
-        self.feature_flags.commit_root_state_digest
-    }
-
     pub fn get_advance_epoch_start_time_in_safe_mode(&self) -> bool {
         self.feature_flags.advance_epoch_start_time_in_safe_mode
-    }
-
-    pub fn loaded_child_objects_fixed(&self) -> bool {
-        self.feature_flags.loaded_child_objects_fixed
     }
 
     pub fn missing_type_is_compatibility_error(&self) -> bool {
@@ -1165,10 +1146,6 @@ impl ProtocolConfig {
 
     pub fn simplified_unwrap_then_delete(&self) -> bool {
         self.feature_flags.simplified_unwrap_then_delete
-    }
-
-    pub fn txn_base_cost_as_multiplier(&self) -> bool {
-        self.feature_flags.txn_base_cost_as_multiplier
     }
 
     pub fn shared_object_deletion(&self) -> bool {
@@ -1917,10 +1894,8 @@ impl ProtocolConfig {
         cfg.feature_flags.no_extraneous_module_bytes = true;
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
-        cfg.feature_flags.commit_root_state_digest = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.simplified_unwrap_then_delete = true;
-        cfg.feature_flags.txn_base_cost_as_multiplier = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
         cfg.feature_flags.simple_conservation_checks = true;
@@ -1953,7 +1928,6 @@ impl ProtocolConfig {
         // Following flags are implied by the execution version.
         // Once support for earlier protocol versions is dropped, these flags can be
         // removed:
-        cfg.feature_flags.loaded_child_objects_fixed = true;
         cfg.feature_flags.ban_entry_init = true;
 
         // Enable consensus digest in consensus commit prologue on all networks..
@@ -2118,9 +2092,6 @@ impl ProtocolConfig {
     pub fn set_advance_to_highest_supported_protocol_version_for_testing(&mut self, val: bool) {
         self.feature_flags
             .advance_to_highest_supported_protocol_version = val
-    }
-    pub fn set_commit_root_state_digest_supported_for_testing(&mut self, val: bool) {
-        self.feature_flags.commit_root_state_digest = val
     }
     pub fn set_zklogin_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.zklogin_auth = val
