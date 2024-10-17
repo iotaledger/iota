@@ -426,7 +426,7 @@ h4 {
 
 /** Globals **/
 .button{
-  text-wrap: pretty;
+  text-wrap: wrap;
   color: var(--iota-white);
   background: var(--iota-hero-dark);
 }
