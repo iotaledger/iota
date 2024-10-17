@@ -130,7 +130,7 @@ jobs:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
-    if: (!cancelled() && !failure() && !github.event.pull_request.draft) || ${{ github.ref_name == 'tooling-ci/run-ts-e2e-tests-on-develop' }}
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft) || github.ref_name == 'tooling-ci/run-ts-e2e-tests-on-develop'
     needs:
       - diff
       - dprint-format
