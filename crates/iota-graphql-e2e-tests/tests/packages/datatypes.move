@@ -68,7 +68,7 @@ module P0::m {
 
 //# create-checkpoint
 
-//# view-object 2,0
+//# view-object 2,1
 
 //# run-graphql
 # Get all datatypes in the module and print out their common fields
@@ -91,7 +91,7 @@ fragment Datatypes on Object {
    }
 }
 {
-    object(address: "@{obj_2_0}") {
+    object(address: "@{obj_2_1}") {
         ...Datatypes
     }
 }
@@ -138,7 +138,7 @@ fragment Datatypes on Object {
    }
 }
 {
-    object(address: "@{obj_2_0}") {
+    object(address: "@{obj_2_1}") {
         ...Datatypes
     }
 }
@@ -146,7 +146,7 @@ fragment Datatypes on Object {
 //# run-graphql
 # Get a specific datatype (that's an enum) and cast it to an enum.
 {
-    object(address: "@{obj_2_0}") {
+    object(address: "@{obj_2_1}") {
         asMovePackage {
             module(name: "m") {
                 datatype(name: "IsAnEnum") {
@@ -177,7 +177,7 @@ fragment Datatypes on Object {
 //# run-graphql
 # Get a specific datatype (that's a struct) and cast it to an enum (should be null).
 {
-    object(address: "@{obj_2_0}") {
+    object(address: "@{obj_2_1}") {
         asMovePackage {
             module(name: "m") {
                 datatype(name: "IsAStruct") {
