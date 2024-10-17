@@ -484,3 +484,23 @@ h4 {
 .text-gray {
   color: var(--iota-gray);
 }
+
+/* Ensure equations are scrollable on smaller screens */
+.katex-display {
+  overflow-x: scroll;
+  white-space: nowrap;
+}
+
+/* Reduce font size for mobile screens */
+@media screen and (max-width: 768px) {
+  .katex-display {
+    font-size: 0.9rem;
+    display: block;
+  }
+}
+
+/* Optional: Set a max-width for the math elements to prevent overflow */
+.katex-display {
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
