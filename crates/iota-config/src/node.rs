@@ -51,12 +51,18 @@ pub const DEFAULT_COMMISSION_RATE: u64 = 200;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct NodeConfig {
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign transactions.
     #[serde(default = "default_authority_key_pair")]
     pub authority_key_pair: AuthorityKeyPairWithPath,
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign consensus blocks.
     #[serde(default = "default_key_pair")]
     pub protocol_key_pair: KeyPairWithPath,
     #[serde(default = "default_key_pair")]
     pub account_key_pair: KeyPairWithPath,
+    /// The public key bytes corresponding to the private key that the validator
+    /// uses to establish TLS connections.
     #[serde(default = "default_key_pair")]
     pub network_key_pair: KeyPairWithPath,
     pub db_path: PathBuf,
