@@ -54,6 +54,7 @@ use iota_types::{
 use move_core_types::ident_str;
 use serde::Serialize;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
+use tabled::{builder::Builder, settings::Style};
 use tap::tap::TapOptional;
 use url::{ParseError, Url};
 
@@ -221,6 +222,9 @@ pub enum IotaValidatorCommand {
         #[clap(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
+    /// Get a list of the validators in the network. Use the `display-metadata`
+    /// command to see the complete data for a validator.
+    List,
 }
 
 #[derive(Serialize)]
@@ -247,6 +251,7 @@ pub enum IotaValidatorCommandResponse {
         execution_response: Option<IotaTransactionBlockResponse>,
         serialized_unsigned_transaction: Option<String>,
     },
+    List,
 }
 
 fn make_key_files(
@@ -677,6 +682,45 @@ impl IotaValidatorCommand {
                     }
                 }
             }
+            IotaValidatorCommand::List => {
+                let client = context.get_client().await?;
+
+                let active_validators = client
+                    .governance_api()
+                    .get_latest_iota_system_state()
+                    .await?
+                    .active_validators;
+
+                let mut builder = Builder::default();
+
+                builder.set_header([
+                    "iota address",
+                    "name",
+                    "staking pool balance",
+                    "pending stake",
+                ]);
+
+                for IotaValidatorSummary {
+                    iota_address,
+                    name,
+                    staking_pool_iota_balance,
+                    pending_stake,
+                    ..
+                } in active_validators
+                {
+                    builder.push_record([
+                        iota_address.to_string(),
+                        name,
+                        staking_pool_iota_balance.to_string(),
+                        pending_stake.to_string(),
+                    ]);
+                }
+
+                let table = builder.build().with(Style::rounded()).to_string();
+                println!("{table}");
+
+                IotaValidatorCommandResponse::List
+            }
         });
         ret
     }
@@ -955,6 +999,7 @@ impl Display for IotaValidatorCommandResponse {
                     )?;
                 }
             }
+            IotaValidatorCommandResponse::List => {}
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }

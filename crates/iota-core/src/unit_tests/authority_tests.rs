@@ -3038,6 +3038,9 @@ async fn test_invalid_mutable_clock_parameter() {
 }
 
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+// If "enable_jwk_consensus_updates" is set to false, the AuthorityState is
+// never created and therefore the test will fail.
 async fn test_invalid_authenticator_state_parameter() {
     // User transactions that take the singleton AuthenticatorState object at `0x7`
     // by mutable reference will fail to sign, to prevent transactions
