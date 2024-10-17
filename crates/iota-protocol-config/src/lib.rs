@@ -110,15 +110,6 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
-    // Pass epoch start time to advance_epoch safe mode function.
-    #[serde(skip_serializing_if = "is_false")]
-    advance_epoch_start_time_in_safe_mode: bool,
-
-    // DEPRECATED: this was an ephemeral feature flag only used by consensus handler, which has now
-    // been deployed everywhere.
-    #[serde(skip_serializing_if = "is_false")]
-    consensus_order_end_of_epoch_last: bool,
-
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
     #[serde(skip_serializing_if = "is_false")]
     disable_invariant_violation_check_in_swap_loc: bool,
@@ -126,9 +117,6 @@ struct FeatureFlags {
     // consecutive protocol version.
     #[serde(skip_serializing_if = "is_false")]
     advance_to_highest_supported_protocol_version: bool,
-    // If true, disallow entry modifiers on entry functions
-    #[serde(skip_serializing_if = "is_false")]
-    ban_entry_init: bool,
     // If true, checks no extra bytes in a compiled module
     #[serde(skip_serializing_if = "is_false")]
     no_extraneous_module_bytes: bool,
@@ -164,11 +152,6 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    // Perform simple conservation checks keeping into account out of gas scenarios
-    // while charging for storage.
-    #[serde(skip_serializing_if = "is_false")]
-    simple_conservation_checks: bool,
 
     // If true, use the new child object format type logging
     #[serde(skip_serializing_if = "is_false")]
@@ -1095,14 +1078,6 @@ impl ProtocolConfig {
         self.feature_flags.allow_receiving_object_id
     }
 
-    pub fn get_advance_epoch_start_time_in_safe_mode(&self) -> bool {
-        self.feature_flags.advance_epoch_start_time_in_safe_mode
-    }
-
-    pub fn consensus_order_end_of_epoch_last(&self) -> bool {
-        self.feature_flags.consensus_order_end_of_epoch_last
-    }
-
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
         self.feature_flags
             .disable_invariant_violation_check_in_swap_loc
@@ -1111,10 +1086,6 @@ impl ProtocolConfig {
     pub fn advance_to_highest_supported_protocol_version(&self) -> bool {
         self.feature_flags
             .advance_to_highest_supported_protocol_version
-    }
-
-    pub fn ban_entry_init(&self) -> bool {
-        self.feature_flags.ban_entry_init
     }
 
     pub fn no_extraneous_module_bytes(&self) -> bool {
@@ -1147,10 +1118,6 @@ impl ProtocolConfig {
 
     pub fn enable_jwk_consensus_updates(&self) -> bool {
         self.feature_flags.enable_jwk_consensus_updates
-    }
-
-    pub fn simple_conservation_checks(&self) -> bool {
-        self.feature_flags.simple_conservation_checks
     }
 
     pub fn loaded_child_object_format_type(&self) -> bool {
@@ -1856,8 +1823,6 @@ impl ProtocolConfig {
             // new_constant: None,
         };
 
-        cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
-        cfg.feature_flags.consensus_order_end_of_epoch_last = true;
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
         cfg.feature_flags.no_extraneous_module_bytes = true;
@@ -1867,7 +1832,6 @@ impl ProtocolConfig {
         cfg.feature_flags.simplified_unwrap_then_delete = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.simple_conservation_checks = true;
         cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
@@ -1892,11 +1856,6 @@ impl ProtocolConfig {
             cfg.feature_flags.accept_zklogin_in_multisig = false;
             cfg.feature_flags.verify_legacy_zklogin_address = true;
         }
-
-        // Following flags are implied by the execution version.
-        // Once support for earlier protocol versions is dropped, these flags can be
-        // removed:
-        cfg.feature_flags.ban_entry_init = true;
 
         // Enable consensus digest in consensus commit prologue on all networks..
         cfg.feature_flags.include_consensus_digest_in_prologue = true;
