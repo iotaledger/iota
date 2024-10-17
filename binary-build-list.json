@@ -1,0 +1,19 @@
+{
+    "release_binaries": [
+        "iota",
+        "iota-node",
+        "iota-tool",
+        "iota-faucet",
+        "iota-data-ingestion",
+        "iota-bridge",
+        "iota-bridge-cli",
+        "iota-graphql-rpc",
+        "move-analyzer"
+    ],
+    "internal_binaries": [
+        "stress",
+        "iota-metric-checker",
+        "iota-analytics-indexer",
+        "iotaop"
+	]
+}
