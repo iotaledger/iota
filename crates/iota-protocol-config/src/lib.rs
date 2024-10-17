@@ -1917,10 +1917,8 @@ impl ProtocolConfig {
         override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
     ) -> OverrideGuard {
         let mut option = CONFIG_OVERRIDE.write().unwrap();
-        let cur = &mut *option;
-        assert!(cur.is_none(), "config override already present");
-        *cur = Some(Box::new(override_fn));
-
+        assert!(option.is_none(), "config override already present");
+        *option = Some(Box::new(override_fn));
         OverrideGuard
     }
 }
