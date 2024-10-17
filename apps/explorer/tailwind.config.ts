@@ -11,7 +11,6 @@ export default {
     presets: [preset, uiKitResponsivePreset],
     content: [
         './src/**/*.{js,jsx,ts,tsx}',
-        './node_modules/@iota/ui/src/**/*.{js,jsx,ts,tsx}',
         './node_modules/@iota/apps-ui-kit/dist/**/*.js',
     ],
     theme: {
