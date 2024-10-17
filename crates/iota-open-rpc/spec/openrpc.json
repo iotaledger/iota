@@ -1328,10 +1328,8 @@
                 "resolve_abort_locations_to_package_id": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "shared_object_deletion": true,
-                "simplified_unwrap_then_delete": true,
                 "soft_bundle": true,
                 "throughput_aware_consensus_submission": false,
-                "verify_legacy_zklogin_address": true,
                 "zklogin_auth": false
               },
               "attributes": {
