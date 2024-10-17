@@ -17,4 +17,7 @@ mod move_utils;
 mod read_api;
 
 #[cfg(feature = "shared_test_runtime")]
+mod coin_api;
+
+#[cfg(feature = "shared_test_runtime")]
 mod write_api;
