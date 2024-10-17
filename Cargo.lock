@@ -6396,7 +6396,6 @@ dependencies = [
  "iota-protocol-config",
  "iota-rest-api",
  "iota-sdk 0.2.0",
- "iota-sdk 1.1.5",
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
