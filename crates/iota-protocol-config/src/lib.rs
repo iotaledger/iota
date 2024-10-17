@@ -4,9 +4,11 @@
 
 use std::{
     collections::BTreeSet,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
-use std::sync::RwLock;
 use clap::*;
 use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
 use move_vm_config::verifier::{MeterConfig, VerifierConfig};
@@ -1251,8 +1253,8 @@ impl ProtocolConfig {
 
         if let Some(override_fn) = &*CONFIG_OVERRIDE.write().unwrap() {
             warn!(
-                    "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
-                );
+                "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
+            );
             override_fn(version, ret)
         } else {
             ret
@@ -1998,7 +2000,7 @@ impl ProtocolConfig {
 
 type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
 
-    static CONFIG_OVERRIDE: RwLock<Option<Box<OverrideFn>>> = RwLock::new(None);
+static CONFIG_OVERRIDE: RwLock<Option<Box<OverrideFn>>> = RwLock::new(None);
 
 #[must_use]
 pub struct OverrideGuard;
