@@ -1092,11 +1092,7 @@ impl CheckpointBuilder {
 
         let _scope = monitored_scope("CheckpointBuilder");
 
-        let consensus_commit_prologue = if self
-            .epoch_store
-            .protocol_config()
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints()
-        {
+        let consensus_commit_prologue = {
             // If the roots contains consensus commit prologue transaction, we want to
             // extract it, and put it to the front of the checkpoint.
 
@@ -1119,8 +1115,6 @@ impl CheckpointBuilder {
                 assert_eq!(unsorted_ccp[0].transaction_digest(), ccp_digest);
             }
             consensus_commit_prologue
-        } else {
-            None
         };
 
         let unsorted =
@@ -1152,8 +1146,6 @@ impl CheckpointBuilder {
 
     // This function is used to extract the consensus commit prologue digest and
     // effects from the root transactions.
-    // This function can only be used when
-    // prepend_prologue_tx_in_consensus_commit_in_checkpoints is enabled.
     // The consensus commit prologue is expected to be the first transaction in the
     // roots.
     async fn extract_consensus_commit_prologue(
@@ -1168,8 +1160,7 @@ impl CheckpointBuilder {
 
         // Reads the first transaction in the roots, and checks whether it is a
         // consensus commit prologue transaction.
-        // When prepend_prologue_tx_in_consensus_commit_in_checkpoints is enabled, the
-        // consensus commit prologue transaction should be the first transaction
+        // The consensus commit prologue transaction should be the first transaction
         // in the roots written by the consensus handler.
         let first_tx = self
             .state
@@ -1712,14 +1703,6 @@ impl CheckpointBuilder {
         root_digests: &[TransactionDigest],
         sorted: &[TransactionEffects],
     ) {
-        if !self
-            .epoch_store
-            .protocol_config()
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints()
-        {
-            return;
-        }
-
         // Gets all the consensus commit prologue transactions from the roots.
         let root_txs = self
             .state
