@@ -62,7 +62,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
+    randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME},
     stardust::stardust_to_iota_address,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,

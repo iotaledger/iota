@@ -46,12 +46,6 @@ Response: {
             "transactions": {
               "edges": [
                 {
-                  "cursor": "eyJpIjowLCJjIjoyfQ",
-                  "node": {
-                    "__typename": "RandomnessStateCreateTransaction"
-                  }
-                },
-                {
                   "cursor": "eyJpIjoxLCJjIjoyfQ",
                   "node": {
                     "__typename": "ChangeEpochTransaction"

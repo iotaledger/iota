@@ -7669,7 +7669,6 @@
             "type": "string",
             "enum": [
               "AuthenticatorStateCreate",
-              "RandomnessStateCreate",
               "CoinDenyListStateCreate"
             ]
           },

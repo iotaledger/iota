@@ -309,7 +309,6 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
-    RandomnessStateCreate,
     DenyListStateCreate,
     BridgeStateCreate(ChainIdentifier),
     BridgeCommitteeInit(SequenceNumber),
@@ -352,10 +351,6 @@ impl EndOfEpochTransactionKind {
         Self::AuthenticatorStateCreate
     }
 
-    pub fn new_randomness_state_create() -> Self {
-        Self::RandomnessStateCreate
-    }
-
     pub fn new_deny_list_state_create() -> Self {
         Self::DenyListStateCreate
     }
@@ -385,7 +380,6 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::RandomnessStateCreate => vec![],
             Self::DenyListStateCreate => vec![],
             Self::BridgeStateCreate(_) => vec![],
             Self::BridgeCommitteeInit(bridge_version) => vec![
@@ -417,7 +411,6 @@ impl EndOfEpochTransactionKind {
                 .into_iter(),
             ),
             Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
-            Self::RandomnessStateCreate => Either::Right(iter::empty()),
             Self::DenyListStateCreate => Either::Right(iter::empty()),
             Self::BridgeStateCreate(_) => Either::Right(iter::empty()),
             Self::BridgeCommitteeInit(bridge_version) => Either::Left(
@@ -444,7 +437,6 @@ impl EndOfEpochTransactionKind {
                     ));
                 }
             }
-            Self::RandomnessStateCreate => (),
             Self::DenyListStateCreate => {
                 if !config.enable_coin_deny_list_v1() {
                     return Err(UserInputError::Unsupported(

@@ -570,9 +570,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::RandomnessStateCreate => {
-                                IotaEndOfEpochTransactionKind::RandomnessStateCreate
-                            }
                             EndOfEpochTransactionKind::DenyListStateCreate => {
                                 IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
                             }
@@ -677,9 +674,6 @@ impl IotaTransactionBlockKind {
                                         min_epoch: expire.min_epoch,
                                     },
                                 )
-                            }
-                            EndOfEpochTransactionKind::RandomnessStateCreate => {
-                                IotaEndOfEpochTransactionKind::RandomnessStateCreate
                             }
                             EndOfEpochTransactionKind::DenyListStateCreate => {
                                 IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
@@ -1725,7 +1719,6 @@ pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
-    RandomnessStateCreate,
     CoinDenyListStateCreate,
     BridgeStateCreate(CheckpointDigest),
     BridgeCommitteeUpdate(SequenceNumber),
