@@ -14,10 +14,8 @@ import {
     type ReactNode,
     type RefObject,
 } from 'react';
-
 import { useOnClickOutside } from './hooks/useOnClickOutside';
 import { LoadingIndicator } from './LoadingIndicator';
-import { Text } from './Text';
 
 export type ComboboxItem = {
     value: string;
@@ -106,10 +104,10 @@ export function ComboboxList<T extends ComboboxItem = ComboboxItem>({
         >
             {showResultsCount && !isLoading && options.length > 0 && (
                 <Command.Item className="text-left ml-1.5 pb-2" disabled>
-                    <Text variant="caption/semibold" color="gray-75" uppercase>
+                    <span>
                         {options.length}
                         {options.length === 1 ? ' Result' : ' Results'}
-                    </Text>
+                    </span>
                 </Command.Item>
             )}
 
@@ -134,9 +132,7 @@ export function ComboboxList<T extends ComboboxItem = ComboboxItem>({
                 ))
             ) : (
                 <Command.Item className="flex items-center justify-center" disabled>
-                    <Text variant="body/medium" color="steel-darker" italic>
-                        No Results
-                    </Text>
+                    <span>No Results</span>
                 </Command.Item>
             )}
         </Command.List>

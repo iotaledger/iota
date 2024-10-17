@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text, Toggle } from '@iota/ui';
+import { Toggle } from '@iota/ui';
 import * as RadixDropdownMenu from '@radix-ui/react-dropdown-menu';
 import { type ReactNode } from 'react';
 
@@ -50,7 +50,7 @@ export function DropdownMenuCheckboxItem({
         <RadixDropdownMenu.CheckboxItem {...radixRootProps} asChild>
             <div className="flex cursor-pointer select-none items-center gap-4 rounded-md p-2 text-steel-dark outline-none transition-colors data-[highlighted]:bg-iota-light/50 data-[highlighted]:text-steel-darker">
                 <div className="flex-1">
-                    <Text variant="body/medium">Show System Transactions</Text>
+                    <span className="text-body-md">Show System Transactions</span>
                 </div>
                 <Toggle
                     onClick={(e) => {

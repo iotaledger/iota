@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text, IconButton } from '@iota/ui';
+import { IconButton } from '@iota/ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
 import { Close, Info } from '@iota/ui-icons';
@@ -117,7 +117,7 @@ export function Banner({
         >
             {icon && <div className="flex items-center justify-center">{icon}</div>}
             <div className="flex flex-col gap-1">
-                {title && <Text variant="bodySmall/semibold">{title}</Text>}
+                {title && <span className="text-body-md">{title}</span>}
                 <div className="overflow-hidden break-words break-all">{children}</div>
             </div>
             {onDismiss ? (

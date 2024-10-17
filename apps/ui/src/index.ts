@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './Button';
-export * from './Text';
 export * from './LoadingIndicator';
 export * from './IconButton';
 export * from './Placeholder';
