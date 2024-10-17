@@ -9,7 +9,7 @@ use iota_json_rpc_types::{
     ObjectValueKind,
 };
 use iota_macros::sim_test;
-use iota_types::{base_types::ObjectID, IOTA_FRAMEWORK_ADDRESS};
+use iota_types::{IOTA_FRAMEWORK_ADDRESS, base_types::ObjectID};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -98,9 +98,10 @@ async fn get_normalized_move_modules_by_package_wrong_package() -> Result<(), an
         .get_normalized_move_modules_by_package(wrong_package_address)
         .await;
 
-    assert!(response.is_err_and(|e| e
-        .to_string()
-        .contains("Package object does not exist with ID")));
+    assert!(response.is_err_and(|e| {
+        e.to_string()
+            .contains("Package object does not exist with ID")
+    }));
 
     Ok(())
 }
@@ -235,10 +236,10 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
         .await?;
 
     assert_eq!(move_struct.abilities.abilities.len(), 2);
-    assert!(matches!(
-        move_struct.abilities.abilities[..],
-        [IotaMoveAbility::Store, IotaMoveAbility::Key]
-    ));
+    assert!(matches!(move_struct.abilities.abilities[..], [
+        IotaMoveAbility::Store,
+        IotaMoveAbility::Key
+    ]));
 
     assert_eq!(move_struct.type_parameters.len(), 1);
     let type_parameter = &move_struct.type_parameters[0];
@@ -307,9 +308,10 @@ async fn get_normalized_move_struct_wrong_struct_name() -> Result<(), anyhow::Er
         )
         .await;
 
-    assert!(response.is_err_and(|e| e
-        .to_string()
-        .contains("No struct was found with struct name")));
+    assert!(response.is_err_and(|e| {
+        e.to_string()
+            .contains("No struct was found with struct name")
+    }));
 
     Ok(())
 }
@@ -435,9 +437,10 @@ async fn get_normalized_move_function_wrong_function_name() -> Result<(), anyhow
         )
         .await;
 
-    assert!(response.is_err_and(|e| e
-        .to_string()
-        .contains("No function was found with function name")));
+    assert!(response.is_err_and(|e| {
+        e.to_string()
+            .contains("No function was found with function name")
+    }));
 
     Ok(())
 }
