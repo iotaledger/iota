@@ -44,7 +44,6 @@ async fn basic_checkpoints_integration_test() {
     panic!("Did not include transaction in checkpoint in 60 seconds");
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/3359"]
 #[sim_test]
 async fn test_checkpoint_split_brain() {
     #[cfg(msim)]
