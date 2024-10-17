@@ -531,15 +531,9 @@ impl CallArg {
                 );
             }
             CallArg::Object(o) => match o {
-                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::SharedObject { .. } => (),
-                ObjectArg::Receiving(_) => {
-                    if !config.receiving_objects_supported() {
-                        return Err(UserInputError::Unsupported(format!(
-                            "receiving objects is not supported at {:?}",
-                            config.version
-                        )));
-                    }
-                }
+                ObjectArg::Receiving(_)
+                | ObjectArg::ImmOrOwnedObject(_)
+                | ObjectArg::SharedObject { .. } => (),
             },
         }
         Ok(())
@@ -1381,12 +1375,6 @@ impl TransactionKind {
                 }
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                if !config.end_of_epoch_transaction_supported() {
-                    return Err(UserInputError::Unsupported(
-                        "EndOfEpochTransaction is not supported".to_string(),
-                    ));
-                }
-
                 for tx in txns {
                     tx.validity_check(config)?;
                 }
@@ -2313,15 +2301,6 @@ impl SenderSignedData {
     fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
         for sig in &self.inner().tx_signatures {
             match sig {
-                GenericSignature::MultiSig(_) => {
-                    if !config.supports_upgraded_multisig() {
-                        return Err(IotaError::UserInput {
-                            error: UserInputError::Unsupported(
-                                "upgraded multisig format not enabled on this network".to_string(),
-                            ),
-                        });
-                    }
-                }
                 GenericSignature::ZkLoginAuthenticator(_) => {
                     if !config.zklogin_auth() {
                         return Err(IotaError::UserInput {
@@ -2340,7 +2319,9 @@ impl SenderSignedData {
                         });
                     }
                 }
-                GenericSignature::Signature(_) | GenericSignature::MultiSigLegacy(_) => (),
+                GenericSignature::Signature(_)
+                | GenericSignature::MultiSig(_)
+                | GenericSignature::MultiSigLegacy(_) => (),
             }
         }
 
