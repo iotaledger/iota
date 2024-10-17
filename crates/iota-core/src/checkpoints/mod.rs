@@ -1169,9 +1169,7 @@ impl CheckpointBuilder {
             .expect("Transaction block must exist");
 
         Ok(match first_tx.transaction_data().kind() {
-            TransactionKind::ConsensusCommitPrologue(_)
-            | TransactionKind::ConsensusCommitPrologueV2(_)
-            | TransactionKind::ConsensusCommitPrologueV3(_) => {
+            TransactionKind::ConsensusCommitPrologueV3(_) => {
                 assert_eq!(first_tx.digest(), root_effects[0].transaction_digest());
                 Some((*first_tx.digest(), root_effects[0].clone()))
             }
@@ -1377,9 +1375,7 @@ impl CheckpointBuilder {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {:?}", effects));
                 match transaction.inner().transaction_data().kind() {
-                    TransactionKind::ConsensusCommitPrologue(_)
-                    | TransactionKind::ConsensusCommitPrologueV2(_)
-                    | TransactionKind::ConsensusCommitPrologueV3(_)
+                    TransactionKind::ConsensusCommitPrologueV3(_)
                     | TransactionKind::AuthenticatorStateUpdate(_) => {
                         // ConsensusCommitPrologue and AuthenticatorStateUpdate
                         // are guaranteed to be
@@ -1715,9 +1711,7 @@ impl CheckpointBuilder {
                 if let Some(tx) = tx {
                     if matches!(
                         tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
+                        TransactionKind::ConsensusCommitPrologueV3(_)
                     ) {
                         Some(tx)
                     } else {
@@ -1753,9 +1747,7 @@ impl CheckpointBuilder {
                 if let Some(tx) = tx {
                     assert!(!matches!(
                         tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
+                        TransactionKind::ConsensusCommitPrologueV3(_)
                     ));
                 }
             }
@@ -1764,9 +1756,7 @@ impl CheckpointBuilder {
             // checkpoint.
             assert!(matches!(
                 txs[0].as_ref().unwrap().transaction_data().kind(),
-                TransactionKind::ConsensusCommitPrologue(_)
-                    | TransactionKind::ConsensusCommitPrologueV2(_)
-                    | TransactionKind::ConsensusCommitPrologueV3(_)
+                TransactionKind::ConsensusCommitPrologueV3(_)
             ));
 
             assert_eq!(ccps[0].digest(), txs[0].as_ref().unwrap().digest());
@@ -1775,9 +1765,7 @@ impl CheckpointBuilder {
                 if let Some(tx) = tx {
                     assert!(!matches!(
                         tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
+                        TransactionKind::ConsensusCommitPrologueV3(_)
                     ));
                 }
             }

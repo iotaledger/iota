@@ -1089,59 +1089,6 @@ fn test_change_epoch_transaction() {
 }
 
 #[test]
-fn test_consensus_commit_prologue_transaction() {
-    let tx = VerifiedTransaction::new_consensus_commit_prologue(0, 0, 42);
-    assert!(tx.contains_shared_object());
-    assert_eq!(
-        tx.shared_input_objects().next().unwrap(),
-        SharedInputObject {
-            id: IOTA_CLOCK_OBJECT_ID,
-            initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-            mutable: true,
-        },
-    );
-    assert!(tx.is_system_tx());
-    assert_eq!(
-        tx.data()
-            .intent_message()
-            .value
-            .input_objects()
-            .unwrap()
-            .len(),
-        1
-    );
-}
-
-#[test]
-fn test_consensus_commit_prologue_v2_transaction() {
-    let tx = VerifiedTransaction::new_consensus_commit_prologue_v2(
-        0,
-        0,
-        42,
-        ConsensusCommitDigest::default(),
-    );
-    assert!(tx.contains_shared_object());
-    assert_eq!(
-        tx.shared_input_objects().next().unwrap(),
-        SharedInputObject {
-            id: IOTA_CLOCK_OBJECT_ID,
-            initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-            mutable: true,
-        },
-    );
-    assert!(tx.is_system_tx());
-    assert_eq!(
-        tx.data()
-            .intent_message()
-            .value
-            .input_objects()
-            .unwrap()
-            .len(),
-        1
-    );
-}
-
-#[test]
 fn test_consensus_commit_prologue_v3_transaction() {
     let tx = VerifiedTransaction::new_consensus_commit_prologue_v3(
         0,

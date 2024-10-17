@@ -11352,6 +11352,8 @@
             "type": "object",
             "required": [
               "commit_timestamp_ms",
+              "consensus_commit_digest",
+              "consensus_determined_version_assignments",
               "epoch",
               "kind",
               "round"
@@ -11360,17 +11362,34 @@
               "commit_timestamp_ms": {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
               },
+              "consensus_commit_digest": {
+                "$ref": "#/components/schemas/ConsensusCommitDigest"
+              },
+              "consensus_determined_version_assignments": {
+                "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
+              },
               "epoch": {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
               },
               "kind": {
                 "type": "string",
                 "enum": [
-                  "ConsensusCommitPrologue"
+                  "ConsensusCommitPrologueV3"
                 ]
               },
               "round": {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              "sub_dag_index": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BigInt_for_uint64"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           },
@@ -11486,81 +11505,6 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "commit_timestamp_ms",
-              "consensus_commit_digest",
-              "epoch",
-              "kind",
-              "round"
-            ],
-            "properties": {
-              "commit_timestamp_ms": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "consensus_commit_digest": {
-                "$ref": "#/components/schemas/ConsensusCommitDigest"
-              },
-              "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "ConsensusCommitPrologueV2"
-                ]
-              },
-              "round": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "commit_timestamp_ms",
-              "consensus_commit_digest",
-              "consensus_determined_version_assignments",
-              "epoch",
-              "kind",
-              "round"
-            ],
-            "properties": {
-              "commit_timestamp_ms": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "consensus_commit_digest": {
-                "$ref": "#/components/schemas/ConsensusCommitDigest"
-              },
-              "consensus_determined_version_assignments": {
-                "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
-              },
-              "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "ConsensusCommitPrologueV3"
-                ]
-              },
-              "round": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "sub_dag_index": {
-                "default": null,
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/BigInt_for_uint64"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
               }
             }
           }

@@ -426,9 +426,7 @@ impl From<&IotaTransactionBlockKind> for OperationType {
         match tx {
             IotaTransactionBlockKind::ChangeEpoch(_) => OperationType::EpochChange,
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
-            IotaTransactionBlockKind::ConsensusCommitPrologue(_)
-            | IotaTransactionBlockKind::ConsensusCommitPrologueV2(_)
-            | IotaTransactionBlockKind::ConsensusCommitPrologueV3(_) => {
+            IotaTransactionBlockKind::ConsensusCommitPrologueV3(_) => {
                 OperationType::ConsensusCommitPrologue
             }
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {

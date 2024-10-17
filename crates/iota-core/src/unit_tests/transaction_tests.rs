@@ -60,10 +60,7 @@ macro_rules! assert_matches {
 
 use fastcrypto::traits::AggregateAuthenticator;
 use iota_types::{
-    digests::ConsensusCommitDigest,
-    messages_consensus::{
-        ConsensusCommitPrologue, ConsensusCommitPrologueV2, ConsensusCommitPrologueV3,
-    },
+    digests::ConsensusCommitDigest, messages_consensus::ConsensusCommitPrologueV3,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 
@@ -210,31 +207,6 @@ async fn test_user_sends_genesis_transaction() {
         objects: vec![],
         events: vec![],
     }))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_consensus_commit_prologue() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologue(
-        ConsensusCommitPrologue {
-            epoch: 0,
-            round: 0,
-            commit_timestamp_ms: 42,
-        },
-    ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_consensus_commit_prologue_v2() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV2(
-        ConsensusCommitPrologueV2 {
-            epoch: 0,
-            round: 0,
-            commit_timestamp_ms: 42,
-            consensus_commit_digest: ConsensusCommitDigest::default(),
-        },
-    ))
     .await;
 }
 

@@ -2987,7 +2987,6 @@ impl AuthorityPerEpochStore {
 
         let transaction = consensus_commit_info.create_consensus_commit_prologue_transaction(
             self.epoch(),
-            self.protocol_config(),
             version_assignment,
         );
         let consensus_commit_prologue_root = match self
