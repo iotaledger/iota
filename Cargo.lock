@@ -7475,6 +7475,7 @@ dependencies = [
  "fastcrypto",
  "iota-network-stack",
  "iota-protocol-config",
+ "iota-rust-sdk",
  "iota-types",
  "itertools 0.13.0",
  "mime",
@@ -7487,7 +7488,6 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
- "sui-sdk",
  "tap",
  "thiserror",
  "tokio",
@@ -7559,6 +7559,26 @@ dependencies = [
  "telemetry-subscribers",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "iota-rust-sdk"
+version = "0.0.0"
+source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=be2b0fc40ae2be0ea6d33700d32435383b94b76b#be2b0fc40ae2be0ea6d33700d32435383b94b76b"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "blake2",
+ "bnum",
+ "bs58 0.5.1",
+ "hex",
+ "roaring",
+ "schemars",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_with",
+ "winnow 0.6.20",
 ]
 
 [[package]]
@@ -8115,6 +8135,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
+ "iota-rust-sdk",
  "iota-sdk 1.1.5",
  "itertools 0.13.0",
  "lru 0.12.4",
@@ -8155,7 +8176,6 @@ dependencies = [
  "static_assertions",
  "strum 0.26.3",
  "strum_macros 0.26.4",
- "sui-sdk",
  "tap",
  "thiserror",
  "tokio",
@@ -14198,26 +14218,6 @@ name = "subtle-ng"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
-
-[[package]]
-name = "sui-sdk"
-version = "0.0.0"
-source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=bd233b6879b917fb95e17f21927c198e7a60c924#bd233b6879b917fb95e17f21927c198e7a60c924"
-dependencies = [
- "base64ct",
- "bcs",
- "blake2",
- "bnum",
- "bs58 0.5.1",
- "hex",
- "roaring",
- "schemars",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_with",
- "winnow 0.6.20",
-]
 
 [[package]]
 name = "supports-color"
