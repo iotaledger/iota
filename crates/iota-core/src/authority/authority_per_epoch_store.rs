@@ -97,7 +97,7 @@ use crate::{
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
-        PendingCheckpoint, PendingCheckpointInfo, PendingCheckpointV2, PendingCheckpointV2Contents,
+        PendingCheckpointInfo, PendingCheckpointV2, PendingCheckpointV2Contents,
     },
     consensus_handler::{
         ConsensusCommitInfo, SequencedConsensusTransaction, SequencedConsensusTransactionKey,
@@ -449,8 +449,7 @@ pub struct AuthorityEpochTables {
     ///
     /// REQUIRED: all authorities must assign the same shared object versions
     /// for each transaction.
-    assigned_shared_object_versions: DBMap<TransactionDigest, Vec<(ObjectID, SequenceNumber)>>,
-    assigned_shared_object_versions_v2: DBMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
+    assigned_shared_object_versions: DBMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
     next_shared_object_versions: DBMap<ObjectID, SequenceNumber>,
 
     /// Certificates that have been received from clients or received from
@@ -529,9 +528,7 @@ pub struct AuthorityEpochTables {
     /// with empty content(see CheckpointBuilder::write_checkpoint),
     /// the sequence number of checkpoint does not match height here.
     #[default_options_override_fn = "pending_checkpoints_table_default_config"]
-    pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpoint>,
-    #[default_options_override_fn = "pending_checkpoints_table_default_config"]
-    pending_checkpoints_v2: DBMap<CheckpointHeight, PendingCheckpointV2>,
+    pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpointV2>,
 
     /// Checkpoint builder maintains internal list of transactions it included
     /// in checkpoints here
@@ -1533,7 +1530,7 @@ impl AuthorityPerEpochStore {
         assigned_versions: &Vec<(ObjectID, SequenceNumber)>,
     ) -> IotaResult {
         self.tables()?
-            .assigned_shared_object_versions_v2
+            .assigned_shared_object_versions
             .insert(&TransactionKey::Digest(*tx_digest), assigned_versions)?;
         Ok(())
     }
@@ -1678,7 +1675,7 @@ impl AuthorityPerEpochStore {
         db_batch: &mut DBBatch,
     ) -> IotaResult {
         debug!("set_assigned_shared_object_versions: {:?}", versions);
-        db_batch.insert_batch(&self.tables()?.assigned_shared_object_versions_v2, versions)?;
+        db_batch.insert_batch(&self.tables()?.assigned_shared_object_versions, versions)?;
         Ok(())
     }
 
@@ -3009,7 +3006,7 @@ impl AuthorityPerEpochStore {
     pub fn get_highest_pending_checkpoint_height(&self) -> CheckpointHeight {
         self.tables()
             .expect("test should not cross epoch boundary")
-            .pending_checkpoints_v2
+            .pending_checkpoints
             .unbounded_iter()
             .skip_to_last()
             .next()
@@ -3754,7 +3751,7 @@ impl AuthorityPerEpochStore {
         last: Option<CheckpointHeight>,
     ) -> IotaResult<Vec<(CheckpointHeight, PendingCheckpointV2)>> {
         let tables = self.tables()?;
-        let mut iter = tables.pending_checkpoints_v2.unbounded_iter();
+        let mut iter = tables.pending_checkpoints.unbounded_iter();
         if let Some(last_processed_height) = last {
             iter = iter.skip_to(&(last_processed_height + 1))?;
         }
@@ -3765,7 +3762,7 @@ impl AuthorityPerEpochStore {
         &self,
         index: &CheckpointHeight,
     ) -> IotaResult<Option<PendingCheckpointV2>> {
-        Ok(self.tables()?.pending_checkpoints_v2.get(index)?)
+        Ok(self.tables()?.pending_checkpoints.get(index)?)
     }
 
     pub fn process_pending_checkpoint(
@@ -4199,10 +4196,7 @@ impl ConsensusCommitOutput {
         )?;
 
         if let Some((assigned_versions, next_versions)) = self.shared_object_versions {
-            batch.insert_batch(
-                &tables.assigned_shared_object_versions_v2,
-                assigned_versions,
-            )?;
+            batch.insert_batch(&tables.assigned_shared_object_versions, assigned_versions)?;
 
             batch.insert_batch(&tables.next_shared_object_versions, next_versions)?;
         }
@@ -4216,7 +4210,7 @@ impl ConsensusCommitOutput {
         )?;
 
         batch.insert_batch(
-            &tables.pending_checkpoints_v2,
+            &tables.pending_checkpoints,
             self.pending_checkpoints
                 .into_iter()
                 .map(|cp| (cp.height(), cp)),
@@ -4266,7 +4260,7 @@ impl GetSharedLocks for AuthorityPerEpochStore {
     ) -> Result<Vec<(ObjectID, SequenceNumber)>, IotaError> {
         Ok(self
             .tables()?
-            .assigned_shared_object_versions_v2
+            .assigned_shared_object_versions
             .get(key)?
             .unwrap_or_default())
     }
