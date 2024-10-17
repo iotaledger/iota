@@ -212,13 +212,6 @@ fn update_index_and_hash(
 impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     #[instrument(level = "debug", skip_all)]
     async fn handle_consensus_output(&mut self, consensus_output: impl ConsensusOutputAPI) {
-        // This code no longer supports old protocol versions.
-        assert!(
-            self.epoch_store
-                .protocol_config()
-                .consensus_order_end_of_epoch_last()
-        );
-
         let last_committed_round = self.last_consensus_stats.index.last_committed_round;
 
         let round = consensus_output.leader_round();
