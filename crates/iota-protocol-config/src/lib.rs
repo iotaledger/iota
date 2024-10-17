@@ -164,9 +164,6 @@ struct FeatureFlags {
     // regardless of their previous state in the store.
     #[serde(skip_serializing_if = "is_false")]
     simplified_unwrap_then_delete: bool,
-    // If true minimum txn charge is a multiplier of the gas price
-    #[serde(skip_serializing_if = "is_false")]
-    txn_base_cost_as_multiplier: bool,
 
     // If true, the ability to delete shared objects is in effect
     #[serde(skip_serializing_if = "is_false")]
@@ -1170,10 +1167,6 @@ impl ProtocolConfig {
         self.feature_flags.simplified_unwrap_then_delete
     }
 
-    pub fn txn_base_cost_as_multiplier(&self) -> bool {
-        self.feature_flags.txn_base_cost_as_multiplier
-    }
-
     pub fn shared_object_deletion(&self) -> bool {
         self.feature_flags.shared_object_deletion
     }
@@ -1919,7 +1912,6 @@ impl ProtocolConfig {
         cfg.feature_flags.commit_root_state_digest = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.simplified_unwrap_then_delete = true;
-        cfg.feature_flags.txn_base_cost_as_multiplier = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
         cfg.feature_flags.end_of_epoch_transaction_supported = true;
