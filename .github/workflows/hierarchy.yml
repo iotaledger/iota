@@ -143,4 +143,4 @@ jobs:
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
-      isDevelop: ${{ github.ref_name == "tooling-ci/run-ts-e2e-tests-on-develop" }}
+      isDevelop: ${{ github.ref_name == 'tooling-ci/run-ts-e2e-tests-on-develop' }}
