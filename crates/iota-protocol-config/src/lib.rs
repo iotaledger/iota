@@ -160,9 +160,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
 
-    #[serde(skip_serializing_if = "is_false")]
-    end_of_epoch_transaction_supported: bool,
-
     // Perform simple conservation checks keeping into account out of gas scenarios
     // while charging for storage.
     #[serde(skip_serializing_if = "is_false")]
@@ -1140,12 +1137,7 @@ impl ProtocolConfig {
     }
 
     pub fn enable_jwk_consensus_updates(&self) -> bool {
-        let ret = self.feature_flags.enable_jwk_consensus_updates;
-        if ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
+        self.feature_flags.enable_jwk_consensus_updates
     }
 
     pub fn simple_conservation_checks(&self) -> bool {
@@ -1154,15 +1146,6 @@ impl ProtocolConfig {
 
     pub fn loaded_child_object_format_type(&self) -> bool {
         self.feature_flags.loaded_child_object_format_type
-    }
-
-    pub fn end_of_epoch_transaction_supported(&self) -> bool {
-        let ret = self.feature_flags.end_of_epoch_transaction_supported;
-        if !ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(!self.feature_flags.enable_jwk_consensus_updates);
-        }
-        ret
     }
 
     pub fn recompute_has_public_transfer_in_execution(&self) -> bool {
@@ -1185,12 +1168,7 @@ impl ProtocolConfig {
     }
 
     pub fn enable_bridge(&self) -> bool {
-        let ret = self.feature_flags.bridge;
-        if ret {
-            // bridge required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
+        self.feature_flags.bridge
     }
 
     pub fn should_try_to_finalize_bridge_committee(&self) -> bool {
@@ -1880,7 +1858,6 @@ impl ProtocolConfig {
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
         cfg.feature_flags.simple_conservation_checks = true;
-        cfg.feature_flags.end_of_epoch_transaction_supported = true;
         cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
