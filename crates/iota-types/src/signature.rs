@@ -231,7 +231,7 @@ impl ToFromBytes for GenericSignature {
                 )),
                 SignatureScheme::MultiSig => {
                     Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))
-                },
+                }
                 SignatureScheme::ZkLoginAuthenticator => {
                     let zk_login = ZkLoginAuthenticator::from_bytes(bytes)?;
                     Ok(GenericSignature::ZkLoginAuthenticator(zk_login))
