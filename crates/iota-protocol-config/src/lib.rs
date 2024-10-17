@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cell::RefCell,
     collections::BTreeSet,
     sync::atomic::{AtomicBool, Ordering},
 };
-
+use std::sync::RwLock;
 use clap::*;
 use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
 use move_vm_config::verifier::{MeterConfig, VerifierConfig};
@@ -1250,16 +1249,14 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        CONFIG_OVERRIDE.with(|ovr| {
-            if let Some(override_fn) = &*ovr.borrow() {
-                warn!(
+        if let Some(override_fn) = &*CONFIG_OVERRIDE.write().unwrap() {
+            warn!(
                     "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
                 );
-                override_fn(version, ret)
-            } else {
-                ret
-            }
-        })
+            override_fn(version, ret)
+        } else {
+            ret
+        }
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -1914,14 +1911,14 @@ impl ProtocolConfig {
     /// get_for_(min|max)_version is called, since those functions cache
     /// their return value.
     pub fn apply_overrides_for_testing(
-        override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + 'static,
+        override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
     ) -> OverrideGuard {
-        CONFIG_OVERRIDE.with(|ovr| {
-            let mut cur = ovr.borrow_mut();
-            assert!(cur.is_none(), "config override already present");
-            *cur = Some(Box::new(override_fn));
-            OverrideGuard
-        })
+        let mut option = CONFIG_OVERRIDE.write().unwrap();
+        let cur = &mut *option;
+        assert!(cur.is_none(), "config override already present");
+        *cur = Some(Box::new(override_fn));
+
+        OverrideGuard
     }
 }
 
@@ -1999,11 +1996,9 @@ impl ProtocolConfig {
     }
 }
 
-type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send;
+type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
 
-thread_local! {
-    static CONFIG_OVERRIDE: RefCell<Option<Box<OverrideFn>>> = RefCell::new(None);
-}
+    static CONFIG_OVERRIDE: RwLock<Option<Box<OverrideFn>>> = RwLock::new(None);
 
 #[must_use]
 pub struct OverrideGuard;
@@ -2011,9 +2006,7 @@ pub struct OverrideGuard;
 impl Drop for OverrideGuard {
     fn drop(&mut self) {
         info!("restoring override fn");
-        CONFIG_OVERRIDE.with(|ovr| {
-            *ovr.borrow_mut() = None;
-        });
+        *CONFIG_OVERRIDE.write().unwrap() = None;
     }
 }
 
