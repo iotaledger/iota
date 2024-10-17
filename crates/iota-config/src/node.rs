@@ -378,7 +378,7 @@ impl NodeConfig {
         match self.protocol_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
             other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for worker key",
+                "invalid keypair type: {:?}, only Ed25519 is allowed for protocol key",
                 other
             ),
         }
