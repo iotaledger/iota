@@ -782,9 +782,7 @@ async fn test_zklogin_inside_multisig_feature_deny() {
     );
 }
 
-async fn construct_simple_zklogin_multisig_tx(
-    test_cluster: &TestCluster,
-) -> Transaction {
+async fn construct_simple_zklogin_multisig_tx(test_cluster: &TestCluster) -> Transaction {
     // construct a multisig address with 1 zklogin pk with threshold = 1.
     let (eph_kp, _eph_pk, zklogin_inputs) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
