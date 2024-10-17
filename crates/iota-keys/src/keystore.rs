@@ -174,7 +174,7 @@ pub struct Alias {
 pub struct FileBasedKeystore {
     keys: BTreeMap<IotaAddress, IotaKeyPair>,
     aliases: BTreeMap<IotaAddress, Alias>,
-    path: Option<PathBuf>,
+    path: PathBuf,
 }
 
 impl Serialize for FileBasedKeystore {
@@ -182,13 +182,7 @@ impl Serialize for FileBasedKeystore {
     where
         S: Serializer,
     {
-        serializer.serialize_str(
-            self.path
-                .as_ref()
-                .unwrap_or(&PathBuf::default())
-                .to_str()
-                .unwrap_or(""),
-        )
+        serializer.serialize_str(self.path.to_str().unwrap_or(""))
     }
 }
 
@@ -338,7 +332,7 @@ impl FileBasedKeystore {
             kp_strings
                 .iter()
                 .map(|kpstr| {
-                    let key = IotaKeyPair::decode_base64(kpstr);
+                    let key = IotaKeyPair::decode(kpstr);
                     key.map(|k| (IotaAddress::from(&k.public()), k))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
@@ -409,29 +403,28 @@ impl FileBasedKeystore {
         Ok(Self {
             keys,
             aliases,
-            path: Some(path.to_path_buf()),
+            path: path.to_path_buf(),
         })
     }
 
     pub fn set_path(&mut self, path: &Path) {
-        self.path = Some(path.to_path_buf());
+        self.path = path.to_path_buf();
     }
 
     pub fn save_aliases(&self) -> Result<(), anyhow::Error> {
-        if let Some(path) = &self.path {
-            let aliases_store =
-                serde_json::to_string_pretty(&self.aliases.values().collect::<Vec<_>>())
-                    .with_context(|| {
-                        format!(
-                            "Cannot serialize aliases to file in keystore: {}",
-                            path.display()
-                        )
-                    })?;
+        let aliases_store = serde_json::to_string_pretty(
+            &self.aliases.values().collect::<Vec<_>>(),
+        )
+        .with_context(|| {
+            format!(
+                "Cannot serialize aliases to file in keystore: {}",
+                self.path.display()
+            )
+        })?;
 
-            let mut aliases_path = path.clone();
-            aliases_path.set_extension("aliases");
-            fs::write(aliases_path, aliases_store)?
-        }
+        let mut aliases_path = self.path.clone();
+        aliases_path.set_extension("aliases");
+        fs::write(aliases_path, aliases_store)?;
         Ok(())
     }
 
@@ -440,17 +433,17 @@ impl FileBasedKeystore {
     /// where $IOTA_ADDRESS can be found with `iota keytool list`. Or use
     /// `iota keytool convert $BASE64_STR`
     pub fn save_keystore(&self) -> Result<(), anyhow::Error> {
-        if let Some(path) = &self.path {
-            let store = serde_json::to_string_pretty(
-                &self
-                    .keys
-                    .values()
-                    .map(|k| k.encode_base64())
-                    .collect::<Vec<_>>(),
-            )
-            .with_context(|| format!("Cannot serialize keystore to file: {}", path.display()))?;
-            fs::write(path, store)?;
-        }
+        let store = serde_json::to_string_pretty(
+            &self
+                .keys
+                .values()
+                .map(|k| k.encode())
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| anyhow!(e))?,
+        )
+        .with_context(|| format!("Cannot serialize keystore to file: {}", self.path.display()))?;
+        fs::write(&self.path, store)?;
+        println!("Keys saved as Bech32.");
         Ok(())
     }
 
