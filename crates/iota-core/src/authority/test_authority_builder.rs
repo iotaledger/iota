@@ -326,26 +326,24 @@ impl<'a> TestAuthorityBuilder<'a> {
         .await;
 
         // Set up randomness with no-op consensus (DKG will not complete).
-        if epoch_store.randomness_state_enabled() {
-            let consensus_client = Box::new(MockConsensusClient::new(
-                Arc::downgrade(&state),
-                ConsensusMode::Noop,
-            ));
-            let randomness_manager = RandomnessManager::try_new(
-                Arc::downgrade(&epoch_store),
-                consensus_client,
-                randomness::Handle::new_stub(),
-                config.protocol_key_pair(),
-            )
-            .await;
-            if let Some(randomness_manager) = randomness_manager {
-                // Randomness might fail if test configuration does not permit DKG init.
-                // In that case, skip setting it up.
-                epoch_store
-                    .set_randomness_manager(randomness_manager)
-                    .await
-                    .unwrap();
-            }
+        let consensus_client = Box::new(MockConsensusClient::new(
+            Arc::downgrade(&state),
+            ConsensusMode::Noop,
+        ));
+        let randomness_manager = RandomnessManager::try_new(
+            Arc::downgrade(&epoch_store),
+            consensus_client,
+            randomness::Handle::new_stub(),
+            config.protocol_key_pair(),
+        )
+        .await;
+        if let Some(randomness_manager) = randomness_manager {
+            // Randomness might fail if test configuration does not permit DKG init.
+            // In that case, skip setting it up.
+            epoch_store
+                .set_randomness_manager(randomness_manager)
+                .await
+                .unwrap();
         }
 
         // For any type of local testing that does not actually spawn a node, the

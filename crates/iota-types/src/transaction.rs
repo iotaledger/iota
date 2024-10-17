@@ -444,13 +444,7 @@ impl EndOfEpochTransactionKind {
                     ));
                 }
             }
-            Self::RandomnessStateCreate => {
-                if !config.random_beacon() {
-                    return Err(UserInputError::Unsupported(
-                        "random beacon not enabled".to_string(),
-                    ));
-                }
-            }
+            Self::RandomnessStateCreate => (),
             Self::DenyListStateCreate => {
                 if !config.enable_coin_deny_list_v1() {
                     return Err(UserInputError::Unsupported(
@@ -983,12 +977,6 @@ impl ProgrammableTransaction {
         if let Some(random_index) = inputs.iter().position(|obj| {
             matches!(obj, CallArg::Object(ObjectArg::SharedObject { id, .. }) if *id == IOTA_RANDOMNESS_STATE_OBJECT_ID)
         }) {
-            fp_ensure!(
-                config.random_beacon(),
-                UserInputError::Unsupported(
-                    "randomness is not enabled on this network".to_string(),
-                )
-            );
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
             for command in commands {
@@ -1387,13 +1375,7 @@ impl TransactionKind {
                     ));
                 }
             }
-            TransactionKind::RandomnessStateUpdate(_) => {
-                if !config.random_beacon() {
-                    return Err(UserInputError::Unsupported(
-                        "randomness state updates not enabled".to_string(),
-                    ));
-                }
-            }
+            TransactionKind::RandomnessStateUpdate(_) => (),
         };
         Ok(())
     }

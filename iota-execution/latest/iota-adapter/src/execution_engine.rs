@@ -732,7 +732,6 @@ mod checked {
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
                         EndOfEpochTransactionKind::RandomnessStateCreate => {
-                            assert!(protocol_config.random_beacon());
                             builder = setup_randomness_state_create(builder);
                         }
                         EndOfEpochTransactionKind::DenyListStateCreate => {

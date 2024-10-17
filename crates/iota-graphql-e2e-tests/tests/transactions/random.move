@@ -11,13 +11,6 @@
 //# run-graphql
 # Make sure the randomness state was created on the epoch boundary
 {
-    epoch {
-        protocolConfigs {
-            protocolVersion
-            randomBeacon: featureFlag(key: "random_beacon") { value }
-        }
-    }
-
     object(address: "0x8") {
         address
         version

@@ -5952,11 +5952,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Checks that deferral keys are formed correctly.
     let epoch_store = authority.epoch_store_for_testing();
-    let commit_round = if epoch_store.randomness_state_enabled() {
-        epoch_store.get_highest_pending_checkpoint_height() / 2
-    } else {
-        epoch_store.get_highest_pending_checkpoint_height()
-    };
+    let commit_round = epoch_store.get_highest_pending_checkpoint_height() / 2;
     let deferred_txns = epoch_store
         .get_all_deferred_transactions_for_test()
         .unwrap();

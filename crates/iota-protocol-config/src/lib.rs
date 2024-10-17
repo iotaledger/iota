@@ -147,10 +147,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     loaded_child_object_format_type: bool,
 
-    // Enable random beacon protocol
-    #[serde(skip_serializing_if = "is_false")]
-    random_beacon: bool,
-
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
@@ -1116,10 +1112,6 @@ impl ProtocolConfig {
         self.enable_jwk_consensus_updates()
     }
 
-    pub fn random_beacon(&self) -> bool {
-        self.feature_flags.random_beacon
-    }
-
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)
@@ -1848,9 +1840,6 @@ impl ProtocolConfig {
         // Enable resolving abort code IDs to package ID instead of runtime module ID
         cfg.feature_flags.resolve_abort_locations_to_package_id = true;
 
-        // Enable random beacon.
-        cfg.feature_flags.random_beacon = true;
-
         // Enable the committed sub dag digest inclusion on the commit output
         cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
 
@@ -2001,9 +1990,6 @@ impl ProtocolConfig {
     }
     pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_jwk_consensus_updates = val
-    }
-    pub fn set_random_beacon_for_testing(&mut self, val: bool) {
-        self.feature_flags.random_beacon = val
     }
 
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {

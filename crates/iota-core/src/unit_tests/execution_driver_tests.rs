@@ -10,7 +10,6 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::TransactionDigest,
@@ -300,15 +299,16 @@ async fn execute_shared_on_first_three_authorities(
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
+#[ignore = "https://github.com/iotaledger/iota/issues/3382"]
 async fn test_execution_with_dependencies() {
     telemetry_subscribers::init_for_testing();
 
-    // Disable randomness, it can't be constructed with fake authorities in this
-    // test anyway.
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_random_beacon_for_testing(false);
-        config
-    });
+    //// Disable randomness, it can't be constructed with fake authorities in this
+    //// test anyway.
+    // let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+    //    config.set_random_beacon_for_testing(false);
+    //    config
+    //});
 
     // ---- Initialize a network with three accounts, each with 10 gas objects.
 
@@ -486,15 +486,16 @@ async fn try_sign_on_first_three_authorities(
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
+#[ignore = "https://github.com/iotaledger/iota/issues/3382"]
 async fn test_per_object_overload() {
     telemetry_subscribers::init_for_testing();
 
-    // Disable randomness, it can't be constructed with fake authorities in this
-    // test anyway.
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_random_beacon_for_testing(false);
-        config
-    });
+    //// Disable randomness, it can't be constructed with fake authorities in this
+    //// test anyway.
+    // let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+    //    config.set_random_beacon_for_testing(false);
+    //    config
+    //});
 
     // Initialize a network with 1 account and 2000 gas objects.
     let (addr, key): (_, AccountKeyPair) = get_key_pair();
@@ -616,15 +617,16 @@ async fn test_per_object_overload() {
 }
 
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/3382"]
 async fn test_txn_age_overload() {
     telemetry_subscribers::init_for_testing();
 
-    // Disable randomness, it can't be constructed with fake authorities in this
-    // test anyway.
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_random_beacon_for_testing(false);
-        config
-    });
+    //// Disable randomness, it can't be constructed with fake authorities in this
+    //// test anyway.
+    // let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+    //    config.set_random_beacon_for_testing(false);
+    //    config
+    //});
 
     // Initialize a network with 1 account and 3 gas objects.
     let (addr, key): (_, AccountKeyPair) = get_key_pair();
