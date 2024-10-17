@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 env:
+  BINARY_LIST_FILE: "./binary-build-list.json"
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
   #
@@ -34,14 +35,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [
+            self-hosted, # ubuntu-x86_64
+            macos-latest, # macos-arm64
+          ]
     steps:
-      # ubuntu-latest is run on a self-hosted runner and does not need this step
-      - if: matrix.os != 'ubuntu-latest'
-        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # pin@v0.9.0
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH (MacOs only)
+        if: ${{ matrix.os == 'macos-latest' }}
+        uses: MrSquaare/ssh-setup-action@v3
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
+      - name: Install postgres (MacOS arm64)
+        if: ${{ matrix.os == 'macos-latest' }}
+        shell: bash
+        env:
+          PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
+          LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
+          PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
+          PATH: "/opt/homebrew/bin:$PATH"
+        run: |
+          brew install postgresql
+
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+
       - name: cargo build
         uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # pin@v1.0.3
         with:

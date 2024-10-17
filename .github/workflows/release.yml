@@ -3,7 +3,7 @@ run-name: Attach IOTA binaries to a ${{ inputs.iota_tag }} release
 
 on:
   release:
-    types: created
+    types: [created]
   workflow_dispatch:
     inputs:
       iota_tag:
@@ -44,14 +44,13 @@ jobs:
     timeout-minutes: 120
     strategy:
       matrix:
-        os:
-          [
-            self-hosted, # ubuntu-x86_64
-            macos-latest, # macos-arm64
-            # windows-latest (windows-x86_64) is disabled because we need to add custom logic for authenticating
-            # git for private repositories during the build (needed for iota-msim)
-            # MrSquaare/ssh-setup-action@v3 does not support windows
-          ]
+        os: [
+          self-hosted, # ubuntu-x86_64
+          macos-latest, # macos-arm64
+          # windows-latest (windows-x86_64) is disabled because we need to add custom logic for authenticating
+          # git for private repositories during the build (needed for iota-msim)
+          # MrSquaare/ssh-setup-action@v3 does not support windows
+        ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
