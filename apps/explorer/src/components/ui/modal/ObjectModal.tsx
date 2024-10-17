@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text, Heading } from '@iota/ui';
+import { Text } from '@iota/ui';
 import { Modal, type ModalProps } from './Modal';
 import { Image } from '../image/Image';
 import { Close } from '@iota/ui-icons';
@@ -37,9 +37,7 @@ export function ObjectModal({
                     <Image alt={alt} src={src} rounded="none" moderate={moderate} />
                 )}
                 <div className="flex flex-col gap-3">
-                    <Heading variant="heading2/semibold" color="iota-light" truncate>
-                        {title}
-                    </Heading>
+                    <span className="text-headline-md text-neutral-100">{title}</span>
                     <Text color="gray-60" variant="body/medium">
                         {subtitle}
                     </Text>

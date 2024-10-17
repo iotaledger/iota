@@ -40,7 +40,7 @@ tempfile.workspace = true
 tokio = { workspace = true, features = ["full", "tracing"] }
 tracing.workspace = true
 url.workspace = true
-zstd.workspace = true
+zstd = "0.13"
 
 eyre.workspace = true
 iota-config.workspace = true
