@@ -236,12 +236,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
 
-    // Controls whether consensus handler should record consensus determined shared object version
-    // assignments in consensus commit prologue transaction.
-    // The purpose of doing this is to enable replaying transaction without transaction effects.
-    #[serde(skip_serializing_if = "is_false")]
-    record_consensus_determined_version_assignments_in_prologue: bool,
-
     // Run verification of framework upgrades using a new/fresh VM.
     #[serde(skip_serializing_if = "is_false")]
     fresh_vm_on_framework_upgrade: bool,
@@ -1138,11 +1132,6 @@ impl ProtocolConfig {
         self.feature_flags.throughput_aware_consensus_submission
     }
 
-    pub fn record_consensus_determined_version_assignments_in_prologue(&self) -> bool {
-        self.feature_flags
-            .record_consensus_determined_version_assignments_in_prologue
-    }
-
     pub fn hardened_otw_check(&self) -> bool {
         self.feature_flags.hardened_otw_check
     }
@@ -1827,10 +1816,6 @@ impl ProtocolConfig {
 
         // Enable the committed sub dag digest inclusion on the commit output
         cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
-
-        // Enable consensus commit prologue V3.
-        cfg.feature_flags
-            .record_consensus_determined_version_assignments_in_prologue = true;
 
         // Run Move verification on framework upgrades in its own VM
         cfg.feature_flags.fresh_vm_on_framework_upgrade = true;

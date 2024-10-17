@@ -1360,14 +1360,8 @@ impl TransactionKind {
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologue(_)
-            | TransactionKind::ConsensusCommitPrologueV2(_) => (),
-            TransactionKind::ConsensusCommitPrologueV3(_) => {
-                if !config.record_consensus_determined_version_assignments_in_prologue() {
-                    return Err(UserInputError::Unsupported(
-                        "ConsensusCommitPrologueV3 is not supported".to_string(),
-                    ));
-                }
-            }
+            | TransactionKind::ConsensusCommitPrologueV2(_)
+            | TransactionKind::ConsensusCommitPrologueV3(_) => (),
             TransactionKind::EndOfEpochTransaction(txns) => {
                 for tx in txns {
                     tx.validity_check(config)?;

@@ -1320,7 +1320,6 @@
                 "passkey_auth": true,
                 "random_beacon": true,
                 "recompute_has_public_transfer_in_execution": true,
-                "record_consensus_determined_version_assignments_in_prologue": true,
                 "reject_mutable_random_on_entry_functions": true,
                 "reshare_at_same_initial_version": true,
                 "resolve_abort_locations_to_package_id": true,
