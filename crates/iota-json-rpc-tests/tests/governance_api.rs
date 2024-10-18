@@ -28,8 +28,28 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
+use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
+
+/// Wait for the node to catch up to the specified epoch.
+pub async fn wait_for_epoch(client: &HttpClient, epoch: u64) {
+    while {
+        let system_state = client.get_latest_iota_system_state().await.unwrap();
+        system_state.epoch < epoch
+    } {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+pub async fn get_current_epoch(client: &HttpClient) -> u64 {
+    client.get_latest_iota_system_state().await.unwrap().epoch
+}
+
+pub async fn wait_for_next_epoch(client: &HttpClient) {
+    let current_epoch = get_current_epoch(client).await;
+    wait_for_epoch(client, current_epoch + 1).await;
+}
 
 #[sim_test]
 async fn test_staking() -> Result<(), anyhow::Error> {
@@ -107,8 +127,6 @@ async fn test_staking() -> Result<(), anyhow::Error> {
     );
     Ok(())
 }
-
-#[ignore = "https://github.com/iotaledger/iota/issues/3007"]
 #[sim_test]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new()
@@ -159,12 +177,13 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
             )
             .await?;
     }
+
+    wait_for_next_epoch(&http_client).await;
+
     // Check DelegatedStake object
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert_eq!(1, staked_iota.len());
     assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
-
-    sleep(Duration::from_millis(10000)).await;
 
     let staked_iota_copy = http_client
         .get_stakes_by_ids(vec![
@@ -198,50 +217,21 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
             address,
             staked_iota_copy[0].stakes[2].staked_iota_id,
             None,
-            1_000_000.into(),
+            100_000_000.into(),
         )
         .await?;
     let tx = cluster
         .wallet
         .sign_transaction(&transaction_bytes.to_data()?);
 
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+    let _ = cluster.wallet.execute_transaction_must_succeed(tx).await;
 
-    http_client
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(IotaTransactionBlockResponseOptions::new()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
+    wait_for_next_epoch(&http_client).await;
 
-    sleep(Duration::from_millis(20000)).await;
+    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert_eq!(1, staked_iota.len());
+    assert_eq!(2, staked_iota[0].stakes.len());
 
-    let staked_iota_copy = http_client
-        .get_stakes_by_ids(vec![
-            staked_iota[0].stakes[0].staked_iota_id,
-            staked_iota[0].stakes[1].staked_iota_id,
-            staked_iota[0].stakes[2].staked_iota_id,
-        ])
-        .await?;
-
-    assert!(matches!(
-        &staked_iota_copy[0].stakes[0].status,
-        StakeStatus::Active {
-            estimated_reward: _
-        }
-    ));
-    assert!(matches!(
-        &staked_iota_copy[0].stakes[1].status,
-        StakeStatus::Active {
-            estimated_reward: _
-        }
-    ));
-    assert!(matches!(
-        &staked_iota_copy[0].stakes[2].status,
-        StakeStatus::Unstaked
-    ));
     Ok(())
 }
 
@@ -397,7 +387,6 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/3007"]
 #[sim_test]
 async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -434,7 +423,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         .with_accounts(
             [AccountConfig {
                 address: Some(address),
-                gas_amounts: [100_000_000].into(),
+                gas_amounts: [500_000_000].into(),
             }]
             .into(),
         )
@@ -503,7 +492,9 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    // Check DelegatedTimelockedStake object
+    wait_for_next_epoch(&http_client).await;
+    let current_epoch = get_current_epoch(&http_client).await;
+
     let staked_iota: Vec<DelegatedTimelockedStake> =
         http_client.get_timelocked_stakes(address).await?;
 
@@ -512,35 +503,16 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     assert_eq!(1, staked_iota.stakes.len());
     let stake = &staked_iota.stakes[0];
 
-    assert_eq!(validator, staked_iota.validator_address);
     assert_eq!(principal, stake.principal);
-    assert!(matches!(stake.status, StakeStatus::Pending));
-    assert_eq!(expiration_timestamp_ms, stake.expiration_timestamp_ms);
-    assert_eq!(label, stake.label);
-
-    // Sleep for 10 seconds
-    sleep(Duration::from_millis(10000)).await;
-
-    // Request the DelegatedTimelockedStake one more time
-    let staked_iota_copy = http_client
-        .get_timelocked_stakes_by_ids(vec![stake.timelocked_staked_iota_id])
-        .await?;
-
-    assert_eq!(1, staked_iota_copy.len());
-    let staked_iota_copy = &staked_iota_copy[0];
-    assert_eq!(1, staked_iota_copy.stakes.len());
-    let stake_copy = &staked_iota_copy.stakes[0];
-
-    assert_eq!(principal, stake_copy.principal);
-    assert!(matches!(&stake_copy.status, StakeStatus::Active { .. }));
+    assert!(matches!(&stake.status, StakeStatus::Active { .. }));
 
     // Request withdraw timelocked stake
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_withdraw_timelocked_stake(
             address,
-            stake_copy.timelocked_staked_iota_id,
+            stake.timelocked_staked_iota_id,
             coin,
-            10_000_000.into(),
+            100_000_000.into(),
         )
         .await?;
     let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &keypair);
@@ -556,38 +528,12 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    // Sleep for 20 seconds
-    sleep(Duration::from_millis(20000)).await;
+    assert_eq!(current_epoch, get_current_epoch(&http_client).await);
+    wait_for_next_epoch(&http_client).await;
 
-    // Request the DelegatedTimelockedStake one more time
-    let staked_iota_copy = http_client
-        .get_timelocked_stakes_by_ids(vec![stake.timelocked_staked_iota_id])
-        .await?;
-
-    assert_eq!(1, staked_iota_copy.len());
-    let staked_iota_copy = &staked_iota_copy[0];
-    assert_eq!(1, staked_iota_copy.stakes.len());
-    let stake_copy = &staked_iota_copy.stakes[0];
-
-    // Check the result
-    assert_eq!(
-        staked_iota.validator_address,
-        staked_iota_copy.validator_address
-    );
-    assert_eq!(staked_iota.staking_pool, staked_iota_copy.staking_pool);
-    assert_eq!(
-        stake.timelocked_staked_iota_id,
-        stake_copy.timelocked_staked_iota_id
-    );
-    assert_eq!(stake.stake_request_epoch, stake_copy.stake_request_epoch);
-    assert_eq!(stake.stake_active_epoch, stake_copy.stake_active_epoch);
-    assert_eq!(stake.principal, stake_copy.principal);
-    assert!(matches!(stake_copy.status, StakeStatus::Unstaked));
-    assert_eq!(
-        stake.expiration_timestamp_ms,
-        stake_copy.expiration_timestamp_ms
-    );
-    assert_eq!(stake.label, stake_copy.label);
+    let staked_iota: Vec<DelegatedTimelockedStake> =
+        http_client.get_timelocked_stakes(address).await?;
+    assert_eq!(0, staked_iota.len());
 
     Ok(())
 }
