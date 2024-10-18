@@ -223,7 +223,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let timestamp_ms = self.store.get_clock().timestamp_ms() + duration.as_millis() as u64;
 
         let consensus_commit_prologue_transaction =
-            VerifiedTransaction::new_consensus_commit_prologue_v3(
+            VerifiedTransaction::new_consensus_commit_prologue_v1(
                 epoch,
                 round,
                 timestamp_ms,

@@ -1494,9 +1494,12 @@ export type IotaTransactionBlockKind =
       } /** A system transaction marking the start of a series of transactions scheduled as part of a checkpoint */
     | {
           commit_timestamp_ms: string;
+          consensus_commit_digest: string;
+          consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments;
           epoch: string;
-          kind: 'ConsensusCommitPrologue';
+          kind: 'ConsensusCommitPrologueV1';
           round: string;
+          sub_dag_index?: string | null;
       } /** A series of transactions where the results of one transaction can be used in future transactions */
     | {
           /** Input objects or primitive values */
@@ -1523,22 +1526,6 @@ export type IotaTransactionBlockKind =
     | {
           kind: 'EndOfEpochTransaction';
           transactions: IotaEndOfEpochTransactionKind[];
-      }
-    | {
-          commit_timestamp_ms: string;
-          consensus_commit_digest: string;
-          epoch: string;
-          kind: 'ConsensusCommitPrologueV2';
-          round: string;
-      }
-    | {
-          commit_timestamp_ms: string;
-          consensus_commit_digest: string;
-          consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments;
-          epoch: string;
-          kind: 'ConsensusCommitPrologueV3';
-          round: string;
-          sub_dag_index?: string | null;
       };
 export interface IotaTransactionBlockResponse {
     balanceChanges?: BalanceChange[] | null;

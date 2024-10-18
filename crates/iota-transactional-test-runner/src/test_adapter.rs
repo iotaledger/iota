@@ -750,7 +750,7 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
             IotaSubcommand::ConsensusCommitPrologue(ConsensusCommitPrologueCommand {
                 timestamp_ms,
             }) => {
-                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
+                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
                     0,
                     0,
                     timestamp_ms,

@@ -811,31 +811,12 @@ impl ConsensusCommitInfo {
         self.skip_consensus_commit_prologue_in_test
     }
 
-    fn consensus_commit_prologue_transaction(&self, epoch: u64) -> VerifiedExecutableTransaction {
-        let transaction =
-            VerifiedTransaction::new_consensus_commit_prologue(epoch, self.round, self.timestamp);
-        VerifiedExecutableTransaction::new_system(transaction, epoch)
-    }
-
-    fn consensus_commit_prologue_v2_transaction(
-        &self,
-        epoch: u64,
-    ) -> VerifiedExecutableTransaction {
-        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
-            epoch,
-            self.round,
-            self.timestamp,
-            self.consensus_commit_digest,
-        );
-        VerifiedExecutableTransaction::new_system(transaction, epoch)
-    }
-
-    fn consensus_commit_prologue_v3_transaction(
+    fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> VerifiedExecutableTransaction {
-        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
+        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
@@ -848,16 +829,9 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        protocol_config: &ProtocolConfig,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> VerifiedExecutableTransaction {
-        if protocol_config.record_consensus_determined_version_assignments_in_prologue() {
-            self.consensus_commit_prologue_v3_transaction(epoch, cancelled_txn_version_assignment)
-        } else if protocol_config.include_consensus_digest_in_prologue() {
-            self.consensus_commit_prologue_v2_transaction(epoch)
-        } else {
-            self.consensus_commit_prologue_transaction(epoch)
-        }
+        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
     }
 }
 

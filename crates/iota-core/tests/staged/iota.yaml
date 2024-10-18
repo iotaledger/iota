@@ -232,19 +232,7 @@ CongestedObjects:
 ConsensusCommitDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
-ConsensusCommitPrologue:
-  STRUCT:
-    - epoch: U64
-    - round: U64
-    - commit_timestamp_ms: U64
-ConsensusCommitPrologueV2:
-  STRUCT:
-    - epoch: U64
-    - round: U64
-    - commit_timestamp_ms: U64
-    - consensus_commit_digest:
-        TYPENAME: ConsensusCommitDigest
-ConsensusCommitPrologueV3:
+ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
     - round: U64
@@ -1021,9 +1009,9 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: GenesisTransaction
     3:
-      ConsensusCommitPrologue:
+      ConsensusCommitPrologueV1:
         NEWTYPE:
-          TYPENAME: ConsensusCommitPrologue
+          TYPENAME: ConsensusCommitPrologueV1
     4:
       AuthenticatorStateUpdate:
         NEWTYPE:
@@ -1037,14 +1025,6 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
-    7:
-      ConsensusCommitPrologueV2:
-        NEWTYPE:
-          TYPENAME: ConsensusCommitPrologueV2
-    8:
-      ConsensusCommitPrologueV3:
-        NEWTYPE:
-          TYPENAME: ConsensusCommitPrologueV3
 TypeArgumentError:
   ENUM:
     0:
