@@ -15,6 +15,7 @@ bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
 diesel = { workspace = true, optional = true }
+mysqlclient-sys = { version = "0.4", features = ["bundled"], optional = true }
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
@@ -61,7 +62,7 @@ secrecy = "0.8.0"
 pg_integration = []
 default = ["postgres-feature"]
 postgres-feature = ["diesel/postgres", "diesel/postgres_backend"]
-mysql-feature = ["diesel/mysql", "diesel/mysql_backend"]
+mysql-feature = ["diesel/mysql", "diesel/mysql_backend", "dep:mysqlclient-sys"]
 
 [dev-dependencies]
 iota-config.workspace = true
