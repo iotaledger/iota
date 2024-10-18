@@ -155,9 +155,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
 
-    #[serde(skip_serializing_if = "is_false")]
-    enable_effects_v2: bool,
-
     // Enable throughput aware consensus submission
     #[serde(skip_serializing_if = "is_false")]
     throughput_aware_consensus_submission: bool,
@@ -1116,10 +1113,6 @@ impl ProtocolConfig {
         self.bridge_should_try_to_finalize_committee.unwrap_or(true)
     }
 
-    pub fn enable_effects_v2(&self) -> bool {
-        self.feature_flags.enable_effects_v2
-    }
-
     pub fn accept_zklogin_in_multisig(&self) -> bool {
         self.feature_flags.accept_zklogin_in_multisig
     }
@@ -1774,7 +1767,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
         cfg.feature_flags.shared_object_deletion = true;
