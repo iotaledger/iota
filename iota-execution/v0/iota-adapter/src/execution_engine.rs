@@ -562,20 +562,6 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
         let result = match transaction_kind {
-            TransactionKind::ChangeEpoch(change_epoch) => {
-                let builder = ProgrammableTransactionBuilder::new();
-                advance_epoch(
-                    builder,
-                    change_epoch,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                )?;
-                Ok(Mode::empty_results())
-            }
             TransactionKind::Genesis(GenesisTransaction { objects, events }) => {
                 if tx_ctx.epoch() != 0 {
                     panic!("BUG: Genesis Transactions can only be executed in epoch 0");

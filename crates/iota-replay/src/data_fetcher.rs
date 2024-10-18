@@ -534,30 +534,18 @@ impl DataFetcher for RemoteFetcher {
         let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
-        match tx_kind_orig {
-            TransactionKind::ChangeEpoch(change) => {
-                // Backfill cache
-                self.epoch_info_cache.write().put(
-                    epoch_id,
-                    (change.epoch_start_timestamp_ms, reference_gas_price),
-                );
+        if let TransactionKind::EndOfEpochTransaction(kinds) = tx_kind_orig {
+            for kind in kinds {
+                if let EndOfEpochTransactionKind::ChangeEpoch(change) = kind {
+                    // Backfill cache
+                    self.epoch_info_cache.write().put(
+                        epoch_id,
+                        (change.epoch_start_timestamp_ms, reference_gas_price),
+                    );
 
-                return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
-            }
-            TransactionKind::EndOfEpochTransaction(kinds) => {
-                for kind in kinds {
-                    if let EndOfEpochTransactionKind::ChangeEpoch(change) = kind {
-                        // Backfill cache
-                        self.epoch_info_cache.write().put(
-                            epoch_id,
-                            (change.epoch_start_timestamp_ms, reference_gas_price),
-                        );
-
-                        return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
-                    }
+                    return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
                 }
             }
-            _ => {}
         }
         Err(ReplayEngineError::InvalidEpochChangeTx { epoch: epoch_id })
     }

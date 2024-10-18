@@ -45,10 +45,6 @@ impl TransactionBlockKind {
                 native: pt,
                 checkpoint_viewed_at,
             }),
-            K::ChangeEpoch(ce) => T::ChangeEpoch(ChangeEpochTransaction {
-                native: ce,
-                checkpoint_viewed_at,
-            }),
             K::Genesis(g) => T::Genesis(GenesisTransaction {
                 native: g,
                 checkpoint_viewed_at,

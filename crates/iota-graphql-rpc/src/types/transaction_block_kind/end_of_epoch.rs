@@ -145,8 +145,6 @@ impl EndOfEpochTransaction {
 /// current epoch). Executed by the system once per epoch, without using gas.
 /// Epoch change transactions cannot be submitted by users, because validators
 /// will refuse to sign them.
-///
-/// This transaction kind is deprecated in favour of `EndOfEpochTransaction`.
 #[Object]
 impl ChangeEpochTransaction {
     /// The next (to become) epoch.
