@@ -10,6 +10,7 @@ use tracing::info;
 use super::{
     adversarial::{AdversarialPayloadCfg, AdversarialWorkloadBuilder},
     randomness::RandomnessWorkloadBuilder,
+    shared_object_deletion::SharedCounterDeletionWorkloadBuilder,
 };
 use crate::{
     bank::BenchmarkBank,

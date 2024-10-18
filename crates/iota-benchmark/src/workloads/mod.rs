@@ -8,6 +8,7 @@ pub mod delegation;
 pub mod payload;
 pub mod randomness;
 pub mod shared_counter;
+pub mod shared_object_deletion;
 pub mod transfer_object;
 pub mod workload;
 pub mod workload_configuration;
