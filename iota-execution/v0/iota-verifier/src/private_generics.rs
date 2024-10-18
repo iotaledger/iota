@@ -64,25 +64,19 @@ pub fn verify_module(
     }
     // do not need to check the iota::transfer module itself
     for func_def in &module.function_defs {
-        verify_function(module, func_def, verifier_config.allow_receiving_object_id).map_err(
-            |error| {
-                verification_failure(format!(
-                    "{}::{}. {}",
-                    module.self_id(),
-                    module.identifier_at(module.function_handle_at(func_def.function).name),
-                    error
-                ))
-            },
-        )?;
+        verify_function(module, func_def).map_err(|error| {
+            verification_failure(format!(
+                "{}::{}. {}",
+                module.self_id(),
+                module.identifier_at(module.function_handle_at(func_def.function).name),
+                error
+            ))
+        })?;
     }
     Ok(())
 }
 
-fn verify_function(
-    view: &CompiledModule,
-    fdef: &FunctionDefinition,
-    allow_receiving_object_id: bool,
-) -> Result<(), String> {
+fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(), String> {
     let code = match &fdef.code {
         None => return Ok(()),
         Some(code) => code,
@@ -100,7 +94,7 @@ fn verify_function(
             let type_arguments = &view.signature_at(*type_parameters).0;
             let ident = addr_module(view, mhandle);
             if ident == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
-                verify_private_transfer(view, fhandle, type_arguments, allow_receiving_object_id)?
+                verify_private_transfer(view, fhandle, type_arguments)?
             } else if ident == (IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
             }
@@ -113,14 +107,8 @@ fn verify_private_transfer(
     view: &CompiledModule,
     fhandle: &FunctionHandle,
     type_arguments: &[SignatureToken],
-    allow_receiving_object_id: bool,
 ) -> Result<(), String> {
-    let public_transfer_functions = if allow_receiving_object_id {
-        PUBLIC_TRANSFER_FUNCTIONS
-    } else {
-        // Before protocol version 33, the `receiving_object_id` function was not public
-        &PUBLIC_TRANSFER_FUNCTIONS[..PUBLIC_TRANSFER_FUNCTIONS.len() - 1]
-    };
+    let public_transfer_functions = PUBLIC_TRANSFER_FUNCTIONS;
     let self_handle = view.module_handle_at(view.self_handle_idx());
     if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
         return Ok(());
