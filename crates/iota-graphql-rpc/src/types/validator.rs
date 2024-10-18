@@ -10,6 +10,7 @@ use async_graphql::{
     *,
 };
 use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
+use iota_json_rpc::governance_api::average_apy_from_exchange_rates;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
@@ -21,7 +22,7 @@ use iota_types::{
 
 use crate::{
     consistency::ConsistentIndexCursor,
-    data::{DataLoader, Db, apys::calculate_apy},
+    data::{DataLoader, Db},
     error::Error,
     types::{
         address::Address,
@@ -367,8 +368,8 @@ impl Validator {
         Ok(connection)
     }
 
-    /// The APY of this validator in basis points.
-    /// To get the APY in percentage, divide by 100.
+    /// The APY of this validator in basis points.  To get the APY in
+    /// percentage, divide by 100.
     async fn apy(&self, ctx: &Context<'_>) -> Result<Option<u64>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
         let exchange_rates = loader
@@ -382,9 +383,11 @@ impl Validator {
                     "Failed to get the exchange rate for this validator address {} for requested epoch {}",
                     self.validator_summary.iota_address, self.requested_for_epoch
                 ))
-            })?;
+            })?
+            .iter()
+            .map(|(_, exchange_rate)| exchange_rate);
 
-        let avg_apy = Some(calculate_apy(rates));
+        let avg_apy = Some(average_apy_from_exchange_rates(rates));
 
         Ok(avg_apy.map(|x| (x * 10000.0) as u64))
     }
