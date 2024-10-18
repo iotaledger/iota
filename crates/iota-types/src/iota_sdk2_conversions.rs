@@ -111,6 +111,7 @@ impl From<EndOfEpochData> for crate::messages_checkpoint::EndOfEpochData {
                 .map(Into::into)
                 .collect(),
             // TODO: this value exists in this crate but not in iota-rust-sdk
+            // https://github.com/iotaledger/iota-rust-sdk/pull/4
             epoch_supply_change: 0,
         }
     }
