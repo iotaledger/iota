@@ -9,7 +9,6 @@ feature_flags:
   no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
   shared_object_deletion: true
-  random_beacon: true
   recompute_has_public_transfer_in_execution: true
   hardened_otw_check: true
   enable_coin_deny_list: true
