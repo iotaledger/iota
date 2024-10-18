@@ -4,10 +4,8 @@
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { Button } from '_src/ui/app/shared/ButtonUI';
-import FieldLabel from '_src/ui/app/shared/field-label';
 import { Heading } from '_src/ui/app/shared/heading';
 import { PasswordInputField } from '_src/ui/app/shared/input/password';
-import { Text } from '_src/ui/app/shared/text';
 import classNames from 'clsx';
 import { ErrorMessage, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
@@ -74,26 +72,27 @@ export function PasswordInputDialog({
                             {title}
                         </Heading>
                     </div>
-                    <div className="flex-1 self-stretch">
-                        <FieldLabel txt="Enter Wallet Password to Continue">
-                            <PasswordInputField name="password" />
-                            <ErrorMessage
-                                render={(error) => (
-                                    <InfoBox
-                                        type={InfoBoxType.Error}
-                                        title={error}
-                                        icon={<Warning />}
-                                        style={InfoBoxStyle.Elevated}
-                                    />
-                                )}
-                                name="password"
-                            />
-                        </FieldLabel>
+                    <div className="flex flex-1 flex-col gap-sm self-stretch">
+                        <span className="text-label-sm text-neutral-40">
+                            Enter Wallet Password to Continue
+                        </span>
+                        <PasswordInputField name="password" />
+                        <ErrorMessage
+                            render={(error) => (
+                                <InfoBox
+                                    type={InfoBoxType.Error}
+                                    title={error}
+                                    icon={<Warning />}
+                                    style={InfoBoxStyle.Elevated}
+                                />
+                            )}
+                            name="password"
+                        />
                         <div className="mt-4 text-center">
-                            <Text variant="pBodySmall" color="steel-dark" weight="normal">
+                            <span className="text-body-md text-neutral-40">
                                 This is the password you currently use to lock and unlock your IOTA
                                 wallet.
-                            </Text>
+                            </span>
                         </div>
                     </div>
                     <div className="flex flex-nowrap gap-3.75 self-stretch">
