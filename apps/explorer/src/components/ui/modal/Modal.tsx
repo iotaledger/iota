@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Dialog, Transition } from '@headlessui/react';
-import { Heading } from '@iota/ui';
 import { Close } from '@iota/ui-icons';
 import { Fragment, type ReactNode } from 'react';
 
@@ -42,11 +41,7 @@ export function ModalContent({ children }: ModalChildrenProps): JSX.Element {
 }
 
 export function ModalHeading({ children }: ModalChildrenProps): JSX.Element {
-    return (
-        <Heading variant="heading3/semibold" color="gray-90">
-            {children}
-        </Heading>
-    );
+    return <div className="text-headline-md text-neutral-100">{children}</div>;
 }
 
 export function Modal({ open, onClose, children }: ModalProps): JSX.Element {

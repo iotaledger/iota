@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
-use iota_protocol_config::ProtocolVersion;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
@@ -290,15 +289,6 @@ impl ExecutionCacheWrite for PassthroughCache {
 }
 
 impl AccumulatorStore for PassthroughCache {
-    fn get_object_ref_prior_to_key_deprecated(
-        &self,
-        object_id: &ObjectID,
-        version: iota_types::base_types::VersionNumber,
-    ) -> IotaResult<Option<ObjectRef>> {
-        self.store
-            .get_object_ref_prior_to_key_deprecated(object_id, version)
-    }
-
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
@@ -324,9 +314,8 @@ impl AccumulatorStore for PassthroughCache {
 
     fn iter_live_object_set(
         &self,
-        include_wrapped_tombstone: bool,
     ) -> Box<dyn Iterator<Item = crate::authority::authority_store_tables::LiveObject> + '_> {
-        self.store.iter_live_object_set(include_wrapped_tombstone)
+        self.store.iter_live_object_set()
     }
 }
 

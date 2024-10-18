@@ -406,12 +406,11 @@ impl AuthorityPerpetualTables {
             .is_none())
     }
 
-    pub fn iter_live_object_set(&self, include_wrapped_object: bool) -> LiveSetIter<'_> {
+    pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
         LiveSetIter {
             iter: self.objects.unbounded_iter(),
             tables: self,
             prev: None,
-            include_wrapped_object,
         }
     }
 
@@ -419,7 +418,6 @@ impl AuthorityPerpetualTables {
         &self,
         lower_bound: Option<ObjectID>,
         upper_bound: Option<ObjectID>,
-        include_wrapped_object: bool,
     ) -> LiveSetIter<'_> {
         let lower_bound = lower_bound.as_ref().map(ObjectKey::min_for_id);
         let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
@@ -428,7 +426,6 @@ impl AuthorityPerpetualTables {
             iter: self.objects.iter_with_bounds(lower_bound, upper_bound),
             tables: self,
             prev: None,
-            include_wrapped_object,
         }
     }
 
@@ -528,8 +525,6 @@ pub struct LiveSetIter<'a> {
         <DBMap<ObjectKey, StoreObjectWrapper> as Map<'a, ObjectKey, StoreObjectWrapper>>::Iterator,
     tables: &'a AuthorityPerpetualTables,
     prev: Option<(ObjectKey, StoreObjectWrapper)>,
-    /// Whether a wrapped object is considered as a live object.
-    include_wrapped_object: bool,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
@@ -582,14 +577,7 @@ impl LiveSetIter<'_> {
                     .expect("Constructing object from store cannot fail");
                 Some(LiveObject::Normal(object))
             }
-            StoreObject::Wrapped => {
-                if self.include_wrapped_object {
-                    Some(LiveObject::Wrapped(object_key))
-                } else {
-                    None
-                }
-            }
-            StoreObject::Deleted => None,
+            StoreObject::Wrapped | StoreObject::Deleted => None,
         }
     }
 }

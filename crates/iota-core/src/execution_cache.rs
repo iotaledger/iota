@@ -6,7 +6,6 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_config::ExecutionCacheConfig;
-use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     bridge::Bridge,
@@ -704,15 +703,6 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 
     fn checkpoint_db(&self, path: &Path) -> IotaResult;
 
-    /// This is a temporary method to be used when we enable
-    /// simplified_unwrap_then_delete. It re-accumulates state hash for the
-    /// new epoch if simplified_unwrap_then_delete is enabled.
-    fn maybe_reaccumulate_state_hash(
-        &self,
-        cur_epoch_store: &AuthorityPerEpochStore,
-        new_protocol_version: ProtocolVersion,
-    );
-
     /// Reconfigure the cache itself.
     /// TODO: this is only needed for ProxyCache to switch between cache impls.
     /// It can be removed once WritebackCache is the sole cache impl.
@@ -914,15 +904,6 @@ macro_rules! implement_passthrough_traits {
 
             fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
                 self.store.perpetual_tables.checkpoint_db(path)
-            }
-
-            fn maybe_reaccumulate_state_hash(
-                &self,
-                cur_epoch_store: &AuthorityPerEpochStore,
-                new_protocol_version: ProtocolVersion,
-            ) {
-                self.store
-                    .maybe_reaccumulate_state_hash(cur_epoch_store, new_protocol_version)
             }
 
             fn reconfigure_cache<'a>(
