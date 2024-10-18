@@ -49,7 +49,7 @@ export function SignMessageRequest({ request }: SignMessageRequestProps) {
         >
             <PageMainLayoutTitle title="Sign Message" />
             <div className="py-4">
-                <span className="font-inter text-title-lg">Message You Are Signing</span>
+                <span className="text-title-lg">Message You Are Signing</span>
             </div>
             <div className="flex flex-col flex-nowrap items-stretch overflow-y-auto overflow-x-hidden rounded-15 border border-solid border-gray-50 bg-white shadow-card-soft">
                 <div className="break-words p-5">
