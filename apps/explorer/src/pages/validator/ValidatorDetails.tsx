@@ -5,7 +5,6 @@
 import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaSystemStateSummary } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
 import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
@@ -101,17 +100,17 @@ function ValidatorDetails(): JSX.Element {
                                 border
                                 variant="error"
                                 title={
-                                    <Text uppercase variant="bodySmall/semibold">
-                                        at risk of being removed as a validator after{' '}
+                                    <span className="text-label-lg">
+                                        At risk of being removed as a validator after{' '}
                                         {atRiskRemainingEpochs} epoch
                                         {atRiskRemainingEpochs > 1 ? 's' : ''}
-                                    </Text>
+                                    </span>
                                 }
                             >
-                                <Text variant="bodySmall/medium">
+                                <span className="text-body-sm">
                                     Staked IOTA is below the minimum IOTA stake threshold to remain
                                     a validator.
-                                </Text>
+                                </span>
                             </Banner>
                         </div>
                     )}

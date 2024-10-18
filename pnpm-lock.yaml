@@ -62,7 +62,7 @@ importers:
         version: 3.1.1(eslint@8.57.1)
       eslint-plugin-import:
         specifier: ^2.29.1
-        version: 2.30.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1)
+        version: 2.30.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-plugin-import@2.30.0)(eslint@8.57.1))(eslint@8.57.1)
       eslint-plugin-license-check:
         specifier: link:linting/license-check
         version: link:linting/license-check
@@ -326,9 +326,6 @@ importers:
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
-      '@iota/ui':
-        specifier: workspace:*
-        version: link:../ui
       '@iota/ui-icons':
         specifier: workspace:*
         version: link:../ui-icons
@@ -519,76 +516,6 @@ importers:
       vitest:
         specifier: ^2.0.1
         version: 2.1.1(@types/node@20.16.9)(@vitest/ui@0.33.0)(happy-dom@10.11.2)(jsdom@24.1.3)(msw@2.4.9(typescript@5.6.2))(sass@1.79.3)(terser@5.34.0)
-
-  apps/ui:
-    dependencies:
-      '@iota/core':
-        specifier: workspace:*
-        version: link:../core
-      '@radix-ui/react-radio-group':
-        specifier: ^1.1.3
-        version: 1.2.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@radix-ui/react-slot':
-        specifier: ^1.1.0
-        version: 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-switch':
-        specifier: ^1.0.3
-        version: 1.1.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      class-variance-authority:
-        specifier: ^0.7.0
-        version: 0.7.0
-      cmdk:
-        specifier: ^0.2.0
-        version: 0.2.1(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      framer-motion:
-        specifier: ^10.12.22
-        version: 10.18.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.1
-        version: 18.3.1(react@18.3.1)
-    devDependencies:
-      '@storybook/addon-a11y':
-        specifier: ^7.1.0
-        version: 7.6.20
-      '@storybook/addon-essentials':
-        specifier: ^7.1.0
-        version: 7.6.20(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(webpack-sources@3.2.3)
-      '@storybook/addon-interactions':
-        specifier: ^7.1.0
-        version: 7.6.20
-      '@storybook/addon-links':
-        specifier: ^7.1.0
-        version: 7.6.20(react@18.3.1)
-      '@storybook/blocks':
-        specifier: ^7.1.0
-        version: 7.6.20(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@storybook/react':
-        specifier: ^7.1.0
-        version: 7.6.20(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)
-      '@storybook/react-vite':
-        specifier: ^7.1.0
-        version: 7.6.20(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(rollup@4.22.4)(typescript@5.6.2)(vite@5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0))(webpack-sources@3.2.3)
-      '@storybook/testing-library':
-        specifier: ^0.2.0
-        version: 0.2.2
-      '@types/react':
-        specifier: ^18.3.3
-        version: 18.3.9
-      prop-types:
-        specifier: ^15.8.1
-        version: 15.8.1
-      storybook:
-        specifier: ^7.1.0
-        version: 7.6.20
-      tailwindcss:
-        specifier: ^3.3.3
-        version: 3.4.13(ts-node@10.9.2(@swc/core@1.7.28(@swc/helpers@0.5.5))(@types/node@22.7.3)(typescript@5.6.2))
-      typescript:
-        specifier: ^5.5.3
-        version: 5.6.2
 
   apps/ui-icons:
     devDependencies:
@@ -6430,9 +6357,6 @@ packages:
   '@slorber/remark-comment@1.0.0':
     resolution: {integrity: sha512-RCE24n7jsOj1M0UPvIQCHTe7fI0sFL4S2nwKVWwHyVr/wI/H8GosgsJGyhnsZoGFnD/P2hLf1mSbrrgSLN93NA==}
 
-  '@storybook/addon-a11y@7.6.20':
-    resolution: {integrity: sha512-t19O2KW+8NF8mdxAZdubpe0s/3x7z5cl4LdyiNQgYxcUGjhjAUD+C3UvEUsRxG71ZAID/VC8SX+G2HX5TENGHA==}
-
   '@storybook/addon-actions@7.6.20':
     resolution: {integrity: sha512-c/GkEQ2U9BC/Ew/IMdh+zvsh4N6y6n7Zsn2GIhJgcu9YEAa5aF2a9/pNgEGBMOABH959XE8DAOMERw/5qiLR8g==}
 
@@ -6641,10 +6565,6 @@ packages:
     resolution: {integrity: sha512-uZ8nMIovfI2ry989K2+cYAeEVD/3dpjj2+Rbmy7DiZWWVhFALfmqaTRkzZfShLmlH0TFv+rfcBPihGccBtw0FQ==}
     peerDependencies:
       storybook: ^8.3.3
-
-  '@storybook/testing-library@0.2.2':
-    resolution: {integrity: sha512-L8sXFJUHmrlyU2BsWWZGuAjv39Jl1uAqUHdxmN42JY15M4+XCMjGlArdCCjDe1wpTSW6USYISA9axjZojgtvnw==}
-    deprecated: In Storybook 8, this package functionality has been integrated to a new package called @storybook/test, which uses Vitest APIs for an improved experience. When upgrading to Storybook 8 with 'npx storybook@latest upgrade', you will get prompted and will get an automigration for the new package. Please migrate when you can.
 
   '@storybook/theming@7.6.20':
     resolution: {integrity: sha512-iT1pXHkSkd35JsCte6Qbanmprx5flkqtSHC6Gi6Umqoxlg9IjiLPmpHbaIXzoC06DSW93hPj5Zbi1lPlTvRC7Q==}
@@ -6974,10 +6894,6 @@ packages:
   '@testing-library/dom@10.4.0':
     resolution: {integrity: sha512-pemlzrSESWbdAloYml3bAJMEfNh1Z7EduzqPKprCH5S341frlpYnUEW0H72dLxa6IsYr+mPno20GiSm+h9dEdQ==}
     engines: {node: '>=18'}
-
-  '@testing-library/dom@9.3.4':
-    resolution: {integrity: sha512-FlS4ZWlp97iiNWig0Muq8p+3rVDjRiYE+YKGbAqXOu9nwJFFOdL00kFpz42M+4huzYi86vAK1sOOfyOG45muIQ==}
-    engines: {node: '>=14'}
 
   '@testing-library/jest-dom@6.5.0':
     resolution: {integrity: sha512-xGGHpBXYSHUUr6XsKBfs85TWlYKpTc37cSBBVrXcib2MkHLboWlkClhWF37JKlDb9KEq3dHs+f2xR7XJEWGBxA==}
@@ -20782,16 +20698,6 @@ snapshots:
     optionalDependencies:
       typescript: 5.6.2
 
-  '@joshwooding/vite-plugin-react-docgen-typescript@0.3.0(typescript@5.6.2)(vite@5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0))':
-    dependencies:
-      glob: 7.2.3
-      glob-promise: 4.2.2(glob@7.2.3)
-      magic-string: 0.27.0
-      react-docgen-typescript: 2.2.2(typescript@5.6.2)
-      vite: 5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0)
-    optionalDependencies:
-      typescript: 5.6.2
-
   '@jridgewell/gen-mapping@0.3.5':
     dependencies:
       '@jridgewell/set-array': 1.2.1
@@ -22968,11 +22874,6 @@ snapshots:
       micromark-util-character: 1.2.0
       micromark-util-symbol: 1.1.0
 
-  '@storybook/addon-a11y@7.6.20':
-    dependencies:
-      '@storybook/addon-highlight': 7.6.20
-      axe-core: 4.10.0
-
   '@storybook/addon-actions@7.6.20':
     dependencies:
       '@storybook/core-events': 7.6.20
@@ -23173,32 +23074,6 @@ snapshots:
       magic-string: 0.30.11
       rollup: 3.29.5
       vite: 5.4.8(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0)
-    optionalDependencies:
-      typescript: 5.6.2
-    transitivePeerDependencies:
-      - encoding
-      - supports-color
-      - webpack-sources
-
-  '@storybook/builder-vite@7.6.20(typescript@5.6.2)(vite@5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0))(webpack-sources@3.2.3)':
-    dependencies:
-      '@storybook/channels': 7.6.20
-      '@storybook/client-logger': 7.6.20
-      '@storybook/core-common': 7.6.20
-      '@storybook/csf-plugin': 7.6.20(webpack-sources@3.2.3)
-      '@storybook/node-logger': 7.6.20
-      '@storybook/preview': 7.6.20
-      '@storybook/preview-api': 7.6.20
-      '@storybook/types': 7.6.20
-      '@types/find-cache-dir': 3.2.1
-      browser-assert: 1.2.1
-      es-module-lexer: 0.9.3
-      express: 4.21.0
-      find-cache-dir: 3.3.2
-      fs-extra: 11.2.0
-      magic-string: 0.30.11
-      rollup: 3.29.5
-      vite: 5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0)
     optionalDependencies:
       typescript: 5.6.2
     transitivePeerDependencies:
@@ -23530,27 +23405,6 @@ snapshots:
       - vite-plugin-glimmerx
       - webpack-sources
 
-  '@storybook/react-vite@7.6.20(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(rollup@4.22.4)(typescript@5.6.2)(vite@5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0))(webpack-sources@3.2.3)':
-    dependencies:
-      '@joshwooding/vite-plugin-react-docgen-typescript': 0.3.0(typescript@5.6.2)(vite@5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0))
-      '@rollup/pluginutils': 5.1.2(rollup@4.22.4)
-      '@storybook/builder-vite': 7.6.20(typescript@5.6.2)(vite@5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0))(webpack-sources@3.2.3)
-      '@storybook/react': 7.6.20(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)
-      '@vitejs/plugin-react': 3.1.0(vite@5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0))
-      magic-string: 0.30.11
-      react: 18.3.1
-      react-docgen: 7.0.3
-      react-dom: 18.3.1(react@18.3.1)
-      vite: 5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0)
-    transitivePeerDependencies:
-      - '@preact/preset-vite'
-      - encoding
-      - rollup
-      - supports-color
-      - typescript
-      - vite-plugin-glimmerx
-      - webpack-sources
-
   '@storybook/react@7.6.20(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)':
     dependencies:
       '@storybook/client-logger': 7.6.20
@@ -23614,12 +23468,6 @@ snapshots:
       '@vitest/spy': 2.0.5
       storybook: 7.6.20
       util: 0.12.5
-
-  '@storybook/testing-library@0.2.2':
-    dependencies:
-      '@testing-library/dom': 9.3.4
-      '@testing-library/user-event': 14.5.2(@testing-library/dom@9.3.4)
-      ts-dedent: 2.2.0
 
   '@storybook/theming@7.6.20(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -23979,17 +23827,6 @@ snapshots:
       lz-string: 1.5.0
       pretty-format: 27.5.1
 
-  '@testing-library/dom@9.3.4':
-    dependencies:
-      '@babel/code-frame': 7.24.7
-      '@babel/runtime': 7.25.6
-      '@types/aria-query': 5.0.4
-      aria-query: 5.1.3
-      chalk: 4.1.2
-      dom-accessibility-api: 0.5.16
-      lz-string: 1.5.0
-      pretty-format: 27.5.1
-
   '@testing-library/jest-dom@6.5.0':
     dependencies:
       '@adobe/css-tools': 4.4.0
@@ -24013,10 +23850,6 @@ snapshots:
   '@testing-library/user-event@14.5.2(@testing-library/dom@10.4.0)':
     dependencies:
       '@testing-library/dom': 10.4.0
-
-  '@testing-library/user-event@14.5.2(@testing-library/dom@9.3.4)':
-    dependencies:
-      '@testing-library/dom': 9.3.4
 
   '@trysound/sax@0.2.0': {}
 
@@ -24962,17 +24795,6 @@ snapshots:
       magic-string: 0.27.0
       react-refresh: 0.14.2
       vite: 5.4.8(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0)
-    transitivePeerDependencies:
-      - supports-color
-
-  '@vitejs/plugin-react@3.1.0(vite@5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0))':
-    dependencies:
-      '@babel/core': 7.25.2
-      '@babel/plugin-transform-react-jsx-self': 7.24.7(@babel/core@7.25.2)
-      '@babel/plugin-transform-react-jsx-source': 7.24.7(@babel/core@7.25.2)
-      magic-string: 0.27.0
-      react-refresh: 0.14.2
-      vite: 5.4.8(@types/node@22.7.3)(sass@1.79.3)(terser@5.34.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -27702,7 +27524,7 @@ snapshots:
       eslint: 8.57.1
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.30.0)(eslint@8.57.1)
-      eslint-plugin-import: 2.30.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1)
+      eslint-plugin-import: 2.30.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-plugin-import@2.30.0)(eslint@8.57.1))(eslint@8.57.1)
       eslint-plugin-jsx-a11y: 6.10.0(eslint@8.57.1)
       eslint-plugin-react: 7.37.0(eslint@8.57.1)
       eslint-plugin-react-hooks: 4.6.2(eslint@8.57.1)
@@ -27731,20 +27553,20 @@ snapshots:
       debug: 4.3.7(supports-color@8.1.1)
       enhanced-resolve: 5.17.1
       eslint: 8.57.1
-      eslint-module-utils: 2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1)
+      eslint-module-utils: 2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-plugin-import@2.30.0)(eslint@8.57.1))(eslint@8.57.1)
       fast-glob: 3.3.2
       get-tsconfig: 4.8.1
       is-bun-module: 1.2.1
       is-glob: 4.0.3
     optionalDependencies:
-      eslint-plugin-import: 2.30.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1)
+      eslint-plugin-import: 2.30.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-plugin-import@2.30.0)(eslint@8.57.1))(eslint@8.57.1)
     transitivePeerDependencies:
       - '@typescript-eslint/parser'
       - eslint-import-resolver-node
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-module-utils@2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1):
+  eslint-module-utils@2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-plugin-import@2.30.0)(eslint@8.57.1))(eslint@8.57.1):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
@@ -27759,7 +27581,7 @@ snapshots:
     dependencies:
       eslint: 8.57.1
 
-  eslint-plugin-import@2.30.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1):
+  eslint-plugin-import@2.30.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-plugin-import@2.30.0)(eslint@8.57.1))(eslint@8.57.1):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.8
@@ -27770,7 +27592,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.57.1
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@8.57.1)
+      eslint-module-utils: 2.12.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.6.2))(eslint-plugin-import@2.30.0)(eslint@8.57.1))(eslint@8.57.1)
       hasown: 2.0.2
       is-core-module: 2.15.1
       is-glob: 4.0.3
