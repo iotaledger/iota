@@ -242,7 +242,7 @@ fn verify_param_type(
 
     // Only `iota::iota_system` is allowed to expose entry functions that accept a
     // mutable Random parameter.
-    if verifier_config.reject_mutable_random_on_entry_functions && is_mutable_random(view, param) {
+    if is_mutable_random(view, param) {
         return Err(format!(
             "Invalid entry point parameter type. Random must be passed by immutable reference. got: \
              {}",

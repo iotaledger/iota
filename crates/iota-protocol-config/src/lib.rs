@@ -194,10 +194,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_group_ops_native_function_msm: bool,
 
-    // Reject functions with mutable Random.
-    #[serde(skip_serializing_if = "is_false")]
-    reject_mutable_random_on_entry_functions: bool,
-
     // Controls the behavior of per object congestion control in consensus handler.
     #[serde(skip_serializing_if = "PerObjectCongestionControlMode::is_none")]
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
@@ -1156,10 +1152,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_group_ops_native_function_msm
     }
 
-    pub fn reject_mutable_random_on_entry_functions(&self) -> bool {
-        self.feature_flags.reject_mutable_random_on_entry_functions
-    }
-
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
         self.feature_flags.per_object_congestion_control_mode
     }
@@ -1781,7 +1773,6 @@ impl ProtocolConfig {
         cfg.feature_flags.hardened_otw_check = true;
         cfg.feature_flags.allow_receiving_object_id = true;
         cfg.feature_flags.enable_coin_deny_list = true;
-        cfg.feature_flags.reject_mutable_random_on_entry_functions = true;
 
         // Enable group ops and all networks (but not msm)
         cfg.feature_flags.enable_group_ops_native_functions = true;
@@ -1911,8 +1902,6 @@ impl ProtocolConfig {
                                                                            * version 9, there was
                                                                            * no limit */
             allow_receiving_object_id: self.allow_receiving_object_id(),
-            reject_mutable_random_on_entry_functions: self
-                .reject_mutable_random_on_entry_functions(),
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
         }
