@@ -1052,7 +1052,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | RandomnessStateCreateTransaction | CoinDenyListStateCreateTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
+union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | CoinDenyListStateCreateTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
 
 type EndOfEpochTransactionKindConnection {
 	"""
@@ -3454,13 +3454,6 @@ type Query {
 	msg.
 	"""
 	verifyZkloginSignature(bytes: Base64!, signature: Base64!, intentScope: ZkLoginIntentScope!, author: IotaAddress!): ZkLoginVerifyResult!
-}
-
-type RandomnessStateCreateTransaction {
-	"""
-	A workaround to define an empty variant of a GraphQL union.
-	"""
-	_: Boolean
 }
 
 """
