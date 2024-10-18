@@ -236,10 +236,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
 
-    // Run verification of framework upgrades using a new/fresh VM.
-    #[serde(skip_serializing_if = "is_false")]
-    fresh_vm_on_framework_upgrade: bool,
-
     // Set number of leaders per round for Mysticeti commits.
     #[serde(skip_serializing_if = "Option::is_none")]
     mysticeti_num_leaders_per_round: Option<usize>,
@@ -1192,10 +1188,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_vdf
     }
 
-    pub fn fresh_vm_on_framework_upgrade(&self) -> bool {
-        self.feature_flags.fresh_vm_on_framework_upgrade
-    }
-
     pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
         self.feature_flags.mysticeti_num_leaders_per_round
     }
@@ -1816,9 +1808,6 @@ impl ProtocolConfig {
 
         // Enable the committed sub dag digest inclusion on the commit output
         cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
-
-        // Run Move verification on framework upgrades in its own VM
-        cfg.feature_flags.fresh_vm_on_framework_upgrade = true;
 
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 

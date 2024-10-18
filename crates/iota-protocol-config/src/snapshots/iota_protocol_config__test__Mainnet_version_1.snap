@@ -25,7 +25,6 @@ feature_flags:
   reshare_at_same_initial_version: true
   resolve_abort_locations_to_package_id: true
   mysticeti_use_committed_subdag_digest: true
-  fresh_vm_on_framework_upgrade: true
   mysticeti_num_leaders_per_round: 1
   soft_bundle: true
   enable_coin_deny_list_v2: true
