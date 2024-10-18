@@ -11,9 +11,7 @@ feature_flags:
   shared_object_deletion: true
   loaded_child_object_format_type: true
   random_beacon: true
-  enable_effects_v2: true
   recompute_has_public_transfer_in_execution: true
-  include_consensus_digest_in_prologue: true
   hardened_otw_check: true
   allow_receiving_object_id: true
   enable_poseidon: true
@@ -28,9 +26,6 @@ feature_flags:
   resolve_abort_locations_to_package_id: true
   mysticeti_use_committed_subdag_digest: true
   enable_vdf: true
-  record_consensus_determined_version_assignments_in_prologue: true
-  fresh_vm_on_framework_upgrade: true
-  prepend_prologue_tx_in_consensus_commit_in_checkpoints: true
   mysticeti_num_leaders_per_round: 1
   soft_bundle: true
   enable_coin_deny_list_v2: true

@@ -4,7 +4,6 @@
 
 import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { type AllEpochsAddressMetrics } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import { useMemo } from 'react';
 import { AreaGraph } from './AreaGraph';
@@ -29,13 +28,11 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JS
     const totalFormatted = formatAmount(data[GRAPH_DATA_FIELD]);
     return (
         <div className="flex flex-col gap-0.5">
-            <Text variant="subtitleSmallExtra/medium" color="steel-darker">
+            <span className="text-body-sm text-neutral-40">
                 {dateFormatted}, Epoch {data.epoch}
-            </Text>
+            </span>
             <span className="text-label-lg text-neutral-12">{totalFormatted}</span>
-            <Text variant="subtitleSmallExtra/medium" color="steel-darker" uppercase>
-                {GRAPH_DATA_TEXT}
-            </Text>
+            <span className="text-body-sm text-neutral-40">{GRAPH_DATA_TEXT}</span>
         </div>
     );
 }
@@ -115,9 +112,11 @@ export function AddressesCardGraph(): JSX.Element {
                             </ErrorBoundary>
                         </div>
                     ) : (
-                        <Text color="steel" variant="body/medium">
-                            No historical data available
-                        </Text>
+                        <div className="flex items-center justify-center">
+                            <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
+                                No historical data available
+                            </span>
+                        </div>
                     )}
                 </div>
             </div>
