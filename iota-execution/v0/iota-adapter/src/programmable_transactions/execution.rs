@@ -859,13 +859,7 @@ mod checked {
         for module in modules {
             // Run Iota bytecode verifier, which runs some additional checks that assume the
             // Move bytecode verifier has passed.
-            iota_verifier::verifier::iota_verify_module_unmetered(
-                module,
-                &BTreeMap::new(),
-                &context
-                    .protocol_config
-                    .verifier_config(/* for_signing */ false),
-            )?;
+            iota_verifier::verifier::iota_verify_module_unmetered(module, &BTreeMap::new())?;
         }
 
         Ok(())

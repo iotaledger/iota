@@ -218,7 +218,6 @@ mod checked {
             module,
             &BTreeMap::new(),
             meter,
-            verifier_config,
         ) {
             return Err(err.into());
         }

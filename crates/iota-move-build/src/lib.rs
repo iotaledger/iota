@@ -13,7 +13,6 @@ use std::{
 
 use fastcrypto::encoding::Base64;
 use iota_package_management::{PublishedAtError, resolve_published_id};
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
     BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
     MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
@@ -255,16 +254,13 @@ pub fn build_from_resolution_graph(
     };
     let compiled_modules = package.root_modules_map();
     if run_bytecode_verifier {
-        let verifier_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
-            .verifier_config(/* for_signing */ false);
-
         for m in compiled_modules.iter_modules() {
             move_bytecode_verifier::verify_module_unmetered(m).map_err(|err| {
                 IotaError::ModuleVerificationFailure {
                     error: err.to_string(),
                 }
             })?;
-            iota_bytecode_verifier::iota_verify_module_unmetered(m, &fn_info, &verifier_config)?;
+            iota_bytecode_verifier::iota_verify_module_unmetered(m, &fn_info)?;
         }
         // TODO(https://github.com/iotaledger/iota/issues/69): Run Move linker
     }
