@@ -223,10 +223,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     mysticeti_leader_scoring_and_schedule: bool,
 
-    // Enable resharing of shared objects using the same initial shared version
-    #[serde(skip_serializing_if = "is_false")]
-    reshare_at_same_initial_version: bool,
-
     // Resolve Move abort locations to the package id instead of the runtime module ID.
     #[serde(skip_serializing_if = "is_false")]
     resolve_abort_locations_to_package_id: bool,
@@ -1211,10 +1207,6 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_leader_scoring_and_schedule
     }
 
-    pub fn reshare_at_same_initial_version(&self) -> bool {
-        self.feature_flags.reshare_at_same_initial_version
-    }
-
     pub fn resolve_abort_locations_to_package_id(&self) -> bool {
         self.feature_flags.resolve_abort_locations_to_package_id
     }
@@ -1842,9 +1834,6 @@ impl ProtocolConfig {
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
-        // Enable resharing at same initial version
-        cfg.feature_flags.reshare_at_same_initial_version = true;
-
         // Enable resolving abort code IDs to package ID instead of runtime module ID
         cfg.feature_flags.resolve_abort_locations_to_package_id = true;
 
@@ -2016,10 +2005,6 @@ impl ProtocolConfig {
 
     pub fn set_resolve_abort_locations_to_package_id_for_testing(&mut self, val: bool) {
         self.feature_flags.resolve_abort_locations_to_package_id = val;
-    }
-
-    pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
-        self.feature_flags.reshare_at_same_initial_version = val;
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(

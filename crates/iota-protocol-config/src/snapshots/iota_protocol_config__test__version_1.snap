@@ -25,7 +25,6 @@ feature_flags:
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
   mysticeti_leader_scoring_and_schedule: true
-  reshare_at_same_initial_version: true
   resolve_abort_locations_to_package_id: true
   mysticeti_use_committed_subdag_digest: true
   enable_vdf: true
