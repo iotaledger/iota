@@ -6,8 +6,6 @@
 
 //# create-checkpoint
 
-//# advance-epoch --create-random-state
-
 //# run-graphql
 # Make sure the randomness state was created on the epoch boundary
 {
