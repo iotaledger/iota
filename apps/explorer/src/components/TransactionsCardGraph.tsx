@@ -4,9 +4,8 @@
 
 import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Heading, Text } from '@iota/ui';
+import { Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
-
 import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import {
@@ -37,9 +36,7 @@ function TooltipContent({
             <Text variant="subtitleSmallExtra/medium" color="steel-darker">
                 {dateFormatted}, Epoch {epoch}
             </Text>
-            <Heading variant="heading6/semibold" color="steel-darker">
-                {totalFormatted}
-            </Heading>
+            <span className="text-label-lg text-neutral-12">{totalFormatted}</span>
             <Text variant="subtitleSmallExtra/medium" color="steel-darker" uppercase>
                 Transaction Blocks
             </Text>

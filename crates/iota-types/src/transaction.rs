@@ -1375,12 +1375,6 @@ impl TransactionKind {
                 }
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                if !config.end_of_epoch_transaction_supported() {
-                    return Err(UserInputError::Unsupported(
-                        "EndOfEpochTransaction is not supported".to_string(),
-                    ));
-                }
-
                 for tx in txns {
                     tx.validity_check(config)?;
                 }
@@ -2197,16 +2191,9 @@ impl<'de> Deserialize<'de> for SenderSignedTransaction {
 impl SenderSignedTransaction {
     pub(crate) fn get_signer_sig_mapping(
         &self,
-        verify_legacy_zklogin_address: bool,
     ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
         let mut mapping = BTreeMap::new();
         for sig in &self.tx_signatures {
-            if verify_legacy_zklogin_address {
-                // Try deriving the address from the legacy padded way.
-                if let GenericSignature::ZkLoginAuthenticator(z) = sig {
-                    mapping.insert(IotaAddress::try_from_padded(&z.inputs)?, sig);
-                };
-            }
             let address = sig.try_into()?;
             mapping.insert(address, sig);
         }
@@ -2253,10 +2240,8 @@ impl SenderSignedData {
 
     pub(crate) fn get_signer_sig_mapping(
         &self,
-        verify_legacy_zklogin_address: bool,
     ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
-        self.inner()
-            .get_signer_sig_mapping(verify_legacy_zklogin_address)
+        self.inner().get_signer_sig_mapping()
     }
 
     pub fn transaction_data(&self) -> &TransactionData {

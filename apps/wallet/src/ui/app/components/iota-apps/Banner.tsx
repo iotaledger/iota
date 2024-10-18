@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { Feature } from '_src/shared/experimentation/features';
+import { Feature } from '@iota/core';
 import { useFeature } from '@growthbook/growthbook-react';
 
 import { ExternalLink } from '_components';

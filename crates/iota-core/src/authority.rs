@@ -155,7 +155,7 @@ use crate::{
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     rest_index::RestIndexStore,
     stake_aggregator::StakeAggregator,
-    state_accumulator::{AccumulatorStore, StateAccumulator, WrappedObject},
+    state_accumulator::{AccumulatorStore, StateAccumulator},
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
@@ -2966,12 +2966,6 @@ impl AuthorityState {
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
-        self.maybe_reaccumulate_state_hash(
-            cur_epoch_store,
-            epoch_start_configuration
-                .epoch_start_state()
-                .protocol_version(),
-        );
         self.get_reconfig_api()
             .set_epoch_start_configuration(&epoch_start_configuration)?;
         if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path {
@@ -3045,19 +3039,6 @@ impl AuthorityState {
         *execution_lock = new_epoch;
     }
 
-    /// This is a temporary method to be used when we enable
-    /// simplified_unwrap_then_delete. It re-accumulates state hash for the
-    /// new epoch if simplified_unwrap_then_delete is enabled.
-    #[instrument(level = "error", skip_all)]
-    fn maybe_reaccumulate_state_hash(
-        &self,
-        cur_epoch_store: &AuthorityPerEpochStore,
-        new_protocol_version: ProtocolVersion,
-    ) {
-        self.get_reconfig_api()
-            .maybe_reaccumulate_state_hash(cur_epoch_store, new_protocol_version);
-    }
-
     #[instrument(level = "error", skip_all)]
     fn check_system_consistency(
         &self,
@@ -3107,11 +3088,7 @@ impl AuthorityState {
         cur_epoch_store: &AuthorityPerEpochStore,
         panic: bool,
     ) {
-        let live_object_set_hash = accumulator.digest_live_object_set(
-            !cur_epoch_store
-                .protocol_config()
-                .simplified_unwrap_then_delete(),
-        );
+        let live_object_set_hash = accumulator.digest_live_object_set();
 
         let root_state_hash: ECMHLiveObjectSetDigest = self
             .get_accumulator_store()
@@ -4841,34 +4818,18 @@ impl AuthorityState {
             ));
         };
 
-        let tx = if epoch_store
-            .protocol_config()
-            .end_of_epoch_transaction_supported()
-        {
-            txns.push(EndOfEpochTransactionKind::new_change_epoch(
-                next_epoch,
-                next_epoch_protocol_version,
-                gas_cost_summary.storage_cost,
-                gas_cost_summary.computation_cost,
-                gas_cost_summary.storage_rebate,
-                gas_cost_summary.non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-                next_epoch_system_package_bytes,
-            ));
+        txns.push(EndOfEpochTransactionKind::new_change_epoch(
+            next_epoch,
+            next_epoch_protocol_version,
+            gas_cost_summary.storage_cost,
+            gas_cost_summary.computation_cost,
+            gas_cost_summary.storage_rebate,
+            gas_cost_summary.non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            next_epoch_system_package_bytes,
+        ));
 
-            VerifiedTransaction::new_end_of_epoch_transaction(txns)
-        } else {
-            VerifiedTransaction::new_change_epoch(
-                next_epoch,
-                next_epoch_protocol_version,
-                gas_cost_summary.storage_cost,
-                gas_cost_summary.computation_cost,
-                gas_cost_summary.storage_rebate,
-                gas_cost_summary.non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-                next_epoch_system_package_bytes,
-            )
-        };
+        let tx = VerifiedTransaction::new_end_of_epoch_transaction(txns);
 
         let executable_tx = VerifiedExecutableTransaction::new_from_checkpoint(
             tx.clone(),
@@ -5036,12 +4997,7 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        let include_wrapped_object = !self
-            .epoch_store_for_testing()
-            .protocol_config()
-            .simplified_unwrap_then_delete();
-        self.get_accumulator_store()
-            .iter_live_object_set(include_wrapped_object)
+        self.get_accumulator_store().iter_live_object_set()
     }
 
     #[cfg(test)]

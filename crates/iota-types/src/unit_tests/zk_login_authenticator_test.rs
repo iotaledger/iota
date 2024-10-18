@@ -111,7 +111,7 @@ fn test_zklogin_sign_personal_message() {
 
     // Construct the required info to verify a zk login authenticator, jwks,
     // supported providers list and env (prod/test).
-    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true, Some(30));
+    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, Some(30));
     let res = authenticator.verify_authenticator(
         &intent_msg,
         user_address,
