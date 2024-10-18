@@ -16,7 +16,7 @@ Certain test cases rely on the test execution model, such as `nextest` or `simte
 When running all `coin_api` tests using `cargo test`, failures may occur because the `QUERY_MAX_RESULT_LIMIT` is initialized upon first access (as a Singleton). This behavior complicates testing, as subsequent tests
 that rely on this data will be affected by the initial test's configuration. Moreover, some test cases may need different values for `QUERY_MAX_RESULT_LIMIT`, further complicating the testing process.
 
-> **NOTE**
+> [!NOTE]
 >
 > To speed up the tests running time we can use the `simulator` profile, it internally uses the `opt-level = 1` which gives about 5x speedup executing tests without slowing down build times very much.
 >
