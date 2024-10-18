@@ -26,7 +26,6 @@ pub struct VerifierConfig {
     pub max_back_edges_per_module: Option<usize>,
     pub max_basic_blocks_in_script: Option<usize>,
     pub max_identifier_len: Option<u64>,
-    pub allow_receiving_object_id: bool,
     pub bytecode_version: u32,
     pub max_variants_in_enum: Option<u64>,
 }
@@ -69,7 +68,6 @@ impl Default for VerifierConfig {
             max_basic_blocks_in_script: None,
             max_constant_vector_len: Some(DEFAULT_MAX_CONSTANT_VECTOR_LEN),
             max_identifier_len: Some(DEFAULT_MAX_IDENTIFIER_LENGTH),
-            allow_receiving_object_id: true,
             bytecode_version: VERSION_MAX,
             max_variants_in_enum: Some(DEFAULT_MAX_VARIANTS),
         }

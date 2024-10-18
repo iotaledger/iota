@@ -19,12 +19,11 @@ pub fn iota_verify_module_metered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
-    verifier_config: &VerifierConfig,
 ) -> Result<(), ExecutionError> {
     struct_with_key_verifier::verify_module(module)?;
     global_storage_access_verifier::verify_module(module)?;
     id_leak_verifier::verify_module(module, meter)?;
-    private_generics::verify_module(module, verifier_config)?;
+    private_generics::verify_module(module)?;
     entry_points_verifier::verify_module(module, fn_info_map)?;
     one_time_witness_verifier::verify_module(module, fn_info_map)
 }
@@ -36,10 +35,9 @@ pub fn iota_verify_module_metered_check_timeout_only(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
-    verifier_config: &VerifierConfig,
 ) -> Result<(), ExecutionError> {
     // Checks if the error counts as a Iota verifier timeout
-    if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter, verifier_config) {
+    if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter) {
         if matches!(
             error.kind(),
             iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimedout

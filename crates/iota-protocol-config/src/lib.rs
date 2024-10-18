@@ -147,16 +147,9 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     loaded_child_object_format_type: bool,
 
-    // Enable random beacon protocol
-    #[serde(skip_serializing_if = "is_false")]
-    random_beacon: bool,
-
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
-
-    #[serde(skip_serializing_if = "is_false")]
-    enable_effects_v2: bool,
 
     // Enable throughput aware consensus submission
     #[serde(skip_serializing_if = "is_false")]
@@ -173,10 +166,6 @@ struct FeatureFlags {
     // If true, use the hardened OTW check
     #[serde(skip_serializing_if = "is_false")]
     hardened_otw_check: bool,
-
-    // If true allow calling receiving_object_id function
-    #[serde(skip_serializing_if = "is_false")]
-    allow_receiving_object_id: bool,
 
     // Enable the poseidon hash function
     #[serde(skip_serializing_if = "is_false")]
@@ -231,10 +220,6 @@ struct FeatureFlags {
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
-
-    // Run verification of framework upgrades using a new/fresh VM.
-    #[serde(skip_serializing_if = "is_false")]
-    fresh_vm_on_framework_upgrade: bool,
 
     // Set number of leaders per round for Mysticeti commits.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1035,10 +1020,6 @@ impl ProtocolConfig {
     //     }
     // }
 
-    pub fn allow_receiving_object_id(&self) -> bool {
-        self.feature_flags.allow_receiving_object_id
-    }
-
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
         self.feature_flags
             .disable_invariant_violation_check_in_swap_loc
@@ -1091,10 +1072,6 @@ impl ProtocolConfig {
         self.enable_jwk_consensus_updates()
     }
 
-    pub fn random_beacon(&self) -> bool {
-        self.feature_flags.random_beacon
-    }
-
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)
@@ -1110,10 +1087,6 @@ impl ProtocolConfig {
         }
         // In the older protocol version, always try to finalize the committee.
         self.bridge_should_try_to_finalize_committee.unwrap_or(true)
-    }
-
-    pub fn enable_effects_v2(&self) -> bool {
-        self.feature_flags.enable_effects_v2
     }
 
     pub fn accept_zklogin_in_multisig(&self) -> bool {
@@ -1182,10 +1155,6 @@ impl ProtocolConfig {
 
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
-    }
-
-    pub fn fresh_vm_on_framework_upgrade(&self) -> bool {
-        self.feature_flags.fresh_vm_on_framework_upgrade
     }
 
     pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
@@ -1766,12 +1735,10 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
         cfg.feature_flags.shared_object_deletion = true;
         cfg.feature_flags.hardened_otw_check = true;
-        cfg.feature_flags.allow_receiving_object_id = true;
         cfg.feature_flags.enable_coin_deny_list = true;
 
         // Enable group ops and all networks (but not msm)
@@ -1802,14 +1769,8 @@ impl ProtocolConfig {
         // Enable resolving abort code IDs to package ID instead of runtime module ID
         cfg.feature_flags.resolve_abort_locations_to_package_id = true;
 
-        // Enable random beacon.
-        cfg.feature_flags.random_beacon = true;
-
         // Enable the committed sub dag digest inclusion on the commit output
         cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
-
-        // Run Move verification on framework upgrades in its own VM
-        cfg.feature_flags.fresh_vm_on_framework_upgrade = true;
 
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 
@@ -1901,7 +1862,6 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
-            allow_receiving_object_id: self.allow_receiving_object_id(),
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
         }
@@ -1947,9 +1907,6 @@ impl ProtocolConfig {
     }
     pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_jwk_consensus_updates = val
-    }
-    pub fn set_random_beacon_for_testing(&mut self, val: bool) {
-        self.feature_flags.random_beacon = val
     }
 
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
