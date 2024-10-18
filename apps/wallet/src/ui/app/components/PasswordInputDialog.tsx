@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
-import { Button } from '_src/ui/app/shared/ButtonUI';
 import FieldLabel from '_src/ui/app/shared/field-label';
 import { Heading } from '_src/ui/app/shared/heading';
 import { PasswordInputField } from '_src/ui/app/shared/input/password';
@@ -13,8 +12,15 @@ import { ErrorMessage, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
-import { ArrowLeft, ArrowRight, Warning } from '@iota/ui-icons';
-import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Loader, Warning } from '@iota/ui-icons';
+import {
+    Button,
+    ButtonHtmlType,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),
@@ -100,10 +106,7 @@ export function PasswordInputDialog({
                         {showBackButton ? (
                             <Button
                                 text="Back"
-                                color="heroDark"
-                                size="tall"
-                                variant="outline"
-                                before={<ArrowLeft className="h-4 w-4" />}
+                                type={ButtonType.Secondary}
                                 onClick={() => {
                                     if (typeof onBackClicked === 'function') {
                                         onBackClicked();
@@ -112,16 +115,17 @@ export function PasswordInputDialog({
                                     }
                                 }}
                                 disabled={isSubmitting}
+                                fullWidth
                             />
                         ) : null}
                         <Button
-                            type="submit"
-                            variant="primary"
-                            size="tall"
+                            htmlType={ButtonHtmlType.Submit}
+                            type={ButtonType.Primary}
                             text={continueLabel}
-                            loading={isSubmitting}
                             disabled={!isValid}
-                            after={showArrowIcon ? <ArrowRight className="h-4 w-4" /> : null}
+                            icon={isSubmitting ? <Loader className="h-4 w-4 animate-spin" /> : null}
+                            iconAfterText
+                            fullWidth
                         />
                     </div>
                 </Form>
