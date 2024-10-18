@@ -306,6 +306,7 @@ function StakingCard() {
                                     disabled={
                                         !isValid || isSubmitting || (unstake && !delegationId)
                                     }
+                                    text={unstake ? 'Unstake' : 'Stake'}
                                     icon={
                                         isSubmitting ? (
                                             <Loader
@@ -313,13 +314,6 @@ function StakingCard() {
                                                 data-testid="loading-indicator"
                                             />
                                         ) : null
-                                    }
-                                    iconAfterText
-                                    text={unstake ? 'Unstake' : 'Stake'}
-                                    icon={
-                                        isSubmitting ? (
-                                            <Loader className="animate-spin" />
-                                        ) : undefined
                                     }
                                     iconAfterText
                                 />
