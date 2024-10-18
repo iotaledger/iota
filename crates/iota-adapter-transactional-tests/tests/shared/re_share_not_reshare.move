@@ -4,8 +4,6 @@
 
 // tests that shared objects can be re-shared as shared objects
 
-//# init --addresses t1=0x0 t2=0x0 --reshare-at-same-initial-version false
-
 //# publish
 
 module t2::o2 {

@@ -1,93 +1,61 @@
-processed 12 tasks
+processed 11 tasks
 
-task 1, lines 9-30:
+task 0, lines 7-28:
 //# publish
-created: object(1,0)
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5882400,  storage_rebate: 0, non_refundable_storage_fee: 0
+Error: error[E03001]: address with no value
+  ┌─ /tmp/.tmpY0toly:8:8
+  │
+8 │ module t2::o2 {
+  │        ^^ address 't2' is not assigned a value. Try assigning it a value when calling the compiler
+
+
+
+task 1, line 30:
+//# run t2::o2::create
+Error: Error checking transaction input objects: DependentPackageNotFound { package_id: 0x0000000000000000000000000000000000000000000000000000000000000000 }
 
 task 2, line 32:
-//# run t2::o2::create
-created: object(2,0)
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+//# view-object 2,0
+Error: task 2, lines 32-32
+//# view-object 2,0
+. Unbound fake id 2,0
 
 task 3, line 34:
-//# view-object 2,0
-Owner: Shared( 3 )
-Version: 3
-Contents: t2::o2::Obj2 {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-}
+//# run t2::o2::mut_o2 --args object(2,0)
+Error: INVALID TEST. Unknown object, object(2,0)
 
 task 4, line 36:
-//# run t2::o2::mut_o2 --args object(2,0)
-mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+//# view-object 2,0
+Error: task 4, lines 36-36
+//# view-object 2,0
+. Unbound fake id 2,0
 
 task 5, line 38:
-//# view-object 2,0
-Owner: Shared( 3 )
-Version: 4
-Contents: t2::o2::Obj2 {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-}
+//# run t2::o2::re_share_o2 --args object(2,0)
+Error: INVALID TEST. Unknown object, object(2,0)
 
 task 6, line 40:
-//# run t2::o2::re_share_o2 --args object(2,0)
-mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+//# view-object 2,0
+Error: task 6, lines 40-40
+//# view-object 2,0
+. Unbound fake id 2,0
 
 task 7, line 42:
-//# view-object 2,0
-Owner: Shared( 0 )
-Version: 5
-Contents: t2::o2::Obj2 {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-}
+//# run t2::o2::re_share_non_public_o2 --args object(2,0)
+Error: INVALID TEST. Unknown object, object(2,0)
 
 task 8, line 44:
-//# run t2::o2::re_share_non_public_o2 --args object(2,0)
-mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+//# view-object 2,0
+Error: task 8, lines 44-44
+//# view-object 2,0
+. Unbound fake id 2,0
 
 task 9, line 46:
-//# view-object 2,0
-Owner: Shared( 0 )
-Version: 6
-Contents: t2::o2::Obj2 {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-}
+//# run t2::o2::mut_o2 --args object(2,0)
+Error: INVALID TEST. Unknown object, object(2,0)
 
 task 10, line 48:
-//# run t2::o2::mut_o2 --args object(2,0)
-mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
-
-task 11, line 50:
 //# view-object 2,0
-Owner: Shared( 0 )
-Version: 7
-Contents: t2::o2::Obj2 {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-}
+Error: task 10, lines 48-48
+//# view-object 2,0
+. Unbound fake id 2,0
