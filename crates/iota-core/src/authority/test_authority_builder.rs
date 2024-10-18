@@ -187,9 +187,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         }
 
         if let Some(keypair) = self.node_keypair {
-            let owned_keypair = BLS12381KeyPair::from_bytes(keypair.as_bytes())
-                .unwrap()
-                .into(); // Hypothetical constructor method
+            let owned_keypair = BLS12381KeyPair::from_bytes(keypair.as_bytes()).unwrap(); // Hypothetical constructor method
             local_network_config_builder =
                 local_network_config_builder.with_validator_authority_keys(vec![owned_keypair]);
         }
