@@ -1197,19 +1197,15 @@ mod checked {
                 protocol_config.resolve_abort_locations_to_package_id(),
             )
         })?;
-        let has_public_transfer = if protocol_config.recompute_has_public_transfer_in_execution() {
-            let abilities = vm.get_runtime().get_type_abilities(&type_).map_err(|e| {
-                crate::error::convert_vm_error(
-                    e,
-                    vm,
-                    linkage_view,
-                    protocol_config.resolve_abort_locations_to_package_id(),
-                )
-            })?;
-            abilities.has_store()
-        } else {
-            has_public_transfer
-        };
+        let abilities = vm.get_runtime().get_type_abilities(&type_).map_err(|e| {
+            crate::error::convert_vm_error(
+                e,
+                vm,
+                linkage_view,
+                protocol_config.resolve_abort_locations_to_package_id(),
+            )
+        })?;
+        let has_public_transfer = abilities.has_store();
         Ok(ObjectValue {
             type_,
             has_public_transfer,
