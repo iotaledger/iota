@@ -138,11 +138,7 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    // Enable random beacon protocol
-    #[serde(skip_serializing_if = "is_false")]
-    random_beacon: bool,
-
+    
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
