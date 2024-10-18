@@ -31,6 +31,7 @@ pub struct ValidatorInfo {
     pub commission_rate: u64,
     pub network_address: Multiaddr,
     pub p2p_address: Multiaddr,
+    /// Primary address used for consensus-related inter-node communication.
     pub primary_address: Multiaddr,
     pub description: String,
     pub image_url: String,
