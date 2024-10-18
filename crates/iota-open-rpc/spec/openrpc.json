@@ -1309,7 +1309,6 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
-                "loaded_child_object_format": true,
                 "loaded_child_object_format_type": true,
                 "mysticeti_leader_scoring_and_schedule": true,
                 "mysticeti_use_committed_subdag_digest": true,
