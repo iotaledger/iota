@@ -3,27 +3,27 @@ processed 9 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-19:
+task 1, lines 7-20:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 21:
+task 2, line 22:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 3, line 23:
+task 3, line 24:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(3,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 4, line 25:
+task 4, line 26:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 5, lines 27-45:
+task 5, lines 28-46:
 //# run-graphql
 Response: {
   "data": {
@@ -39,7 +39,7 @@ Response: {
   }
 }
 
-task 6, lines 47-65:
+task 6, lines 48-66:
 //# run-graphql
 Response: {
   "data": {
@@ -55,7 +55,7 @@ Response: {
   }
 }
 
-task 7, lines 67-85:
+task 7, lines 68-86:
 //# run-graphql
 Response: {
   "data": null,
@@ -78,7 +78,7 @@ Response: {
   ]
 }
 
-task 8, lines 87-105:
+task 8, lines 88-106:
 //# run-graphql
 Response: {
   "data": {

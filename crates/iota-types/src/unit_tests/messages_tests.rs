@@ -754,7 +754,7 @@ fn test_sponsored_transaction_message() {
     .unwrap();
 
     assert_eq!(
-        transaction.get_signer_sig_mapping(true).unwrap(),
+        transaction.get_signer_sig_mapping().unwrap(),
         BTreeMap::from([(sender, &sender_sig), (sponsor, &sponsor_sig)]),
     );
 

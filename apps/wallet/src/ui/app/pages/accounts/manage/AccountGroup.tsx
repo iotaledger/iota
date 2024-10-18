@@ -16,7 +16,7 @@ import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 import { Collapsible } from '_app/shared/collapse';
 import { useFeature } from '@growthbook/growthbook-react';
-import { Feature } from '_shared/experimentation/features';
+import { Feature } from '@iota/core';
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {

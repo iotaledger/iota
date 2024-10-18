@@ -102,9 +102,10 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
       - RPC_WORKER_THREAD=12
+      - ADDRESS_PROCESSOR_BATCH_SIZE=500
     command:
       - /usr/local/bin/iota-indexer
-      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --db-url=postgres://postgres:postgrespw@postgres:5432/iota_indexer
       - --rpc-client-url=http://local-network:9000
       - --client-metric-port=9181
       - --analytical-worker

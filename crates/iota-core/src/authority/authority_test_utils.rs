@@ -94,12 +94,7 @@ pub async fn execute_certificate_with_execution_error(
     // lead to transaction execution and state change.
     let state_acc =
         StateAccumulator::new_for_tests(authority.get_accumulator_store().clone(), &epoch_store);
-    let include_wrapped_tombstone = !authority
-        .epoch_store_for_testing()
-        .protocol_config()
-        .simplified_unwrap_then_delete();
-    let mut state =
-        state_acc.accumulate_cached_live_object_set_for_testing(include_wrapped_tombstone);
+    let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
 
     if with_shared {
         if fake_consensus {
@@ -134,8 +129,7 @@ pub async fn execute_certificate_with_execution_error(
     // very descriptive error message, but we can at least see that something went
     // wrong inside the VM
     let (result, execution_error_opt) = authority.try_execute_for_test(&certificate).await?;
-    let state_after =
-        state_acc.accumulate_cached_live_object_set_for_testing(include_wrapped_tombstone);
+    let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
     let effects_acc = state_acc.accumulate_effects(
         vec![result.inner().data().clone()],
         epoch_store.protocol_config(),

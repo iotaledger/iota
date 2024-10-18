@@ -15,7 +15,7 @@ use iota_types::{
         CompressedSignature, IotaKeyPair, PublicKey, Signature, ZkLoginAuthenticatorAsBytes,
         ZkLoginPublicIdentifier, get_key_pair,
     },
-    error::{IotaError, IotaResult, UserInputError},
+    error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey},
     multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
     signature::GenericSignature,
@@ -43,26 +43,7 @@ async fn do_upgraded_multisig_test() -> IotaResult {
 }
 
 #[sim_test]
-async fn test_upgraded_multisig_feature_deny() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_upgraded_multisig_for_testing(false);
-        config
-    });
-
-    let err = do_upgraded_multisig_test().await.unwrap_err();
-
-    assert!(matches!(err, IotaError::UserInput {
-        error: UserInputError::Unsupported(..)
-    }));
-}
-
-#[sim_test]
 async fn test_upgraded_multisig_feature_allow() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_upgraded_multisig_for_testing(true);
-        config
-    });
-
     let res = do_upgraded_multisig_test().await;
 
     // we didn't make a real transaction with a valid object, but we verify that we

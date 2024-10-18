@@ -26,9 +26,9 @@ diesel = { workspace = true, optional = true }
 futures.workspace = true
 http.workspace = true
 im.workspace = true
-inquire.workspace = true
+inquire = "0.6.0"
 json_to_table.workspace = true
-miette.workspace = true
+miette = { version = "7", features = ["fancy"] }
 num-bigint.workspace = true
 prometheus.workspace = true
 rand.workspace = true
@@ -78,7 +78,7 @@ fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
 
 colored.workspace = true
-shell-words.workspace = true
+shell-words = "1.1.0"
 unescape.workspace = true
 
 telemetry-subscribers.workspace = true
@@ -97,12 +97,12 @@ move-vm-profiler.workspace = true
 datatest-stable.workspace = true
 
 [dev-dependencies]
-assert_cmd.workspace = true
+assert_cmd = "2.0.6"
 expect-test.workspace = true
 fs_extra.workspace = true
 insta.workspace = true
 prometheus.workspace = true
-shlex.workspace = true
+shlex = "1.3.0"
 
 iota-macros.workspace = true
 iota-simulator.workspace = true

@@ -531,15 +531,9 @@ impl CallArg {
                 );
             }
             CallArg::Object(o) => match o {
-                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::SharedObject { .. } => (),
-                ObjectArg::Receiving(_) => {
-                    if !config.receiving_objects_supported() {
-                        return Err(UserInputError::Unsupported(format!(
-                            "receiving objects is not supported at {:?}",
-                            config.version
-                        )));
-                    }
-                }
+                ObjectArg::Receiving(_)
+                | ObjectArg::ImmOrOwnedObject(_)
+                | ObjectArg::SharedObject { .. } => (),
             },
         }
         Ok(())
@@ -1381,12 +1375,6 @@ impl TransactionKind {
                 }
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                if !config.end_of_epoch_transaction_supported() {
-                    return Err(UserInputError::Unsupported(
-                        "EndOfEpochTransaction is not supported".to_string(),
-                    ));
-                }
-
                 for tx in txns {
                     tx.validity_check(config)?;
                 }
@@ -2203,16 +2191,9 @@ impl<'de> Deserialize<'de> for SenderSignedTransaction {
 impl SenderSignedTransaction {
     pub(crate) fn get_signer_sig_mapping(
         &self,
-        verify_legacy_zklogin_address: bool,
     ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
         let mut mapping = BTreeMap::new();
         for sig in &self.tx_signatures {
-            if verify_legacy_zklogin_address {
-                // Try deriving the address from the legacy padded way.
-                if let GenericSignature::ZkLoginAuthenticator(z) = sig {
-                    mapping.insert(IotaAddress::try_from_padded(&z.inputs)?, sig);
-                };
-            }
             let address = sig.try_into()?;
             mapping.insert(address, sig);
         }
@@ -2259,10 +2240,8 @@ impl SenderSignedData {
 
     pub(crate) fn get_signer_sig_mapping(
         &self,
-        verify_legacy_zklogin_address: bool,
     ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
-        self.inner()
-            .get_signer_sig_mapping(verify_legacy_zklogin_address)
+        self.inner().get_signer_sig_mapping()
     }
 
     pub fn transaction_data(&self) -> &TransactionData {
@@ -2313,15 +2292,6 @@ impl SenderSignedData {
     fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
         for sig in &self.inner().tx_signatures {
             match sig {
-                GenericSignature::MultiSig(_) => {
-                    if !config.supports_upgraded_multisig() {
-                        return Err(IotaError::UserInput {
-                            error: UserInputError::Unsupported(
-                                "upgraded multisig format not enabled on this network".to_string(),
-                            ),
-                        });
-                    }
-                }
                 GenericSignature::ZkLoginAuthenticator(_) => {
                     if !config.zklogin_auth() {
                         return Err(IotaError::UserInput {
@@ -2340,7 +2310,9 @@ impl SenderSignedData {
                         });
                     }
                 }
-                GenericSignature::Signature(_) | GenericSignature::MultiSigLegacy(_) => (),
+                GenericSignature::Signature(_)
+                | GenericSignature::MultiSig(_)
+                | GenericSignature::MultiSigLegacy(_) => (),
             }
         }
 
