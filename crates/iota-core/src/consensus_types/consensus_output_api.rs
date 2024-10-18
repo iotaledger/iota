@@ -168,14 +168,10 @@ impl ConsensusOutputAPI for consensus_core::CommittedSubDag {
     }
 
     fn consensus_digest(&self, protocol_config: &ProtocolConfig) -> ConsensusCommitDigest {
-        if protocol_config.mysticeti_use_committed_subdag_digest() {
-            // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a
-            // iota-core space object. We assume they always have the same
-            // format.
-            static_assertions::assert_eq_size!(ConsensusCommitDigest, CommitDigest);
-            ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
-        } else {
-            ConsensusCommitDigest::default()
-        }
+        // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a
+        // iota-core space object. We assume they always have the same
+        // format.
+        static_assertions::assert_eq_size!(ConsensusCommitDigest, CommitDigest);
+        ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
     }
 }

@@ -226,12 +226,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     resolve_abort_locations_to_package_id: bool,
 
-    // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in
-    // checkpoints. When disabled the default digest is used instead. It's important to have
-    // this guarded behind a flag as it will lead to checkpoint forks.
-    #[serde(skip_serializing_if = "is_false")]
-    mysticeti_use_committed_subdag_digest: bool,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
@@ -1184,10 +1178,6 @@ impl ProtocolConfig {
         self.feature_flags.resolve_abort_locations_to_package_id
     }
 
-    pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
-        self.feature_flags.mysticeti_use_committed_subdag_digest
-    }
-
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
     }
@@ -1813,9 +1803,6 @@ impl ProtocolConfig {
 
         // Enable random beacon.
         cfg.feature_flags.random_beacon = true;
-
-        // Enable the committed sub dag digest inclusion on the commit output
-        cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
 
         // Run Move verification on framework upgrades in its own VM
         cfg.feature_flags.fresh_vm_on_framework_upgrade = true;
