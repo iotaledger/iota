@@ -5376,12 +5376,12 @@
           "primary_address",
           "project_url",
           "proof_of_possession_bytes",
-          "protocol_public_key",
+          "authority_public_key",
           "rewards_pool",
           "staking_pool_id",
           "staking_pool_iota_balance",
           "voting_power",
-          "worker_public_key"
+          "protocol_public_key"
         ],
         "properties": {
           "address": {
@@ -5451,7 +5451,7 @@
             "default": null,
             "type": "string"
           },
-          "next_epoch_protocol_public_key": {
+          "next_epoch_authority_public_key": {
             "$ref": "#/components/schemas/Bls12381PublicKey"
           },
           "next_epoch_stake": {
@@ -5459,7 +5459,7 @@
             "type": "string",
             "format": "u64"
           },
-          "next_epoch_worker_public_key": {
+          "next_epoch_protocol_public_key": {
             "$ref": "#/components/schemas/Ed25519PublicKey"
           },
           "operation_cap_id": {
@@ -5497,7 +5497,7 @@
           "proof_of_possession_bytes": {
             "type": "string"
           },
-          "protocol_public_key": {
+          "authority_public_key": {
             "$ref": "#/components/schemas/Bls12381PublicKey"
           },
           "rewards_pool": {
@@ -5535,7 +5535,7 @@
             "type": "string",
             "format": "u64"
           },
-          "worker_public_key": {
+          "protocol_public_key": {
             "$ref": "#/components/schemas/Ed25519PublicKey"
           }
         }

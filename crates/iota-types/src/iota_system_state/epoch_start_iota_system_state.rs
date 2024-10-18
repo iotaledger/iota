@@ -313,14 +313,14 @@ mod test {
         let mut active_validators = vec![];
 
         for i in 0..10 {
-            let (iota_address, protocol_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
-            let consensus_network_key = NetworkKeyPair::generate(&mut thread_rng());
+            let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
+            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
 
             active_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: protocol_key.public().clone(),
-                network_pubkey: consensus_network_key.public().clone(),
-                protocol_pubkey: consensus_network_key.public().clone(),
+                authority_pubkey: authority_key.public().clone(),
+                network_pubkey: protocol_network_key.public().clone(),
+                protocol_pubkey: protocol_network_key.public().clone(),
                 iota_net_address: Multiaddr::empty(),
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),

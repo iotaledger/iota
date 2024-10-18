@@ -895,7 +895,7 @@ Response: {
                                 {
                                   "metadata": {
                                     "iota_address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80",
-                                    "protocol_pubkey_bytes": [
+                                    "authority_pubkey_bytes": [
                                       168,
                                       10,
                                       113,
@@ -1027,7 +1027,7 @@ Response: {
                                       152,
                                       85
                                     ],
-                                    "worker_pubkey_bytes": [
+                                    "protocol_pubkey_bytes": [
                                       172,
                                       116,
                                       152,
@@ -1122,10 +1122,10 @@ Response: {
                                     "net_address": "/ip4/127.0.0.1/tcp/8000/http",
                                     "p2p_address": "/ip4/127.0.0.1/udp/8001/http",
                                     "primary_address": "/ip4/127.0.0.1/udp/8004/http",
-                                    "next_epoch_protocol_pubkey_bytes": null,
+                                    "next_epoch_authority_pubkey_bytes": null,
                                     "next_epoch_proof_of_possession": null,
                                     "next_epoch_network_pubkey_bytes": null,
-                                    "next_epoch_worker_pubkey_bytes": null,
+                                    "next_epoch_protocol_pubkey_bytes": null,
                                     "next_epoch_net_address": null,
                                     "next_epoch_p2p_address": null,
                                     "next_epoch_primary_address": null,

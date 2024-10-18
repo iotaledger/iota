@@ -108,7 +108,7 @@ impl SimTestValidatorMetadataV1 {
             iota_address: self.iota_address,
             authority_pubkey,
             network_pubkey,
-            authority_pubkey: protocol_pubkey,
+            protocol_pubkey,
             net_address,
             p2p_address,
             primary_address,

@@ -16,7 +16,7 @@ validators:
   active_validators:
     - metadata:
         iota_address: "0xb877dacaef0724a0a155ad7c6ae1289580b96646aef3caafd6ebcb1bcf8bd13f"
-        protocol_pubkey_bytes:
+        authority_pubkey_bytes:
           - 153
           - 242
           - 94
@@ -146,7 +146,7 @@ validators:
           - 97
           - 144
           - 155
-        worker_pubkey_bytes:
+        protocol_pubkey_bytes:
           - 31
           - 42
           - 121
@@ -235,10 +235,10 @@ validators:
         net_address: /ip4/127.0.0.1/tcp/80
         p2p_address: /ip4/127.0.0.1/udp/80
         primary_address: /ip4/127.0.0.1/udp/80
-        next_epoch_protocol_pubkey_bytes: ~
+        next_epoch_authority_pubkey_bytes: ~
         next_epoch_proof_of_possession: ~
         next_epoch_network_pubkey_bytes: ~
-        next_epoch_worker_pubkey_bytes: ~
+        next_epoch_protocol_pubkey_bytes: ~
         next_epoch_net_address: ~
         next_epoch_p2p_address: ~
         next_epoch_primary_address: ~
