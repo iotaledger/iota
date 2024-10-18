@@ -138,7 +138,7 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-    
+
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
