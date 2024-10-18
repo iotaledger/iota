@@ -790,7 +790,7 @@ async fn construct_simple_zklogin_multisig_tx(test_cluster: &TestCluster) -> Tra
         ZkLoginPublicIdentifier::new(zklogin_inputs.get_iss(), zklogin_inputs.get_address_seed())
             .unwrap(),
     );
-    let multisig_pk = MultiSigPublicKey::insecure_new(vec![(zklogin_pk.clone(), 1)], 1);
+    let multisig_pk = MultiSigPublicKey::insecure_new(vec![(zklogin_pk, 1)], 1);
     let rgp = test_cluster.get_reference_gas_price().await;
 
     let multisig_addr = IotaAddress::from(&multisig_pk);
@@ -808,8 +808,8 @@ async fn construct_simple_zklogin_multisig_tx(test_cluster: &TestCluster) -> Tra
     )
     .into();
     let multisig = GenericSignature::MultiSig(
-        MultiSig::combine(vec![sig_4.clone()], multisig_pk.clone()).unwrap(),
+        MultiSig::combine(vec![sig_4], multisig_pk).unwrap(),
     );
 
-    Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig])
+    Transaction::from_generic_sig_data(tx_data, vec![multisig])
 }
