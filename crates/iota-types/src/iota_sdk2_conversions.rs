@@ -87,6 +87,7 @@ impl From<crate::messages_checkpoint::EndOfEpochData> for EndOfEpochData {
                 .into_iter()
                 .map(Into::into)
                 .collect(),
+            epoch_supply_change: value.epoch_supply_change,
         }
     }
 }
@@ -110,9 +111,7 @@ impl From<EndOfEpochData> for crate::messages_checkpoint::EndOfEpochData {
                 .into_iter()
                 .map(Into::into)
                 .collect(),
-            // TODO: this value exists in this crate but not in iota-rust-sdk
-            // https://github.com/iotaledger/iota-rust-sdk/pull/4
-            epoch_supply_change: 0,
+            epoch_supply_change: value.epoch_supply_change,
         }
     }
 }
