@@ -1182,8 +1182,7 @@ impl TransactionKind {
     }
 
     /// Returns an iterator of all shared input objects used by this
-    /// transaction. It covers both Call and ChangeEpoch transaction kind,
-    /// because both makes Move calls.
+    /// transaction.
     pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         match &self {
             Self::ConsensusCommitPrologueV1(_) => {

@@ -6,8 +6,7 @@ use async_graphql::*;
 use iota_types::transaction::TransactionKind as NativeTransactionKind;
 
 use self::{
-    consensus_commit_prologue::ConsensusCommitPrologueTransaction,
-    genesis::GenesisTransaction,
+    consensus_commit_prologue::ConsensusCommitPrologueTransaction, genesis::GenesisTransaction,
     randomness_state_update::RandomnessStateUpdateTransaction,
 };
 use crate::types::transaction_block_kind::{
