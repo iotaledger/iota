@@ -109,13 +109,13 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IDzBlAKNHdoYLmDCEaRG1iHhlSv713F1XQvml1ThXehiBAAAAAAAAAA=",
+            "cursor": "ICBAnwG0xoQlu5qW9R+dYzgpu8Jne+wfv9J6VaPZRiSXBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
           },
           {
-            "cursor": "IPSaw56yCE5pNRFiJKgY0Hjo4koBkVvBMI13rTpr2ir1BAAAAAAAAAA=",
+            "cursor": "ICynkgsfQ0OBgRhdKTLsjG1HWlIJm1fMzzQaubwpsAJMBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -166,7 +166,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IDzBlAKNHdoYLmDCEaRG1iHhlSv713F1XQvml1ThXehiAwAAAAAAAAA=",
+            "cursor": "ICBAnwG0xoQlu5qW9R+dYzgpu8Jne+wfv9J6VaPZRiSXAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -178,7 +178,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IPSaw56yCE5pNRFiJKgY0Hjo4koBkVvBMI13rTpr2ir1AwAAAAAAAAA=",
+            "cursor": "ICynkgsfQ0OBgRhdKTLsjG1HWlIJm1fMzzQaubwpsAJMAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
