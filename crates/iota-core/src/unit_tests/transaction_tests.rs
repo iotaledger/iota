@@ -60,10 +60,7 @@ macro_rules! assert_matches {
 
 use fastcrypto::traits::AggregateAuthenticator;
 use iota_types::{
-    digests::ConsensusCommitDigest,
-    messages_consensus::{
-        ConsensusCommitPrologue, ConsensusCommitPrologueV2, ConsensusCommitPrologueV3,
-    },
+    digests::ConsensusCommitDigest, messages_consensus::ConsensusCommitPrologueV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 
@@ -214,34 +211,9 @@ async fn test_user_sends_genesis_transaction() {
 }
 
 #[tokio::test]
-async fn test_user_sends_consensus_commit_prologue() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologue(
-        ConsensusCommitPrologue {
-            epoch: 0,
-            round: 0,
-            commit_timestamp_ms: 42,
-        },
-    ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_consensus_commit_prologue_v2() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV2(
-        ConsensusCommitPrologueV2 {
-            epoch: 0,
-            round: 0,
-            commit_timestamp_ms: 42,
-            consensus_commit_digest: ConsensusCommitDigest::default(),
-        },
-    ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_consensus_commit_prologue_v3() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV3(
-        ConsensusCommitPrologueV3 {
+async fn test_user_sends_consensus_commit_prologue_v1() {
+    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV1(
+        ConsensusCommitPrologueV1 {
             epoch: 0,
             round: 0,
             sub_dag_index: None,
@@ -1576,7 +1548,13 @@ async fn test_handle_certificate_errors() {
 
     let committee = epoch_store.committee().deref().clone();
 
-    let tx = VerifiedTransaction::new_consensus_commit_prologue(0, 0, 42);
+    let tx = VerifiedTransaction::new_consensus_commit_prologue_v1(
+        0,
+        0,
+        42,
+        ConsensusCommitDigest::default(),
+        Vec::new(),
+    );
     let ct = CertifiedTransaction::new(
         tx.data().clone(),
         vec![signed_transaction.auth_sig().clone()],

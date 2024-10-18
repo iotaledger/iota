@@ -53,10 +53,7 @@ mod checked {
         metrics::LimitsMetrics,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        randomness_state::{
-            RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
-            RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
-        },
+        randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
@@ -604,7 +601,7 @@ mod checked {
 
                 Ok(Mode::empty_results())
             }
-            TransactionKind::ConsensusCommitPrologue(prologue) => {
+            TransactionKind::ConsensusCommitPrologueV1(prologue) => {
                 setup_consensus_commit(
                     prologue.commit_timestamp_ms,
                     temporary_store,
@@ -614,33 +611,7 @@ mod checked {
                     protocol_config,
                     metrics,
                 )
-                .expect("ConsensusCommitPrologue cannot fail");
-                Ok(Mode::empty_results())
-            }
-            TransactionKind::ConsensusCommitPrologueV2(prologue) => {
-                setup_consensus_commit(
-                    prologue.commit_timestamp_ms,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                )
-                .expect("ConsensusCommitPrologueV2 cannot fail");
-                Ok(Mode::empty_results())
-            }
-            TransactionKind::ConsensusCommitPrologueV3(prologue) => {
-                setup_consensus_commit(
-                    prologue.commit_timestamp_ms,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                )
-                .expect("ConsensusCommitPrologueV3 cannot fail");
+                .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
             }
             TransactionKind::ProgrammableTransaction(pt) => {
@@ -683,10 +654,6 @@ mod checked {
                             // TODO: it would be nice if a failure of this function didn't cause
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
-                        }
-                        EndOfEpochTransactionKind::RandomnessStateCreate => {
-                            assert!(protocol_config.random_beacon());
-                            builder = setup_randomness_state_create(builder);
                         }
                         EndOfEpochTransactionKind::DenyListStateCreate => {
                             assert!(protocol_config.enable_coin_deny_list_v1());
@@ -875,34 +842,23 @@ mod checked {
             temporary_store.advance_epoch_safe_mode(&params, protocol_config);
         }
 
-        if protocol_config.fresh_vm_on_framework_upgrade() {
-            let new_vm = new_move_vm(
-                all_natives(/* silent */ true, protocol_config),
-                protocol_config,
-                // enable_profiler
-                None,
-            )
-            .expect("Failed to create new MoveVM");
-            process_system_packages(
-                change_epoch,
-                temporary_store,
-                tx_ctx,
-                &new_vm,
-                gas_charger,
-                protocol_config,
-                metrics,
-            );
-        } else {
-            process_system_packages(
-                change_epoch,
-                temporary_store,
-                tx_ctx,
-                move_vm,
-                gas_charger,
-                protocol_config,
-                metrics,
-            );
-        }
+        let new_vm = new_move_vm(
+            all_natives(/* silent */ true, protocol_config),
+            protocol_config,
+            // enable_profiler
+            None,
+        )
+        .expect("Failed to create new MoveVM");
+        process_system_packages(
+            change_epoch,
+            temporary_store,
+            tx_ctx,
+            &new_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+        );
+
         Ok(())
     }
 
@@ -1024,21 +980,6 @@ mod checked {
                 vec![],
             )
             .expect("Unable to generate authenticator_state_create transaction!");
-        builder
-    }
-
-    fn setup_randomness_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                RANDOMNESS_MODULE_NAME.to_owned(),
-                RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate randomness_state_create transaction!");
         builder
     }
 

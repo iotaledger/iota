@@ -24,7 +24,7 @@ pub fn iota_verify_module_metered(
     struct_with_key_verifier::verify_module(module)?;
     global_storage_access_verifier::verify_module(module)?;
     id_leak_verifier::verify_module(module, meter)?;
-    private_generics::verify_module(module, verifier_config)?;
+    private_generics::verify_module(module)?;
     entry_points_verifier::verify_module(module, fn_info_map, verifier_config)?;
     one_time_witness_verifier::verify_module(module, fn_info_map)
 }
