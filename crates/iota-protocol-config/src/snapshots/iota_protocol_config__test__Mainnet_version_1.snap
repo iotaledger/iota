@@ -11,7 +11,6 @@ feature_flags:
   shared_object_deletion: true
   loaded_child_object_format: true
   loaded_child_object_format_type: true
-  enable_effects_v2: true
   recompute_has_public_transfer_in_execution: true
   hardened_otw_check: true
   allow_receiving_object_id: true
@@ -24,7 +23,6 @@ feature_flags:
   reshare_at_same_initial_version: true
   resolve_abort_locations_to_package_id: true
   mysticeti_use_committed_subdag_digest: true
-  fresh_vm_on_framework_upgrade: true
   mysticeti_num_leaders_per_round: 1
   soft_bundle: true
   enable_coin_deny_list_v2: true

@@ -911,34 +911,23 @@ mod checked {
             temporary_store.advance_epoch_safe_mode(&params, protocol_config);
         }
 
-        if protocol_config.fresh_vm_on_framework_upgrade() {
-            let new_vm = new_move_vm(
-                all_natives(/* silent */ true, protocol_config),
-                protocol_config,
-                // enable_profiler
-                None,
-            )
-            .expect("Failed to create new MoveVM");
-            process_system_packages(
-                change_epoch,
-                temporary_store,
-                tx_ctx,
-                &new_vm,
-                gas_charger,
-                protocol_config,
-                metrics,
-            );
-        } else {
-            process_system_packages(
-                change_epoch,
-                temporary_store,
-                tx_ctx,
-                move_vm,
-                gas_charger,
-                protocol_config,
-                metrics,
-            );
-        }
+        let new_vm = new_move_vm(
+            all_natives(/* silent */ true, protocol_config),
+            protocol_config,
+            // enable_profiler
+            None,
+        )
+        .expect("Failed to create new MoveVM");
+        process_system_packages(
+            change_epoch,
+            temporary_store,
+            tx_ctx,
+            &new_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+        );
+
         Ok(())
     }
 

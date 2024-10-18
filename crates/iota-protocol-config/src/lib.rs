@@ -151,9 +151,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
 
-    #[serde(skip_serializing_if = "is_false")]
-    enable_effects_v2: bool,
-
     // Enable throughput aware consensus submission
     #[serde(skip_serializing_if = "is_false")]
     throughput_aware_consensus_submission: bool,
@@ -231,10 +228,6 @@ struct FeatureFlags {
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
-
-    // Run verification of framework upgrades using a new/fresh VM.
-    #[serde(skip_serializing_if = "is_false")]
-    fresh_vm_on_framework_upgrade: bool,
 
     // Set number of leaders per round for Mysticeti commits.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1108,10 +1101,6 @@ impl ProtocolConfig {
         self.bridge_should_try_to_finalize_committee.unwrap_or(true)
     }
 
-    pub fn enable_effects_v2(&self) -> bool {
-        self.feature_flags.enable_effects_v2
-    }
-
     pub fn accept_zklogin_in_multisig(&self) -> bool {
         self.feature_flags.accept_zklogin_in_multisig
     }
@@ -1182,10 +1171,6 @@ impl ProtocolConfig {
 
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
-    }
-
-    pub fn fresh_vm_on_framework_upgrade(&self) -> bool {
-        self.feature_flags.fresh_vm_on_framework_upgrade
     }
 
     pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
@@ -1766,7 +1751,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
         cfg.feature_flags.shared_object_deletion = true;
@@ -1805,9 +1789,6 @@ impl ProtocolConfig {
 
         // Enable the committed sub dag digest inclusion on the commit output
         cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
-
-        // Run Move verification on framework upgrades in its own VM
-        cfg.feature_flags.fresh_vm_on_framework_upgrade = true;
 
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 
