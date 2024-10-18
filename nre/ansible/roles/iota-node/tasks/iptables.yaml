@@ -62,14 +62,6 @@
     protocol: udp
     comment: iota-node primary-address
 
-- name: Allow UDP destination port 8082 / iota-node worker-address connectivity
-  iptables:
-    chain: INPUT
-    destination_port: 8082
-    jump: ACCEPT
-    protocol: udp
-    comment: iota-node worker-address
-
 - name: Allow UDP destination port 8084 / iota-node peer-to-peer connectivity
   iptables:
     chain: INPUT
