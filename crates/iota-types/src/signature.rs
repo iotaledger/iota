@@ -42,7 +42,6 @@ pub struct VerifyParams {
     pub oidc_provider_jwks: ImHashMap<JwkId, JWK>,
     pub supported_providers: Vec<OIDCProvider>,
     pub zk_login_env: ZkLoginEnv,
-    pub verify_legacy_zklogin_address: bool,
     pub accept_zklogin_in_multisig: bool,
     pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
 }
@@ -52,7 +51,6 @@ impl VerifyParams {
         oidc_provider_jwks: ImHashMap<JwkId, JWK>,
         supported_providers: Vec<OIDCProvider>,
         zk_login_env: ZkLoginEnv,
-        verify_legacy_zklogin_address: bool,
         accept_zklogin_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
     ) -> Self {
@@ -60,7 +58,6 @@ impl VerifyParams {
             oidc_provider_jwks,
             supported_providers,
             zk_login_env,
-            verify_legacy_zklogin_address,
             accept_zklogin_in_multisig,
             zklogin_max_epoch_upper_bound_delta,
         }

@@ -8,13 +8,11 @@ feature_flags:
   advance_to_highest_supported_protocol_version: true
   no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
-  simplified_unwrap_then_delete: true
   shared_object_deletion: true
   loaded_child_object_format: true
   loaded_child_object_format_type: true
   random_beacon: true
   enable_effects_v2: true
-  verify_legacy_zklogin_address: true
   recompute_has_public_transfer_in_execution: true
   include_consensus_digest_in_prologue: true
   hardened_otw_check: true

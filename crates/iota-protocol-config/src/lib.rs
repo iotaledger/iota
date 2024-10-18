@@ -128,16 +128,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    // Previously, the unwrapped_then_deleted field in TransactionEffects makes a distinction
-    // between whether an object has existed in the store previously (i.e. whether there is a
-    // tombstone). Such dependency makes effects generation inefficient, and requires us to
-    // include wrapped tombstone in state root hash.
-    // To prepare for effects V2, with this flag set to true, we simplify the definition of
-    // unwrapped_then_deleted to always include unwrapped then deleted objects,
-    // regardless of their previous state in the store.
-    #[serde(skip_serializing_if = "is_false")]
-    simplified_unwrap_then_delete: bool,
-
     // If true, the ability to delete shared objects is in effect
     #[serde(skip_serializing_if = "is_false")]
     shared_object_deletion: bool,
@@ -167,10 +157,6 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_effects_v2: bool,
-
-    // If true, allow verify with legacy zklogin address
-    #[serde(skip_serializing_if = "is_false")]
-    verify_legacy_zklogin_address: bool,
 
     // Enable throughput aware consensus submission
     #[serde(skip_serializing_if = "is_false")]
@@ -1104,10 +1090,6 @@ impl ProtocolConfig {
         self.feature_flags.consensus_transaction_ordering
     }
 
-    pub fn simplified_unwrap_then_delete(&self) -> bool {
-        self.feature_flags.simplified_unwrap_then_delete
-    }
-
     pub fn shared_object_deletion(&self) -> bool {
         self.feature_flags.shared_object_deletion
     }
@@ -1157,10 +1139,6 @@ impl ProtocolConfig {
 
     pub fn enable_effects_v2(&self) -> bool {
         self.feature_flags.enable_effects_v2
-    }
-
-    pub fn verify_legacy_zklogin_address(&self) -> bool {
-        self.feature_flags.verify_legacy_zklogin_address
     }
 
     pub fn accept_zklogin_in_multisig(&self) -> bool {
@@ -1829,7 +1807,6 @@ impl ProtocolConfig {
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
-        cfg.feature_flags.simplified_unwrap_then_delete = true;
         cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
         cfg.feature_flags.enable_effects_v2 = true;
@@ -1854,7 +1831,6 @@ impl ProtocolConfig {
             cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
             cfg.feature_flags.accept_zklogin_in_multisig = false;
-            cfg.feature_flags.verify_legacy_zklogin_address = true;
         }
 
         // Enable consensus digest in consensus commit prologue on all networks..
@@ -2044,10 +2020,6 @@ impl ProtocolConfig {
 
     pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
         self.feature_flags.reshare_at_same_initial_version = val;
-    }
-
-    pub fn set_verify_legacy_zklogin_address_for_testing(&mut self, val: bool) {
-        self.feature_flags.verify_legacy_zklogin_address = val
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(
