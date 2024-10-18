@@ -368,7 +368,7 @@ impl Validator {
         Ok(connection)
     }
 
-    /// The APY of this validator in basis points.  To get the APY in
+    /// The APY of this validator in basis points. To get the APY in
     /// percentage, divide by 100.
     async fn apy(&self, ctx: &Context<'_>) -> Result<Option<u64>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
