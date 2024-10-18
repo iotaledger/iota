@@ -1315,7 +1315,6 @@
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "recompute_has_public_transfer_in_execution": true,
-                "reject_mutable_random_on_entry_functions": true,
                 "resolve_abort_locations_to_package_id": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "shared_object_deletion": true,
