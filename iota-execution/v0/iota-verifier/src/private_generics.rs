@@ -12,7 +12,6 @@ use move_binary_format::{
 };
 use move_bytecode_utils::format_signature_token;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
-use move_vm_config::verifier::VerifierConfig;
 
 use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
@@ -52,7 +51,6 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
 /// - `T` must be a type declared in the current module
 pub fn verify_module(
     module: &CompiledModule,
-    verifier_config: &VerifierConfig,
 ) -> Result<(), ExecutionError> {
     if *module.address() == IOTA_FRAMEWORK_ADDRESS
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
@@ -108,14 +106,13 @@ fn verify_private_transfer(
     fhandle: &FunctionHandle,
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
-    let public_transfer_functions = PUBLIC_TRANSFER_FUNCTIONS;
     let self_handle = view.module_handle_at(view.self_handle_idx());
     if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
     // public transfer functions require `store` and have no additional rules
-    if public_transfer_functions.contains(&fident) {
+    if PUBLIC_TRANSFER_FUNCTIONS.contains(&fident) {
         return Ok(());
     }
     if !PRIVATE_TRANSFER_FUNCTIONS.contains(&fident) {
