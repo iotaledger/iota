@@ -284,7 +284,7 @@ pub enum TransactionKind {
     ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
     AuthenticatorStateUpdate(AuthenticatorStateUpdate),
 
-    /// EndOfEpochTransaction replaces ChangeEpoch with a list of transactions
+    /// EndOfEpochTransaction contains a list of transactions
     /// that are allowed to run at the end of the epoch.
     EndOfEpochTransaction(Vec<EndOfEpochTransactionKind>),
 

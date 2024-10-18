@@ -7,7 +7,7 @@ use iota_types::transaction::TransactionKind as NativeTransactionKind;
 
 use self::{
     consensus_commit_prologue::ConsensusCommitPrologueTransaction,
-    end_of_epoch::ChangeEpochTransaction, genesis::GenesisTransaction,
+    genesis::GenesisTransaction,
     randomness_state_update::RandomnessStateUpdateTransaction,
 };
 use crate::types::transaction_block_kind::{
@@ -28,7 +28,6 @@ pub(crate) mod randomness_state_update;
 pub(crate) enum TransactionBlockKind {
     ConsensusCommitPrologue(ConsensusCommitPrologueTransaction),
     Genesis(GenesisTransaction),
-    ChangeEpoch(ChangeEpochTransaction),
     Programmable(ProgrammableTransactionBlock),
     AuthenticatorState(AuthenticatorStateUpdateTransaction),
     Randomness(RandomnessStateUpdateTransaction),
