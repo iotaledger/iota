@@ -1174,7 +1174,7 @@ impl KeyToolCommand {
                * ZkLoginEnv::Prod,                 _ => return Err(anyhow!("Invalid
                * network")),             };
                *             let verify_params =
-               *                 VerifyParams::new(parsed, vec![], env, true, true, Some(2)); */
+               *                 VerifyParams::new(parsed, vec![], env, true, Some(2)); */
 
               /*             let (serialized, res) = match IntentScope::try_from(intent_scope)
                *                 .map_err(|_| anyhow!("Invalid scope"))?

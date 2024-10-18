@@ -65,16 +65,6 @@ impl<V> CachedVersionMap<V> {
         None
     }
 
-    pub fn get_prior_to(&self, version: &SequenceNumber) -> Option<(SequenceNumber, &V)> {
-        for (v, value) in self.values.iter().rev() {
-            if v < version {
-                return Some((*v, value));
-            }
-        }
-
-        None
-    }
-
     /// returns the newest (highest) version in the map
     pub fn get_highest(&self) -> Option<&(SequenceNumber, V)> {
         self.values.back()
@@ -250,22 +240,6 @@ mod tests {
         let mut map = CachedVersionMap::default();
         map.insert(seq(1), "First");
         assert_eq!(map.get(&seq(2)), None);
-    }
-
-    #[test]
-    fn get_prior_to_with_valid_version() {
-        let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
-        map.insert(seq(2), "Second");
-        let prior = map.get_prior_to(&seq(2));
-        assert_eq!(prior, Some((seq(1), &"First")));
-    }
-
-    #[test]
-    fn get_prior_to_when_version_is_lowest() {
-        let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
-        assert_eq!(map.get_prior_to(&seq(1)), None);
     }
 
     #[test]

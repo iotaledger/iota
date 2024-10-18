@@ -660,16 +660,6 @@ impl IotaNode {
             state_snapshot_handle.is_some(),
         )?;
 
-        if !epoch_store
-            .protocol_config()
-            .simplified_unwrap_then_delete()
-        {
-            // We cannot prune tombstones if simplified_unwrap_then_delete is not enabled.
-            config
-                .authority_store_pruning_config
-                .set_killswitch_tombstone_pruning(true);
-        }
-
         let mut genesis_objects = genesis.objects().to_vec();
         if let Some(migration_tx_data) = migration_tx_data.as_ref() {
             genesis_objects.extend(migration_tx_data.get_objects());

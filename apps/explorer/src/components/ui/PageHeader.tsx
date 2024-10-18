@@ -2,9 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Badge, BadgeType, InfoBox, InfoBoxStyle, InfoBoxType, Panel } from '@iota/apps-ui-kit';
+import {
+    Badge,
+    BadgeType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    Panel,
+    Placeholder,
+} from '@iota/apps-ui-kit';
 import { Copy, Warning } from '@iota/ui-icons';
-import { Placeholder } from '@iota/ui';
 import { useCopyToClipboard } from '@iota/core';
 import toast from 'react-hot-toast';
 
@@ -41,7 +48,14 @@ export function PageHeader({
                 <div className="flex w-full flex-col items-start justify-between gap-sm md:flex-row md:items-center">
                     <div className="flex w-full flex-col gap-xxs md:w-3/4">
                         {loading ? (
-                            <Placeholder rounded="xl" width="50%" height="10px" />
+                            <div className="flex w-full flex-col gap-xs">
+                                {new Array(2).fill(0).map((_, index) => (
+                                    <Placeholder
+                                        key={index}
+                                        width={index === 0 ? 'w-1/2' : 'w-2/3'}
+                                    />
+                                ))}
+                            </div>
                         ) : (
                             <>
                                 {type && (

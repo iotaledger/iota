@@ -7,7 +7,6 @@ use std::net::SocketAddr;
 
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
@@ -17,10 +16,7 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     transaction::Transaction,
-    utils::{
-        get_legacy_zklogin_user_address, get_zklogin_user_address, load_test_vectors,
-        make_zklogin_tx,
-    },
+    utils::{get_zklogin_user_address, load_test_vectors, make_zklogin_tx},
     zk_login_authenticator::ZkLoginAuthenticator,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -84,38 +80,6 @@ async fn test_zklogin_feature_deny() {
     assert!(matches!(err, IotaError::UserInput {
         error: UserInputError::Unsupported(..)
     }));
-}
-
-#[sim_test]
-#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_zklogin_feature_legacy_address_deny() {
-    use iota_protocol_config::ProtocolConfig;
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_verify_legacy_zklogin_address_for_testing(false);
-        config.set_zklogin_max_epoch_upper_bound_delta_for_testing(None);
-        config
-    });
-
-    let err = do_zklogin_test(get_legacy_zklogin_user_address(), true)
-        .await
-        .unwrap_err();
-    assert!(matches!(err, IotaError::SignerSignatureAbsent { .. }));
-}
-
-#[sim_test]
-#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_zklogin_legacy_address_accept() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_verify_legacy_zklogin_address_for_testing(true);
-        config
-    });
-    let err = do_zklogin_test(get_legacy_zklogin_user_address(), true)
-        .await
-        .unwrap_err();
-
-    // it does not hit the signer absent error.
-    assert!(matches!(err, IotaError::InvalidSignature { .. }));
 }
 
 #[sim_test]

@@ -11,3 +11,5 @@ export const FAQ_LINK = 'https://wiki.iota.org/';
 export const NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE = 2;
 export const NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS = 1;
 export const MIN_NUMBER_IOTA_TO_STAKE = 1;
+
+export const DEFAULT_APP_NAME = 'IOTA Wallet';
