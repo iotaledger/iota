@@ -867,10 +867,9 @@ type ConsensusCommitPrologueTransaction {
 	"""
 	commitTimestamp: DateTime!
 	"""
-	Digest of consensus output, encoded as a Base58 string (only available
-	from V2 of the transaction).
+	Digest of consensus output, encoded as a Base58 string.
 	"""
-	consensusCommitDigest: String
+	consensusCommitDigest: String!
 }
 
 """

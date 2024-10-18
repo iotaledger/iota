@@ -243,8 +243,6 @@ impl<'backing> TemporaryStore<'backing> {
             }
         }
 
-        assert!(self.protocol_config.enable_effects_v2());
-
         // In the case of special transactions that don't require a gas object,
         // we don't really care about the effects to gas, just use the input for it.
         // Gas coins are guaranteed to be at least size 1 and if more than 1
