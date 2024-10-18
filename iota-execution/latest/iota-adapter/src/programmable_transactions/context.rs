@@ -1027,7 +1027,6 @@ mod checked {
         pub(crate) fn make_object_value(
             &mut self,
             type_: MoveObjectType,
-            has_public_transfer: bool,
             used_in_non_entry_move_call: bool,
             contents: &[u8],
         ) -> Result<ObjectValue, ExecutionError> {
@@ -1037,7 +1036,6 @@ mod checked {
                 &mut self.linkage_view,
                 &self.new_packages,
                 type_,
-                has_public_transfer,
                 used_in_non_entry_move_call,
                 contents,
             )
@@ -1210,7 +1208,6 @@ mod checked {
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
         type_: MoveObjectType,
-        has_public_transfer: bool,
         used_in_non_entry_move_call: bool,
         contents: &[u8],
     ) -> Result<ObjectValue, ExecutionError> {
@@ -1275,7 +1272,6 @@ mod checked {
             linkage_view,
             new_packages,
             object.type_().clone(),
-            object.has_public_transfer(),
             used_in_non_entry_move_call,
             object.contents(),
         )

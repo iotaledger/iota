@@ -463,12 +463,8 @@ mod checked {
         used_in_non_entry_move_call: bool,
     ) -> Result<Value, ExecutionError> {
         Ok(match value_info {
-            ValueKind::Object {
+            ValueKind::Object { type_, .. } => Value::Object(context.make_object_value(
                 type_,
-                has_public_transfer,
-            } => Value::Object(context.make_object_value(
-                type_,
-                has_public_transfer,
                 used_in_non_entry_move_call,
                 &bytes,
             )?),
@@ -542,8 +538,6 @@ mod checked {
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
                 UpgradeCap::type_().into(),
-                // has_public_transfer
-                true,
                 // used_in_non_entry_move_call
                 false,
                 &bcs::to_bytes(cap).unwrap(),
@@ -979,10 +973,7 @@ mod checked {
     /// Used to remember type information about a type when resolving the
     /// signature
     enum ValueKind {
-        Object {
-            type_: MoveObjectType,
-            has_public_transfer: bool,
-        },
+        Object { type_: MoveObjectType },
         Raw(Type, AbilitySet),
     }
 
@@ -1178,7 +1169,6 @@ mod checked {
                         };
                         ValueKind::Object {
                             type_: MoveObjectType::from(*struct_tag),
-                            has_public_transfer: abilities.has_store(),
                         }
                     }
                     Type::Datatype(_)
@@ -1299,12 +1289,7 @@ mod checked {
             let (value, non_ref_param_ty): (Value, &Type) = match param_ty {
                 Type::MutableReference(inner) => {
                     let value = context.borrow_arg_mut(idx, arg)?;
-                    let object_info = if let Value::Object(ObjectValue {
-                        type_,
-                        has_public_transfer,
-                        ..
-                    }) = &value
-                    {
+                    let object_info = if let Value::Object(ObjectValue { type_, .. }) = &value {
                         let type_tag = context
                             .vm
                             .get_runtime()
@@ -1314,10 +1299,7 @@ mod checked {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
                         let type_ = (*struct_tag).into();
-                        ValueKind::Object {
-                            type_,
-                            has_public_transfer: *has_public_transfer,
-                        }
+                        ValueKind::Object { type_ }
                     } else {
                         let abilities = context
                             .vm
