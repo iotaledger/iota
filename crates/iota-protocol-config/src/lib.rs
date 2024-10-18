@@ -227,10 +227,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     reshare_at_same_initial_version: bool,
 
-    // Resolve Move abort locations to the package id instead of the runtime module ID.
-    #[serde(skip_serializing_if = "is_false")]
-    resolve_abort_locations_to_package_id: bool,
-
     // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in
     // checkpoints. When disabled the default digest is used instead. It's important to have
     // this guarded behind a flag as it will lead to checkpoint forks.
@@ -1215,10 +1211,6 @@ impl ProtocolConfig {
         self.feature_flags.reshare_at_same_initial_version
     }
 
-    pub fn resolve_abort_locations_to_package_id(&self) -> bool {
-        self.feature_flags.resolve_abort_locations_to_package_id
-    }
-
     pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
         self.feature_flags.mysticeti_use_committed_subdag_digest
     }
@@ -1845,9 +1837,6 @@ impl ProtocolConfig {
         // Enable resharing at same initial version
         cfg.feature_flags.reshare_at_same_initial_version = true;
 
-        // Enable resolving abort code IDs to package ID instead of runtime module ID
-        cfg.feature_flags.resolve_abort_locations_to_package_id = true;
-
         // Enable random beacon.
         cfg.feature_flags.random_beacon = true;
 
@@ -2012,10 +2001,6 @@ impl ProtocolConfig {
 
     pub fn set_shared_object_deletion_for_testing(&mut self, val: bool) {
         self.feature_flags.shared_object_deletion = val;
-    }
-
-    pub fn set_resolve_abort_locations_to_package_id_for_testing(&mut self, val: bool) {
-        self.feature_flags.resolve_abort_locations_to_package_id = val;
     }
 
     pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {

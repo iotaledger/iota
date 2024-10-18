@@ -259,7 +259,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     protocol_version,
                     max_gas,
                     shared_object_deletion,
-                    resolve_abort_locations_to_package_id,
                     reshare_at_same_initial_version,
                     move_binary_format_version,
                     simulator,
@@ -283,9 +282,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                 };
                 if let Some(enable) = shared_object_deletion {
                     protocol_config.set_shared_object_deletion_for_testing(enable);
-                }
-                if let Some(enable) = resolve_abort_locations_to_package_id {
-                    protocol_config.set_resolve_abort_locations_to_package_id_for_testing(enable);
                 }
                 if let Some(enable) = reshare_at_same_initial_version {
                     protocol_config.set_reshare_at_same_initial_version_for_testing(enable);

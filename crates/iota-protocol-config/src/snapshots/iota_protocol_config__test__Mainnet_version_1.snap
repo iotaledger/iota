@@ -24,7 +24,6 @@ feature_flags:
   zklogin_max_epoch_upper_bound_delta: 30
   mysticeti_leader_scoring_and_schedule: true
   reshare_at_same_initial_version: true
-  resolve_abort_locations_to_package_id: true
   mysticeti_use_committed_subdag_digest: true
   record_consensus_determined_version_assignments_in_prologue: true
   fresh_vm_on_framework_upgrade: true

@@ -1325,7 +1325,6 @@
                 "record_consensus_determined_version_assignments_in_prologue": true,
                 "reject_mutable_random_on_entry_functions": true,
                 "reshare_at_same_initial_version": true,
-                "resolve_abort_locations_to_package_id": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "shared_object_deletion": true,
                 "soft_bundle": true,
