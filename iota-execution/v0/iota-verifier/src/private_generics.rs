@@ -49,9 +49,7 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
 /// `transfer` functions, there is no relaxation for `store`
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
-pub fn verify_module(
-    module: &CompiledModule,
-) -> Result<(), ExecutionError> {
+pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
     if *module.address() == IOTA_FRAMEWORK_ADDRESS
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
