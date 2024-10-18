@@ -4,7 +4,6 @@
 
 import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
@@ -33,13 +32,11 @@ function TooltipContent({
     const totalFormatted = formatAmount(epochTotalTransactions);
     return (
         <div className="flex flex-col gap-0.5">
-            <Text variant="subtitleSmallExtra/medium" color="steel-darker">
+            <span className="text-body-sm text-neutral-40">
                 {dateFormatted}, Epoch {epoch}
-            </Text>
+            </span>
             <span className="text-label-lg text-neutral-12">{totalFormatted}</span>
-            <Text variant="subtitleSmallExtra/medium" color="steel-darker" uppercase>
-                Transaction Blocks
-            </Text>
+            <span className="text-body-sm text-neutral-40">Transaction Blocks</span>
         </div>
     );
 }
@@ -131,7 +128,11 @@ export function TransactionsCardGraph() {
                             </ErrorBoundary>
                         </div>
                     ) : (
-                        <LoadingIndicator text="No historical data available" />
+                        <div className="flex items-center justify-center">
+                            <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
+                                No historical data available
+                            </span>
+                        </div>
                     )}
                 </div>
             </div>
