@@ -1298,31 +1298,23 @@
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
                 "advance_to_highest_supported_protocol_version": true,
-                "allow_receiving_object_id": true,
                 "authority_capabilities_v2": true,
                 "bridge": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "enable_coin_deny_list": true,
                 "enable_coin_deny_list_v2": true,
-                "enable_effects_v2": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_group_ops_native_functions": true,
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
-                "fresh_vm_on_framework_upgrade": true,
                 "hardened_otw_check": true,
-                "include_consensus_digest_in_prologue": true,
-                "loaded_child_object_format": true,
                 "loaded_child_object_format_type": true,
                 "mysticeti_leader_scoring_and_schedule": true,
                 "mysticeti_use_committed_subdag_digest": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
-                "prepend_prologue_tx_in_consensus_commit_in_checkpoints": true,
-                "random_beacon": true,
                 "recompute_has_public_transfer_in_execution": true,
-                "record_consensus_determined_version_assignments_in_prologue": true,
                 "reject_mutable_random_on_entry_functions": true,
                 "reshare_at_same_initial_version": true,
                 "resolve_abort_locations_to_package_id": true,
@@ -2975,7 +2967,7 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumber"
           }
         },
         {
@@ -6145,7 +6137,7 @@
                             "$ref": "#/components/schemas/ObjectID"
                           },
                           {
-                            "$ref": "#/components/schemas/SequenceNumber2"
+                            "$ref": "#/components/schemas/SequenceNumber"
                           }
                         ],
                         "maxItems": 2,
@@ -6293,7 +6285,7 @@
                   "$ref": "#/components/schemas/ObjectID"
                 },
                 {
-                  "$ref": "#/components/schemas/SequenceNumber2"
+                  "$ref": "#/components/schemas/SequenceNumber"
                 },
                 {
                   "$ref": "#/components/schemas/ObjectDigest"
@@ -7299,7 +7291,7 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             ]
           }
@@ -7494,7 +7486,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   }
                 }
               },
@@ -7508,7 +7500,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -7546,7 +7538,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   }
                 }
               }
@@ -7670,7 +7662,6 @@
             "type": "string",
             "enum": [
               "AuthenticatorStateCreate",
-              "RandomnessStateCreate",
               "CoinDenyListStateCreate"
             ]
           },
@@ -7717,7 +7708,7 @@
             ],
             "properties": {
               "BridgeCommitteeUpdate": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             },
             "additionalProperties": false
@@ -9584,7 +9575,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9623,7 +9614,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9654,7 +9645,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -9666,7 +9657,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9697,7 +9688,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9728,7 +9719,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9767,7 +9758,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           }
@@ -9995,7 +9986,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 ],
                 "maxItems": 2,
@@ -10026,10 +10017,10 @@
                 ],
                 "properties": {
                   "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "object_id": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -10285,7 +10276,7 @@
                     "description": "The version at which the object became shared",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/SequenceNumber2"
+                        "$ref": "#/components/schemas/SequenceNumber"
                       }
                     ]
                   }
@@ -11280,7 +11271,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumber2"
           }
         }
       },
@@ -11355,6 +11346,8 @@
             "type": "object",
             "required": [
               "commit_timestamp_ms",
+              "consensus_commit_digest",
+              "consensus_determined_version_assignments",
               "epoch",
               "kind",
               "round"
@@ -11363,17 +11356,34 @@
               "commit_timestamp_ms": {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
               },
+              "consensus_commit_digest": {
+                "$ref": "#/components/schemas/ConsensusCommitDigest"
+              },
+              "consensus_determined_version_assignments": {
+                "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
+              },
               "epoch": {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
               },
               "kind": {
                 "type": "string",
                 "enum": [
-                  "ConsensusCommitPrologue"
+                  "ConsensusCommitPrologueV1"
                 ]
               },
               "round": {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              "sub_dag_index": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BigInt_for_uint64"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           },
@@ -11489,81 +11499,6 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "commit_timestamp_ms",
-              "consensus_commit_digest",
-              "epoch",
-              "kind",
-              "round"
-            ],
-            "properties": {
-              "commit_timestamp_ms": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "consensus_commit_digest": {
-                "$ref": "#/components/schemas/ConsensusCommitDigest"
-              },
-              "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "ConsensusCommitPrologueV2"
-                ]
-              },
-              "round": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "commit_timestamp_ms",
-              "consensus_commit_digest",
-              "consensus_determined_version_assignments",
-              "epoch",
-              "kind",
-              "round"
-            ],
-            "properties": {
-              "commit_timestamp_ms": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "consensus_commit_digest": {
-                "$ref": "#/components/schemas/ConsensusCommitDigest"
-              },
-              "consensus_determined_version_assignments": {
-                "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
-              },
-              "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "ConsensusCommitPrologueV3"
-                ]
-              },
-              "round": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "sub_dag_index": {
-                "default": null,
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/BigInt_for_uint64"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
               }
             }
           }

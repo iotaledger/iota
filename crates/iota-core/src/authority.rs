@@ -4638,25 +4638,6 @@ impl AuthorityState {
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn create_randomness_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().random_beacon() {
-            info!("randomness state transactions not enabled");
-            return None;
-        }
-
-        if epoch_store.randomness_state_exists() {
-            return None;
-        }
-
-        let tx = EndOfEpochTransactionKind::new_randomness_state_create();
-        info!("Creating RandomnessStateCreate tx");
-        Some(tx)
-    }
-
-    #[instrument(level = "debug", skip_all)]
     fn create_bridge_tx(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -4748,9 +4729,6 @@ impl AuthorityState {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
-            txns.push(tx);
-        }
-        if let Some(tx) = self.create_randomness_state_tx(epoch_store) {
             txns.push(tx);
         }
         if let Some(tx) = self.create_bridge_tx(epoch_store) {
