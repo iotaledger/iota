@@ -57,8 +57,6 @@ pub struct IotaInitArgs {
     pub protocol_version: Option<u64>,
     #[clap(long = "max-gas")]
     pub max_gas: Option<u64>,
-    #[clap(long = "shared-object-deletion")]
-    pub shared_object_deletion: Option<bool>,
     #[clap(long = "resolve-abort-locations-to-package-id")]
     pub resolve_abort_locations_to_package_id: Option<bool>,
     #[clap(long = "reshare-at-same-initial-version")]

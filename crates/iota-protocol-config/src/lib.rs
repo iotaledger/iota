@@ -128,10 +128,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    // If true, the ability to delete shared objects is in effect
-    #[serde(skip_serializing_if = "is_false")]
-    shared_object_deletion: bool,
-
     // A list of supported OIDC providers that can be used for zklogin.
     #[serde(skip_serializing_if = "is_empty")]
     zklogin_supported_providers: BTreeSet<String>,
@@ -1090,10 +1086,6 @@ impl ProtocolConfig {
         self.feature_flags.consensus_transaction_ordering
     }
 
-    pub fn shared_object_deletion(&self) -> bool {
-        self.feature_flags.shared_object_deletion
-    }
-
     pub fn loaded_child_object_format(&self) -> bool {
         self.feature_flags.loaded_child_object_format
     }
@@ -1812,7 +1804,6 @@ impl ProtocolConfig {
         cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
-        cfg.feature_flags.shared_object_deletion = true;
         cfg.feature_flags.hardened_otw_check = true;
         cfg.feature_flags.allow_receiving_object_id = true;
         cfg.feature_flags.enable_coin_deny_list = true;
@@ -2008,10 +1999,6 @@ impl ProtocolConfig {
 
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_zklogin_in_multisig = val
-    }
-
-    pub fn set_shared_object_deletion_for_testing(&mut self, val: bool) {
-        self.feature_flags.shared_object_deletion = val;
     }
 
     pub fn set_resolve_abort_locations_to_package_id_for_testing(&mut self, val: bool) {

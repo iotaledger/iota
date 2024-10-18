@@ -8,7 +8,6 @@ feature_flags:
   advance_to_highest_supported_protocol_version: true
   no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
-  shared_object_deletion: true
   loaded_child_object_format: true
   loaded_child_object_format_type: true
   random_beacon: true
