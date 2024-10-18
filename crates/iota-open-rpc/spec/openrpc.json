@@ -2972,7 +2972,7 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumber"
           }
         },
         {
@@ -6142,7 +6142,7 @@
                             "$ref": "#/components/schemas/ObjectID"
                           },
                           {
-                            "$ref": "#/components/schemas/SequenceNumber2"
+                            "$ref": "#/components/schemas/SequenceNumber"
                           }
                         ],
                         "maxItems": 2,
@@ -6290,7 +6290,7 @@
                   "$ref": "#/components/schemas/ObjectID"
                 },
                 {
-                  "$ref": "#/components/schemas/SequenceNumber2"
+                  "$ref": "#/components/schemas/SequenceNumber"
                 },
                 {
                   "$ref": "#/components/schemas/ObjectDigest"
@@ -7296,7 +7296,7 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             ]
           }
@@ -7491,7 +7491,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   }
                 }
               },
@@ -7505,7 +7505,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -7543,7 +7543,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   }
                 }
               }
@@ -7714,7 +7714,7 @@
             ],
             "properties": {
               "BridgeCommitteeUpdate": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             },
             "additionalProperties": false
@@ -9581,7 +9581,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9620,7 +9620,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9651,7 +9651,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -9663,7 +9663,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9694,7 +9694,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9725,7 +9725,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -9764,7 +9764,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           }
@@ -9992,7 +9992,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 ],
                 "maxItems": 2,
@@ -10023,10 +10023,10 @@
                 ],
                 "properties": {
                   "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "object_id": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -10282,7 +10282,7 @@
                     "description": "The version at which the object became shared",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/SequenceNumber2"
+                        "$ref": "#/components/schemas/SequenceNumber"
                       }
                     ]
                   }
@@ -11277,7 +11277,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumber2"
           }
         }
       },

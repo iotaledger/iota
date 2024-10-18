@@ -1100,7 +1100,7 @@ impl CheckpointBuilder {
                 .extract_consensus_commit_prologue(&root_digests, &root_effects)
                 .await?;
 
-            // Get the unincluded depdnencies of the consensus commit prologue. We should
+            // Get the un-included dependencies of the consensus commit prologue. We should
             // expect no other dependencies that haven't been included in any
             // previous checkpoints.
             if let Some((ccp_digest, ccp_effects)) = &consensus_commit_prologue {
