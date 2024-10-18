@@ -195,8 +195,6 @@ pub struct CreateCheckpointCommand {
 #[derive(Debug, clap::Parser)]
 pub struct AdvanceEpochCommand {
     pub count: Option<u64>,
-    #[clap(long = "create-random-state")]
-    pub create_random_state: bool,
 }
 
 #[derive(Debug, clap::Parser)]
