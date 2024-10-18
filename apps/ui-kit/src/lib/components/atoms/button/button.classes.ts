@@ -14,7 +14,7 @@ export const PADDINGS_ONLY_ICON: Record<ButtonSize, string> = {
 };
 
 export const BACKGROUND_COLORS: Record<ButtonType, string> = {
-    [ButtonType.Primary]: 'bg-primary-30',
+    [ButtonType.Primary]: 'bg-neutral-90',
     [ButtonType.Secondary]: 'bg-neutral-90 dark:bg-neutral-20',
     [ButtonType.Ghost]: 'bg-transparent',
     [ButtonType.Outlined]: 'bg-transparent border border-neutral-50',
