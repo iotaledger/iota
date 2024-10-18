@@ -1169,6 +1169,10 @@ type Epoch {
 	"""
 	iotaTotalSupply: Int
 	"""
+	The treasury-cap id.
+	"""
+	iotaTreasuryCapId: IotaAddress
+	"""
 	Details of the system that are decided during genesis.
 	"""
 	systemParameters: SystemParameters
