@@ -1548,7 +1548,13 @@ async fn test_handle_certificate_errors() {
 
     let committee = epoch_store.committee().deref().clone();
 
-    let tx = VerifiedTransaction::new_consensus_commit_prologue(0, 0, 42);
+    let tx = VerifiedTransaction::new_consensus_commit_prologue_v1(
+        0,
+        0,
+        42,
+        ConsensusCommitDigest::default(),
+        Vec::new(),
+    );
     let ct = CertifiedTransaction::new(
         tx.data().clone(),
         vec![signed_transaction.auth_sig().clone()],
