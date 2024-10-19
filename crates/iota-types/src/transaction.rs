@@ -302,7 +302,6 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
-    RandomnessStateCreate,
     DenyListStateCreate,
     BridgeStateCreate(ChainIdentifier),
     BridgeCommitteeInit(SequenceNumber),
@@ -345,10 +344,6 @@ impl EndOfEpochTransactionKind {
         Self::AuthenticatorStateCreate
     }
 
-    pub fn new_randomness_state_create() -> Self {
-        Self::RandomnessStateCreate
-    }
-
     pub fn new_deny_list_state_create() -> Self {
         Self::DenyListStateCreate
     }
@@ -378,7 +373,6 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::RandomnessStateCreate => vec![],
             Self::DenyListStateCreate => vec![],
             Self::BridgeStateCreate(_) => vec![],
             Self::BridgeCommitteeInit(bridge_version) => vec![
@@ -410,7 +404,6 @@ impl EndOfEpochTransactionKind {
                 .into_iter(),
             ),
             Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
-            Self::RandomnessStateCreate => Either::Right(iter::empty()),
             Self::DenyListStateCreate => Either::Right(iter::empty()),
             Self::BridgeStateCreate(_) => Either::Right(iter::empty()),
             Self::BridgeCommitteeInit(bridge_version) => Either::Left(
@@ -434,13 +427,6 @@ impl EndOfEpochTransactionKind {
                 if !config.enable_jwk_consensus_updates() {
                     return Err(UserInputError::Unsupported(
                         "authenticator state updates not enabled".to_string(),
-                    ));
-                }
-            }
-            Self::RandomnessStateCreate => {
-                if !config.random_beacon() {
-                    return Err(UserInputError::Unsupported(
-                        "random beacon not enabled".to_string(),
                     ));
                 }
             }
@@ -976,12 +962,6 @@ impl ProgrammableTransaction {
         if let Some(random_index) = inputs.iter().position(|obj| {
             matches!(obj, CallArg::Object(ObjectArg::SharedObject { id, .. }) if *id == IOTA_RANDOMNESS_STATE_OBJECT_ID)
         }) {
-            fp_ensure!(
-                config.random_beacon(),
-                UserInputError::Unsupported(
-                    "randomness is not enabled on this network".to_string(),
-                )
-            );
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
             for command in commands {
@@ -1358,13 +1338,7 @@ impl TransactionKind {
                     ));
                 }
             }
-            TransactionKind::RandomnessStateUpdate(_) => {
-                if !config.random_beacon() {
-                    return Err(UserInputError::Unsupported(
-                        "randomness state updates not enabled".to_string(),
-                    ));
-                }
-            }
+            TransactionKind::RandomnessStateUpdate(_) => (),
         };
         Ok(())
     }
