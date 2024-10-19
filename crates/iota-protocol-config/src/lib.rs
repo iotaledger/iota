@@ -136,20 +136,12 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_empty")]
     zklogin_supported_providers: BTreeSet<String>,
 
-    // If true, use the new child object format
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_object_format: bool,
-
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
 
     // If true, use the new child object format type logging
     #[serde(skip_serializing_if = "is_false")]
     loaded_child_object_format_type: bool,
-
-    // Enable random beacon protocol
-    #[serde(skip_serializing_if = "is_false")]
-    random_beacon: bool,
 
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
@@ -171,10 +163,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     hardened_otw_check: bool,
 
-    // If true allow calling receiving_object_id function
-    #[serde(skip_serializing_if = "is_false")]
-    allow_receiving_object_id: bool,
-
     // Enable the poseidon hash function
     #[serde(skip_serializing_if = "is_false")]
     enable_poseidon: bool,
@@ -190,10 +178,6 @@ struct FeatureFlags {
     // Enable native function for msm.
     #[serde(skip_serializing_if = "is_false")]
     enable_group_ops_native_function_msm: bool,
-
-    // Reject functions with mutable Random.
-    #[serde(skip_serializing_if = "is_false")]
-    reject_mutable_random_on_entry_functions: bool,
 
     // Controls the behavior of per object congestion control in consensus handler.
     #[serde(skip_serializing_if = "PerObjectCongestionControlMode::is_none")]
@@ -214,10 +198,6 @@ struct FeatureFlags {
     // Controls leader scoring & schedule change in Mysticeti consensus.
     #[serde(skip_serializing_if = "is_false")]
     mysticeti_leader_scoring_and_schedule: bool,
-
-    // Enable resharing of shared objects using the same initial shared version
-    #[serde(skip_serializing_if = "is_false")]
-    reshare_at_same_initial_version: bool,
 
     // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in
     // checkpoints. When disabled the default digest is used instead. It's important to have
@@ -1028,10 +1008,6 @@ impl ProtocolConfig {
     //     }
     // }
 
-    pub fn allow_receiving_object_id(&self) -> bool {
-        self.feature_flags.allow_receiving_object_id
-    }
-
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
         self.feature_flags
             .disable_invariant_violation_check_in_swap_loc
@@ -1062,10 +1038,6 @@ impl ProtocolConfig {
         self.feature_flags.shared_object_deletion
     }
 
-    pub fn loaded_child_object_format(&self) -> bool {
-        self.feature_flags.loaded_child_object_format
-    }
-
     pub fn enable_jwk_consensus_updates(&self) -> bool {
         self.feature_flags.enable_jwk_consensus_updates
     }
@@ -1082,10 +1054,6 @@ impl ProtocolConfig {
     // this function only exists for readability in the genesis code.
     pub fn create_authenticator_state_in_genesis(&self) -> bool {
         self.enable_jwk_consensus_updates()
-    }
-
-    pub fn random_beacon(&self) -> bool {
-        self.feature_flags.random_beacon
     }
 
     pub fn dkg_version(&self) -> u64 {
@@ -1141,10 +1109,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_group_ops_native_function_msm
     }
 
-    pub fn reject_mutable_random_on_entry_functions(&self) -> bool {
-        self.feature_flags.reject_mutable_random_on_entry_functions
-    }
-
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
         self.feature_flags.per_object_congestion_control_mode
     }
@@ -1159,10 +1123,6 @@ impl ProtocolConfig {
 
     pub fn mysticeti_leader_scoring_and_schedule(&self) -> bool {
         self.feature_flags.mysticeti_leader_scoring_and_schedule
-    }
-
-    pub fn reshare_at_same_initial_version(&self) -> bool {
-        self.feature_flags.reshare_at_same_initial_version
     }
 
     pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
@@ -1749,15 +1709,12 @@ impl ProtocolConfig {
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
-        cfg.feature_flags.loaded_child_object_format = true;
         cfg.feature_flags.loaded_child_object_format_type = true;
 
         cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
         cfg.feature_flags.shared_object_deletion = true;
         cfg.feature_flags.hardened_otw_check = true;
-        cfg.feature_flags.allow_receiving_object_id = true;
         cfg.feature_flags.enable_coin_deny_list = true;
-        cfg.feature_flags.reject_mutable_random_on_entry_functions = true;
 
         // Enable group ops and all networks (but not msm)
         cfg.feature_flags.enable_group_ops_native_functions = true;
@@ -1780,12 +1737,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
-
-        // Enable resharing at same initial version
-        cfg.feature_flags.reshare_at_same_initial_version = true;
-
-        // Enable random beacon.
-        cfg.feature_flags.random_beacon = true;
 
         // Enable the committed sub dag digest inclusion on the commit output
         cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
@@ -1880,9 +1831,6 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
-            allow_receiving_object_id: self.allow_receiving_object_id(),
-            reject_mutable_random_on_entry_functions: self
-                .reject_mutable_random_on_entry_functions(),
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
         }
@@ -1929,9 +1877,6 @@ impl ProtocolConfig {
     pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_jwk_consensus_updates = val
     }
-    pub fn set_random_beacon_for_testing(&mut self, val: bool) {
-        self.feature_flags.random_beacon = val
-    }
 
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_zklogin_in_multisig = val
@@ -1939,10 +1884,6 @@ impl ProtocolConfig {
 
     pub fn set_shared_object_deletion_for_testing(&mut self, val: bool) {
         self.feature_flags.shared_object_deletion = val;
-    }
-
-    pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
-        self.feature_flags.reshare_at_same_initial_version = val;
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(

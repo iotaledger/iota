@@ -49,8 +49,6 @@ pub(crate) fn production_config() -> (VerifierConfig, MeterConfig) {
 
             max_constant_vector_len: Some(DEFAULT_MAX_CONSTANT_VECTOR_LEN),
             max_identifier_len: Some(DEFAULT_MAX_IDENTIFIER_LENGTH),
-            allow_receiving_object_id: true,
-            reject_mutable_random_on_entry_functions: true,
             bytecode_version: VERSION_MAX,
             max_variants_in_enum: Some(DEFAULT_MAX_VARIANTS),
         },
