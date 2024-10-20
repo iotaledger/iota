@@ -807,9 +807,7 @@ async fn construct_simple_zklogin_multisig_tx(test_cluster: &TestCluster) -> Tra
         Signature::new_secure(&intent_msg, eph_kp),
     )
     .into();
-    let multisig = GenericSignature::MultiSig(
-        MultiSig::combine(vec![sig_4], multisig_pk).unwrap(),
-    );
+    let multisig = GenericSignature::MultiSig(MultiSig::combine(vec![sig_4], multisig_pk).unwrap());
 
     Transaction::from_generic_sig_data(tx_data, vec![multisig])
 }
