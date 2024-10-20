@@ -779,21 +779,6 @@ impl ValidatorService {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> Result<(), tonic::Status> {
         let protocol_config = epoch_store.protocol_config();
-        let node_config = &self.state.config;
-
-        // Soft Bundle MUST be enabled both in protocol config and local node config.
-        //
-        // The local node config is by default enabled, but can be turned off by the
-        // node operator. This acts an extra safety measure where a validator
-        // node have the choice to turn this feature off, without having to
-        // upgrade the entire network.
-        fp_ensure!(
-            protocol_config.soft_bundle() && node_config.enable_soft_bundle,
-            IotaError::UnsupportedFeature {
-                error: "Soft Bundle".to_string()
-            }
-            .into()
-        );
 
         // Enforce these checks per [SIP-19](https://github.com/sui-foundation/sips/blob/main/sips/sip-19.md):
         // - All certs must access at least one shared object.
