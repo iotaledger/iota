@@ -136,27 +136,12 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_empty")]
     zklogin_supported_providers: BTreeSet<String>,
 
-    // If true, use the new child object format
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_object_format: bool,
-
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    // If true, use the new child object format type logging
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_object_format_type: bool,
-
-    // Enable random beacon protocol
-    #[serde(skip_serializing_if = "is_false")]
-    random_beacon: bool,
 
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
-
-    #[serde(skip_serializing_if = "is_false")]
-    enable_effects_v2: bool,
 
     // Enable throughput aware consensus submission
     #[serde(skip_serializing_if = "is_false")]
@@ -166,18 +151,9 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
 
-    // If true, consensus prologue transaction also includes the consensus output digest.
-    // It can be used to detect consensus output folk.
-    #[serde(skip_serializing_if = "is_false")]
-    include_consensus_digest_in_prologue: bool,
-
     // If true, use the hardened OTW check
     #[serde(skip_serializing_if = "is_false")]
     hardened_otw_check: bool,
-
-    // If true allow calling receiving_object_id function
-    #[serde(skip_serializing_if = "is_false")]
-    allow_receiving_object_id: bool,
 
     // Enable the poseidon hash function
     #[serde(skip_serializing_if = "is_false")]
@@ -194,10 +170,6 @@ struct FeatureFlags {
     // Enable native function for msm.
     #[serde(skip_serializing_if = "is_false")]
     enable_group_ops_native_function_msm: bool,
-
-    // Reject functions with mutable Random.
-    #[serde(skip_serializing_if = "is_false")]
-    reject_mutable_random_on_entry_functions: bool,
 
     // Controls the behavior of per object congestion control in consensus handler.
     #[serde(skip_serializing_if = "PerObjectCongestionControlMode::is_none")]
@@ -219,14 +191,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     mysticeti_leader_scoring_and_schedule: bool,
 
-    // Enable resharing of shared objects using the same initial shared version
-    #[serde(skip_serializing_if = "is_false")]
-    reshare_at_same_initial_version: bool,
-
-    // Resolve Move abort locations to the package id instead of the runtime module ID.
-    #[serde(skip_serializing_if = "is_false")]
-    resolve_abort_locations_to_package_id: bool,
-
     // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in
     // checkpoints. When disabled the default digest is used instead. It's important to have
     // this guarded behind a flag as it will lead to checkpoint forks.
@@ -236,26 +200,6 @@ struct FeatureFlags {
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
-
-    // Controls whether consensus handler should record consensus determined shared object version
-    // assignments in consensus commit prologue transaction.
-    // The purpose of doing this is to enable replaying transaction without transaction effects.
-    #[serde(skip_serializing_if = "is_false")]
-    record_consensus_determined_version_assignments_in_prologue: bool,
-
-    // Run verification of framework upgrades using a new/fresh VM.
-    #[serde(skip_serializing_if = "is_false")]
-    fresh_vm_on_framework_upgrade: bool,
-
-    // When set to true, the consensus commit prologue transaction will be placed first
-    // in a consensus commit in checkpoints.
-    // If a checkpoint contains multiple consensus commit, say [cm1][cm2]. The each commit's
-    // consensus commit prologue will be the first transaction in each segment:
-    //     [ccp1, rest cm1][ccp2, rest cm2]
-    // The reason to prepose the prologue transaction is to provide information for transaction
-    // cancellation.
-    #[serde(skip_serializing_if = "is_false")]
-    prepend_prologue_tx_in_consensus_commit_in_checkpoints: bool,
 
     // Set number of leaders per round for Mysticeti commits.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1056,10 +1000,6 @@ impl ProtocolConfig {
     //     }
     // }
 
-    pub fn allow_receiving_object_id(&self) -> bool {
-        self.feature_flags.allow_receiving_object_id
-    }
-
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
         self.feature_flags
             .disable_invariant_violation_check_in_swap_loc
@@ -1090,25 +1030,13 @@ impl ProtocolConfig {
         self.feature_flags.shared_object_deletion
     }
 
-    pub fn loaded_child_object_format(&self) -> bool {
-        self.feature_flags.loaded_child_object_format
-    }
-
     pub fn enable_jwk_consensus_updates(&self) -> bool {
         self.feature_flags.enable_jwk_consensus_updates
-    }
-
-    pub fn loaded_child_object_format_type(&self) -> bool {
-        self.feature_flags.loaded_child_object_format_type
     }
 
     // this function only exists for readability in the genesis code.
     pub fn create_authenticator_state_in_genesis(&self) -> bool {
         self.enable_jwk_consensus_updates()
-    }
-
-    pub fn random_beacon(&self) -> bool {
-        self.feature_flags.random_beacon
     }
 
     pub fn dkg_version(&self) -> u64 {
@@ -1128,10 +1056,6 @@ impl ProtocolConfig {
         self.bridge_should_try_to_finalize_committee.unwrap_or(true)
     }
 
-    pub fn enable_effects_v2(&self) -> bool {
-        self.feature_flags.enable_effects_v2
-    }
-
     pub fn accept_zklogin_in_multisig(&self) -> bool {
         self.feature_flags.accept_zklogin_in_multisig
     }
@@ -1142,20 +1066,6 @@ impl ProtocolConfig {
 
     pub fn throughput_aware_consensus_submission(&self) -> bool {
         self.feature_flags.throughput_aware_consensus_submission
-    }
-
-    pub fn include_consensus_digest_in_prologue(&self) -> bool {
-        self.feature_flags.include_consensus_digest_in_prologue
-    }
-
-    pub fn record_consensus_determined_version_assignments_in_prologue(&self) -> bool {
-        self.feature_flags
-            .record_consensus_determined_version_assignments_in_prologue
-    }
-
-    pub fn prepend_prologue_tx_in_consensus_commit_in_checkpoints(&self) -> bool {
-        self.feature_flags
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints
     }
 
     pub fn hardened_otw_check(&self) -> bool {
@@ -1182,10 +1092,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_group_ops_native_function_msm
     }
 
-    pub fn reject_mutable_random_on_entry_functions(&self) -> bool {
-        self.feature_flags.reject_mutable_random_on_entry_functions
-    }
-
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
         self.feature_flags.per_object_congestion_control_mode
     }
@@ -1202,24 +1108,12 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_leader_scoring_and_schedule
     }
 
-    pub fn reshare_at_same_initial_version(&self) -> bool {
-        self.feature_flags.reshare_at_same_initial_version
-    }
-
-    pub fn resolve_abort_locations_to_package_id(&self) -> bool {
-        self.feature_flags.resolve_abort_locations_to_package_id
-    }
-
     pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
         self.feature_flags.mysticeti_use_committed_subdag_digest
     }
 
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
-    }
-
-    pub fn fresh_vm_on_framework_upgrade(&self) -> bool {
-        self.feature_flags.fresh_vm_on_framework_upgrade
     }
 
     pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
@@ -1798,15 +1692,10 @@ impl ProtocolConfig {
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
-        cfg.feature_flags.loaded_child_object_format = true;
-        cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.enable_effects_v2 = true;
 
         cfg.feature_flags.shared_object_deletion = true;
         cfg.feature_flags.hardened_otw_check = true;
-        cfg.feature_flags.allow_receiving_object_id = true;
         cfg.feature_flags.enable_coin_deny_list = true;
-        cfg.feature_flags.reject_mutable_random_on_entry_functions = true;
 
         // Enable group ops and all networks (but not msm)
         cfg.feature_flags.enable_group_ops_native_functions = true;
@@ -1823,8 +1712,6 @@ impl ProtocolConfig {
             cfg.feature_flags.accept_zklogin_in_multisig = false;
         }
 
-        // Enable consensus digest in consensus commit prologue on all networks..
-        cfg.feature_flags.include_consensus_digest_in_prologue = true;
         // Enable Mysticeti on mainnet.
         cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
         // Use tonic networking for Mysticeti.
@@ -1832,26 +1719,8 @@ impl ProtocolConfig {
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
-        // Enable resharing at same initial version
-        cfg.feature_flags.reshare_at_same_initial_version = true;
-
-        // Enable resolving abort code IDs to package ID instead of runtime module ID
-        cfg.feature_flags.resolve_abort_locations_to_package_id = true;
-
-        // Enable random beacon.
-        cfg.feature_flags.random_beacon = true;
-
         // Enable the committed sub dag digest inclusion on the commit output
         cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
-
-        // Enable consensus commit prologue V3.
-        cfg.feature_flags
-            .record_consensus_determined_version_assignments_in_prologue = true;
-        cfg.feature_flags
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints = true;
-
-        // Run Move verification on framework upgrades in its own VM
-        cfg.feature_flags.fresh_vm_on_framework_upgrade = true;
 
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 
@@ -1943,9 +1812,6 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
-            allow_receiving_object_id: self.allow_receiving_object_id(),
-            reject_mutable_random_on_entry_functions: self
-                .reject_mutable_random_on_entry_functions(),
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
         }
@@ -1992,9 +1858,6 @@ impl ProtocolConfig {
     pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_jwk_consensus_updates = val
     }
-    pub fn set_random_beacon_for_testing(&mut self, val: bool) {
-        self.feature_flags.random_beacon = val
-    }
 
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_zklogin_in_multisig = val
@@ -2002,14 +1865,6 @@ impl ProtocolConfig {
 
     pub fn set_shared_object_deletion_for_testing(&mut self, val: bool) {
         self.feature_flags.shared_object_deletion = val;
-    }
-
-    pub fn set_resolve_abort_locations_to_package_id_for_testing(&mut self, val: bool) {
-        self.feature_flags.resolve_abort_locations_to_package_id = val;
-    }
-
-    pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
-        self.feature_flags.reshare_at_same_initial_version = val;
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(
