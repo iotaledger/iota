@@ -106,7 +106,7 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         staked_iota_copy[0].stakes[0].staked_iota_id
     );
 
-    cluster.trigger_reconfiguration().await;
+    cluster.force_new_epoch().await;
 
     // Check DelegatedStake object after epoch transition
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
@@ -170,7 +170,7 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
             .await?;
     }
 
-    cluster.trigger_reconfiguration().await;
+    cluster.force_new_epoch().await;
 
     // Check DelegatedStake object
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
@@ -211,7 +211,7 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
 
     let _ = cluster.wallet.execute_transaction_must_succeed(tx).await;
 
-    cluster.trigger_reconfiguration().await;
+    cluster.force_new_epoch().await;
 
     let staked_iota_copy: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert_eq!(1, staked_iota_copy.len());
@@ -498,7 +498,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    cluster.trigger_reconfiguration().await;
+    cluster.force_new_epoch().await;
 
     let staked_iota: Vec<DelegatedTimelockedStake> =
         http_client.get_timelocked_stakes(address).await?;
@@ -533,7 +533,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    cluster.trigger_reconfiguration().await;
+    cluster.force_new_epoch().await;
 
     let staked_iota: Vec<DelegatedTimelockedStake> =
         http_client.get_timelocked_stakes(address).await?;

@@ -802,7 +802,7 @@ mod tests {
 
         cluster
             .validator_fullnode_handle
-            .trigger_reconfiguration()
+            .force_new_epoch()
             .await;
 
         // Wait for the epoch to be indexed
