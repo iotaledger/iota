@@ -318,14 +318,12 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire
     3:
-      RandomnessStateCreate: UNIT
-    4:
       DenyListStateCreate: UNIT
-    5:
+    4:
       BridgeStateCreate:
         NEWTYPE:
           TYPENAME: ChainIdentifier
-    6:
+    5:
       BridgeCommitteeInit:
         NEWTYPE:
           TYPENAME: SequenceNumber
@@ -752,7 +750,9 @@ PackageUpgradeError:
       DigestDoesNotMatch:
         STRUCT:
           - digest:
-              SEQ: U8
+              TUPLEARRAY:
+                CONTENT: U8
+                SIZE: 32
     4:
       UnknownUpgradePolicy:
         STRUCT:
