@@ -54,7 +54,7 @@ module kiosk::royalty_rule {
     /// is the minimum amount to be paid if the percentage based fee is
     /// lower than the `min_amount` setting.
     ///
-    /// Adding a mininum amount is useful to enforce a fixed fee even if
+    /// Adding a minimum amount is useful to enforce a fixed fee even if
     /// the transfer amount is very small or 0.
     struct Config has store, drop {
         amount_bp: u16,

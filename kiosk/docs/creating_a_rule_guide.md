@@ -75,7 +75,7 @@ module examples::dummy_rule {
 }
 ```
 
-This module contains no configuration and requires a `Coin<IOTA>` of any value (even "0"), so it's easy to imagine that every buyer would create a zero Coin and pass it to get the Receipt. The only thing this Rule module is good for is illustration and a skeleton. Goes without saying but *this code should never be used in production*.
+This module contains no configuration and requires a `Coin<IOTA>` of any value (even "0"), so it's easy to imagine that every buyer would create a zero Coin and pass it to get the Receipt. The only thing this Rule module is good for is illustration and a skeleton. Goes without saying but _this code should never be used in production_.
 
 ## Reading the Request: Royalty
 
@@ -166,7 +166,7 @@ module examples::time_rule {
 
 ## Generalizing approach: Witness policy
 
-Iota Move has two main ways for authorizing an action: static - by using the Witness pattern, and dynamic - via the Capability pattern. With a small addition of type parameters to the Rule, it is possible to create a *generic Rule* which will not only vary by configuration but also by the type of the Rule.
+Iota Move has two main ways for authorizing an action: static - by using the Witness pattern, and dynamic - via the Capability pattern. With a small addition of type parameters to the Rule, it is possible to create a _generic Rule_ which will not only vary by configuration but also by the type of the Rule.
 
 ```move
 module examples::witness_rule {
