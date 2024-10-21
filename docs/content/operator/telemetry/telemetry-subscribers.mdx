@@ -3,6 +3,9 @@ title: Telemetry Subscribers
 description: Allows for flexible logging and tracing of the node.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/telemetry/telemetry-subscribers.json';
+
 The `telemetry-subscribers` crate is used for logging and tracing the node.
 It provides a [`tracing`](https://docs.rs/tracing/latest/tracing/) subscriber with flexible options to monitor the nodes performance and behavior.
 It is currently used in different main functions of the node, including tests and is typically initialized at the
@@ -113,3 +116,5 @@ The `metrics_address` is the address where the Prometheus metrics will be expose
 configuration file.
 Per default, it is set to `0.0.0.0:9400`.
 After the default registry is created, it is passed to the `TelemetryConfig` with the `with_prom_registry` function.
+
+<Quiz questions={questions} />
