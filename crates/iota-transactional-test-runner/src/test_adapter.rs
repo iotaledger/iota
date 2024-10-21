@@ -259,8 +259,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     protocol_version,
                     max_gas,
                     shared_object_deletion,
-                    resolve_abort_locations_to_package_id,
-                    reshare_at_same_initial_version,
                     move_binary_format_version,
                     simulator,
                     custom_validator_account,
@@ -283,12 +281,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                 };
                 if let Some(enable) = shared_object_deletion {
                     protocol_config.set_shared_object_deletion_for_testing(enable);
-                }
-                if let Some(enable) = resolve_abort_locations_to_package_id {
-                    protocol_config.set_resolve_abort_locations_to_package_id_for_testing(enable);
-                }
-                if let Some(enable) = reshare_at_same_initial_version {
-                    protocol_config.set_reshare_at_same_initial_version_for_testing(enable);
                 }
                 if let Some(version) = move_binary_format_version {
                     protocol_config.set_move_binary_format_version_for_testing(version);
@@ -1000,8 +992,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                 let digest = MovePackage::compute_digest_for_modules_and_deps(
                     module_bytes.iter(),
                     &dependencies,
-                    // hash_modules
-                    true,
                 )
                 .to_vec();
                 let staged = StagedPackage {
@@ -1325,13 +1315,8 @@ impl<'a> IotaTestAdapter {
         // Argument::Input(0)
         IotaValue::Object(upgrade_capability, None).into_argument(&mut builder, self)?;
         let upgrade_arg = builder.pure(policy).unwrap();
-        let digest: Vec<u8> = MovePackage::compute_digest_for_modules_and_deps(
-            &modules_bytes,
-            &dependencies,
-            // hash_modules
-            true,
-        )
-        .into();
+        let digest: Vec<u8> =
+            MovePackage::compute_digest_for_modules_and_deps(&modules_bytes, &dependencies).into();
         let digest_arg = builder.pure(digest).unwrap();
 
         let upgrade_ticket = builder.programmable_move_call(

@@ -570,7 +570,7 @@ impl<'a> ChildObjectStore<'a> {
                 ));
         };
 
-        let mut value = if let Some(ChildObject { ty, value, .. }) = self.store.remove(&child) {
+        let mut value = if let Some(ChildObject { value, .. }) = self.store.remove(&child) {
             if value.exists()? {
                 return Err(
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
@@ -581,13 +581,6 @@ impl<'a> ChildObjectStore<'a> {
                             parents, yet was not removed from one first"
                                 .to_string(),
                         ),
-                );
-            }
-            if !self.inner.protocol_config.loaded_child_object_format_type() && child_ty != &ty {
-                let msg = format!("Type changed for child {child} when setting the value back");
-                return Err(
-                    PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                        .with_message(msg),
                 );
             }
             value

@@ -19,7 +19,6 @@ use fastcrypto_zkp::{
 use im::hashmap::HashMap as ImHashMap;
 use once_cell::sync::OnceCell;
 use rand::{SeedableRng, rngs::StdRng};
-use roaring::RoaringBitmap;
 use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 
 use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
@@ -30,7 +29,6 @@ use crate::{
         ZkLoginPublicIdentifier, get_key_pair, get_key_pair_from_rng,
     },
     multisig::{MAX_SIGNER_IN_MULTISIG, MultiSig, as_indices},
-    multisig_legacy::bitmap_to_u16,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
     utils::{
@@ -264,20 +262,12 @@ fn test_max_sig() {
 }
 
 #[test]
-fn test_to_from_indices() {
+fn test_to_indices() {
     assert!(as_indices(0b11111111110).is_err());
     assert_eq!(as_indices(0b0000010110).unwrap(), vec![1, 2, 4]);
     assert_eq!(as_indices(0b1111111111).unwrap(), vec![
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9
     ]);
-
-    let mut bitmap = RoaringBitmap::new();
-    bitmap.insert(1);
-    bitmap.insert(2);
-    bitmap.insert(4);
-    assert_eq!(bitmap_to_u16(bitmap.clone()).unwrap(), 0b0000010110);
-    bitmap.insert(11);
-    assert!(bitmap_to_u16(bitmap).is_err());
 }
 
 #[test]
