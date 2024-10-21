@@ -670,8 +670,8 @@ async fn test_traffic_sketch_with_slow_blocks() {
 #[sim_test]
 async fn test_traffic_sketch_with_sampled_spam() {
     let sketch_config = FreqThresholdConfig {
-        client_threshold: 4_500,
-        proxied_client_threshold: 4_500,
+        client_threshold: 450,
+        proxied_client_threshold: 450,
         window_size_secs: 4,
         update_interval_secs: 1,
         ..Default::default()
@@ -687,21 +687,21 @@ async fn test_traffic_sketch_with_sampled_spam() {
     let metrics = TrafficSim::run(
         policy,
         1,      // num_clients
-        10_000, // per_client_tps
+        1000, // per_client_tps
         Duration::from_secs(20),
         true, // report
     )
     .await;
 
-    let expected_requests = 10_000 * 20;
-    assert!(metrics.num_requests > expected_requests - 1_000);
-    assert!(metrics.num_requests < expected_requests + 200);
+    let expected_requests = 1000 * 20;
+    assert!(metrics.num_requests > expected_requests - 100);
+    assert!(metrics.num_requests < expected_requests + 20);
     // number of blocked requests should be nearly the same
     // as before, as we have half the single client TPS,
     // but the threshould is also halved. However, divide by
     // 5 instead of 4 as a buffer due in case we're unlucky with
     // the sampling
-    assert!(metrics.num_blocked > (expected_requests / 5) - 1000);
+    assert!(metrics.num_blocked > (expected_requests / 5) - 100);
 }
 
 async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), anyhow::Error> {
