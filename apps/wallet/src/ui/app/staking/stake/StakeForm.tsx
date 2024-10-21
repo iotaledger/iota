@@ -66,7 +66,6 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const maxTokenBalance = coinBalance - gasBudget;
     const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
-    const isMaxValueSelected = values.amount === maxTokenFormatted;
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
@@ -92,11 +91,8 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                             name="amount"
                             placeholder={`0 ${symbol}`}
                             value={values.amount}
-                            caption={
-                                coinBalance ? `~ ${maxTokenFormatted} ${symbol} Available` : ''
-                            }
+                            caption={coinBalance ? `${maxTokenFormatted} ${symbol} Available` : ''}
                             suffix={' ' + symbol}
-                            prefix={isMaxValueSelected ? '~ ' : undefined}
                             errorMessage={values.amount && meta.error ? meta.error : undefined}
                             label="Amount"
                         />
