@@ -11,9 +11,9 @@ This document is focused on running the Iota Node software as a Validator.
 - [Storage](#storage)
 - [Key Management](#key-management)
 - [Monitoring](#monitoring)
-    - [Logs](#logs)
-    - [Metrics](#metrics)
-    - [Dashboards](#dashboards)
+  - [Logs](#logs)
+  - [Metrics](#metrics)
+  - [Dashboards](#dashboards)
 - [Software Updates](#software-updates)
 - [State Sync](#state-sync)
 - [Chain Operations](#chain-operations)
@@ -73,7 +73,7 @@ Configuration templates are available here:
 Iota Node uses the following ports by default:
 
 | protocol/port | reachability     | purpose                           |
-|---------------|------------------|-----------------------------------|
+| ------------- | ---------------- | --------------------------------- |
 | TCP/8080      | inbound          | protocol/transaction interface    |
 | UDP/8081      | inbound/outbound | primary interface                 |
 | UDP/8084      | inbound/outbound | peer to peer state sync interface |
@@ -161,7 +161,7 @@ sudo rm -rf /opt/iota/db/authorities_db /opt/iota/db/consensus_db
 The following keys are used by Iota Node:
 
 | key           | scheme   | purpose                                                 |
-|---------------|----------|---------------------------------------------------------|
+| ------------- | -------- | ------------------------------------------------------- |
 | authority.key | bls12381 | transactions, BLS key to create an aggregated signature |
 | account.key   | ed25519  | controls assets for staking                             |
 | network.key   | ed25519  | consensus primary, iota state sync                      |
@@ -360,8 +360,7 @@ iota client call --package 0x3 --module iota_system --function request_set_gas_p
 
 ### Reporting/Un-reporting Validators
 
-To report a validator or undo an existing report, the sender needs to hold a valid [
-`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the validator itself, or a trusted delegatee. To
+To report a validator or undo an existing report, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the validator itself, or a trusted delegatee. To
 do so, call `iota_system::report_validator/undo_report_validator`:
 
 ```shell

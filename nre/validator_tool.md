@@ -86,8 +86,8 @@ You can update the following on-chain metadata:
 5. network address
 6. p2p address
 7. primary address
-8. authority public key 
-9. network public key 
+8. authority public key
+9. network public key
 10. protocol public key
 
 Notably, only the first 4 metadata listed above take effect immediately.
