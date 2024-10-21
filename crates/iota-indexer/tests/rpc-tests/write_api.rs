@@ -10,11 +10,47 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_types::{
-    object::Owner, programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionKind,
+    base_types::{IotaAddress, ObjectID},
+    object::Owner,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::TransactionKind,
 };
+use jsonrpsee::http_client::HttpClient;
+use test_cluster::TestCluster;
 
 use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object};
+
+type TxBytes = Base64;
+type Signatures = Vec<Base64>;
+async fn prepare_and_sign_to_transfer_first_object(
+    sender: IotaAddress,
+    receiver: IotaAddress,
+    cluster: &TestCluster,
+    client: &HttpClient,
+) -> (ObjectID, TxBytes, Signatures) {
+    let objects = cluster
+        .rpc_client()
+        .get_owned_objects(sender, None, None, None)
+        .await
+        .unwrap()
+        .data;
+
+    let obj_id = objects.first().unwrap().object().unwrap().object_id;
+    let gas = objects.last().unwrap().object().unwrap().object_id;
+
+    let transaction_bytes = client
+        .transfer_object(sender, obj_id, Some(gas), 10_000_000.into(), receiver)
+        .await
+        .unwrap();
+
+    let (tx_bytes, signatures) = cluster
+        .wallet
+        .sign_transaction(&transaction_bytes.to_data().unwrap())
+        .to_tx_bytes_and_signatures();
+
+    (obj_id, tx_bytes, signatures)
+}
 
 #[test]
 fn dev_inspect_transaction_block() {
@@ -101,25 +137,8 @@ fn execute_transaction_block() {
         let sender = cluster.get_address_0();
         let receiver = cluster.get_address_1();
 
-        let objects = cluster
-            .rpc_client()
-            .get_owned_objects(sender, None, None, None)
-            .await
-            .unwrap()
-            .data;
-
-        let obj_id = objects.first().unwrap().object().unwrap().object_id;
-        let gas = objects.last().unwrap().object().unwrap().object_id;
-
-        let transaction_bytes = client
-            .transfer_object(sender, obj_id, Some(gas), 10_000_000.into(), receiver)
-            .await
-            .unwrap();
-
-        let (tx_bytes, signatures) = cluster
-            .wallet
-            .sign_transaction(&transaction_bytes.to_data().unwrap())
-            .to_tx_bytes_and_signatures();
+        let (obj_id, tx_bytes, signatures) =
+            prepare_and_sign_to_transfer_first_object(sender, receiver, cluster, client).await;
 
         let indexer_tx_response = client
             .execute_transaction_block(
@@ -177,25 +196,8 @@ fn dry_run_transaction_block() {
         let sender = cluster.get_address_0();
         let receiver = cluster.get_address_1();
 
-        let objects = cluster
-            .rpc_client()
-            .get_owned_objects(sender, None, None, None)
-            .await
-            .unwrap()
-            .data;
-
-        let obj_id = objects.first().unwrap().object().unwrap().object_id;
-        let gas = objects.last().unwrap().object().unwrap().object_id;
-
-        let transaction_bytes = client
-            .transfer_object(sender, obj_id, Some(gas), 10_000_000.into(), receiver)
-            .await
-            .unwrap();
-
-        let (tx_bytes, signatures) = cluster
-            .wallet
-            .sign_transaction(&transaction_bytes.to_data().unwrap())
-            .to_tx_bytes_and_signatures();
+        let (_, tx_bytes, signatures) =
+            prepare_and_sign_to_transfer_first_object(sender, receiver, cluster, client).await;
 
         let dry_run_tx_block_resp = client
             .dry_run_transaction_block(tx_bytes.clone())
