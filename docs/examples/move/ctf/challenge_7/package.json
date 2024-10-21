@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "typescript": "^5.4.3"
+  },
+  "devDependencies": {
+    "@mysten/sui.js": "^0.51.2"
+  }
+}

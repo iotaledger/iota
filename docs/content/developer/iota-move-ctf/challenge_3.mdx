@@ -1,0 +1,40 @@
+
+import ChallengeVerifier  from '@site/src/components/CTF/ctf-verifier';
+
+
+
+
+# Challenge 3: MintCoin Mechanics
+
+In this challenge, you'll dive into the mechanics of "MintCoin," a [coin](../standards/coin.mdx) that allows anyone to mint new tokens using a "Proof of Move" process. However, minting alone will not be enough to get the flag—you'll need to go a step further.
+
+Your goal is to understand how the system works and figure out the extra steps needed to successfully retrieve the flag.
+
+
+## Deployed Contract Addresses:
+```
+CoinMetadata<0xf84628ac335e59ce6e305835cc09c0b9983d7b1695ab28e96cf875b49923e4ed::mintcoin::MINTCOIN>: 0x1bd5dfa2e5f1d3a3825403d92b8199ce3f69a5e70a785f28d698715b54d78321
+Counter: 0xe7877309899ef0618ea0e269327f79e3bdf38ff2860fd01f5d278b46ea8cd630
+TreasuryCap<0xf84628ac335e59ce6e305835cc09c0b9983d7b1695ab28e96cf875b49923e4ed::mintcoin::MINTCOIN>: 0xf3cb314954f0823961fdfe93ba9403314b4c53bb654f73ba37fe3c8400831e23
+Package: 0xf84628ac335e59ce6e305835cc09c0b9983d7b1695ab28e96cf875b49923e4ed
+```
+
+## Contracts
+
+#### `mint.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_3/sources/mint.move
+```
+
+#### `counter.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_3/sources/counter.move
+```
+
+:::info
+Your tracing starting point should be the function `get_flag` in the `mint` module to understand the steps required to capture the flag. Make sure to follow the contract's logic and requirements to successfully complete the challenge. 
+:::
+
+Good luck in capturing your third flag!
+
+
+
+<ChallengeVerifier expectedObjectType="0xf84628ac335e59ce6e305835cc09c0b9983d7b1695ab28e96cf875b49923e4ed::mintcoin::Flag" />

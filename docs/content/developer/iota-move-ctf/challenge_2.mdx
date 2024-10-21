@@ -1,0 +1,38 @@
+
+import ChallengeVerifier  from '@site/src/components/CTF/ctf-verifier';
+
+
+
+
+# Challenge 2: Lucky Number
+
+In this challenge you are supposed to get the flag Event by passing in the right parameters to the `get_flag` function in the `luckynumber` module. If you do this correctly you should get a Flag event in return. 
+
+
+
+## Deployed Contract Addresses:
+```
+Package: 0xb13a3cd66c6aa2ccff512fee9d950176acf0835fbf2091fa32e789d44baabe01
+Counter: 0x88c94654907f9daabbc25e9724997bd71a16e13f55cc4580f5e7c207e3ff28f2
+```
+
+## Contracts
+### `luckynumber.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_2/sources/luckynumber.move
+```
+
+### `counter.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_2/sources/counter.move
+```
+
+
+:::info
+You should check how to use the CLI to call a function in a module and pass in the right parameters. `iota client call --help` might help.
+:::
+
+
+Good luck in capturing your second flag!
+
+
+
+<ChallengeVerifier expectedObjectType="0xb13a3cd66c6aa2ccff512fee9d950176acf0835fbf2091fa32e789d44baabe01::luckynumber::Flag" />

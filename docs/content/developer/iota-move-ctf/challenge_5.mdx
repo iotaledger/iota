@@ -1,0 +1,33 @@
+
+import ChallengeVerifier  from '@site/src/components/CTF/ctf-verifier';
+
+
+
+
+# Challenge 5: Perfect Pizza
+
+When in Italy, pizza is a way of life. Crafted from simple ingredients with an artful touch, only the perfect combination will gain the approval of the pizzaiolo (master pizza maker). Choose your ingredients wisely—anything less than perfection and your creation won’t pass the test.
+
+In this challenge, you'll need to carefully assemble your pizza using the correct ingredients. The pizzaiolo will judge your creation, and only a perfect pizza will earn you the flag. Attention to detail is key—get it right, or it's back to the kitchen!
+
+## Deployed Contract Address:
+```
+Package: 0x84c3037c252e1b9142087a19c2bd776ee86316775484eb78e9f97618d877a577
+```
+
+## Contracts
+
+### `pizza.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_5/sources/pizza.move
+```
+
+:::info
+The pizzaiolo uses [bcs::to_bytes](../../references/framework/iota-framework/bcs.mdx#function-to_bytes) to make sure the ingredients are in order. Make sure you understand how to use this function to pass the test.
+:::
+
+
+
+Good luck in capturing your fifth flag!
+
+
+<ChallengeVerifier expectedObjectType="0x84c3037c252e1b9142087a19c2bd776ee86316775484eb78e9f97618d877a577::pizza::Flag" />
