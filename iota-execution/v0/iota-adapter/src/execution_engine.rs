@@ -53,10 +53,7 @@ mod checked {
         metrics::LimitsMetrics,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        randomness_state::{
-            RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
-            RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
-        },
+        randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
@@ -658,10 +655,6 @@ mod checked {
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
-                        EndOfEpochTransactionKind::RandomnessStateCreate => {
-                            assert!(protocol_config.random_beacon());
-                            builder = setup_randomness_state_create(builder);
-                        }
                         EndOfEpochTransactionKind::DenyListStateCreate => {
                             assert!(protocol_config.enable_coin_deny_list_v1());
                             builder = setup_coin_deny_list_state_create(builder);
@@ -987,21 +980,6 @@ mod checked {
                 vec![],
             )
             .expect("Unable to generate authenticator_state_create transaction!");
-        builder
-    }
-
-    fn setup_randomness_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                RANDOMNESS_MODULE_NAME.to_owned(),
-                RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate randomness_state_create transaction!");
         builder
     }
 
