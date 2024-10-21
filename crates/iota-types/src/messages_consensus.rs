@@ -31,31 +31,6 @@ use crate::{
     transaction::CertifiedTransaction,
 };
 
-/// Only commit_timestamp_ms is passed to the move call currently.
-/// However we include epoch and round to make sure each ConsensusCommitPrologue
-/// has a unique tx digest.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologue {
-    /// Epoch of the commit prologue transaction
-    pub epoch: u64,
-    /// Consensus round of the commit
-    pub round: u64,
-    /// Unix timestamp from consensus
-    pub commit_timestamp_ms: CheckpointTimestamp,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologueV2 {
-    /// Epoch of the commit prologue transaction
-    pub epoch: u64,
-    /// Consensus round of the commit
-    pub round: u64,
-    /// Unix timestamp from consensus
-    pub commit_timestamp_ms: CheckpointTimestamp,
-    /// Digest of consensus output
-    pub consensus_commit_digest: ConsensusCommitDigest,
-}
-
 /// Uses an enum to allow for future expansion of the
 /// ConsensusDeterminedVersionAssignments.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
@@ -65,7 +40,7 @@ pub enum ConsensusDeterminedVersionAssignments {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologueV3 {
+pub struct ConsensusCommitPrologueV1 {
     /// Epoch of the commit prologue transaction
     pub epoch: u64,
     /// Consensus round of the commit

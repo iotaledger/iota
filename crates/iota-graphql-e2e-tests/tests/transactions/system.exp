@@ -1518,7 +1518,7 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "DPq7c2A5SyX36jGrNW6QNstAzSxtFPai1SZj4eF7oFDR",
+          "digest": "7oA6Wj5ejZtptJFVyhqCWWCjQYpx7S82EDiM7wZzfJHn",
           "sender": null,
           "signatures": [
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
@@ -1564,7 +1564,7 @@ Response: {
                   "idDeleted": false,
                   "outputState": {
                     "address": "0x0000000000000000000000000000000000000000000000000000000000000006",
-                    "digest": "Dbu2swR7jSwhxcjbyL1iGCuQPSrKR7Kyp8PEbKxsd9Uq"
+                    "digest": "Afpick37JXokcYswd5ta1q4WHqmGC2bKjxkeZuciHea"
                   }
                 }
               ]
@@ -1586,7 +1586,7 @@ Response: {
               "sequenceNumber": 1
             },
             "transactionBlock": {
-              "digest": "DPq7c2A5SyX36jGrNW6QNstAzSxtFPai1SZj4eF7oFDR"
+              "digest": "7oA6Wj5ejZtptJFVyhqCWWCjQYpx7S82EDiM7wZzfJHn"
             }
           },
           "expiration": null

@@ -62,6 +62,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME},
     stardust::stardust_to_iota_address,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
@@ -480,10 +481,7 @@ impl Builder {
         } else {
             assert!(unsigned_genesis.authenticator_state_object().is_none());
         }
-        assert_eq!(
-            protocol_config.random_beacon(),
-            unsigned_genesis.has_randomness_state_object()
-        );
+        assert!(unsigned_genesis.has_randomness_state_object());
 
         assert_eq!(
             protocol_config.enable_bridge(),
@@ -1410,15 +1408,16 @@ pub fn generate_genesis_system_object(
                 vec![],
             )?;
         }
-        if protocol_config.random_beacon() {
-            builder.move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("random").to_owned(),
-                ident_str!("create").to_owned(),
-                vec![],
-                vec![],
-            )?;
-        }
+
+        // Create the randomness state_object
+        builder.move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            RANDOMNESS_MODULE_NAME.to_owned(),
+            RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
+            vec![],
+            vec![],
+        )?;
+
         if protocol_config.enable_coin_deny_list_v1() {
             builder.move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,

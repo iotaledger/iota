@@ -3,7 +3,7 @@ processed 9 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-54:
+task 1, lines 7-55:
 //# run-graphql
 Response: {
   "data": {
@@ -136,26 +136,26 @@ Response: {
   }
 }
 
-task 2, lines 56-66:
+task 2, lines 57-67:
 //# publish --upgradeable --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5981200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 68:
+task 3, line 69:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, line 70:
-//# view-object 2,0
-2,0::m
+task 4, line 71:
+//# view-object 2,1
+2,1::m
 
-task 5, lines 72-96:
+task 5, lines 73-97:
 //# run-graphql
 Response: {
   "data": {
     "object": {
-      "address": "0xd2fc664278ad66cd85ad423b87c88678bb8852a40640978a1dbe794e052cf0df",
+      "address": "0x48a823fcbbb8c846e2ef3dd6f2ec24ca2241ac2480faadf46225767b3d09b830",
       "asMovePackage": {
         "module": {
           "datatypes": {
@@ -185,12 +185,12 @@ Response: {
   }
 }
 
-task 6, lines 98-143:
+task 6, lines 99-144:
 //# run-graphql
 Response: {
   "data": {
     "object": {
-      "address": "0xd2fc664278ad66cd85ad423b87c88678bb8852a40640978a1dbe794e052cf0df",
+      "address": "0x48a823fcbbb8c846e2ef3dd6f2ec24ca2241ac2480faadf46225767b3d09b830",
       "asMovePackage": {
         "module": {
           "datatypes": {
@@ -290,7 +290,7 @@ Response: {
   }
 }
 
-task 7, lines 145-174:
+task 7, lines 146-175:
 //# run-graphql
 Response: {
   "data": {
@@ -355,7 +355,7 @@ Response: {
   }
 }
 
-task 8, lines 176-206:
+task 8, lines 177-207:
 //# run-graphql
 Response: {
   "data": {

@@ -858,7 +858,7 @@
       },
       "Address": {
         "title": "Address",
-        "description": "A 32-byte Sui address, encoded as a hex string.",
+        "description": "A 32-byte Iota address, encoded as a hex string.",
         "examples": [
           "0x0000000000000000000000000000000000000000000000000000000000000002"
         ],
@@ -2235,7 +2235,7 @@
             }
           },
           {
-            "description": "Sui Move Bytecode Verification Error.",
+            "description": "Iota Move Bytecode Verification Error.",
             "type": "object",
             "required": [
               "error"
@@ -2244,7 +2244,7 @@
               "error": {
                 "type": "string",
                 "enum": [
-                  "sui_move_verification_error"
+                  "iota_move_verification_error"
                 ]
               }
             }
@@ -2615,7 +2615,7 @@
             }
           },
           {
-            "description": "Sui Move Bytecode verification timed out.",
+            "description": "Iota Move Bytecode verification timed out.",
             "type": "object",
             "required": [
               "error"
@@ -2624,7 +2624,7 @@
               "error": {
                 "type": "string",
                 "enum": [
-                  "sui_move_verification_timedout"
+                  "iota_move_verification_timedout"
                 ]
               }
             }
@@ -2757,7 +2757,7 @@
         }
       },
       "GasCostSummary": {
-        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed. The cost of storage is the number of bytes of the objects being mutated multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object. The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`",
+        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed.                 The cost of storage is the number of bytes of the objects being mutated                 multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object.                   The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`",
         "type": "object",
         "required": [
           "computation_cost",
@@ -2876,7 +2876,7 @@
         "title": "Identifier",
         "description": "A Move Identifier",
         "examples": [
-          "sui"
+          "iota"
         ],
         "type": "string",
         "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
@@ -3916,7 +3916,7 @@
         "title": "StructTag",
         "description": "A Move StructTag",
         "examples": [
-          "0x2::coin::Coin<0x2::sui::SUI>"
+          "0x2::coin::Coin<0x2::iota::IOTA>"
         ],
         "type": "string"
       },
@@ -4867,7 +4867,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "consensus_commit_prologue_v3"
+                  "consensus_commit_prologue_v1"
                 ]
               },
               "round": {

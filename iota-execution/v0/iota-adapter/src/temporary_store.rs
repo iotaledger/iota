@@ -138,7 +138,6 @@ impl<'backing> TemporaryStore<'backing> {
             self.lamport_timestamp,
             self.tx_digest,
             &self.input_objects,
-            self.protocol_config.reshare_at_same_initial_version(),
         );
 
         #[cfg(debug_assertions)]
@@ -243,8 +242,6 @@ impl<'backing> TemporaryStore<'backing> {
                 }
             }
         }
-
-        assert!(self.protocol_config.enable_effects_v2());
 
         // In the case of special transactions that don't require a gas object,
         // we don't really care about the effects to gas, just use the input for it.
@@ -847,14 +844,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// This function is intended to be called *after* we have charged for
     /// gas + applied the storage rebate to the gas object, but *before* we
     /// have updated object versions.
-    pub fn check_iota_conserved(
-        &self,
-        simple_conservation_checks: bool,
-        gas_summary: &GasCostSummary,
-    ) -> Result<(), ExecutionError> {
-        if !simple_conservation_checks {
-            return Ok(());
-        }
+    pub fn check_iota_conserved(&self, gas_summary: &GasCostSummary) -> Result<(), ExecutionError> {
         // total amount of IOTA in storage rebate of input objects
         let mut total_input_rebate = 0;
         // total amount of IOTA in storage rebate of output objects

@@ -22,7 +22,7 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
     let mut coin_index = BTreeMap::new();
 
     tracing::info!("Reading live objects set");
-    for object in store.iter_live_object_set(false) {
+    for object in store.iter_live_object_set() {
         let LiveObject::Normal(object) = object else {
             continue;
         };

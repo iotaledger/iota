@@ -660,16 +660,6 @@ impl IotaNode {
             state_snapshot_handle.is_some(),
         )?;
 
-        if !epoch_store
-            .protocol_config()
-            .simplified_unwrap_then_delete()
-        {
-            // We cannot prune tombstones if simplified_unwrap_then_delete is not enabled.
-            config
-                .authority_store_pruning_config
-                .set_killswitch_tombstone_pruning(true);
-        }
-
         let mut genesis_objects = genesis.objects().to_vec();
         if let Some(migration_tx_data) = migration_tx_data.as_ref() {
             genesis_objects.extend(migration_tx_data.get_objects());
@@ -1312,19 +1302,17 @@ impl IotaNode {
 
         consensus_adapter.swap_low_scoring_authorities(low_scoring_authorities.clone());
 
-        if epoch_store.randomness_state_enabled() {
-            let randomness_manager = RandomnessManager::try_new(
-                Arc::downgrade(&epoch_store),
-                Box::new(consensus_adapter.clone()),
-                randomness_handle,
-                config.authority_key_pair(),
-            )
-            .await;
-            if let Some(randomness_manager) = randomness_manager {
-                epoch_store
-                    .set_randomness_manager(randomness_manager)
-                    .await?;
-            }
+        let randomness_manager = RandomnessManager::try_new(
+            Arc::downgrade(&epoch_store),
+            Box::new(consensus_adapter.clone()),
+            randomness_handle,
+            config.authority_key_pair(),
+        )
+        .await;
+        if let Some(randomness_manager) = randomness_manager {
+            epoch_store
+                .set_randomness_manager(randomness_manager)
+                .await?;
         }
 
         let throughput_calculator = Arc::new(ConsensusThroughputCalculator::new(

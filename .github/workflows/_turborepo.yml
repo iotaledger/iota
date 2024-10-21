@@ -23,7 +23,6 @@ jobs:
 
   build:
     name: Lint, Build, and Test
-    needs: audit
     runs-on: self-hosted
     steps:
       - name: Checkout

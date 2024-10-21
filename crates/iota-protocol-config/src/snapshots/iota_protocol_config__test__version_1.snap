@@ -4,40 +4,22 @@ expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
 version: 1
 feature_flags:
-  advance_epoch_start_time_in_safe_mode: true
-  consensus_order_end_of_epoch_last: true
   disable_invariant_violation_check_in_swap_loc: true
   advance_to_highest_supported_protocol_version: true
-  ban_entry_init: true
   no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
-  simplified_unwrap_then_delete: true
   shared_object_deletion: true
-  loaded_child_object_format: true
-  simple_conservation_checks: true
-  loaded_child_object_format_type: true
-  random_beacon: true
-  enable_effects_v2: true
-  verify_legacy_zklogin_address: true
   recompute_has_public_transfer_in_execution: true
-  include_consensus_digest_in_prologue: true
   hardened_otw_check: true
-  allow_receiving_object_id: true
   enable_poseidon: true
   enable_coin_deny_list: true
   enable_group_ops_native_functions: true
   enable_group_ops_native_function_msm: true
-  reject_mutable_random_on_entry_functions: true
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
   mysticeti_leader_scoring_and_schedule: true
-  reshare_at_same_initial_version: true
-  resolve_abort_locations_to_package_id: true
   mysticeti_use_committed_subdag_digest: true
   enable_vdf: true
-  record_consensus_determined_version_assignments_in_prologue: true
-  fresh_vm_on_framework_upgrade: true
-  prepend_prologue_tx_in_consensus_commit_in_checkpoints: true
   mysticeti_num_leaders_per_round: 1
   soft_bundle: true
   enable_coin_deny_list_v2: true
