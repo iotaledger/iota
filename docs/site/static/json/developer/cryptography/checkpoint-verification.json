@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What does `checkpoint verification` rely on to trust a checkpoint?",
+        "answerOptions": [
+            { "answerText": "The number of transactions processed in the checkpoint", "isCorrect": false },
+            { "answerText": "The cryptographic hash of the previous checkpoint", "isCorrect": false },
+            { "answerText": "The public keys and aggregated BLS signatures of the validator committee", "isCorrect": true },
+            { "answerText": "The number of full nodes in the network", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What role does the genesis checkpoint play in `checkpoint verification`?",
+        "answerOptions": [
+            { "answerText": "It stores the final validator committee for the network", "isCorrect": false },
+            { "answerText": "It bootstraps the verification process by providing the initial validator committee", "isCorrect": true },
+            { "answerText": "It contains all transaction digests for the entire history", "isCorrect": false },
+            { "answerText": "It allows nodes to synchronize without needing signatures", "isCorrect": false }
+        ]
+    }
+]

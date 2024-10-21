@@ -227,7 +227,6 @@ impl ValidatorConfigBuilder {
             firewall_config: self.firewall_config,
             execution_cache: ExecutionCacheConfig::default(),
             state_accumulator_v2: self.state_accumulator_v2,
-            enable_soft_bundle: true,
             enable_validator_tx_finalizer: true,
         }
     }
@@ -517,7 +516,6 @@ impl FullnodeConfigBuilder {
             firewall_config: self.fw_config,
             execution_cache: ExecutionCacheConfig::default(),
             state_accumulator_v2: true,
-            enable_soft_bundle: true,
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
         }
