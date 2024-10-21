@@ -602,7 +602,7 @@ mod tests {
         extract_verified_effects_and_events(
             &full_checkpoint,
             &committee,
-            TransactionDigest::from_str("6ciKBJF3gZ2zNNKLqwRMBL4ftZRGL2kHPfKepWP2thbs").unwrap(),
+            TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi").unwrap(),
         )
         .unwrap();
     }
@@ -618,7 +618,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("6ciKBJF3gZ2zNNKLqwRMBL4ftZRGL2kHPfKepWP2thbs")
+                TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi")
                     .unwrap(),
             )
             .is_err()
@@ -652,7 +652,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("6ciKBJF3gZ2zNNKLqwRMBL4ftZRGL2kHPfKepWP2thbs")
+                TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi")
                     .unwrap(),
             )
             .is_err()
