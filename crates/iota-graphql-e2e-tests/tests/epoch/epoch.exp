@@ -81,13 +81,13 @@ Response: {
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             },
-            "digest": "J9n1kbtQmCDV3ueAmq7ik8Dfk9ZwWAu1m17R6VwLNsXM"
+            "digest": "AKsrTPmrtvp5guBNi1YX5oUNFrd3njWYj9PzLLFwcFZt"
           },
           {
             "kind": {
               "__typename": "EndOfEpochTransaction"
             },
-            "digest": "HA6PvtnNKdSJrXojWzBBL9x7W15YwSh3wWpvwNSsYAeQ"
+            "digest": "GdHpubgoMKFW1anUij9fC3ThQYSs9VQNTvDdmuQFu3aM"
           }
         ]
       }

@@ -38,19 +38,19 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "BKVwZtzMooNz1V4dksME77DhMBpX4pzVjDnG6ZAiz5n8"
+          "digest": "5JYD4dXX1dbKTpkmyyzCjV4rwnDbRBpHF5MqzmUkuS5E"
         },
         {
-          "digest": "Bve4sNrdJWKXgaxKwvLnS1yPfGYd5FrMz7AjXuLctUd4"
+          "digest": "EqkWPPagLLCKcQn11rZ7KwX1tC8XfpFqbMFNVStrTe81"
         },
         {
-          "digest": "DWxHRk4A8aX4j3p5UyYEn4Me3zeBMBGoEFpbBW7GtP3C"
+          "digest": "5TEQsvzLeoPi3qUd9j3f6qDQLKbVsYBBRzQrFiQkytKJ"
         },
         {
-          "digest": "4bp3W4d7CS3GNzLLSLFbVvCpHwwR79nWei4GjDaPtPPL"
+          "digest": "DDqyd568PKJmv6CGqqyFCzNXEtzm1yym6yC1a5NfwdKe"
         },
         {
-          "digest": "ChhFjsGJNU6uAkwbW7tpCdcyhxtNEyHymLQPz87jFsMq"
+          "digest": "DPFvzMLTHbcUccPSpkJVPy4gEDyy2uSc6DYzvdkzeGcn"
         }
       ]
     }
@@ -65,7 +65,7 @@ Response: {
       "nodes": [
         {
           "type": {
-            "repr": "0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::EventA<0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::T1>"
+            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -78,7 +78,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::EventA<0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::T2>"
+            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T2>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -91,7 +91,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::EventA<0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::T1>"
+            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -104,7 +104,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::EventA<0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::T2>"
+            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T2>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -128,7 +128,7 @@ Response: {
       "nodes": [
         {
           "type": {
-            "repr": "0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::EventA<0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::T1>"
+            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -141,7 +141,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::EventA<0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::T1>"
+            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -162,21 +162,7 @@ task 9, lines 80-93:
 Response: {
   "data": {
     "events": {
-      "nodes": [
-        {
-          "type": {
-            "repr": "0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::EventA<0xfdf7c75f25cd85ea28361ca8b897a5c911ae88d923b1cf4763eb40d886e8b570::M1::T2>"
-          },
-          "sender": {
-            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
-          },
-          "json": {
-            "value": {
-              "dummy_field": false
-            }
-          }
-        }
-      ]
+      "nodes": []
     }
   }
 }

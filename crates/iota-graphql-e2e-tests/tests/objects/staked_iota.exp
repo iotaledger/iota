@@ -60,17 +60,6 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "IE7dToilI41Z06w5IxyULx1vkandEOuVlpo2z0OzoWhuAgAAAAAAAAA=",
-          "node": {
-            "asMoveObject": {
-              "asStakedIota": {
-                "principal": "15340000000000",
-                "poolId": "0x2493915682dc3a06b488adb8c8a37b1fad98c495801357db2d526e8a0331fcbf"
-              }
-            }
-          }
-        },
-        {
           "cursor": "IFbuAE9LIhDeal54El55aK340puHLQtjJ5Wj8Zs8y+r6AgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
@@ -82,11 +71,22 @@ Response: {
           }
         },
         {
-          "cursor": "IHUjYL/K86742hoyl9dmVVtBxHZ/zjJsU+TyC2iG1AnCAgAAAAAAAAA=",
+          "cursor": "IIG8uZR6Oe8LEZVsnou+nrOFaZTWE7bsZnQL03iKgsUYAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
                 "principal": "10000000000",
+                "poolId": "0x2493915682dc3a06b488adb8c8a37b1fad98c495801357db2d526e8a0331fcbf"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "INMoknhK71B8eaQFADCHApV/6LcSSVZh9wpgdTjDKSowAgAAAAAAAAA=",
+          "node": {
+            "asMoveObject": {
+              "asStakedIota": {
+                "principal": "15340000000000",
                 "poolId": "0x2493915682dc3a06b488adb8c8a37b1fad98c495801357db2d526e8a0331fcbf"
               }
             }
@@ -98,7 +98,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IHUjYL/K86742hoyl9dmVVtBxHZ/zjJsU+TyC2iG1AnCAgAAAAAAAAA=",
+            "cursor": "IIG8uZR6Oe8LEZVsnou+nrOFaZTWE7bsZnQL03iKgsUYAgAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

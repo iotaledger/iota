@@ -148,6 +148,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             no_full_node: false,
             force_regenesis: false,
             with_faucet: None,
+            faucet_amount: None,
             fullnode_rpc_port: 9000,
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]

@@ -1308,10 +1308,8 @@
                 "enable_vdf": true,
                 "hardened_otw_check": true,
                 "mysticeti_leader_scoring_and_schedule": true,
-                "mysticeti_use_committed_subdag_digest": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
-                "recompute_has_public_transfer_in_execution": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "shared_object_deletion": true,
                 "throughput_aware_consensus_submission": false,
@@ -11188,41 +11186,6 @@
       },
       "TransactionBlockKind": {
         "oneOf": [
-          {
-            "description": "A system transaction that will update epoch information on-chain.",
-            "type": "object",
-            "required": [
-              "computation_charge",
-              "epoch",
-              "epoch_start_timestamp_ms",
-              "kind",
-              "storage_charge",
-              "storage_rebate"
-            ],
-            "properties": {
-              "computation_charge": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "epoch_start_timestamp_ms": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "ChangeEpoch"
-                ]
-              },
-              "storage_charge": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "storage_rebate": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            }
-          },
           {
             "description": "A system transaction used for initializing the initial state of the chain.",
             "type": "object",
