@@ -17,6 +17,9 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# Resolve the target folder
+TARGET_FOLDER=$(realpath ${TARGET_FOLDER})
+
 function print_step {
     echo -e "\e[32m$1\e[0m"
 }
