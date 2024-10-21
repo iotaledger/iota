@@ -138,7 +138,6 @@ impl<'backing> TemporaryStore<'backing> {
             self.lamport_timestamp,
             self.tx_digest,
             &self.input_objects,
-            self.protocol_config.reshare_at_same_initial_version(),
         );
 
         #[cfg(debug_assertions)]
