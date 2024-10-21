@@ -712,7 +712,6 @@ impl TransactionBuilder {
         dep_ids: Vec<ObjectID>,
         upgrade_capability: ObjectID,
         upgrade_policy: u8,
-        digest: Vec<u8>,
         gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -731,6 +730,8 @@ impl TransactionBuilder {
         let cap_owner = upgrade_cap
             .owner
             .ok_or_else(|| anyhow!("Unable to determine ownership of upgrade capability"))?;
+        let digest =
+            MovePackage::compute_digest_for_modules_and_deps(&compiled_modules, &dep_ids).to_vec();
         TransactionData::new_upgrade(
             sender,
             gas,
