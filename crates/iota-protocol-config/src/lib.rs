@@ -197,12 +197,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     mysticeti_leader_scoring_and_schedule: bool,
 
-    // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in
-    // checkpoints. When disabled the default digest is used instead. It's important to have
-    // this guarded behind a flag as it will lead to checkpoint forks.
-    #[serde(skip_serializing_if = "is_false")]
-    mysticeti_use_committed_subdag_digest: bool,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
@@ -1115,10 +1109,6 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_leader_scoring_and_schedule
     }
 
-    pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
-        self.feature_flags.mysticeti_use_committed_subdag_digest
-    }
-
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
     }
@@ -1720,9 +1710,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
-
-        // Enable the committed sub dag digest inclusion on the commit output
-        cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
 
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 
