@@ -3,6 +3,9 @@ title: IOTA Full Node Configuration
 description: Operate an IOTA Full node to validate blockchain activities, like transactions, checkpoints, and epoch changes.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/iota-full-node.json';
+
 :::info
 
 These instructions are for advanced users. If you just need a local development environment, you should instead follow the instructions in [Create a Local IOTA Network](../developer/getting-started/local-network.mdx) to create a local Full node, validators, and faucet.
@@ -316,3 +319,5 @@ authority-store-pruning-config:
 If you prune transactions, Archival nodes can help ensure lagging peer nodes don't lose any information. For more information, see [IOTA Archives](archives.mdx).
 
 :::
+
+<Quiz questions={questions} />
