@@ -242,9 +242,6 @@ pub struct NodeConfig {
     pub state_accumulator_v2: bool,
 
     #[serde(default = "bool_true")]
-    pub enable_soft_bundle: bool,
-
-    #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
 }
 

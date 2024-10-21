@@ -211,10 +211,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "Option::is_none")]
     mysticeti_num_leaders_per_round: Option<usize>,
 
-    // Enable Soft Bundle (SIP-19).
-    #[serde(skip_serializing_if = "is_false")]
-    soft_bundle: bool,
-
     // If true, enable the coin deny list V2.
     #[serde(skip_serializing_if = "is_false")]
     enable_coin_deny_list_v2: bool,
@@ -1131,10 +1127,6 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_num_leaders_per_round
     }
 
-    pub fn soft_bundle(&self) -> bool {
-        self.feature_flags.soft_bundle
-    }
-
     pub fn passkey_auth(&self) -> bool {
         self.feature_flags.passkey_auth
     }
@@ -1736,9 +1728,6 @@ impl ProtocolConfig {
 
         cfg.feature_flags.enable_coin_deny_list_v2 = true;
 
-        // Enable soft bundle.
-        cfg.feature_flags.soft_bundle = true;
-
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
 
@@ -1903,10 +1892,6 @@ impl ProtocolConfig {
 
     pub fn set_mysticeti_num_leaders_per_round_for_testing(&mut self, val: Option<usize>) {
         self.feature_flags.mysticeti_num_leaders_per_round = val;
-    }
-
-    pub fn set_enable_soft_bundle_for_testing(&mut self, val: bool) {
-        self.feature_flags.soft_bundle = val;
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {

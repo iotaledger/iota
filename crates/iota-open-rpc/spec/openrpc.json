@@ -1316,7 +1316,6 @@
                 "recompute_has_public_transfer_in_execution": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "shared_object_deletion": true,
-                "soft_bundle": true,
                 "throughput_aware_consensus_submission": false,
                 "zklogin_auth": false
               },
