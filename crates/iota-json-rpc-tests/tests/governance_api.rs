@@ -28,28 +28,8 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
-
-/// Wait for the node to catch up to the specified epoch.
-pub async fn wait_for_epoch(client: &HttpClient, epoch: u64) {
-    while {
-        let system_state = client.get_latest_iota_system_state().await.unwrap();
-        system_state.epoch < epoch
-    } {
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-}
-
-pub async fn get_current_epoch(client: &HttpClient) -> u64 {
-    client.get_latest_iota_system_state().await.unwrap().epoch
-}
-
-pub async fn wait_for_next_epoch(client: &HttpClient) {
-    let current_epoch = get_current_epoch(client).await;
-    wait_for_epoch(client, current_epoch + 1).await;
-}
 
 #[sim_test]
 async fn test_staking() -> Result<(), anyhow::Error> {
@@ -125,14 +105,26 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         staked_iota[0].stakes[0].staked_iota_id,
         staked_iota_copy[0].stakes[0].staked_iota_id
     );
+
+    cluster.trigger_reconfiguration().await;
+
+    // Check DelegatedStake object after epoch transition
+    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert_eq!(1, staked_iota.len());
+    assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
+    assert!(matches!(
+        staked_iota[0].stakes[0].status,
+        StakeStatus::Active {
+            estimated_reward: _
+        }
+    ));
+
     Ok(())
 }
+
 #[sim_test]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
-    let cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(10000)
-        .build()
-        .await;
+    let cluster = TestClusterBuilder::new().build().await;
 
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -178,35 +170,28 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
             .await?;
     }
 
-    wait_for_next_epoch(&http_client).await;
+    cluster.trigger_reconfiguration().await;
 
     // Check DelegatedStake object
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert_eq!(1, staked_iota.len());
     assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
-
-    let staked_iota_copy = http_client
-        .get_stakes_by_ids(vec![
-            staked_iota[0].stakes[0].staked_iota_id,
-            staked_iota[0].stakes[1].staked_iota_id,
-            staked_iota[0].stakes[2].staked_iota_id,
-        ])
-        .await?;
-
     assert!(matches!(
-        &staked_iota_copy[0].stakes[0].status,
+        staked_iota[0].stakes[0].status,
         StakeStatus::Active {
             estimated_reward: _
         }
     ));
+
     assert!(matches!(
-        &staked_iota_copy[0].stakes[1].status,
+        staked_iota[0].stakes[1].status,
         StakeStatus::Active {
             estimated_reward: _
         }
     ));
+
     assert!(matches!(
-        &staked_iota_copy[0].stakes[2].status,
+        staked_iota[0].stakes[2].status,
         StakeStatus::Active {
             estimated_reward: _
         }
@@ -215,7 +200,7 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_withdraw_stake(
             address,
-            staked_iota_copy[0].stakes[2].staked_iota_id,
+            staked_iota[0].stakes[2].staked_iota_id,
             None,
             100_000_000.into(),
         )
@@ -226,11 +211,33 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
 
     let _ = cluster.wallet.execute_transaction_must_succeed(tx).await;
 
-    wait_for_next_epoch(&http_client).await;
+    cluster.trigger_reconfiguration().await;
 
-    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
-    assert_eq!(1, staked_iota.len());
-    assert_eq!(2, staked_iota[0].stakes.len());
+    let staked_iota_copy: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert_eq!(1, staked_iota_copy.len());
+    assert_eq!(2, staked_iota_copy[0].stakes.len());
+
+    assert!(matches!(
+        staked_iota_copy[0].stakes[0].status,
+        StakeStatus::Active {
+            estimated_reward: _
+        }
+    ));
+
+    assert!(matches!(
+        staked_iota_copy[0].stakes[1].status,
+        StakeStatus::Active {
+            estimated_reward: _
+        }
+    ));
+
+    let unstake = http_client
+        .get_stakes_by_ids(vec![staked_iota[0].stakes[2].staked_iota_id])
+        .await?;
+
+    assert_eq!(1, unstake.len());
+
+    assert!(matches!(unstake[0].stakes[0].status, StakeStatus::Unstaked));
 
     Ok(())
 }
@@ -428,7 +435,6 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
             .into(),
         )
         .with_objects([timelock_iota.into()])
-        .with_epoch_duration_ms(10000)
         .build()
         .await;
 
@@ -492,8 +498,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    wait_for_next_epoch(&http_client).await;
-    let current_epoch = get_current_epoch(&http_client).await;
+    cluster.trigger_reconfiguration().await;
 
     let staked_iota: Vec<DelegatedTimelockedStake> =
         http_client.get_timelocked_stakes(address).await?;
@@ -528,12 +533,22 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    assert_eq!(current_epoch, get_current_epoch(&http_client).await);
-    wait_for_next_epoch(&http_client).await;
+    cluster.trigger_reconfiguration().await;
 
     let staked_iota: Vec<DelegatedTimelockedStake> =
         http_client.get_timelocked_stakes(address).await?;
     assert_eq!(0, staked_iota.len());
+
+    let timed_out_stake = http_client
+        .get_timelocked_stakes_by_ids(vec![stake.timelocked_staked_iota_id])
+        .await?;
+
+    assert_eq!(1, timed_out_stake.len());
+
+    assert!(matches!(
+        timed_out_stake[0].stakes[0].status,
+        StakeStatus::Unstaked
+    ));
 
     Ok(())
 }
