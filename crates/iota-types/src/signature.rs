@@ -31,7 +31,6 @@ use crate::{
     digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     multisig::MultiSig,
-    multisig_legacy::MultiSigLegacy,
     passkey_authenticator::PasskeyAuthenticator,
     signature_verification::VerifiedDigestCache,
     zk_login_authenticator::ZkLoginAuthenticator,
@@ -93,7 +92,6 @@ pub trait AuthenticatorTrait {
 #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash)]
 pub enum GenericSignature {
     MultiSig,
-    MultiSigLegacy,
     Signature,
     ZkLoginAuthenticator,
     PasskeyAuthenticator,
@@ -231,13 +229,9 @@ impl ToFromBytes for GenericSignature {
                 | SignatureScheme::Secp256r1 => Ok(GenericSignature::Signature(
                     Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidSignature)?,
                 )),
-                SignatureScheme::MultiSig => match MultiSig::from_bytes(bytes) {
-                    Ok(multisig) => Ok(GenericSignature::MultiSig(multisig)),
-                    Err(_) => {
-                        let multisig = MultiSigLegacy::from_bytes(bytes)?;
-                        Ok(GenericSignature::MultiSigLegacy(multisig))
-                    }
-                },
+                SignatureScheme::MultiSig => {
+                    Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))
+                }
                 SignatureScheme::ZkLoginAuthenticator => {
                     let zk_login = ZkLoginAuthenticator::from_bytes(bytes)?;
                     Ok(GenericSignature::ZkLoginAuthenticator(zk_login))
@@ -258,7 +252,6 @@ impl AsRef<[u8]> for GenericSignature {
     fn as_ref(&self) -> &[u8] {
         match self {
             GenericSignature::MultiSig(s) => s.as_ref(),
-            GenericSignature::MultiSigLegacy(s) => s.as_ref(),
             GenericSignature::Signature(s) => s.as_ref(),
             GenericSignature::ZkLoginAuthenticator(s) => s.as_ref(),
             GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
