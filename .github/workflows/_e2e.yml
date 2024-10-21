@@ -97,6 +97,14 @@ jobs:
         if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
 
+      - name: Build Kiosk
+        if: inputs.isRust || inputs.isTypescriptSDK
+        run: pnpm turbo --filter=@iota/kiosk build
+
+      - name: Run Kiosk e2e tests
+        if: inputs.isRust || inputs.isTypescriptSDK
+        run: pnpm --filter=@iota/kiosk test:e2e
+
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
