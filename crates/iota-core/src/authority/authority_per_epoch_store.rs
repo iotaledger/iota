@@ -1001,10 +1001,6 @@ impl AuthorityPerEpochStore {
             .is_some()
     }
 
-    pub fn coin_deny_list_v2_enabled(&self) -> bool {
-        self.protocol_config().enable_coin_deny_list_v2() && self.coin_deny_list_state_exists()
-    }
-
     pub fn bridge_exists(&self) -> bool {
         self.epoch_start_configuration
             .bridge_obj_initial_shared_version()

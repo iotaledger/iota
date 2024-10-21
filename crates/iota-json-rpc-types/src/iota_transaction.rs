@@ -537,9 +537,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::DenyListStateCreate => {
-                                IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
-                            }
                             EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
                                 IotaEndOfEpochTransactionKind::BridgeStateCreate(
                                     (*chain_id.as_bytes()).into(),
@@ -626,9 +623,6 @@ impl IotaTransactionBlockKind {
                                         min_epoch: expire.min_epoch,
                                     },
                                 )
-                            }
-                            EndOfEpochTransactionKind::DenyListStateCreate => {
-                                IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
                             }
                             EndOfEpochTransactionKind::BridgeStateCreate(id) => {
                                 IotaEndOfEpochTransactionKind::BridgeStateCreate(
@@ -1640,7 +1634,6 @@ pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
-    CoinDenyListStateCreate,
     BridgeStateCreate(CheckpointDigest),
     BridgeCommitteeUpdate(SequenceNumber),
 }

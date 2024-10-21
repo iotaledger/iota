@@ -669,13 +669,6 @@ type CoinConnection {
 	nodes: [Coin!]!
 }
 
-type CoinDenyListStateCreateTransaction {
-	"""
-	A workaround to define an empty variant of a GraphQL union.
-	"""
-	_: Boolean
-}
-
 """
 An edge in a connection.
 """
@@ -1056,7 +1049,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | CoinDenyListStateCreateTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
+union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
 
 type EndOfEpochTransactionKindConnection {
 	"""
