@@ -801,14 +801,6 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 Ok(IotaAddress::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
-            GenericSignature::MultiSigLegacy(ms) => {
-                Ok(crate::multisig::MultiSig::try_from(ms.clone())
-                    .map_err(|_| IotaError::InvalidSignature {
-                        error: "Invalid legacy multisig".to_string(),
-                    })?
-                    .get_pk()
-                    .into())
-            }
             GenericSignature::ZkLoginAuthenticator(zklogin) => {
                 IotaAddress::try_from_unpadded(&zklogin.inputs)
             }
