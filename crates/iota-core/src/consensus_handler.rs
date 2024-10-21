@@ -212,13 +212,6 @@ fn update_index_and_hash(
 impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     #[instrument(level = "debug", skip_all)]
     async fn handle_consensus_output(&mut self, consensus_output: impl ConsensusOutputAPI) {
-        // This code no longer supports old protocol versions.
-        assert!(
-            self.epoch_store
-                .protocol_config()
-                .consensus_order_end_of_epoch_last()
-        );
-
         let last_committed_round = self.last_consensus_stats.index.last_committed_round;
 
         let round = consensus_output.leader_round();
@@ -731,13 +724,7 @@ impl SequencedConsensusTransaction {
         )
     }
 
-    pub fn is_user_tx_with_randomness(&self, randomness_state_enabled: bool) -> bool {
-        if !randomness_state_enabled {
-            // If randomness is disabled, these should be processed same as a tx without
-            // randomness, which will eventually fail when the randomness state
-            // object is not found.
-            return false;
-        }
+    pub fn is_user_tx_with_randomness(&self) -> bool {
         let SequencedConsensusTransactionKind::External(ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransaction(certificate),
             ..
@@ -824,31 +811,12 @@ impl ConsensusCommitInfo {
         self.skip_consensus_commit_prologue_in_test
     }
 
-    fn consensus_commit_prologue_transaction(&self, epoch: u64) -> VerifiedExecutableTransaction {
-        let transaction =
-            VerifiedTransaction::new_consensus_commit_prologue(epoch, self.round, self.timestamp);
-        VerifiedExecutableTransaction::new_system(transaction, epoch)
-    }
-
-    fn consensus_commit_prologue_v2_transaction(
-        &self,
-        epoch: u64,
-    ) -> VerifiedExecutableTransaction {
-        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
-            epoch,
-            self.round,
-            self.timestamp,
-            self.consensus_commit_digest,
-        );
-        VerifiedExecutableTransaction::new_system(transaction, epoch)
-    }
-
-    fn consensus_commit_prologue_v3_transaction(
+    fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> VerifiedExecutableTransaction {
-        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
+        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
@@ -861,16 +829,9 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        protocol_config: &ProtocolConfig,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> VerifiedExecutableTransaction {
-        if protocol_config.record_consensus_determined_version_assignments_in_prologue() {
-            self.consensus_commit_prologue_v3_transaction(epoch, cancelled_txn_version_assignment)
-        } else if protocol_config.include_consensus_digest_in_prologue() {
-            self.consensus_commit_prologue_v2_transaction(epoch)
-        } else {
-            self.consensus_commit_prologue_transaction(epoch)
-        }
+        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
     }
 }
 

@@ -70,13 +70,13 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [x] `get_dynamic_fields`
 - [x] `get_dynamic_field_object`
 
-### `MoveUtils` (0/5)
+### `MoveUtils` (5/5)
 
-- [ ] `get_move_function_arg_types`
-- [ ] `get_normalized_move_modules_by_package`
-- [ ] `get_normalized_move_module`
-- [ ] `get_normalized_move_struct`
-- [ ] `get_normalized_move_function`
+- [x] `get_move_function_arg_types`
+- [x] `get_normalized_move_modules_by_package`
+- [x] `get_normalized_move_module`
+- [x] `get_normalized_move_struct`
+- [x] `get_normalized_move_function`
 
 ### `ReadApi` (14/14)
 

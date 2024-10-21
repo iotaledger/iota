@@ -4,7 +4,10 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use fastcrypto::traits::KeyPair;
+use fastcrypto::{
+    bls12381::min_sig::BLS12381KeyPair,
+    traits::{KeyPair, ToFromBytes},
+};
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
     ExecutionCacheConfig,
@@ -182,6 +185,12 @@ impl<'a> TestAuthorityBuilder<'a> {
             local_network_config_builder =
                 local_network_config_builder.with_protocol_version(protocol_config.version);
         }
+
+        if let Some(keypair) = self.node_keypair {
+            let owned_keypair = BLS12381KeyPair::from_bytes(keypair.as_bytes()).unwrap(); // Hypothetical constructor method
+            local_network_config_builder =
+                local_network_config_builder.with_validator_authority_keys(vec![owned_keypair]);
+        }
         let local_network_config = local_network_config_builder.build();
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
         let genesis_committee = genesis.committee().unwrap();
@@ -213,13 +222,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             config.execution_cache = cache_config;
         }
 
-        let keypair = if let Some(keypair) = self.node_keypair {
-            keypair
-        } else {
-            config.protocol_key_pair()
-        };
-
-        let secret = Arc::pin(keypair.copy());
+        let secret = Arc::pin(config.protocol_key_pair().copy());
         let name: AuthorityName = secret.public().into();
         let registry = Registry::new();
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
@@ -297,14 +300,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         let transaction_deny_config = self.transaction_deny_config.unwrap_or_default();
         let certificate_deny_config = self.certificate_deny_config.unwrap_or_default();
         let authority_overload_config = self.authority_overload_config.unwrap_or_default();
-        let mut pruning_config = AuthorityStorePruningConfig::default();
-        if !epoch_store
-            .protocol_config()
-            .simplified_unwrap_then_delete()
-        {
-            // We cannot prune tombstones if simplified_unwrap_then_delete is not enabled.
-            pruning_config.set_killswitch_tombstone_pruning(true);
-        }
+        let pruning_config = AuthorityStorePruningConfig::default();
 
         config.transaction_deny_config = transaction_deny_config;
         config.certificate_deny_config = certificate_deny_config;
@@ -333,26 +329,24 @@ impl<'a> TestAuthorityBuilder<'a> {
         .await;
 
         // Set up randomness with no-op consensus (DKG will not complete).
-        if epoch_store.randomness_state_enabled() {
-            let consensus_client = Box::new(MockConsensusClient::new(
-                Arc::downgrade(&state),
-                ConsensusMode::Noop,
-            ));
-            let randomness_manager = RandomnessManager::try_new(
-                Arc::downgrade(&epoch_store),
-                consensus_client,
-                randomness::Handle::new_stub(),
-                config.protocol_key_pair(),
-            )
-            .await;
-            if let Some(randomness_manager) = randomness_manager {
-                // Randomness might fail if test configuration does not permit DKG init.
-                // In that case, skip setting it up.
-                epoch_store
-                    .set_randomness_manager(randomness_manager)
-                    .await
-                    .unwrap();
-            }
+        let consensus_client = Box::new(MockConsensusClient::new(
+            Arc::downgrade(&state),
+            ConsensusMode::Noop,
+        ));
+        let randomness_manager = RandomnessManager::try_new(
+            Arc::downgrade(&epoch_store),
+            consensus_client,
+            randomness::Handle::new_stub(),
+            config.protocol_key_pair(),
+        )
+        .await;
+        if let Some(randomness_manager) = randomness_manager {
+            // Randomness might fail if test configuration does not permit DKG init.
+            // In that case, skip setting it up.
+            epoch_store
+                .set_randomness_manager(randomness_manager)
+                .await
+                .unwrap();
         }
 
         // For any type of local testing that does not actually spawn a node, the
