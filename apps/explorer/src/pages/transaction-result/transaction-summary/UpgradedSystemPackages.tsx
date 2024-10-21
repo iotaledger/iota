@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-import { Text } from '@iota/ui';
-
 import { CollapsibleCard, ObjectLink } from '~/components/ui';
 import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '@iota/apps-ui-kit';
 
@@ -34,9 +32,9 @@ export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JS
                                         key={objectId}
                                     >
                                         <div className="flex items-center gap-0.5">
-                                            <Text variant="pBody/medium" color="steel-dark">
+                                            <span className="text-body-md text-neutral-40">
                                                 Package
-                                            </Text>
+                                            </span>
                                         </div>
 
                                         <div className="flex items-center">

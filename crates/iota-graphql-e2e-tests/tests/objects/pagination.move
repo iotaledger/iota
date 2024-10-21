@@ -20,17 +20,21 @@ module Test::M1 {
 }
 
 //# run Test::M1::create --args 0 @A
+# create obj_2_0 (1st object) for A
 
 //# run Test::M1::create --args 1 @A
+# create obj_3_0 (2nd object) for A
 
 //# run Test::M1::create --args 2 @A
+# create obj_4_0 (3rd object) for A
 
 //# run Test::M1::create --args 3 @A
+# create obj_5_0 (4th object) for A
 
 //# run Test::M1::create --args 4 @A
+# create obj_6_0 (5th object) for A
 
 //# create-checkpoint
-
 
 //# run-graphql
 {
@@ -56,10 +60,41 @@ module Test::M1 {
   }
 }
 
+//# run-graphql
+{
+  # show the order of all object owned by A
+  # order is defined by the bytes of their address
+  address(address: "@{A}") {
+    objects {
+      edges {
+        cursor
+        node {
+            address
+        }
+      }
+    }
+  }
+  obj_3_0: object(address: "@{obj_3_0}") {
+    address
+  }
+  obj_5_0: object(address: "@{obj_5_0}") {
+    address
+  }
+  obj_6_0: object(address: "@{obj_6_0}") {
+    address
+  }
+  obj_4_0: object(address: "@{obj_4_0}") {
+    address
+  }
+  obj_2_0: object(address: "@{obj_2_0}") {
+    address
+  }
+}
+
 //# run-graphql --cursors @{obj_5_0}
 {
   address(address: "@{A}") {
-    # select the 2nd and 3rd objects
+    # select the 5th and 3rd objects
     # note that order does not correspond
     # to order in which objects were created
     objects(first: 2 after: "@{cursor_0}") {
@@ -73,8 +108,8 @@ module Test::M1 {
 //# run-graphql --cursors @{obj_4_0}
 {
   address(address: "@{A}") {
-    # select 4th and last object
-    objects(first: 2 after: "@{cursor_0}") {
+    # select 1st object
+    objects(first: 1 after: "@{cursor_0}") {
       edges {
         cursor
       }
@@ -85,7 +120,7 @@ module Test::M1 {
 //# run-graphql --cursors @{obj_3_0}
 {
   address(address: "@{A}") {
-    # select 3rd and 4th object
+    # select no object
     objects(last: 2 before: "@{cursor_0}") {
       edges {
         cursor
@@ -100,6 +135,9 @@ module Test::M1 {
     objects(last: 2) {
       edges {
         cursor
+        node {
+            address
+        }
       }
     }
   }

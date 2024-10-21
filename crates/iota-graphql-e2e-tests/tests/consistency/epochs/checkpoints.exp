@@ -3,19 +3,19 @@ processed 16 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, line 13:
+task 1, line 14:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 2, line 15:
+task 2, line 16:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 3, line 17:
+task 3, line 18:
 //# advance-epoch
 Epoch advanced: 0
 
-task 4, lines 19-34:
+task 4, lines 20-35:
 //# run-graphql
 Response: {
   "data": {
@@ -44,31 +44,31 @@ Response: {
   }
 }
 
-task 5, line 36:
+task 5, line 37:
 //# create-checkpoint
 Checkpoint created: 4
 
-task 6, line 38:
+task 6, line 39:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 7, line 40:
+task 7, line 41:
 //# create-checkpoint
 Checkpoint created: 6
 
-task 8, line 42:
+task 8, line 43:
 //# advance-epoch
 Epoch advanced: 1
 
-task 9, line 44:
+task 9, line 45:
 //# create-checkpoint
 Checkpoint created: 8
 
-task 10, line 46:
+task 10, line 47:
 //# create-checkpoint
 Checkpoint created: 9
 
-task 11, lines 48-87:
+task 11, lines 49-88:
 //# run-graphql
 Response: {
   "data": {
@@ -159,11 +159,11 @@ Response: {
   }
 }
 
-task 12, line 89:
+task 12, line 90:
 //# create-checkpoint
 Checkpoint created: 10
 
-task 13, lines 91-122:
+task 13, lines 92-123:
 //# run-graphql --cursors {"s":3,"c":4} {"s":7,"c":8} {"s":9,"c":10}
 Response: {
   "data": {
@@ -215,7 +215,7 @@ Response: {
   }
 }
 
-task 14, lines 124-155:
+task 14, lines 125-156:
 //# run-graphql --cursors {"s":0,"c":3} {"s":4,"c":7} {"s":8,"c":9}
 Response: {
   "data": {
@@ -267,7 +267,7 @@ Response: {
   }
 }
 
-task 15, lines 157-188:
+task 15, lines 158-189:
 //# run-graphql --cursors {"s":1,"c":2} {"s":5,"c":6} {"s":9,"c":9}
 Response: {
   "data": {

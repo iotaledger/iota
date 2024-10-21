@@ -6,6 +6,7 @@ import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
+import { Feature } from '@iota/core';
 import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
 import { EpochsActivityTable } from './EpochsActivityTable';
 import { TransactionsActivityTable } from './TransactionsActivityTable';
@@ -49,7 +50,7 @@ const REFETCH_INTERVAL_SECONDS = 10;
 const REFETCH_INTERVAL = REFETCH_INTERVAL_SECONDS * 1000;
 
 export function Activity({ initialLimit, disablePagination }: ActivityProps): JSX.Element {
-    const pollingTxnTableEnabled = useFeatureIsOn('polling-txn-table');
+    const pollingTxnTableEnabled = useFeatureIsOn(Feature.PollingTxnTable as string);
 
     const [paused, setPaused] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>(

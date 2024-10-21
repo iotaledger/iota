@@ -405,14 +405,12 @@ pub fn get_new_package_upgrade_cap_from_response(
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename = "TransactionBlockKind", tag = "kind")]
 pub enum IotaTransactionBlockKind {
-    /// A system transaction that will update epoch information on-chain.
-    ChangeEpoch(IotaChangeEpoch),
     /// A system transaction used for initializing the initial state of the
     /// chain.
     Genesis(IotaGenesisTransaction),
     /// A system transaction marking the start of a series of transactions
     /// scheduled as part of a checkpoint
-    ConsensusCommitPrologue(IotaConsensusCommitPrologue),
+    ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1),
     /// A series of transactions where the results of one transaction can be
     /// used in future transactions
     ProgrammableTransaction(IotaProgrammableTransactionBlock),
@@ -422,8 +420,6 @@ pub enum IotaTransactionBlockKind {
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
     /// The transaction which occurs only at the end of the epoch
     EndOfEpochTransaction(IotaEndOfEpochTransaction),
-    ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2),
-    ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3),
     // .. more transaction types go here
 }
 
@@ -431,35 +427,11 @@ impl Display for IotaTransactionBlockKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         match &self {
-            Self::ChangeEpoch(e) => {
-                writeln!(writer, "Transaction Kind: Epoch Change")?;
-                writeln!(writer, "New epoch ID: {}", e.epoch)?;
-                writeln!(writer, "Storage gas reward: {}", e.storage_charge)?;
-                writeln!(writer, "Computation gas reward: {}", e.computation_charge)?;
-                writeln!(writer, "Storage rebate: {}", e.storage_rebate)?;
-                writeln!(writer, "Timestamp: {}", e.epoch_start_timestamp_ms)?;
-            }
             Self::Genesis(_) => {
                 writeln!(writer, "Transaction Kind: Genesis Transaction")?;
             }
-            Self::ConsensusCommitPrologue(p) => {
-                writeln!(writer, "Transaction Kind: Consensus Commit Prologue")?;
-                writeln!(
-                    writer,
-                    "Epoch: {}, Round: {}, Timestamp: {}",
-                    p.epoch, p.round, p.commit_timestamp_ms
-                )?;
-            }
-            Self::ConsensusCommitPrologueV2(p) => {
-                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V2")?;
-                writeln!(
-                    writer,
-                    "Epoch: {}, Round: {}, Timestamp: {}, ConsensusCommitDigest: {}",
-                    p.epoch, p.round, p.commit_timestamp_ms, p.consensus_commit_digest
-                )?;
-            }
-            Self::ConsensusCommitPrologueV3(p) => {
-                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V3")?;
+            Self::ConsensusCommitPrologueV1(p) => {
+                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V1")?;
                 writeln!(
                     writer,
                     "Epoch: {}, Round: {}, SubDagIndex: {:?}, Timestamp: {}, ConsensusCommitDigest: {}",
@@ -495,7 +467,6 @@ impl IotaTransactionBlockKind {
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
-            TransactionKind::ChangeEpoch(e) => Self::ChangeEpoch(e.into()),
             TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
                 objects: g.objects.iter().map(GenesisObject::id).collect(),
                 events: g
@@ -505,23 +476,8 @@ impl IotaTransactionBlockKind {
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
-            TransactionKind::ConsensusCommitPrologue(p) => {
-                Self::ConsensusCommitPrologue(IotaConsensusCommitPrologue {
-                    epoch: p.epoch,
-                    round: p.round,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV2(p) => {
-                Self::ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2 {
-                    epoch: p.epoch,
-                    round: p.round,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                    consensus_commit_digest: p.consensus_commit_digest,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV3(p) => {
-                Self::ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3 {
+            TransactionKind::ConsensusCommitPrologueV1(p) => {
+                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
                     sub_dag_index: p.sub_dag_index,
@@ -570,9 +526,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::RandomnessStateCreate => {
-                                IotaEndOfEpochTransactionKind::RandomnessStateCreate
-                            }
                             EndOfEpochTransactionKind::DenyListStateCreate => {
                                 IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
                             }
@@ -599,7 +552,6 @@ impl IotaTransactionBlockKind {
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
-            TransactionKind::ChangeEpoch(e) => Self::ChangeEpoch(e.into()),
             TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
                 objects: g.objects.iter().map(GenesisObject::id).collect(),
                 events: g
@@ -609,23 +561,8 @@ impl IotaTransactionBlockKind {
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
-            TransactionKind::ConsensusCommitPrologue(p) => {
-                Self::ConsensusCommitPrologue(IotaConsensusCommitPrologue {
-                    epoch: p.epoch,
-                    round: p.round,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV2(p) => {
-                Self::ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2 {
-                    epoch: p.epoch,
-                    round: p.round,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                    consensus_commit_digest: p.consensus_commit_digest,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV3(p) => {
-                Self::ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3 {
+            TransactionKind::ConsensusCommitPrologueV1(p) => {
+                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
                     sub_dag_index: p.sub_dag_index,
@@ -678,9 +615,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::RandomnessStateCreate => {
-                                IotaEndOfEpochTransactionKind::RandomnessStateCreate
-                            }
                             EndOfEpochTransactionKind::DenyListStateCreate => {
                                 IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
                             }
@@ -708,11 +642,8 @@ impl IotaTransactionBlockKind {
 
     pub fn name(&self) -> &'static str {
         match self {
-            Self::ChangeEpoch(_) => "ChangeEpoch",
             Self::Genesis(_) => "Genesis",
-            Self::ConsensusCommitPrologue(_) => "ConsensusCommitPrologue",
-            Self::ConsensusCommitPrologueV2(_) => "ConsensusCommitPrologueV2",
-            Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
+            Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1641,36 +1572,7 @@ pub struct IotaGenesisTransaction {
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaConsensusCommitPrologue {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub round: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub commit_timestamp_ms: u64,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaConsensusCommitPrologueV2 {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub round: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub commit_timestamp_ms: u64,
-    pub consensus_commit_digest: ConsensusCommitDigest,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaConsensusCommitPrologueV3 {
+pub struct IotaConsensusCommitPrologueV1 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch: u64,
@@ -1725,7 +1627,6 @@ pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
-    RandomnessStateCreate,
     CoinDenyListStateCreate,
     BridgeStateCreate(CheckpointDigest),
     BridgeCommitteeUpdate(SequenceNumber),

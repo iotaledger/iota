@@ -3,19 +3,19 @@ processed 17 tasks
 init:
 A: object(0,0)
 
-task 1, lines 14-45:
+task 1, lines 15-46:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 7828000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 47:
+task 2, line 48:
 //# run Test::M1::parent --sender A --args @A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 49:
+task 3, line 50:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 2
@@ -28,13 +28,13 @@ Contents: Test::M1::Parent {
     count: 0u64,
 }
 
-task 4, line 51:
+task 4, line 52:
 //# run Test::M1::add_df --sender A --args object(2,0)
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 8664000,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 8664000,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 5, line 53:
+task 5, line 54:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 3
@@ -47,12 +47,12 @@ Contents: Test::M1::Parent {
     count: 0u64,
 }
 
-task 6, line 55:
+task 6, line 56:
 //# run Test::M1::mutate_parent --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 7, line 57:
+task 7, line 58:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 4
@@ -65,11 +65,11 @@ Contents: Test::M1::Parent {
     count: 42u64,
 }
 
-task 8, line 59:
+task 8, line 60:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 9, lines 61-109:
+task 9, lines 62-110:
 //# run-graphql
 Response: {
   "data": {
@@ -78,7 +78,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IC2fT4MkuNdi3Nvnb8m8dqkwj9EcXifzn/uWeklDnbOTAQAAAAAAAAA=",
+            "cursor": "IAJ+N19Eh+w2kIWfYP5kpcPiRB/p8su3E0v/PYZPvZQHAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMQ=="
@@ -89,24 +89,24 @@ Response: {
             }
           },
           {
-            "cursor": "IHHoOU78QBVu3gJtqZMHtZhLsebo3AyFYSgZ+Mfmh2fPAQAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmMw=="
-              },
-              "value": {
-                "json": "df3"
-              }
-            }
-          },
-          {
-            "cursor": "IOgTnWXmEwqr+XesX5bghNK0s1TBQJ0/GNLACjJ9LOytAQAAAAAAAAA=",
+            "cursor": "ICzcsSchArXAOXPv2df4sMekCJG1I1Frj1xYeVeySw9oAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
               },
               "value": {
                 "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "IPPDpxgy1QD29OuylQYSnhxoj8iexPFvm8suwQUMWaWTAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw=="
+              },
+              "value": {
+                "json": "df3"
               }
             }
           }
@@ -139,7 +139,7 @@ Response: {
   }
 }
 
-task 10, line 111:
+task 10, line 112:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 4
@@ -152,12 +152,12 @@ Contents: Test::M1::Parent {
     count: 42u64,
 }
 
-task 11, line 113:
+task 11, line 114:
 //# run Test::M1::mutate_df1 --sender A --args object(2,0)
 mutated: object(0,0), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4378968, non_refundable_storage_fee: 44232
+gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4423200, non_refundable_storage_fee: 0
 
-task 12, line 115:
+task 12, line 116:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 5
@@ -170,12 +170,12 @@ Contents: Test::M1::Parent {
     count: 42u64,
 }
 
-task 13, line 117:
+task 13, line 118:
 //# run Test::M1::mutate_parent --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 14, line 119:
+task 14, line 120:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 6
@@ -188,11 +188,11 @@ Contents: Test::M1::Parent {
     count: 84u64,
 }
 
-task 15, line 121:
+task 15, line 122:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 16, lines 123-171:
+task 16, lines 124-172:
 //# run-graphql
 Response: {
   "data": {
@@ -201,7 +201,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IC2fT4MkuNdi3Nvnb8m8dqkwj9EcXifzn/uWeklDnbOTAgAAAAAAAAA=",
+            "cursor": "IAJ+N19Eh+w2kIWfYP5kpcPiRB/p8su3E0v/PYZPvZQHAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMQ=="
@@ -212,24 +212,24 @@ Response: {
             }
           },
           {
-            "cursor": "IHHoOU78QBVu3gJtqZMHtZhLsebo3AyFYSgZ+Mfmh2fPAgAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmMw=="
-              },
-              "value": {
-                "json": "df3"
-              }
-            }
-          },
-          {
-            "cursor": "IOgTnWXmEwqr+XesX5bghNK0s1TBQJ0/GNLACjJ9LOytAgAAAAAAAAA=",
+            "cursor": "ICzcsSchArXAOXPv2df4sMekCJG1I1Frj1xYeVeySw9oAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
               },
               "value": {
                 "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "IPPDpxgy1QD29OuylQYSnhxoj8iexPFvm8suwQUMWaWTAgAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw=="
+              },
+              "value": {
+                "json": "df3"
               }
             }
           }

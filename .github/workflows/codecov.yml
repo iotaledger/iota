@@ -16,7 +16,7 @@ jobs:
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       - name: Detect Changes
         uses: "./.github/actions/diffs"
         id: diff
@@ -26,10 +26,8 @@ jobs:
     needs: diff
     if: github.event.pull_request.draft == false && needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted]
-    strategy:
-      fail-fast: true
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       - run: rustup component add llvm-tools-preview
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
       # 'librocksdb-sys' src directory which is managed by cargo

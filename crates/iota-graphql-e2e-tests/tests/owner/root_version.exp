@@ -3,44 +3,44 @@ processed 17 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-86:
+task 1, lines 7-87:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 10586800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 88-89:
+task 2, lines 89-90:
 //# run P0::M::new_o
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2264800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2264800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, lines 91-92:
+task 3, lines 92-93:
 //# run P0::M::new_w
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2257200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2257200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4, lines 94-95:
+task 4, lines 95-96:
 //# run P0::M::new_dof
 created: object(4,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 5, lines 97-98:
+task 5, lines 98-99:
 //# run P0::M::new_dof
 created: object(5,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 6, lines 101-104:
+task 6, lines 102-105:
 //# run P0::M::connect --args object(2,0) object(3,0) object(4,0) object(5,0)
 created: object(6,0), object(6,1)
 mutated: object(0,1), object(2,0), object(4,0), object(5,0)
 wrapped: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 9940800,  storage_rebate: 6041772, non_refundable_storage_fee: 61028
+gas summary: computation_cost: 1000000, storage_cost: 9940800,  storage_rebate: 6102800, non_refundable_storage_fee: 0
 
-task 7, lines 106-108:
+task 7, lines 107-109:
 //# view-object 2,0
 Owner: Account Address ( _ )
 Version: 7
@@ -65,27 +65,27 @@ Contents: P0::M::O {
     },
 }
 
-task 8, lines 110-111:
+task 8, lines 111-112:
 //# run P0::M::touch_root --args object(2,0)
 mutated: object(0,1), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2568800,  storage_rebate: 2543112, non_refundable_storage_fee: 25688
+gas summary: computation_cost: 1000000, storage_cost: 2568800,  storage_rebate: 2568800, non_refundable_storage_fee: 0
 
-task 9, lines 113-114:
+task 9, lines 114-115:
 //# run P0::M::touch_wrapped --args object(2,0)
 mutated: object(0,1), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2568800,  storage_rebate: 2543112, non_refundable_storage_fee: 25688
+gas summary: computation_cost: 1000000, storage_cost: 2568800,  storage_rebate: 2568800, non_refundable_storage_fee: 0
 
-task 10, lines 116-117:
+task 10, lines 117-118:
 //# run P0::M::touch_inner --args object(2,0)
 mutated: object(0,1), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 3853200,  storage_rebate: 3814668, non_refundable_storage_fee: 38532
+gas summary: computation_cost: 1000000, storage_cost: 3853200,  storage_rebate: 3853200, non_refundable_storage_fee: 0
 
-task 11, lines 119-120:
+task 11, lines 120-121:
 //# run P0::M::touch_outer --args object(2,0)
 mutated: object(0,1), object(2,0), object(5,0)
-gas summary: computation_cost: 1000000, storage_cost: 3853200,  storage_rebate: 3814668, non_refundable_storage_fee: 38532
+gas summary: computation_cost: 1000000, storage_cost: 3853200,  storage_rebate: 3853200, non_refundable_storage_fee: 0
 
-task 12, line 122:
+task 12, line 123:
 //# view-object 2,0
 Owner: Account Address ( _ )
 Version: 11
@@ -110,11 +110,11 @@ Contents: P0::M::O {
     },
 }
 
-task 13, line 124:
+task 13, line 125:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 14, lines 126-141:
+task 14, lines 127-142:
 //# run-graphql
 Response: {
   "data": {
@@ -124,10 +124,10 @@ Response: {
           "version": 11,
           "contents": {
             "json": {
-              "id": "0x90dc651cc4aef34057af8c944f0ab8a0150295ad088edd4407a1bd4c225e18b8",
+              "id": "0xe74dc4ba8cff4dcc020179272819727333834e105d06aa24074a8a8f2139a6f6",
               "count": "1",
               "wrapped": {
-                "id": "0x3330add01caca066f647d3a3df92917d0191ba9b9aaaa8d2da4d726bb3c330cf",
+                "id": "0x87c9f26e570679949482f8c890217f70d7116eaa9ff002254815b28749df880b",
                 "count": "1"
               }
             }
@@ -141,10 +141,10 @@ Response: {
           "version": 10,
           "contents": {
             "json": {
-              "id": "0x90dc651cc4aef34057af8c944f0ab8a0150295ad088edd4407a1bd4c225e18b8",
+              "id": "0xe74dc4ba8cff4dcc020179272819727333834e105d06aa24074a8a8f2139a6f6",
               "count": "1",
               "wrapped": {
-                "id": "0x3330add01caca066f647d3a3df92917d0191ba9b9aaaa8d2da4d726bb3c330cf",
+                "id": "0x87c9f26e570679949482f8c890217f70d7116eaa9ff002254815b28749df880b",
                 "count": "1"
               }
             }
@@ -158,10 +158,10 @@ Response: {
           "version": 8,
           "contents": {
             "json": {
-              "id": "0x90dc651cc4aef34057af8c944f0ab8a0150295ad088edd4407a1bd4c225e18b8",
+              "id": "0xe74dc4ba8cff4dcc020179272819727333834e105d06aa24074a8a8f2139a6f6",
               "count": "1",
               "wrapped": {
-                "id": "0x3330add01caca066f647d3a3df92917d0191ba9b9aaaa8d2da4d726bb3c330cf",
+                "id": "0x87c9f26e570679949482f8c890217f70d7116eaa9ff002254815b28749df880b",
                 "count": "0"
               }
             }
@@ -175,10 +175,10 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0x90dc651cc4aef34057af8c944f0ab8a0150295ad088edd4407a1bd4c225e18b8",
+              "id": "0xe74dc4ba8cff4dcc020179272819727333834e105d06aa24074a8a8f2139a6f6",
               "count": "0",
               "wrapped": {
-                "id": "0x3330add01caca066f647d3a3df92917d0191ba9b9aaaa8d2da4d726bb3c330cf",
+                "id": "0x87c9f26e570679949482f8c890217f70d7116eaa9ff002254815b28749df880b",
                 "count": "0"
               }
             }
@@ -189,7 +189,7 @@ Response: {
   }
 }
 
-task 15, lines 143-171:
+task 15, lines 144-172:
 //# run-graphql
 Response: {
   "data": {
@@ -199,7 +199,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xd38f2f2e8c369c5ec08b8852fac5834c2bcc25308f0205763528364354dc0369",
+              "id": "0xe5e31bb8a875d5daa1659074d9e15915ffd0a7c69d61c33abe4010da6957a5be",
               "count": "0"
             }
           }
@@ -212,7 +212,7 @@ Response: {
           "version": 10,
           "contents": {
             "json": {
-              "id": "0xd38f2f2e8c369c5ec08b8852fac5834c2bcc25308f0205763528364354dc0369",
+              "id": "0xe5e31bb8a875d5daa1659074d9e15915ffd0a7c69d61c33abe4010da6957a5be",
               "count": "1"
             }
           }
@@ -225,7 +225,7 @@ Response: {
           "version": 10,
           "contents": {
             "json": {
-              "id": "0xd38f2f2e8c369c5ec08b8852fac5834c2bcc25308f0205763528364354dc0369",
+              "id": "0xe5e31bb8a875d5daa1659074d9e15915ffd0a7c69d61c33abe4010da6957a5be",
               "count": "1"
             }
           }
@@ -238,7 +238,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xd38f2f2e8c369c5ec08b8852fac5834c2bcc25308f0205763528364354dc0369",
+              "id": "0xe5e31bb8a875d5daa1659074d9e15915ffd0a7c69d61c33abe4010da6957a5be",
               "count": "0"
             }
           }
@@ -251,7 +251,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xd38f2f2e8c369c5ec08b8852fac5834c2bcc25308f0205763528364354dc0369",
+              "id": "0xe5e31bb8a875d5daa1659074d9e15915ffd0a7c69d61c33abe4010da6957a5be",
               "count": "0"
             }
           }
@@ -261,7 +261,7 @@ Response: {
   }
 }
 
-task 16, lines 173-194:
+task 16, lines 174-195:
 //# run-graphql
 Response: {
   "data": {
@@ -271,7 +271,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xab491044d75a8be613bd6fdc2215a0847c740b8774bc6feb9188f4b7233a37d5",
+              "id": "0x0fe86076f8c1a1b99b4090f509b180223611ef87a0b0e06a8be543c96230ffae",
               "count": "0"
             }
           }
@@ -284,7 +284,7 @@ Response: {
           "version": 11,
           "contents": {
             "json": {
-              "id": "0xab491044d75a8be613bd6fdc2215a0847c740b8774bc6feb9188f4b7233a37d5",
+              "id": "0x0fe86076f8c1a1b99b4090f509b180223611ef87a0b0e06a8be543c96230ffae",
               "count": "1"
             }
           }
@@ -297,7 +297,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xab491044d75a8be613bd6fdc2215a0847c740b8774bc6feb9188f4b7233a37d5",
+              "id": "0x0fe86076f8c1a1b99b4090f509b180223611ef87a0b0e06a8be543c96230ffae",
               "count": "0"
             }
           }

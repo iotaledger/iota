@@ -3,16 +3,16 @@ processed 4 tasks
 init:
 C: object(0,0)
 
-task 1, line 6:
+task 1, line 7:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 2, lines 8-19:
+task 2, lines 9-20:
 //# run-graphql
 Response: {
   "data": {
     "protocolConfig": {
-      "protocolVersion": 51,
+      "protocolVersion": 1,
       "config": {
         "value": "128"
       },
@@ -23,17 +23,17 @@ Response: {
   }
 }
 
-task 3, lines 21-32:
+task 3, lines 22-33:
 //# run-graphql
 Response: {
   "data": {
     "protocolConfig": {
-      "protocolVersion": 8,
+      "protocolVersion": 1,
       "config": {
-        "value": null
+        "value": "128"
       },
       "featureFlag": {
-        "value": false
+        "value": true
       }
     }
   }
