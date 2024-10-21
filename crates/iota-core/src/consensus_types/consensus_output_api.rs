@@ -6,7 +6,6 @@ use std::fmt::Display;
 
 use consensus_core::{BlockAPI, CommitDigest};
 use fastcrypto::hash::Hash;
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
 use narwhal_types::{BatchAPI, CertificateAPI, ConsensusOutputDigest, HeaderAPI};
 
@@ -33,7 +32,7 @@ pub(crate) trait ConsensusOutputAPI: Display {
     fn transactions(&self) -> ConsensusOutputTransactions<'_>;
 
     /// Returns the digest of consensus output.
-    fn consensus_digest(&self, protocol_config: &ProtocolConfig) -> ConsensusCommitDigest;
+    fn consensus_digest(&self) -> ConsensusCommitDigest;
 }
 
 impl ConsensusOutputAPI for narwhal_types::ConsensusOutput {
@@ -99,7 +98,7 @@ impl ConsensusOutputAPI for narwhal_types::ConsensusOutput {
             }).collect()
     }
 
-    fn consensus_digest(&self, _protocol_config: &ProtocolConfig) -> ConsensusCommitDigest {
+    fn consensus_digest(&self) -> ConsensusCommitDigest {
         // We port ConsensusOutputDigest, a narwhal space object, into
         // ConsensusCommitDigest, a iota-core space object. We assume they
         // always have the same format.
@@ -167,15 +166,11 @@ impl ConsensusOutputAPI for consensus_core::CommittedSubDag {
             .collect()
     }
 
-    fn consensus_digest(&self, protocol_config: &ProtocolConfig) -> ConsensusCommitDigest {
-        if protocol_config.mysticeti_use_committed_subdag_digest() {
-            // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a
-            // iota-core space object. We assume they always have the same
-            // format.
-            static_assertions::assert_eq_size!(ConsensusCommitDigest, CommitDigest);
-            ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
-        } else {
-            ConsensusCommitDigest::default()
-        }
+    fn consensus_digest(&self) -> ConsensusCommitDigest {
+        // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a
+        // iota-core space object. We assume they always have the same
+        // format.
+        static_assertions::assert_eq_size!(ConsensusCommitDigest, CommitDigest);
+        ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
     }
 }
