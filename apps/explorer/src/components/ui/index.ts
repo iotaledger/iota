@@ -9,7 +9,6 @@ export * from './modal';
 export * from './Banner';
 export * from './ButtonOrLink';
 export * from './Card';
-export * from './CopyToClipboard';
 export * from './Divider';
 export * from './DropdownMenu';
 export * from './ExpandableList';
