@@ -97,7 +97,9 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+        with:
+          tool: nextest
       - name: benchmark (smoke)
         run: |
           cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
