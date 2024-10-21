@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { DropdownPosition, Select, SelectSize } from '@iota/apps-ui-kit';
 import { useState } from 'react';
-
 import { Pagination, PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
@@ -11,6 +11,7 @@ import {
 } from '~/hooks/useGetTransactionBlocks';
 import { generateTransactionsTableColumns } from '~/lib/ui';
 
+const PAGE_SIZES = [20, 40, 60];
 export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
     const transactions = useGetTransactionBlocks(
@@ -37,20 +38,23 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
                     <TableCard data={data.data} columns={tableColumns} />
                 </div>
             )}
-            <div className="flex justify-between">
+            <div className="flex items-center justify-between">
                 <Pagination {...pagination} />
-                <select
-                    className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                    value={limit}
-                    onChange={(e) => {
-                        setLimit(Number(e.target.value));
-                        pagination.onFirst();
-                    }}
-                >
-                    <option value={20}>20 Per Page</option>
-                    <option value={40}>40 Per Page</option>
-                    <option value={60}>60 Per Page</option>
-                </select>
+                <div className="flex items-center gap-3">
+                    <Select
+                        dropdownPosition={DropdownPosition.Top}
+                        value={limit.toString()}
+                        options={PAGE_SIZES.map((size) => ({
+                            label: `${size} / page`,
+                            id: size.toString(),
+                        }))}
+                        onValueChange={(value) => {
+                            setLimit(Number(value));
+                            pagination.onFirst();
+                        }}
+                        size={SelectSize.Small}
+                    />
+                </div>
             </div>
         </div>
     );
