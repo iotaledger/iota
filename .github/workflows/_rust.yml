@@ -64,5 +64,4 @@ jobs:
     needs:
       - rust-tests
       - external-tests
-      - mysticeti-tests
     uses: ./.github/workflows/_execution_cut.yml
