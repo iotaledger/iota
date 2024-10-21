@@ -5,7 +5,7 @@
 use serde_test::{Token, assert_tokens};
 
 use crate::{
-    Batch, BatchV2, MetadataV1, VersionedMetadata, worker::batch_serde::Token::NewtypeVariant,
+    Batch, BatchV2, MetadataV1, VersionedMetadata, serde::batch_serde::Token::NewtypeVariant,
 };
 #[test]
 fn test_serde_batch() {

@@ -49,13 +49,15 @@ import { filter, map, type Observable } from 'rxjs';
 
 import { mapToPromise } from './utils';
 import { bcs } from '@iota/iota-sdk/bcs';
+import { generateWalletMessageStreamIdentifiers } from '_src/shared/utils/generateWalletMessageStreamIdentifiers';
+import { DEFAULT_APP_NAME } from '_src/shared/constants';
 
 type WalletEventsMap = {
     [E in keyof StandardEventsListeners]: Parameters<StandardEventsListeners[E]>[0];
 };
 
 // NOTE: Because this runs in a content script, we can't fetch the manifest.
-const NAME = process.env.APP_NAME || 'IOTA Wallet';
+const NAME = process.env.APP_NAME || DEFAULT_APP_NAME;
 
 export class IotaWallet implements Wallet {
     readonly #events: Emitter<WalletEventsMap>;
@@ -139,7 +141,8 @@ export class IotaWallet implements Wallet {
     constructor() {
         this.#events = mitt();
         this.#accounts = [];
-        this.#messagesStream = new WindowMessageStream('iota_in-page', 'iota_content-script');
+        const { name, target } = generateWalletMessageStreamIdentifiers(NAME);
+        this.#messagesStream = new WindowMessageStream(name, target);
         this.#messagesStream.messages.subscribe(({ payload }) => {
             if (isWalletStatusChangePayload(payload)) {
                 const { network, accounts } = payload;

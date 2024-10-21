@@ -5,7 +5,7 @@
 import { Title, TitleSize } from '@iota/apps-ui-kit';
 import { useAppSelector } from '_hooks';
 import cn from 'clsx';
-import { Feature } from '_src/shared/experimentation/features';
+import { Feature } from '@iota/core';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useEffect, useMemo } from 'react';
@@ -62,8 +62,8 @@ function ConnectedDapps() {
     );
 
     return (
-        <Loading loading={loading}>
-            <PageTemplate title="Apps" isTitleCentered>
+        <PageTemplate title="Apps" isTitleCentered>
+            <Loading loading={loading}>
                 <div
                     className={cn('flex flex-1 flex-col gap-md', {
                         'h-full items-center': !connectedApps?.length,
@@ -82,8 +82,8 @@ function ConnectedDapps() {
                         <NoData message="No connected apps found." />
                     )}
                 </div>
-            </PageTemplate>
-        </Loading>
+            </Loading>
+        </PageTemplate>
     );
 }
 

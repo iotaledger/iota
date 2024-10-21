@@ -6,9 +6,9 @@ import { Loading } from '_components';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
-import { Feature } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
+    Feature,
     createStakeTransaction,
     createUnstakeTransaction,
     parseAmount,
@@ -39,6 +39,7 @@ import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -306,6 +307,12 @@ function StakingCard() {
                                         !isValid || isSubmitting || (unstake && !delegationId)
                                     }
                                     text={unstake ? 'Unstake' : 'Stake'}
+                                    icon={
+                                        isSubmitting ? (
+                                            <Loader className="animate-spin" />
+                                        ) : undefined
+                                    }
+                                    iconAfterText
                                 />
                             </div>
                         </>

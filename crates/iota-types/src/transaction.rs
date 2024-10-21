@@ -49,10 +49,7 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    messages_consensus::{
-        ConsensusCommitPrologue, ConsensusCommitPrologueV2, ConsensusCommitPrologueV3,
-        ConsensusDeterminedVersionAssignments,
-    },
+    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -288,7 +285,7 @@ pub enum TransactionKind {
     /// is still used by EndOfEpochTransaction below).
     ChangeEpoch(ChangeEpoch),
     Genesis(GenesisTransaction),
-    ConsensusCommitPrologue(ConsensusCommitPrologue),
+    ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
     AuthenticatorStateUpdate(AuthenticatorStateUpdate),
 
     /// EndOfEpochTransaction replaces ChangeEpoch with a list of transactions
@@ -296,10 +293,6 @@ pub enum TransactionKind {
     EndOfEpochTransaction(Vec<EndOfEpochTransactionKind>),
 
     RandomnessStateUpdate(RandomnessStateUpdate),
-    // V2 ConsensusCommitPrologue also includes the digest of the current consensus output.
-    ConsensusCommitPrologueV2(ConsensusCommitPrologueV2),
-
-    ConsensusCommitPrologueV3(ConsensusCommitPrologueV3),
     // .. more transaction types go here
 }
 
@@ -309,7 +302,6 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
-    RandomnessStateCreate,
     DenyListStateCreate,
     BridgeStateCreate(ChainIdentifier),
     BridgeCommitteeInit(SequenceNumber),
@@ -352,10 +344,6 @@ impl EndOfEpochTransactionKind {
         Self::AuthenticatorStateCreate
     }
 
-    pub fn new_randomness_state_create() -> Self {
-        Self::RandomnessStateCreate
-    }
-
     pub fn new_deny_list_state_create() -> Self {
         Self::DenyListStateCreate
     }
@@ -385,7 +373,6 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::RandomnessStateCreate => vec![],
             Self::DenyListStateCreate => vec![],
             Self::BridgeStateCreate(_) => vec![],
             Self::BridgeCommitteeInit(bridge_version) => vec![
@@ -417,7 +404,6 @@ impl EndOfEpochTransactionKind {
                 .into_iter(),
             ),
             Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
-            Self::RandomnessStateCreate => Either::Right(iter::empty()),
             Self::DenyListStateCreate => Either::Right(iter::empty()),
             Self::BridgeStateCreate(_) => Either::Right(iter::empty()),
             Self::BridgeCommitteeInit(bridge_version) => Either::Left(
@@ -441,13 +427,6 @@ impl EndOfEpochTransactionKind {
                 if !config.enable_jwk_consensus_updates() {
                     return Err(UserInputError::Unsupported(
                         "authenticator state updates not enabled".to_string(),
-                    ));
-                }
-            }
-            Self::RandomnessStateCreate => {
-                if !config.random_beacon() {
-                    return Err(UserInputError::Unsupported(
-                        "random beacon not enabled".to_string(),
                     ));
                 }
             }
@@ -531,15 +510,9 @@ impl CallArg {
                 );
             }
             CallArg::Object(o) => match o {
-                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::SharedObject { .. } => (),
-                ObjectArg::Receiving(_) => {
-                    if !config.receiving_objects_supported() {
-                        return Err(UserInputError::Unsupported(format!(
-                            "receiving objects is not supported at {:?}",
-                            config.version
-                        )));
-                    }
-                }
+                ObjectArg::Receiving(_)
+                | ObjectArg::ImmOrOwnedObject(_)
+                | ObjectArg::SharedObject { .. } => (),
             },
         }
         Ok(())
@@ -989,12 +962,6 @@ impl ProgrammableTransaction {
         if let Some(random_index) = inputs.iter().position(|obj| {
             matches!(obj, CallArg::Object(ObjectArg::SharedObject { id, .. }) if *id == IOTA_RANDOMNESS_STATE_OBJECT_ID)
         }) {
-            fp_ensure!(
-                config.random_beacon(),
-                UserInputError::Unsupported(
-                    "randomness is not enabled on this network".to_string(),
-                )
-            );
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
             for command in commands {
@@ -1183,9 +1150,7 @@ impl TransactionKind {
         match self {
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologue(_)
-            | TransactionKind::ConsensusCommitPrologueV2(_)
-            | TransactionKind::ConsensusCommitPrologueV3(_)
+            | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdate(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => true,
@@ -1234,9 +1199,7 @@ impl TransactionKind {
                 Either::Left(Either::Left(iter::once(SharedInputObject::IOTA_SYSTEM_OBJ)))
             }
 
-            Self::ConsensusCommitPrologue(_)
-            | Self::ConsensusCommitPrologueV2(_)
-            | Self::ConsensusCommitPrologueV3(_) => {
+            Self::ConsensusCommitPrologueV1(_) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
                     id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
@@ -1278,9 +1241,7 @@ impl TransactionKind {
         match &self {
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologue(_)
-            | TransactionKind::ConsensusCommitPrologueV2(_)
-            | TransactionKind::ConsensusCommitPrologueV3(_)
+            | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdate(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => vec![],
@@ -1305,9 +1266,7 @@ impl TransactionKind {
             Self::Genesis(_) => {
                 vec![]
             }
-            Self::ConsensusCommitPrologue(_)
-            | Self::ConsensusCommitPrologueV2(_)
-            | Self::ConsensusCommitPrologueV3(_) => {
+            Self::ConsensusCommitPrologueV1(_) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
@@ -1361,32 +1320,12 @@ impl TransactionKind {
     pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
             TransactionKind::ProgrammableTransaction(p) => p.validity_check(config)?,
-            // All transactiond kinds below are assumed to be system,
+            // All transaction kinds below are assumed to be system,
             // and no validity or limit checks are performed.
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologue(_) => (),
-            TransactionKind::ConsensusCommitPrologueV2(_) => {
-                if !config.include_consensus_digest_in_prologue() {
-                    return Err(UserInputError::Unsupported(
-                        "ConsensusCommitPrologueV2 is not supported".to_string(),
-                    ));
-                }
-            }
-            TransactionKind::ConsensusCommitPrologueV3(_) => {
-                if !config.record_consensus_determined_version_assignments_in_prologue() {
-                    return Err(UserInputError::Unsupported(
-                        "ConsensusCommitPrologueV3 is not supported".to_string(),
-                    ));
-                }
-            }
+            | TransactionKind::ConsensusCommitPrologueV1(_) => (),
             TransactionKind::EndOfEpochTransaction(txns) => {
-                if !config.end_of_epoch_transaction_supported() {
-                    return Err(UserInputError::Unsupported(
-                        "EndOfEpochTransaction is not supported".to_string(),
-                    ));
-                }
-
                 for tx in txns {
                     tx.validity_check(config)?;
                 }
@@ -1399,13 +1338,7 @@ impl TransactionKind {
                     ));
                 }
             }
-            TransactionKind::RandomnessStateUpdate(_) => {
-                if !config.random_beacon() {
-                    return Err(UserInputError::Unsupported(
-                        "randomness state updates not enabled".to_string(),
-                    ));
-                }
-            }
+            TransactionKind::RandomnessStateUpdate(_) => (),
         };
         Ok(())
     }
@@ -1437,9 +1370,7 @@ impl TransactionKind {
         match self {
             Self::ChangeEpoch(_) => "ChangeEpoch",
             Self::Genesis(_) => "Genesis",
-            Self::ConsensusCommitPrologue(_) => "ConsensusCommitPrologue",
-            Self::ConsensusCommitPrologueV2(_) => "ConsensusCommitPrologueV2",
-            Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
+            Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1463,17 +1394,8 @@ impl Display for TransactionKind {
             Self::Genesis(_) => {
                 writeln!(writer, "Transaction Kind : Genesis")?;
             }
-            Self::ConsensusCommitPrologue(p) => {
-                writeln!(writer, "Transaction Kind : Consensus Commit Prologue")?;
-                writeln!(writer, "Timestamp : {}", p.commit_timestamp_ms)?;
-            }
-            Self::ConsensusCommitPrologueV2(p) => {
-                writeln!(writer, "Transaction Kind : Consensus Commit Prologue V2")?;
-                writeln!(writer, "Timestamp : {}", p.commit_timestamp_ms)?;
-                writeln!(writer, "Consensus Digest: {}", p.consensus_commit_digest)?;
-            }
-            Self::ConsensusCommitPrologueV3(p) => {
-                writeln!(writer, "Transaction Kind : Consensus Commit Prologue V3")?;
+            Self::ConsensusCommitPrologueV1(p) => {
+                writeln!(writer, "Transaction Kind : Consensus Commit Prologue V1")?;
                 writeln!(writer, "Timestamp : {}", p.commit_timestamp_ms)?;
                 writeln!(writer, "Consensus Digest: {}", p.consensus_commit_digest)?;
                 writeln!(
@@ -2203,16 +2125,9 @@ impl<'de> Deserialize<'de> for SenderSignedTransaction {
 impl SenderSignedTransaction {
     pub(crate) fn get_signer_sig_mapping(
         &self,
-        verify_legacy_zklogin_address: bool,
     ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
         let mut mapping = BTreeMap::new();
         for sig in &self.tx_signatures {
-            if verify_legacy_zklogin_address {
-                // Try deriving the address from the legacy padded way.
-                if let GenericSignature::ZkLoginAuthenticator(z) = sig {
-                    mapping.insert(IotaAddress::try_from_padded(&z.inputs)?, sig);
-                };
-            }
             let address = sig.try_into()?;
             mapping.insert(address, sig);
         }
@@ -2259,10 +2174,8 @@ impl SenderSignedData {
 
     pub(crate) fn get_signer_sig_mapping(
         &self,
-        verify_legacy_zklogin_address: bool,
     ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
-        self.inner()
-            .get_signer_sig_mapping(verify_legacy_zklogin_address)
+        self.inner().get_signer_sig_mapping()
     }
 
     pub fn transaction_data(&self) -> &TransactionData {
@@ -2313,15 +2226,6 @@ impl SenderSignedData {
     fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
         for sig in &self.inner().tx_signatures {
             match sig {
-                GenericSignature::MultiSig(_) => {
-                    if !config.supports_upgraded_multisig() {
-                        return Err(IotaError::UserInput {
-                            error: UserInputError::Unsupported(
-                                "upgraded multisig format not enabled on this network".to_string(),
-                            ),
-                        });
-                    }
-                }
                 GenericSignature::ZkLoginAuthenticator(_) => {
                     if !config.zklogin_auth() {
                         return Err(IotaError::UserInput {
@@ -2340,7 +2244,7 @@ impl SenderSignedData {
                         });
                     }
                 }
-                GenericSignature::Signature(_) | GenericSignature::MultiSigLegacy(_) => (),
+                GenericSignature::Signature(_) | GenericSignature::MultiSig(_) => (),
             }
         }
 
@@ -2536,44 +2440,14 @@ impl VerifiedTransaction {
             .pipe(Self::new_system_transaction)
     }
 
-    pub fn new_consensus_commit_prologue(
-        epoch: u64,
-        round: u64,
-        commit_timestamp_ms: CheckpointTimestamp,
-    ) -> Self {
-        ConsensusCommitPrologue {
-            epoch,
-            round,
-            commit_timestamp_ms,
-        }
-        .pipe(TransactionKind::ConsensusCommitPrologue)
-        .pipe(Self::new_system_transaction)
-    }
-
-    pub fn new_consensus_commit_prologue_v2(
-        epoch: u64,
-        round: u64,
-        commit_timestamp_ms: CheckpointTimestamp,
-        consensus_commit_digest: ConsensusCommitDigest,
-    ) -> Self {
-        ConsensusCommitPrologueV2 {
-            epoch,
-            round,
-            commit_timestamp_ms,
-            consensus_commit_digest,
-        }
-        .pipe(TransactionKind::ConsensusCommitPrologueV2)
-        .pipe(Self::new_system_transaction)
-    }
-
-    pub fn new_consensus_commit_prologue_v3(
+    pub fn new_consensus_commit_prologue_v1(
         epoch: u64,
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> Self {
-        ConsensusCommitPrologueV3 {
+        ConsensusCommitPrologueV1 {
             epoch,
             round,
             // sub_dag_index is reserved for when we have multi commits per round.
@@ -2585,7 +2459,7 @@ impl VerifiedTransaction {
                     cancelled_txn_version_assignment,
                 ),
         }
-        .pipe(TransactionKind::ConsensusCommitPrologueV3)
+        .pipe(TransactionKind::ConsensusCommitPrologueV1)
         .pipe(Self::new_system_transaction)
     }
 

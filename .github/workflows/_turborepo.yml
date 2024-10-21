@@ -23,7 +23,6 @@ jobs:
 
   build:
     name: Lint, Build, and Test
-    needs: audit
     runs-on: self-hosted
     steps:
       - name: Checkout
@@ -48,12 +47,29 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-
+      - name: (debug) Install `tree`
+        run: sudo apt install tree -y
+      - name: (debug-before) Check SDK dist folder
+        continue-on-error: true
+        run: tree ./sdk/typescript/dist
+      - name: (debug) Lint
+        continue-on-error: true
+        run: pnpm turbo lint
+      - name: (debug-after) Check SDK dist folder
+        continue-on-error: true
+        run: tree ./sdk/typescript/dist
       - name: Lint
         run: pnpm turbo lint
       - name: Install wasm-pack for mbf package
         uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa # pin@v0.4.0
         with:
           version: "latest"
+      - name: (debug) Build
+        continue-on-error: true
+        run: pnpm turbo build
+      - name: (debug-after) Check SDK dist folder
+        continue-on-error: true
+        run: tree ./sdk/typescript/dist
       - name: Build
         run: pnpm turbo build
       - name: Test
@@ -66,7 +82,7 @@ jobs:
       - name: Wallet Extension Preview Package
         if: steps.wallet-diff.outcome == 'failure'
         run: pnpm --filter iota-wallet pack:zip
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: steps.wallet-diff.outcome == 'failure'
         with:
           name: wallet-extension

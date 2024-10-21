@@ -206,13 +206,12 @@ impl MovePackage {
         Ok(pkg)
     }
 
-    pub fn digest(&self, hash_modules: bool) -> [u8; 32] {
+    pub fn digest(&self) -> [u8; 32] {
         Self::compute_digest_for_modules_and_deps(
             self.module_map.values(),
             self.linkage_table
                 .values()
                 .map(|UpgradeInfo { upgraded_id, .. }| upgraded_id),
-            hash_modules,
         )
     }
 
@@ -222,25 +221,17 @@ impl MovePackage {
     pub fn compute_digest_for_modules_and_deps<'a>(
         modules: impl IntoIterator<Item = &'a Vec<u8>>,
         object_ids: impl IntoIterator<Item = &'a ObjectID>,
-        hash_modules: bool,
     ) -> [u8; 32] {
-        let mut module_digests: Vec<[u8; 32]>;
-        let mut components: Vec<&[u8]> = vec![];
-        if !hash_modules {
-            for module in modules {
-                components.push(module.as_ref())
-            }
-        } else {
-            module_digests = vec![];
-            for module in modules {
-                let mut digest = DefaultHash::default();
-                digest.update(module);
-                module_digests.push(digest.finalize().digest);
-            }
-            components.extend(module_digests.iter().map(|d| d.as_ref()))
-        }
+        let mut components = object_ids
+            .into_iter()
+            .map(|o| ***o)
+            .chain(
+                modules
+                    .into_iter()
+                    .map(|module| DefaultHash::digest(module).digest),
+            )
+            .collect::<Vec<_>>();
 
-        components.extend(object_ids.into_iter().map(|o| o.as_ref()));
         // NB: sorting so the order of the modules and the order of the dependencies
         // does not matter.
         components.sort();
@@ -291,8 +282,7 @@ impl MovePackage {
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
         let runtime_id = ObjectID::from(*module.address());
-        let type_origin_table =
-            build_upgraded_type_origin_table(self, modules, storage_id, protocol_config)?;
+        let type_origin_table = build_upgraded_type_origin_table(self, modules, storage_id)?;
         let mut new_version = self.version();
         new_version.increment();
         Self::from_module_iter_with_type_origin_table(
@@ -740,7 +730,6 @@ fn build_upgraded_type_origin_table(
     predecessor: &MovePackage,
     modules: &[CompiledModule],
     storage_id: ObjectID,
-    protocol_config: &ProtocolConfig,
 ) -> Result<Vec<TypeOrigin>, ExecutionError> {
     let mut new_table = vec![];
     let mut existing_table = predecessor.type_origin_map();
@@ -777,17 +766,11 @@ fn build_upgraded_type_origin_table(
     }
 
     if !existing_table.is_empty() {
-        if protocol_config.missing_type_is_compatibility_error() {
-            Err(ExecutionError::from_kind(
-                ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                },
-            ))
-        } else {
-            Err(ExecutionError::invariant_violation(
-                "Package upgrade missing type from previous version.",
-            ))
-        }
+        Err(ExecutionError::from_kind(
+            ExecutionErrorKind::PackageUpgradeError {
+                upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+            },
+        ))
     } else {
         Ok(new_table)
     }

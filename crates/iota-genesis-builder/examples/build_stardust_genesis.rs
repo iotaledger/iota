@@ -7,7 +7,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use iota_config::genesis::TokenDistributionScheduleBuilder;
-use iota_genesis_builder::{Builder, OBJECT_SNAPSHOT_FILE_PATH, SnapshotSource};
+use iota_genesis_builder::{
+    Builder, OBJECT_SNAPSHOT_FILE_PATH, SnapshotSource, genesis_build_effects::GenesisBuildEffects,
+};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 
@@ -55,7 +57,12 @@ fn main() -> anyhow::Result<()> {
         builder = builder.add_validator_signature(key);
     }
 
+    let GenesisBuildEffects {
+        genesis,
+        migration_tx_data,
+    } = builder.build();
     // Save to file
-    builder.build().save("genesis.blob")?;
+    genesis.save("genesis.blob")?;
+    migration_tx_data.unwrap().save("migration.blob")?;
     Ok(())
 }

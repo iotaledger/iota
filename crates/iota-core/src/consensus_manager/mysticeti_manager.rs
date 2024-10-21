@@ -86,7 +86,6 @@ impl MysticetiManager {
     fn pick_network(&self, epoch_store: &AuthorityPerEpochStore) -> ConsensusNetwork {
         if let Ok(type_str) = std::env::var("CONSENSUS_NETWORK") {
             match type_str.to_lowercase().as_str() {
-                "anemo" => return ConsensusNetwork::Anemo,
                 "tonic" => return ConsensusNetwork::Tonic,
                 _ => {
                     info!(

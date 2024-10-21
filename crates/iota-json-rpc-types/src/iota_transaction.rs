@@ -261,6 +261,16 @@ impl IotaTransactionBlockResponse {
     pub fn status_ok(&self) -> Option<bool> {
         self.effects.as_ref().map(|e| e.status().is_ok())
     }
+
+    /// Get mutated objects if any
+    pub fn mutated_objects(&self) -> impl Iterator<Item = ObjectRef> + '_ {
+        self.object_changes.iter().flat_map(|obj_changes| {
+            obj_changes
+                .iter()
+                .filter(|change| matches!(change, ObjectChange::Mutated { .. }))
+                .map(|change| change.object_ref())
+        })
+    }
 }
 
 /// We are specifically ignoring events for now until events become more stable.
@@ -402,7 +412,7 @@ pub enum IotaTransactionBlockKind {
     Genesis(IotaGenesisTransaction),
     /// A system transaction marking the start of a series of transactions
     /// scheduled as part of a checkpoint
-    ConsensusCommitPrologue(IotaConsensusCommitPrologue),
+    ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1),
     /// A series of transactions where the results of one transaction can be
     /// used in future transactions
     ProgrammableTransaction(IotaProgrammableTransactionBlock),
@@ -412,8 +422,6 @@ pub enum IotaTransactionBlockKind {
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
     /// The transaction which occurs only at the end of the epoch
     EndOfEpochTransaction(IotaEndOfEpochTransaction),
-    ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2),
-    ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3),
     // .. more transaction types go here
 }
 
@@ -432,24 +440,8 @@ impl Display for IotaTransactionBlockKind {
             Self::Genesis(_) => {
                 writeln!(writer, "Transaction Kind: Genesis Transaction")?;
             }
-            Self::ConsensusCommitPrologue(p) => {
-                writeln!(writer, "Transaction Kind: Consensus Commit Prologue")?;
-                writeln!(
-                    writer,
-                    "Epoch: {}, Round: {}, Timestamp: {}",
-                    p.epoch, p.round, p.commit_timestamp_ms
-                )?;
-            }
-            Self::ConsensusCommitPrologueV2(p) => {
-                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V2")?;
-                writeln!(
-                    writer,
-                    "Epoch: {}, Round: {}, Timestamp: {}, ConsensusCommitDigest: {}",
-                    p.epoch, p.round, p.commit_timestamp_ms, p.consensus_commit_digest
-                )?;
-            }
-            Self::ConsensusCommitPrologueV3(p) => {
-                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V3")?;
+            Self::ConsensusCommitPrologueV1(p) => {
+                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V1")?;
                 writeln!(
                     writer,
                     "Epoch: {}, Round: {}, SubDagIndex: {:?}, Timestamp: {}, ConsensusCommitDigest: {}",
@@ -495,23 +487,8 @@ impl IotaTransactionBlockKind {
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
-            TransactionKind::ConsensusCommitPrologue(p) => {
-                Self::ConsensusCommitPrologue(IotaConsensusCommitPrologue {
-                    epoch: p.epoch,
-                    round: p.round,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV2(p) => {
-                Self::ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2 {
-                    epoch: p.epoch,
-                    round: p.round,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                    consensus_commit_digest: p.consensus_commit_digest,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV3(p) => {
-                Self::ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3 {
+            TransactionKind::ConsensusCommitPrologueV1(p) => {
+                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
                     sub_dag_index: p.sub_dag_index,
@@ -560,9 +537,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::RandomnessStateCreate => {
-                                IotaEndOfEpochTransactionKind::RandomnessStateCreate
-                            }
                             EndOfEpochTransactionKind::DenyListStateCreate => {
                                 IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
                             }
@@ -599,23 +573,8 @@ impl IotaTransactionBlockKind {
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
-            TransactionKind::ConsensusCommitPrologue(p) => {
-                Self::ConsensusCommitPrologue(IotaConsensusCommitPrologue {
-                    epoch: p.epoch,
-                    round: p.round,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV2(p) => {
-                Self::ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2 {
-                    epoch: p.epoch,
-                    round: p.round,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                    consensus_commit_digest: p.consensus_commit_digest,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV3(p) => {
-                Self::ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3 {
+            TransactionKind::ConsensusCommitPrologueV1(p) => {
+                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
                     sub_dag_index: p.sub_dag_index,
@@ -668,9 +627,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::RandomnessStateCreate => {
-                                IotaEndOfEpochTransactionKind::RandomnessStateCreate
-                            }
                             EndOfEpochTransactionKind::DenyListStateCreate => {
                                 IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
                             }
@@ -700,9 +656,7 @@ impl IotaTransactionBlockKind {
         match self {
             Self::ChangeEpoch(_) => "ChangeEpoch",
             Self::Genesis(_) => "Genesis",
-            Self::ConsensusCommitPrologue(_) => "ConsensusCommitPrologue",
-            Self::ConsensusCommitPrologueV2(_) => "ConsensusCommitPrologueV2",
-            Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
+            Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1606,12 +1560,10 @@ impl Display for IotaTransactionBlock {
         for tx_sig in &self.tx_signatures {
             builder.push_record(vec![format!("   {}\n", match tx_sig {
                 Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
-                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(), /* the signatures for
-                                                                     * multisig and zklogin
-                                                                     * are not suited to be
-                                                                     * parsed out. they
-                                                                     * should be interpreted
-                                                                     * as a whole */
+                // the signatures for multisig and zklogin
+                // are not suited to be parsed out. they
+                // should be interpreted as a whole
+                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
             })]);
         }
 
@@ -1633,36 +1585,7 @@ pub struct IotaGenesisTransaction {
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaConsensusCommitPrologue {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub round: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub commit_timestamp_ms: u64,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaConsensusCommitPrologueV2 {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub round: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub commit_timestamp_ms: u64,
-    pub consensus_commit_digest: ConsensusCommitDigest,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaConsensusCommitPrologueV3 {
+pub struct IotaConsensusCommitPrologueV1 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch: u64,
@@ -1717,7 +1640,6 @@ pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
-    RandomnessStateCreate,
     CoinDenyListStateCreate,
     BridgeStateCreate(CheckpointDigest),
     BridgeCommitteeUpdate(SequenceNumber),

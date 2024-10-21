@@ -12,9 +12,19 @@ methods exposed by the `iota-node` inner rpc services.
 
 ## How to run the tests
 
+Certain test cases rely on the test execution model, such as `nextest` or `simtest`, due to one test per process design. One example of this is the `get_all_coins_limit_zero_with_env_var` test case from the `CoinApi`.
+When running all `coin_api` tests using `cargo test`, failures may occur because the `QUERY_MAX_RESULT_LIMIT` is initialized upon first access (as a Singleton). This behavior complicates testing, as subsequent tests
+that rely on this data will be affected by the initial test's configuration. Moreover, some test cases may need different values for `QUERY_MAX_RESULT_LIMIT`, further complicating the testing process.
+
+> [!NOTE]
+>
+> To speed up the tests running time we can use the `simulator` profile, it internally uses the `opt-level = 1` which gives about 5x speedup executing tests without slowing down build times very much.
+>
+> We can use this profile for `cargo nextest` or `cargo test`, when using `cargo simtest` this profile is enabled by default
+
 ### Using `tokio`
 
-- `cargo nextest run -p iota-json-rpc-tests
+- `cargo nextest run --cargo-profile simulator -p iota-json-rpc-tests`
 
 ### Using the simulation testing framework
 
@@ -31,12 +41,12 @@ instances.
 
 That is, expect for the `WriteApi` methods that serve requests relayed by `iota-indexer`
 
-### `CoinReadApi` (4/6)
+### `CoinReadApi` (6/6)
 
 - [x] `get_coins`
-- [ ] `get_all_coins`
+- [x] `get_all_coins`
 - [x] `get_balance`
-- [ ] `get_all_balances`
+- [x] `get_all_balances`
 - [x] `get_coin_metadata`
 - [x] `get_total_supply`
 
@@ -58,42 +68,38 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [x] `get_reference_gas_price`
 - [x] `get_validators_apy`
 
-### `IndexerApi` (2/9)
+### `IndexerApi` (5/5)
 
 - [x] `get_owned_objects`
-- [ ] `query_transaction_blocks`
-- [ ] `query_events`
-- [ ] `subscribe_event`
-- [ ] `subscribe_transaction`
-- [ ] `get_dynamic_fields`
-- [ ] `get_dynamic_field_object`
-- [ ] `resolve_name_service_address`
-- [ ] `resolve_name_service_names`
+- [x] `query_transaction_blocks`
+- [x] `query_events`
+- [x] `get_dynamic_fields`
+- [x] `get_dynamic_field_object`
 
-### `MoveUtils` (0/5)
+### `MoveUtils` (5/5)
 
-- [ ] `get_move_function_arg_types`
-- [ ] `get_normalized_move_modules_by_package`
-- [ ] `get_normalized_move_module`
-- [ ] `get_normalized_move_struct`
-- [ ] `get_normalized_move_function`
+- [x] `get_move_function_arg_types`
+- [x] `get_normalized_move_modules_by_package`
+- [x] `get_normalized_move_module`
+- [x] `get_normalized_move_struct`
+- [x] `get_normalized_move_function`
 
-### `ReadApi` (2/14)
+### `ReadApi` (14/14)
 
-- [ ] `get_transaction_block`
-- [ ] `multi_get_transaction_blocks`
+- [x] `get_transaction_block`
+- [x] `multi_get_transaction_blocks`
 - [x] `get_object`
 - [x] `multi_get_objects`
-- [ ] `try_get_past_object`
-- [ ] `try_multi_get_past_objects`
-- [ ] `get_loaded_child_objects`
-- [ ] `get_checkpoint`
-- [ ] `get_checkpoints`
-- [ ] `get_events`
-- [ ] `get_total_transaction_blocks`
-- [ ] `get_latest_checkpoint_sequence_number`
-- [ ] `get_protocol_config`
-- [ ] `get_chain_identifier`
+- [x] `try_get_past_object`
+- [x] `try_multi_get_past_objects`
+- [x] `try_get_object_before_version`
+- [x] `get_checkpoint`
+- [x] `get_checkpoints`
+- [x] `get_events`
+- [x] `get_total_transaction_blocks`
+- [x] `get_latest_checkpoint_sequence_number`
+- [x] `get_protocol_config`
+- [x] `get_chain_identifier`
 
 ### `TransactionBuilder` (15/15)
 
