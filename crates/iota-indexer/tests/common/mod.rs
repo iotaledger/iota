@@ -9,14 +9,17 @@ use std::{
 
 use iota_config::node::RunWithRange;
 use iota_indexer::{
+    IndexerConfig,
     errors::IndexerError,
     indexer::Indexer,
-    store::{indexer_store::IndexerStore, PgIndexerStore},
-    test_utils::{start_test_indexer, ReaderWriterConfig},
-    IndexerConfig,
+    store::{PgIndexerStore, indexer_store::IndexerStore},
+    test_utils::{ReaderWriterConfig, start_test_indexer},
 };
 use iota_metrics::init_metrics;
-use iota_types::storage::ReadStore;
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber},
+    storage::ReadStore,
+};
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
     types::ErrorObject,
@@ -110,6 +113,30 @@ pub async fn indexer_wait_for_checkpoint(
                 .unwrap();
             cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
         } {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("Timeout waiting for indexer to catchup to checkpoint");
+}
+
+/// Wait for the indexer to catch up to the given object sequence number
+pub async fn indexer_wait_for_object(
+    pg_store: &PgIndexerStore,
+    object_id: ObjectID,
+    sequence_number: SequenceNumber,
+) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if pg_store
+                .get_object_read(object_id, Some(sequence_number))
+                .await
+                .unwrap()
+                .object()
+                .is_ok()
+            {
+                break;
+            }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
     })

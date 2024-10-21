@@ -63,6 +63,7 @@ serde_json.workspace = true
 serial_test = "2.0"
 simulacrum.workspace = true
 test-cluster.workspace = true
+fastcrypto.workspace = true
 
 [[bin]]
 name = "iota-indexer"
