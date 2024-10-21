@@ -24,8 +24,9 @@ const developer = [
             'developer/getting-started/create-a-module',
             'developer/getting-started/build-test',
             'developer/getting-started/publish',
-            'developer/getting-started/debug',
+            // 'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
+            'developer/getting-started/network-overview',
         ],
     },
     {
