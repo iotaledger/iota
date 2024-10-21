@@ -37,11 +37,11 @@ are part of the Move genesis that IOTA Rebased is started with.
 
 The process is as follows:
 1. The IOTA Foundation announces the milestone indices at which snapshots of the IOTA network are taken.
-2. Once both milestones are reached in IOTA, global snapshots are taken via the Hornet node software. Both ShimmerEVM and IOTAEVM are stopped.
+2. Once both milestones are reached in IOTA, global snapshots are taken via the Hornet node software. IOTAEVM stops processing deposits from and withdrawals to L1.
 3. The snapshots are then processed by the migration tool, which converts all UTXOs into Move objects.
 4. A Move genesis is prepared with all the Move objects from both snapshots.
 5. The genesis blob is published, and the IOTA Rebased network is started with it.
-6. ShimmerEVM and IOTAEVM are started with new node software that connects to the IOTA Rebased network.
+6. IOTAEVM is connected to the IOTA Rebased network, deposits and withdrawals are enabled.
 7. IOTA and stardust native tokens can be immediately used on the IOTA Rebased network; However, more complex asset
    structures such as NFTs, Aliases or time-locked assets need to be claimed via the official tools.
 
