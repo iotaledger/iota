@@ -1223,12 +1223,7 @@ mod checked {
             let (value, non_ref_param_ty): (Value, &Type) = match param_ty {
                 Type::MutableReference(inner) => {
                     let value = context.borrow_arg_mut(idx, arg)?;
-                    let object_info = if let Value::Object(ObjectValue {
-                        type_,
-                        has_public_transfer,
-                        ..
-                    }) = &value
-                    {
+                    let object_info = if let Value::Object(ObjectValue { type_, .. }) = &value {
                         let type_tag = context
                             .vm
                             .get_runtime()
