@@ -14,7 +14,6 @@ use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::CommitConsumerMonitor;
 use iota_macros::{fail_point_async, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
@@ -433,7 +432,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
                 self.cache_reader.as_ref(),
-                &ConsensusCommitInfo::new(self.epoch_store.protocol_config(), &consensus_output),
+                &ConsensusCommitInfo::new(&consensus_output),
                 &self.metrics,
             )
             .await
@@ -781,11 +780,11 @@ pub struct ConsensusCommitInfo {
 }
 
 impl ConsensusCommitInfo {
-    fn new(protocol_config: &ProtocolConfig, consensus_output: &impl ConsensusOutputAPI) -> Self {
+    fn new(consensus_output: &impl ConsensusOutputAPI) -> Self {
         Self {
             round: consensus_output.leader_round(),
             timestamp: consensus_output.commit_timestamp_ms(),
-            consensus_commit_digest: consensus_output.consensus_digest(protocol_config),
+            consensus_commit_digest: consensus_output.consensus_digest(),
 
             #[cfg(any(test, feature = "test-utils"))]
             skip_consensus_commit_prologue_in_test: false,
