@@ -50,6 +50,7 @@ jobs:
       - name: (debug) Install `tree`
         run: sudo apt install tree -y
       - name: (debug-before) Check SDK dist folder
+        continue-on-error: true
         run: tree ./sdk/typescript/dist
       - name: Lint
         run: pnpm turbo lint
