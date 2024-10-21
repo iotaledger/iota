@@ -37,7 +37,19 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x99b25fbcf24a0f320c57a5d1c55ebd460c08c18ffee1c01d8dc9cbfd1aacafc3::m::Foo"
+                          "repr": "0xd3ee0511aa9ac3f9f80f708c8201699c689cc6a85fdc019ea3c6e53ed4d22f12::m::Bar"
+                        }
+                      },
+                      "hasPublicTransfer": false
+                    }
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0xd3ee0511aa9ac3f9f80f708c8201699c689cc6a85fdc019ea3c6e53ed4d22f12::m::Foo"
                         }
                       },
                       "hasPublicTransfer": true
@@ -53,18 +65,6 @@ Response: {
                         }
                       },
                       "hasPublicTransfer": true
-                    }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMoveObject": {
-                      "contents": {
-                        "type": {
-                          "repr": "0x99b25fbcf24a0f320c57a5d1c55ebd460c08c18ffee1c01d8dc9cbfd1aacafc3::m::Bar"
-                        }
-                      },
-                      "hasPublicTransfer": false
                     }
                   }
                 }

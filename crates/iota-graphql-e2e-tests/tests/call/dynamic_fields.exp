@@ -41,15 +41,15 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "bool"
+                "repr": "u64"
               },
               "data": {
-                "Bool": false
+                "Number": "0"
               },
-              "bcs": "AA=="
+              "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveValue"
+              "__typename": "MoveObject"
             }
           },
           {
@@ -69,12 +69,12 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
+                "repr": "bool"
               },
               "data": {
-                "Number": "0"
+                "Bool": false
               },
-              "bcs": "AAAAAAAAAAA="
+              "bcs": "AA=="
             },
             "value": {
               "__typename": "MoveValue"
@@ -91,7 +91,7 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveObject"
+              "__typename": "MoveValue"
             }
           }
         ]
@@ -121,15 +121,15 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "bool"
+                "repr": "u64"
               },
               "data": {
-                "Bool": false
+                "Number": "0"
               },
-              "bcs": "AA=="
+              "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveValue"
+              "__typename": "MoveObject"
             }
           },
           {
@@ -149,12 +149,12 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
+                "repr": "bool"
               },
               "data": {
-                "Number": "0"
+                "Bool": false
               },
-              "bcs": "AAAAAAAAAAA="
+              "bcs": "AA=="
             },
             "value": {
               "__typename": "MoveValue"
@@ -171,7 +171,7 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveObject"
+              "__typename": "MoveValue"
             }
           }
         ]
@@ -190,19 +190,15 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "bool"
+                "repr": "u64"
               },
               "data": {
-                "Bool": false
+                "Number": "0"
               },
-              "bcs": "AA=="
+              "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "bcs": "AgAAAAAAAAA=",
-              "data": {
-                "Number": "2"
-              },
-              "__typename": "MoveValue"
+              "__typename": "MoveObject"
             }
           },
           {
@@ -226,17 +222,17 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
+                "repr": "bool"
               },
               "data": {
-                "Number": "0"
+                "Bool": false
               },
-              "bcs": "AAAAAAAAAAA="
+              "bcs": "AA=="
             },
             "value": {
-              "bcs": "AAAAAAAAAAA=",
+              "bcs": "AgAAAAAAAAA=",
               "data": {
-                "Number": "0"
+                "Number": "2"
               },
               "__typename": "MoveValue"
             }
@@ -252,7 +248,11 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveObject"
+              "bcs": "AAAAAAAAAAA=",
+              "data": {
+                "Number": "0"
+              },
+              "__typename": "MoveValue"
             }
           }
         ]

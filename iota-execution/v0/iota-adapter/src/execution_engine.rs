@@ -35,7 +35,7 @@ mod checked {
         },
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
-        deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+        deny_list_v2::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
         digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
@@ -642,7 +642,7 @@ mod checked {
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
                         EndOfEpochTransactionKind::DenyListStateCreate => {
-                            assert!(protocol_config.enable_coin_deny_list_v1());
+                            assert!(protocol_config.enable_coin_deny_list_v2());
                             builder = setup_coin_deny_list_state_create(builder);
                         }
                         EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {

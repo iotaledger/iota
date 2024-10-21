@@ -427,7 +427,7 @@ impl EndOfEpochTransactionKind {
                 }
             }
             Self::DenyListStateCreate => {
-                if !config.enable_coin_deny_list_v1() {
+                if !config.enable_coin_deny_list_v2() {
                     return Err(UserInputError::Unsupported(
                         "coin deny list not enabled".to_string(),
                     ));
