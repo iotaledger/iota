@@ -800,10 +800,7 @@ mod tests {
             iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
                 .await;
 
-        cluster
-            .validator_fullnode_handle
-            .force_new_epoch()
-            .await;
+        cluster.validator_fullnode_handle.force_new_epoch().await;
 
         // Wait for the epoch to be indexed
         sleep(Duration::from_secs(10)).await;
