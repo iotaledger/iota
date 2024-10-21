@@ -599,8 +599,6 @@ mod tests {
     async fn test_checkpoint_all_good() {
         let (committee, full_checkpoint) = read_data().await;
 
-        println!("epoch: {}", full_checkpoint.checkpoint_summary.epoch);
-
         extract_verified_effects_and_events(
             &full_checkpoint,
             &committee,
