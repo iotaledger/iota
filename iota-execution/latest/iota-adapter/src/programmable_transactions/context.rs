@@ -356,7 +356,6 @@ mod checked {
             command_kind: CommandKind<'_>,
             arg: Argument,
         ) -> Result<V, CommandArgumentError> {
-            let shared_obj_deletion_enabled = self.protocol_config.shared_object_deletion();
             let is_borrowed = self.arg_is_borrowed(&arg);
             let (input_metadata_opt, val_opt) = self.borrow_mut(arg, UsageKind::ByValue)?;
             let is_copyable = if let Some(val) = val_opt {
@@ -385,18 +384,6 @@ mod checked {
                     owner: Owner::Immutable,
                     ..
                 })
-            ) {
-                return Err(CommandArgumentError::InvalidObjectByValue);
-            }
-            if (
-                // this check can be removed after shared_object_deletion feature flag is removed
-                matches!(
-                    input_metadata_opt,
-                    Some(InputObjectMetadata::InputObject {
-                        owner: Owner::Shared { .. },
-                        ..
-                    })
-                ) && !shared_obj_deletion_enabled
             ) {
                 return Err(CommandArgumentError::InvalidObjectByValue);
             }
