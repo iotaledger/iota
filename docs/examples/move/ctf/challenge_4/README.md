@@ -1,3 +1,3 @@
 # Challenge 4: Airdrop
 
-Get yourself some sweet horse tokens, and capture the flag! You might want to get the most out of your command line tools though...
+This contract is used in the [fourth challenge](../../../../content/developer/iota-move-ctf/challenge_4.mdx) of the IOTA Move CTF.

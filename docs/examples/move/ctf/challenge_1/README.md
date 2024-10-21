@@ -1,3 +1,3 @@
 # Challenge 1: Hello World
 
-This one should not provide too much challange; Simply deploy this contract and fetch the Flag event. 
+This contract is used in the [first challenge](../../../../content/developer/iota-move-ctf/challenge_1.mdx) of the IOTA Move CTF.

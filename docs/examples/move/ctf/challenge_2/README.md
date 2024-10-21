@@ -1,3 +1,3 @@
 # Challenge 2: Lucky Number
 
-In this challenge you are supposed to get the flag Event by passing in the right parameters to the `get_flag` function in the `luckynumber` module. If you do this correctly you should get a Flag event in return. 
+This contract is used in the [second challenge](../../../../content/developer/iota-move-ctf/challenge_2.mdx) of the IOTA Move CTF.

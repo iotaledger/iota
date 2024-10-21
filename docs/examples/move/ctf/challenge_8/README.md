@@ -1,3 +1,3 @@
 # Challenge 8: Flash!
 
-This simple DEX has a flaw, can you use it to get to the flag?
+This contract is used in the [eighth challenge](../../../../content/developer/iota-move-ctf/challenge_8.mdx) of the IOTA Move CTF.
