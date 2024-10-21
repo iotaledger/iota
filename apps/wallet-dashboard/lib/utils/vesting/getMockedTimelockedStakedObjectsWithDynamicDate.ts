@@ -8,7 +8,7 @@ import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
  * Gets the objects in a distributed manner with half of the objects
  * being unlocked and the other half being locked.
  */
-export function getDistributedTimelockedStakedObjects(
+export function getMockedTimelockedStakedObjectsWithDynamicDate(
     delegatedObjects: DelegatedTimelockedStake[],
 ): DelegatedTimelockedStake[] {
     const now = Date.now();
