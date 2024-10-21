@@ -56,19 +56,19 @@ mkdir -p ./sdk/typescript/src/graphql/generated/${GRAPHQL_VERSION}
 cp ./crates/iota-graphql-rpc/schema.graphql ./sdk/typescript/src/graphql/generated/${GRAPHQL_VERSION}/schema.graphql
 
 print_step "Installing typescript sdk dependencies..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app  --user 1000:1000 pnpm-image sh -c "cd sdk/typescript && pnpm i"
+docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm i"
 
 print_step "Installing graphql-transport dependencies..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app  --user 1000:1000 pnpm-image sh -c "cd sdk/graphql-transport && pnpm i"
+docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/graphql-transport && pnpm i"
 
 print_step "Updating open rpc schema..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app  --user 1000:1000 pnpm-image sh -c "cd sdk/typescript && pnpm update-open-rpc-schema"
+docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm update-open-rpc-schema"
 
 print_step "Updating graphql schema in 'client/types/generated.ts'..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app  --user 1000:1000 pnpm-image sh -c "cd sdk/typescript && pnpm run generate-schema -c src/graphql/generated/${GRAPHQL_VERSION}/tsconfig.tada.json"
+docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm run generate-schema -c src/graphql/generated/${GRAPHQL_VERSION}/tsconfig.tada.json"
 
 print_step "Updating graphql schema using gql.tada..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app  --user 1000:1000 pnpm-image sh -c "cd sdk/typescript && pnpm generate-schema"
+docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm generate-schema"
 
 print_step "Generating graphql-transport typescript types..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app  --user 1000:1000 pnpm-image sh -c "cd sdk/graphql-transport && pnpm codegen"
+docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/graphql-transport && pnpm codegen"
