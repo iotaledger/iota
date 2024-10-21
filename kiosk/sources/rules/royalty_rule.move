@@ -90,7 +90,7 @@ module kiosk::royalty_rule {
     }
 
     /// Helper function to calculate the amount to be paid for the transfer.
-    /// Can be used dry-runned to estimate the fee amount based on the Kiosk listing price.
+    /// Can be dry-ran to estimate the fee amount based on the Kiosk listing price.
     public fun fee_amount<T: key + store>(policy: &TransferPolicy<T>, paid: u64): u64 {
         let config: &Config = policy::get_rule(Rule {}, policy);
         let amount = (((paid as u128) * (config.amount_bp as u128) / 10_000) as u64);
