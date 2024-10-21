@@ -54,7 +54,7 @@ jobs:
         run: tree ./sdk/typescript/dist
       - name: (debug) Lint
         continue-on-error: true
-        run: pnpm turbo build
+        run: pnpm turbo lint
       - name: (debug-after) Check SDK dist folder
         run: tree ./sdk/typescript/dist
       - name: Lint
