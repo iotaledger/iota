@@ -48,12 +48,9 @@ jobs:
           images: docker-registry.iota.org/iota-node
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -102,12 +99,9 @@ jobs:
           images: docker-registry.iota.org/iota-indexer
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -156,12 +150,9 @@ jobs:
           images: docker-registry.iota.org/iota-tools
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -210,12 +201,9 @@ jobs:
           images: docker-registry.iota.org/iota-graphql-rpc
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3

@@ -138,7 +138,6 @@ impl<'backing> TemporaryStore<'backing> {
             self.lamport_timestamp,
             self.tx_digest,
             &self.input_objects,
-            self.protocol_config.reshare_at_same_initial_version(),
         );
 
         #[cfg(debug_assertions)]
@@ -243,8 +242,6 @@ impl<'backing> TemporaryStore<'backing> {
                 }
             }
         }
-
-        assert!(self.protocol_config.enable_effects_v2());
 
         // In the case of special transactions that don't require a gas object,
         // we don't really care about the effects to gas, just use the input for it.

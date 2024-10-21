@@ -9,7 +9,6 @@ use futures::{
     stream::{FuturesOrdered, FuturesUnordered},
 };
 use iota_macros::*;
-use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use rand::{
     Rng,
@@ -127,16 +126,6 @@ async fn test_hash_collections() {
 // through that network is repeatable and deterministic.
 #[sim_test(check_determinism)]
 async fn test_net_determinism() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        // TODO: this test fails due to some non-determinism caused by submitting
-        // messages to consensus. It does not appear to be caused by this
-        // feature itself, so I'm disabling this until I have time to debug
-        // further.
-        config.set_enable_jwk_consensus_updates_for_testing(false);
-        config.set_random_beacon_for_testing(false);
-        config
-    });
-
     let mut test_cluster = TestClusterBuilder::new().build().await;
 
     let txn = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;

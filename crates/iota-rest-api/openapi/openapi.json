@@ -4867,7 +4867,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "consensus_commit_prologue_v3"
+                  "consensus_commit_prologue_v1"
                 ]
               },
               "round": {

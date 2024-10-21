@@ -145,7 +145,6 @@ impl AuthorityStorePruner {
         checkpoint_number: CheckpointSequenceNumber,
         metrics: Arc<AuthorityStorePruningMetrics>,
         indirect_objects_threshold: usize,
-        enable_pruning_tombstones: bool,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("ObjectsLivePruner");
         let mut wb = perpetual_db.objects.batch();
@@ -158,11 +157,9 @@ impl AuthorityStorePruner {
                 live_object_keys_to_prune.push(ObjectKey(object_id, seq_number));
             }
 
-            if enable_pruning_tombstones {
-                for deleted_object_key in effects.all_tombstones() {
-                    object_tombstones_to_prune
-                        .push(ObjectKey(deleted_object_key.0, deleted_object_key.1));
-                }
+            for deleted_object_key in effects.all_tombstones() {
+                object_tombstones_to_prune
+                    .push(ObjectKey(deleted_object_key.0, deleted_object_key.1));
             }
         }
 
@@ -207,7 +204,7 @@ impl AuthorityStorePruner {
             wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
         }
 
-        // When enable_pruning_tombstones is enabled, instead of using range deletes, we
+        // Instead of using range deletes, we
         // need to do a scan of all the keys for the deleted objects and then do
         // point deletes to delete all the existing keys. This is because to improve
         // read performance, we set `ignore_range_deletions` on all read
@@ -515,7 +512,6 @@ impl AuthorityStorePruner {
                             checkpoint_number,
                             metrics.clone(),
                             indirect_objects_threshold,
-                            !config.killswitch_tombstone_pruning,
                         )
                         .await?
                     }
@@ -548,7 +544,6 @@ impl AuthorityStorePruner {
                         checkpoint_number,
                         metrics.clone(),
                         indirect_objects_threshold,
-                        !config.killswitch_tombstone_pruning,
                     )
                     .await?
                 }
@@ -971,7 +966,6 @@ mod tests {
                 0,
                 metrics,
                 indirect_object_threshold,
-                true,
             )
             .await
             .unwrap();
@@ -1097,7 +1091,6 @@ mod tests {
             0,
             metrics,
             0,
-            true,
         )
         .await;
         info!("Total pruned keys = {:?}", total_pruned);
@@ -1214,7 +1207,6 @@ mod pprof_tests {
             0,
             metrics,
             1,
-            true,
         )
         .await?;
         let guard = pprof::ProfilerGuardBuilder::default()
@@ -1253,7 +1245,6 @@ mod pprof_tests {
             0,
             metrics,
             1,
-            true,
         )
         .await?;
         if let Ok(()) = perpetual_db.objects.flush() {

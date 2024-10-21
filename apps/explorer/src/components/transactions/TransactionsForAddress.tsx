@@ -5,9 +5,7 @@
 import { LoadingIndicator } from '@iota/apps-ui-kit';
 import { useIotaClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
-
 import { Banner, TableCard } from '~/components/ui';
 import { generateTransactionsTableColumns } from '~/lib/ui';
 
@@ -51,9 +49,9 @@ export function TransactionsForAddressTable({
     if (!hasTxns) {
         return (
             <div className="flex h-20 items-center justify-center md:h-full">
-                <Text variant="body/medium" color="steel-dark">
+                <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
                     No transactions found
-                </Text>
+                </span>
             </div>
         );
     }

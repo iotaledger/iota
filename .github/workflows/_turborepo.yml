@@ -47,12 +47,29 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-
+      - name: (debug) Install `tree`
+        run: sudo apt install tree -y
+      - name: (debug-before) Check SDK dist folder
+        continue-on-error: true
+        run: tree ./sdk/typescript/dist
+      - name: (debug) Lint
+        continue-on-error: true
+        run: pnpm turbo lint
+      - name: (debug-after) Check SDK dist folder
+        continue-on-error: true
+        run: tree ./sdk/typescript/dist
       - name: Lint
         run: pnpm turbo lint
       - name: Install wasm-pack for mbf package
         uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa # pin@v0.4.0
         with:
           version: "latest"
+      - name: (debug) Build
+        continue-on-error: true
+        run: pnpm turbo build
+      - name: (debug-after) Check SDK dist folder
+        continue-on-error: true
+        run: tree ./sdk/typescript/dist
       - name: Build
         run: pnpm turbo build
       - name: Test

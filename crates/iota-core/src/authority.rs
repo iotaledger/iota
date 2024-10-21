@@ -155,7 +155,7 @@ use crate::{
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     rest_index::RestIndexStore,
     stake_aggregator::StakeAggregator,
-    state_accumulator::{AccumulatorStore, StateAccumulator, WrappedObject},
+    state_accumulator::{AccumulatorStore, StateAccumulator},
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
@@ -2966,12 +2966,6 @@ impl AuthorityState {
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
-        self.maybe_reaccumulate_state_hash(
-            cur_epoch_store,
-            epoch_start_configuration
-                .epoch_start_state()
-                .protocol_version(),
-        );
         self.get_reconfig_api()
             .set_epoch_start_configuration(&epoch_start_configuration)?;
         if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path {
@@ -3045,19 +3039,6 @@ impl AuthorityState {
         *execution_lock = new_epoch;
     }
 
-    /// This is a temporary method to be used when we enable
-    /// simplified_unwrap_then_delete. It re-accumulates state hash for the
-    /// new epoch if simplified_unwrap_then_delete is enabled.
-    #[instrument(level = "error", skip_all)]
-    fn maybe_reaccumulate_state_hash(
-        &self,
-        cur_epoch_store: &AuthorityPerEpochStore,
-        new_protocol_version: ProtocolVersion,
-    ) {
-        self.get_reconfig_api()
-            .maybe_reaccumulate_state_hash(cur_epoch_store, new_protocol_version);
-    }
-
     #[instrument(level = "error", skip_all)]
     fn check_system_consistency(
         &self,
@@ -3107,11 +3088,7 @@ impl AuthorityState {
         cur_epoch_store: &AuthorityPerEpochStore,
         panic: bool,
     ) {
-        let live_object_set_hash = accumulator.digest_live_object_set(
-            !cur_epoch_store
-                .protocol_config()
-                .simplified_unwrap_then_delete(),
-        );
+        let live_object_set_hash = accumulator.digest_live_object_set();
 
         let root_state_hash: ECMHLiveObjectSetDigest = self
             .get_accumulator_store()
@@ -4661,25 +4638,6 @@ impl AuthorityState {
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn create_randomness_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().random_beacon() {
-            info!("randomness state transactions not enabled");
-            return None;
-        }
-
-        if epoch_store.randomness_state_exists() {
-            return None;
-        }
-
-        let tx = EndOfEpochTransactionKind::new_randomness_state_create();
-        info!("Creating RandomnessStateCreate tx");
-        Some(tx)
-    }
-
-    #[instrument(level = "debug", skip_all)]
     fn create_bridge_tx(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -4771,9 +4729,6 @@ impl AuthorityState {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
-            txns.push(tx);
-        }
-        if let Some(tx) = self.create_randomness_state_tx(epoch_store) {
             txns.push(tx);
         }
         if let Some(tx) = self.create_bridge_tx(epoch_store) {
@@ -5020,12 +4975,7 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        let include_wrapped_object = !self
-            .epoch_store_for_testing()
-            .protocol_config()
-            .simplified_unwrap_then_delete();
-        self.get_accumulator_store()
-            .iter_live_object_set(include_wrapped_object)
+        self.get_accumulator_store().iter_live_object_set()
     }
 
     #[cfg(test)]
