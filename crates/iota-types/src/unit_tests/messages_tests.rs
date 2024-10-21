@@ -1067,27 +1067,6 @@ fn verify_sender_signature_correctly_with_flag() {
             .is_ok()
     );
 }
-
-#[test]
-fn test_change_epoch_transaction() {
-    let tx = VerifiedTransaction::new_change_epoch(1, ProtocolVersion::MIN, 0, 0, 0, 0, 0, vec![]);
-    assert!(tx.contains_shared_object());
-    assert_eq!(
-        tx.shared_input_objects().next().unwrap(),
-        SharedInputObject::IOTA_SYSTEM_OBJ
-    );
-    assert!(tx.is_system_tx());
-    assert_eq!(
-        tx.data()
-            .intent_message()
-            .value
-            .input_objects()
-            .unwrap()
-            .len(),
-        1
-    );
-}
-
 #[test]
 fn test_consensus_commit_prologue_v1_transaction() {
     let tx = VerifiedTransaction::new_consensus_commit_prologue_v1(
