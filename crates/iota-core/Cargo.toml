@@ -91,6 +91,7 @@ narwhal-types.workspace = true
 nonempty.workspace = true
 shared-crypto.workspace = true
 zeroize = "1.6"
+time = "0.3.36"
 
 [dev-dependencies]
 clap.workspace = true
