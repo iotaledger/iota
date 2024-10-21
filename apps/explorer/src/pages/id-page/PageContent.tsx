@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 import { useGetObject } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
+import { Info } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import {
     ErrorBoundary,
@@ -12,7 +14,7 @@ import {
     TransactionBlocksForAddress,
     TransactionsForAddressTable,
 } from '~/components';
-import { Banner, Divider, SplitPanes, TabHeader } from '~/components/ui';
+import { Divider, SplitPanes, TabHeader } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { FieldsContent } from '~/pages/object-result/views/TokenView';
@@ -130,9 +132,13 @@ export function PageContent({ address, error }: PageContentProps): JSX.Element {
 
     if (error) {
         return (
-            <Banner variant="error" spacing="lg" fullWidth>
-                Data could not be extracted on the following specified address ID: {address}
-            </Banner>
+            <InfoBox
+                title="Failed to load address data"
+                supportingText={`Data could not be extracted on the following specified address ID: ${address}`}
+                icon={<Info />}
+                type={InfoBoxType.Error}
+                style={InfoBoxStyle.Elevated}
+            />
         );
     }
 

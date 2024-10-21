@@ -5,7 +5,6 @@
 import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
-import { Banner } from '~/components/ui';
 import { getFieldTypeValue } from '~/lib/ui';
 import { FieldItem } from './FieldItem';
 import { ScrollToViewCard } from './ScrollToViewCard';
@@ -21,7 +20,11 @@ import {
     LoadingIndicator,
     Search,
     ListItem,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
+import { Info } from '@iota/ui-icons';
 
 const DEFAULT_OPEN_FIELDS = 3;
 const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
@@ -90,9 +93,13 @@ export function ObjectFieldsCard({
     }
     if (error) {
         return (
-            <Banner variant="error" spacing="lg" fullWidth>
-                Failed to get field data for {id}
-            </Banner>
+            <InfoBox
+                title="Error loading data"
+                supportingText={`Failed to get field data for ${id}`}
+                icon={<Info />}
+                type={InfoBoxType.Error}
+                style={InfoBoxStyle.Elevated}
+            />
         );
     }
 

@@ -10,8 +10,8 @@ import { useParams } from 'react-router-dom';
 import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
-import { Banner } from '~/components/ui';
-import { LoadingIndicator } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Info } from '@iota/ui-icons';
 
 const getAtRiskRemainingEpochs = (
     data: IotaSystemStateSummary | undefined,
@@ -62,10 +62,14 @@ function ValidatorDetails(): JSX.Element {
         return (
             <PageLayout
                 content={
-                    <div className="mb-10 flex items-center justify-center">
-                        <Banner variant="error" spacing="lg" fullWidth>
-                            No validator data found for {id}
-                        </Banner>
+                    <div className="mb-10">
+                        <InfoBox
+                            title="Failed to load validator data"
+                            supportingText={`No validator data found for ${id}`}
+                            icon={<Info />}
+                            type={InfoBoxType.Error}
+                            style={InfoBoxStyle.Elevated}
+                        />
                     </div>
                 }
             />
@@ -94,25 +98,16 @@ function ValidatorDetails(): JSX.Element {
                         tallyingScore={tallyingScore}
                     />
                     {atRiskRemainingEpochs !== null && (
-                        <div className="mt-5">
-                            <Banner
-                                fullWidth
-                                border
-                                variant="error"
-                                title={
-                                    <span className="text-label-lg">
-                                        At risk of being removed as a validator after{' '}
-                                        {atRiskRemainingEpochs} epoch
-                                        {atRiskRemainingEpochs > 1 ? 's' : ''}
-                                    </span>
-                                }
-                            >
-                                <span className="text-body-sm">
-                                    Staked IOTA is below the minimum IOTA stake threshold to remain
-                                    a validator.
-                                </span>
-                            </Banner>
-                        </div>
+                        <InfoBox
+                            title={`At risk of being removed as a validator after ${atRiskRemainingEpochs} epoch${
+                                atRiskRemainingEpochs > 1 ? 's' : ''
+                            }`}
+                            supportingText="Staked IOTA is below the minimum IOTA stake threshold to remain
+                                    a validator."
+                            icon={<Info />}
+                            type={InfoBoxType.Error}
+                            style={InfoBoxStyle.Elevated}
+                        />
                     )}
                 </div>
             }
