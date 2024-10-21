@@ -1,9 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChainId } from '../ChainId';
 import { NetworkProps } from '../constant';
 import CodeBlock from '@theme/CodeBlock';
 import Admonition from '@theme/Admonition';
 
+
+type MoveProps = {
+  jsonRpcUrl: string;
+  jsonRpcWebsocketUrl: string;
+  indexerRpc: string;
+  graphqlRpc: string;
+  faucetUrl: string;
+  explorerUrl: string;
+};
+
+
+// L1 component
 function L1(props: NetworkProps) {
   return (
     <table>
@@ -49,6 +61,7 @@ function L1(props: NetworkProps) {
   );
 }
 
+// EVM component
 function Evm(props: NetworkProps) {
   return (
     <table>
@@ -134,6 +147,7 @@ function Evm(props: NetworkProps) {
   );
 }
 
+// EvmCustom component
 function EvmCustom(props: NetworkProps) {
   return (
     <table>
@@ -159,8 +173,63 @@ function EvmCustom(props: NetworkProps) {
   );
 }
 
-export default {
+// Move component
+function Move(props: MoveProps) {
+  return (
+    <table>
+      <tbody>
+        <tr>
+          <th>Base Token</th>
+          <td>{props.baseToken}</td>
+        </tr>
+        <tr>
+          <th>Explorer URL</th>
+          <td>
+            <CodeBlock>{props.explorerUrl}</CodeBlock>
+          </td>
+        </tr>
+        <tr>
+          <th>JSON RPC URL</th>
+          <td>
+            <CodeBlock>{props.jsonRpcUrl}</CodeBlock>
+          </td>
+        </tr>
+        <tr>
+          <th>Indexer RPC</th>
+          <td>
+            <CodeBlock>{props.indexerRpc}</CodeBlock>
+          </td>
+        </tr>
+        <tr>
+          <th>GraphQL RPC</th>
+          <td>
+            <CodeBlock>{props.graphqlRpc}</CodeBlock>
+          </td>
+        </tr>
+        <tr>
+          <th>RPC Websocket URL</th>
+          <td>
+            <CodeBlock>{props.jsonRpcWebsocketUrl}</CodeBlock>
+          </td>
+        </tr>
+        {props.faucet && (
+          <tr>
+            <th>Faucet URL</th>
+            <td>
+              <a href={props.faucetUrl} target="_blank" rel="noopener noreferrer">
+                {props.faucetUrl}
+              </a>
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+export {
   L1,
   Evm,
   EvmCustom,
+  Move,
 };
