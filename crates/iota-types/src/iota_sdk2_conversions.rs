@@ -13,6 +13,8 @@
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk2::types::*;
 
+use crate::crypto::AuthorityPublicKeyBytes;
+
 macro_rules! bcs_convert_impl {
     ($core:ty, $external:ty) => {
         impl From<$core> for $external {
@@ -35,14 +37,6 @@ bcs_convert_impl!(crate::object::Object, Object);
 bcs_convert_impl!(crate::transaction::TransactionData, Transaction);
 bcs_convert_impl!(crate::effects::TransactionEffects, TransactionEffects);
 bcs_convert_impl!(
-    crate::messages_checkpoint::CheckpointSummary,
-    CheckpointSummary
-);
-bcs_convert_impl!(
-    crate::messages_checkpoint::CertifiedCheckpointSummary,
-    SignedCheckpointSummary
-);
-bcs_convert_impl!(
     crate::messages_checkpoint::CheckpointContents,
     CheckpointContents
 );
@@ -53,6 +47,166 @@ bcs_convert_impl!(
 bcs_convert_impl!(crate::signature::GenericSignature, UserSignature);
 bcs_convert_impl!(crate::effects::TransactionEvents, TransactionEvents);
 bcs_convert_impl!(crate::transaction::Command, Command);
+
+impl From<crate::gas::GasCostSummary> for GasCostSummary {
+    fn from(value: crate::gas::GasCostSummary) -> Self {
+        Self::new(
+            value.computation_cost,
+            value.storage_cost,
+            value.storage_rebate,
+            value.non_refundable_storage_fee,
+        )
+    }
+}
+
+impl From<GasCostSummary> for crate::gas::GasCostSummary {
+    fn from(value: GasCostSummary) -> Self {
+        Self::new(
+            value.computation_cost,
+            value.storage_cost,
+            value.storage_rebate,
+            value.non_refundable_storage_fee,
+        )
+    }
+}
+
+impl From<crate::messages_checkpoint::EndOfEpochData> for EndOfEpochData {
+    fn from(value: crate::messages_checkpoint::EndOfEpochData) -> Self {
+        Self {
+            next_epoch_committee: value
+                .next_epoch_committee
+                .into_iter()
+                .map(|(public_key, stake)| ValidatorCommitteeMember {
+                    public_key: Bls12381PublicKey::new(public_key.0),
+                    stake,
+                })
+                .collect(),
+            next_epoch_protocol_version: value.next_epoch_protocol_version.as_u64(),
+            epoch_commitments: value
+                .epoch_commitments
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            epoch_supply_change: value.epoch_supply_change,
+        }
+    }
+}
+
+impl From<EndOfEpochData> for crate::messages_checkpoint::EndOfEpochData {
+    fn from(value: EndOfEpochData) -> Self {
+        Self {
+            next_epoch_committee: value
+                .next_epoch_committee
+                .into_iter()
+                .map(|v| {
+                    (
+                        AuthorityPublicKeyBytes::new(v.public_key.into_inner()),
+                        v.stake,
+                    )
+                })
+                .collect(),
+            next_epoch_protocol_version: value.next_epoch_protocol_version.into(),
+            epoch_commitments: value
+                .epoch_commitments
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            epoch_supply_change: value.epoch_supply_change,
+        }
+    }
+}
+
+impl From<crate::messages_checkpoint::CheckpointCommitment> for CheckpointCommitment {
+    fn from(value: crate::messages_checkpoint::CheckpointCommitment) -> Self {
+        let crate::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest(digest) =
+            value;
+        Self::EcmhLiveObjectSet {
+            digest: Digest::new(digest.digest.into_inner()),
+        }
+    }
+}
+
+impl From<CheckpointCommitment> for crate::messages_checkpoint::CheckpointCommitment {
+    fn from(value: CheckpointCommitment) -> Self {
+        let CheckpointCommitment::EcmhLiveObjectSet { digest } = value;
+        Self::ECMHLiveObjectSetDigest(crate::messages_checkpoint::ECMHLiveObjectSetDigest {
+            digest: crate::digests::Digest::new(digest.into_inner()),
+        })
+    }
+}
+
+impl From<crate::messages_checkpoint::CheckpointContentsDigest> for CheckpointContentsDigest {
+    fn from(value: crate::messages_checkpoint::CheckpointContentsDigest) -> Self {
+        Self::new(value.into_inner())
+    }
+}
+
+impl From<CheckpointContentsDigest> for crate::messages_checkpoint::CheckpointContentsDigest {
+    fn from(value: CheckpointContentsDigest) -> Self {
+        Self::new(value.into_inner())
+    }
+}
+
+impl From<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummary {
+    fn from(value: crate::messages_checkpoint::CheckpointSummary) -> Self {
+        Self {
+            epoch: value.epoch,
+            sequence_number: value.sequence_number,
+            network_total_transactions: value.network_total_transactions,
+            content_digest: value.content_digest.into(),
+            previous_digest: value.previous_digest.map(Into::into),
+            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary.into(),
+            timestamp_ms: value.timestamp_ms,
+            checkpoint_commitments: value
+                .checkpoint_commitments
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
+            version_specific_data: value.version_specific_data,
+        }
+    }
+}
+
+impl From<CheckpointSummary> for crate::messages_checkpoint::CheckpointSummary {
+    fn from(value: CheckpointSummary) -> Self {
+        Self {
+            epoch: value.epoch,
+            sequence_number: value.sequence_number,
+            network_total_transactions: value.network_total_transactions,
+            content_digest: value.content_digest.into(),
+            previous_digest: value.previous_digest.map(Into::into),
+            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary.into(),
+            timestamp_ms: value.timestamp_ms,
+            checkpoint_commitments: value
+                .checkpoint_commitments
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
+            version_specific_data: value.version_specific_data,
+        }
+    }
+}
+
+impl From<crate::messages_checkpoint::CertifiedCheckpointSummary> for SignedCheckpointSummary {
+    fn from(value: crate::messages_checkpoint::CertifiedCheckpointSummary) -> Self {
+        let (data, sig) = value.into_data_and_sig();
+        Self {
+            checkpoint: data.into(),
+            signature: sig.into(),
+        }
+    }
+}
+
+impl From<SignedCheckpointSummary> for crate::messages_checkpoint::CertifiedCheckpointSummary {
+    fn from(value: SignedCheckpointSummary) -> Self {
+        Self::new_from_data_and_sig(
+            crate::messages_checkpoint::CheckpointSummary::from(value.checkpoint),
+            crate::crypto::AuthorityQuorumSignInfo::<true>::from(value.signature),
+        )
+    }
+}
 
 impl<const T: bool> From<crate::crypto::AuthorityQuorumSignInfo<T>>
     for ValidatorAggregatedSignature

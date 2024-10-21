@@ -35,11 +35,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfc6bf14017bf257c86af525b666782b4e369852d61b939b98ddbdce447bb1eca",
-                "value": "132"
+                "id": "0xff16067f769ef3bc98bc633149d4931b0007194765f5ed755e137eb9de9b0006",
+                "value": "404"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -54,11 +54,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xffa7c8c9846f84328e62cfdb272246de80d9d382ebcb2623286c5d65346ad7e2",
-                "value": "34"
+                "id": "0xff1f35425ea3114f6e2bcc4826cc8cd0b46c739176cb77a1f5bbd3eaa337396b",
+                "value": "129"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -76,11 +76,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfbd093ae5d7e89b4713fe3bd982a2a8b2007a10c8bade7324231b74da66f80aa",
-                "value": "438"
+                "id": "0xfe77377885c8a4ec4f71ba419b768a8a954a7947a20bb97cecc7477f2f6bb6be",
+                "value": "252"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           },
@@ -92,11 +92,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfbfb53e145cd1821d3e454a35a577c6fe26ca2dcd2d27aa105bab8650ff227ce",
-                "value": "454"
+                "id": "0xff04a45d2f237003714537f2c255223a18f6806256af07bfb08e1973d302d541",
+                "value": "279"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           },
@@ -108,11 +108,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfc6bf14017bf257c86af525b666782b4e369852d61b939b98ddbdce447bb1eca",
-                "value": "132"
+                "id": "0xff16067f769ef3bc98bc633149d4931b0007194765f5ed755e137eb9de9b0006",
+                "value": "404"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           },
@@ -124,11 +124,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xffa7c8c9846f84328e62cfdb272246de80d9d382ebcb2623286c5d65346ad7e2",
-                "value": "34"
+                "id": "0xff1f35425ea3114f6e2bcc4826cc8cd0b46c739176cb77a1f5bbd3eaa337396b",
+                "value": "129"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -163,7 +163,7 @@ Contents: Test::M1::Object {
             bytes: fake(2,498),
         },
     },
-    value: 132u64,
+    value: 404u64,
 }
 
 task 9, line 93:
@@ -176,7 +176,7 @@ Contents: Test::M1::Object {
             bytes: fake(2,497),
         },
     },
-    value: 454u64,
+    value: 279u64,
 }
 
 task 10, line 95:
@@ -199,11 +199,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfbfb53e145cd1821d3e454a35a577c6fe26ca2dcd2d27aa105bab8650ff227ce",
-                "value": "454"
+                "id": "0xff04a45d2f237003714537f2c255223a18f6806256af07bfb08e1973d302d541",
+                "value": "279"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -218,11 +218,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfc6bf14017bf257c86af525b666782b4e369852d61b939b98ddbdce447bb1eca",
-                "value": "132"
+                "id": "0xff16067f769ef3bc98bc633149d4931b0007194765f5ed755e137eb9de9b0006",
+                "value": "404"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -237,11 +237,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xffa7c8c9846f84328e62cfdb272246de80d9d382ebcb2623286c5d65346ad7e2",
-                "value": "34"
+                "id": "0xff1f35425ea3114f6e2bcc4826cc8cd0b46c739176cb77a1f5bbd3eaa337396b",
+                "value": "129"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -260,11 +260,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfbd093ae5d7e89b4713fe3bd982a2a8b2007a10c8bade7324231b74da66f80aa",
-                "value": "438"
+                "id": "0xfe77377885c8a4ec4f71ba419b768a8a954a7947a20bb97cecc7477f2f6bb6be",
+                "value": "252"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -287,11 +287,11 @@ Response: {
         },
         "contents": {
           "json": {
-            "id": "0xffa7c8c9846f84328e62cfdb272246de80d9d382ebcb2623286c5d65346ad7e2",
-            "value": "34"
+            "id": "0xff1f35425ea3114f6e2bcc4826cc8cd0b46c739176cb77a1f5bbd3eaa337396b",
+            "value": "129"
           },
           "type": {
-            "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+            "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
           }
         }
       }
@@ -305,11 +305,11 @@ Response: {
         },
         "contents": {
           "json": {
-            "id": "0xffa7c8c9846f84328e62cfdb272246de80d9d382ebcb2623286c5d65346ad7e2",
-            "value": "34"
+            "id": "0xff1f35425ea3114f6e2bcc4826cc8cd0b46c739176cb77a1f5bbd3eaa337396b",
+            "value": "129"
           },
           "type": {
-            "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+            "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
           }
         }
       }
@@ -325,11 +325,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfbfb53e145cd1821d3e454a35a577c6fe26ca2dcd2d27aa105bab8650ff227ce",
-                "value": "454"
+                "id": "0xff04a45d2f237003714537f2c255223a18f6806256af07bfb08e1973d302d541",
+                "value": "279"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -343,11 +343,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfc6bf14017bf257c86af525b666782b4e369852d61b939b98ddbdce447bb1eca",
-                "value": "132"
+                "id": "0xff16067f769ef3bc98bc633149d4931b0007194765f5ed755e137eb9de9b0006",
+                "value": "404"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -361,11 +361,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xffa7c8c9846f84328e62cfdb272246de80d9d382ebcb2623286c5d65346ad7e2",
-                "value": "34"
+                "id": "0xff1f35425ea3114f6e2bcc4826cc8cd0b46c739176cb77a1f5bbd3eaa337396b",
+                "value": "129"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -383,11 +383,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfbfb53e145cd1821d3e454a35a577c6fe26ca2dcd2d27aa105bab8650ff227ce",
-                "value": "454"
+                "id": "0xff04a45d2f237003714537f2c255223a18f6806256af07bfb08e1973d302d541",
+                "value": "279"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -401,11 +401,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfc6bf14017bf257c86af525b666782b4e369852d61b939b98ddbdce447bb1eca",
-                "value": "132"
+                "id": "0xff16067f769ef3bc98bc633149d4931b0007194765f5ed755e137eb9de9b0006",
+                "value": "404"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -419,11 +419,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xffa7c8c9846f84328e62cfdb272246de80d9d382ebcb2623286c5d65346ad7e2",
-                "value": "34"
+                "id": "0xff1f35425ea3114f6e2bcc4826cc8cd0b46c739176cb77a1f5bbd3eaa337396b",
+                "value": "129"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }
@@ -461,11 +461,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfbfb53e145cd1821d3e454a35a577c6fe26ca2dcd2d27aa105bab8650ff227ce",
-                "value": "454"
+                "id": "0xff04a45d2f237003714537f2c255223a18f6806256af07bfb08e1973d302d541",
+                "value": "279"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           },
@@ -478,11 +478,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xfc6bf14017bf257c86af525b666782b4e369852d61b939b98ddbdce447bb1eca",
-                "value": "132"
+                "id": "0xff16067f769ef3bc98bc633149d4931b0007194765f5ed755e137eb9de9b0006",
+                "value": "404"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           },
@@ -495,11 +495,11 @@ Response: {
             },
             "contents": {
               "json": {
-                "id": "0xffa7c8c9846f84328e62cfdb272246de80d9d382ebcb2623286c5d65346ad7e2",
-                "value": "34"
+                "id": "0xff1f35425ea3114f6e2bcc4826cc8cd0b46c739176cb77a1f5bbd3eaa337396b",
+                "value": "129"
               },
               "type": {
-                "repr": "0xe673ed6971adda1ed57d9be0b15c2b75d87b246c0abdc96286b9cbf360285d93::M1::Object"
+                "repr": "0x631f688f34224db4788adc9f9ada151bd14f106d898435ae5a15a8175beb5340::M1::Object"
               }
             }
           }

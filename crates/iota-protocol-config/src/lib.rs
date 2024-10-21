@@ -145,10 +145,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     throughput_aware_consensus_submission: bool,
 
-    // If true, recompute has_public_transfer from the type instead of what is stored in the object
-    #[serde(skip_serializing_if = "is_false")]
-    recompute_has_public_transfer_in_execution: bool,
-
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
@@ -193,12 +189,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     mysticeti_leader_scoring_and_schedule: bool,
 
-    // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in
-    // checkpoints. When disabled the default digest is used instead. It's important to have
-    // this guarded behind a flag as it will lead to checkpoint forks.
-    #[serde(skip_serializing_if = "is_false")]
-    mysticeti_use_committed_subdag_digest: bool,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
@@ -206,10 +196,6 @@ struct FeatureFlags {
     // Set number of leaders per round for Mysticeti commits.
     #[serde(skip_serializing_if = "Option::is_none")]
     mysticeti_num_leaders_per_round: Option<usize>,
-
-    // Enable Soft Bundle (SIP-19).
-    #[serde(skip_serializing_if = "is_false")]
-    soft_bundle: bool,
 
     // If true, enable the coin deny list V2.
     #[serde(skip_serializing_if = "is_false")]
@@ -1032,11 +1018,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_jwk_consensus_updates
     }
 
-    pub fn recompute_has_public_transfer_in_execution(&self) -> bool {
-        self.feature_flags
-            .recompute_has_public_transfer_in_execution
-    }
-
     // this function only exists for readability in the genesis code.
     pub fn create_authenticator_state_in_genesis(&self) -> bool {
         self.enable_jwk_consensus_updates()
@@ -1111,20 +1092,12 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_leader_scoring_and_schedule
     }
 
-    pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
-        self.feature_flags.mysticeti_use_committed_subdag_digest
-    }
-
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
     }
 
     pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
         self.feature_flags.mysticeti_num_leaders_per_round
-    }
-
-    pub fn soft_bundle(&self) -> bool {
-        self.feature_flags.soft_bundle
     }
 
     pub fn passkey_auth(&self) -> bool {
@@ -1694,7 +1667,6 @@ impl ProtocolConfig {
             .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
 
-        cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
         cfg.feature_flags.hardened_otw_check = true;
         cfg.feature_flags.enable_coin_deny_list = true;
 
@@ -1720,15 +1692,9 @@ impl ProtocolConfig {
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
-        // Enable the committed sub dag digest inclusion on the commit output
-        cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
-
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 
         cfg.feature_flags.enable_coin_deny_list_v2 = true;
-
-        // Enable soft bundle.
-        cfg.feature_flags.soft_bundle = true;
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
@@ -1890,10 +1856,6 @@ impl ProtocolConfig {
 
     pub fn set_mysticeti_num_leaders_per_round_for_testing(&mut self, val: Option<usize>) {
         self.feature_flags.mysticeti_num_leaders_per_round = val;
-    }
-
-    pub fn set_enable_soft_bundle_for_testing(&mut self, val: bool) {
-        self.feature_flags.soft_bundle = val;
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {

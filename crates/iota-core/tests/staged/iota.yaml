@@ -1003,27 +1003,23 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: ProgrammableTransaction
     1:
-      ChangeEpoch:
-        NEWTYPE:
-          TYPENAME: ChangeEpoch
-    2:
       Genesis:
         NEWTYPE:
           TYPENAME: GenesisTransaction
-    3:
+    2:
       ConsensusCommitPrologueV1:
         NEWTYPE:
           TYPENAME: ConsensusCommitPrologueV1
-    4:
+    3:
       AuthenticatorStateUpdate:
         NEWTYPE:
           TYPENAME: AuthenticatorStateUpdate
-    5:
+    4:
       EndOfEpochTransaction:
         NEWTYPE:
           SEQ:
             TYPENAME: EndOfEpochTransactionKind
-    6:
+    5:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate

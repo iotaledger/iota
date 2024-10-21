@@ -243,7 +243,6 @@ criterion = { version = "0.5.0", features = ["async", "async_tokio", "html_repor
 crossterm = "0.25.0"
 csv = "1.2.1"
 dashmap = "5.5.3"
-# datatest-stable = "0.1.2"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
 derivative = "2.2.0"
 diesel = { version = "2.1.0", features = ["chrono", "r2d2", "serde_json", "64-column-tables", "i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
@@ -310,6 +309,7 @@ serde_json = { version = "1.0.95", features = ["preserve_order"] }
 serde_with = "3.8"
 serde_yaml = "0.8.26"
 shellexpand = "3.1.0"
+# datatest-stable = "0.1.2"
 signature = "1.6.0"
 similar = "2.4.0"
 smallvec = "1.10.0"
@@ -384,7 +384,7 @@ anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
 
 # core-types with json format for REST api
-iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "f273b232560b0a893b845c1d1018b3aec9c41004", features = ["hash", "serde", "schemars"] }
+iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "2beb281b535ec78f6a4f88ced02ae3d8540eb318", features = ["hash", "serde", "schemars"] }
 
 ### Workspace Members ###
 bin-version = { path = "crates/bin-version" }

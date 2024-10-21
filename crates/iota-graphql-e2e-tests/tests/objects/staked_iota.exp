@@ -60,11 +60,11 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "IE7dToilI41Z06w5IxyULx1vkandEOuVlpo2z0OzoWhuAgAAAAAAAAA=",
+          "cursor": "ICynkgsfQ0OBgRhdKTLsjG1HWlIJm1fMzzQaubwpsAJMAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
-                "principal": "15340000000000",
+                "principal": "10000000000",
                 "poolId": "0x3386cd0552163847d8dd106e57f6f75e214e5ac206c90a33f97561a23d008b5b"
               }
             }
@@ -82,11 +82,11 @@ Response: {
           }
         },
         {
-          "cursor": "IPSaw56yCE5pNRFiJKgY0Hjo4koBkVvBMI13rTpr2ir1AgAAAAAAAAA=",
+          "cursor": "INMoknhK71B8eaQFADCHApV/6LcSSVZh9wpgdTjDKSowAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
-                "principal": "10000000000",
+                "principal": "15340000000000",
                 "poolId": "0x3386cd0552163847d8dd106e57f6f75e214e5ac206c90a33f97561a23d008b5b"
               }
             }
@@ -98,7 +98,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IPSaw56yCE5pNRFiJKgY0Hjo4koBkVvBMI13rTpr2ir1AgAAAAAAAAA=",
+            "cursor": "ICynkgsfQ0OBgRhdKTLsjG1HWlIJm1fMzzQaubwpsAJMAgAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
