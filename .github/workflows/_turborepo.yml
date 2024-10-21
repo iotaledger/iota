@@ -47,7 +47,10 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-
-      - name: (before) Check SDK dist folder
+      - name: (debug) Install `tree`
+        run: sudo apt install tree -y
+      - name: (debug-before) Check SDK dist folder
+        continue-on-error: true
         run: tree ./sdk/typescript/dist
       - name: Lint
         run: pnpm turbo lint
@@ -58,7 +61,7 @@ jobs:
       - name: (debug) Build
         continue-on-error: true
         run: pnpm turbo build
-      - name: (after) Check SDK dist folder
+      - name: (debug-after) Check SDK dist folder
         run: tree ./sdk/typescript/dist
       - name: Build
         run: pnpm turbo build
