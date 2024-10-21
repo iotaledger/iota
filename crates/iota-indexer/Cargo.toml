@@ -53,6 +53,7 @@ pg_integration = []
 shared_test_runtime = []
 
 [dev-dependencies]
+fastcrypto.workspace = true
 iota-config.workspace = true
 iota-genesis-builder.workspace = true
 iota-keys.workspace = true
@@ -63,7 +64,6 @@ serde_json.workspace = true
 serial_test = "2.0"
 simulacrum.workspace = true
 test-cluster.workspace = true
-fastcrypto.workspace = true
 
 [[bin]]
 name = "iota-indexer"
