@@ -16,9 +16,7 @@ feature_flags:
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
   mysticeti_leader_scoring_and_schedule: true
-  mysticeti_use_committed_subdag_digest: true
   mysticeti_num_leaders_per_round: 1
-  soft_bundle: true
   enable_coin_deny_list_v2: true
   rethrow_serialization_type_layout_errors: true
 max_tx_size_bytes: 131072
