@@ -20,7 +20,6 @@ validator_config_info:
   - commission_rate: 0
     gas_price: 1000
     name: validator-1
-    consensus_address: /ip4/127.0.0.1/tcp/8083/http
     primary_address: /dns/validator-1/udp/8081
     network_address: /dns/validator-1/tcp/8080/http
     p2p_address: /dns/validator-1/udp/8084
@@ -28,7 +27,6 @@ validator_config_info:
   - commission_rate: 0
     gas_price: 1000
     name: validator-2
-    consensus_address: /ip4/127.0.0.1/tcp/8083/http
     primary_address: /dns/validator-2/udp/8081
     network_address: /dns/validator-2/tcp/8080/http
     p2p_address: /dns/validator-2/udp/8084
@@ -36,7 +34,6 @@ validator_config_info:
   - commission_rate: 0
     gas_price: 1000
     name: validator-3
-    consensus_address: /ip4/127.0.0.1/tcp/8083/http
     primary_address: /dns/validator-3/udp/8081
     network_address: /dns/validator-3/tcp/8080/http
     p2p_address: /dns/validator-3/udp/8084
@@ -44,7 +41,6 @@ validator_config_info:
   - commission_rate: 0
     gas_price: 1000
     name: validator-4
-    consensus_address: /ip4/127.0.0.1/tcp/8083/http
     primary_address: /dns/validator-4/udp/8081
     network_address: /dns/validator-4/tcp/8080/http
     p2p_address: /dns/validator-4/udp/8084

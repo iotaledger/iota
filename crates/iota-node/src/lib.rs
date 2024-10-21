@@ -430,7 +430,7 @@ impl IotaNode {
         let is_full_node = !is_validator;
         let prometheus_registry = registry_service.default_registry();
 
-        info!(node =? config.protocol_public_key(),
+        info!(node =? config.authority_public_key(),
             "Initializing iota-node listening on {}", config.network_address
         );
 
@@ -509,7 +509,7 @@ impl IotaNode {
 
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
         let epoch_store = AuthorityPerEpochStore::new(
-            config.protocol_public_key(),
+            config.authority_public_key(),
             committee.clone(),
             &config.db_path().join("store"),
             Some(epoch_options.options),
@@ -675,7 +675,7 @@ impl IotaNode {
             genesis_objects.extend(migration_tx_data.get_objects());
         }
 
-        let authority_name = config.protocol_public_key();
+        let authority_name = config.authority_public_key();
         let validator_tx_finalizer =
             config
                 .enable_validator_tx_finalizer
@@ -1069,7 +1069,7 @@ impl IotaNode {
             .build();
 
         let (randomness, randomness_router) =
-            randomness::Builder::new(config.protocol_public_key(), randomness_tx)
+            randomness::Builder::new(config.authority_public_key(), randomness_tx)
                 .config(config.p2p_config.randomness.clone().unwrap_or_default())
                 .with_metrics(prometheus_registry)
                 .build();
@@ -1414,7 +1414,7 @@ impl IotaNode {
         let checkpoint_output = Box::new(SubmitCheckpointToConsensus {
             sender: consensus_adapter,
             signer: state.secret.clone(),
-            authority: config.protocol_public_key(),
+            authority: config.authority_public_key(),
             next_reconfiguration_timestamp_ms: epoch_start_timestamp_ms
                 .checked_add(epoch_duration_ms)
                 .expect("Overflow calculating next_reconfiguration_timestamp_ms"),
@@ -1968,7 +1968,7 @@ fn send_trusted_peer_change(
 ) -> Result<(), watch::error::SendError<TrustedPeerChangeEvent>> {
     sender
         .send(TrustedPeerChangeEvent {
-            new_peers: epoch_state_state.get_validator_as_p2p_peers(config.protocol_public_key()),
+            new_peers: epoch_state_state.get_validator_as_p2p_peers(config.authority_public_key()),
         })
         .tap_err(|err| {
             warn!(

@@ -15,7 +15,6 @@ parameters:
   epoch_duration_ms: 120000
 validator_config_info:
   - commission_rate: 0
-    consensus_address: /ip4/127.0.0.1/tcp/8083/http
     gas_price: 1000
     name: validator1
     primary_address: /dns/validator1/udp/8081
@@ -25,7 +24,6 @@ validator_config_info:
     genesis:
       genesis-file-location: /opt/iota/genesis.blob
   - commission_rate: 0
-    consensus_address: /ip4/127.0.0.1/tcp/8083/http
     gas_price: 1000
     name: validator2
     primary_address: /dns/validator2/udp/8081
@@ -33,7 +31,6 @@ validator_config_info:
     p2p_address: /dns/validator2/udp/8084
     stake: 20000000000000000
   - commission_rate: 0
-    consensus_address: /ip4/127.0.0.1/tcp/8083/http
     gas_price: 1000
     name: validator3
     primary_address: /dns/validator3/udp/8081
@@ -41,7 +38,6 @@ validator_config_info:
     p2p_address: /dns/validator3/udp/8084
     stake: 20000000000000000
   - commission_rate: 0
-    consensus_address: /ip4/127.0.0.1/tcp/8083/http
     gas_price: 1000
     name: validator4
     primary_address: /dns/validator4/udp/8081

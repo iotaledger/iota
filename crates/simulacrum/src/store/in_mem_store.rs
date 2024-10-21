@@ -353,7 +353,7 @@ impl KeyStore {
             .iter()
             .map(|config| {
                 (
-                    config.protocol_public_key(),
+                    config.authority_public_key(),
                     config.authority_key_pair().copy(),
                 )
             })

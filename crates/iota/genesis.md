@@ -44,7 +44,7 @@ Once the shared workspace has been initialized, each validator can contribute th
 $ git clone <url to genesis repo> && cd genesis
 $ iota genesis-ceremony add-validator \
     --name <human-readable validator name> \
-    --authority-key-file <BLS12381KeyPair VALIDATOR_KEY_FILE> \
+    --authority-key-file <BLS12381KeyPair AUTHORITY_KEY_FILE> \
     --protocol-key-file <Ed25519KeyPair PROTOCOL_KEY_FILE> \
     --account-key-file <Ed25519KeyPair ACCOUNT_KEY_FILE> \
     --network-key-file <Ed25519KeyPair NETWORK_KEY_FILE> \

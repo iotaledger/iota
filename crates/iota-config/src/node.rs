@@ -400,7 +400,7 @@ impl NodeConfig {
         }
     }
 
-    pub fn protocol_public_key(&self) -> AuthorityPublicKeyBytes {
+    pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
         self.authority_key_pair().public().into()
     }
 

@@ -86,10 +86,9 @@ You can update the following on-chain metadata:
 5. network address
 6. p2p address
 7. primary address
-8. worker address
-9. protocol public key
-10. network public key
-11. worker public key
+8. authority public key 
+9. network public key 
+10. protocol public key
 
 Notably, only the first 4 metadata listed above take effect immediately.
 
@@ -105,7 +104,7 @@ $IOTA_BINARY validator update-metadata --help
 
 Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](./validator-operation/validator-tasks#operation-cap).
 
-The Operation Cap holder (either the valdiator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
+The Operation Cap holder (either the validator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
 
 #### Update Gas Price
 
