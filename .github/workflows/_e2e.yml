@@ -48,11 +48,11 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4
       - run: cargo build --bin iota --features indexer --profile dev
       - name: Install Nodejs
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # pin@v4
         with:
           node-version: "20"
           cache: "pnpm"
@@ -81,8 +81,7 @@ jobs:
       - name: Run Explorer e2e tests
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || inputs.isDevelop
         run: pnpm --filter iota-explorer playwright test
-
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         if: always()
         with:
           name: playwright-report-explorer
@@ -108,7 +107,7 @@ jobs:
         if: inputs.isRust || inputs.isTypescriptSDK
         run: pnpm --filter=@iota/kiosk test:e2e
 
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         if: always()
         with:
           name: playwright-report-wallet
