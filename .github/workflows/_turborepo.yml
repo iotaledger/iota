@@ -52,6 +52,11 @@ jobs:
       - name: (debug-before) Check SDK dist folder
         continue-on-error: true
         run: tree ./sdk/typescript/dist
+      - name: (debug) Lint
+        continue-on-error: true
+        run: pnpm turbo build
+      - name: (debug-after) Check SDK dist folder
+        run: tree ./sdk/typescript/dist
       - name: Lint
         run: pnpm turbo lint
       - name: Install wasm-pack for mbf package
