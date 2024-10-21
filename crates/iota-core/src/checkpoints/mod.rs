@@ -1092,11 +1092,7 @@ impl CheckpointBuilder {
 
         let _scope = monitored_scope("CheckpointBuilder");
 
-        let consensus_commit_prologue = if self
-            .epoch_store
-            .protocol_config()
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints()
-        {
+        let consensus_commit_prologue = {
             // If the roots contains consensus commit prologue transaction, we want to
             // extract it, and put it to the front of the checkpoint.
 
@@ -1104,7 +1100,7 @@ impl CheckpointBuilder {
                 .extract_consensus_commit_prologue(&root_digests, &root_effects)
                 .await?;
 
-            // Get the unincluded depdnencies of the consensus commit prologue. We should
+            // Get the un-included dependencies of the consensus commit prologue. We should
             // expect no other dependencies that haven't been included in any
             // previous checkpoints.
             if let Some((ccp_digest, ccp_effects)) = &consensus_commit_prologue {
@@ -1119,8 +1115,6 @@ impl CheckpointBuilder {
                 assert_eq!(unsorted_ccp[0].transaction_digest(), ccp_digest);
             }
             consensus_commit_prologue
-        } else {
-            None
         };
 
         let unsorted =
@@ -1152,8 +1146,6 @@ impl CheckpointBuilder {
 
     // This function is used to extract the consensus commit prologue digest and
     // effects from the root transactions.
-    // This function can only be used when
-    // prepend_prologue_tx_in_consensus_commit_in_checkpoints is enabled.
     // The consensus commit prologue is expected to be the first transaction in the
     // roots.
     async fn extract_consensus_commit_prologue(
@@ -1168,8 +1160,7 @@ impl CheckpointBuilder {
 
         // Reads the first transaction in the roots, and checks whether it is a
         // consensus commit prologue transaction.
-        // When prepend_prologue_tx_in_consensus_commit_in_checkpoints is enabled, the
-        // consensus commit prologue transaction should be the first transaction
+        // The consensus commit prologue transaction should be the first transaction
         // in the roots written by the consensus handler.
         let first_tx = self
             .state
@@ -1178,9 +1169,7 @@ impl CheckpointBuilder {
             .expect("Transaction block must exist");
 
         Ok(match first_tx.transaction_data().kind() {
-            TransactionKind::ConsensusCommitPrologue(_)
-            | TransactionKind::ConsensusCommitPrologueV2(_)
-            | TransactionKind::ConsensusCommitPrologueV3(_) => {
+            TransactionKind::ConsensusCommitPrologueV1(_) => {
                 assert_eq!(first_tx.digest(), root_effects[0].transaction_digest());
                 Some((*first_tx.digest(), root_effects[0].clone()))
             }
@@ -1386,9 +1375,7 @@ impl CheckpointBuilder {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {:?}", effects));
                 match transaction.inner().transaction_data().kind() {
-                    TransactionKind::ConsensusCommitPrologue(_)
-                    | TransactionKind::ConsensusCommitPrologueV2(_)
-                    | TransactionKind::ConsensusCommitPrologueV3(_)
+                    TransactionKind::ConsensusCommitPrologueV1(_)
                     | TransactionKind::AuthenticatorStateUpdate(_) => {
                         // ConsensusCommitPrologue and AuthenticatorStateUpdate
                         // are guaranteed to be
@@ -1712,14 +1699,6 @@ impl CheckpointBuilder {
         root_digests: &[TransactionDigest],
         sorted: &[TransactionEffects],
     ) {
-        if !self
-            .epoch_store
-            .protocol_config()
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints()
-        {
-            return;
-        }
-
         // Gets all the consensus commit prologue transactions from the roots.
         let root_txs = self
             .state
@@ -1732,9 +1711,7 @@ impl CheckpointBuilder {
                 if let Some(tx) = tx {
                     if matches!(
                         tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
+                        TransactionKind::ConsensusCommitPrologueV1(_)
                     ) {
                         Some(tx)
                     } else {
@@ -1770,9 +1747,7 @@ impl CheckpointBuilder {
                 if let Some(tx) = tx {
                     assert!(!matches!(
                         tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
+                        TransactionKind::ConsensusCommitPrologueV1(_)
                     ));
                 }
             }
@@ -1781,9 +1756,7 @@ impl CheckpointBuilder {
             // checkpoint.
             assert!(matches!(
                 txs[0].as_ref().unwrap().transaction_data().kind(),
-                TransactionKind::ConsensusCommitPrologue(_)
-                    | TransactionKind::ConsensusCommitPrologueV2(_)
-                    | TransactionKind::ConsensusCommitPrologueV3(_)
+                TransactionKind::ConsensusCommitPrologueV1(_)
             ));
 
             assert_eq!(ccps[0].digest(), txs[0].as_ref().unwrap().digest());
@@ -1792,9 +1765,7 @@ impl CheckpointBuilder {
                 if let Some(tx) = tx {
                     assert!(!matches!(
                         tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
+                        TransactionKind::ConsensusCommitPrologueV1(_)
                     ));
                 }
             }

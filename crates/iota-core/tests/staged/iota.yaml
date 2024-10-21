@@ -232,19 +232,7 @@ CongestedObjects:
 ConsensusCommitDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
-ConsensusCommitPrologue:
-  STRUCT:
-    - epoch: U64
-    - round: U64
-    - commit_timestamp_ms: U64
-ConsensusCommitPrologueV2:
-  STRUCT:
-    - epoch: U64
-    - round: U64
-    - commit_timestamp_ms: U64
-    - consensus_commit_digest:
-        TYPENAME: ConsensusCommitDigest
-ConsensusCommitPrologueV3:
+ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
     - round: U64
@@ -330,14 +318,12 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire
     3:
-      RandomnessStateCreate: UNIT
-    4:
       DenyListStateCreate: UNIT
-    5:
+    4:
       BridgeStateCreate:
         NEWTYPE:
           TYPENAME: ChainIdentifier
-    6:
+    5:
       BridgeCommitteeInit:
         NEWTYPE:
           TYPENAME: SequenceNumber
@@ -764,7 +750,9 @@ PackageUpgradeError:
       DigestDoesNotMatch:
         STRUCT:
           - digest:
-              SEQ: U8
+              TUPLEARRAY:
+                CONTENT: U8
+                SIZE: 32
     4:
       UnknownUpgradePolicy:
         STRUCT:
@@ -1023,9 +1011,9 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: GenesisTransaction
     3:
-      ConsensusCommitPrologue:
+      ConsensusCommitPrologueV1:
         NEWTYPE:
-          TYPENAME: ConsensusCommitPrologue
+          TYPENAME: ConsensusCommitPrologueV1
     4:
       AuthenticatorStateUpdate:
         NEWTYPE:
@@ -1039,14 +1027,6 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
-    7:
-      ConsensusCommitPrologueV2:
-        NEWTYPE:
-          TYPENAME: ConsensusCommitPrologueV2
-    8:
-      ConsensusCommitPrologueV3:
-        NEWTYPE:
-          TYPENAME: ConsensusCommitPrologueV3
 TypeArgumentError:
   ENUM:
     0:
