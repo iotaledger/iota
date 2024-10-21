@@ -1,17 +1,17 @@
 {
   "data": {
-    "epoch": 3,
-    "sequence_number": 1073,
-    "network_total_transactions": 4686,
-    "content_digest": "7ap8iQJrUwefm7WF8oiVZyS7Cat3KSwFKYcZyAhqW9gb",
-    "previous_digest": "BsQqnA5KyPc8VkPGLfE3UFexjn2KhG3FLxGPkbFHP3xt",
+    "epoch": 2,
+    "sequence_number": 794,
+    "network_total_transactions": 3462,
+    "content_digest": "AkKefNxm11SDHcgh8CvwhwaopKZkoYuXdx2C8mAPQPg3",
+    "previous_digest": "9a5ay9zMmg1bkyjV4HDcsgvj1Qi5hdnoyb7qzDdsE9rN",
     "epoch_rolling_gas_cost_summary": {
-      "computationCost": "1000000",
-      "storageCost": "36890400",
-      "storageRebate": "39299600",
+      "computationCost": "2000000",
+      "storageCost": "48092800",
+      "storageRebate": "50198000",
       "nonRefundableStorageFee": "0"
     },
-    "timestamp_ms": 1729190559190,
+    "timestamp_ms": 1729529187939,
     "checkpoint_commitments": [],
     "end_of_epoch_data": {
       "nextEpochCommittee": [
@@ -24,7 +24,7 @@
           "2000"
         ],
         [
-          "oq/ucylynXisNlW/PO7oQCvaasjTmx31Aavn+wMVZhuSHS8+w6Md/W7vqlAGwQleCYEFGs6P4YIgJZtPu2bxZvYGw2IYW2/jZLJ8NJ9cH8T+CUKfhDSeSgW70e3QnCiK",
+          "pT5rnJ7YVGCXSDx/GLJ4hC4IadI0ZIl1MPIncR5dXA/nRmoYxt91nufZW0HTMyNZC/g69Ol2pAYAEoqXWOXzJmzB/pVRnLYxtUpuW/M0PKpiErWwf4WkzmhsNU1ezdzS",
           "2000"
         ],
         [
@@ -40,11 +40,11 @@
       "epochCommitments": [
         {
           "ECMHLiveObjectSetDigest": {
-            "digest": "5ijjLJPpGLLVLpt1mzCpwL4CKMiHdDfJaWaxVZD4ee7F"
+            "digest": "5w6pMAo5Wn3d2xJ3FFWdQK4nxJ1NX5v3LWCeyYNDZ257"
           }
         }
       ],
-      "epochSupplyChange": 766999999000000
+      "epochSupplyChange": 766999998000000
     },
     "version_specific_data": [
       0,
@@ -52,8 +52,8 @@
     ]
   },
   "auth_signature": {
-    "epoch": 3,
-    "signature": "kulk9h27WGkKkqFj5zJhNLe+9mxwUWCR8XW3YlTGeNyBA3kVZwE2Vpw07Pg4HBwj",
+    "epoch": 2,
+    "signature": "l/H0Y90spi0zenoiKKreyirHy/xVVogwTmwqeOvQBj7/CgSC0NTAzgPYHdvdwFJC",
     "signers_map": [
       58,
       48,
@@ -73,7 +73,7 @@
       0,
       0,
       0,
-      1,
+      2,
       0,
       3,
       0

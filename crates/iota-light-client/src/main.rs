@@ -565,7 +565,7 @@ mod tests {
 
     async fn read_data() -> (Committee, CheckpointData) {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/803.json");
+        d.push("example_config/528.json");
 
         let checkpoint: Envelope<CheckpointSummary, AuthorityQuorumSignInfo<true>> =
             serde_json::from_reader(&fs::File::open(&d).unwrap())
@@ -588,7 +588,7 @@ mod tests {
         let committee = Committee::new(checkpoint.epoch().checked_add(1).unwrap(), prev_committee);
 
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/1073.chk");
+        d.push("example_config/794.chk");
 
         let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
 
