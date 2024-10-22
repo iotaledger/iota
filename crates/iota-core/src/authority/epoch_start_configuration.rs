@@ -30,8 +30,8 @@ pub trait EpochStartConfigTrait {
     fn epoch_start_state(&self) -> &EpochStartSystemState;
     fn flags(&self) -> &[EpochFlag];
     fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
-    fn randomness_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
-    fn coin_deny_list_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
+    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
+    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
     fn bridge_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
     fn bridge_committee_initiated(&self) -> bool;
 
@@ -153,7 +153,7 @@ impl EpochStartConfiguration {
         let randomness_obj_initial_shared_version =
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
-            get_deny_list_obj_initial_shared_version(object_store);
+            get_deny_list_obj_initial_shared_version(object_store)?;
         let bridge_obj_initial_shared_version =
             get_bridge_obj_initial_shared_version(object_store)?;
         let bridge_committee_initiated = is_bridge_committee_initiated(object_store)?;
@@ -211,8 +211,8 @@ pub struct EpochStartConfigurationV1 {
     flags: Vec<EpochFlag>,
     /// Do the state objects exist at the beginning of the epoch?
     authenticator_obj_initial_shared_version: Option<SequenceNumber>,
-    randomness_obj_initial_shared_version: Option<SequenceNumber>,
-    coin_deny_list_obj_initial_shared_version: Option<SequenceNumber>,
+    randomness_obj_initial_shared_version: SequenceNumber,
+    coin_deny_list_obj_initial_shared_version: SequenceNumber,
     bridge_obj_initial_shared_version: Option<SequenceNumber>,
     bridge_committee_initiated: bool,
 }
@@ -234,11 +234,11 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
         self.authenticator_obj_initial_shared_version
     }
 
-    fn randomness_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
+    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
         self.randomness_obj_initial_shared_version
     }
 
-    fn coin_deny_list_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
+    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
         self.coin_deny_list_obj_initial_shared_version
     }
 

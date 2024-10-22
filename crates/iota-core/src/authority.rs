@@ -5017,8 +5017,7 @@ impl RandomnessRoundReceiver {
             bytes,
             epoch_store
                 .epoch_start_config()
-                .randomness_obj_initial_shared_version()
-                .expect("randomness state obj must exist"),
+                .randomness_obj_initial_shared_version(),
         );
         debug!(
             "created randomness state update transaction with digest: {:?}",
