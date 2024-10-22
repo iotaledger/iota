@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Heading } from '_app/shared/heading';
 import { useAppSelector } from '_hooks';
 import { Feature } from '@iota/core';
 import { prepareLinkToCompare } from '_src/shared/utils';
@@ -13,7 +12,7 @@ import { permissionsSelectors } from '../../redux/slices/permissions';
 import { AppsPageBanner } from './Banner';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
-import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Header } from '@iota/apps-ui-kit';
 import { Info } from '@iota/ui-icons';
 
 export function AppsPlayGround() {
@@ -43,42 +42,34 @@ export function AppsPlayGround() {
 
     return (
         <>
-            <div className="mb-4 flex justify-center">
-                <Heading variant="heading6" color="gray-90" weight="semibold">
-                    IOTA Apps
-                </Heading>
-            </div>
-            <div className="p-md">
-                <AppsPageBanner />
+            <Header titleCentered title="IOTA Apps" />
+            <AppsPageBanner />
 
-                {filteredEcosystemApps?.length ? (
-                    <InfoBox
-                        type={InfoBoxType.Default}
-                        icon={<Info />}
-                        style={InfoBoxStyle.Elevated}
-                        supportingText="Apps below are actively curated but do not indicate any endorsement or
+            {filteredEcosystemApps?.length ? (
+                <InfoBox
+                    type={InfoBoxType.Default}
+                    icon={<Info />}
+                    style={InfoBoxStyle.Elevated}
+                    supportingText="Apps below are actively curated but do not indicate any endorsement or
                         relationship with IOTA Wallet. Please DYOR."
-                    />
-                ) : null}
+                />
+            ) : null}
 
-                {filteredEcosystemApps?.length ? (
-                    <div className="mt-md flex flex-col gap-sm">
-                        {filteredEcosystemApps.map((app) => (
-                            <IotaApp
-                                key={app.link}
-                                {...app}
-                                permissionID={linkToPermissionID.get(
-                                    prepareLinkToCompare(app.link),
-                                )}
-                                displayType="full"
-                                openAppSite
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <IotaAppEmpty displayType="full" />
-                )}
-            </div>
+            {filteredEcosystemApps?.length ? (
+                <div className="mt-md flex flex-col gap-sm">
+                    {filteredEcosystemApps.map((app) => (
+                        <IotaApp
+                            key={app.link}
+                            {...app}
+                            permissionID={linkToPermissionID.get(prepareLinkToCompare(app.link))}
+                            displayType="full"
+                            openAppSite
+                        />
+                    ))}
+                </div>
+            ) : (
+                <IotaAppEmpty displayType="full" />
+            )}
         </>
     );
 }

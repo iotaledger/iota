@@ -3099,7 +3099,6 @@ async fn test_invalid_randomness_parameter() {
 
     let init_random_version =
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
-            .unwrap()
             .unwrap();
     let random_mut = CallArg::Object(ObjectArg::SharedObject {
         id: IOTA_RANDOMNESS_STATE_OBJECT_ID,

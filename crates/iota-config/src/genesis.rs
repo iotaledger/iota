@@ -347,7 +347,7 @@ impl UnsignedGenesis {
     }
 
     pub fn has_coin_deny_list_object(&self) -> bool {
-        get_deny_list_root_object(&self.objects()).is_some()
+        get_deny_list_root_object(&self.objects()).is_ok()
     }
 }
 

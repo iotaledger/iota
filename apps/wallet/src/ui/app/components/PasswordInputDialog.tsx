@@ -4,7 +4,6 @@
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { Button } from '_src/ui/app/shared/ButtonUI';
-import { Heading } from '_src/ui/app/shared/heading';
 import { PasswordInputField } from '_src/ui/app/shared/input/password';
 import classNames from 'clsx';
 import { ErrorMessage, Form, Formik } from 'formik';
@@ -12,7 +11,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
 import { ArrowLeft, ArrowRight, Warning } from '@iota/ui-icons';
-import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Header, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),
@@ -67,11 +66,7 @@ export function PasswordInputDialog({
                         'px-5 pt-10': spacing,
                     })}
                 >
-                    <div className="text-center">
-                        <Heading variant="heading1" color="gray-90" weight="bold">
-                            {title}
-                        </Heading>
-                    </div>
+                    <Header title={title} titleCentered />
                     <div className="flex flex-1 flex-col gap-sm self-stretch">
                         <span className="text-label-sm text-neutral-40">
                             Enter Wallet Password to Continue

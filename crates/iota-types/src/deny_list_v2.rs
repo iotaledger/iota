@@ -20,7 +20,9 @@ use crate::{
     base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
-    error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
+    error::{
+        ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
+    },
     id::{ID, UID},
     object::{Object, Owner},
     storage::{DenyListResult, ObjectStore},
@@ -250,23 +252,25 @@ pub fn check_global_pause(
     read_config_setting(object_store, deny_config, global_pause_key, cur_epoch).unwrap_or(false)
 }
 
-pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Object> {
+pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> IotaResult<Object> {
     match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
-        Ok(Some(obj)) => Some(obj),
+        Ok(Some(obj)) => Ok(obj),
         Ok(None) => {
             error!("Deny list object not found");
-            None
+            Err(IotaError::Storage("Deny list object not found".to_string()))
         }
         Err(err) => {
             error!("Failed to get deny list object: {err}");
-            None
+            Err(IotaError::Storage(
+                "Failed to get deny list object: {err}".to_string(),
+            ))
         }
     }
 }
 
 pub fn get_deny_list_obj_initial_shared_version(
     object_store: &dyn ObjectStore,
-) -> Option<SequenceNumber> {
+) -> IotaResult<SequenceNumber> {
     get_deny_list_root_object(object_store).map(|obj| match obj.owner {
         Owner::Shared {
             initial_shared_version,

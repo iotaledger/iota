@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Heading } from '_app/shared/heading';
 import type { ReactNode } from 'react';
 import { CheckmarkFilled, IotaLogoMark } from '@iota/ui-icons';
+import { Header } from '@iota/apps-ui-kit';
 
 export interface CardLayoutProps {
     title?: string;
@@ -29,16 +29,8 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
                 <span className="text-label-sm text-neutral-40">{headerCaption}</span>
             ) : null}
             {title ? (
-                <div className="my-sm text-center">
-                    <Heading
-                        variant="heading1"
-                        color="gray-90"
-                        as="h1"
-                        weight="bold"
-                        leading="none"
-                    >
-                        {title}
-                    </Heading>
+                <div className="mt-1.25">
+                    <Header title={title} titleCentered />
                 </div>
             ) : null}
             {subtitle ? (
