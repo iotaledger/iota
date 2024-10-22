@@ -78,9 +78,7 @@ export function useSignTransaction({
                 );
             }
 
-            if (
-                !currentWallet.features['iota:signTransaction']
-            ) {
+            if (!currentWallet.features['iota:signTransaction']) {
                 throw new WalletFeatureNotSupportedError(
                     "This wallet doesn't support the `signTransaction` feature.",
                 );

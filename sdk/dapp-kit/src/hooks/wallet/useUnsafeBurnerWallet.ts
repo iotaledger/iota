@@ -56,10 +56,7 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
         address: keypair.getPublicKey().toIotaAddress(),
         publicKey: keypair.getPublicKey().toIotaBytes(),
         chains: ['iota:unknown'],
-        features: [
-            'iota:signTransaction',
-            'iota:signAndExecuteTransaction',
-        ],
+        features: ['iota:signTransaction', 'iota:signAndExecuteTransaction'],
     });
 
     class UnsafeBurnerWallet implements Wallet {

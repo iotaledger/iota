@@ -61,7 +61,7 @@ export function useSignPersonalMessage({
             }
 
             const signPersonalMessageFeature = currentWallet.features['iota:signPersonalMessage'];
-            if(!signPersonalMessageFeature){
+            if (!signPersonalMessageFeature) {
                 throw new WalletFeatureNotSupportedError(
                     "This wallet doesn't support the `signPersonalMessage` feature.",
                 );
