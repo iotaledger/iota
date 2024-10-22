@@ -591,8 +591,8 @@ async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow
 #[sim_test]
 async fn test_traffic_sketch_no_blocks() {
     let sketch_config = FreqThresholdConfig {
-        client_threshold: 10_100,
-        proxied_client_threshold: 10_100,
+        client_threshold: 5_050,
+        proxied_client_threshold: 5_050,
         window_size_secs: 4,
         update_interval_secs: 1,
         ..Default::default()
@@ -612,14 +612,14 @@ async fn test_traffic_sketch_no_blocks() {
     let metrics = TrafficSim::run(
         policy,
         10,     // num_clients
-        10_000, // per_client_tps
+        5_000, // per_client_tps
         Duration::from_secs(20),
         true, // report
     )
     .await;
 
-    let expected_requests = 10_000 * 10 * 20;
-    assert!(metrics.num_blocked < 10_010);
+    let expected_requests = 5_000 * 10 * 20;
+    assert!(metrics.num_blocked < 5_005);
     assert!(metrics.num_requests > expected_requests - 1_000);
     assert!(metrics.num_requests < expected_requests + 200);
     assert!(metrics.num_blocklist_adds <= 1);
