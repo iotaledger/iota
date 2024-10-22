@@ -214,9 +214,9 @@ impl<'a> TestAuthorityBuilder<'a> {
         }
 
         let keypair = if let Some(keypair) = self.node_keypair {
-            keypair
+            keypair.copy()
         } else {
-            config.protocol_key_pair()
+            config.protocol_key_pair().copy()
         };
 
         let secret = Arc::pin(keypair.copy());
@@ -334,7 +334,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Arc::downgrade(&epoch_store),
             consensus_client,
             randomness::Handle::new_stub(),
-            config.protocol_key_pair(),
+            &keypair,
         )
         .await;
         if let Some(randomness_manager) = randomness_manager {
