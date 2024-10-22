@@ -5,10 +5,10 @@
 use std::{iter, mem, ops::Not, sync::Arc, thread};
 
 use either::Either;
-use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
+use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
-use iota_config::node::AuthorityStorePruningConfig;
+use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
 use iota_macros::fail_point_arg;
 use iota_storage::mutex_table::{MutexGuard, MutexTable, RwLockGuard, RwLockTable};
 use iota_types::{
@@ -154,6 +154,7 @@ impl AuthorityStore {
         genesis: &Genesis,
         config: &NodeConfig,
         registry: &Registry,
+        migration_tx_data: Option<&MigrationTxData>,
     ) -> IotaResult<Arc<Self>> {
         let indirect_objects_threshold = config.indirect_objects_threshold;
         let enable_epoch_iota_conservation_check = config
@@ -194,6 +195,7 @@ impl AuthorityStore {
             indirect_objects_threshold,
             enable_epoch_iota_conservation_check,
             registry,
+            migration_tx_data,
         )
         .await?;
         this.update_epoch_flags_metrics(&[], epoch_start_configuration.flags());
@@ -247,6 +249,7 @@ impl AuthorityStore {
             indirect_objects_threshold,
             true,
             &Registry::new(),
+            None,
         )
         .await
     }
@@ -257,6 +260,7 @@ impl AuthorityStore {
         indirect_objects_threshold: usize,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
+        migration_tx_data: Option<&MigrationTxData>,
     ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
@@ -271,30 +275,31 @@ impl AuthorityStore {
         // Only initialize an empty database.
         if store
             .database_is_empty()
-            .expect("Database read should not fail at init.")
+            .expect("database read should not fail at init.")
         {
+            // Initialize with genesis data
+            // First insert genesis objects
             store
                 .bulk_insert_genesis_objects(genesis.objects())
-                .expect("Cannot bulk insert genesis objects");
+                .expect("cannot bulk insert genesis objects");
 
-            // insert txn and effects of genesis
+            // Then insert txn and effects of genesis
             let transaction = VerifiedTransaction::new_unchecked(genesis.transaction().clone());
-
             store
                 .perpetual_tables
                 .transactions
                 .insert(transaction.digest(), transaction.serializable_ref())
-                .unwrap();
-
+                .expect("cannot insert genesis transaction");
             store
                 .perpetual_tables
                 .effects
                 .insert(&genesis.effects().digest(), genesis.effects())
-                .unwrap();
-            // We don't insert the effects to executed_effects yet because the genesis tx
-            // hasn't but will be executed. This is important for fullnodes to
-            // be able to generate indexing data right now.
+                .expect("cannot insert genesis effects");
 
+            // In the previous step we don't insert the effects to executed_effects yet
+            // because the genesis tx hasn't but will be executed. This is
+            // important for fullnodes to be able to generate indexing data
+            // right now.
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
@@ -303,6 +308,56 @@ impl AuthorityStore {
                 .enumerate()
                 .map(|(i, e)| ((event_digests, i), e));
             store.perpetual_tables.events.multi_insert(events).unwrap();
+
+            // Initialize with migration data if genesis contained migration transactions
+            if let Some(migration_transactions) = migration_tx_data {
+                // This migration data was validated during the loading into the node (invoked
+                // by the caller of this function)
+                let txs_data = migration_transactions.txs_data();
+
+                // We iterate over the contents of the genesis checkpoint, that includes all
+                // migration transactions execution digest. Thus we cover all transactions that
+                // were considered during the creation of the genesis blob.
+                for (_, execution_digest) in genesis
+                    .checkpoint_contents()
+                    .enumerate_transactions(&genesis.checkpoint())
+                {
+                    let tx_digest = &execution_digest.transaction;
+                    // We can skip the genesis transaction and its data because above it was already
+                    // stored in the perpetual_tables.
+                    if tx_digest == genesis.transaction().digest() {
+                        continue;
+                    }
+                    // Now we can store in the perpetual_tables this migration transaction, together
+                    // with its effects, events and created objects.
+                    let Some((tx, effects, events)) = txs_data.get(tx_digest) else {
+                        panic!("tx digest not found in migrated objects blob");
+                    };
+                    let transaction = VerifiedTransaction::new_unchecked(tx.clone());
+                    let objects = migration_transactions
+                        .objects_by_tx_digest(*tx_digest)
+                        .expect("the migration data is corrupted");
+                    store
+                        .bulk_insert_genesis_objects(&objects)
+                        .expect("cannot bulk insert migrated objects");
+                    store
+                        .perpetual_tables
+                        .transactions
+                        .insert(transaction.digest(), transaction.serializable_ref())
+                        .expect("cannot insert migration transaction");
+                    store
+                        .perpetual_tables
+                        .effects
+                        .insert(&effects.digest(), effects)
+                        .expect("cannot insert migration effects");
+                    let events = events
+                        .data
+                        .iter()
+                        .enumerate()
+                        .map(|(i, e)| ((events.digest(), i), e));
+                    store.perpetual_tables.events.multi_insert(events).unwrap();
+                }
+            }
         }
 
         Ok(store)
@@ -562,30 +617,6 @@ impl AuthorityStore {
             .multi_contains_keys(object_keys.to_vec())?
             .into_iter()
             .collect())
-    }
-
-    fn get_object_ref_prior_to_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> Result<Option<ObjectRef>, IotaError> {
-        let Some(prior_version) = version.one_before() else {
-            return Ok(None);
-        };
-        let mut iterator = self
-            .perpetual_tables
-            .objects
-            .unbounded_iter()
-            .skip_prior_to(&ObjectKey(*object_id, prior_version))?;
-
-        if let Some((object_key, value)) = iterator.next() {
-            if object_key.0 == *object_id {
-                return Ok(Some(
-                    self.perpetual_tables.object_reference(&object_key, value)?,
-                ));
-            }
-        }
-        Ok(None)
     }
 
     pub fn multi_get_objects_by_key(
@@ -1555,7 +1586,7 @@ impl AuthorityStore {
         let mut size = 0;
         let (mut total_iota, mut total_storage_rebate) = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
-            for o in self.iter_live_object_set(false) {
+            for o in self.iter_live_object_set() {
                 match o {
                     LiveObject::Normal(object) => {
                         size += object.object_size_for_gas_metering();
@@ -1757,150 +1788,6 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// This is a temporary method to be used when we enable
-    /// simplified_unwrap_then_delete. It re-accumulates state hash for the
-    /// new epoch if simplified_unwrap_then_delete is enabled.
-    #[instrument(level = "error", skip_all)]
-    pub fn maybe_reaccumulate_state_hash(
-        &self,
-        cur_epoch_store: &AuthorityPerEpochStore,
-        new_protocol_version: ProtocolVersion,
-    ) {
-        let old_simplified_unwrap_then_delete = cur_epoch_store
-            .protocol_config()
-            .simplified_unwrap_then_delete();
-        let new_simplified_unwrap_then_delete = ProtocolConfig::get_for_version(
-            new_protocol_version,
-            cur_epoch_store.get_chain_identifier().chain(),
-        )
-        .simplified_unwrap_then_delete();
-        // If in the new epoch the simplified_unwrap_then_delete is enabled for the
-        // first time, we re-accumulate state root.
-        let should_reaccumulate =
-            !old_simplified_unwrap_then_delete && new_simplified_unwrap_then_delete;
-        if !should_reaccumulate {
-            return;
-        }
-        info!(
-            "[Re-accumulate] simplified_unwrap_then_delete is enabled in the new protocol version, re-accumulating state hash"
-        );
-        let cur_time = Instant::now();
-        std::thread::scope(|s| {
-            let pending_tasks = FuturesUnordered::new();
-            // Shard the object IDs into different ranges so that we can process them in
-            // parallel. We divide the range into 2^BITS number of ranges. To do
-            // so we use the highest BITS bits to mark the starting/ending point
-            // of the range. For example, when BITS = 5, we divide the range
-            // into 32 ranges, and the first few ranges are: 00000000_.... to
-            // 00000111_.... 00001000_.... to 00001111_....
-            // 00010000_.... to 00010111_....
-            // and etc.
-            const BITS: u8 = 5;
-            for index in 0u8..(1 << BITS) {
-                pending_tasks.push(s.spawn(move || {
-                    let mut id_bytes = [0; ObjectID::LENGTH];
-                    id_bytes[0] = index << (8 - BITS);
-                    let start_id = ObjectID::new(id_bytes);
-
-                    id_bytes[0] |= (1 << (8 - BITS)) - 1;
-                    for element in id_bytes.iter_mut().skip(1) {
-                        *element = u8::MAX;
-                    }
-                    let end_id = ObjectID::new(id_bytes);
-
-                    info!(
-                        "[Re-accumulate] Scanning object ID range {:?}..{:?}",
-                        start_id, end_id
-                    );
-                    let mut prev = (
-                        ObjectKey::min_for_id(&ObjectID::ZERO),
-                        StoreObjectWrapper::V1(StoreObject::Deleted),
-                    );
-                    let mut object_scanned: u64 = 0;
-                    let mut wrapped_objects_to_remove = vec![];
-                    for db_result in self.perpetual_tables.objects.safe_range_iter(
-                        ObjectKey::min_for_id(&start_id)..=ObjectKey::max_for_id(&end_id),
-                    ) {
-                        match db_result {
-                            Ok((object_key, object)) => {
-                                object_scanned += 1;
-                                if object_scanned % 100000 == 0 {
-                                    info!(
-                                        "[Re-accumulate] Task {}: object scanned: {}",
-                                        index, object_scanned,
-                                    );
-                                }
-                                if matches!(prev.1.inner(), StoreObject::Wrapped)
-                                    && object_key.0 != prev.0.0
-                                {
-                                    wrapped_objects_to_remove
-                                        .push(WrappedObject::new(prev.0.0, prev.0.1));
-                                }
-
-                                prev = (object_key, object);
-                            }
-                            Err(err) => {
-                                warn!("Object iterator encounter RocksDB error {:?}", err);
-                                return Err(err);
-                            }
-                        }
-                    }
-                    if matches!(prev.1.inner(), StoreObject::Wrapped) {
-                        wrapped_objects_to_remove.push(WrappedObject::new(prev.0.0, prev.0.1));
-                    }
-                    info!(
-                        "[Re-accumulate] Task {}: object scanned: {}, wrapped objects: {}",
-                        index,
-                        object_scanned,
-                        wrapped_objects_to_remove.len(),
-                    );
-                    Ok((wrapped_objects_to_remove, object_scanned))
-                }));
-            }
-            let (last_checkpoint_of_epoch, cur_accumulator) = self
-                .get_root_state_accumulator_for_epoch(cur_epoch_store.epoch())
-                .expect("read cannot fail")
-                .expect("accumulator must exist");
-            let (accumulator, total_objects_scanned, total_wrapped_objects) =
-                pending_tasks.into_iter().fold(
-                    (cur_accumulator, 0u64, 0usize),
-                    |(mut accumulator, total_objects_scanned, total_wrapped_objects), task| {
-                        let (wrapped_objects_to_remove, object_scanned) =
-                            task.join().unwrap().unwrap();
-                        accumulator.remove_all(
-                            wrapped_objects_to_remove
-                                .iter()
-                                .map(|wrapped| bcs::to_bytes(wrapped).unwrap().to_vec())
-                                .collect::<Vec<Vec<u8>>>(),
-                        );
-                        (
-                            accumulator,
-                            total_objects_scanned + object_scanned,
-                            total_wrapped_objects + wrapped_objects_to_remove.len(),
-                        )
-                    },
-                );
-            info!(
-                "[Re-accumulate] Total objects scanned: {}, total wrapped objects: {}",
-                total_objects_scanned, total_wrapped_objects,
-            );
-            info!(
-                "[Re-accumulate] New accumulator value: {:?}",
-                accumulator.digest()
-            );
-            self.insert_state_accumulator_for_epoch(
-                cur_epoch_store.epoch(),
-                &last_checkpoint_of_epoch,
-                &accumulator,
-            )
-            .unwrap();
-        });
-        info!(
-            "[Re-accumulate] Re-accumulating took {}seconds",
-            cur_time.elapsed().as_secs()
-        );
-    }
-
     pub async fn prune_objects_and_compact_for_testing(
         &self,
         checkpoint_store: &Arc<CheckpointStore>,
@@ -1976,14 +1863,6 @@ impl AuthorityStore {
 }
 
 impl AccumulatorStore for AuthorityStore {
-    fn get_object_ref_prior_to_key_deprecated(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> IotaResult<Option<ObjectRef>> {
-        self.get_object_ref_prior_to_key(object_id, version)
-    }
-
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
@@ -2021,14 +1900,8 @@ impl AccumulatorStore for AuthorityStore {
         Ok(())
     }
 
-    fn iter_live_object_set(
-        &self,
-        include_wrapped_object: bool,
-    ) -> Box<dyn Iterator<Item = LiveObject> + '_> {
-        Box::new(
-            self.perpetual_tables
-                .iter_live_object_set(include_wrapped_object),
-        )
+    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+        Box::new(self.perpetual_tables.iter_live_object_set())
     }
 }
 

@@ -5,12 +5,12 @@
 import { Text } from '_app/shared/text';
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
 import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
-import { Feature } from '_src/shared/experimentation/features';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
 import { toast } from 'react-hot-toast';
 import {
+    Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
     filterAndSortTokenBalances,

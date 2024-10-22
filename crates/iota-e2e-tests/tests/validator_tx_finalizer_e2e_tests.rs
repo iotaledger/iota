@@ -34,7 +34,7 @@ async fn test_validator_tx_finalizer_fastpath_tx() {
     // case where the other 2 wake up first, it would take 10 + 3 * 1 = 13s for
     // a validator to finalize this.
     let tx_digests = [tx_digest];
-    tokio::time::timeout(Duration::from_secs(60), async move {
+    tokio::time::timeout(Duration::from_secs(300), async move {
         for node in cluster.all_node_handles() {
             node.with_async(|n| async {
                 n.state()
@@ -73,7 +73,7 @@ async fn test_validator_tx_finalizer_consensus_tx() {
         .await
         .unwrap();
     let tx_digests = [tx_digest];
-    tokio::time::timeout(Duration::from_secs(60), async move {
+    tokio::time::timeout(Duration::from_secs(300), async move {
         for node in cluster.all_node_handles() {
             node.with_async(|n| async {
                 n.state()

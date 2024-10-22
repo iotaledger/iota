@@ -9,8 +9,8 @@ use fastcrypto::{
     traits::KeyPair,
 };
 use iota_config::{
-    AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, ConsensusConfig, FULL_NODE_DB_PATH, NodeConfig,
-    local_ip_utils,
+    AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, ConsensusConfig, FULL_NODE_DB_PATH,
+    IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, NodeConfig, local_ip_utils,
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
@@ -126,10 +126,11 @@ impl ValidatorConfigBuilder {
         let config_directory = self
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
+        let migration_tx_data_path =
+            Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
         let db_path = config_directory
             .join(AUTHORITIES_DB_NAME)
             .join(key_path.clone());
-
         let network_address = validator.network_address;
         let consensus_address = validator.consensus_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
@@ -190,6 +191,7 @@ impl ValidatorConfigBuilder {
             remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis: iota_config::node::Genesis::new_empty(),
+            migration_tx_data_path,
             grpc_load_shed: None,
             grpc_concurrency_limit: Some(DEFAULT_GRPC_CONCURRENCY_LIMIT),
             p2p_config,
@@ -225,7 +227,6 @@ impl ValidatorConfigBuilder {
             firewall_config: self.firewall_config,
             execution_cache: ExecutionCacheConfig::default(),
             state_accumulator_v2: self.state_accumulator_v2,
-            enable_soft_bundle: true,
             enable_validator_tx_finalizer: true,
         }
     }
@@ -405,6 +406,9 @@ impl FullnodeConfigBuilder {
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
 
+        let migration_tx_data_path =
+            Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
+
         let p2p_config = {
             let seed_peers = validator_configs
                 .iter()
@@ -478,6 +482,7 @@ impl FullnodeConfigBuilder {
             remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis,
+            migration_tx_data_path,
             grpc_load_shed: None,
             grpc_concurrency_limit: None,
             p2p_config,
@@ -511,7 +516,6 @@ impl FullnodeConfigBuilder {
             firewall_config: self.fw_config,
             execution_cache: ExecutionCacheConfig::default(),
             state_accumulator_v2: true,
-            enable_soft_bundle: true,
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
         }

@@ -3,17 +3,17 @@ processed 17 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-9:
+task 1, lines 7-10:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5076800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 11:
+task 2, line 12:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 3, lines 13-50:
+task 3, lines 14-51:
 //# run-graphql
 Response: {
   "data": {
@@ -31,14 +31,14 @@ Response: {
       "packageVersions": {
         "nodes": [
           {
-            "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+            "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
             "version": 1
           }
         ]
       }
     },
     "firstPackage": {
-      "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+      "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
       "version": 1,
       "module": {
         "functions": {
@@ -52,7 +52,7 @@ Response: {
       "packageVersions": {
         "nodes": [
           {
-            "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+            "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
             "version": 1
           }
         ]
@@ -73,11 +73,19 @@ Response: {
           "version": 1
         },
         {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000000b",
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+          "version": 1
+        },
+        {
           "address": "0x000000000000000000000000000000000000000000000000000000000000dee9",
           "version": 1
         },
         {
-          "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+          "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
           "version": 1
         }
       ]
@@ -85,17 +93,17 @@ Response: {
   }
 }
 
-task 4, lines 52-56:
-//# upgrade --package P0 --upgrade-capability 1,1 --sender A
+task 4, lines 53-57:
+//# upgrade --package P0 --upgrade-capability 1,0 --sender A
 created: object(4,0)
-mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5251600,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+mutated: object(0,0), object(1,0)
+gas summary: computation_cost: 1000000, storage_cost: 5251600,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
-task 5, line 58:
+task 5, line 59:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 6, lines 60-97:
+task 6, lines 61-98:
 //# run-graphql
 Response: {
   "data": {
@@ -116,18 +124,18 @@ Response: {
       "packageVersions": {
         "nodes": [
           {
-            "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+            "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
             "version": 1
           },
           {
-            "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+            "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
             "version": 2
           }
         ]
       }
     },
     "firstPackage": {
-      "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+      "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
       "version": 1,
       "module": {
         "functions": {
@@ -141,11 +149,11 @@ Response: {
       "packageVersions": {
         "nodes": [
           {
-            "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+            "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
             "version": 1
           },
           {
-            "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+            "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
             "version": 2
           }
         ]
@@ -166,15 +174,23 @@ Response: {
           "version": 1
         },
         {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000000b",
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+          "version": 1
+        },
+        {
           "address": "0x000000000000000000000000000000000000000000000000000000000000dee9",
           "version": 1
         },
         {
-          "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+          "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
           "version": 1
         },
         {
-          "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+          "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
           "version": 2
         }
       ]
@@ -182,17 +198,17 @@ Response: {
   }
 }
 
-task 7, lines 99-104:
-//# upgrade --package P1 --upgrade-capability 1,1 --sender A
+task 7, lines 100-105:
+//# upgrade --package P1 --upgrade-capability 1,0 --sender A
 created: object(7,0)
-mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5426400,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+mutated: object(0,0), object(1,0)
+gas summary: computation_cost: 1000000, storage_cost: 5426400,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
-task 8, line 106:
+task 8, line 107:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 9, lines 108-145:
+task 9, lines 109-146:
 //# run-graphql
 Response: {
   "data": {
@@ -216,22 +232,22 @@ Response: {
       "packageVersions": {
         "nodes": [
           {
-            "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+            "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
             "version": 1
           },
           {
-            "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+            "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
             "version": 2
           },
           {
-            "address": "0x0eae57b7a07b0548b1f6b0c309f0692828ff994e9159b541334b25582980631c",
+            "address": "0xb8ec8aa5e86b4da9611dd516339b3a09348dacce34c0a166c999261ebf8ef34b",
             "version": 3
           }
         ]
       }
     },
     "firstPackage": {
-      "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+      "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
       "version": 1,
       "module": {
         "functions": {
@@ -245,15 +261,15 @@ Response: {
       "packageVersions": {
         "nodes": [
           {
-            "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+            "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
             "version": 1
           },
           {
-            "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+            "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
             "version": 2
           },
           {
-            "address": "0x0eae57b7a07b0548b1f6b0c309f0692828ff994e9159b541334b25582980631c",
+            "address": "0xb8ec8aa5e86b4da9611dd516339b3a09348dacce34c0a166c999261ebf8ef34b",
             "version": 3
           }
         ]
@@ -274,19 +290,27 @@ Response: {
           "version": 1
         },
         {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000000b",
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+          "version": 1
+        },
+        {
           "address": "0x000000000000000000000000000000000000000000000000000000000000dee9",
           "version": 1
         },
         {
-          "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+          "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
           "version": 1
         },
         {
-          "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+          "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
           "version": 2
         },
         {
-          "address": "0x0eae57b7a07b0548b1f6b0c309f0692828ff994e9159b541334b25582980631c",
+          "address": "0xb8ec8aa5e86b4da9611dd516339b3a09348dacce34c0a166c999261ebf8ef34b",
           "version": 3
         }
       ]
@@ -294,7 +318,7 @@ Response: {
   }
 }
 
-task 10, lines 147-184:
+task 10, lines 148-185:
 //# run-graphql
 Response: {
   "data": {
@@ -394,7 +418,7 @@ Response: {
   }
 }
 
-task 11, lines 186-223:
+task 11, lines 187-224:
 //# run-graphql
 Response: {
   "data": {
@@ -485,7 +509,7 @@ Response: {
   }
 }
 
-task 12, lines 225-280:
+task 12, lines 226-281:
 //# run-graphql
 Response: {
   "data": {
@@ -624,7 +648,7 @@ Response: {
   }
 }
 
-task 13, lines 282-310:
+task 13, lines 283-311:
 //# run-graphql
 Response: {
   "data": {
@@ -637,7 +661,7 @@ Response: {
   }
 }
 
-task 14, lines 312-343:
+task 14, lines 313-344:
 //# run-graphql
 Response: {
   "data": {
@@ -677,6 +701,28 @@ Response: {
           }
         },
         {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000000b",
+          "version": 1,
+          "previousTransactionBlock": {
+            "effects": {
+              "checkpoint": {
+                "sequenceNumber": 0
+              }
+            }
+          }
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+          "version": 1,
+          "previousTransactionBlock": {
+            "effects": {
+              "checkpoint": {
+                "sequenceNumber": 0
+              }
+            }
+          }
+        },
+        {
           "address": "0x000000000000000000000000000000000000000000000000000000000000dee9",
           "version": 1,
           "previousTransactionBlock": {
@@ -692,7 +738,7 @@ Response: {
     "after": {
       "nodes": [
         {
-          "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+          "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
           "version": 2,
           "previousTransactionBlock": {
             "effects": {
@@ -703,7 +749,7 @@ Response: {
           }
         },
         {
-          "address": "0x0eae57b7a07b0548b1f6b0c309f0692828ff994e9159b541334b25582980631c",
+          "address": "0xb8ec8aa5e86b4da9611dd516339b3a09348dacce34c0a166c999261ebf8ef34b",
           "version": 3,
           "previousTransactionBlock": {
             "effects": {
@@ -718,7 +764,7 @@ Response: {
     "between": {
       "nodes": [
         {
-          "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+          "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
           "version": 2,
           "previousTransactionBlock": {
             "effects": {
@@ -733,22 +779,22 @@ Response: {
   }
 }
 
-task 15, lines 345-380:
+task 15, lines 346-381:
 //# run-graphql
 Response: {
   "data": {
     "packageVersions": {
       "nodes": [
         {
-          "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+          "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
           "version": 1
         },
         {
-          "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+          "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
           "version": 2
         },
         {
-          "address": "0x0eae57b7a07b0548b1f6b0c309f0692828ff994e9159b541334b25582980631c",
+          "address": "0xb8ec8aa5e86b4da9611dd516339b3a09348dacce34c0a166c999261ebf8ef34b",
           "version": 3
         }
       ]
@@ -756,11 +802,11 @@ Response: {
     "after": {
       "nodes": [
         {
-          "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+          "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
           "version": 2
         },
         {
-          "address": "0x0eae57b7a07b0548b1f6b0c309f0692828ff994e9159b541334b25582980631c",
+          "address": "0xb8ec8aa5e86b4da9611dd516339b3a09348dacce34c0a166c999261ebf8ef34b",
           "version": 3
         }
       ]
@@ -768,11 +814,11 @@ Response: {
     "before": {
       "nodes": [
         {
-          "address": "0x175ae86f2df1eb652d57fbe9e44c7f2d67870d2b6776a4356f30930221b63b88",
+          "address": "0xceda307c0238f9d50ba682920204c5a4cfaca5da5131cfbb1f83c0e55cf8b8a2",
           "version": 1
         },
         {
-          "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+          "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
           "version": 2
         }
       ]
@@ -780,7 +826,7 @@ Response: {
     "between": {
       "nodes": [
         {
-          "address": "0x351bc614b36f0f522a64334e4c278d4bfe200234958870c084e0a005f041d681",
+          "address": "0xbc3fd2ca2e3aef63ba1d0f080baca3c715a9dc79d0fa5565a616ddd1feb89e4f",
           "version": 2
         }
       ]
@@ -788,7 +834,7 @@ Response: {
   }
 }
 
-task 16, lines 382-400:
+task 16, lines 383-401:
 //# run-graphql
 Response: {
   "data": {

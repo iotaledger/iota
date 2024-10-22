@@ -90,7 +90,7 @@ pub fn get_available_port(host: &str) -> u16 {
     }
 
     panic!(
-        "Error: could not find an available port on {}: {:?}",
+        "error: could not find an available port on {}: {:?}",
         host,
         get_ephemeral_port(host)
     );

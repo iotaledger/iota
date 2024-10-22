@@ -9,15 +9,18 @@ use std::{
     time::Duration,
 };
 
+use fastcrypto::traits::KeyPair;
 use iota_config::{
+    IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
     node::AuthorityOverloadConfig,
 };
+use iota_genesis_builder::genesis_build_effects::GenesisBuildEffects;
 use iota_macros::nondeterministic;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
     committee::{Committee, ProtocolVersion},
-    crypto::{AccountKeyPair, KeypairTraits, PublicKey, get_key_pair_from_rng},
+    crypto::{AccountKeyPair, AuthorityKeyPair, PublicKey, get_key_pair_from_rng},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -36,6 +39,7 @@ use crate::{
 pub enum CommitteeConfig {
     Size(NonZeroUsize),
     Validators(Vec<ValidatorGenesisConfig>),
+    AuthorityKeys(Vec<AuthorityKeyPair>),
     AccountKeys(Vec<AccountKeyPair>),
     /// Indicates that a committee should be deterministically generated, using
     /// the provided rng as a source of randomness as well as generating
@@ -153,7 +157,10 @@ impl<R> ConfigBuilder<R> {
         self.committee = CommitteeConfig::Validators(validators);
         self
     }
-
+    pub fn with_validator_authority_keys(mut self, authority_keys: Vec<AuthorityKeyPair>) -> Self {
+        self.committee = CommitteeConfig::AuthorityKeys(authority_keys);
+        self
+    }
     pub fn with_genesis_config(mut self, genesis_config: GenesisConfig) -> Self {
         assert!(self.genesis_config.is_none(), "Genesis config already set");
         self.genesis_config = Some(genesis_config);
@@ -348,6 +355,18 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
             CommitteeConfig::Validators(v) => v,
 
+            CommitteeConfig::AuthorityKeys(keys) => keys
+                .into_iter()
+                .map(|authority_key| {
+                    let mut builder =
+                        ValidatorGenesisConfigBuilder::new().with_protocol_key_pair(authority_key);
+                    if let Some(rgp) = self.reference_gas_price {
+                        builder = builder.with_gas_price(rgp);
+                    }
+                    builder.build(&mut rng)
+                })
+                .collect::<Vec<_>>(),
+
             CommitteeConfig::AccountKeys(keys) => {
                 // See above re fixed protocol keys
                 let (_, protocol_keys) = Committee::new_simple_test_committee_of_size(keys.len());
@@ -422,7 +441,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder.build()
         };
 
-        let genesis = {
+        let GenesisBuildEffects {
+            genesis,
+            migration_tx_data,
+        } = {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
@@ -448,6 +470,15 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
             builder.build()
         };
+
+        if let Some(migration_tx_data) = migration_tx_data {
+            migration_tx_data
+                .save(
+                    self.config_directory
+                        .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
+                )
+                .expect("Should be able to save the migration data");
+        }
 
         let validator_configs = validators
             .into_iter()

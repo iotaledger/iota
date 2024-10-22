@@ -1,15 +1,15 @@
 [package]
 name = "iota-analytics-indexer"
 version.workspace = true
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
 anyhow.workspace = true
-arrow.workspace = true
-arrow-array.workspace = true
+arrow = "53.1"
+arrow-array = "53.1"
 async-trait.workspace = true
 axum.workspace = true
 bcs.workspace = true

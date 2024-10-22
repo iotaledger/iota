@@ -234,7 +234,7 @@ module iota_system::validator {
             EValidatorMetadataExceedingLengthLimit
         );
         assert!(commission_rate <= MAX_COMMISSION_RATE, ECommissionRateTooHigh);
-        assert!(gas_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(gas_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
 
         let metadata = new_metadata(
             iota_address,
@@ -379,7 +379,7 @@ module iota_system::validator {
         verified_cap: ValidatorOperationCap,
         new_price: u64,
     ) {
-        assert!(new_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
         let validator_address = *verified_cap.verified_operation_cap_address();
         assert!(validator_address == self.metadata.iota_address, EInvalidCap);
         self.next_epoch_gas_price = new_price;
@@ -392,7 +392,7 @@ module iota_system::validator {
         new_price: u64
     ) {
         assert!(is_preactive(self), ENotValidatorCandidate);
-        assert!(new_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
         let validator_address = *verified_cap.verified_operation_cap_address();
         assert!(validator_address == self.metadata.iota_address, EInvalidCap);
         self.next_epoch_gas_price = new_price;

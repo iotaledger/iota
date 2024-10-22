@@ -15,7 +15,7 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
         gas::{self, GasCostSummary, IotaGasStatusAPI},
         gas_model::{
-            gas_predicates::{cost_table_for_version, txn_base_cost_as_multiplier},
+            gas_predicates::cost_table_for_version,
             tables::{GasStatus, ZERO_COST_SCHEDULE},
             units_types::CostTable,
         },
@@ -122,11 +122,7 @@ mod checked {
         pub(crate) fn new(c: &ProtocolConfig, gas_price: u64) -> Self {
             // gas_price here is the Reference Gas Price, however we may decide
             // to change it to be the price passed in the transaction
-            let min_transaction_cost = if txn_base_cost_as_multiplier(c) {
-                c.base_tx_cost_fixed() * gas_price
-            } else {
-                c.base_tx_cost_fixed()
-            };
+            let min_transaction_cost = c.base_tx_cost_fixed() * gas_price;
             Self {
                 min_transaction_cost,
                 max_gas_budget: c.max_tx_gas(),

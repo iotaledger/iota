@@ -21,7 +21,7 @@ use iota_types::{
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
-    deny_list_v1::{PerTypeDenyList, get_coin_deny_list},
+    deny_list_v2::get_deny_list_root_object,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
@@ -162,6 +162,10 @@ impl Genesis {
             .expect("Iota System State Wrapper object must always exist")
     }
 
+    pub fn contains_migrations(&self) -> bool {
+        self.checkpoint_contents.size() > 1
+    }
+
     pub fn iota_system_object(&self) -> IotaSystemState {
         get_iota_system_state(&self.objects()).expect("Iota System State object must always exist")
     }
@@ -171,29 +175,29 @@ impl Genesis {
             .objects()
             .iter()
             .find(|o| o.id() == iota_types::IOTA_CLOCK_OBJECT_ID)
-            .expect("Clock must always exist")
+            .expect("clock must always exist")
             .data
             .try_as_move()
-            .expect("Clock must be a Move object");
+            .expect("clock must be a Move object");
         bcs::from_bytes::<Clock>(clock.contents())
-            .expect("Clock object deserialization cannot fail")
+            .expect("clock object deserialization cannot fail")
     }
 
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
-        trace!("Reading Genesis from {}", path.display());
+        trace!("reading Genesis from {}", path.display());
         let read = File::open(path)
-            .with_context(|| format!("Unable to load Genesis from {}", path.display()))?;
+            .with_context(|| format!("unable to load Genesis from {}", path.display()))?;
         bcs::from_reader(BufReader::new(read))
-            .with_context(|| format!("Unable to parse Genesis from {}", path.display()))
+            .with_context(|| format!("unable to parse Genesis from {}", path.display()))
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
-        trace!("Writing Genesis to {}", path.display());
+        trace!("writing Genesis to {}", path.display());
         let mut write = BufWriter::new(File::create(path)?);
         bcs::serialize_into(&mut write, &self)
-            .with_context(|| format!("Unable to save Genesis to {}", path.display()))?;
+            .with_context(|| format!("unable to save Genesis to {}", path.display()))?;
         Ok(())
     }
 
@@ -342,8 +346,8 @@ impl UnsignedGenesis {
             .is_some()
     }
 
-    pub fn coin_deny_list_state(&self) -> Option<PerTypeDenyList> {
-        get_coin_deny_list(&self.objects())
+    pub fn has_coin_deny_list_object(&self) -> bool {
+        get_deny_list_root_object(&self.objects()).is_some()
     }
 }
 
@@ -527,11 +531,11 @@ impl TokenDistributionSchedule {
         assert_eq!(
             IotaAddress::default(),
             pre_minted_supply.recipient_address,
-            "Final allocation must be for the pre-minted supply amount",
+            "final allocation must be for the pre-minted supply amount",
         );
         assert!(
             pre_minted_supply.staked_with_validator.is_none(),
-            "Can't stake the pre-minted supply amount",
+            "cannot stake the pre-minted supply amount",
         );
 
         let schedule = Self {
