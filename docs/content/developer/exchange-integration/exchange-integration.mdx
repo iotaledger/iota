@@ -122,16 +122,6 @@ The response is a JSON object that includes the `totalBalance` for the address:
 }
 ```
 
-For another token, like SMR, you can pass the Coin Type as an additional argument:
-
-```bash
-rpc="https://fullnode.devnet.iota.org:443"
-address="0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3"
-coin="0x2::smr::SMR"
-data="{\"jsonrpc\": \"2.0\", \"method\": \"iotax_getBalance\", \"id\": 1, \"params\": [\"$address\", \"$coin\"]}"
-curl -X POST -H 'Content-type: application/json' --data-raw "$data" $rpc
-```
-
 ### Using Rust
 
 <AlphaNet />
@@ -168,8 +158,6 @@ const MY_ADDRESS = '0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c66
 
 const balance = await iotaClient.getBalance({
     owner: MY_ADDRESS,
-   // Optional CoinType can be added for other coins besides IOTA:
-   //coinType: "0x2::smr::SMR"
 });
 
 console.log('Balance in Nano (1_000_000_000 Nano = 1 IOTA): ', balance.totalBalance);
@@ -235,7 +223,7 @@ IOTA supports the following API operations related to transferring IOTA between 
    The benefits of this method include: no gas fees for merging or splitting tokens, and the abstracted token merge and split. The `unsafe_payIota` operation is a native function, so the merge and split operations are not considered IOTA transactions. The gas fees for them match typical transactions on IOTA. You can use this operation to split coins in your own address by setting the recipient as your own address. Note that the total value of the input coins must be greater than the total value of the amounts to send.
 
  - [unsafe_pay](/iota-api-ref#unsafe_pay)
-   This method is similar to `unsafe_payIota`, but it accepts any kind of coin or token instead of only IOTA (for example, SMR). You must include a IOTA gas token, and all of the coins or tokens must be the same type.
+   This method is similar to `unsafe_payIota`, but it accepts any kind of coin or token instead of only IOTA. You must include a IOTA gas token, and all of the coins or tokens must be the same type.
 
  - [unsafe_transferIota](/iota-api-ref#unsafe_transferiota)
     This method accepts only one IOTA token object and an amount to send to the recipient. It uses the same token for gas fees, so the amount to transfer must be strictly less than the value of the IOTA token used.

@@ -9,9 +9,8 @@ use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, dbg_addr},
     crypto::{AccountKeyPair, get_account_key_pair},
-    deny_list_v1::{CoinDenyCap, RegulatedCoinMetadata},
     deny_list_v2::{
-        DenyCapV2, check_address_denied_by_config, check_global_pause,
+        DenyCapV2, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
         get_per_type_coin_deny_list_v2,
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -28,57 +27,6 @@ use crate::authority::{
     move_integration_tests::build_and_try_publish_test_package,
     test_authority_builder::TestAuthorityBuilder,
 };
-
-// Test that a regulated coin can be created and all the necessary objects are
-// created with the right types. Make sure that these types can be converted to
-// Rust types.
-#[tokio::test]
-async fn test_regulated_coin_v1_creation() {
-    let env = new_authority_and_publish("coin_deny_list_v1").await;
-
-    let mut deny_cap_object = None;
-    let mut metadata_object = None;
-    let mut regulated_metadata_object = None;
-    for (oref, _owner) in env.publish_effects.created() {
-        let object = env.authority.get_object(&oref.0).await.unwrap().unwrap();
-        if object.is_package() {
-            continue;
-        }
-        let t = object.type_().unwrap();
-        if t.is_coin_deny_cap() {
-            assert!(deny_cap_object.is_none());
-            deny_cap_object = Some(object);
-        } else if t.is_regulated_coin_metadata() {
-            assert!(regulated_metadata_object.is_none());
-            regulated_metadata_object = Some(object);
-        } else if t.is_coin_metadata() {
-            assert!(metadata_object.is_none());
-            metadata_object = Some(object);
-        }
-    }
-    // Check that publishing the package created
-    // the metadata, deny cap, and regulated metadata.
-    // Check that all their fields are consistent.
-    let metadata_object = metadata_object.unwrap();
-    let deny_cap_object = deny_cap_object.unwrap();
-    let deny_cap: CoinDenyCap = deny_cap_object.to_rust().unwrap();
-    assert_eq!(deny_cap.id.id.bytes, deny_cap_object.id());
-
-    let regulated_metadata_object = regulated_metadata_object.unwrap();
-    let regulated_metadata: RegulatedCoinMetadata = regulated_metadata_object.to_rust().unwrap();
-    assert_eq!(
-        regulated_metadata.id.id.bytes,
-        regulated_metadata_object.id()
-    );
-    assert_eq!(
-        regulated_metadata.deny_cap_object.bytes,
-        deny_cap_object.id()
-    );
-    assert_eq!(
-        regulated_metadata.coin_metadata_object.bytes,
-        metadata_object.id()
-    );
-}
 
 // Test that a v2 regulated coin can be created and all the necessary objects
 // are created with the right types. Also test that we could create the deny

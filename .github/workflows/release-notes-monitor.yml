@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout iota repo develop branch
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
         with:
           fetch-depth: 0
           ref: develop
@@ -46,7 +46,7 @@ jobs:
 
   process-prs:
     name: Processing PR
-    needs: [get-list-of-prs]
+    needs: get-list-of-prs
     if: needs.get-list-of-prs.outputs.matrix != '[]' && needs.get-list-of-prs.outputs.matrix != ''
     runs-on: self-hosted
     strategy:
@@ -63,7 +63,7 @@ jobs:
           echo "release_notes=${rel_notes}" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # pin v4.0.2
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # pin@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -102,10 +102,9 @@ jobs:
 
   tag:
     name: Adding git tag to processed commit
-    runs-on: self-hosted
-    needs: [get-list-of-prs]
+    needs: get-list-of-prs
     if: success() && needs.get-list-of-prs.outputs.existing_commit_tag == ''
-    uses: iotaledger/iota/.github/workflows/tag.yml@main
+    uses: ./.github/workflows/tag.yml
     with:
       iota_commit: ${{ needs.get-list-of-prs.outputs.new_commit_hash }}
       tag_name: ${{ needs.get-list-of-prs.outputs.new_tag }}

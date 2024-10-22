@@ -20,7 +20,7 @@ use iota_types::{
     authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME,
     bridge::BRIDGE_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
-    deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+    deny_list_v2::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
     id::OBJECT_MODULE_NAME,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,

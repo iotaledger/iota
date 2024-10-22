@@ -1824,6 +1824,7 @@
         "type": "object",
         "required": [
           "epoch_commitments",
+          "epoch_supply_change",
           "next_epoch_committee",
           "next_epoch_protocol_version"
         ],
@@ -1834,6 +1835,11 @@
             "items": {
               "$ref": "#/components/schemas/CheckpointCommitment"
             }
+          },
+          "epoch_supply_change": {
+            "description": "The number of tokens that were minted (if positive) or burnt (if negative) in this epoch.",
+            "type": "integer",
+            "format": "int64"
           },
           "next_epoch_committee": {
             "description": "next_epoch_committee is `Some` if and only if the current checkpoint is the last checkpoint of an epoch. Therefore next_epoch_committee can be used to pick the last checkpoint of an epoch, which is often useful to get epoch level summary stats like total gas cost of an epoch, or the total number of transactions from genesis to the end of an epoch. The committee is stored as a vector of validator pub key and stake pairs. The vector should be sorted based on the Committee data structure.",
@@ -1953,34 +1959,6 @@
                 "description": "expire JWKs that have a lower epoch than this",
                 "type": "string",
                 "format": "u64"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "kind"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "randomness_state_create"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "kind"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "deny_list_state_create"
-                ]
               }
             }
           },
@@ -4572,70 +4550,6 @@
           {
             "type": "object",
             "required": [
-              "computation_charge",
-              "epoch",
-              "epoch_start_timestamp_ms",
-              "kind",
-              "non_refundable_storage_fee",
-              "protocol_version",
-              "storage_charge",
-              "storage_rebate",
-              "system_packages"
-            ],
-            "properties": {
-              "computation_charge": {
-                "description": "The total amount of gas charged for computation during the epoch.",
-                "type": "string",
-                "format": "u64"
-              },
-              "epoch": {
-                "description": "The next (to become) epoch ID.",
-                "type": "string",
-                "format": "u64"
-              },
-              "epoch_start_timestamp_ms": {
-                "description": "Unix timestamp when epoch started",
-                "type": "string",
-                "format": "u64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "change_epoch"
-                ]
-              },
-              "non_refundable_storage_fee": {
-                "description": "The non-refundable storage fee.",
-                "type": "string",
-                "format": "u64"
-              },
-              "protocol_version": {
-                "description": "The protocol version in effect in the new epoch.",
-                "type": "string",
-                "format": "u64"
-              },
-              "storage_charge": {
-                "description": "The total amount of gas charged for storage during the epoch.",
-                "type": "string",
-                "format": "u64"
-              },
-              "storage_rebate": {
-                "description": "The amount of storage rebate refunded to the txn senders.",
-                "type": "string",
-                "format": "u64"
-              },
-              "system_packages": {
-                "description": "System packages (specifically framework and move stdlib) that are written before the new epoch starts. This tracks framework upgrades on chain. When executing the ChangeEpoch txn, the validator must write out the modules below.  Modules are provided with the version they will be upgraded to, their modules in serialized form (which include their package ID), and a list of their transitive dependencies.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SystemPackage"
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
               "kind",
               "objects"
             ],
@@ -4655,10 +4569,11 @@
             }
           },
           {
-            "description": "Only commit_timestamp_ms is passed to the move call currently. However we include epoch and round to make sure each ConsensusCommitPrologue has a unique tx digest.",
             "type": "object",
             "required": [
               "commit_timestamp_ms",
+              "consensus_commit_digest",
+              "consensus_determined_version_assignments",
               "epoch",
               "kind",
               "round"
@@ -4669,6 +4584,22 @@
                 "type": "string",
                 "format": "u64"
               },
+              "consensus_commit_digest": {
+                "description": "Digest of consensus output",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ConsensusCommitDigest"
+                  }
+                ]
+              },
+              "consensus_determined_version_assignments": {
+                "description": "Stores consensus handler determined shared object version assignments.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
+                  }
+                ]
+              },
               "epoch": {
                 "description": "Epoch of the commit prologue transaction",
                 "type": "string",
@@ -4677,11 +4608,16 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "consensus_commit_prologue"
+                  "consensus_commit_prologue_v1"
                 ]
               },
               "round": {
                 "description": "Consensus round of the commit",
+                "type": "string",
+                "format": "u64"
+              },
+              "sub_dag_index": {
+                "description": "The sub DAG index of the consensus commit. This field will be populated if there are multiple consensus commits per round.",
                 "type": "string",
                 "format": "u64"
               }
@@ -4781,102 +4717,6 @@
               },
               "randomness_round": {
                 "description": "Randomness round of the update",
-                "type": "string",
-                "format": "u64"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "commit_timestamp_ms",
-              "consensus_commit_digest",
-              "epoch",
-              "kind",
-              "round"
-            ],
-            "properties": {
-              "commit_timestamp_ms": {
-                "description": "Unix timestamp from consensus",
-                "type": "string",
-                "format": "u64"
-              },
-              "consensus_commit_digest": {
-                "description": "Digest of consensus output",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/ConsensusCommitDigest"
-                  }
-                ]
-              },
-              "epoch": {
-                "description": "Epoch of the commit prologue transaction",
-                "type": "string",
-                "format": "u64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "consensus_commit_prologue_v2"
-                ]
-              },
-              "round": {
-                "description": "Consensus round of the commit",
-                "type": "string",
-                "format": "u64"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "commit_timestamp_ms",
-              "consensus_commit_digest",
-              "consensus_determined_version_assignments",
-              "epoch",
-              "kind",
-              "round"
-            ],
-            "properties": {
-              "commit_timestamp_ms": {
-                "description": "Unix timestamp from consensus",
-                "type": "string",
-                "format": "u64"
-              },
-              "consensus_commit_digest": {
-                "description": "Digest of consensus output",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/ConsensusCommitDigest"
-                  }
-                ]
-              },
-              "consensus_determined_version_assignments": {
-                "description": "Stores consensus handler determined shared object version assignments.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
-                  }
-                ]
-              },
-              "epoch": {
-                "description": "Epoch of the commit prologue transaction",
-                "type": "string",
-                "format": "u64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "consensus_commit_prologue_v1"
-                ]
-              },
-              "round": {
-                "description": "Consensus round of the commit",
-                "type": "string",
-                "format": "u64"
-              },
-              "sub_dag_index": {
-                "description": "The sub DAG index of the consensus commit. This field will be populated if there are multiple consensus commits per round.",
                 "type": "string",
                 "format": "u64"
               }
@@ -5207,11 +5047,6 @@
                     "$ref": "#/components/schemas/MultisigCommittee"
                   }
                 ]
-              },
-              "legacy_bitmap": {
-                "description": "Legacy encoding for the bitmap.",
-                "type": "string",
-                "format": "base64"
               },
               "scheme": {
                 "type": "string",

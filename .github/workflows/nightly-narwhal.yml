@@ -33,11 +33,12 @@ jobs:
     name: Narwhal run long-running end-to-end tests
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       - uses: taiki-e/install-action@nextest
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
       # 'librocksdb-sys' src directory which is managed by cargo
-      - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
+      # Fork of 'Swatinem/rust-cache' which allows caching additional paths
+      - uses: bmwill/rust-cache@fb63fcd7a959767755b88b5af2f5cbf65fb8a127 # pin@v1
         with:
           path: ~/.cargo/registry/src/**/librocksdb-sys-*
       # We run only the integration tests that are ignored under the primary package.
