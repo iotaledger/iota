@@ -7,7 +7,7 @@ import { PlaceholderTable, TableCard } from '~/components/ui';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Panel, Title } from '@iota/apps-ui-kit';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 const NUMBER_OF_VALIDATORS = 10;
 
@@ -33,7 +33,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
             <InfoBox
                 title="Failed loading data"
                 supportingText="Validator data could not be loaded"
-                icon={<Info />}
+                icon={<Warning />}
                 type={InfoBoxType.Error}
                 style={InfoBoxStyle.Elevated}
             />

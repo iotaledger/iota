@@ -11,7 +11,7 @@ import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 const getAtRiskRemainingEpochs = (
     data: IotaSystemStateSummary | undefined,
@@ -66,7 +66,7 @@ function ValidatorDetails(): JSX.Element {
                         <InfoBox
                             title="Failed to load validator data"
                             supportingText={`No validator data found for ${id}`}
-                            icon={<Info />}
+                            icon={<Warning />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}
                         />
@@ -104,7 +104,7 @@ function ValidatorDetails(): JSX.Element {
                             }`}
                             supportingText="Staked IOTA is below the minimum IOTA stake threshold to remain
                                     a validator."
-                            icon={<Info />}
+                            icon={<Warning />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}
                         />

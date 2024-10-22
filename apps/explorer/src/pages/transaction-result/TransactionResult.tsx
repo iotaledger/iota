@@ -9,7 +9,7 @@ import { PageLayout } from '~/components';
 import { PageHeader } from '~/components/ui';
 import { TransactionView } from './TransactionView';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 interface TransactionResultPageHeaderProps {
     transaction?: IotaTransactionBlockResponse;
@@ -70,7 +70,7 @@ export default function TransactionResult(): JSX.Element {
                                     ? "Can't search for a transaction without a digest"
                                     : `Data could not be extracted for the following specified transaction ID: ${id}`
                             }
-                            icon={<Info />}
+                            icon={<Warning />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}
                         />

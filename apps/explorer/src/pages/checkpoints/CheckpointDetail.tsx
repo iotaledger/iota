@@ -24,7 +24,7 @@ import {
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 enum FeesTabs {
     GasAndStorageFees = 'gas-and-storage-fees',
@@ -71,7 +71,7 @@ export default function CheckpointDetail(): JSX.Element {
                     <InfoBox
                         title="Failed to load checkpoint data"
                         supportingText={`There was an issue retrieving data for checkpoint: ${id}`}
-                        icon={<Info />}
+                        icon={<Warning />}
                         type={InfoBoxType.Error}
                         style={InfoBoxStyle.Elevated}
                     />

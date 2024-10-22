@@ -11,7 +11,7 @@ import { translate, type DataType } from './ObjectResultType';
 import PkgView from './views/PkgView';
 import { TokenView } from './views/TokenView';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 
@@ -50,7 +50,7 @@ export function ObjectResult(): JSX.Element {
                         <InfoBox
                             title="Error extracting data"
                             supportingText={`Data could not be extracted on the following specified object ID: ${objID}`}
-                            icon={<Info />}
+                            icon={<Warning />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}
                         />

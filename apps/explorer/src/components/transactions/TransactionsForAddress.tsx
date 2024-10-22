@@ -5,7 +5,7 @@
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useIotaClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { TableCard } from '~/components/ui';
 import { generateTransactionsTableColumns } from '~/lib/ui';
@@ -41,7 +41,7 @@ export function TransactionsForAddressTable({
             <InfoBox
                 title="Failed to extract transactions"
                 supportingText={`Transactions could not be extracted on the following specified address: ${address}`}
-                icon={<Info />}
+                icon={<Warning />}
                 type={InfoBoxType.Error}
                 style={InfoBoxStyle.Elevated}
             />

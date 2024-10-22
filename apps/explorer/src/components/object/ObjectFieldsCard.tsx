@@ -24,7 +24,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 const DEFAULT_OPEN_FIELDS = 3;
 const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
@@ -96,7 +96,7 @@ export function ObjectFieldsCard({
             <InfoBox
                 title="Error loading data"
                 supportingText={`Failed to get field data for ${id}`}
-                icon={<Info />}
+                icon={<Warning />}
                 type={InfoBoxType.Error}
                 style={InfoBoxStyle.Elevated}
             />

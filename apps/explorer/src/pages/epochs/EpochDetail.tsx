@@ -27,7 +27,7 @@ import cx from 'clsx';
 import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -86,7 +86,7 @@ export default function EpochDetail() {
                     <InfoBox
                         title="Failed to load epoch data"
                         supportingText={`There was an issue retrieving data for epoch ${id}`}
-                        icon={<Info />}
+                        icon={<Warning />}
                         type={InfoBoxType.Error}
                         style={InfoBoxStyle.Elevated}
                     />

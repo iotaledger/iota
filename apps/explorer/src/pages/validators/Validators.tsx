@@ -18,7 +18,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -134,7 +134,7 @@ function ValidatorPageResult(): JSX.Element {
                     <InfoBox
                         title="Failed to load data"
                         supportingText="Validator data could not be loaded"
-                        icon={<Info />}
+                        icon={<Warning />}
                         type={InfoBoxType.Error}
                         style={InfoBoxStyle.Elevated}
                     />

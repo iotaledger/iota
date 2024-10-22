@@ -7,14 +7,14 @@ import { useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 function Fallback({ error }: FallbackProps): JSX.Element {
     return (
         <InfoBox
             title="Error"
             supportingText={error.message}
-            icon={<Info />}
+            icon={<Warning />}
             type={InfoBoxType.Error}
             style={InfoBoxStyle.Elevated}
         />

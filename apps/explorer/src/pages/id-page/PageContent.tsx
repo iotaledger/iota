@@ -5,7 +5,7 @@
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 import { useGetObject } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import {
     ErrorBoundary,
@@ -135,7 +135,7 @@ export function PageContent({ address, error }: PageContentProps): JSX.Element {
             <InfoBox
                 title="Failed to load address data"
                 supportingText={`Data could not be extracted on the following specified address ID: ${address}`}
-                icon={<Info />}
+                icon={<Warning />}
                 type={InfoBoxType.Error}
                 style={InfoBoxStyle.Elevated}
             />
