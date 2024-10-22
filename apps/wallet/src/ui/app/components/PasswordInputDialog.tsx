@@ -4,7 +4,6 @@
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { Button } from '_src/ui/app/shared/ButtonUI';
-import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import classNames from 'clsx';
 import { Form, Formik } from 'formik';
@@ -12,7 +11,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
 import { ArrowLeft, ArrowRight } from '@iota/ui-icons';
-import { InputType } from '@iota/apps-ui-kit';
+import { Header, InputType } from '@iota/apps-ui-kit';
 import { PasswordInputField } from '../shared/input/password';
 
 const validation = object({
@@ -68,11 +67,7 @@ export function PasswordInputDialog({
                         'px-5 pt-10': spacing,
                     })}
                 >
-                    <div className="text-center">
-                        <Heading variant="heading1" color="gray-90" weight="bold">
-                            {title}
-                        </Heading>
-                    </div>
+                    <Header title={title} titleCentered />
                     <div className="flex-1 self-stretch">
                         <PasswordInputField
                             name="password"
