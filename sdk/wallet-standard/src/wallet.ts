@@ -38,14 +38,12 @@ export async function signAndExecuteTransaction(
     }
 
     return wallet.features['iota:signAndExecuteTransaction'].signAndExecuteTransaction(input);
-
 }
 
 export async function signTransaction(
     wallet: WalletWithFeatures<Partial<IotaWalletFeatures>>,
     input: IotaSignTransactionInput,
 ) {
-
     if (!wallet.features['iota:signTransaction']) {
         throw new Error(
             `Provided wallet (${wallet.name}) does not support the signTransaction feature.`,
