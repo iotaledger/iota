@@ -103,12 +103,10 @@ fn dev_inspect_transaction_block() {
                 .effects
                 .mutated()
                 .iter()
-                .find_map(|o| { (o.reference.object_id == obj_id).then_some(o.owner) })
+                .find_map(|obj| { (obj.reference.object_id == obj_id).then_some(obj.owner) })
                 .unwrap(),
             Owner::AddressOwner(receiver)
         );
-
-        indexer_wait_for_object(store, obj_id, seq_num).await;
 
         let actual_object_info = client
             .get_object(obj_id, Some(IotaObjectDataOptions::new().with_owner()))
@@ -160,8 +158,8 @@ fn execute_transaction_block() {
             .unwrap()
             .mutated()
             .iter()
-            .find_map(|o| {
-                (o.reference.object_id == obj_id).then_some((o.reference.version, o.owner))
+            .find_map(|obj| {
+                (obj.reference.object_id == obj_id).then_some((obj.reference.version, obj.owner))
             })
             .unwrap();
 
