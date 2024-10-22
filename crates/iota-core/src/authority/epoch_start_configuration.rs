@@ -138,7 +138,7 @@ impl fmt::Display for EpochFlag {
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[enum_dispatch(EpochStartConfigTrait)]
 pub enum EpochStartConfiguration {
-    V6(EpochStartConfigurationV6),
+    V1(EpochStartConfigurationV1),
 }
 
 impl EpochStartConfiguration {
@@ -157,7 +157,7 @@ impl EpochStartConfiguration {
         let bridge_obj_initial_shared_version =
             get_bridge_obj_initial_shared_version(object_store)?;
         let bridge_committee_initiated = is_bridge_committee_initiated(object_store)?;
-        Ok(Self::V6(EpochStartConfigurationV6 {
+        Ok(Self::V1(EpochStartConfigurationV1 {
             system_state,
             epoch_digest,
             flags: initial_epoch_flags,
@@ -173,7 +173,7 @@ impl EpochStartConfiguration {
         // We only need to implement this function for the latest version.
         // When a new version is introduced, this function should be updated.
         match self {
-            Self::V6(config) => Self::V6(EpochStartConfigurationV6 {
+            Self::V1(config) => Self::V1(EpochStartConfigurationV1 {
                 system_state: config.system_state.new_at_next_epoch_for_testing(),
                 epoch_digest: config.epoch_digest,
                 flags: config.flags.clone(),
@@ -205,7 +205,7 @@ impl EpochStartConfiguration {
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct EpochStartConfigurationV6 {
+pub struct EpochStartConfigurationV1 {
     system_state: EpochStartSystemState,
     epoch_digest: CheckpointDigest,
     flags: Vec<EpochFlag>,
@@ -217,7 +217,7 @@ pub struct EpochStartConfigurationV6 {
     bridge_committee_initiated: bool,
 }
 
-impl EpochStartConfigTrait for EpochStartConfigurationV6 {
+impl EpochStartConfigTrait for EpochStartConfigurationV1 {
     fn epoch_digest(&self) -> CheckpointDigest {
         self.epoch_digest
     }
