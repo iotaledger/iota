@@ -8,11 +8,8 @@ feature_flags:
   advance_to_highest_supported_protocol_version: true
   no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
-  shared_object_deletion: true
-  recompute_has_public_transfer_in_execution: true
   hardened_otw_check: true
   enable_poseidon: true
-  enable_coin_deny_list: true
   enable_group_ops_native_functions: true
   enable_group_ops_native_function_msm: true
   per_object_congestion_control_mode: TotalTxCount
@@ -20,7 +17,6 @@ feature_flags:
   mysticeti_leader_scoring_and_schedule: true
   enable_vdf: true
   mysticeti_num_leaders_per_round: 1
-  enable_coin_deny_list_v2: true
   passkey_auth: true
   authority_capabilities_v2: true
   rethrow_serialization_type_layout_errors: true
