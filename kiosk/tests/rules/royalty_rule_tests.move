@@ -17,7 +17,7 @@ module kiosk::royalty_rule_tests {
         let ctx = &mut ctx();
         let (policy, cap) = test::prepare(ctx);
 
-        // 0% royalty; min 0 micro
+        // 0% royalty; min 0 nano
         royalty_rule::add(&mut policy, &cap, 0, 0);
 
         let request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
@@ -36,7 +36,7 @@ module kiosk::royalty_rule_tests {
         let ctx = &mut ctx();
         let (policy, cap) = test::prepare(ctx);
 
-        // 0% royalty; min 0 micro
+        // 0% royalty; min 0 nano
         royalty_rule::add(&mut policy, &cap, 0, 0);
 
         let request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
@@ -54,7 +54,7 @@ module kiosk::royalty_rule_tests {
         let ctx = &mut ctx();
         let (policy, cap) = test::prepare(ctx);
 
-        // 1% royalty; min 0 micro
+        // 1% royalty; min 0 nano
         royalty_rule::add(&mut policy, &cap, 100, 0);
 
         let request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
@@ -72,7 +72,7 @@ module kiosk::royalty_rule_tests {
         let ctx = &mut ctx();
         let (policy, cap) = test::prepare(ctx);
 
-        // 100% royalty; min 0 micro
+        // 100% royalty; min 0 nano
         royalty_rule::add(&mut policy, &cap, 10_000, 0);
 
         let request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
@@ -90,7 +90,7 @@ module kiosk::royalty_rule_tests {
         let ctx = &mut ctx();
         let (policy, cap) = test::prepare(ctx);
 
-        // 1% royalty; min 10_000 micro
+        // 1% royalty; min 10_000 nano
         royalty_rule::add(&mut policy, &cap, 100, 10_000);
 
         let request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
@@ -106,7 +106,7 @@ module kiosk::royalty_rule_tests {
         let ctx = &mut ctx();
         let (policy, cap) = test::prepare(ctx);
 
-        // 10% royalty; min 10_000 micro
+        // 10% royalty; min 10_000 nano
         royalty_rule::add(&mut policy, &cap, 1000, 10_000);
 
         let request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
@@ -122,7 +122,7 @@ module kiosk::royalty_rule_tests {
         let ctx = &mut ctx();
         let (policy, cap) = test::prepare(ctx);
 
-        // 20% royalty; min 10_000 micro
+        // 20% royalty; min 10_000 nano
         royalty_rule::add(&mut policy, &cap, 20_00, 10_000);
 
         let request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
@@ -152,7 +152,7 @@ module kiosk::royalty_rule_tests {
         // 1% royalty
         royalty_rule::add(&mut policy, &cap, 100, 0);
 
-        // Requires 1_000 micro, coin has only 999
+        // Requires 1_000 nano, coin has only 999
         let request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
         let payment = coin::mint_for_testing<IOTA>(999, ctx);
 
