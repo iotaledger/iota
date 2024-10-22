@@ -748,9 +748,7 @@ PackageUpgradeError:
       DigestDoesNotMatch:
         STRUCT:
           - digest:
-              TUPLEARRAY:
-                CONTENT: U8
-                SIZE: 32
+              SEQ: U8
     4:
       UnknownUpgradePolicy:
         STRUCT:
