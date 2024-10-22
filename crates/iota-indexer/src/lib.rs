@@ -215,7 +215,7 @@ fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
         .build(rpc_client_url)
         .map_err(|e| {
             warn!("Failed to get new Http client with error: {:?}", e);
-            IndexerError::HttpClientInitError(format!(
+            IndexerError::HttpClientInit(format!(
                 "Failed to initialize fullnode RPC client with error: {:?}",
                 e
             ))

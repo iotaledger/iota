@@ -260,10 +260,7 @@ async fn get_or_init_versions(
             IOTA_RANDOMNESS_STATE_OBJECT_ID,
             epoch_store
                 .epoch_start_config()
-                .randomness_obj_initial_shared_version()
-                .expect(
-                    "randomness_obj_initial_shared_version should exist if randomness is enabled",
-                ),
+                .randomness_obj_initial_shared_version(),
         ));
     }
 
@@ -366,8 +363,7 @@ mod tests {
         let epoch_store = authority.epoch_store_for_testing();
         let randomness_obj_version = epoch_store
             .epoch_start_config()
-            .randomness_obj_initial_shared_version()
-            .unwrap();
+            .randomness_obj_initial_shared_version();
         let certs = vec![
             generate_shared_objs_tx_with_gas_version(
                 &[(
@@ -461,8 +457,7 @@ mod tests {
         let randomness_obj_version = authority
             .epoch_store_for_testing()
             .epoch_start_config()
-            .randomness_obj_initial_shared_version()
-            .unwrap();
+            .randomness_obj_initial_shared_version();
 
         // Generate 5 transactions for testing.
         //   tx1: shared_object_1, shared_object_2, owned_object_version = 3
