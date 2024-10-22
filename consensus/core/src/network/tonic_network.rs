@@ -31,7 +31,7 @@ use tokio::{
 };
 use tokio_rustls::TlsAcceptor;
 use tokio_stream::{Iter, iter};
-use tonic::{Request, Response, Streaming, transport::Server};
+use tonic::{transport::Server, Request, Response, Streaming};
 use tower_http::{
     ServiceBuilderExt,
     trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
@@ -681,7 +681,6 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
         let service = TonicServiceProxy::new(self.context.clone(), service);
         let config = &self.context.parameters.tonic;
 
-        #[allow(deprecated)]
         let consensus_service = Server::builder()
             .layer(
                 TraceLayer::new_for_grpc()
@@ -698,7 +697,9 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
                     .max_encoding_message_size(config.message_size_limit)
                     .max_decoding_message_size(config.message_size_limit),
             )
-            .into_router();
+            .into_service()
+            .into_inner()
+            .into_axum_router();
 
         let inbound_metrics = self.context.metrics.network_metrics.inbound.clone();
         let excessive_message_size = self.context.parameters.tonic.excessive_message_size;
