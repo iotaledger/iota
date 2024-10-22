@@ -405,8 +405,6 @@ pub fn get_new_package_upgrade_cap_from_response(
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename = "TransactionBlockKind", tag = "kind")]
 pub enum IotaTransactionBlockKind {
-    /// A system transaction that will update epoch information on-chain.
-    ChangeEpoch(IotaChangeEpoch),
     /// A system transaction used for initializing the initial state of the
     /// chain.
     Genesis(IotaGenesisTransaction),
@@ -429,14 +427,6 @@ impl Display for IotaTransactionBlockKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         match &self {
-            Self::ChangeEpoch(e) => {
-                writeln!(writer, "Transaction Kind: Epoch Change")?;
-                writeln!(writer, "New epoch ID: {}", e.epoch)?;
-                writeln!(writer, "Storage gas reward: {}", e.storage_charge)?;
-                writeln!(writer, "Computation gas reward: {}", e.computation_charge)?;
-                writeln!(writer, "Storage rebate: {}", e.storage_rebate)?;
-                writeln!(writer, "Timestamp: {}", e.epoch_start_timestamp_ms)?;
-            }
             Self::Genesis(_) => {
                 writeln!(writer, "Transaction Kind: Genesis Transaction")?;
             }
@@ -477,7 +467,6 @@ impl IotaTransactionBlockKind {
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
-            TransactionKind::ChangeEpoch(e) => Self::ChangeEpoch(e.into()),
             TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
                 objects: g.objects.iter().map(GenesisObject::id).collect(),
                 events: g
@@ -537,9 +526,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::DenyListStateCreate => {
-                                IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
-                            }
                             EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
                                 IotaEndOfEpochTransactionKind::BridgeStateCreate(
                                     (*chain_id.as_bytes()).into(),
@@ -563,7 +549,6 @@ impl IotaTransactionBlockKind {
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
-            TransactionKind::ChangeEpoch(e) => Self::ChangeEpoch(e.into()),
             TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
                 objects: g.objects.iter().map(GenesisObject::id).collect(),
                 events: g
@@ -627,9 +612,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::DenyListStateCreate => {
-                                IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
-                            }
                             EndOfEpochTransactionKind::BridgeStateCreate(id) => {
                                 IotaEndOfEpochTransactionKind::BridgeStateCreate(
                                     (*id.as_bytes()).into(),
@@ -654,7 +636,6 @@ impl IotaTransactionBlockKind {
 
     pub fn name(&self) -> &'static str {
         match self {
-            Self::ChangeEpoch(_) => "ChangeEpoch",
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
@@ -1640,7 +1621,6 @@ pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
-    CoinDenyListStateCreate,
     BridgeStateCreate(CheckpointDigest),
     BridgeCommitteeUpdate(SequenceNumber),
 }

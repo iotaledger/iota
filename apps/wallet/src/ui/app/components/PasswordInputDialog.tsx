@@ -4,7 +4,6 @@
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import FieldLabel from '_src/ui/app/shared/field-label';
-import { Heading } from '_src/ui/app/shared/heading';
 import { PasswordInputField } from '_src/ui/app/shared/input/password';
 import { Text } from '_src/ui/app/shared/text';
 import classNames from 'clsx';
@@ -20,6 +19,7 @@ import {
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
+    Header,
 } from '@iota/apps-ui-kit';
 
 const validation = object({
@@ -75,11 +75,7 @@ export function PasswordInputDialog({
                         'px-5 pt-10': spacing,
                     })}
                 >
-                    <div className="text-center">
-                        <Heading variant="heading1" color="gray-90" weight="bold">
-                            {title}
-                        </Heading>
-                    </div>
+                    <Header title={title} titleCentered />
                     <div className="flex-1 self-stretch">
                         <FieldLabel txt="Enter Wallet Password to Continue">
                             <PasswordInputField name="password" />

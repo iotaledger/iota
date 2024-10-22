@@ -258,7 +258,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     accounts,
                     protocol_version,
                     max_gas,
-                    shared_object_deletion,
                     move_binary_format_version,
                     simulator,
                     custom_validator_account,
@@ -279,9 +278,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                 } else {
                     ProtocolConfig::get_for_max_version_UNSAFE()
                 };
-                if let Some(enable) = shared_object_deletion {
-                    protocol_config.set_shared_object_deletion_for_testing(enable);
-                }
                 if let Some(version) = move_binary_format_version {
                     protocol_config.set_move_binary_format_version_for_testing(version);
                 }
