@@ -6,9 +6,7 @@ import { Loading } from '_components';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
-    Feature,
     createStakeTransaction,
     createUnstakeTransaction,
     parseAmount,
@@ -63,9 +61,6 @@ function StakingCard() {
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
-    const effectsOnlySharedTransactions = useFeatureIsOn(
-        Feature.WalletEffectsOnlySharedTransaction as string,
-    );
 
     const { data: system, isPending: validatorsIsPending } = useIotaClientQuery(
         'getLatestIotaSystemState',
@@ -128,9 +123,6 @@ function StakingCard() {
                 const transactionBlock = createStakeTransaction(amount, validatorAddress);
                 return await signer.signAndExecuteTransaction({
                     transactionBlock,
-                    requestType: effectsOnlySharedTransactions
-                        ? 'WaitForEffectsCert'
-                        : 'WaitForLocalExecution',
                     options: {
                         showInput: true,
                         showEffects: true,
@@ -161,9 +153,6 @@ function StakingCard() {
             const transactionBlock = createUnstakeTransaction(stakedIotaId);
             return await signer.signAndExecuteTransaction({
                 transactionBlock,
-                requestType: effectsOnlySharedTransactions
-                    ? 'WaitForEffectsCert'
-                    : 'WaitForLocalExecution',
                 options: {
                     showInput: true,
                     showEffects: true,

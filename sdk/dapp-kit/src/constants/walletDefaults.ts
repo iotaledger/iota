@@ -14,8 +14,7 @@ export const DEFAULT_STORAGE =
 export const DEFAULT_STORAGE_KEY = 'iota-dapp-kit:wallet-connection-info';
 
 const SIGN_FEATURES = [
-    'iota:signTransaction',
-    'iota:signTransactionBlock',
+    'iota:signTransaction'
 ] satisfies (keyof IotaWalletFeatures)[];
 
 export const DEFAULT_WALLET_FILTER = (wallet: WalletWithRequiredFeatures) =>

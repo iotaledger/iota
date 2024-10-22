@@ -12,10 +12,8 @@ import type {
     StandardEventsFeature,
     StandardEventsOnMethod,
     IotaFeatures,
-    IotaSignAndExecuteTransactionBlockMethod,
     IotaSignAndExecuteTransactionMethod,
     IotaSignPersonalMessageMethod,
-    IotaSignTransactionBlockMethod,
     IotaSignTransactionMethod,
     Wallet,
 } from '@iota/wallet-standard';
@@ -59,8 +57,6 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
         publicKey: keypair.getPublicKey().toIotaBytes(),
         chains: ['iota:unknown'],
         features: [
-            'iota:signAndExecuteTransactionBlock',
-            'iota:signTransactionBlock',
             'iota:signTransaction',
             'iota:signAndExecuteTransaction',
         ],
@@ -102,14 +98,6 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
                     version: '1.0.0',
                     signPersonalMessage: this.#signPersonalMessage,
                 },
-                'iota:signTransactionBlock': {
-                    version: '1.0.0',
-                    signTransactionBlock: this.#signTransactionBlock,
-                },
-                'iota:signAndExecuteTransactionBlock': {
-                    version: '1.0.0',
-                    signAndExecuteTransactionBlock: this.#signAndExecuteTransactionBlock,
-                },
                 'iota:signTransaction': {
                     version: '2.0.0',
                     signTransaction: this.#signTransaction,
@@ -134,18 +122,6 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
             return { bytes, signature };
         };
 
-        #signTransactionBlock: IotaSignTransactionBlockMethod = async (transactionInput) => {
-            const { bytes, signature } = await transactionInput.transactionBlock.sign({
-                client: iotaClient,
-                signer: keypair,
-            });
-
-            return {
-                transactionBlockBytes: bytes,
-                signature: signature,
-            };
-        };
-
         #signTransaction: IotaSignTransactionMethod = async (transactionInput) => {
             const { bytes, signature } = await Transaction.from(
                 await transactionInput.transaction.toJSON(),
@@ -160,21 +136,6 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
                 bytes,
                 signature: signature,
             };
-        };
-
-        #signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod = async (
-            transactionInput,
-        ) => {
-            const { bytes, signature } = await transactionInput.transactionBlock.sign({
-                client: iotaClient,
-                signer: keypair,
-            });
-
-            return iotaClient.executeTransactionBlock({
-                signature,
-                transactionBlock: bytes,
-                options: transactionInput.options,
-            });
         };
 
         #signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod = async (

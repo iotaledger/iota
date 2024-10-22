@@ -325,8 +325,7 @@ export async function payIota(
         options: {
             showEffects: true,
             showObjectChanges: true,
-        },
-        requestType: 'WaitForLocalExecution',
+        }
     });
 
     expect(txn.effects?.status.status).toEqual('success');

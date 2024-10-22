@@ -35,8 +35,7 @@ export async function split_coin(address: string) {
             showInput: true,
             showEffects: true,
             showEvents: true,
-        },
-        requestType: 'WaitForLocalExecution',
+        }
     });
 
     return result;

@@ -123,8 +123,7 @@ export function useSignAndExecuteTransaction<
             const chain = signTransactionArgs.chain ?? signerAccount?.chains[0];
 
             if (
-                !currentWallet.features['iota:signTransaction'] &&
-                !currentWallet.features['iota:signTransactionBlock']
+                !currentWallet.features['iota:signTransaction']
             ) {
                 throw new WalletFeatureNotSupportedError(
                     "This wallet doesn't support the `signTransaction` feature.",

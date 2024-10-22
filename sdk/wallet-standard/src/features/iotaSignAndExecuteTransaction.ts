@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { type IotaTransactionBlockResponseOptions } from '@iota/iota-sdk/client';
 import type { SignedTransaction, IotaSignTransactionInput } from './iotaSignTransaction.js';
 
 /** The latest API version of the signAndExecuteTransactionBlock API. */
@@ -26,7 +27,10 @@ export type IotaSignAndExecuteTransactionMethod = (
 ) => Promise<IotaSignAndExecuteTransactionOutput>;
 
 /** Input for signing and sending transactions. */
-export interface IotaSignAndExecuteTransactionInput extends IotaSignTransactionInput {}
+export interface IotaSignAndExecuteTransactionInput extends IotaSignTransactionInput {
+    /** specify which fields to return (e.g., transaction, effects, events, etc). By default, only the transaction digest will be returned. */
+    options?: IotaTransactionBlockResponseOptions;
+}
 
 /** Output of signing and sending transactions. */
 export interface IotaSignAndExecuteTransactionOutput extends SignedTransaction {

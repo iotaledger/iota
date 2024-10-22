@@ -60,6 +60,13 @@ export function useSignPersonalMessage({
                 throw new WalletNotConnectedError('No wallet is connected.');
             }
 
+            const signPersonalMessageFeature = currentWallet.features['iota:signPersonalMessage'];
+            if(!signPersonalMessageFeature){
+                throw new WalletFeatureNotSupportedError(
+                    "This wallet doesn't support the `signPersonalMessage` feature.",
+                );
+            }
+
             const signerAccount = signPersonalMessageArgs.account ?? currentAccount;
             if (!signerAccount) {
                 throw new WalletNoAccountSelectedError(
@@ -67,31 +74,10 @@ export function useSignPersonalMessage({
                 );
             }
 
-            const signPersonalMessageFeature = currentWallet.features['iota:signPersonalMessage'];
-            if (signPersonalMessageFeature) {
-                return await signPersonalMessageFeature.signPersonalMessage({
-                    ...signPersonalMessageArgs,
-                    account: signerAccount,
-                });
-            }
-
-            // TODO: Remove this once we officially discontinue iota:signMessage in the wallet standard
-            const signMessageFeature = currentWallet.features['iota:signMessage'];
-            if (signMessageFeature) {
-                console.warn(
-                    "This wallet doesn't support the `signPersonalMessage` feature... falling back to `signMessage`.",
-                );
-
-                const { messageBytes, signature } = await signMessageFeature.signMessage({
-                    ...signPersonalMessageArgs,
-                    account: signerAccount,
-                });
-                return { bytes: messageBytes, signature };
-            }
-
-            throw new WalletFeatureNotSupportedError(
-                "This wallet doesn't support the `signPersonalMessage` feature.",
-            );
+            return await signPersonalMessageFeature.signPersonalMessage({
+                ...signPersonalMessageArgs,
+                account: signerAccount,
+            });
         },
         ...mutationOptions,
     });

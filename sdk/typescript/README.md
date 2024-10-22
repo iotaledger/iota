@@ -179,7 +179,7 @@ For a primer for building transactions, refer to
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
@@ -187,14 +187,14 @@ const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 
-const tx = new TransactionBlock();
+const tx = new Transaction();
 tx.transferObjects(
     ['0xe19739da1a701eadc21683c5b127e62b553e833e8a15a4f292f4f48b4afea3f2'],
     '0x1d20dcdb2bca4f508ea9613994683eb4e76e9c4ed371169677c1be02aaf0b12a',
 );
-const result = await client.signAndExecuteTransactionBlock({
+const result = await client.signAndExecuteTransaction({
     signer: keypair,
-    transactionBlock: tx,
+    transaction: tx,
 });
 console.log({ result });
 ```
@@ -206,7 +206,7 @@ To transfer `1000` NANOS to another address:
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
@@ -214,12 +214,12 @@ const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 
-const tx = new TransactionBlock();
+const tx = new Transaction();
 const [coin] = tx.splitCoins(tx.gas, [1000]);
 tx.transferObjects([coin], keypair.getPublicKey().toIotaAddress());
-const result = await client.signAndExecuteTransactionBlock({
+const result = await client.signAndExecuteTransaction({
     signer: keypair,
-    transactionBlock: tx,
+    transaction: tx,
 });
 console.log({ result });
 ```
@@ -229,7 +229,7 @@ console.log({ result });
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
@@ -237,13 +237,13 @@ const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 
-const tx = new TransactionBlock();
+const tx = new Transaction();
 tx.mergeCoins('0xe19739da1a701eadc21683c5b127e62b553e833e8a15a4f292f4f48b4afea3f2', [
     '0x127a8975134a4824d9288722c4ee4fc824cd22502ab4ad9f6617f3ba19229c1b',
 ]);
-const result = await client.signAndExecuteTransactionBlock({
+const result = await client.signAndExecuteTransaction({
     signer: keypair,
-    transactionBlock: tx,
+    transaction: tx,
 });
 console.log({ result });
 ```
@@ -253,7 +253,7 @@ console.log({ result });
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
@@ -261,14 +261,14 @@ const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const packageObjectId = '0x...';
-const tx = new TransactionBlock();
+const tx = new Transaction();
 tx.moveCall({
     target: `${packageObjectId}::nft::mint`,
     arguments: [tx.pure.string('Example NFT')],
 });
-const result = await client.signAndExecuteTransactionBlock({
+const result = await client.signAndExecuteTransaction({
     signer: keypair,
-    transactionBlock: tx,
+    transaction: tx,
 });
 console.log({ result });
 ```
@@ -280,7 +280,7 @@ To publish a package:
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 const { execSync } = require('child_process');
 // Generate a new Ed25519 Keypair
@@ -293,15 +293,15 @@ const { modules, dependencies } = JSON.parse(
         encoding: 'utf-8',
     }),
 );
-const tx = new TransactionBlock();
+const tx = new Transaction();
 const [upgradeCap] = tx.publish({
     modules,
     dependencies,
 });
 tx.transferObjects([upgradeCap], await client.getAddress());
-const result = await client.signAndExecuteTransactionBlock({
+const result = await client.signAndExecuteTransaction({
     signer: keypair,
-    transactionBlock: tx,
+    transaction: tx,
 });
 console.log({ result });
 ```
@@ -361,7 +361,7 @@ import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
-const txn = await client.getTransactionBlock({
+const txn = await client.getTransaction({
     digest: '9XFneskU8tW7UxQf7tE5qFRfcN4FadtC2Z3HAZkgeETd=',
     // only fetch the effects field
     options: {
@@ -374,7 +374,7 @@ const txn = await client.getTransactionBlock({
 });
 
 // You can also fetch multiple transactions in one batch request
-const txns = await client.multiGetTransactionBlocks({
+const txns = await client.multiGetTransactions({
     digests: [
         '9XFneskU8tW7UxQf7tE5qFRfcN4FadtC2Z3HAZkgeETd=',
         '17mn5W1CczLwitHCO9OIUbqirNrQ0cuKdyxaNe16SAME=',

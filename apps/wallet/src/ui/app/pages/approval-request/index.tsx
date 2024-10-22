@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    isSignMessageApprovalRequest,
+    isSignPersonalMessageApprovalRequest,
     isTransactionApprovalRequest,
 } from '_payloads/transactions/ApprovalRequest';
 import { useEffect, useMemo } from 'react';
@@ -35,7 +35,7 @@ export function ApprovalRequestPage() {
     return (
         <Loading loading={requestsLoading}>
             {request ? (
-                isSignMessageApprovalRequest(request) ? (
+                isSignPersonalMessageApprovalRequest(request) ? (
                     <SignMessageRequest request={request} />
                 ) : isTransactionApprovalRequest(request) ? (
                     <TransactionRequest txRequest={request} />
