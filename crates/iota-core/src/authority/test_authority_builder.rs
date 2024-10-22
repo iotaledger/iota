@@ -63,6 +63,7 @@ pub struct TestAuthorityBuilder<'a> {
     protocol_config: Option<ProtocolConfig>,
     reference_gas_price: Option<u64>,
     node_keypair: Option<&'a AuthorityKeyPair>,
+    is_fullnode: bool,
     genesis: Option<&'a Genesis>,
     starting_objects: Option<&'a [Object]>,
     expensive_safety_checks: Option<ExpensiveSafetyCheckConfig>,
@@ -133,6 +134,7 @@ impl<'a> TestAuthorityBuilder<'a> {
     }
 
     pub fn with_keypair(mut self, keypair: &'a AuthorityKeyPair) -> Self {
+        self.is_fullnode = true;
         assert!(self.node_keypair.replace(keypair).is_none());
         self
     }
@@ -187,9 +189,11 @@ impl<'a> TestAuthorityBuilder<'a> {
         }
 
         if let Some(keypair) = self.node_keypair {
-            let owned_keypair = BLS12381KeyPair::from_bytes(keypair.as_bytes()).unwrap(); // Hypothetical constructor method
-            local_network_config_builder =
-                local_network_config_builder.with_validator_authority_keys(vec![owned_keypair]);
+            if !self.is_fullnode {
+                let owned_keypair = BLS12381KeyPair::from_bytes(keypair.as_bytes()).unwrap(); // Hypothetical constructor method
+                local_network_config_builder =
+                    local_network_config_builder.with_validator_authority_keys(vec![owned_keypair]);
+            }
         }
         let local_network_config = local_network_config_builder.build();
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
@@ -222,7 +226,13 @@ impl<'a> TestAuthorityBuilder<'a> {
             config.execution_cache = cache_config;
         }
 
-        let secret = Arc::pin(config.protocol_key_pair().copy());
+        let keypair = if let Some(keypair) = self.node_keypair {
+            keypair
+        } else {
+            config.protocol_key_pair()
+        };
+
+        let secret = Arc::pin(keypair.copy());
         let name: AuthorityName = secret.public().into();
         let registry = Registry::new();
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
