@@ -1,19 +1,8 @@
 import React, { useState } from 'react';
 import { ChainId } from '../ChainId';
-import { NetworkProps } from '../constant';
+import { NetworkProps, MoveProps } from '../constant';
 import CodeBlock from '@theme/CodeBlock';
 import Admonition from '@theme/Admonition';
-
-
-type MoveProps = {
-  jsonRpcUrl: string;
-  jsonRpcWebsocketUrl: string;
-  indexerRpc: string;
-  graphqlRpc: string;
-  faucetUrl: string;
-  explorerUrl: string;
-};
-
 
 // L1 component
 function L1(props: NetworkProps) {
