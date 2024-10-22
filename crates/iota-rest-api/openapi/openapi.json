@@ -5190,6 +5190,7 @@
         "type": "object",
         "required": [
           "address",
+          "authority_public_key",
           "commission_rate",
           "description",
           "exchange_rates_id",
@@ -5211,16 +5212,18 @@
           "primary_address",
           "project_url",
           "proof_of_possession_bytes",
-          "authority_public_key",
+          "protocol_public_key",
           "rewards_pool",
           "staking_pool_id",
           "staking_pool_iota_balance",
-          "voting_power",
-          "protocol_public_key"
+          "voting_power"
         ],
         "properties": {
           "address": {
             "$ref": "#/components/schemas/Address"
+          },
+          "authority_public_key": {
+            "$ref": "#/components/schemas/Bls12381PublicKey"
           },
           "commission_rate": {
             "description": "Radix-10 encoded 64-bit unsigned integer",
@@ -5260,6 +5263,9 @@
           "network_public_key": {
             "$ref": "#/components/schemas/Ed25519PublicKey"
           },
+          "next_epoch_authority_public_key": {
+            "$ref": "#/components/schemas/Bls12381PublicKey"
+          },
           "next_epoch_commission_rate": {
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
@@ -5286,16 +5292,13 @@
             "default": null,
             "type": "string"
           },
-          "next_epoch_authority_public_key": {
-            "$ref": "#/components/schemas/Bls12381PublicKey"
+          "next_epoch_protocol_public_key": {
+            "$ref": "#/components/schemas/Ed25519PublicKey"
           },
           "next_epoch_stake": {
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
             "format": "u64"
-          },
-          "next_epoch_protocol_public_key": {
-            "$ref": "#/components/schemas/Ed25519PublicKey"
           },
           "operation_cap_id": {
             "$ref": "#/components/schemas/ObjectId"
@@ -5332,8 +5335,8 @@
           "proof_of_possession_bytes": {
             "type": "string"
           },
-          "authority_public_key": {
-            "$ref": "#/components/schemas/Bls12381PublicKey"
+          "protocol_public_key": {
+            "$ref": "#/components/schemas/Ed25519PublicKey"
           },
           "rewards_pool": {
             "description": "The epoch stake rewards will be added here at the end of each epoch.",
@@ -5369,9 +5372,6 @@
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
             "format": "u64"
-          },
-          "protocol_public_key": {
-            "$ref": "#/components/schemas/Ed25519PublicKey"
           }
         }
       },
