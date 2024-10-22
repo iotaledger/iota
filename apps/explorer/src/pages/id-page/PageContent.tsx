@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { Divider } from '@iota/apps-ui-kit';
 import { useGetObject } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
@@ -12,7 +13,7 @@ import {
     TransactionBlocksForAddress,
     TransactionsForAddressTable,
 } from '~/components';
-import { Banner, Divider, SplitPanes, TabHeader } from '~/components/ui';
+import { Banner, SplitPanes, TabHeader } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { FieldsContent } from '~/pages/object-result/views/TokenView';
