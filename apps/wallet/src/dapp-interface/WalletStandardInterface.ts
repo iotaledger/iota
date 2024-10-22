@@ -25,7 +25,6 @@ import { getCustomNetwork, type NetworkEnvType } from '_src/shared/api-env';
 import { type SignMessageRequest } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { isWalletStatusChangePayload } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { getNetwork, Network, type ChainType } from '@iota/iota-sdk/client';
-import { isTransaction } from '@iota/iota-sdk/transactions';
 import { fromB64, toB64 } from '@iota/iota-sdk/utils';
 import {
     ReadonlyWalletAccount,
@@ -191,12 +190,6 @@ export class IotaWallet implements Wallet {
     };
 
     #signTransaction: IotaSignTransactionMethod = async ({ transaction, account, ...input }) => {
-        if (!isTransaction(transaction)) {
-            throw new Error(
-                'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
-            );
-        }
-
         return mapToPromise(
             this.#send<SignTransactionRequest, SignTransactionResponse>({
                 type: 'sign-transaction-request',
