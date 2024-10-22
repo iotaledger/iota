@@ -384,7 +384,7 @@ anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
 
 # core-types with json format for REST api
-iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "f273b232560b0a893b845c1d1018b3aec9c41004", features = ["hash", "serde", "schemars"] }
+iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "014c8880820fbeab1a47552939facc275116a0a5", features = ["hash", "serde", "schemars"] }
 
 ### Workspace Members ###
 bin-version = { path = "crates/bin-version" }
