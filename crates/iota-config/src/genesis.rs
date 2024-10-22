@@ -21,7 +21,7 @@ use iota_types::{
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
-    deny_list_v1::{PerTypeDenyList, get_coin_deny_list},
+    deny_list_v2::get_deny_list_root_object,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
@@ -346,8 +346,8 @@ impl UnsignedGenesis {
             .is_some()
     }
 
-    pub fn coin_deny_list_state(&self) -> Option<PerTypeDenyList> {
-        get_coin_deny_list(&self.objects())
+    pub fn has_coin_deny_list_object(&self) -> bool {
+        get_deny_list_root_object(&self.objects()).is_some()
     }
 }
 
