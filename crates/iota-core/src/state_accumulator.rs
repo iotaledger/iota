@@ -44,10 +44,10 @@ impl StateAccumulatorMetrics {
 }
 
 pub enum StateAccumulator {
-    V2(StateAccumulatorV2),
+    V1(StateAccumulatorV1),
 }
 
-pub struct StateAccumulatorV2 {
+pub struct StateAccumulatorV1 {
     store: Arc<dyn AccumulatorStore>,
     metrics: Arc<StateAccumulatorMetrics>,
 }
@@ -160,7 +160,7 @@ impl StateAccumulator {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         metrics: Arc<StateAccumulatorMetrics>,
     ) -> Self {
-        StateAccumulator::V2(StateAccumulatorV2::new(store, metrics))
+        StateAccumulator::V1(StateAccumulatorV1::new(store, metrics))
     }
 
     pub fn new_for_tests(
@@ -177,14 +177,12 @@ impl StateAccumulator {
     pub fn metrics(&self) -> Arc<StateAccumulatorMetrics> {
         match self {
             StateAccumulator::V1(impl_v1) => impl_v1.metrics.clone(),
-            StateAccumulator::V2(impl_v2) => impl_v2.metrics.clone(),
         }
     }
 
     pub fn set_inconsistent_state(&self, is_inconsistent_state: bool) {
         match self {
             StateAccumulator::V1(impl_v1) => &impl_v1.metrics,
-            StateAccumulator::V2(impl_v2) => &impl_v2.metrics,
         }
         .inconsistent_state
         .set(is_inconsistent_state as i64);
@@ -222,12 +220,8 @@ impl StateAccumulator {
         checkpoint_acc: Option<Accumulator>,
     ) -> IotaResult {
         match self {
-            StateAccumulator::V1(_) => {
-                // V1 does not have a running root accumulator
-                Ok(())
-            }
-            StateAccumulator::V2(impl_v2) => {
-                impl_v2
+            StateAccumulator::V1(impl_v1) => {
+                impl_v1
                     .accumulate_running_root(epoch_store, checkpoint_seq_num, checkpoint_acc)
                     .await
             }
@@ -241,12 +235,7 @@ impl StateAccumulator {
     ) -> IotaResult<Accumulator> {
         match self {
             StateAccumulator::V1(impl_v1) => {
-                impl_v1
-                    .accumulate_epoch(epoch_store, last_checkpoint_of_epoch)
-                    .await
-            }
-            StateAccumulator::V2(impl_v2) => {
-                impl_v2.accumulate_epoch(epoch_store, last_checkpoint_of_epoch)
+                impl_v1.accumulate_epoch(epoch_store, last_checkpoint_of_epoch)
             }
         }
     }
@@ -255,9 +244,6 @@ impl StateAccumulator {
         match self {
             StateAccumulator::V1(impl_v1) => Self::accumulate_live_object_set_impl(
                 impl_v1.store.iter_cached_live_object_set_for_testing(),
-            ),
-            StateAccumulator::V2(impl_v2) => Self::accumulate_live_object_set_impl(
-                impl_v2.store.iter_cached_live_object_set_for_testing(),
             ),
         }
     }
@@ -269,9 +255,6 @@ impl StateAccumulator {
             StateAccumulator::V1(impl_v1) => {
                 Self::accumulate_live_object_set_impl(impl_v1.store.iter_live_object_set())
             }
-            StateAccumulator::V2(impl_v2) => {
-                Self::accumulate_live_object_set_impl(impl_v2.store.iter_live_object_set())
-            }
         }
     }
 
@@ -280,7 +263,6 @@ impl StateAccumulator {
     pub fn accumulate_effects(&self, effects: Vec<TransactionEffects>) -> Accumulator {
         match self {
             StateAccumulator::V1(impl_v1) => impl_v1.accumulate_effects(effects),
-            StateAccumulator::V2(impl_v2) => impl_v2.accumulate_effects(effects),
         }
     }
 
@@ -324,7 +306,7 @@ impl StateAccumulator {
     }
 }
 
-impl StateAccumulatorV2 {
+impl StateAccumulatorV1 {
     pub fn new(store: Arc<dyn AccumulatorStore>, metrics: Arc<StateAccumulatorMetrics>) -> Self {
         Self { store, metrics }
     }

@@ -24,7 +24,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig},
     network_config::NetworkConfig,
     network_config_builder::{
-        CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV2EnabledConfig,
+        CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV1EnabledConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::FullnodeConfigBuilder,
@@ -65,7 +65,7 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_config: StateAccumulatorV2EnabledConfig,
+    state_accumulator_config: StateAccumulatorV1EnabledConfig,
 }
 
 impl SwarmBuilder {
@@ -93,7 +93,7 @@ impl SwarmBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_config: StateAccumulatorV2EnabledConfig::Global(true),
+            state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
         }
     }
 }
@@ -236,7 +236,7 @@ impl<R> SwarmBuilder<R> {
 
     pub fn with_state_accumulator_config(
         mut self,
-        c: StateAccumulatorV2EnabledConfig,
+        c: StateAccumulatorV1EnabledConfig,
     ) -> Self {
         self.state_accumulator_config = c;
         self

@@ -56,8 +56,8 @@ pub trait EpochStartConfigTrait {
 pub enum EpochFlag {
     WritebackCacheEnabled = 0,
 
-    StateAccumulatorV2EnabledTestnet = 1,
-    StateAccumulatorV2EnabledMainnet = 2,
+    StateAccumulatorV1EnabledTestnet = 1,
+    StateAccumulatorV1EnabledMainnet = 2,
 }
 
 impl EpochFlag {
@@ -83,8 +83,8 @@ impl EpochFlag {
             new_flags.push(EpochFlag::WritebackCacheEnabled);
         }
 
-        new_flags.push(EpochFlag::StateAccumulatorV2EnabledTestnet);
-        new_flags.push(EpochFlag::StateAccumulatorV2EnabledMainnet);        
+        new_flags.push(EpochFlag::StateAccumulatorV1EnabledTestnet);
+        new_flags.push(EpochFlag::StateAccumulatorV1EnabledMainnet);        
 
         new_flags
     }
@@ -96,11 +96,11 @@ impl fmt::Display for EpochFlag {
         // is used as metric key
         match self {
             EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
-            EpochFlag::StateAccumulatorV2EnabledTestnet => {
-                write!(f, "StateAccumulatorV2EnabledTestnet")
+            EpochFlag::StateAccumulatorV1EnabledTestnet => {
+                write!(f, "StateAccumulatorV1EnabledTestnet")
             }
-            EpochFlag::StateAccumulatorV2EnabledMainnet => {
-                write!(f, "StateAccumulatorV2EnabledMainnet")
+            EpochFlag::StateAccumulatorV1EnabledMainnet => {
+                write!(f, "StateAccumulatorV1EnabledMainnet")
             }
         }
     }

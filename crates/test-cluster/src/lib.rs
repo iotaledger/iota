@@ -56,7 +56,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{
-        ProtocolVersionsConfig, StateAccumulatorV2EnabledCallback, StateAccumulatorV2EnabledConfig,
+        ProtocolVersionsConfig, StateAccumulatorV1EnabledCallback, StateAccumulatorV1EnabledConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
@@ -1039,7 +1039,7 @@ pub struct TestClusterBuilder {
 
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    validator_state_accumulator_config: StateAccumulatorV2EnabledConfig,
+    validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
 }
 
 impl TestClusterBuilder {
@@ -1067,7 +1067,7 @@ impl TestClusterBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            validator_state_accumulator_config: StateAccumulatorV2EnabledConfig::Global(
+            validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(
                 true,
             ),
         }
@@ -1192,10 +1192,10 @@ impl TestClusterBuilder {
 
     pub fn with_state_accumulator_callback(
         mut self,
-        func: StateAccumulatorV2EnabledCallback,
+        func: StateAccumulatorV1EnabledCallback,
     ) -> Self {
         self.validator_state_accumulator_config =
-            StateAccumulatorV2EnabledConfig::PerValidator(func);
+            StateAccumulatorV1EnabledConfig::PerValidator(func);
         self
     }
 

@@ -68,12 +68,12 @@ pub enum ProtocolVersionsConfig {
     PerValidator(SupportedProtocolVersionsCallback),
 }
 
-pub type StateAccumulatorV2EnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
+pub type StateAccumulatorV1EnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
 
 #[derive(Clone)]
-pub enum StateAccumulatorV2EnabledConfig {
+pub enum StateAccumulatorV1EnabledConfig {
     Global(bool),
-    PerValidator(StateAccumulatorV2EnabledCallback),
+    PerValidator(StateAccumulatorV1EnabledCallback),
 }
 
 pub struct ConfigBuilder<R = OsRng> {
@@ -92,7 +92,7 @@ pub struct ConfigBuilder<R = OsRng> {
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_config: Option<StateAccumulatorV2EnabledConfig>,
+    state_accumulator_config: Option<StateAccumulatorV1EnabledConfig>,
     empty_validator_genesis: bool,
 }
 
@@ -114,7 +114,7 @@ impl ConfigBuilder {
             firewall_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_config: Some(StateAccumulatorV2EnabledConfig::Global(true)),
+            state_accumulator_config: Some(StateAccumulatorV1EnabledConfig::Global(true)),
             empty_validator_genesis: false,
         }
     }
@@ -238,16 +238,16 @@ impl<R> ConfigBuilder<R> {
 
     pub fn with_state_accumulator_callback(
         mut self,
-        func: StateAccumulatorV2EnabledCallback,
+        func: StateAccumulatorV1EnabledCallback,
     ) -> Self {
         self.state_accumulator_config =
-            Some(StateAccumulatorV2EnabledConfig::PerValidator(func));
+            Some(StateAccumulatorV1EnabledConfig::PerValidator(func));
         self
     }
 
     pub fn with_state_accumulator_config(
         mut self,
-        c: StateAccumulatorV2EnabledConfig,
+        c: StateAccumulatorV1EnabledConfig,
     ) -> Self {
         self.state_accumulator_config = Some(c);
         self
