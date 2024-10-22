@@ -7,7 +7,7 @@
         "isolatedModules": true,
         "rootDir": "src",
         "paths": {
-            "@iota/iota-sdk/client": ["../../typescript/src/client"],
+            "@iota/iota-sdk/client": ["../../typescrupt/src/client"],
             "@iota/iota-sdk/transactions": ["../../typescript/src/transactions"]
         }
     },
