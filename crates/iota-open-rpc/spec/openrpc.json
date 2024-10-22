@@ -1301,8 +1301,6 @@
                 "authority_capabilities_v2": true,
                 "bridge": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
-                "enable_coin_deny_list": true,
-                "enable_coin_deny_list_v2": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_group_ops_native_functions": true,
                 "enable_jwk_consensus_updates": false,
@@ -1312,9 +1310,7 @@
                 "mysticeti_leader_scoring_and_schedule": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
-                "recompute_has_public_transfer_in_execution": true,
                 "rethrow_serialization_type_layout_errors": true,
-                "shared_object_deletion": true,
                 "throughput_aware_consensus_submission": false,
                 "zklogin_auth": false
               },
@@ -7643,8 +7639,7 @@
           {
             "type": "string",
             "enum": [
-              "AuthenticatorStateCreate",
-              "CoinDenyListStateCreate"
+              "AuthenticatorStateCreate"
             ]
           },
           {

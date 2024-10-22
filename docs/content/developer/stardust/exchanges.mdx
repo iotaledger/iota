@@ -14,7 +14,7 @@ In 2024, the IOTA Foundation made the strategic decision to replace the existing
 - With programmability, IOTA will no longer be fee-less; a small execution fee will be charged for interactions, given there is no difference between a transfer and another smart contract execution.
 - IOTA will include staking; the rewards will in most cases offset transaction fees for any staking token holders.
 - The Firefly wallet currently used by end-users will not support the new protocol; instead, a browser extension wallet will be offered.
-- The number of decimals for the IOTA token will change to 9, while for the SMR token it will remain at 6 decimals.
+- The number of decimals for the IOTA token will change to 9.
 - Integration is similar to other Move-based protocols; integration concepts could potentially partially be re-used from those integrations.
 
 This guide will take you through the process of migrating from your current IOTA integration to a new one that is compatible with the latest version of the network and technology stack.
@@ -25,7 +25,7 @@ This guide will take you through the process of migrating from your current IOTA
 
 Once the new network goes live, the old network will be shut down immediately. 
 It will no longer be possible to interact with it. 
-To minimize any impact on your customer base regarding withdrawals and deposits for the IOTA and SMR tokens, it's crucial that the new integration is available at that time.
+To minimize any impact on your customer base regarding withdrawals and deposits for the IOTA token, it's crucial that the new integration is available at that time.
 
 :::
 
@@ -72,31 +72,9 @@ IOTA is the token used for GAS on the IOTA network; small amounts of IOTA will b
 
 :::
 
-#### Supporting SMR tokens
-
-Shimmer used to be a separate network, but this no longer holds since this upgrade. 
-The Shimmer EVM Layer-2 chain will be anchored into IOTA directly, and the SMR token will also be on IOTA. 
-Like IOTA, SMR will also be available without requiring a manual migration from the start. 
-However, the token will now reside on the IOTA Network directly and can be accessed with your existing Shimmer key pairs on the hex addresses you had before.
-
-Integration is the same as with IOTA; all accessible and transferable SMR tokens are available as `Coin<SMR>` objects.
-
-:::info SMR Decimals
-
-Unlike IOTA the amount of decimals for SMR remains the same, 6.
-
-:::
-
-:::info  SMR GAS
-
-Gas fees to interact with SMR tokens are paid in IOTA, like any other interaction on the network.
-To deal with SMR tokens, you will need some IOTA to pay for these execution fees as well.
-
-:::
-
 #### Supporting other tokens
 
-Native assets, both new and existing assets from the IOTA and Shimmer networks, are represented as `Coin<COIN_TYPE_NAME_HERE>` objects and work similarly and can re-use the same integration.
+Native assets, both new and existing assets from the IOTA network, are represented as `Coin<COIN_TYPE_NAME_HERE>` objects and work similarly and can re-use the same integration.
 
 :::info  Custom Token Gas
 

@@ -130,10 +130,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    // If true, the ability to delete shared objects is in effect
-    #[serde(skip_serializing_if = "is_false")]
-    shared_object_deletion: bool,
-
     // A list of supported OIDC providers that can be used for zklogin.
     #[serde(skip_serializing_if = "is_empty")]
     zklogin_supported_providers: BTreeSet<String>,
@@ -149,10 +145,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     throughput_aware_consensus_submission: bool,
 
-    // If true, recompute has_public_transfer from the type instead of what is stored in the object
-    #[serde(skip_serializing_if = "is_false")]
-    recompute_has_public_transfer_in_execution: bool,
-
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
@@ -164,10 +156,6 @@ struct FeatureFlags {
     // Enable the poseidon hash function
     #[serde(skip_serializing_if = "is_false")]
     enable_poseidon: bool,
-
-    // If true, enable the coin deny list.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_coin_deny_list: bool,
 
     // Enable native functions for group operations.
     #[serde(skip_serializing_if = "is_false")]
@@ -204,10 +192,6 @@ struct FeatureFlags {
     // Set number of leaders per round for Mysticeti commits.
     #[serde(skip_serializing_if = "Option::is_none")]
     mysticeti_num_leaders_per_round: Option<usize>,
-
-    // If true, enable the coin deny list V2.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_coin_deny_list_v2: bool,
 
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
@@ -1022,17 +1006,8 @@ impl ProtocolConfig {
         self.feature_flags.consensus_transaction_ordering
     }
 
-    pub fn shared_object_deletion(&self) -> bool {
-        self.feature_flags.shared_object_deletion
-    }
-
     pub fn enable_jwk_consensus_updates(&self) -> bool {
         self.feature_flags.enable_jwk_consensus_updates
-    }
-
-    pub fn recompute_has_public_transfer_in_execution(&self) -> bool {
-        self.feature_flags
-            .recompute_has_public_transfer_in_execution
     }
 
     // this function only exists for readability in the genesis code.
@@ -1075,14 +1050,6 @@ impl ProtocolConfig {
 
     pub fn enable_poseidon(&self) -> bool {
         self.feature_flags.enable_poseidon
-    }
-
-    pub fn enable_coin_deny_list_v1(&self) -> bool {
-        self.feature_flags.enable_coin_deny_list
-    }
-
-    pub fn enable_coin_deny_list_v2(&self) -> bool {
-        self.feature_flags.enable_coin_deny_list_v2
     }
 
     pub fn enable_group_ops_native_functions(&self) -> bool {
@@ -1684,10 +1651,7 @@ impl ProtocolConfig {
             .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
 
-        cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
-        cfg.feature_flags.shared_object_deletion = true;
         cfg.feature_flags.hardened_otw_check = true;
-        cfg.feature_flags.enable_coin_deny_list = true;
 
         // Enable group ops and all networks (but not msm)
         cfg.feature_flags.enable_group_ops_native_functions = true;
@@ -1712,8 +1676,6 @@ impl ProtocolConfig {
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
-
-        cfg.feature_flags.enable_coin_deny_list_v2 = true;
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
@@ -1845,10 +1807,6 @@ impl ProtocolConfig {
 
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_zklogin_in_multisig = val
-    }
-
-    pub fn set_shared_object_deletion_for_testing(&mut self, val: bool) {
-        self.feature_flags.shared_object_deletion = val;
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(

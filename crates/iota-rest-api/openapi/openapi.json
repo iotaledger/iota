@@ -1965,20 +1965,6 @@
           {
             "type": "object",
             "required": [
-              "kind"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "deny_list_state_create"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
               "chain_id",
               "kind"
             ],

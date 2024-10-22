@@ -318,12 +318,10 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire
     3:
-      DenyListStateCreate: UNIT
-    4:
       BridgeStateCreate:
         NEWTYPE:
           TYPENAME: ChainIdentifier
-    5:
+    4:
       BridgeCommitteeInit:
         NEWTYPE:
           TYPENAME: SequenceNumber

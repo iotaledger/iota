@@ -35,7 +35,6 @@ mod checked {
         },
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
-        deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
         digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
@@ -688,10 +687,6 @@ mod checked {
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
-                        EndOfEpochTransactionKind::DenyListStateCreate => {
-                            assert!(protocol_config.enable_coin_deny_list_v1());
-                            builder = setup_coin_deny_list_state_create(builder);
-                        }
                         EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
                             assert!(protocol_config.enable_bridge());
                             builder = setup_bridge_create(builder, chain_id)
@@ -1236,25 +1231,5 @@ mod checked {
             gas_charger,
             pt,
         )
-    }
-
-    /// Prepares a `ProgrammableTransactionBuilder` to create a deny list state
-    /// for coins. The function adds a `move_call` to the transaction
-    /// builder to call the `DENY_LIST_CREATE_FUNC` function
-    /// in the `DENY_LIST_MODULE` of the IOTA framework. This transaction is to
-    /// set up the initial state for the coin deny list.
-    fn setup_coin_deny_list_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                DENY_LIST_MODULE.to_owned(),
-                DENY_LIST_CREATE_FUNC.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate coin_deny_list_create transaction!");
-        builder
     }
 }
