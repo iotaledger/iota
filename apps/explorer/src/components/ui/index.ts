@@ -11,7 +11,6 @@ export * from './ButtonOrLink';
 export * from './Card';
 export * from './CopyToClipboard';
 export * from './Divider';
-export * from './DropdownMenu';
 export * from './ExpandableList';
 export * from './FilterList';
 export * from './ImageIcon';
