@@ -216,7 +216,7 @@ function Move(props: MoveProps) {
   );
 }
 
-export {
+export default {
   L1,
   Evm,
   EvmCustom,
