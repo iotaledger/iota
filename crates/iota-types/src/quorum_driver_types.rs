@@ -158,7 +158,7 @@ pub struct ExecuteTransactionRequestV1 {
 }
 
 impl ExecuteTransactionRequestV1 {
-    pub fn new_v2<T: Into<Transaction>>(transaction: T) -> Self {
+    pub fn new_v1<T: Into<Transaction>>(transaction: T) -> Self {
         Self {
             transaction: transaction.into(),
             include_events: true,

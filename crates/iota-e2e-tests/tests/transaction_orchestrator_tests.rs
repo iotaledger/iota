@@ -51,7 +51,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     orchestrator
         .quorum_driver()
         .submit_transaction_no_ticket(
-            ExecuteTransactionRequestV1::new_v2(txn),
+            ExecuteTransactionRequestV1::new_v1(txn),
             Some(make_socket_addr()),
         )
         .await?;
@@ -256,7 +256,7 @@ async fn test_tx_across_epoch_boundaries() {
     tokio::task::spawn(async move {
         match to
             .execute_transaction_block(
-                ExecuteTransactionRequestV1::new_v2(tx.clone()),
+                ExecuteTransactionRequestV1::new_v1(tx.clone()),
                 ExecuteTransactionRequestType::WaitForEffectsCert,
                 None,
             )
@@ -299,7 +299,7 @@ async fn execute_with_orchestrator(
     request_type: ExecuteTransactionRequestType,
 ) -> Result<(ExecuteTransactionResponseV1, IsTransactionExecutedLocally), QuorumDriverError> {
     orchestrator
-        .execute_transaction_block(ExecuteTransactionRequestV1::new_v2(txn), request_type, None)
+        .execute_transaction_block(ExecuteTransactionRequestV1::new_v1(txn), request_type, None)
         .await
 }
 
