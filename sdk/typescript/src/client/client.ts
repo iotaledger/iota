@@ -412,7 +412,7 @@ export class IotaClient {
     async executeTransactionBlock({
         transactionBlock,
         signature,
-        options
+        options,
     }: ExecuteTransactionBlockParams): Promise<IotaTransactionBlockResponse> {
         const result: IotaTransactionBlockResponse = await this.transport.request({
             method: 'iota_executeTransactionBlock',

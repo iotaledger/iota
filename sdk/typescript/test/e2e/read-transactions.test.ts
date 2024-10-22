@@ -34,7 +34,7 @@ describe('Transaction Reading API', () => {
             tx.transferObjects([coin], toolbox.address());
             return toolbox.client.signAndExecuteTransaction({
                 signer: toolbox.keypair,
-                transaction: tx
+                transaction: tx,
             });
         }
 
