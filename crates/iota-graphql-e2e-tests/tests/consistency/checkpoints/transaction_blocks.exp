@@ -3,79 +3,79 @@ processed 16 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, lines 13-26:
+task 1, lines 14-27:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 28:
+task 2, line 29:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 30:
+task 3, line 31:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4, line 32:
+task 4, line 33:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 5, line 34:
+task 5, line 35:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 6, line 36:
+task 6, line 37:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 7, line 38:
+task 7, line 39:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 8, line 40:
+task 8, line 41:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(8,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 9, line 42:
+task 9, line 43:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(9,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 10, line 44:
+task 10, line 45:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 11, line 46:
+task 11, line 47:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(11,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 12, line 48:
+task 12, line 49:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(12,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 13, line 50:
+task 13, line 51:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 14, lines 52-76:
+task 14, lines 53-77:
 //# run-graphql
 Response: {
   "data": {
@@ -94,12 +94,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs",
+                  "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -109,12 +109,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjozLCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "H1WU8uXMGaENQs54EpoHGpV1iMYdH8P5scd1d16s9ECB",
+                  "digest": "H7ZqaxVctFmJ1JwQfsyRSMp4CMcMRaneFyQiFxuSiWym",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -124,12 +124,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo0LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "4vJbSYKwEJb5sYU2jiayqsZNRnBywD8y6sd3RQoMppF9",
+                  "digest": "9UYfmVxPCw6r8MWvjndpWGzxbP37P1rF9VWHr64NbFPq",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -139,12 +139,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo1LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "4W23PZz7dHVxoZ2VMCWU9j38Jxy7tLkqcFBcJUB3aCSB",
+                  "digest": "C578ax51Fa2tE1SzpndkxpFxXdcgJsn8DtUZrx1y4pZm",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -161,12 +161,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo2LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "JLAF7P6DumC8rgzT1Ygp2QgTwpHE2FUqQbVXL6cGEEQ",
+                  "digest": "7VZ3iTkZobLwB9sdMBSyRyME54w2AGkWx2nSNNKr3SCx",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -176,12 +176,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo3LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "BVMVdn7DDpTbCjtYwWFekcFA9sNeMgDh1wTNWRrngZxh",
+                  "digest": "33YoiygwdhQhouyo46PAxqC2V6Va4Dz5pnmFm2aVSDFu",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -191,12 +191,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo4LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "4J5tno4AoU4NPS2NgEseAZK7cpLDh6KJduVtbtwzmHk5",
+                  "digest": "3eGMR5W8rvo1AB67PiuX2Y3mf2NqdcXfs4fjQhQtMEqm",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -213,12 +213,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo5LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "5BCS9sencxEJRJHBBPeGhx3rWutYoGSuLFCmnMAaYcDm",
+                  "digest": "HXSdWvui1ZzCnUmBJzZUgacDBT5EN14Th5RbNj9GEqsZ",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -228,12 +228,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9",
                 "node": {
-                  "digest": "HQYJnLLcGf4DwgTkpqF4zHbQsLHwc1s4WbQ3Xr5BBaxh",
+                  "digest": "6MPAAYggrKNTpHKjSzi5t8ciwXpb9D5NP92nCskT67pq",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8AwAAAAAAAAA="
+                          "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -248,7 +248,7 @@ Response: {
   }
 }
 
-task 15, lines 78-95:
+task 15, lines 79-96:
 //# run-graphql
 Response: {
   "data": {

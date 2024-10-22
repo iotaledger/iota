@@ -22,7 +22,7 @@ import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount'
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
 import { useFeature } from '@growthbook/growthbook-react';
-import { Feature } from '_shared/experimentation/features';
+import { Feature } from '@iota/core';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,

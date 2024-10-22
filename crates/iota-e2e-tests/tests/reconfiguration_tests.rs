@@ -272,10 +272,6 @@ async fn test_passive_reconfig_determinism() {
 
 async fn do_test_passive_reconfig() {
     telemetry_subscribers::init_for_testing();
-    let _commit_root_state_digest = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_commit_root_state_digest_supported_for_testing(true);
-        config
-    });
     ProtocolConfig::poison_get_for_min_version();
 
     let test_cluster = TestClusterBuilder::new()
@@ -720,8 +716,16 @@ async fn do_test_reconfig_with_committee_change_stress() {
         let handle2 = test_cluster.spawn_new_validator(v2).await;
 
         tokio::join!(
-            test_cluster.wait_for_epoch_on_node(&handle1, Some(cur_epoch), Duration::from_secs(60)),
-            test_cluster.wait_for_epoch_on_node(&handle2, Some(cur_epoch), Duration::from_secs(60))
+            test_cluster.wait_for_epoch_on_node(
+                &handle1,
+                Some(cur_epoch),
+                Duration::from_secs(300)
+            ),
+            test_cluster.wait_for_epoch_on_node(
+                &handle2,
+                Some(cur_epoch),
+                Duration::from_secs(300)
+            )
         );
 
         test_cluster.trigger_reconfiguration().await;
@@ -730,7 +734,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
             .iota_node
             .with(|node| node.state().epoch_store_for_testing().committee().clone());
         cur_epoch = committee.epoch();
-        assert_eq!(committee.num_members(), 9);
+        assert_eq!(committee.num_members(), 7);
         assert!(committee.authority_exists(&handle1.state().name));
         assert!(committee.authority_exists(&handle2.state().name));
         removed_validators

@@ -8,7 +8,9 @@ use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use futures::future::join_all;
 use iota_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
 use iota_framework::BuiltInFramework;
-use iota_genesis_builder::validator_info::ValidatorInfo;
+use iota_genesis_builder::{
+    genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
+};
 use iota_macros::nondeterministic;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_protocol_config::ProtocolConfig;
@@ -79,17 +81,10 @@ pub async fn send_and_confirm_transaction(
     // set against StateAccumulator for testing and regression detection
     let state_acc =
         StateAccumulator::new_for_tests(authority.get_accumulator_store().clone(), &epoch_store);
-    let include_wrapped_tombstone = !authority
-        .epoch_store_for_testing()
-        .protocol_config()
-        .simplified_unwrap_then_delete();
-    let mut state = state_acc.accumulate_live_object_set(include_wrapped_tombstone);
+    let mut state = state_acc.accumulate_live_object_set();
     let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate).await?;
-    let state_after = state_acc.accumulate_live_object_set(include_wrapped_tombstone);
-    let effects_acc = state_acc.accumulate_effects(
-        vec![result.inner().data().clone()],
-        epoch_store.protocol_config(),
-    );
+    let state_after = state_acc.accumulate_live_object_set();
+    let effects_acc = state_acc.accumulate_effects(vec![result.inner().data().clone()]);
     state.union(&effects_acc);
 
     assert_eq!(state_after.digest(), state.digest());
@@ -257,7 +252,8 @@ async fn init_genesis(
     for (_, key) in &key_pairs {
         builder = builder.add_validator_signature(key);
     }
-    let genesis = builder.build();
+
+    let GenesisBuildEffects { genesis, .. } = builder.build();
     (genesis, key_pairs, pkg_id)
 }
 

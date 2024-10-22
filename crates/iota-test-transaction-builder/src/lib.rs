@@ -20,7 +20,6 @@ use iota_types::{
     digests::TransactionDigest,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
-    multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
     object::Owner,
     signature::GenericSignature,
     transaction::{
@@ -376,27 +375,6 @@ impl TestTransactionBuilder {
 
         let multisig =
             GenericSignature::MultiSig(MultiSig::insecure_new(signatures, bitmap, multisig_pk));
-
-        Transaction::from_generic_sig_data(data, vec![multisig])
-    }
-
-    pub fn build_and_sign_multisig_legacy(
-        self,
-        multisig_pk: MultiSigPublicKeyLegacy,
-        signers: &[&dyn Signer<Signature>],
-    ) -> Transaction {
-        let data = self.build();
-        let intent = Intent::iota_transaction();
-        let intent_msg = IntentMessage::new(intent.clone(), data.clone());
-
-        let mut signatures = Vec::with_capacity(signers.len());
-        for signer in signers {
-            signatures.push(Signature::new_secure(&intent_msg, *signer).into());
-        }
-
-        let multisig = GenericSignature::MultiSigLegacy(
-            MultiSigLegacy::combine(signatures, multisig_pk).unwrap(),
-        );
 
         Transaction::from_generic_sig_data(data, vec![multisig])
     }

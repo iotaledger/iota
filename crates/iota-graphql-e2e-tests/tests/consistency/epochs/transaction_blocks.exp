@@ -3,31 +3,31 @@ processed 26 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, lines 22-35:
+task 1, lines 23-36:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 37:
+task 2, line 38:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 3, line 39:
+task 3, line 40:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(3,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 4, line 41:
+task 4, line 42:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 5, line 43:
+task 5, line 44:
 //# advance-epoch
 Epoch advanced: 0
 
-task 6, lines 45-61:
+task 6, lines 46-62:
 //# run-graphql
 Response: {
   "data": {
@@ -41,25 +41,25 @@ Response: {
           {
             "cursor": "eyJjIjozLCJ0IjowLCJpIjpmYWxzZX0",
             "node": {
-              "digest": "J7mHXcoa7LXwyjzZUWsk8zvYZjek359TM4d2hQK4LGHo"
+              "digest": "5JYD4dXX1dbKTpkmyyzCjV4rwnDbRBpHF5MqzmUkuS5E"
             }
           },
           {
             "cursor": "eyJjIjozLCJ0IjoxLCJpIjpmYWxzZX0",
             "node": {
-              "digest": "J1pYPDrTgsKgzB8XWtW8jLJ8RPsbJcC1SQ4Mv2T1hAWt"
+              "digest": "3vZBdxUkxe4ja8rcWFVsDE1GABQ7YS4dGFJ6DBSNeLEX"
             }
           },
           {
             "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
             "node": {
-              "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs"
+              "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2"
             }
           },
           {
             "cursor": "eyJjIjozLCJ0IjozLCJpIjpmYWxzZX0",
             "node": {
-              "digest": "Bym7b7ELP77KxVHtgj6F4FB7H6n5LYQuBQYmdvvFxEmM"
+              "digest": "H1onPegHJqy8A2biZcqAPJF2xuA1bSVCLEtGTfGp68mt"
             }
           }
         ]
@@ -68,79 +68,79 @@ Response: {
   }
 }
 
-task 7, line 63:
+task 7, line 64:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 8, line 65:
+task 8, line 66:
 //# create-checkpoint
 Checkpoint created: 4
 
-task 9, line 67:
+task 9, line 68:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(9,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 10, line 69:
+task 10, line 70:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 11, line 71:
+task 11, line 72:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(11,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 12, line 73:
+task 12, line 74:
 //# create-checkpoint
 Checkpoint created: 6
 
-task 13, line 75:
+task 13, line 76:
 //# advance-epoch
 Epoch advanced: 1
 
-task 14, line 77:
+task 14, line 78:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(14,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 15, line 79:
+task 15, line 80:
 //# create-checkpoint
 Checkpoint created: 8
 
-task 16, line 81:
+task 16, line 82:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(16,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 17, line 83:
+task 17, line 84:
 //# create-checkpoint
 Checkpoint created: 9
 
-task 18, line 85:
+task 18, line 86:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(18,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 19, line 87:
+task 19, line 88:
 //# create-checkpoint
 Checkpoint created: 10
 
-task 20, line 89:
+task 20, line 90:
 //# advance-epoch
 Epoch advanced: 2
 
-task 21, line 91:
+task 21, line 92:
 //# advance-epoch
 Epoch advanced: 3
 
-task 22, lines 93-157:
+task 22, lines 94-158:
 //# run-graphql --cursors {"t":3,"i":false,"c":4} {"t":7,"i":false,"c":8} {"t":11,"i":false,"c":12}
 Response: {
   "data": {
@@ -154,25 +154,25 @@ Response: {
           {
             "cursor": "eyJjIjoxMiwidCI6MCwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "J7mHXcoa7LXwyjzZUWsk8zvYZjek359TM4d2hQK4LGHo"
+              "digest": "5JYD4dXX1dbKTpkmyyzCjV4rwnDbRBpHF5MqzmUkuS5E"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6MSwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "J1pYPDrTgsKgzB8XWtW8jLJ8RPsbJcC1SQ4Mv2T1hAWt"
+              "digest": "3vZBdxUkxe4ja8rcWFVsDE1GABQ7YS4dGFJ6DBSNeLEX"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6MiwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs"
+              "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6MywiaSI6ZmFsc2V9",
             "node": {
-              "digest": "Bym7b7ELP77KxVHtgj6F4FB7H6n5LYQuBQYmdvvFxEmM"
+              "digest": "H1onPegHJqy8A2biZcqAPJF2xuA1bSVCLEtGTfGp68mt"
             }
           }
         ]
@@ -183,19 +183,19 @@ Response: {
         {
           "cursor": "eyJjIjo0LCJ0IjowLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "J7mHXcoa7LXwyjzZUWsk8zvYZjek359TM4d2hQK4LGHo"
+            "digest": "5JYD4dXX1dbKTpkmyyzCjV4rwnDbRBpHF5MqzmUkuS5E"
           }
         },
         {
           "cursor": "eyJjIjo0LCJ0IjoxLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "J1pYPDrTgsKgzB8XWtW8jLJ8RPsbJcC1SQ4Mv2T1hAWt"
+            "digest": "3vZBdxUkxe4ja8rcWFVsDE1GABQ7YS4dGFJ6DBSNeLEX"
           }
         },
         {
           "cursor": "eyJjIjo0LCJ0IjoyLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs"
+            "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2"
           }
         }
       ]
@@ -207,25 +207,25 @@ Response: {
           {
             "cursor": "eyJjIjoxMiwidCI6NCwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "H1WU8uXMGaENQs54EpoHGpV1iMYdH8P5scd1d16s9ECB"
+              "digest": "H7ZqaxVctFmJ1JwQfsyRSMp4CMcMRaneFyQiFxuSiWym"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6NSwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "4vJbSYKwEJb5sYU2jiayqsZNRnBywD8y6sd3RQoMppF9"
+              "digest": "9UYfmVxPCw6r8MWvjndpWGzxbP37P1rF9VWHr64NbFPq"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6NiwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "4W23PZz7dHVxoZ2VMCWU9j38Jxy7tLkqcFBcJUB3aCSB"
+              "digest": "C578ax51Fa2tE1SzpndkxpFxXdcgJsn8DtUZrx1y4pZm"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6NywiaSI6ZmFsc2V9",
             "node": {
-              "digest": "D251V1BnvyRKNFZmiFxaf7gSZLGdLo8fYbbVDb5vJWfd"
+              "digest": "8FLhsBowfdJXeWQh8TSSsxbHQkKVqFSdmjPMBuHpgmas"
             }
           }
         ]
@@ -236,43 +236,43 @@ Response: {
         {
           "cursor": "eyJjIjo4LCJ0IjowLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "J7mHXcoa7LXwyjzZUWsk8zvYZjek359TM4d2hQK4LGHo"
+            "digest": "5JYD4dXX1dbKTpkmyyzCjV4rwnDbRBpHF5MqzmUkuS5E"
           }
         },
         {
           "cursor": "eyJjIjo4LCJ0IjoxLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "J1pYPDrTgsKgzB8XWtW8jLJ8RPsbJcC1SQ4Mv2T1hAWt"
+            "digest": "3vZBdxUkxe4ja8rcWFVsDE1GABQ7YS4dGFJ6DBSNeLEX"
           }
         },
         {
           "cursor": "eyJjIjo4LCJ0IjoyLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs"
+            "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2"
           }
         },
         {
           "cursor": "eyJjIjo4LCJ0IjozLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "Bym7b7ELP77KxVHtgj6F4FB7H6n5LYQuBQYmdvvFxEmM"
+            "digest": "H1onPegHJqy8A2biZcqAPJF2xuA1bSVCLEtGTfGp68mt"
           }
         },
         {
           "cursor": "eyJjIjo4LCJ0Ijo0LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "H1WU8uXMGaENQs54EpoHGpV1iMYdH8P5scd1d16s9ECB"
+            "digest": "H7ZqaxVctFmJ1JwQfsyRSMp4CMcMRaneFyQiFxuSiWym"
           }
         },
         {
           "cursor": "eyJjIjo4LCJ0Ijo1LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "4vJbSYKwEJb5sYU2jiayqsZNRnBywD8y6sd3RQoMppF9"
+            "digest": "9UYfmVxPCw6r8MWvjndpWGzxbP37P1rF9VWHr64NbFPq"
           }
         },
         {
           "cursor": "eyJjIjo4LCJ0Ijo2LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "4W23PZz7dHVxoZ2VMCWU9j38Jxy7tLkqcFBcJUB3aCSB"
+            "digest": "C578ax51Fa2tE1SzpndkxpFxXdcgJsn8DtUZrx1y4pZm"
           }
         }
       ]
@@ -284,25 +284,25 @@ Response: {
           {
             "cursor": "eyJjIjoxMiwidCI6OCwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "JLAF7P6DumC8rgzT1Ygp2QgTwpHE2FUqQbVXL6cGEEQ"
+              "digest": "7VZ3iTkZobLwB9sdMBSyRyME54w2AGkWx2nSNNKr3SCx"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6OSwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "BVMVdn7DDpTbCjtYwWFekcFA9sNeMgDh1wTNWRrngZxh"
+              "digest": "33YoiygwdhQhouyo46PAxqC2V6Va4Dz5pnmFm2aVSDFu"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6MTAsImkiOmZhbHNlfQ",
             "node": {
-              "digest": "4J5tno4AoU4NPS2NgEseAZK7cpLDh6KJduVtbtwzmHk5"
+              "digest": "3eGMR5W8rvo1AB67PiuX2Y3mf2NqdcXfs4fjQhQtMEqm"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6MTEsImkiOmZhbHNlfQ",
             "node": {
-              "digest": "GngPX2ztACkKE96VUfoujZ3vA11MMDhPSwwgKhK7hVa"
+              "digest": "3vPMFAxh6VnNYzJBGqjZPsH9qNrEd1hHKeRRvfxqFYvx"
             }
           }
         ]
@@ -313,67 +313,67 @@ Response: {
         {
           "cursor": "eyJjIjoxMiwidCI6MCwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "J7mHXcoa7LXwyjzZUWsk8zvYZjek359TM4d2hQK4LGHo"
+            "digest": "5JYD4dXX1dbKTpkmyyzCjV4rwnDbRBpHF5MqzmUkuS5E"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6MSwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "J1pYPDrTgsKgzB8XWtW8jLJ8RPsbJcC1SQ4Mv2T1hAWt"
+            "digest": "3vZBdxUkxe4ja8rcWFVsDE1GABQ7YS4dGFJ6DBSNeLEX"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6MiwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs"
+            "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6MywiaSI6ZmFsc2V9",
           "node": {
-            "digest": "Bym7b7ELP77KxVHtgj6F4FB7H6n5LYQuBQYmdvvFxEmM"
+            "digest": "H1onPegHJqy8A2biZcqAPJF2xuA1bSVCLEtGTfGp68mt"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6NCwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "H1WU8uXMGaENQs54EpoHGpV1iMYdH8P5scd1d16s9ECB"
+            "digest": "H7ZqaxVctFmJ1JwQfsyRSMp4CMcMRaneFyQiFxuSiWym"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6NSwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "4vJbSYKwEJb5sYU2jiayqsZNRnBywD8y6sd3RQoMppF9"
+            "digest": "9UYfmVxPCw6r8MWvjndpWGzxbP37P1rF9VWHr64NbFPq"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6NiwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "4W23PZz7dHVxoZ2VMCWU9j38Jxy7tLkqcFBcJUB3aCSB"
+            "digest": "C578ax51Fa2tE1SzpndkxpFxXdcgJsn8DtUZrx1y4pZm"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6NywiaSI6ZmFsc2V9",
           "node": {
-            "digest": "D251V1BnvyRKNFZmiFxaf7gSZLGdLo8fYbbVDb5vJWfd"
+            "digest": "8FLhsBowfdJXeWQh8TSSsxbHQkKVqFSdmjPMBuHpgmas"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6OCwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "JLAF7P6DumC8rgzT1Ygp2QgTwpHE2FUqQbVXL6cGEEQ"
+            "digest": "7VZ3iTkZobLwB9sdMBSyRyME54w2AGkWx2nSNNKr3SCx"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6OSwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "BVMVdn7DDpTbCjtYwWFekcFA9sNeMgDh1wTNWRrngZxh"
+            "digest": "33YoiygwdhQhouyo46PAxqC2V6Va4Dz5pnmFm2aVSDFu"
           }
         },
         {
           "cursor": "eyJjIjoxMiwidCI6MTAsImkiOmZhbHNlfQ",
           "node": {
-            "digest": "4J5tno4AoU4NPS2NgEseAZK7cpLDh6KJduVtbtwzmHk5"
+            "digest": "3eGMR5W8rvo1AB67PiuX2Y3mf2NqdcXfs4fjQhQtMEqm"
           }
         }
       ]
@@ -381,7 +381,7 @@ Response: {
   }
 }
 
-task 23, lines 159-199:
+task 23, lines 160-200:
 //# run-graphql --cursors {"t":0,"i":false,"c":7} {"t":4,"i":false,"c":11} {"t":8,"i":false,"c":12}
 Response: {
   "data": {
@@ -395,19 +395,19 @@ Response: {
           {
             "cursor": "eyJjIjo3LCJ0IjoxLCJpIjpmYWxzZX0",
             "node": {
-              "digest": "J1pYPDrTgsKgzB8XWtW8jLJ8RPsbJcC1SQ4Mv2T1hAWt"
+              "digest": "3vZBdxUkxe4ja8rcWFVsDE1GABQ7YS4dGFJ6DBSNeLEX"
             }
           },
           {
             "cursor": "eyJjIjo3LCJ0IjoyLCJpIjpmYWxzZX0",
             "node": {
-              "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs"
+              "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2"
             }
           },
           {
             "cursor": "eyJjIjo3LCJ0IjozLCJpIjpmYWxzZX0",
             "node": {
-              "digest": "Bym7b7ELP77KxVHtgj6F4FB7H6n5LYQuBQYmdvvFxEmM"
+              "digest": "H1onPegHJqy8A2biZcqAPJF2xuA1bSVCLEtGTfGp68mt"
             }
           }
         ]
@@ -420,19 +420,19 @@ Response: {
           {
             "cursor": "eyJjIjoxMSwidCI6NSwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "4vJbSYKwEJb5sYU2jiayqsZNRnBywD8y6sd3RQoMppF9"
+              "digest": "9UYfmVxPCw6r8MWvjndpWGzxbP37P1rF9VWHr64NbFPq"
             }
           },
           {
             "cursor": "eyJjIjoxMSwidCI6NiwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "4W23PZz7dHVxoZ2VMCWU9j38Jxy7tLkqcFBcJUB3aCSB"
+              "digest": "C578ax51Fa2tE1SzpndkxpFxXdcgJsn8DtUZrx1y4pZm"
             }
           },
           {
             "cursor": "eyJjIjoxMSwidCI6NywiaSI6ZmFsc2V9",
             "node": {
-              "digest": "D251V1BnvyRKNFZmiFxaf7gSZLGdLo8fYbbVDb5vJWfd"
+              "digest": "8FLhsBowfdJXeWQh8TSSsxbHQkKVqFSdmjPMBuHpgmas"
             }
           }
         ]
@@ -445,19 +445,19 @@ Response: {
           {
             "cursor": "eyJjIjoxMiwidCI6OSwiaSI6ZmFsc2V9",
             "node": {
-              "digest": "BVMVdn7DDpTbCjtYwWFekcFA9sNeMgDh1wTNWRrngZxh"
+              "digest": "33YoiygwdhQhouyo46PAxqC2V6Va4Dz5pnmFm2aVSDFu"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6MTAsImkiOmZhbHNlfQ",
             "node": {
-              "digest": "4J5tno4AoU4NPS2NgEseAZK7cpLDh6KJduVtbtwzmHk5"
+              "digest": "3eGMR5W8rvo1AB67PiuX2Y3mf2NqdcXfs4fjQhQtMEqm"
             }
           },
           {
             "cursor": "eyJjIjoxMiwidCI6MTEsImkiOmZhbHNlfQ",
             "node": {
-              "digest": "GngPX2ztACkKE96VUfoujZ3vA11MMDhPSwwgKhK7hVa"
+              "digest": "3vPMFAxh6VnNYzJBGqjZPsH9qNrEd1hHKeRRvfxqFYvx"
             }
           }
         ]
@@ -466,7 +466,7 @@ Response: {
   }
 }
 
-task 24, lines 201-241:
+task 24, lines 202-242:
 //# run-graphql --cursors {"t":1,"i":false,"c":2} {"t":5,"i":false,"c":6} {"t":9,"i":false,"c":10}
 Response: {
   "data": {
@@ -480,7 +480,7 @@ Response: {
           {
             "cursor": "eyJjIjoyLCJ0IjoyLCJpIjpmYWxzZX0",
             "node": {
-              "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs"
+              "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2"
             }
           }
         ]
@@ -493,7 +493,7 @@ Response: {
           {
             "cursor": "eyJjIjo2LCJ0Ijo2LCJpIjpmYWxzZX0",
             "node": {
-              "digest": "4W23PZz7dHVxoZ2VMCWU9j38Jxy7tLkqcFBcJUB3aCSB"
+              "digest": "C578ax51Fa2tE1SzpndkxpFxXdcgJsn8DtUZrx1y4pZm"
             }
           }
         ]
@@ -506,7 +506,7 @@ Response: {
           {
             "cursor": "eyJjIjoxMCwidCI6MTAsImkiOmZhbHNlfQ",
             "node": {
-              "digest": "4J5tno4AoU4NPS2NgEseAZK7cpLDh6KJduVtbtwzmHk5"
+              "digest": "3eGMR5W8rvo1AB67PiuX2Y3mf2NqdcXfs4fjQhQtMEqm"
             }
           }
         ]
@@ -515,7 +515,7 @@ Response: {
   }
 }
 
-task 25, lines 243-282:
+task 25, lines 244-283:
 //# run-graphql --cursors {"t":5,"i":false,"c":6}
 Response: {
   "data": {
@@ -527,24 +527,24 @@ Response: {
         {
           "cursor": "eyJjIjo2LCJ0Ijo2LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "4W23PZz7dHVxoZ2VMCWU9j38Jxy7tLkqcFBcJUB3aCSB",
+            "digest": "C578ax51Fa2tE1SzpndkxpFxXdcgJsn8DtUZrx1y4pZm",
             "sender": {
               "objects": {
                 "edges": [
                   {
-                    "cursor": "IEc7/GlJ0OzYvLoXrYb8i5a4bH/GJV+rf3OdCN0ybK6BBgAAAAAAAAA="
+                    "cursor": "IAg/QSufjURjuU1D6nRj1RRL0xNfPBQ5f/2evA0bYkGrBgAAAAAAAAA="
                   },
                   {
-                    "cursor": "IIqPTFnX+rHDcS4xCUFXG4ZsOQcWEdkXi1f+8/v0IBH0BgAAAAAAAAA="
+                    "cursor": "IBE++AHaYJVMzIbCpBf6mLoR5BTvMhyTMMZ7Q1hGUi6DBgAAAAAAAAA="
                   },
                   {
-                    "cursor": "INbqP41ZqynANs92ptMyMn/+lSNP12oLtw8bpZIEWDkmBgAAAAAAAAA="
+                    "cursor": "IBgvECDVOSsdWl04kxVjeb50fNsKEvIJqiB5YfBBrJutBgAAAAAAAAA="
                   },
                   {
-                    "cursor": "INpMDx0x9g66unG0Cuxh6o2J2gVYeYeWUOCSgt4SbrtUBgAAAAAAAAA="
+                    "cursor": "IDpWhzux0MWXTI9/QAocl5XRuyGACbSEBwRfLlwFEJrsBgAAAAAAAAA="
                   },
                   {
-                    "cursor": "IOLsptmHdyPvEY5wclPNEAiDho6BXIICZmmOGq0F0DNkBgAAAAAAAAA="
+                    "cursor": "IIhLQMTRXJCsnYxw7ZVsv0EpXkp9isys4rXRduE/7i11BgAAAAAAAAA="
                   }
                 ]
               }
@@ -558,33 +558,33 @@ Response: {
         {
           "cursor": "eyJjIjoxMiwidCI6MiwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "Cwqr9jTgQjajoYaqcjzAaQGcQEyCg8XxoN7smGCLiBrs",
+            "digest": "q5yBS1foUGKxVET8XdzCokPPf7J6RKHD5b2USdWarR2",
             "sender": {
               "objects": {
                 "edges": [
                   {
-                    "cursor": "IEc7/GlJ0OzYvLoXrYb8i5a4bH/GJV+rf3OdCN0ybK6BDAAAAAAAAAA="
+                    "cursor": "IAg/QSufjURjuU1D6nRj1RRL0xNfPBQ5f/2evA0bYkGrDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IF/uIRaMgBMCI+kzIXbynkkgR1IqqzEFTdlab1OX1hK7DAAAAAAAAAA="
+                    "cursor": "IBE++AHaYJVMzIbCpBf6mLoR5BTvMhyTMMZ7Q1hGUi6DDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IIqPTFnX+rHDcS4xCUFXG4ZsOQcWEdkXi1f+8/v0IBH0DAAAAAAAAAA="
+                    "cursor": "IBgvECDVOSsdWl04kxVjeb50fNsKEvIJqiB5YfBBrJutDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IKlQ9F2RqOqHllHkIqzqS/vQR74f1DWxQJuH7L0DCyToDAAAAAAAAAA="
+                    "cursor": "ICtQlM4f2qyv93p5k/GA/99noqG0XWTgKiuucTbEaVHZDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INbqP41ZqynANs92ptMyMn/+lSNP12oLtw8bpZIEWDkmDAAAAAAAAAA="
+                    "cursor": "IDpWhzux0MWXTI9/QAocl5XRuyGACbSEBwRfLlwFEJrsDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INpMDx0x9g66unG0Cuxh6o2J2gVYeYeWUOCSgt4SbrtUDAAAAAAAAAA="
+                    "cursor": "IIhLQMTRXJCsnYxw7ZVsv0EpXkp9isys4rXRduE/7i11DAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IOLsptmHdyPvEY5wclPNEAiDho6BXIICZmmOGq0F0DNkDAAAAAAAAAA="
+                    "cursor": "IMcLSZ1z5lSSg/WaL58P1JoAk4yNgZIk5edXD+aHNlIhDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8DAAAAAAAAAA="
+                    "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXDAAAAAAAAAA="
                   }
                 ]
               }
@@ -594,33 +594,33 @@ Response: {
         {
           "cursor": "eyJjIjoxMiwidCI6NCwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "H1WU8uXMGaENQs54EpoHGpV1iMYdH8P5scd1d16s9ECB",
+            "digest": "H7ZqaxVctFmJ1JwQfsyRSMp4CMcMRaneFyQiFxuSiWym",
             "sender": {
               "objects": {
                 "edges": [
                   {
-                    "cursor": "IEc7/GlJ0OzYvLoXrYb8i5a4bH/GJV+rf3OdCN0ybK6BDAAAAAAAAAA="
+                    "cursor": "IAg/QSufjURjuU1D6nRj1RRL0xNfPBQ5f/2evA0bYkGrDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IF/uIRaMgBMCI+kzIXbynkkgR1IqqzEFTdlab1OX1hK7DAAAAAAAAAA="
+                    "cursor": "IBE++AHaYJVMzIbCpBf6mLoR5BTvMhyTMMZ7Q1hGUi6DDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IIqPTFnX+rHDcS4xCUFXG4ZsOQcWEdkXi1f+8/v0IBH0DAAAAAAAAAA="
+                    "cursor": "IBgvECDVOSsdWl04kxVjeb50fNsKEvIJqiB5YfBBrJutDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IKlQ9F2RqOqHllHkIqzqS/vQR74f1DWxQJuH7L0DCyToDAAAAAAAAAA="
+                    "cursor": "ICtQlM4f2qyv93p5k/GA/99noqG0XWTgKiuucTbEaVHZDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INbqP41ZqynANs92ptMyMn/+lSNP12oLtw8bpZIEWDkmDAAAAAAAAAA="
+                    "cursor": "IDpWhzux0MWXTI9/QAocl5XRuyGACbSEBwRfLlwFEJrsDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INpMDx0x9g66unG0Cuxh6o2J2gVYeYeWUOCSgt4SbrtUDAAAAAAAAAA="
+                    "cursor": "IIhLQMTRXJCsnYxw7ZVsv0EpXkp9isys4rXRduE/7i11DAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IOLsptmHdyPvEY5wclPNEAiDho6BXIICZmmOGq0F0DNkDAAAAAAAAAA="
+                    "cursor": "IMcLSZ1z5lSSg/WaL58P1JoAk4yNgZIk5edXD+aHNlIhDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8DAAAAAAAAAA="
+                    "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXDAAAAAAAAAA="
                   }
                 ]
               }
@@ -630,33 +630,33 @@ Response: {
         {
           "cursor": "eyJjIjoxMiwidCI6NSwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "4vJbSYKwEJb5sYU2jiayqsZNRnBywD8y6sd3RQoMppF9",
+            "digest": "9UYfmVxPCw6r8MWvjndpWGzxbP37P1rF9VWHr64NbFPq",
             "sender": {
               "objects": {
                 "edges": [
                   {
-                    "cursor": "IEc7/GlJ0OzYvLoXrYb8i5a4bH/GJV+rf3OdCN0ybK6BDAAAAAAAAAA="
+                    "cursor": "IAg/QSufjURjuU1D6nRj1RRL0xNfPBQ5f/2evA0bYkGrDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IF/uIRaMgBMCI+kzIXbynkkgR1IqqzEFTdlab1OX1hK7DAAAAAAAAAA="
+                    "cursor": "IBE++AHaYJVMzIbCpBf6mLoR5BTvMhyTMMZ7Q1hGUi6DDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IIqPTFnX+rHDcS4xCUFXG4ZsOQcWEdkXi1f+8/v0IBH0DAAAAAAAAAA="
+                    "cursor": "IBgvECDVOSsdWl04kxVjeb50fNsKEvIJqiB5YfBBrJutDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IKlQ9F2RqOqHllHkIqzqS/vQR74f1DWxQJuH7L0DCyToDAAAAAAAAAA="
+                    "cursor": "ICtQlM4f2qyv93p5k/GA/99noqG0XWTgKiuucTbEaVHZDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INbqP41ZqynANs92ptMyMn/+lSNP12oLtw8bpZIEWDkmDAAAAAAAAAA="
+                    "cursor": "IDpWhzux0MWXTI9/QAocl5XRuyGACbSEBwRfLlwFEJrsDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INpMDx0x9g66unG0Cuxh6o2J2gVYeYeWUOCSgt4SbrtUDAAAAAAAAAA="
+                    "cursor": "IIhLQMTRXJCsnYxw7ZVsv0EpXkp9isys4rXRduE/7i11DAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IOLsptmHdyPvEY5wclPNEAiDho6BXIICZmmOGq0F0DNkDAAAAAAAAAA="
+                    "cursor": "IMcLSZ1z5lSSg/WaL58P1JoAk4yNgZIk5edXD+aHNlIhDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8DAAAAAAAAAA="
+                    "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXDAAAAAAAAAA="
                   }
                 ]
               }
@@ -666,33 +666,33 @@ Response: {
         {
           "cursor": "eyJjIjoxMiwidCI6NiwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "4W23PZz7dHVxoZ2VMCWU9j38Jxy7tLkqcFBcJUB3aCSB",
+            "digest": "C578ax51Fa2tE1SzpndkxpFxXdcgJsn8DtUZrx1y4pZm",
             "sender": {
               "objects": {
                 "edges": [
                   {
-                    "cursor": "IEc7/GlJ0OzYvLoXrYb8i5a4bH/GJV+rf3OdCN0ybK6BDAAAAAAAAAA="
+                    "cursor": "IAg/QSufjURjuU1D6nRj1RRL0xNfPBQ5f/2evA0bYkGrDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IF/uIRaMgBMCI+kzIXbynkkgR1IqqzEFTdlab1OX1hK7DAAAAAAAAAA="
+                    "cursor": "IBE++AHaYJVMzIbCpBf6mLoR5BTvMhyTMMZ7Q1hGUi6DDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IIqPTFnX+rHDcS4xCUFXG4ZsOQcWEdkXi1f+8/v0IBH0DAAAAAAAAAA="
+                    "cursor": "IBgvECDVOSsdWl04kxVjeb50fNsKEvIJqiB5YfBBrJutDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IKlQ9F2RqOqHllHkIqzqS/vQR74f1DWxQJuH7L0DCyToDAAAAAAAAAA="
+                    "cursor": "ICtQlM4f2qyv93p5k/GA/99noqG0XWTgKiuucTbEaVHZDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INbqP41ZqynANs92ptMyMn/+lSNP12oLtw8bpZIEWDkmDAAAAAAAAAA="
+                    "cursor": "IDpWhzux0MWXTI9/QAocl5XRuyGACbSEBwRfLlwFEJrsDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INpMDx0x9g66unG0Cuxh6o2J2gVYeYeWUOCSgt4SbrtUDAAAAAAAAAA="
+                    "cursor": "IIhLQMTRXJCsnYxw7ZVsv0EpXkp9isys4rXRduE/7i11DAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IOLsptmHdyPvEY5wclPNEAiDho6BXIICZmmOGq0F0DNkDAAAAAAAAAA="
+                    "cursor": "IMcLSZ1z5lSSg/WaL58P1JoAk4yNgZIk5edXD+aHNlIhDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8DAAAAAAAAAA="
+                    "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXDAAAAAAAAAA="
                   }
                 ]
               }
@@ -702,33 +702,33 @@ Response: {
         {
           "cursor": "eyJjIjoxMiwidCI6OCwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "JLAF7P6DumC8rgzT1Ygp2QgTwpHE2FUqQbVXL6cGEEQ",
+            "digest": "7VZ3iTkZobLwB9sdMBSyRyME54w2AGkWx2nSNNKr3SCx",
             "sender": {
               "objects": {
                 "edges": [
                   {
-                    "cursor": "IEc7/GlJ0OzYvLoXrYb8i5a4bH/GJV+rf3OdCN0ybK6BDAAAAAAAAAA="
+                    "cursor": "IAg/QSufjURjuU1D6nRj1RRL0xNfPBQ5f/2evA0bYkGrDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IF/uIRaMgBMCI+kzIXbynkkgR1IqqzEFTdlab1OX1hK7DAAAAAAAAAA="
+                    "cursor": "IBE++AHaYJVMzIbCpBf6mLoR5BTvMhyTMMZ7Q1hGUi6DDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IIqPTFnX+rHDcS4xCUFXG4ZsOQcWEdkXi1f+8/v0IBH0DAAAAAAAAAA="
+                    "cursor": "IBgvECDVOSsdWl04kxVjeb50fNsKEvIJqiB5YfBBrJutDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IKlQ9F2RqOqHllHkIqzqS/vQR74f1DWxQJuH7L0DCyToDAAAAAAAAAA="
+                    "cursor": "ICtQlM4f2qyv93p5k/GA/99noqG0XWTgKiuucTbEaVHZDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INbqP41ZqynANs92ptMyMn/+lSNP12oLtw8bpZIEWDkmDAAAAAAAAAA="
+                    "cursor": "IDpWhzux0MWXTI9/QAocl5XRuyGACbSEBwRfLlwFEJrsDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INpMDx0x9g66unG0Cuxh6o2J2gVYeYeWUOCSgt4SbrtUDAAAAAAAAAA="
+                    "cursor": "IIhLQMTRXJCsnYxw7ZVsv0EpXkp9isys4rXRduE/7i11DAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IOLsptmHdyPvEY5wclPNEAiDho6BXIICZmmOGq0F0DNkDAAAAAAAAAA="
+                    "cursor": "IMcLSZ1z5lSSg/WaL58P1JoAk4yNgZIk5edXD+aHNlIhDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8DAAAAAAAAAA="
+                    "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXDAAAAAAAAAA="
                   }
                 ]
               }
@@ -738,33 +738,33 @@ Response: {
         {
           "cursor": "eyJjIjoxMiwidCI6OSwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "BVMVdn7DDpTbCjtYwWFekcFA9sNeMgDh1wTNWRrngZxh",
+            "digest": "33YoiygwdhQhouyo46PAxqC2V6Va4Dz5pnmFm2aVSDFu",
             "sender": {
               "objects": {
                 "edges": [
                   {
-                    "cursor": "IEc7/GlJ0OzYvLoXrYb8i5a4bH/GJV+rf3OdCN0ybK6BDAAAAAAAAAA="
+                    "cursor": "IAg/QSufjURjuU1D6nRj1RRL0xNfPBQ5f/2evA0bYkGrDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IF/uIRaMgBMCI+kzIXbynkkgR1IqqzEFTdlab1OX1hK7DAAAAAAAAAA="
+                    "cursor": "IBE++AHaYJVMzIbCpBf6mLoR5BTvMhyTMMZ7Q1hGUi6DDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IIqPTFnX+rHDcS4xCUFXG4ZsOQcWEdkXi1f+8/v0IBH0DAAAAAAAAAA="
+                    "cursor": "IBgvECDVOSsdWl04kxVjeb50fNsKEvIJqiB5YfBBrJutDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IKlQ9F2RqOqHllHkIqzqS/vQR74f1DWxQJuH7L0DCyToDAAAAAAAAAA="
+                    "cursor": "ICtQlM4f2qyv93p5k/GA/99noqG0XWTgKiuucTbEaVHZDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INbqP41ZqynANs92ptMyMn/+lSNP12oLtw8bpZIEWDkmDAAAAAAAAAA="
+                    "cursor": "IDpWhzux0MWXTI9/QAocl5XRuyGACbSEBwRfLlwFEJrsDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INpMDx0x9g66unG0Cuxh6o2J2gVYeYeWUOCSgt4SbrtUDAAAAAAAAAA="
+                    "cursor": "IIhLQMTRXJCsnYxw7ZVsv0EpXkp9isys4rXRduE/7i11DAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IOLsptmHdyPvEY5wclPNEAiDho6BXIICZmmOGq0F0DNkDAAAAAAAAAA="
+                    "cursor": "IMcLSZ1z5lSSg/WaL58P1JoAk4yNgZIk5edXD+aHNlIhDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8DAAAAAAAAAA="
+                    "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXDAAAAAAAAAA="
                   }
                 ]
               }
@@ -774,33 +774,33 @@ Response: {
         {
           "cursor": "eyJjIjoxMiwidCI6MTAsImkiOmZhbHNlfQ",
           "node": {
-            "digest": "4J5tno4AoU4NPS2NgEseAZK7cpLDh6KJduVtbtwzmHk5",
+            "digest": "3eGMR5W8rvo1AB67PiuX2Y3mf2NqdcXfs4fjQhQtMEqm",
             "sender": {
               "objects": {
                 "edges": [
                   {
-                    "cursor": "IEc7/GlJ0OzYvLoXrYb8i5a4bH/GJV+rf3OdCN0ybK6BDAAAAAAAAAA="
+                    "cursor": "IAg/QSufjURjuU1D6nRj1RRL0xNfPBQ5f/2evA0bYkGrDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IF/uIRaMgBMCI+kzIXbynkkgR1IqqzEFTdlab1OX1hK7DAAAAAAAAAA="
+                    "cursor": "IBE++AHaYJVMzIbCpBf6mLoR5BTvMhyTMMZ7Q1hGUi6DDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IIqPTFnX+rHDcS4xCUFXG4ZsOQcWEdkXi1f+8/v0IBH0DAAAAAAAAAA="
+                    "cursor": "IBgvECDVOSsdWl04kxVjeb50fNsKEvIJqiB5YfBBrJutDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IKlQ9F2RqOqHllHkIqzqS/vQR74f1DWxQJuH7L0DCyToDAAAAAAAAAA="
+                    "cursor": "ICtQlM4f2qyv93p5k/GA/99noqG0XWTgKiuucTbEaVHZDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INbqP41ZqynANs92ptMyMn/+lSNP12oLtw8bpZIEWDkmDAAAAAAAAAA="
+                    "cursor": "IDpWhzux0MWXTI9/QAocl5XRuyGACbSEBwRfLlwFEJrsDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "INpMDx0x9g66unG0Cuxh6o2J2gVYeYeWUOCSgt4SbrtUDAAAAAAAAAA="
+                    "cursor": "IIhLQMTRXJCsnYxw7ZVsv0EpXkp9isys4rXRduE/7i11DAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IOLsptmHdyPvEY5wclPNEAiDho6BXIICZmmOGq0F0DNkDAAAAAAAAAA="
+                    "cursor": "IMcLSZ1z5lSSg/WaL58P1JoAk4yNgZIk5edXD+aHNlIhDAAAAAAAAAA="
                   },
                   {
-                    "cursor": "IPdBQipzs53YXv+f5ZHkysnhkenevKFjtWcKDBtTiWu8DAAAAAAAAAA="
+                    "cursor": "IPbOaICNxv7LDzqSa1q0EClI2FXvhU8FxwIqtPFs03bXDAAAAAAAAAA="
                   }
                 ]
               }

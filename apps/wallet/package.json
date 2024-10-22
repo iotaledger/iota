@@ -36,7 +36,7 @@
         "tokens",
         "balance"
     ],
-    "author": "IOTA Foundation <contact@iota.org>",
+    "author": "IOTA Foundation <info@iota.org>",
     "license": "Apache-2.0",
     "devDependencies": {
         "@amplitude/ampli": "^1.31.5",
@@ -96,7 +96,6 @@
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
-        "@iota/icons": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
         "@iota/kiosk": "workspace:*",
         "@iota/ledgerjs-hw-app-iota": "workspace:*",
@@ -107,7 +106,7 @@
         "@ledgerhq/hw-transport-webhid": "^6.27.15",
         "@ledgerhq/hw-transport-webusb": "^6.27.13",
         "@ledgerhq/logs": "^6.12.0",
-        "@metamask/browser-passworder": "^4.1.0",
+        "@metamask/browser-passworder": "^5.0.1",
         "@noble/hashes": "^1.4.0",
         "@radix-ui/react-checkbox": "^1.0.4",
         "@radix-ui/react-collapsible": "^1.0.3",

@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cell::RefCell,
     collections::BTreeSet,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use clap::*;
@@ -110,36 +112,6 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
-    #[serde(skip_serializing_if = "is_false")]
-    package_upgrades: bool,
-    // If true, validators will commit to the root state digest
-    // in end of epoch checkpoint proposals
-    #[serde(skip_serializing_if = "is_false")]
-    commit_root_state_digest: bool,
-    // Pass epoch start time to advance_epoch safe mode function.
-    #[serde(skip_serializing_if = "is_false")]
-    advance_epoch_start_time_in_safe_mode: bool,
-    // If true, apply the fix to correctly capturing loaded child object versions in execution's
-    // object runtime.
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_objects_fixed: bool,
-    // If true, treat missing types in the upgraded modules when creating an upgraded package as a
-    // compatibility error.
-    #[serde(skip_serializing_if = "is_false")]
-    missing_type_is_compatibility_error: bool,
-    // If true, then the scoring decision mechanism will not get disabled when we do have more than
-    // f low scoring authorities, but it will simply flag as low scoring only up to f authorities.
-    #[serde(skip_serializing_if = "is_false")]
-    scoring_decision_with_validity_cutoff: bool,
-
-    // DEPRECATED: this was an ephemeral feature flag only used by consensus handler, which has now
-    // been deployed everywhere.
-    #[serde(skip_serializing_if = "is_false")]
-    consensus_order_end_of_epoch_last: bool,
-
-    // Disallow adding abilities to types during package upgrades.
-    #[serde(skip_serializing_if = "is_false")]
-    disallow_adding_abilities_on_upgrade: bool,
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
     #[serde(skip_serializing_if = "is_false")]
     disable_invariant_violation_check_in_swap_loc: bool,
@@ -147,21 +119,9 @@ struct FeatureFlags {
     // consecutive protocol version.
     #[serde(skip_serializing_if = "is_false")]
     advance_to_highest_supported_protocol_version: bool,
-    // If true, disallow entry modifiers on entry functions
-    #[serde(skip_serializing_if = "is_false")]
-    ban_entry_init: bool,
-    // If true, hash module bytes individually when calculating package digests for upgrades
-    #[serde(skip_serializing_if = "is_false")]
-    package_digest_hash_module: bool,
-    // If true, disallow changing struct type parameters during package upgrades
-    #[serde(skip_serializing_if = "is_false")]
-    disallow_change_struct_type_params_on_upgrade: bool,
     // If true, checks no extra bytes in a compiled module
     #[serde(skip_serializing_if = "is_false")]
     no_extraneous_module_bytes: bool,
-    // If true, then use the versioned metadata format in narwhal entities.
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_versioned_metadata: bool,
 
     // Enable zklogin auth
     #[serde(skip_serializing_if = "is_false")]
@@ -170,108 +130,32 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    // Previously, the unwrapped_then_deleted field in TransactionEffects makes a distinction
-    // between whether an object has existed in the store previously (i.e. whether there is a
-    // tombstone). Such dependency makes effects generation inefficient, and requires us to
-    // include wrapped tombstone in state root hash.
-    // To prepare for effects V2, with this flag set to true, we simplify the definition of
-    // unwrapped_then_deleted to always include unwrapped then deleted objects,
-    // regardless of their previous state in the store.
-    #[serde(skip_serializing_if = "is_false")]
-    simplified_unwrap_then_delete: bool,
-    // Enable upgraded multisig support
-    #[serde(skip_serializing_if = "is_false")]
-    upgraded_multisig_supported: bool,
-    // If true minimum txn charge is a multiplier of the gas price
-    #[serde(skip_serializing_if = "is_false")]
-    txn_base_cost_as_multiplier: bool,
-
-    // If true, the ability to delete shared objects is in effect
-    #[serde(skip_serializing_if = "is_false")]
-    shared_object_deletion: bool,
-
-    // If true, then the new algorithm for the leader election schedule will be used
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_new_leader_election_schedule: bool,
-
     // A list of supported OIDC providers that can be used for zklogin.
     #[serde(skip_serializing_if = "is_empty")]
     zklogin_supported_providers: BTreeSet<String>,
 
-    // If true, use the new child object format
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_object_format: bool,
-
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    #[serde(skip_serializing_if = "is_false")]
-    end_of_epoch_transaction_supported: bool,
-
-    // Perform simple conservation checks keeping into account out of gas scenarios
-    // while charging for storage.
-    #[serde(skip_serializing_if = "is_false")]
-    simple_conservation_checks: bool,
-
-    // If true, use the new child object format type logging
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_object_format_type: bool,
-
-    // Enable receiving sent objects
-    #[serde(skip_serializing_if = "is_false")]
-    receive_objects: bool,
-
-    // Enable random beacon protocol
-    #[serde(skip_serializing_if = "is_false")]
-    random_beacon: bool,
 
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
 
-    #[serde(skip_serializing_if = "is_false")]
-    enable_effects_v2: bool,
-
-    // If true, then use CertificateV2 in narwhal.
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_certificate_v2: bool,
-
-    // If true, allow verify with legacy zklogin address
-    #[serde(skip_serializing_if = "is_false")]
-    verify_legacy_zklogin_address: bool,
-
     // Enable throughput aware consensus submission
     #[serde(skip_serializing_if = "is_false")]
     throughput_aware_consensus_submission: bool,
-
-    // If true, recompute has_public_transfer from the type instead of what is stored in the object
-    #[serde(skip_serializing_if = "is_false")]
-    recompute_has_public_transfer_in_execution: bool,
 
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
 
-    // If true, consensus prologue transaction also includes the consensus output digest.
-    // It can be used to detect consensus output folk.
-    #[serde(skip_serializing_if = "is_false")]
-    include_consensus_digest_in_prologue: bool,
-
     // If true, use the hardened OTW check
     #[serde(skip_serializing_if = "is_false")]
     hardened_otw_check: bool,
 
-    // If true allow calling receiving_object_id function
-    #[serde(skip_serializing_if = "is_false")]
-    allow_receiving_object_id: bool,
-
     // Enable the poseidon hash function
     #[serde(skip_serializing_if = "is_false")]
     enable_poseidon: bool,
-
-    // If true, enable the coin deny list.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_coin_deny_list: bool,
 
     // Enable native functions for group operations.
     #[serde(skip_serializing_if = "is_false")]
@@ -281,20 +165,16 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_group_ops_native_function_msm: bool,
 
-    // Reject functions with mutable Random.
-    #[serde(skip_serializing_if = "is_false")]
-    reject_mutable_random_on_entry_functions: bool,
-
     // Controls the behavior of per object congestion control in consensus handler.
     #[serde(skip_serializing_if = "PerObjectCongestionControlMode::is_none")]
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
     // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_narwhal")]
+    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
-    #[serde(skip_serializing_if = "ConsensusNetwork::is_anemo")]
+    #[serde(skip_serializing_if = "ConsensusNetwork::is_tonic")]
     consensus_network: ConsensusNetwork,
 
     // Set the upper bound allowed for max_epoch in zklogin signature.
@@ -305,55 +185,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     mysticeti_leader_scoring_and_schedule: bool,
 
-    // Enable resharing of shared objects using the same initial shared version
-    #[serde(skip_serializing_if = "is_false")]
-    reshare_at_same_initial_version: bool,
-
-    // Resolve Move abort locations to the package id instead of the runtime module ID.
-    #[serde(skip_serializing_if = "is_false")]
-    resolve_abort_locations_to_package_id: bool,
-
-    // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in
-    // checkpoints. When disabled the default digest is used instead. It's important to have
-    // this guarded behind a flag as it will lead to checkpoint forks.
-    #[serde(skip_serializing_if = "is_false")]
-    mysticeti_use_committed_subdag_digest: bool,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
 
-    // Controls whether consensus handler should record consensus determined shared object version
-    // assignments in consensus commit prologue transaction.
-    // The purpose of doing this is to enable replaying transaction without transaction effects.
-    #[serde(skip_serializing_if = "is_false")]
-    record_consensus_determined_version_assignments_in_prologue: bool,
-
-    // Run verification of framework upgrades using a new/fresh VM.
-    #[serde(skip_serializing_if = "is_false")]
-    fresh_vm_on_framework_upgrade: bool,
-
-    // When set to true, the consensus commit prologue transaction will be placed first
-    // in a consensus commit in checkpoints.
-    // If a checkpoint contains multiple consensus commit, say [cm1][cm2]. The each commit's
-    // consensus commit prologue will be the first transaction in each segment:
-    //     [ccp1, rest cm1][ccp2, rest cm2]
-    // The reason to prepose the prologue transaction is to provide information for transaction
-    // cancellation.
-    #[serde(skip_serializing_if = "is_false")]
-    prepend_prologue_tx_in_consensus_commit_in_checkpoints: bool,
-
     // Set number of leaders per round for Mysticeti commits.
     #[serde(skip_serializing_if = "Option::is_none")]
     mysticeti_num_leaders_per_round: Option<usize>,
-
-    // Enable Soft Bundle (SIP-19).
-    #[serde(skip_serializing_if = "is_false")]
-    soft_bundle: bool,
-
-    // If true, enable the coin deny list V2.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_coin_deny_list_v2: bool,
 
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
@@ -412,14 +250,12 @@ impl PerObjectCongestionControlMode {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
-    Narwhal,
-    SwapEachEpoch,
     Mysticeti,
 }
 
 impl ConsensusChoice {
-    pub fn is_narwhal(&self) -> bool {
-        matches!(self, ConsensusChoice::Narwhal)
+    pub fn is_mysticeti(&self) -> bool {
+        matches!(self, ConsensusChoice::Mysticeti)
     }
 }
 
@@ -427,13 +263,12 @@ impl ConsensusChoice {
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusNetwork {
     #[default]
-    Anemo,
     Tonic,
 }
 
 impl ConsensusNetwork {
-    pub fn is_anemo(&self) -> bool {
-        matches!(self, ConsensusNetwork::Anemo)
+    pub fn is_tonic(&self) -> bool {
+        matches!(self, ConsensusNetwork::Tonic)
     }
 }
 
@@ -1145,61 +980,6 @@ impl ProtocolConfig {
     //     }
     // }
 
-    pub fn check_package_upgrades_supported(&self) -> Result<(), Error> {
-        if self.feature_flags.package_upgrades {
-            Ok(())
-        } else {
-            Err(Error(format!(
-                "package upgrades are not supported at {:?}",
-                self.version
-            )))
-        }
-    }
-
-    pub fn allow_receiving_object_id(&self) -> bool {
-        self.feature_flags.allow_receiving_object_id
-    }
-
-    pub fn receiving_objects_supported(&self) -> bool {
-        self.feature_flags.receive_objects
-    }
-
-    pub fn package_upgrades_supported(&self) -> bool {
-        self.feature_flags.package_upgrades
-    }
-
-    pub fn check_commit_root_state_digest_supported(&self) -> bool {
-        self.feature_flags.commit_root_state_digest
-    }
-
-    pub fn get_advance_epoch_start_time_in_safe_mode(&self) -> bool {
-        self.feature_flags.advance_epoch_start_time_in_safe_mode
-    }
-
-    pub fn loaded_child_objects_fixed(&self) -> bool {
-        self.feature_flags.loaded_child_objects_fixed
-    }
-
-    pub fn missing_type_is_compatibility_error(&self) -> bool {
-        self.feature_flags.missing_type_is_compatibility_error
-    }
-
-    pub fn scoring_decision_with_validity_cutoff(&self) -> bool {
-        self.feature_flags.scoring_decision_with_validity_cutoff
-    }
-
-    pub fn narwhal_versioned_metadata(&self) -> bool {
-        self.feature_flags.narwhal_versioned_metadata
-    }
-
-    pub fn consensus_order_end_of_epoch_last(&self) -> bool {
-        self.feature_flags.consensus_order_end_of_epoch_last
-    }
-
-    pub fn disallow_adding_abilities_on_upgrade(&self) -> bool {
-        self.feature_flags.disallow_adding_abilities_on_upgrade
-    }
-
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
         self.feature_flags
             .disable_invariant_violation_check_in_swap_loc
@@ -1208,19 +988,6 @@ impl ProtocolConfig {
     pub fn advance_to_highest_supported_protocol_version(&self) -> bool {
         self.feature_flags
             .advance_to_highest_supported_protocol_version
-    }
-
-    pub fn ban_entry_init(&self) -> bool {
-        self.feature_flags.ban_entry_init
-    }
-
-    pub fn package_digest_hash_module(&self) -> bool {
-        self.feature_flags.package_digest_hash_module
-    }
-
-    pub fn disallow_change_struct_type_params_on_upgrade(&self) -> bool {
-        self.feature_flags
-            .disallow_change_struct_type_params_on_upgrade
     }
 
     pub fn no_extraneous_module_bytes(&self) -> bool {
@@ -1239,68 +1006,13 @@ impl ProtocolConfig {
         self.feature_flags.consensus_transaction_ordering
     }
 
-    pub fn simplified_unwrap_then_delete(&self) -> bool {
-        self.feature_flags.simplified_unwrap_then_delete
-    }
-
-    pub fn supports_upgraded_multisig(&self) -> bool {
-        self.feature_flags.upgraded_multisig_supported
-    }
-
-    pub fn txn_base_cost_as_multiplier(&self) -> bool {
-        self.feature_flags.txn_base_cost_as_multiplier
-    }
-
-    pub fn shared_object_deletion(&self) -> bool {
-        self.feature_flags.shared_object_deletion
-    }
-
-    pub fn narwhal_new_leader_election_schedule(&self) -> bool {
-        self.feature_flags.narwhal_new_leader_election_schedule
-    }
-
-    pub fn loaded_child_object_format(&self) -> bool {
-        self.feature_flags.loaded_child_object_format
-    }
-
     pub fn enable_jwk_consensus_updates(&self) -> bool {
-        let ret = self.feature_flags.enable_jwk_consensus_updates;
-        if ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
-    }
-
-    pub fn simple_conservation_checks(&self) -> bool {
-        self.feature_flags.simple_conservation_checks
-    }
-
-    pub fn loaded_child_object_format_type(&self) -> bool {
-        self.feature_flags.loaded_child_object_format_type
-    }
-
-    pub fn end_of_epoch_transaction_supported(&self) -> bool {
-        let ret = self.feature_flags.end_of_epoch_transaction_supported;
-        if !ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(!self.feature_flags.enable_jwk_consensus_updates);
-        }
-        ret
-    }
-
-    pub fn recompute_has_public_transfer_in_execution(&self) -> bool {
-        self.feature_flags
-            .recompute_has_public_transfer_in_execution
+        self.feature_flags.enable_jwk_consensus_updates
     }
 
     // this function only exists for readability in the genesis code.
     pub fn create_authenticator_state_in_genesis(&self) -> bool {
         self.enable_jwk_consensus_updates()
-    }
-
-    pub fn random_beacon(&self) -> bool {
-        self.feature_flags.random_beacon
     }
 
     pub fn dkg_version(&self) -> u64 {
@@ -1309,12 +1021,7 @@ impl ProtocolConfig {
     }
 
     pub fn enable_bridge(&self) -> bool {
-        let ret = self.feature_flags.bridge;
-        if ret {
-            // bridge required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
+        self.feature_flags.bridge
     }
 
     pub fn should_try_to_finalize_bridge_committee(&self) -> bool {
@@ -1323,18 +1030,6 @@ impl ProtocolConfig {
         }
         // In the older protocol version, always try to finalize the committee.
         self.bridge_should_try_to_finalize_committee.unwrap_or(true)
-    }
-
-    pub fn enable_effects_v2(&self) -> bool {
-        self.feature_flags.enable_effects_v2
-    }
-
-    pub fn narwhal_certificate_v2(&self) -> bool {
-        self.feature_flags.narwhal_certificate_v2
-    }
-
-    pub fn verify_legacy_zklogin_address(&self) -> bool {
-        self.feature_flags.verify_legacy_zklogin_address
     }
 
     pub fn accept_zklogin_in_multisig(&self) -> bool {
@@ -1349,20 +1044,6 @@ impl ProtocolConfig {
         self.feature_flags.throughput_aware_consensus_submission
     }
 
-    pub fn include_consensus_digest_in_prologue(&self) -> bool {
-        self.feature_flags.include_consensus_digest_in_prologue
-    }
-
-    pub fn record_consensus_determined_version_assignments_in_prologue(&self) -> bool {
-        self.feature_flags
-            .record_consensus_determined_version_assignments_in_prologue
-    }
-
-    pub fn prepend_prologue_tx_in_consensus_commit_in_checkpoints(&self) -> bool {
-        self.feature_flags
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints
-    }
-
     pub fn hardened_otw_check(&self) -> bool {
         self.feature_flags.hardened_otw_check
     }
@@ -1371,24 +1052,12 @@ impl ProtocolConfig {
         self.feature_flags.enable_poseidon
     }
 
-    pub fn enable_coin_deny_list_v1(&self) -> bool {
-        self.feature_flags.enable_coin_deny_list
-    }
-
-    pub fn enable_coin_deny_list_v2(&self) -> bool {
-        self.feature_flags.enable_coin_deny_list_v2
-    }
-
     pub fn enable_group_ops_native_functions(&self) -> bool {
         self.feature_flags.enable_group_ops_native_functions
     }
 
     pub fn enable_group_ops_native_function_msm(&self) -> bool {
         self.feature_flags.enable_group_ops_native_function_msm
-    }
-
-    pub fn reject_mutable_random_on_entry_functions(&self) -> bool {
-        self.feature_flags.reject_mutable_random_on_entry_functions
     }
 
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
@@ -1407,32 +1076,12 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_leader_scoring_and_schedule
     }
 
-    pub fn reshare_at_same_initial_version(&self) -> bool {
-        self.feature_flags.reshare_at_same_initial_version
-    }
-
-    pub fn resolve_abort_locations_to_package_id(&self) -> bool {
-        self.feature_flags.resolve_abort_locations_to_package_id
-    }
-
-    pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
-        self.feature_flags.mysticeti_use_committed_subdag_digest
-    }
-
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
     }
 
-    pub fn fresh_vm_on_framework_upgrade(&self) -> bool {
-        self.feature_flags.fresh_vm_on_framework_upgrade
-    }
-
     pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
         self.feature_flags.mysticeti_num_leaders_per_round
-    }
-
-    pub fn soft_bundle(&self) -> bool {
-        self.feature_flags.soft_bundle
     }
 
     pub fn passkey_auth(&self) -> bool {
@@ -1441,6 +1090,18 @@ impl ProtocolConfig {
 
     pub fn authority_capabilities_v2(&self) -> bool {
         self.feature_flags.authority_capabilities_v2
+    }
+
+    pub fn max_transaction_size_bytes(&self) -> u64 {
+        // Provide a default value if protocol config version is too low.
+        self.consensus_max_transaction_size_bytes
+            .unwrap_or(256 * 1024)
+    }
+
+    pub fn max_transactions_in_block_bytes(&self) -> u64 {
+        // Provide a default value if protocol config version is too low.
+        self.consensus_max_transactions_in_block_bytes
+            .unwrap_or(512 * 1024)
     }
 
     pub fn max_num_transactions_in_block(&self) -> u64 {
@@ -1484,16 +1145,14 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        CONFIG_OVERRIDE.with(|ovr| {
-            if let Some(override_fn) = &*ovr.borrow() {
-                warn!(
-                    "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
-                );
-                override_fn(version, ret)
-            } else {
-                ret
-            }
-        })
+        if let Some(override_fn) = &*CONFIG_OVERRIDE.read().unwrap() {
+            warn!(
+                "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
+            );
+            override_fn(version, ret)
+        } else {
+            ret
+        }
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -1985,62 +1644,30 @@ impl ProtocolConfig {
             // new_constant: None,
         };
 
-        cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
-        cfg.feature_flags.missing_type_is_compatibility_error = true;
-        cfg.feature_flags.scoring_decision_with_validity_cutoff = true;
-        cfg.feature_flags.consensus_order_end_of_epoch_last = true;
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
-        cfg.feature_flags.package_digest_hash_module = true;
         cfg.feature_flags.no_extraneous_module_bytes = true;
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
-        cfg.feature_flags.narwhal_versioned_metadata = true;
-        cfg.feature_flags.commit_root_state_digest = true;
-        cfg.feature_flags.zklogin_auth = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
-        cfg.feature_flags.simplified_unwrap_then_delete = true;
-        cfg.feature_flags.upgraded_multisig_supported = true;
-        cfg.feature_flags.txn_base_cost_as_multiplier = true;
-        cfg.feature_flags.narwhal_new_leader_election_schedule = true;
-        cfg.feature_flags.loaded_child_object_format = true;
-        cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.simple_conservation_checks = true;
-        cfg.feature_flags.end_of_epoch_transaction_supported = true;
-        cfg.feature_flags.enable_jwk_consensus_updates = true;
-        cfg.feature_flags.receive_objects = true;
-        cfg.feature_flags.enable_effects_v2 = true;
-        cfg.feature_flags.verify_legacy_zklogin_address = true;
-        cfg.feature_flags.narwhal_certificate_v2 = true;
-        cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
-        cfg.feature_flags.shared_object_deletion = true;
+
         cfg.feature_flags.hardened_otw_check = true;
-        cfg.feature_flags.allow_receiving_object_id = true;
-        cfg.feature_flags.enable_coin_deny_list = true;
-        cfg.feature_flags.reject_mutable_random_on_entry_functions = true;
 
         // Enable group ops and all networks (but not msm)
         cfg.feature_flags.enable_group_ops_native_functions = true;
 
-        // zklogin_supported_providers config is deprecated, zklogin
-        // signature verifier will use the fetched jwk map to determine
-        // whether the provider is supported based on node config.
-        cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
+        // zkLogin related flags
+        {
+            cfg.feature_flags.zklogin_auth = false;
+            cfg.feature_flags.enable_jwk_consensus_updates = false;
+            // zklogin_supported_providers config is deprecated, zklogin
+            // signature verifier will use the fetched jwk map to determine
+            // whether the provider is supported based on node config.
+            cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
+            cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
+            cfg.feature_flags.accept_zklogin_in_multisig = false;
+        }
 
-        // Following flags are implied by the execution version.
-        // Once support for earlier protocol versions is dropped, these flags can be
-        // removed:
-        cfg.feature_flags.package_upgrades = true;
-        cfg.feature_flags.disallow_adding_abilities_on_upgrade = true;
-        cfg.feature_flags
-            .disallow_change_struct_type_params_on_upgrade = true;
-        cfg.feature_flags.loaded_child_objects_fixed = true;
-        cfg.feature_flags.ban_entry_init = true;
-
-        cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
-
-        // Enable consensus digest in consensus commit prologue on all networks..
-        cfg.feature_flags.include_consensus_digest_in_prologue = true;
         // Enable Mysticeti on mainnet.
         cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
         // Use tonic networking for Mysticeti.
@@ -2048,35 +1675,7 @@ impl ProtocolConfig {
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
-        cfg.feature_flags.accept_zklogin_in_multisig = true;
-
-        // Enable resharing at same initial version
-        cfg.feature_flags.reshare_at_same_initial_version = true;
-
-        // Enable resolving abort code IDs to package ID instead of runtime module ID
-        cfg.feature_flags.resolve_abort_locations_to_package_id = true;
-
-        // Enable random beacon.
-        cfg.feature_flags.random_beacon = true;
-
-        // Enable the committed sub dag digest inclusion on the commit output
-        cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
-
-        // Enable consensus commit prologue V3.
-        cfg.feature_flags
-            .record_consensus_determined_version_assignments_in_prologue = true;
-        cfg.feature_flags
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints = true;
-
-        // Run Move verification on framework upgrades in its own VM
-        cfg.feature_flags.fresh_vm_on_framework_upgrade = true;
-
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
-
-        cfg.feature_flags.enable_coin_deny_list_v2 = true;
-
-        // Enable soft bundle.
-        cfg.feature_flags.soft_bundle = true;
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
@@ -2086,7 +1685,7 @@ impl ProtocolConfig {
 
         cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
 
-        cfg.feature_flags.bridge = true;
+        cfg.feature_flags.bridge = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
@@ -2161,9 +1760,6 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
-            allow_receiving_object_id: self.allow_receiving_object_id(),
-            reject_mutable_random_on_entry_functions: self
-                .reject_mutable_random_on_entry_functions(),
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
         }
@@ -2184,14 +1780,12 @@ impl ProtocolConfig {
     /// get_for_(min|max)_version is called, since those functions cache
     /// their return value.
     pub fn apply_overrides_for_testing(
-        override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + 'static,
+        override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
     ) -> OverrideGuard {
-        CONFIG_OVERRIDE.with(|ovr| {
-            let mut cur = ovr.borrow_mut();
-            assert!(cur.is_none(), "config override already present");
-            *cur = Some(Box::new(override_fn));
-            OverrideGuard
-        })
+        let mut option = CONFIG_OVERRIDE.write().unwrap();
+        assert!(option.is_none(), "config override already present");
+        *option = Some(Box::new(override_fn));
+        OverrideGuard
     }
 }
 
@@ -2204,50 +1798,15 @@ impl ProtocolConfig {
         self.feature_flags
             .advance_to_highest_supported_protocol_version = val
     }
-    pub fn set_commit_root_state_digest_supported_for_testing(&mut self, val: bool) {
-        self.feature_flags.commit_root_state_digest = val
-    }
     pub fn set_zklogin_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.zklogin_auth = val
     }
     pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_jwk_consensus_updates = val
     }
-    pub fn set_random_beacon_for_testing(&mut self, val: bool) {
-        self.feature_flags.random_beacon = val
-    }
 
-    pub fn set_upgraded_multisig_for_testing(&mut self, val: bool) {
-        self.feature_flags.upgraded_multisig_supported = val
-    }
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_zklogin_in_multisig = val
-    }
-
-    pub fn set_shared_object_deletion_for_testing(&mut self, val: bool) {
-        self.feature_flags.shared_object_deletion = val;
-    }
-
-    pub fn set_resolve_abort_locations_to_package_id_for_testing(&mut self, val: bool) {
-        self.feature_flags.resolve_abort_locations_to_package_id = val;
-    }
-
-    pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
-        self.feature_flags.reshare_at_same_initial_version = val;
-    }
-
-    pub fn set_narwhal_new_leader_election_schedule_for_testing(&mut self, val: bool) {
-        self.feature_flags.narwhal_new_leader_election_schedule = val;
-    }
-
-    pub fn set_receive_object_for_testing(&mut self, val: bool) {
-        self.feature_flags.receive_objects = val
-    }
-    pub fn set_narwhal_certificate_v2_for_testing(&mut self, val: bool) {
-        self.feature_flags.narwhal_certificate_v2 = val
-    }
-    pub fn set_verify_legacy_zklogin_address_for_testing(&mut self, val: bool) {
-        self.feature_flags.verify_legacy_zklogin_address = val
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(
@@ -2280,20 +1839,14 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_num_leaders_per_round = val;
     }
 
-    pub fn set_enable_soft_bundle_for_testing(&mut self, val: bool) {
-        self.feature_flags.soft_bundle = val;
-    }
-
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
     }
 }
 
-type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send;
+type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
 
-thread_local! {
-    static CONFIG_OVERRIDE: RefCell<Option<Box<OverrideFn>>> = RefCell::new(None);
-}
+static CONFIG_OVERRIDE: RwLock<Option<Box<OverrideFn>>> = RwLock::new(None);
 
 #[must_use]
 pub struct OverrideGuard;
@@ -2301,9 +1854,7 @@ pub struct OverrideGuard;
 impl Drop for OverrideGuard {
     fn drop(&mut self) {
         info!("restoring override fn");
-        CONFIG_OVERRIDE.with(|ovr| {
-            *ovr.borrow_mut() = None;
-        });
+        *CONFIG_OVERRIDE.write().unwrap() = None;
     }
 }
 

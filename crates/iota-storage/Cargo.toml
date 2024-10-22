@@ -1,7 +1,7 @@
 [package]
 name = "iota-storage"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -40,7 +40,7 @@ tempfile.workspace = true
 tokio = { workspace = true, features = ["full", "tracing"] }
 tracing.workspace = true
 url.workspace = true
-zstd.workspace = true
+zstd = "0.13"
 
 eyre.workspace = true
 iota-config.workspace = true

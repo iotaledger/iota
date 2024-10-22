@@ -17,9 +17,6 @@ pub use primary::*;
 mod proto;
 pub use proto::*;
 
-mod worker;
-pub use worker::*;
-
 mod serde;
 
 mod pre_subscribed_broadcast;

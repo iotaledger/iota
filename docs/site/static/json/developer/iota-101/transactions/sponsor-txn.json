@@ -1,0 +1,38 @@
+[
+    {
+        "questionText": "What role does the gas station play in a sponsored transaction?",
+        "answerOptions": [
+            { "answerText": "It executes the transaction on behalf of the user", "isCorrect": false },
+            { "answerText": "It fulfills the sponsorship request by providing the gas payment", "isCorrect": true },
+            { "answerText": "It validates the transaction on the IOTA network", "isCorrect": false },
+            { "answerText": "It manages the user's IOTA address", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which part of the `TransactionDataV1` structure holds the sponsor's gas payment information?",
+        "answerOptions": [
+            { "answerText": "sender", "isCorrect": false },
+            { "answerText": "gas_data", "isCorrect": true },
+            { "answerText": "tx_signatures", "isCorrect": false },
+            { "answerText": "kind", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What must both the user and sponsor do to ensure the integrity of the sponsored transaction?",
+        "answerOptions": [
+            { "answerText": "Submit the transaction to a gas station", "isCorrect": false },
+            { "answerText": "Sign over the entire TransactionData, including GasData", "isCorrect": true },
+            { "answerText": "Validate the gas fee before execution", "isCorrect": false },
+            { "answerText": "Send the transaction to a full node", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How can a user mitigate the censorship risk in a sponsored transaction?",
+        "answerOptions": [
+            { "answerText": "Submit the transaction directly to a full node", "isCorrect": true },
+            { "answerText": "Use only wildcard sponsorship", "isCorrect": false },
+            { "answerText": "Avoid using a gas station", "isCorrect": false },
+            { "answerText": "Ensure the sponsor signs the transaction first", "isCorrect": false }
+        ]
+    }
+]

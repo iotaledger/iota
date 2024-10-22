@@ -2,12 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { X12 } from '@iota/icons';
-import { Text, IconButton } from '@iota/ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
-
-import { ReactComponent as InfoIcon } from './icons/info.svg';
+import { Close, Info } from '@iota/ui-icons';
 
 const bannerStyles = cva(
     'inline-flex text-pBodySmall font-medium overflow-hidden gap-2 items-center flex-nowrap relative',
@@ -92,7 +89,7 @@ export interface BannerProps extends VariantProps<typeof bannerStyles> {
 }
 
 export function Banner({
-    icon = <InfoIcon />,
+    icon = <Info />,
     title,
     children,
     variant,
@@ -119,14 +116,12 @@ export function Banner({
         >
             {icon && <div className="flex items-center justify-center">{icon}</div>}
             <div className="flex flex-col gap-1">
-                {title && <Text variant="bodySmall/semibold">{title}</Text>}
+                {title && <span className="text-body-md">{title}</span>}
                 <div className="overflow-hidden break-words break-all">{children}</div>
             </div>
             {onDismiss ? (
                 <div className="absolute right-0 top-0">
-                    <IconButton onClick={onDismiss} aria-label="Close">
-                        <X12 />
-                    </IconButton>
+                    <Close className="h-3 w-3" onClick={onDismiss} aria-label="Close" />
                 </div>
             ) : null}
         </div>

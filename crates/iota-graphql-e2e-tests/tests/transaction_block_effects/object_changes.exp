@@ -3,23 +3,23 @@ processed 6 tasks
 init:
 validator_0: object(0,0)
 
-task 1, lines 6-25:
+task 1, lines 7-26:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 5570800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 27:
+task 2, line 28:
 //# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, line 29:
+task 3, line 30:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 31-50:
+task 4, lines 32-51:
 //# run-graphql
 Response: {
   "data": {
@@ -104,7 +104,7 @@ Response: {
   }
 }
 
-task 5, lines 52-71:
+task 5, lines 53-72:
 //# run-graphql --cursors {"i":10,"c":1}
 Response: {
   "data": {

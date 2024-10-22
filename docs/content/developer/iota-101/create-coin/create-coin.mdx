@@ -1,6 +1,9 @@
 ---
 title: Create Coins and Tokens
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/create-coin/create-coin.json';
+
 
 Coins and tokens on IOTA are similar. In practice, the terms are used interchangeably, but there are some differences in their implementation. You can learn about these differences in the respective standard documentation, [Closed-Loop Token](../../standards/closed-loop-token.mdx) and [Coin](../../standards/coin.mdx).
 
@@ -64,3 +67,6 @@ See the following topics for examples of some common use cases for coin and toke
 - [Regulated Coin and Deny List](regulated.mdx): Create a regulated coin and add or remove names from the deny list.
 - [Loyalty Token](loyalty.mdx): Create a token to reward user loyalty.
 - [In-Game Token](in-game-token.mdx): Create tokens that can be used only within a mobile game.
+
+
+<Quiz questions={questions} />

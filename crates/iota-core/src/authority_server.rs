@@ -38,7 +38,6 @@ use iota_types::{
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
     transaction::*,
 };
-use narwhal_worker::LazyNarwhalClient;
 use nonempty::{NonEmpty, nonempty};
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -57,6 +56,7 @@ use crate::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    mysticeti_adapter::LazyMysticetiClient,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, policies::TrafficTally,
     },
@@ -127,9 +127,8 @@ impl AuthorityServer {
 
     /// Creates a new `AuthorityServer` for testing.
     pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
-        let consensus_address = new_local_tcp_address_for_testing();
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyNarwhalClient::new(consensus_address)),
+            Arc::new(LazyMysticetiClient::new()),
             state.name,
             Arc::new(ConnectionMonitorStatusForTests {}),
             100_000,
@@ -780,21 +779,6 @@ impl ValidatorService {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> Result<(), tonic::Status> {
         let protocol_config = epoch_store.protocol_config();
-        let node_config = &self.state.config;
-
-        // Soft Bundle MUST be enabled both in protocol config and local node config.
-        //
-        // The local node config is by default enabled, but can be turned off by the
-        // node operator. This acts an extra safety measure where a validator
-        // node have the choice to turn this feature off, without having to
-        // upgrade the entire network.
-        fp_ensure!(
-            protocol_config.soft_bundle() && node_config.enable_soft_bundle,
-            IotaError::UnsupportedFeature {
-                error: "Soft Bundle".to_string()
-            }
-            .into()
-        );
 
         // Enforce these checks per [SIP-19](https://github.com/sui-foundation/sips/blob/main/sips/sip-19.md):
         // - All certs must access at least one shared object.
