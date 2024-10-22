@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaTransactionBlockResponseOptions } from '@iota/iota-sdk/client';
+import type { IotaTransactionBlockResponseOptions } from '@iota/iota-sdk/client';
 import type { SignedTransaction, IotaSignTransactionInput } from './iotaSignTransaction.js';
 
 /** The latest API version of the signAndExecuteTransactionBlock API. */
