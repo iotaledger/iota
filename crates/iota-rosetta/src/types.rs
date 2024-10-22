@@ -424,7 +424,6 @@ pub enum OperationType {
 impl From<&IotaTransactionBlockKind> for OperationType {
     fn from(tx: &IotaTransactionBlockKind) -> Self {
         match tx {
-            IotaTransactionBlockKind::ChangeEpoch(_) => OperationType::EpochChange,
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
             IotaTransactionBlockKind::ConsensusCommitPrologueV1(_) => {
                 OperationType::ConsensusCommitPrologue
