@@ -236,7 +236,7 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_callback(
+    pub fn with_state_accumulator_callback(
         mut self,
         func: StateAccumulatorV2EnabledCallback,
     ) -> Self {
