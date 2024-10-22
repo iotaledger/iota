@@ -10,9 +10,7 @@ This system was designed to give maximum freedom and flexibility for creators: b
 
 ## Architecture
 
-By default, a single TransferPolicy does not enforce anything - if a buyer attempts to confirm their TransferRequest, it will go through. However, the system allows setting so-called "Rules". Their logic is simple: someone can publish a new rule module, for example "fixed fee", and let it be "added" or "set" for the TransferPolicy. Once the Rule is added, TransferRequest needs to collect a TransferReceipt marking that the requiement specified in the Rule was completed.
-
-\[TODO\]
+By default, a single TransferPolicy does not enforce anything - if a buyer attempts to confirm their TransferRequest, it will go through. However, the system allows setting so-called "Rules". Their logic is simple: someone can publish a new rule module, for example "fixed fee", and let it be "added" or "set" for the TransferPolicy. Once the Rule is added, TransferRequest needs to collect a TransferReceipt marking that the requirement specified in the Rule was completed.
 
 - Once a Rule is added to the TransferPolicy, every TransferRequest going to the policy must have a matching Receipt
 
