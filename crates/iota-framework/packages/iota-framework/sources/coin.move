@@ -36,6 +36,9 @@ module iota::coin {
     //    b"Kill switch was not allowed at the creation of the DenyCapV2";
     const EGlobalPauseNotAllowed: u64 = 3;
 
+    /// The index into the deny list vector for the `iota::coin::Coin` type.
+    const DENY_LIST_COIN_INDEX: u64 = 0;
+
     /// A coin of type `T` worth `value`. Transferable and storable
     public struct Coin<phantom T> has key, store {
         id: UID,
@@ -281,25 +284,6 @@ module iota::coin {
         (treasury_cap, deny_cap, metadata)
     }
 
-    /// Given the `DenyCap` for a regulated currency, migrate it to the new `DenyCapV2` type.
-    /// All entries in the deny list will be migrated to the new format.
-    /// See `create_regulated_currency_v2` for details on the new v2 of the deny list.
-    public fun migrate_regulated_currency_to_v2<T>(
-        deny_list: &mut DenyList,
-        cap: DenyCap<T>,
-        allow_global_pause: bool,
-        ctx: &mut TxContext,
-    ): DenyCapV2<T> {
-        let DenyCap { id } = cap;
-        object::delete(id);
-        let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.migrate_v1_to_v2(DENY_LIST_COIN_INDEX, ty, ctx);
-        DenyCapV2 {
-            id: object::new(ctx),
-            allow_global_pause,
-        }
-    }
-
     /// Create a coin worth `value` and increase the total supply
     /// in `cap` accordingly.
     public fun mint<T>(
@@ -520,98 +504,5 @@ module iota::coin {
     #[allow(unused_field)]
     public struct CurrencyCreated<phantom T> has copy, drop {
         decimals: u8
-    }
-
-    /// Capability allowing the bearer to freeze addresses, preventing those addresses from
-    /// interacting with the coin as an input to a transaction.
-    public struct DenyCap<phantom T> has key, store {
-        id: UID,
-    }
-
-    /// This creates a new currency, via `create_currency`, but with an extra capability that
-    /// allows for specific addresses to have their coins frozen. Those addresses cannot interact
-    /// with the coin as input objects.
-    #[deprecated(note = b"For new coins, use `create_regulated_currency_v2`. To migrate existing regulated currencies, migrate with `migrate_regulated_currency_to_v2`")]
-    public fun create_regulated_currency<T: drop>(
-        witness: T,
-        decimals: u8,
-        symbol: vector<u8>,
-        name: vector<u8>,
-        description: vector<u8>,
-        icon_url: Option<Url>,
-        ctx: &mut TxContext
-    ): (TreasuryCap<T>, DenyCap<T>, CoinMetadata<T>) {
-        let (treasury_cap, metadata) = create_currency(
-            witness,
-            decimals,
-            symbol,
-            name,
-            description,
-            icon_url,
-            ctx
-        );
-        let deny_cap = DenyCap {
-            id: object::new(ctx),
-        };
-        transfer::freeze_object(RegulatedCoinMetadata<T> {
-            id: object::new(ctx),
-            coin_metadata_object: object::id(&metadata),
-            deny_cap_object: object::id(&deny_cap),
-        });
-        (treasury_cap, deny_cap, metadata)
-    }
-
-
-    /// The index into the deny list vector for the `iota::coin::Coin` type.
-    const DENY_LIST_COIN_INDEX: u64 = 0; // TODO public(package) const
-
-    /// Adds the given address to the deny list, preventing it
-    /// from interacting with the specified coin type as an input to a transaction.
-    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_v2_add`")]
-    public fun deny_list_add<T>(
-       deny_list: &mut DenyList,
-       _deny_cap: &mut DenyCap<T>,
-       addr: address,
-       _ctx: &mut TxContext
-    ) {
-        let `type` =
-            type_name::into_string(type_name::get_with_original_ids<T>()).into_bytes();
-        deny_list.v1_add(
-            DENY_LIST_COIN_INDEX,
-            `type`,
-            addr,
-        )
-    }
-
-    /// Removes an address from the deny list.
-    /// Aborts with `ENotFrozen` if the address is not already in the list.
-    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_v2_remove`")]
-    public fun deny_list_remove<T>(
-       deny_list: &mut DenyList,
-       _deny_cap: &mut DenyCap<T>,
-       addr: address,
-       _ctx: &mut TxContext
-    ) {
-        let `type` =
-            type_name::into_string(type_name::get_with_original_ids<T>()).into_bytes();
-        deny_list.v1_remove(
-            DENY_LIST_COIN_INDEX,
-            `type`,
-            addr,
-        )
-    }
-
-    /// Returns true iff the given address is denied for the given coin type. It will
-    /// return false if given a non-coin type.
-    #[deprecated(note = b"Use `migrate_regulated_currency_to_v2` to migrate to v2 and then use `deny_list_v2_contains_next_epoch` or `deny_list_v2_contains_current_epoch`")]
-    public fun deny_list_contains<T>(
-       deny_list: &DenyList,
-       addr: address,
-    ): bool {
-        let name = type_name::get_with_original_ids<T>();
-        if (type_name::is_primitive(&name)) return false;
-
-        let `type` = type_name::into_string(name).into_bytes();
-        deny_list.v1_contains(DENY_LIST_COIN_INDEX, `type`, addr)
     }
 }

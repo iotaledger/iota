@@ -5,13 +5,11 @@
 import { type SignMessageApprovalRequest } from '_payloads/transactions/ApprovalRequest';
 import { toUtf8OrB64 } from '_src/shared/utils';
 import { useMemo } from 'react';
-
 import { UserApproveContainer } from '_components';
 import { useAppDispatch } from '../../hooks';
 import { useAccountByAddress } from '../../hooks/useAccountByAddress';
 import { useSigner } from '../../hooks/useSigner';
 import { respondToTransactionRequest } from '../../redux/slices/transaction-requests';
-import { Heading } from '../../shared/heading';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { Text } from '../../shared/text';
 
@@ -51,9 +49,7 @@ export function SignMessageRequest({ request }: SignMessageRequestProps) {
         >
             <PageMainLayoutTitle title="Sign Message" />
             <div className="py-4">
-                <Heading variant="heading6" color="gray-90" weight="semibold" centered>
-                    Message You Are Signing
-                </Heading>
+                <span className="text-title-lg">Message You Are Signing</span>
             </div>
             <div className="flex flex-col flex-nowrap items-stretch overflow-y-auto overflow-x-hidden rounded-15 border border-solid border-gray-50 bg-white shadow-card-soft">
                 <div className="break-words p-5">

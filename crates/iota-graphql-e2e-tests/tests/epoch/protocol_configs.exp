@@ -17,7 +17,7 @@ Response: {
         "value": "128"
       },
       "featureFlag": {
-        "value": true
+        "value": false
       }
     }
   }
@@ -33,7 +33,7 @@ Response: {
         "value": "128"
       },
       "featureFlag": {
-        "value": true
+        "value": false
       }
     }
   }

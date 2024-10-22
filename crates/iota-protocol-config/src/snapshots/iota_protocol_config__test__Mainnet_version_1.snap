@@ -8,16 +8,12 @@ feature_flags:
   advance_to_highest_supported_protocol_version: true
   no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
-  shared_object_deletion: true
-  recompute_has_public_transfer_in_execution: true
   hardened_otw_check: true
-  enable_coin_deny_list: true
   enable_group_ops_native_functions: true
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
   mysticeti_leader_scoring_and_schedule: true
   mysticeti_num_leaders_per_round: 1
-  enable_coin_deny_list_v2: true
   rethrow_serialization_type_layout_errors: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
