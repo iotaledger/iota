@@ -1364,23 +1364,6 @@ impl AuthorityPerEpochStore {
             .map_err(Into::into)
     }
 
-    /// Returns future containing the state digest for the given epoch
-    /// once available.
-    /// TODO: remove once StateAccumulatorV1 is removed
-    pub async fn notify_read_checkpoint_state_digests(
-        &self,
-        checkpoints: Vec<CheckpointSequenceNumber>,
-    ) -> IotaResult<Vec<Accumulator>> {
-        self.checkpoint_state_notify_read
-            .read(&checkpoints, |checkpoints| -> IotaResult<_> {
-                Ok(self
-                    .tables()?
-                    .state_hash_by_checkpoint
-                    .multi_get(checkpoints)?)
-            })
-            .await
-    }
-
     pub async fn notify_read_running_root(
         &self,
         checkpoint: CheckpointSequenceNumber,
