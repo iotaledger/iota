@@ -78,18 +78,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IAPncIzO93MccQ+AS4ELnuFrh+pu0bTBsQvTZ1AFf79gAQAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmMw=="
-              },
-              "value": {
-                "json": "df3"
-              }
-            }
-          },
-          {
-            "cursor": "IHX+WwyIKioSoX7o16G/8Z4RcQXmTtJ3qDu+SNPODpXHAQAAAAAAAAA=",
+            "cursor": "IGL/AkAehOA9JWabY7LEyla1CR9vjbJehGIj9a7qcX4UAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
@@ -100,7 +89,18 @@ Response: {
             }
           },
           {
-            "cursor": "IHZPztaFOqqPy6t2XbveKwgeBNzDvSY+zbI2YrUD1A9NAQAAAAAAAAA=",
+            "cursor": "IMp4Y5lhAQREA6LWgp+YmmZOzPrtrICImi3Q/L1Knm8pAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw=="
+              },
+              "value": {
+                "json": "df3"
+              }
+            }
+          },
+          {
+            "cursor": "IN/gxQdNYnVfB7JC2QqrVZ3Ulxf84o+ptEaJ7Cl53GsEAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMQ=="
@@ -201,18 +201,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IAPncIzO93MccQ+AS4ELnuFrh+pu0bTBsQvTZ1AFf79gAgAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmMw=="
-              },
-              "value": {
-                "json": "df3"
-              }
-            }
-          },
-          {
-            "cursor": "IHX+WwyIKioSoX7o16G/8Z4RcQXmTtJ3qDu+SNPODpXHAgAAAAAAAAA=",
+            "cursor": "IGL/AkAehOA9JWabY7LEyla1CR9vjbJehGIj9a7qcX4UAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
@@ -223,7 +212,18 @@ Response: {
             }
           },
           {
-            "cursor": "IHZPztaFOqqPy6t2XbveKwgeBNzDvSY+zbI2YrUD1A9NAgAAAAAAAAA=",
+            "cursor": "IMp4Y5lhAQREA6LWgp+YmmZOzPrtrICImi3Q/L1Knm8pAgAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw=="
+              },
+              "value": {
+                "json": "df3"
+              }
+            }
+          },
+          {
+            "cursor": "IN/gxQdNYnVfB7JC2QqrVZ3Ulxf84o+ptEaJ7Cl53GsEAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMQ=="

@@ -57,7 +57,6 @@ use iota_types::{
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
-    deny_list_v1::check_coin_deny_list_v1,
     deny_list_v2::check_coin_deny_list_v2_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
@@ -884,16 +883,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
             )?;
 
-        if epoch_store.coin_deny_list_v1_enabled() {
-            check_coin_deny_list_v1(
-                tx_data.sender(),
-                &checked_input_objects,
-                &receiving_objects,
-                &self.get_object_store(),
-            )?;
-        }
-
-        if epoch_store.protocol_config().enable_coin_deny_list_v2() {
+        if epoch_store.coin_deny_list_v2_enabled() {
             check_coin_deny_list_v2_during_signing(
                 tx_data.sender(),
                 &checked_input_objects,
@@ -4693,7 +4683,7 @@ impl AuthorityState {
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().enable_coin_deny_list_v1() {
+        if !epoch_store.protocol_config().enable_coin_deny_list_v2() {
             return None;
         }
 

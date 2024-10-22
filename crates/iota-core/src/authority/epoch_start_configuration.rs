@@ -10,7 +10,7 @@ use iota_types::{
     authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
     bridge::{get_bridge_obj_initial_shared_version, is_bridge_committee_initiated},
-    deny_list_v1::get_deny_list_obj_initial_shared_version,
+    deny_list_v2::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
     error::IotaResult,
     iota_system_state::epoch_start_iota_system_state::{
