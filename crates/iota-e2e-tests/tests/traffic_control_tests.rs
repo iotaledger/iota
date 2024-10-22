@@ -611,7 +611,7 @@ async fn test_traffic_sketch_no_blocks() {
     };
     let metrics = TrafficSim::run(
         policy,
-        10,     // num_clients
+        10,    // num_clients
         5_000, // per_client_tps
         Duration::from_secs(20),
         true, // report
@@ -693,7 +693,7 @@ async fn test_traffic_sketch_with_sampled_spam() {
     };
     let metrics = TrafficSim::run(
         policy,
-        1,      // num_clients
+        1,    // num_clients
         1000, // per_client_tps
         Duration::from_secs(20),
         true, // report

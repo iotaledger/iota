@@ -22,8 +22,10 @@ use iota_metrics::spawn_monitored_task;
 use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig, Weight};
 use prometheus::IntGauge;
 use rand::Rng;
-use tokio::sync::{mpsc, mpsc::error::TrySendError};
-use tokio::time;
+use tokio::{
+    sync::{mpsc, mpsc::error::TrySendError},
+    time,
+};
 use tracing::{debug, error, info, trace, warn};
 
 use self::metrics::TrafficControllerMetrics;
