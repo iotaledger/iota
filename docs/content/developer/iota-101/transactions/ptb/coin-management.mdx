@@ -1,0 +1,69 @@
+---
+description: Understand how to handle owned coins in IOTA transactions and programmable transaction block development.
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/coin-management.json';
+
+# Managing Owned Coins in IOTA
+
+In IOTA programming, effectively managing owned coins is essential for seamless transaction execution.
+This guide explores the concept of [owned objects](../../objects/object-ownership/address-owned.mdx),
+how they differ from traditional account balances, and best practices for coin management in IOTA.
+
+## Understanding Owned Objects
+
+IOTA introduces the concept of [address-owned objects](../../objects/object-ownership/address-owned.mdx,
+which allows for highly parallelizable transactions and logically maps to assets exclusively owned by an individual. 
+Coins in IOTA are examples of these owned objects, similar to holding cash rather than maintaining a bank balance.
+
+Unlike other blockchains that use a single balance per account,
+IOTA's approach means you might own multiple coins as separate objects .
+This paradigm shift requires a different strategy for managing your assets.
+
+## The Importance of Coin Management
+
+Owning multiple coins means you may need to merge them to meet the value required for certain transactions.
+[Merging coins](#coin-merging-overview) becomes necessary when the amount needed exceeds any single coin you possess,
+making coin management a crucial step in transaction preparation.
+
+## Using the IOTA SDKs
+
+The IOTA SDKs for [TypeScript](../../../../references/ts-sdk/typescript/index.mdx) and [Rust](../../../../references/rust-sdk.mdx) handle coin management automatically,
+merging coins as needed and assuming sequential transaction execution.
+This automation simplifies the process for most use cases where high concurrency isn't a concern.
+
+## Coin Merging Overview
+
+IOTA allows you to provide multiple coins as payment in a transaction.
+This feature, known as [coin merging](optimizing-gas-with-coin-merging.mdx),
+automatically combines these coins into one,
+presenting your [programmable transaction blocks (PTBs)](programmable-transaction-blocks) with a single gas coin 
+usable for various purposes beyond just paying for gas.
+
+You can supply numerous coins (up to a protocol-defined limit), which are merged into the first coin provided.
+After deducting the gas budget, the remaining amount is available within the transaction and returned if unused.
+
+## Managing Generic Coins
+
+While coin merging works seamlessly for `Coin<IOTA>` objects used for gas payments,
+other coin types require manual management.
+PTBs offer commands like [`mergeCoins`](programmable-transaction-blocks#mergecoins) to combine multiple coins,
+and [`splitCoins`](programmable-transaction-blocks#splitcoins) to divide them, giving you control over your coin distribution.
+
+These operations are cost-effective but necessitate awareness of your specific needs and coin holdings.
+
+## Addressing Concurrency Challenges
+
+When high concurrency is required, merging all your `Coin<IOTA>` into a single coin can create bottlenecks.
+Since each coin is an owned object, it's locked during a transaction, preventing simultaneous use in other transactions.
+Attempting to use the same coin concurrently can lead to conflicts and render the coin unusable until the epoch ends.
+
+To enable concurrent transactions,
+consider splitting a coin into multiple coins corresponding to the number of transactions,
+or using different coins for each transaction without overlap.
+
+Concurrency introduces additional complexities,
+such as performance impacts from multiple network interactions with full nodes during transaction creation and submission.
+Careful planning is essential, and strategies should be tailored to your specific scenarios.
+
+<Quiz questions={questions} />

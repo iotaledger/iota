@@ -125,25 +125,32 @@ const developer = [
                     id: 'developer/iota-101/transactions/transactions',
                 },
                 items: [
-                    'developer/iota-101/transactions/sign-and-send-txn',
+                    'developer/iota-101/transactions/sign-and-send-transactions',
                     {
                         type: 'category',
                         label: 'Sponsored Transactions',
                         link: {
                             type: 'doc',
-                            id: 'developer/iota-101/transactions/sponsor-txn',
+                            id: 'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
                         },
-                        items: ['developer/iota-101/transactions/sponsored-transactions'],
+                        items: [
+                            'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
+                            'developer/iota-101/transactions/sponsored-transactions/use-sponsored-transactions'],
                     },
-                    'developer/iota-101/transactions/gas-smashing',
                     {
                         type: 'category',
                         label: 'Working with PTBs',
+                        link: {
+                            type: 'doc',
+                            id:'developer/iota-101/transactions/ptb/programmable-transaction-blocks-overview',
+                        },
                         items: [
-                            'developer/iota-101/transactions/ptb/prog-txn-blocks',
-                            'developer/iota-101/transactions/ptb/building-ptb',
-                            'developer/iota-101/transactions/ptb/coin-mgt',
-                            'developer/iota-101/transactions/ptb/simulating-refs',
+                            'developer/iota-101/transactions/ptb/programmable-transaction-blocks',
+                            'developer/iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk',
+                            'developer/iota-101/transactions/ptb/simulating-references',
+                            'developer/iota-101/transactions/ptb/coin-management',
+                            'developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging',
+
                         ],
                     },
                 ],
