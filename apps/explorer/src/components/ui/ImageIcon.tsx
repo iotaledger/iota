@@ -30,12 +30,25 @@ function FallBackAvatar({
     rounded?: boolean;
     size?: ImageIconSize;
 }) {
+    function generateTextSize(size: ImageIconSize) {
+        switch (size) {
+            case ImageIconSize.Small:
+                return 'text-label-sm';
+            case ImageIconSize.Medium:
+                return 'text-label-md';
+            case ImageIconSize.Large:
+                return 'text-title-lg';
+            case ImageIconSize.Full:
+                return 'text-display-lg';
+        }
+    }
     return (
         <div
             className={cn(
-                'flex items-center justify-center bg-neutral-96 bg-gradient-to-r text-label-md text-neutral-10 dark:bg-neutral-92 dark:text-primary-100',
-                { 'rounded-full': rounded },
+                'flex items-center justify-center bg-neutral-96 bg-gradient-to-r capitalize text-neutral-10 dark:bg-neutral-92 dark:text-primary-100',
+                { 'rounded-full': rounded, 'rounded-lg': !rounded },
                 size,
+                generateTextSize(size),
             )}
         >
             {str?.slice(0, 2)}

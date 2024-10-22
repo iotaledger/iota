@@ -23,8 +23,8 @@ import {
 } from '@iota/core';
 import { RecognizedBadge } from '@iota/ui-icons';
 import { useMemo } from 'react';
-import { CoinIcon } from '~/components';
-import { AddressLink, CollapsibleCard, ImageIconSize } from '~/components/ui';
+import { CoinIcon, ImageIconSize } from '~/components';
+import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
 
 interface BalanceChangesProps {

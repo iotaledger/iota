@@ -6,15 +6,7 @@ import { useCoinMetadata } from '@iota/core';
 import { IotaLogoMark } from '@iota/ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { cx } from 'class-variance-authority';
-
-import { ImageIcon } from '~/components/ui';
-
-export enum ImageIconSize {
-    Small = 'w-5 h-5',
-    Medium = 'w-8 h-8',
-    Large = 'w-10 h-10',
-    Full = 'w-full h-full',
-}
+import { ImageIcon, ImageIconSize } from '../ui';
 
 interface NonIotaCoinProps {
     coinType: string;
@@ -25,7 +17,7 @@ interface NonIotaCoinProps {
 function NonIotaCoin({ coinType, size = ImageIconSize.Full, rounded }: NonIotaCoinProps) {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
-        <div className="flex h-full w-full items-center justify-center rounded-full">
+        <div className="flex h-full w-full items-center justify-center rounded-full bg-neutral-96 dark:bg-neutral-92">
             <ImageIcon
                 src={coinMeta?.iconUrl}
                 label={coinMeta?.name || coinType}
@@ -48,6 +40,6 @@ export function CoinIcon({ coinType, size = ImageIconSize.Full, rounded }: CoinI
             <IotaLogoMark className="h-full w-full" />
         </div>
     ) : (
-        <NonIotaCoin rounded={rounded} size={ImageIconSize.Full} coinType={coinType} />
+        <NonIotaCoin rounded={rounded} size={size} coinType={coinType} />
     );
 }
