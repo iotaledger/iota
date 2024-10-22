@@ -130,7 +130,7 @@ impl ValidatorMetadataV1 {
         let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
-        // Verify proof of possession for the protocol key
+        // Verify proof of possession for the authority key
         let pop = AuthoritySignature::from_bytes(self.proof_of_possession_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_POP)?;
         verify_proof_of_possession(&pop, &authority_pubkey, self.iota_address)
