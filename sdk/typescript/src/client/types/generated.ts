@@ -107,6 +107,9 @@ export type CompressedSignature =
       }
     | {
           Secp256r1: string;
+      }
+    | {
+          ZkLogin: string;
       };
 /** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
 export type ConsensusDeterminedVersionAssignments = {
@@ -497,8 +500,6 @@ export interface CoinMetadata {
 }
 export type IotaEndOfEpochTransactionKind =
     | 'AuthenticatorStateCreate'
-    | 'RandomnessStateCreate'
-    | 'CoinDenyListStateCreate'
     | {
           ChangeEpoch: IotaChangeEpoch;
       }
@@ -682,6 +683,8 @@ export interface IotaSystemStateSummary {
     inactivePoolsSize: string;
     /** The current IOTA supply. */
     iotaTotalSupply: string;
+    /** The `TreasuryCap<IOTA>` object ID. */
+    iotaTreasuryCapId: string;
     /**
      * Maximum number of active validators at any moment. We do not allow the number of validators in any
      * epoch to go above this.
@@ -797,6 +800,7 @@ export type IotaTransactionBlockBuilderMode = 'Commit' | 'DevInspect';
  * fields so that they are decoupled from the internal definitions.
  */
 export interface IotaValidatorSummary {
+    authorityPubkeyBytes: string;
     commissionRate: string;
     description: string;
     /** ID of the exchange rate table object. */
@@ -809,6 +813,7 @@ export interface IotaValidatorSummary {
     name: string;
     netAddress: string;
     networkPubkeyBytes: string;
+    nextEpochAuthorityPubkeyBytes?: string | null;
     nextEpochCommissionRate: string;
     nextEpochGasPrice: string;
     nextEpochNetAddress?: string | null;
@@ -818,8 +823,6 @@ export interface IotaValidatorSummary {
     nextEpochProofOfPossession?: string | null;
     nextEpochProtocolPubkeyBytes?: string | null;
     nextEpochStake: string;
-    nextEpochWorkerAddress?: string | null;
-    nextEpochWorkerPubkeyBytes?: string | null;
     operationCapId: string;
     p2pAddress: string;
     /** Pending pool token withdrawn during the current epoch, emptied at epoch boundaries. */
@@ -845,8 +848,6 @@ export interface IotaValidatorSummary {
     /** The total number of IOTA tokens in this pool. */
     stakingPoolIotaBalance: string;
     votingPower: string;
-    workerAddress: string;
-    workerPubkeyBytes: string;
 }
 export interface MoveCallMetrics {
     /** The count of calls of each function in the last 30 days. */
@@ -919,36 +920,8 @@ export interface MultiSig {
     /** The plain signature encoded with signature scheme. */
     sigs: CompressedSignature[];
 }
-/**
- * Deprecated, use [struct MultiSig] instead. The struct that contains signatures and public keys necessary
- * for authenticating a MultiSigLegacy.
- */
-export interface MultiSigLegacy {
-    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
-    bitmap: string;
-    /**
-     * The public key encoded with each public key with its signature scheme used along with the
-     * corresponding weight.
-     */
-    multisig_pk: MultiSigPublicKeyLegacy;
-    /** The plain signature encoded with signature scheme. */
-    sigs: CompressedSignature[];
-}
 /** The struct that contains the public key used for authenticating a MultiSig. */
 export interface MultiSigPublicKey {
-    /** A list of public key and its corresponding weight. */
-    pk_map: [PublicKey, number][];
-    /**
-     * If the total weight of the public keys corresponding to verified signatures is larger than
-     * threshold, the MultiSig is verified.
-     */
-    threshold: number;
-}
-/**
- * Deprecated, use [struct MultiSigPublicKey] instead. The struct that contains the public key used for
- * authenticating a MultiSig.
- */
-export interface MultiSigPublicKeyLegacy {
     /** A list of public key and its corresponding weight. */
     pk_map: [PublicKey, number][];
     /**
@@ -1479,16 +1452,9 @@ export interface TransactionBlockEffectsModifiedAtVersions {
     sequenceNumber: string;
 }
 export type IotaTransactionBlockKind =
-    /** A system transaction that will update epoch information on-chain. */
+    /** A system transaction used for initializing the initial state of the chain. */
     | {
-          computation_charge: string;
-          epoch: string;
-          epoch_start_timestamp_ms: string;
-          kind: 'ChangeEpoch';
-          storage_charge: string;
-          storage_rebate: string;
-      } /** A system transaction used for initializing the initial state of the chain. */
-    | {
+          events: EventId[];
           kind: 'Genesis';
           objects: string[];
       } /** A system transaction marking the start of a series of transactions scheduled as part of a checkpoint */
