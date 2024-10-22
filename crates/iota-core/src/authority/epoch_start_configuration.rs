@@ -169,6 +169,7 @@ impl EpochStartConfiguration {
         }))
     }
 
+    #[allow(unreachable_patterns)]
     pub fn new_at_next_epoch_for_testing(&self) -> Self {
         // We only need to implement this function for the latest version.
         // When a new version is introduced, this function should be updated.
