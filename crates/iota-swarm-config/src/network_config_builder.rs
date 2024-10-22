@@ -92,7 +92,7 @@ pub struct ConfigBuilder<R = OsRng> {
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_v2_enabled_config: Option<StateAccumulatorV2EnabledConfig>,
+    state_accumulator_config: Option<StateAccumulatorV2EnabledConfig>,
     empty_validator_genesis: bool,
 }
 
@@ -114,7 +114,7 @@ impl ConfigBuilder {
             firewall_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_v2_enabled_config: None,
+            state_accumulator_config: None,
             empty_validator_genesis: false,
         }
     }
@@ -237,7 +237,7 @@ impl<R> ConfigBuilder<R> {
     }
 
     pub fn with_state_accumulator_v2_enabled(mut self, enabled: bool) -> Self {
-        self.state_accumulator_v2_enabled_config =
+        self.state_accumulator_config =
             Some(StateAccumulatorV2EnabledConfig::Global(enabled));
         self
     }
@@ -246,16 +246,16 @@ impl<R> ConfigBuilder<R> {
         mut self,
         func: StateAccumulatorV2EnabledCallback,
     ) -> Self {
-        self.state_accumulator_v2_enabled_config =
+        self.state_accumulator_config =
             Some(StateAccumulatorV2EnabledConfig::PerValidator(func));
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_config(
+    pub fn with_state_accumulator_config(
         mut self,
         c: StateAccumulatorV2EnabledConfig,
     ) -> Self {
-        self.state_accumulator_v2_enabled_config = Some(c);
+        self.state_accumulator_config = Some(c);
         self
     }
 
@@ -304,7 +304,7 @@ impl<R> ConfigBuilder<R> {
             firewall_config: self.firewall_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
+            state_accumulator_config: self.state_accumulator_config,
             empty_validator_genesis: self.empty_validator_genesis,
         }
     }

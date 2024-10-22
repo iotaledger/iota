@@ -65,7 +65,7 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig,
+    state_accumulator_config: StateAccumulatorV2EnabledConfig,
 }
 
 impl SwarmBuilder {
@@ -93,7 +93,7 @@ impl SwarmBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig::Global(true),
+            state_accumulator_config: StateAccumulatorV2EnabledConfig::Global(true),
         }
     }
 }
@@ -123,7 +123,7 @@ impl<R> SwarmBuilder<R> {
             fullnode_fw_config: self.fullnode_fw_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
+            state_accumulator_config: self.state_accumulator_config,
         }
     }
 
@@ -234,11 +234,11 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_config(
+    pub fn with_state_accumulator_config(
         mut self,
         c: StateAccumulatorV2EnabledConfig,
     ) -> Self {
-        self.state_accumulator_v2_enabled_config = c;
+        self.state_accumulator_config = c;
         self
     }
 
@@ -362,8 +362,8 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 .with_supported_protocol_versions_config(
                     self.supported_protocol_versions_config.clone(),
                 )
-                .with_state_accumulator_v2_enabled_config(
-                    self.state_accumulator_v2_enabled_config.clone(),
+                .with_state_accumulator_config(
+                    self.state_accumulator_config.clone(),
                 )
                 .build();
             // Populate validator genesis by pointing to the blob

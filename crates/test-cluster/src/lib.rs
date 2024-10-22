@@ -1039,7 +1039,7 @@ pub struct TestClusterBuilder {
 
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig,
+    validator_state_accumulator_config: StateAccumulatorV2EnabledConfig,
 }
 
 impl TestClusterBuilder {
@@ -1067,7 +1067,7 @@ impl TestClusterBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig::Global(
+            validator_state_accumulator_config: StateAccumulatorV2EnabledConfig::Global(
                 true,
             ),
         }
@@ -1194,7 +1194,7 @@ impl TestClusterBuilder {
         mut self,
         func: StateAccumulatorV2EnabledCallback,
     ) -> Self {
-        self.validator_state_accumulator_v2_enabled_config =
+        self.validator_state_accumulator_config =
             StateAccumulatorV2EnabledConfig::PerValidator(func);
         self
     }
@@ -1519,8 +1519,8 @@ impl TestClusterBuilder {
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
-            .with_state_accumulator_v2_enabled_config(
-                self.validator_state_accumulator_v2_enabled_config.clone(),
+            .with_state_accumulator_config(
+                self.validator_state_accumulator_config.clone(),
             )
             .with_fullnode_count(1)
             .with_fullnode_supported_protocol_versions_config(
