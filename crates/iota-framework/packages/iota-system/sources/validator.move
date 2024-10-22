@@ -95,7 +95,7 @@ module iota_system::validator {
         net_address: String,
         /// The address of the validator used for p2p activities such as state sync (could also contain extra info such as port, DNS and etc.).
         p2p_address: String,
-        /// The address of the primary
+        /// The primary address of the consensus
         primary_address: String,
 
         /// "next_epoch" metadata only takes effects in the next epoch.
