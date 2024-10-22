@@ -31,7 +31,7 @@ use tokio::{
 };
 use tokio_rustls::TlsAcceptor;
 use tokio_stream::{Iter, iter};
-use tonic::{transport::Server, Request, Response, Streaming};
+use tonic::{Request, Response, Streaming, transport::Server};
 use tower_http::{
     ServiceBuilderExt,
     trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
