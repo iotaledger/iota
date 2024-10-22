@@ -84,7 +84,7 @@ use tabled::{
     },
 };
 use tracing::info;
-use strum_macros::EnumString;
+use strum::EnumString;
 
 use crate::{
     clever_error_rendering::render_clever_error_opt,

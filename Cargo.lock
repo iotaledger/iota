@@ -5709,7 +5709,6 @@ dependencies = [
  "shlex",
  "signature 1.6.4",
  "strum 0.26.3",
- "strum_macros 0.26.4",
  "tabled",
  "tap",
  "telemetry-subscribers",

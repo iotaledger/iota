@@ -41,7 +41,6 @@ serde_json.workspace = true
 serde_yaml.workspace = true
 signature.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 tabled.workspace = true
 tap.workspace = true
 thiserror.workspace = true
