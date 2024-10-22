@@ -525,14 +525,6 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     };
                     builder = builder.with_supported_protocol_versions(supported_versions);
                 }
-                if let Some(acc_v2_config) = &self.state_accumulator_v2_enabled_config {
-                    let state_accumulator_v2_enabled: bool = match acc_v2_config {
-                        StateAccumulatorV2EnabledConfig::Global(enabled) => *enabled,
-                        StateAccumulatorV2EnabledConfig::PerValidator(func) => func(idx),
-                    };
-                    builder =
-                        builder.with_state_accumulator_v2_enabled(state_accumulator_v2_enabled);
-                }
                 if let Some(num_unpruned_validators) = self.num_unpruned_validators {
                     if idx < num_unpruned_validators {
                         builder = builder.with_unpruned_checkpoints();

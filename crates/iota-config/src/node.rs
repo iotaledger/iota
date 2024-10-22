@@ -236,11 +236,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub execution_cache: ExecutionCacheConfig,
 
-    // step 1 in removing the old state accumulator
-    #[serde(skip)]
-    #[serde(default = "bool_true")]
-    pub state_accumulator_v2: bool,
-
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
 }
