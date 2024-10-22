@@ -280,15 +280,11 @@ pub enum TransactionKind {
     /// It also doesn't require/use a gas object.
     /// A validator will not sign a transaction of this kind from outside. It
     /// only signs internally during epoch changes.
-    ///
-    /// The ChangeEpoch enumerant is now deprecated (but the ChangeEpoch struct
-    /// is still used by EndOfEpochTransaction below).
-    ChangeEpoch(ChangeEpoch),
     Genesis(GenesisTransaction),
     ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
     AuthenticatorStateUpdate(AuthenticatorStateUpdate),
 
-    /// EndOfEpochTransaction replaces ChangeEpoch with a list of transactions
+    /// EndOfEpochTransaction contains a list of transactions
     /// that are allowed to run at the end of the epoch.
     EndOfEpochTransaction(Vec<EndOfEpochTransactionKind>),
 
@@ -302,7 +298,6 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
-    DenyListStateCreate,
     BridgeStateCreate(ChainIdentifier),
     BridgeCommitteeInit(SequenceNumber),
 }
@@ -344,10 +339,6 @@ impl EndOfEpochTransactionKind {
         Self::AuthenticatorStateCreate
     }
 
-    pub fn new_deny_list_state_create() -> Self {
-        Self::DenyListStateCreate
-    }
-
     pub fn new_bridge_create(chain_identifier: ChainIdentifier) -> Self {
         Self::BridgeStateCreate(chain_identifier)
     }
@@ -373,7 +364,6 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::DenyListStateCreate => vec![],
             Self::BridgeStateCreate(_) => vec![],
             Self::BridgeCommitteeInit(bridge_version) => vec![
                 InputObjectKind::SharedMoveObject {
@@ -404,7 +394,6 @@ impl EndOfEpochTransactionKind {
                 .into_iter(),
             ),
             Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
-            Self::DenyListStateCreate => Either::Right(iter::empty()),
             Self::BridgeStateCreate(_) => Either::Right(iter::empty()),
             Self::BridgeCommitteeInit(bridge_version) => Either::Left(
                 vec![
@@ -427,13 +416,6 @@ impl EndOfEpochTransactionKind {
                 if !config.enable_jwk_consensus_updates() {
                     return Err(UserInputError::Unsupported(
                         "authenticator state updates not enabled".to_string(),
-                    ));
-                }
-            }
-            Self::DenyListStateCreate => {
-                if !config.enable_coin_deny_list_v1() {
-                    return Err(UserInputError::Unsupported(
-                        "coin deny list not enabled".to_string(),
                     ));
                 }
             }
@@ -1148,8 +1130,7 @@ impl TransactionKind {
     pub fn is_system_tx(&self) -> bool {
         // Keep this as an exhaustive match so that we can't forget to update it.
         match self {
-            TransactionKind::ChangeEpoch(_)
-            | TransactionKind::Genesis(_)
+            TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdate(_)
             | TransactionKind::RandomnessStateUpdate(_)
@@ -1159,10 +1140,7 @@ impl TransactionKind {
     }
 
     pub fn is_end_of_epoch_tx(&self) -> bool {
-        matches!(
-            self,
-            TransactionKind::EndOfEpochTransaction(_) | TransactionKind::ChangeEpoch(_)
-        )
+        matches!(self, TransactionKind::EndOfEpochTransaction(_))
     }
 
     /// If this is advance epoch transaction, returns (total gas charged, total
@@ -1170,7 +1148,6 @@ impl TransactionKind {
     /// ChangeEpoch struct, and return that directly.
     pub fn get_advance_epoch_tx_gas_summary(&self) -> Option<(u64, u64)> {
         let e = match self {
-            Self::ChangeEpoch(e) => e,
             Self::EndOfEpochTransaction(txns) => {
                 if let EndOfEpochTransactionKind::ChangeEpoch(e) =
                     txns.last().expect("at least one end-of-epoch txn required")
@@ -1191,14 +1168,9 @@ impl TransactionKind {
     }
 
     /// Returns an iterator of all shared input objects used by this
-    /// transaction. It covers both Call and ChangeEpoch transaction kind,
-    /// because both makes Move calls.
+    /// transaction.
     pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         match &self {
-            Self::ChangeEpoch(_) => {
-                Either::Left(Either::Left(iter::once(SharedInputObject::IOTA_SYSTEM_OBJ)))
-            }
-
             Self::ConsensusCommitPrologueV1(_) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
                     id: IOTA_CLOCK_OBJECT_ID,
@@ -1239,8 +1211,7 @@ impl TransactionKind {
 
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         match &self {
-            TransactionKind::ChangeEpoch(_)
-            | TransactionKind::Genesis(_)
+            TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdate(_)
             | TransactionKind::RandomnessStateUpdate(_)
@@ -1256,13 +1227,6 @@ impl TransactionKind {
     /// of a Vec to avoid allocations.
     pub fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
         let input_objects = match &self {
-            Self::ChangeEpoch(_) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
-                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                }]
-            }
             Self::Genesis(_) => {
                 vec![]
             }
@@ -1288,7 +1252,7 @@ impl TransactionKind {
                 }]
             }
             Self::EndOfEpochTransaction(txns) => {
-                // Dedup since transactions may have a overlap in input objects.
+                // Dedup since transactions may have an overlap in input objects.
                 // Note: it's critical to ensure the order of inputs are deterministic.
                 let before_dedup: Vec<_> =
                     txns.iter().flat_map(|txn| txn.input_objects()).collect();
@@ -1306,7 +1270,7 @@ impl TransactionKind {
         // Ensure that there are no duplicate inputs. This cannot be removed because:
         // In [`AuthorityState::check_locks`], we check that there are no duplicate
         // mutable input objects, which would have made this check here
-        // unnecessary. However we do plan to allow shared objects show up more
+        // unnecessary. However, we do plan to allow shared objects show up more
         // than once in multiple single transactions down the line. Once we have
         // that, we need check here to make sure the same shared object doesn't
         // show up more than once in the same single transaction.
@@ -1322,9 +1286,7 @@ impl TransactionKind {
             TransactionKind::ProgrammableTransaction(p) => p.validity_check(config)?,
             // All transaction kinds below are assumed to be system,
             // and no validity or limit checks are performed.
-            TransactionKind::ChangeEpoch(_)
-            | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologueV1(_) => (),
+            TransactionKind::Genesis(_) | TransactionKind::ConsensusCommitPrologueV1(_) => (),
             TransactionKind::EndOfEpochTransaction(txns) => {
                 for tx in txns {
                     tx.validity_check(config)?;
@@ -1368,7 +1330,6 @@ impl TransactionKind {
 
     pub fn name(&self) -> &'static str {
         match self {
-            Self::ChangeEpoch(_) => "ChangeEpoch",
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
@@ -1383,14 +1344,6 @@ impl Display for TransactionKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match &self {
-            Self::ChangeEpoch(e) => {
-                writeln!(writer, "Transaction Kind : Epoch Change")?;
-                writeln!(writer, "New epoch ID : {}", e.epoch)?;
-                writeln!(writer, "Storage gas reward : {}", e.storage_charge)?;
-                writeln!(writer, "Computation gas reward : {}", e.computation_charge)?;
-                writeln!(writer, "Storage rebate : {}", e.storage_rebate)?;
-                writeln!(writer, "Timestamp : {}", e.epoch_start_timestamp_ms)?;
-            }
             Self::Genesis(_) => {
                 writeln!(writer, "Transaction Kind : Genesis")?;
             }
@@ -2029,10 +1982,7 @@ impl TransactionDataAPI for TransactionDataV1 {
     }
 
     fn is_end_of_epoch_tx(&self) -> bool {
-        matches!(
-            self.kind,
-            TransactionKind::ChangeEpoch(_) | TransactionKind::EndOfEpochTransaction(_)
-        )
+        matches!(self.kind, TransactionKind::EndOfEpochTransaction(_))
     }
 
     fn is_system_tx(&self) -> bool {
@@ -2410,30 +2360,6 @@ impl Transaction {
 }
 
 impl VerifiedTransaction {
-    pub fn new_change_epoch(
-        next_epoch: EpochId,
-        protocol_version: ProtocolVersion,
-        storage_charge: u64,
-        computation_charge: u64,
-        storage_rebate: u64,
-        non_refundable_storage_fee: u64,
-        epoch_start_timestamp_ms: u64,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-    ) -> Self {
-        ChangeEpoch {
-            epoch: next_epoch,
-            protocol_version,
-            storage_charge,
-            computation_charge,
-            storage_rebate,
-            non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            system_packages,
-        }
-        .pipe(TransactionKind::ChangeEpoch)
-        .pipe(Self::new_system_transaction)
-    }
-
     pub fn new_genesis_transaction(objects: Vec<GenesisObject>, events: Vec<Event>) -> Self {
         GenesisTransaction { objects, events }
             .pipe(TransactionKind::Genesis)
