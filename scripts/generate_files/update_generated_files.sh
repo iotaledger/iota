@@ -20,12 +20,23 @@ done
 # Resolve the target folder
 TARGET_FOLDER=$(realpath ${TARGET_FOLDER})
 
+USER_ID=$(id -u)
+GROUP_ID=$(id -g)
+
 function print_step {
     echo -e "\e[32m$1\e[0m"
 }
 
+print_step "Running script with USER_ID=${USER_ID} and GROUP_ID=${GROUP_ID}..."
+
 print_step "Building pnpm docker image..."
 docker build -t pnpm-image -f ./Dockerfile .
+
+# Check if the docker image was built successfully
+if [ $? -ne 0 ]; then
+    echo -e "\e[31mFailed to build pnpm docker image"
+    exit 1
+fi
 
 print_step "Changing directory to ${TARGET_FOLDER}"
 pushd ${TARGET_FOLDER}
