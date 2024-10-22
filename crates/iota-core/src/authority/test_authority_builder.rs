@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{path::PathBuf, sync::Arc};
+
 use fastcrypto::traits::KeyPair;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
@@ -112,7 +113,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         assert!(self.genesis.is_none());
         assert!(
             self.reference_gas_price
-            .replace(reference_gas_price)
+                .replace(reference_gas_price)
                 .is_none()
         );
         self
