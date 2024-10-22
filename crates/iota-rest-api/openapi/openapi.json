@@ -5048,11 +5048,6 @@
                   }
                 ]
               },
-              "legacy_bitmap": {
-                "description": "Legacy encoding for the bitmap.",
-                "type": "string",
-                "format": "base64"
-              },
               "scheme": {
                 "type": "string",
                 "enum": [
