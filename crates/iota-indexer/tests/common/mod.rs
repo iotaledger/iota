@@ -127,6 +127,20 @@ pub async fn indexer_wait_for_checkpoint(
     .expect("Timeout waiting for indexer to catchup to checkpoint");
 }
 
+/// Wait for the indexer to catch up to the given checkpoint sequence number
+///
+/// Indexer starts storing data after checkpoint 0
+pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, cluster: &TestCluster) {
+    let latest_checkpoint = cluster
+        .iota_client()
+        .read_api()
+        .get_latest_checkpoint_sequence_number()
+        .await
+        .unwrap();
+
+    indexer_wait_for_checkpoint(pg_store, latest_checkpoint).await;
+}
+
 /// Wait for the indexer to catch up to the given object sequence number
 pub async fn indexer_wait_for_object(
     client: &HttpClient,
