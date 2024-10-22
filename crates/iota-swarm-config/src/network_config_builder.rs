@@ -240,15 +240,11 @@ impl<R> ConfigBuilder<R> {
         mut self,
         func: StateAccumulatorV1EnabledCallback,
     ) -> Self {
-        self.state_accumulator_config =
-            Some(StateAccumulatorV1EnabledConfig::PerValidator(func));
+        self.state_accumulator_config = Some(StateAccumulatorV1EnabledConfig::PerValidator(func));
         self
     }
 
-    pub fn with_state_accumulator_config(
-        mut self,
-        c: StateAccumulatorV1EnabledConfig,
-    ) -> Self {
+    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
         self.state_accumulator_config = Some(c);
         self
     }

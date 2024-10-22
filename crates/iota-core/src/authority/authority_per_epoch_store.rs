@@ -90,7 +90,7 @@ use super::{
 use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
-        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+        epoch_start_configuration::EpochStartConfiguration,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },

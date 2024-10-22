@@ -71,9 +71,7 @@ impl EpochFlag {
         Self::default_flags_impl(&Default::default())
     }
 
-    fn default_flags_impl(
-        cache_config: &ExecutionCacheConfig,
-    ) -> Vec<Self> {
+    fn default_flags_impl(cache_config: &ExecutionCacheConfig) -> Vec<Self> {
         let mut new_flags = vec![];
 
         if matches!(
@@ -84,7 +82,7 @@ impl EpochFlag {
         }
 
         new_flags.push(EpochFlag::StateAccumulatorV1EnabledTestnet);
-        new_flags.push(EpochFlag::StateAccumulatorV1EnabledMainnet);        
+        new_flags.push(EpochFlag::StateAccumulatorV1EnabledMainnet);
 
         new_flags
     }

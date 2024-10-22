@@ -234,10 +234,7 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_config(
-        mut self,
-        c: StateAccumulatorV1EnabledConfig,
-    ) -> Self {
+    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
         self.state_accumulator_config = c;
         self
     }
@@ -362,9 +359,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 .with_supported_protocol_versions_config(
                     self.supported_protocol_versions_config.clone(),
                 )
-                .with_state_accumulator_config(
-                    self.state_accumulator_config.clone(),
-                )
+                .with_state_accumulator_config(self.state_accumulator_config.clone())
                 .build();
             // Populate validator genesis by pointing to the blob
             let genesis_path = dir.join(IOTA_GENESIS_FILENAME);
