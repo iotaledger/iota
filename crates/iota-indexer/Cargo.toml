@@ -15,10 +15,10 @@ bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
 diesel = { workspace = true, optional = true }
-mysqlclient-sys = { version = "0.4", features = ["bundled"], optional = true }
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
+mysqlclient-sys = { version = "0.4", features = ["bundled"], optional = true }
 prometheus.workspace = true
 rayon.workspace = true
 regex.workspace = true
