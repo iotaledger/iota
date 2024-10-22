@@ -3,69 +3,51 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCoinMetadata } from '@iota/core';
-import { IotaLogoMark as Iota, Unstake } from '@iota/ui-icons';
+import { IotaLogoMark } from '@iota/ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { cva, type VariantProps } from 'class-variance-authority';
+import { cx } from 'class-variance-authority';
 
 import { ImageIcon } from '~/components/ui';
 
-const imageStyle = cva(['flex rounded-2xl'], {
-    variants: {
-        size: {
-            sm: 'w-6 h-6',
-            md: 'w-7.5 h-7.5',
-            lg: 'md:w-10 md:h-10 w-8 h-8',
-            xl: 'md:w-31.5 md:h-31.5 w-16 h-16 ',
-        },
-    },
-    defaultVariants: {
-        size: 'md',
-    },
-});
-
-function IotaCoin(): JSX.Element {
-    return (
-        <Iota className="flex h-full w-full rounded-2xl p-xxxs text-neutral-0 dark:text-neutral-100" />
-    );
+export enum ImageIconSize {
+    Small = 'w-5 h-5',
+    Medium = 'w-8 h-8',
+    Large = 'w-10 h-10',
+    Full = 'w-full h-full',
 }
 
-interface NonIotaCoinProps extends VariantProps<typeof imageStyle> {
+interface NonIotaCoinProps {
     coinType: string;
+    size?: ImageIconSize;
+    rounded?: boolean;
 }
 
-function NonIotaCoin({ coinType, ...styleProps }: NonIotaCoinProps): JSX.Element {
+function NonIotaCoin({ coinType, size = ImageIconSize.Full, rounded }: NonIotaCoinProps) {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
-        <div className="flex h-full w-full items-center justify-center rounded-2xl">
-            {coinMeta?.iconUrl ? (
-                <ImageIcon
-                    size={styleProps.size}
-                    src={coinMeta.iconUrl}
-                    label={coinMeta.name || coinType}
-                    fallback={coinMeta.name || coinType}
-                    circle
-                />
-            ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-2xl">
-                    <Unstake className="h-2.5 w-2.5" />
-                </div>
-            )}
+        <div className="flex h-full w-full items-center justify-center rounded-full">
+            <ImageIcon
+                src={coinMeta?.iconUrl}
+                label={coinMeta?.name || coinType}
+                fallback={coinMeta?.name || coinType}
+                size={size}
+                rounded={rounded}
+            />
         </div>
     );
 }
-
-interface CoinIconProps extends VariantProps<typeof imageStyle> {
+export interface CoinIconProps {
     coinType: string;
+    size?: ImageIconSize;
+    rounded?: boolean;
 }
 
-export function CoinIcon({ coinType, ...styleProps }: CoinIconProps): JSX.Element {
-    return (
-        <div className={imageStyle(styleProps)}>
-            {coinType === IOTA_TYPE_ARG ? (
-                <IotaCoin />
-            ) : (
-                <NonIotaCoin coinType={coinType} size={styleProps.size} />
-            )}
+export function CoinIcon({ coinType, size = ImageIconSize.Full, rounded }: CoinIconProps) {
+    return coinType === IOTA_TYPE_ARG ? (
+        <div className={cx(size)}>
+            <IotaLogoMark className="h-full w-full" />
         </div>
+    ) : (
+        <NonIotaCoin rounded={rounded} size={ImageIconSize.Full} coinType={coinType} />
     );
 }

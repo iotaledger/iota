@@ -24,7 +24,7 @@ import {
 import { RecognizedBadge } from '@iota/ui-icons';
 import { useMemo } from 'react';
 import { CoinIcon } from '~/components';
-import { AddressLink, CollapsibleCard } from '~/components/ui';
+import { AddressLink, CollapsibleCard, ImageIconSize } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
 
 interface BalanceChangesProps {
@@ -49,7 +49,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
         <div className="flex flex-col gap-xs">
             <Card type={CardType.Filled}>
                 <CardImage type={ImageType.BgTransparent}>
-                    <CoinIcon coinType={coinType} />
+                    <CoinIcon coinType={coinType} size={ImageIconSize.Small} />
                 </CardImage>
                 <CardBody
                     title={coinMetaData?.name || symbol}
