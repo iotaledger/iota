@@ -4,10 +4,7 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use fastcrypto::{
-    bls12381::min_sig::BLS12381KeyPair,
-    traits::{KeyPair, ToFromBytes},
-};
+use fastcrypto::traits::KeyPair;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
     ExecutionCacheConfig,
@@ -63,7 +60,6 @@ pub struct TestAuthorityBuilder<'a> {
     protocol_config: Option<ProtocolConfig>,
     reference_gas_price: Option<u64>,
     node_keypair: Option<&'a AuthorityKeyPair>,
-    is_fullnode: bool,
     genesis: Option<&'a Genesis>,
     starting_objects: Option<&'a [Object]>,
     expensive_safety_checks: Option<ExpensiveSafetyCheckConfig>,
@@ -134,7 +130,6 @@ impl<'a> TestAuthorityBuilder<'a> {
     }
 
     pub fn with_keypair(mut self, keypair: &'a AuthorityKeyPair) -> Self {
-        self.is_fullnode = true;
         assert!(self.node_keypair.replace(keypair).is_none());
         self
     }
@@ -188,13 +183,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 local_network_config_builder.with_protocol_version(protocol_config.version);
         }
 
-        if let Some(keypair) = self.node_keypair {
-            if !self.is_fullnode {
-                let owned_keypair = BLS12381KeyPair::from_bytes(keypair.as_bytes()).unwrap(); // Hypothetical constructor method
-                local_network_config_builder =
-                    local_network_config_builder.with_validator_authority_keys(vec![owned_keypair]);
-            }
-        }
         let local_network_config = local_network_config_builder.build();
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
         let genesis_committee = genesis.committee().unwrap();
@@ -227,9 +215,9 @@ impl<'a> TestAuthorityBuilder<'a> {
         }
 
         let keypair = if let Some(keypair) = self.node_keypair {
-            keypair
+            keypair.copy()
         } else {
-            config.protocol_key_pair()
+            config.protocol_key_pair().copy()
         };
 
         let secret = Arc::pin(keypair.copy());
@@ -347,7 +335,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Arc::downgrade(&epoch_store),
             consensus_client,
             randomness::Handle::new_stub(),
-            config.protocol_key_pair(),
+            &keypair,
         )
         .await;
         if let Some(randomness_manager) = randomness_manager {
