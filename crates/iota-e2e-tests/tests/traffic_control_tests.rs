@@ -602,7 +602,10 @@ async fn test_traffic_sketch_no_blocks() {
         proxy_blocklist_ttl_sec: 1,
         spam_policy_type: PolicyType::NoOp,
         error_policy_type: PolicyType::FreqThreshold(sketch_config),
-        channel_capacity: 100,
+        // keeping channel capacity small results in less errors in test metrics,
+        // in case of congestion (due to running on slower hardware) request is dropped
+        // and do not influence the rate and make spam rate inconsistent
+        channel_capacity: 10,
         dry_run: false,
         ..Default::default()
     };
@@ -682,6 +685,10 @@ async fn test_traffic_sketch_with_sampled_spam() {
         spam_policy_type: PolicyType::FreqThreshold(sketch_config),
         spam_sample_rate: Weight::new(0.5).unwrap(),
         dry_run: false,
+        // keeping channel capacity small results in less errors in test metrics,
+        // in case of congestion (due to running on slower hardware) request is dropped
+        // and do not influence the rate and make spam rate inconsistent
+        channel_capacity: 10,
         ..Default::default()
     };
     let metrics = TrafficSim::run(
