@@ -201,7 +201,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             });
         }
 
-        // Sort the authorities by their protocol (public) key in ascending order, same
+        // Sort the authorities by their authority (public) key in ascending order, same
         // as the order in the Iota committee returned from get_iota_committee().
         authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
 

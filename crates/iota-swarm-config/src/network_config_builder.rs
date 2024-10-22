@@ -335,7 +335,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         let mut rng = self.rng.unwrap();
         let validators = match committee {
             CommitteeConfig::Size(size) => {
-                // We always get fixed protocol keys from this function (which is isolated from
+                // We always get fixed authority keys from this function (which is isolated from
                 // external test randomness because it uses a fixed seed). Necessary because
                 // some tests call `make_tx_certs_and_signed_effects`, which
                 // locally forges a cert using this same committee.
@@ -359,7 +359,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 .into_iter()
                 .map(|authority_key| {
                     let mut builder =
-                        ValidatorGenesisConfigBuilder::new().with_protocol_key_pair(authority_key);
+                        ValidatorGenesisConfigBuilder::new().with_authority_key_pair(authority_key);
                     if let Some(rgp) = self.reference_gas_price {
                         builder = builder.with_gas_price(rgp);
                     }
@@ -368,7 +368,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 .collect::<Vec<_>>(),
 
             CommitteeConfig::AccountKeys(keys) => {
-                // See above re fixed protocol keys
+                // See above re fixed authority keys
                 let (_, authority_keys) = Committee::new_simple_test_committee_of_size(keys.len());
                 keys.into_iter()
                     .zip(authority_keys)

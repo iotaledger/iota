@@ -106,8 +106,8 @@ pub const DEFAULT_EPOCH_ID: EpochId = 0;
 pub const IOTA_PRIV_KEY_PREFIX: &str = "iotaprivkey";
 
 /// Creates a proof of that the authority account address is owned by the
-/// holder of authority protocol key, and also ensures that the authority
-/// protocol public key exists. A proof of possession is an authority
+/// holder of authority key, and also ensures that the authority
+/// public key exists. A proof of possession is an authority
 /// signature committed over the intent message `intent || message || epoch`
 /// (See more at [struct IntentMessage] and [struct Intent]) where the message
 /// is constructed as `authority_pubkey_bytes || authority_account_address`.

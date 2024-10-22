@@ -724,14 +724,14 @@ module iota_system::validator {
         validate_metadata(&self.metadata);
     }
 
-    /// Update protocol public key of this validator, taking effects from next epoch
+    /// Update authority public key of this validator, taking effects from next epoch
     public(package) fun update_next_epoch_authority_pubkey(self: &mut Validator, authority_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
         self.metadata.next_epoch_authority_pubkey_bytes = option::some(authority_pubkey);
         self.metadata.next_epoch_proof_of_possession = option::some(proof_of_possession);
         validate_metadata(&self.metadata);
     }
 
-    /// Update protocol public key of this candidate validator
+    /// Update authority public key of this candidate validator
     public(package) fun update_candidate_authority_pubkey(self: &mut Validator, authority_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
         self.metadata.authority_pubkey_bytes = authority_pubkey;

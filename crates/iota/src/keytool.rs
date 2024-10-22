@@ -153,8 +153,8 @@ pub enum KeyToolCommand {
     /// This reads the content at the provided file path. The accepted format
     /// is a Bech32 encoded [enum IotaKeyPair] or `type AuthorityKeyPair`
     /// (Base64 encoded `privkey`). This prints out the account keypair as
-    /// Base64 encoded `flag || privkey`, the network keypair, worker
-    /// keypair, protocol keypair as Base64 encoded `privkey`.
+    /// Base64 encoded `flag || privkey`, the network keypair, protocol
+    /// keypair, authority keypair as Base64 encoded `privkey`.
     LoadKeypair { file: PathBuf },
     /// To MultiSig Iota Address. Pass in a list of all public keys `flag || pk`
     /// in Base64. See `keytool list` for example public keys.

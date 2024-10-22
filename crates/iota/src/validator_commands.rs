@@ -165,9 +165,9 @@ pub enum IotaValidatorCommand {
         /// Authority account address encoded in hex with 0x prefix.
         #[clap(name = "account-address", long)]
         account_address: IotaAddress,
-        /// Authority protocol public key encoded in hex.
+        /// Authority public key encoded in hex.
         #[clap(name = "protocol-public-key", long)]
-        protocol_public_key: AuthorityPublicKeyBytes,
+        authority_public_key: AuthorityPublicKeyBytes,
     },
     /// Print out the serialized data of a transaction that sets the gas price
     /// quote for a validator.
@@ -480,10 +480,10 @@ impl IotaValidatorCommand {
 
             IotaValidatorCommand::SerializePayloadForPoP {
                 account_address,
-                protocol_public_key,
+                authority_public_key,
             } => {
                 let mut msg: Vec<u8> = Vec::new();
-                msg.extend_from_slice(protocol_public_key.as_bytes());
+                msg.extend_from_slice(authority_public_key.as_bytes());
                 msg.extend_from_slice(account_address.as_ref());
                 let mut intent_msg_bytes = bcs::to_bytes(&IntentMessage::new(
                     Intent::iota_app(IntentScope::ProofOfPossession),
