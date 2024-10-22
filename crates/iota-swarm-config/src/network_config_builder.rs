@@ -114,7 +114,7 @@ impl ConfigBuilder {
             firewall_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_config: None,
+            state_accumulator_config: Some(StateAccumulatorV2EnabledConfig::Global(true)),
             empty_validator_genesis: false,
         }
     }
@@ -233,12 +233,6 @@ impl<R> ConfigBuilder<R> {
 
     pub fn with_supported_protocol_versions_config(mut self, c: ProtocolVersionsConfig) -> Self {
         self.supported_protocol_versions_config = Some(c);
-        self
-    }
-
-    pub fn with_state_accumulator_v2_enabled(mut self, enabled: bool) -> Self {
-        self.state_accumulator_config =
-            Some(StateAccumulatorV2EnabledConfig::Global(enabled));
         self
     }
 
