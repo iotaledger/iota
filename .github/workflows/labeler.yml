@@ -10,6 +10,7 @@ jobs:
       pull-requests: write
     runs-on: self-hosted
     steps:
-      - uses: actions/labeler@9fd24f1f9d6ceb64ba34d181b329ee72f99978a0
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/labeler@8558fd74291d67161a8a78ce36a881fa63b766a9 # pin@v5
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"

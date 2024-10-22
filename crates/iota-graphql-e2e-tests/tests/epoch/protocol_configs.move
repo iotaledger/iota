@@ -13,7 +13,7 @@
         config(key: "max_move_identifier_len") {
             value
         }
-        featureFlag(key: "enable_coin_deny_list") {
+        featureFlag(key: "bridge") {
             value
         }
     }
@@ -26,7 +26,7 @@
         config(key: "max_move_identifier_len") {
             value
         }
-        featureFlag(key: "enable_coin_deny_list") {
+        featureFlag(key: "bridge") {
             value
         }
     }
