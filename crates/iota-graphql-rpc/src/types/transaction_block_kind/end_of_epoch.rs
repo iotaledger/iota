@@ -45,8 +45,6 @@ pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpochTransaction),
     AuthenticatorStateCreate(AuthenticatorStateCreateTransaction),
     AuthenticatorStateExpire(AuthenticatorStateExpireTransaction),
-    RandomnessStateCreate(RandomnessStateCreateTransaction),
-    CoinDenyListStateCreate(CoinDenyListStateCreateTransaction),
     BridgeStateCreate(BridgeStateCreateTransaction),
     BridgeCommitteeInit(BridgeCommitteeInitTransaction),
 }
@@ -71,20 +69,6 @@ pub(crate) struct AuthenticatorStateExpireTransaction {
     pub native: NativeAuthenticatorStateExpireTransaction,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
-}
-
-#[derive(SimpleObject, Clone, PartialEq, Eq)]
-pub(crate) struct RandomnessStateCreateTransaction {
-    /// A workaround to define an empty variant of a GraphQL union.
-    #[graphql(name = "_")]
-    dummy: Option<bool>,
-}
-
-#[derive(SimpleObject, Clone, PartialEq, Eq)]
-pub(crate) struct CoinDenyListStateCreateTransaction {
-    /// A workaround to define an empty variant of a GraphQL union.
-    #[graphql(name = "_")]
-    dummy: Option<bool>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -145,8 +129,6 @@ impl EndOfEpochTransaction {
 /// current epoch). Executed by the system once per epoch, without using gas.
 /// Epoch change transactions cannot be submitted by users, because validators
 /// will refuse to sign them.
-///
-/// This transaction kind is deprecated in favour of `EndOfEpochTransaction`.
 #[Object]
 impl ChangeEpochTransaction {
     /// The next (to become) epoch.
@@ -294,12 +276,6 @@ impl EndOfEpochTransactionKind {
                     native: ase,
                     checkpoint_viewed_at,
                 })
-            }
-            N::RandomnessStateCreate => {
-                K::RandomnessStateCreate(RandomnessStateCreateTransaction { dummy: None })
-            }
-            N::DenyListStateCreate => {
-                K::CoinDenyListStateCreate(CoinDenyListStateCreateTransaction { dummy: None })
             }
             N::BridgeStateCreate(chain_id) => K::BridgeStateCreate(BridgeStateCreateTransaction {
                 native: chain_id,

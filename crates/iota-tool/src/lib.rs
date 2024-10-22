@@ -986,7 +986,6 @@ pub async fn download_formal_snapshot(
         perpetual_db.clone(),
         checkpoint_store,
         committee_store,
-        network,
         verify == SnapshotVerifyMode::Strict,
         num_live_objects,
         m,

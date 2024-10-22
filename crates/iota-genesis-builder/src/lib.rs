@@ -42,7 +42,7 @@ use iota_types::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
         AuthoritySignature, DefaultHash, IotaAuthoritySignature,
     },
-    deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+    deny_list_v2::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
@@ -62,6 +62,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME},
     stardust::stardust_to_iota_address,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
@@ -480,20 +481,14 @@ impl Builder {
         } else {
             assert!(unsigned_genesis.authenticator_state_object().is_none());
         }
-        assert_eq!(
-            protocol_config.random_beacon(),
-            unsigned_genesis.has_randomness_state_object()
-        );
+        assert!(unsigned_genesis.has_randomness_state_object());
 
         assert_eq!(
             protocol_config.enable_bridge(),
             unsigned_genesis.has_bridge_object()
         );
 
-        assert_eq!(
-            protocol_config.enable_coin_deny_list_v1(),
-            unsigned_genesis.coin_deny_list_state().is_some(),
-        );
+        assert!(unsigned_genesis.has_coin_deny_list_object());
 
         assert_eq!(
             self.validators.len(),
@@ -1417,24 +1412,24 @@ pub fn generate_genesis_system_object(
                 vec![],
             )?;
         }
-        if protocol_config.random_beacon() {
-            builder.move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("random").to_owned(),
-                ident_str!("create").to_owned(),
-                vec![],
-                vec![],
-            )?;
-        }
-        if protocol_config.enable_coin_deny_list_v1() {
-            builder.move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                DENY_LIST_MODULE.to_owned(),
-                DENY_LIST_CREATE_FUNC.to_owned(),
-                vec![],
-                vec![],
-            )?;
-        }
+
+        // Create the randomness state_object
+        builder.move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            RANDOMNESS_MODULE_NAME.to_owned(),
+            RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
+            vec![],
+            vec![],
+        )?;
+
+        // Create the deny list
+        builder.move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            DENY_LIST_MODULE.to_owned(),
+            DENY_LIST_CREATE_FUNC.to_owned(),
+            vec![],
+            vec![],
+        )?;
 
         if protocol_config.enable_bridge() {
             let bridge_uid = builder

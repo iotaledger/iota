@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cell::RefCell,
     collections::BTreeSet,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use clap::*;
@@ -128,82 +130,32 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    // Previously, the unwrapped_then_deleted field in TransactionEffects makes a distinction
-    // between whether an object has existed in the store previously (i.e. whether there is a
-    // tombstone). Such dependency makes effects generation inefficient, and requires us to
-    // include wrapped tombstone in state root hash.
-    // To prepare for effects V2, with this flag set to true, we simplify the definition of
-    // unwrapped_then_deleted to always include unwrapped then deleted objects,
-    // regardless of their previous state in the store.
-    #[serde(skip_serializing_if = "is_false")]
-    simplified_unwrap_then_delete: bool,
-
-    // If true, the ability to delete shared objects is in effect
-    #[serde(skip_serializing_if = "is_false")]
-    shared_object_deletion: bool,
-
     // A list of supported OIDC providers that can be used for zklogin.
     #[serde(skip_serializing_if = "is_empty")]
     zklogin_supported_providers: BTreeSet<String>,
 
-    // If true, use the new child object format
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_object_format: bool,
-
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    // If true, use the new child object format type logging
-    #[serde(skip_serializing_if = "is_false")]
-    loaded_child_object_format_type: bool,
-
-    // Enable random beacon protocol
-    #[serde(skip_serializing_if = "is_false")]
-    random_beacon: bool,
 
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
 
-    #[serde(skip_serializing_if = "is_false")]
-    enable_effects_v2: bool,
-
-    // If true, allow verify with legacy zklogin address
-    #[serde(skip_serializing_if = "is_false")]
-    verify_legacy_zklogin_address: bool,
-
     // Enable throughput aware consensus submission
     #[serde(skip_serializing_if = "is_false")]
     throughput_aware_consensus_submission: bool,
-
-    // If true, recompute has_public_transfer from the type instead of what is stored in the object
-    #[serde(skip_serializing_if = "is_false")]
-    recompute_has_public_transfer_in_execution: bool,
 
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
 
-    // If true, consensus prologue transaction also includes the consensus output digest.
-    // It can be used to detect consensus output folk.
-    #[serde(skip_serializing_if = "is_false")]
-    include_consensus_digest_in_prologue: bool,
-
     // If true, use the hardened OTW check
     #[serde(skip_serializing_if = "is_false")]
     hardened_otw_check: bool,
 
-    // If true allow calling receiving_object_id function
-    #[serde(skip_serializing_if = "is_false")]
-    allow_receiving_object_id: bool,
-
     // Enable the poseidon hash function
     #[serde(skip_serializing_if = "is_false")]
     enable_poseidon: bool,
-
-    // If true, enable the coin deny list.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_coin_deny_list: bool,
 
     // Enable native functions for group operations.
     #[serde(skip_serializing_if = "is_false")]
@@ -212,10 +164,6 @@ struct FeatureFlags {
     // Enable native function for msm.
     #[serde(skip_serializing_if = "is_false")]
     enable_group_ops_native_function_msm: bool,
-
-    // Reject functions with mutable Random.
-    #[serde(skip_serializing_if = "is_false")]
-    reject_mutable_random_on_entry_functions: bool,
 
     // Controls the behavior of per object congestion control in consensus handler.
     #[serde(skip_serializing_if = "PerObjectCongestionControlMode::is_none")]
@@ -237,55 +185,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     mysticeti_leader_scoring_and_schedule: bool,
 
-    // Enable resharing of shared objects using the same initial shared version
-    #[serde(skip_serializing_if = "is_false")]
-    reshare_at_same_initial_version: bool,
-
-    // Resolve Move abort locations to the package id instead of the runtime module ID.
-    #[serde(skip_serializing_if = "is_false")]
-    resolve_abort_locations_to_package_id: bool,
-
-    // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in
-    // checkpoints. When disabled the default digest is used instead. It's important to have
-    // this guarded behind a flag as it will lead to checkpoint forks.
-    #[serde(skip_serializing_if = "is_false")]
-    mysticeti_use_committed_subdag_digest: bool,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
 
-    // Controls whether consensus handler should record consensus determined shared object version
-    // assignments in consensus commit prologue transaction.
-    // The purpose of doing this is to enable replaying transaction without transaction effects.
-    #[serde(skip_serializing_if = "is_false")]
-    record_consensus_determined_version_assignments_in_prologue: bool,
-
-    // Run verification of framework upgrades using a new/fresh VM.
-    #[serde(skip_serializing_if = "is_false")]
-    fresh_vm_on_framework_upgrade: bool,
-
-    // When set to true, the consensus commit prologue transaction will be placed first
-    // in a consensus commit in checkpoints.
-    // If a checkpoint contains multiple consensus commit, say [cm1][cm2]. The each commit's
-    // consensus commit prologue will be the first transaction in each segment:
-    //     [ccp1, rest cm1][ccp2, rest cm2]
-    // The reason to prepose the prologue transaction is to provide information for transaction
-    // cancellation.
-    #[serde(skip_serializing_if = "is_false")]
-    prepend_prologue_tx_in_consensus_commit_in_checkpoints: bool,
-
     // Set number of leaders per round for Mysticeti commits.
     #[serde(skip_serializing_if = "Option::is_none")]
     mysticeti_num_leaders_per_round: Option<usize>,
-
-    // Enable Soft Bundle (SIP-19).
-    #[serde(skip_serializing_if = "is_false")]
-    soft_bundle: bool,
-
-    // If true, enable the coin deny list V2.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_coin_deny_list_v2: bool,
 
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
@@ -1074,10 +980,6 @@ impl ProtocolConfig {
     //     }
     // }
 
-    pub fn allow_receiving_object_id(&self) -> bool {
-        self.feature_flags.allow_receiving_object_id
-    }
-
     pub fn disable_invariant_violation_check_in_swap_loc(&self) -> bool {
         self.feature_flags
             .disable_invariant_violation_check_in_swap_loc
@@ -1104,38 +1006,13 @@ impl ProtocolConfig {
         self.feature_flags.consensus_transaction_ordering
     }
 
-    pub fn simplified_unwrap_then_delete(&self) -> bool {
-        self.feature_flags.simplified_unwrap_then_delete
-    }
-
-    pub fn shared_object_deletion(&self) -> bool {
-        self.feature_flags.shared_object_deletion
-    }
-
-    pub fn loaded_child_object_format(&self) -> bool {
-        self.feature_flags.loaded_child_object_format
-    }
-
     pub fn enable_jwk_consensus_updates(&self) -> bool {
         self.feature_flags.enable_jwk_consensus_updates
-    }
-
-    pub fn loaded_child_object_format_type(&self) -> bool {
-        self.feature_flags.loaded_child_object_format_type
-    }
-
-    pub fn recompute_has_public_transfer_in_execution(&self) -> bool {
-        self.feature_flags
-            .recompute_has_public_transfer_in_execution
     }
 
     // this function only exists for readability in the genesis code.
     pub fn create_authenticator_state_in_genesis(&self) -> bool {
         self.enable_jwk_consensus_updates()
-    }
-
-    pub fn random_beacon(&self) -> bool {
-        self.feature_flags.random_beacon
     }
 
     pub fn dkg_version(&self) -> u64 {
@@ -1155,14 +1032,6 @@ impl ProtocolConfig {
         self.bridge_should_try_to_finalize_committee.unwrap_or(true)
     }
 
-    pub fn enable_effects_v2(&self) -> bool {
-        self.feature_flags.enable_effects_v2
-    }
-
-    pub fn verify_legacy_zklogin_address(&self) -> bool {
-        self.feature_flags.verify_legacy_zklogin_address
-    }
-
     pub fn accept_zklogin_in_multisig(&self) -> bool {
         self.feature_flags.accept_zklogin_in_multisig
     }
@@ -1175,20 +1044,6 @@ impl ProtocolConfig {
         self.feature_flags.throughput_aware_consensus_submission
     }
 
-    pub fn include_consensus_digest_in_prologue(&self) -> bool {
-        self.feature_flags.include_consensus_digest_in_prologue
-    }
-
-    pub fn record_consensus_determined_version_assignments_in_prologue(&self) -> bool {
-        self.feature_flags
-            .record_consensus_determined_version_assignments_in_prologue
-    }
-
-    pub fn prepend_prologue_tx_in_consensus_commit_in_checkpoints(&self) -> bool {
-        self.feature_flags
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints
-    }
-
     pub fn hardened_otw_check(&self) -> bool {
         self.feature_flags.hardened_otw_check
     }
@@ -1197,24 +1052,12 @@ impl ProtocolConfig {
         self.feature_flags.enable_poseidon
     }
 
-    pub fn enable_coin_deny_list_v1(&self) -> bool {
-        self.feature_flags.enable_coin_deny_list
-    }
-
-    pub fn enable_coin_deny_list_v2(&self) -> bool {
-        self.feature_flags.enable_coin_deny_list_v2
-    }
-
     pub fn enable_group_ops_native_functions(&self) -> bool {
         self.feature_flags.enable_group_ops_native_functions
     }
 
     pub fn enable_group_ops_native_function_msm(&self) -> bool {
         self.feature_flags.enable_group_ops_native_function_msm
-    }
-
-    pub fn reject_mutable_random_on_entry_functions(&self) -> bool {
-        self.feature_flags.reject_mutable_random_on_entry_functions
     }
 
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
@@ -1233,32 +1076,12 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_leader_scoring_and_schedule
     }
 
-    pub fn reshare_at_same_initial_version(&self) -> bool {
-        self.feature_flags.reshare_at_same_initial_version
-    }
-
-    pub fn resolve_abort_locations_to_package_id(&self) -> bool {
-        self.feature_flags.resolve_abort_locations_to_package_id
-    }
-
-    pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
-        self.feature_flags.mysticeti_use_committed_subdag_digest
-    }
-
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
     }
 
-    pub fn fresh_vm_on_framework_upgrade(&self) -> bool {
-        self.feature_flags.fresh_vm_on_framework_upgrade
-    }
-
     pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
         self.feature_flags.mysticeti_num_leaders_per_round
-    }
-
-    pub fn soft_bundle(&self) -> bool {
-        self.feature_flags.soft_bundle
     }
 
     pub fn passkey_auth(&self) -> bool {
@@ -1322,16 +1145,14 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        CONFIG_OVERRIDE.with(|ovr| {
-            if let Some(override_fn) = &*ovr.borrow() {
-                warn!(
-                    "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
-                );
-                override_fn(version, ret)
-            } else {
-                ret
-            }
-        })
+        if let Some(override_fn) = &*CONFIG_OVERRIDE.read().unwrap() {
+            warn!(
+                "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
+            );
+            override_fn(version, ret)
+        } else {
+            ret
+        }
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -1829,17 +1650,8 @@ impl ProtocolConfig {
         cfg.feature_flags
             .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
-        cfg.feature_flags.simplified_unwrap_then_delete = true;
-        cfg.feature_flags.loaded_child_object_format = true;
-        cfg.feature_flags.loaded_child_object_format_type = true;
-        cfg.feature_flags.enable_effects_v2 = true;
 
-        cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
-        cfg.feature_flags.shared_object_deletion = true;
         cfg.feature_flags.hardened_otw_check = true;
-        cfg.feature_flags.allow_receiving_object_id = true;
-        cfg.feature_flags.enable_coin_deny_list = true;
-        cfg.feature_flags.reject_mutable_random_on_entry_functions = true;
 
         // Enable group ops and all networks (but not msm)
         cfg.feature_flags.enable_group_ops_native_functions = true;
@@ -1854,11 +1666,8 @@ impl ProtocolConfig {
             cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
             cfg.feature_flags.accept_zklogin_in_multisig = false;
-            cfg.feature_flags.verify_legacy_zklogin_address = true;
         }
 
-        // Enable consensus digest in consensus commit prologue on all networks..
-        cfg.feature_flags.include_consensus_digest_in_prologue = true;
         // Enable Mysticeti on mainnet.
         cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
         // Use tonic networking for Mysticeti.
@@ -1866,33 +1675,7 @@ impl ProtocolConfig {
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
-        // Enable resharing at same initial version
-        cfg.feature_flags.reshare_at_same_initial_version = true;
-
-        // Enable resolving abort code IDs to package ID instead of runtime module ID
-        cfg.feature_flags.resolve_abort_locations_to_package_id = true;
-
-        // Enable random beacon.
-        cfg.feature_flags.random_beacon = true;
-
-        // Enable the committed sub dag digest inclusion on the commit output
-        cfg.feature_flags.mysticeti_use_committed_subdag_digest = true;
-
-        // Enable consensus commit prologue V3.
-        cfg.feature_flags
-            .record_consensus_determined_version_assignments_in_prologue = true;
-        cfg.feature_flags
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints = true;
-
-        // Run Move verification on framework upgrades in its own VM
-        cfg.feature_flags.fresh_vm_on_framework_upgrade = true;
-
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
-
-        cfg.feature_flags.enable_coin_deny_list_v2 = true;
-
-        // Enable soft bundle.
-        cfg.feature_flags.soft_bundle = true;
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
@@ -1977,9 +1760,6 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
-            allow_receiving_object_id: self.allow_receiving_object_id(),
-            reject_mutable_random_on_entry_functions: self
-                .reject_mutable_random_on_entry_functions(),
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
         }
@@ -2000,14 +1780,12 @@ impl ProtocolConfig {
     /// get_for_(min|max)_version is called, since those functions cache
     /// their return value.
     pub fn apply_overrides_for_testing(
-        override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + 'static,
+        override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
     ) -> OverrideGuard {
-        CONFIG_OVERRIDE.with(|ovr| {
-            let mut cur = ovr.borrow_mut();
-            assert!(cur.is_none(), "config override already present");
-            *cur = Some(Box::new(override_fn));
-            OverrideGuard
-        })
+        let mut option = CONFIG_OVERRIDE.write().unwrap();
+        assert!(option.is_none(), "config override already present");
+        *option = Some(Box::new(override_fn));
+        OverrideGuard
     }
 }
 
@@ -2026,28 +1804,9 @@ impl ProtocolConfig {
     pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_jwk_consensus_updates = val
     }
-    pub fn set_random_beacon_for_testing(&mut self, val: bool) {
-        self.feature_flags.random_beacon = val
-    }
 
     pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_zklogin_in_multisig = val
-    }
-
-    pub fn set_shared_object_deletion_for_testing(&mut self, val: bool) {
-        self.feature_flags.shared_object_deletion = val;
-    }
-
-    pub fn set_resolve_abort_locations_to_package_id_for_testing(&mut self, val: bool) {
-        self.feature_flags.resolve_abort_locations_to_package_id = val;
-    }
-
-    pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
-        self.feature_flags.reshare_at_same_initial_version = val;
-    }
-
-    pub fn set_verify_legacy_zklogin_address_for_testing(&mut self, val: bool) {
-        self.feature_flags.verify_legacy_zklogin_address = val
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(
@@ -2080,20 +1839,14 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_num_leaders_per_round = val;
     }
 
-    pub fn set_enable_soft_bundle_for_testing(&mut self, val: bool) {
-        self.feature_flags.soft_bundle = val;
-    }
-
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
     }
 }
 
-type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send;
+type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
 
-thread_local! {
-    static CONFIG_OVERRIDE: RefCell<Option<Box<OverrideFn>>> = RefCell::new(None);
-}
+static CONFIG_OVERRIDE: RwLock<Option<Box<OverrideFn>>> = RwLock::new(None);
 
 #[must_use]
 pub struct OverrideGuard;
@@ -2101,9 +1854,7 @@ pub struct OverrideGuard;
 impl Drop for OverrideGuard {
     fn drop(&mut self) {
         info!("restoring override fn");
-        CONFIG_OVERRIDE.with(|ovr| {
-            *ovr.borrow_mut() = None;
-        });
+        *CONFIG_OVERRIDE.write().unwrap() = None;
     }
 }
 

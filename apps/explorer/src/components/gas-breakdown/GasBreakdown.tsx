@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
-import { CoinFormat, type TransactionSummary, useFormatCoin } from '@iota/core';
+import { CoinFormat, type TransactionSummary, useCopyToClipboard, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { AddressLink, CollapsibleCard, CopyToClipboard, ObjectLink } from '~/components/ui';
+import { Copy } from '@iota/ui-icons';
+import toast from 'react-hot-toast';
+import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 
 interface GasProps {
     amount?: bigint | number | string;
@@ -31,12 +33,21 @@ function GasAmount({ amount }: GasProps): JSX.Element | null {
 }
 
 function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
+    const copyToClipBoard = useCopyToClipboard(() => toast.success('Copied'));
+
+    const handleCopy = async (objectId: string) => {
+        await copyToClipBoard(objectId);
+    };
+
     return (
         <div className="flex max-h-20 min-h-[20px] flex-wrap items-center gap-x-4 gap-y-2 overflow-y-auto">
             {objectIds.map((objectId, index) => (
                 <div key={index} className="flex items-center gap-x-1.5">
                     <ObjectLink objectId={objectId} />
-                    <CopyToClipboard copyText={objectId} />
+                    <Copy
+                        className="shrink-0 cursor-pointer text-neutral-70"
+                        onClick={() => handleCopy(objectId)}
+                    />
                 </div>
             ))}
         </div>

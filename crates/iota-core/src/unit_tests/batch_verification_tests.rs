@@ -133,7 +133,6 @@ async fn test_async_verifier() {
         vec![],
         ZkLoginEnv::Test,
         true,
-        true,
         Some(30),
     ));
 

@@ -9,26 +9,40 @@ use std::{
 
 use move_core_types::{
     ident_str,
+    identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use tracing::error;
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
-    base_types::{EpochId, IotaAddress, ObjectID},
+    base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
-    deny_list_v1::{
-        DENY_LIST_COIN_TYPE_INDEX, DENY_LIST_MODULE, input_object_coin_types_for_denylist_check,
-    },
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
-    error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
-    id::UID,
-    object::Object,
+    error::{
+        ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
+    },
+    id::{ID, UID},
+    object::{Object, Owner},
     storage::{DenyListResult, ObjectStore},
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
+pub const DENY_LIST_MODULE: &IdentStr = ident_str!("deny_list");
+pub const DENY_LIST_CREATE_FUNC: &IdentStr = ident_str!("create");
+
+pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
+
 pub const CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS: usize = 1000;
+
+/// Rust representation of the Move type 0x2::coin::RegulatedCoinMetadata.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RegulatedCoinMetadata {
+    pub id: UID,
+    pub coin_metadata_object: ID,
+    pub deny_cap_object: ID,
+}
 
 /// Rust representation of the Move type 0x2::coin::DenyCapV2.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -238,6 +252,33 @@ pub fn check_global_pause(
     read_config_setting(object_store, deny_config, global_pause_key, cur_epoch).unwrap_or(false)
 }
 
+pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> IotaResult<Object> {
+    match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
+        Ok(Some(obj)) => Ok(obj),
+        Ok(None) => {
+            error!("Deny list object not found");
+            Err(IotaError::Storage("Deny list object not found".to_string()))
+        }
+        Err(err) => {
+            error!("Failed to get deny list object: {err}");
+            Err(IotaError::Storage(
+                "Failed to get deny list object: {err}".to_string(),
+            ))
+        }
+    }
+}
+
+pub fn get_deny_list_obj_initial_shared_version(
+    object_store: &dyn ObjectStore,
+) -> IotaResult<SequenceNumber> {
+    get_deny_list_root_object(object_store).map(|obj| match obj.owner {
+        Owner::Shared {
+            initial_shared_version,
+        } => initial_shared_version,
+        _ => unreachable!("Deny list object must be shared"),
+    })
+}
+
 /// Fetches the setting from a particular config.
 /// Reads the value of the setting, giving `newer_value` if the current epoch is
 /// greater than `newer_value_epoch`, and `older_value_opt` otherwise.
@@ -259,4 +300,27 @@ where
         }
     };
     setting.read_value(cur_epoch).cloned()
+}
+
+/// Returns all unique coin types in canonical string form from the input
+/// objects and receiving objects. It filters out IOTA coins since it's known
+/// that it's not a regulated coin.
+fn input_object_coin_types_for_denylist_check(
+    input_objects: &CheckedInputObjects,
+    receiving_objects: &ReceivingObjects,
+) -> BTreeSet<String> {
+    let all_objects = input_objects
+        .inner()
+        .iter_objects()
+        .chain(receiving_objects.iter_objects());
+    all_objects
+        .filter_map(|obj| {
+            if obj.is_gas_coin() {
+                None
+            } else {
+                obj.coin_type_maybe()
+                    .map(|type_tag| type_tag.to_canonical_string(false))
+            }
+        })
+        .collect()
 }

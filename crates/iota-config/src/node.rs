@@ -242,9 +242,6 @@ pub struct NodeConfig {
     pub state_accumulator_v2: bool,
 
     #[serde(default = "bool_true")]
-    pub enable_soft_bundle: bool,
-
-    #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
 }
 
@@ -706,10 +703,6 @@ pub struct AuthorityStorePruningConfig {
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    /// disables object tombstone pruning. We don't serialize it if it is the
-    /// default value, false.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub killswitch_tombstone_pruning: bool,
     #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
     pub smooth: bool,
 }
@@ -745,7 +738,6 @@ impl Default for AuthorityStorePruningConfig {
             max_transactions_in_batch: default_max_transactions_in_batch(),
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            killswitch_tombstone_pruning: false,
             smooth: true,
         }
     }
@@ -767,10 +759,6 @@ impl AuthorityStorePruningConfig {
                     n
                 }
             })
-    }
-
-    pub fn set_killswitch_tombstone_pruning(&mut self, killswitch_tombstone_pruning: bool) {
-        self.killswitch_tombstone_pruning = killswitch_tombstone_pruning;
     }
 }
 

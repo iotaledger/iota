@@ -3,17 +3,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Page } from '@playwright/test';
-
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
 import { demoDappConnect } from './utils/dapp-connect';
+import { generateWalletMessageStreamIdentifiers } from '../src/shared/utils/generateWalletMessageStreamIdentifiers';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 function getInAppMessage(page: Page, id: string) {
+    const walletMessageStreamIDs = generateWalletMessageStreamIdentifiers(process.env.APP_NAME);
     return page.evaluate(
-        (anId) =>
-            new Promise((resolve, reject) => {
+        ({ walletMessageStreamIDs, anId }) => {
+            return new Promise((resolve, reject) => {
                 const callBackFN = (msg: MessageEvent) => {
-                    if (msg.data.target === 'iota_in-page' && msg.data.payload.id === anId) {
+                    if (
+                        msg.data.target === walletMessageStreamIDs.name &&
+                        msg.data.payload.id === anId
+                    ) {
                         window.removeEventListener('message', callBackFN);
                         if (msg.data.payload.payload.error) {
                             reject(msg.data.payload);
@@ -23,8 +30,9 @@ function getInAppMessage(page: Page, id: string) {
                     }
                 };
                 window.addEventListener('message', callBackFN);
-            }),
-        id,
+            });
+        },
+        { walletMessageStreamIDs, anId: id },
     );
 }
 
@@ -78,18 +86,21 @@ test.describe('site to content script messages', () => {
         test(aLabel, async ({ context, demoPageUrl }) => {
             const page = await context.newPage();
             await page.goto(demoPageUrl);
+            const walletMessageStreamIDs = generateWalletMessageStreamIdentifiers(
+                process.env.APP_NAME,
+            );
             const nextMessage = getInAppMessage(page, aLabel);
             await page.evaluate(
-                ({ aPayload: payload, aLabel: label }) => {
+                ({ aPayload: payload, aLabel: label, walletMessageStreamIDs }) => {
                     window.postMessage({
-                        target: 'iota_content-script',
+                        target: walletMessageStreamIDs.target,
                         payload: {
                             id: label,
                             payload,
                         },
                     });
                 },
-                { aPayload, aLabel },
+                { aPayload, aLabel, walletMessageStreamIDs },
             );
             if (result) {
                 expect(await nextMessage).toMatchObject(result);

@@ -6,9 +6,9 @@ import { Loading } from '_components';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
-import { Feature } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
+    Feature,
     createStakeTransaction,
     createUnstakeTransaction,
     parseAmount,
@@ -67,7 +67,7 @@ function StakingCard() {
         Feature.WalletEffectsOnlySharedTransaction as string,
     );
 
-    const { data: system, isPending: validatorsisPending } = useIotaClientQuery(
+    const { data: system, isPending: validatorsIsPending } = useIotaClientQuery(
         'getLatestIotaSystemState',
     );
 
@@ -258,12 +258,12 @@ function StakingCard() {
         ],
     );
 
-    if (!coinType || !validatorAddress || (!validatorsisPending && !system)) {
+    if (!coinType || !validatorAddress || (!validatorsIsPending && !system)) {
         return <Navigate to="/" replace={true} />;
     }
     return (
         <div className="flex h-full w-full flex-grow flex-col flex-nowrap">
-            <Loading loading={isPending || validatorsisPending || loadingIotaBalances}>
+            <Loading loading={isPending || validatorsIsPending || loadingIotaBalances}>
                 <Formik
                     initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
@@ -309,8 +309,11 @@ function StakingCard() {
                                     text={unstake ? 'Unstake' : 'Stake'}
                                     icon={
                                         isSubmitting ? (
-                                            <Loader className="animate-spin" />
-                                        ) : undefined
+                                            <Loader
+                                                className="animate-spin"
+                                                data-testid="loading-indicator"
+                                            />
+                                        ) : null
                                     }
                                     iconAfterText
                                 />
