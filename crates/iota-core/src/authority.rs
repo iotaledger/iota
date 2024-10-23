@@ -57,7 +57,7 @@ use iota_types::{
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
-    deny_list_v2::check_coin_deny_list_v2_during_signing,
+    deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::{
@@ -883,7 +883,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
             )?;
 
-        check_coin_deny_list_v2_during_signing(
+        check_coin_deny_list_v1_during_signing(
             tx_data.sender(),
             &checked_input_objects,
             &receiving_objects,

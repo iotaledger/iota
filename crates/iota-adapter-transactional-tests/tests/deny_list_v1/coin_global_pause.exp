@@ -32,8 +32,8 @@ unchanged_shared: 0x000000000000000000000000000000000000000000000000000000000000
 gas summary: computation_cost: 1000000, storage_cost: 4119200,  storage_rebate: 2462400, non_refundable_storage_fee: 0
 
 task 5, lines 83-85:
-//# run iota::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
-events: Event { package_id: iota, transaction_module: Identifier("coin"), sender: A, type_: StructTag { address: iota, module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0, 96, 98, 53, 49, 101, 54, 51, 102, 98, 102, 48, 101, 55, 57, 50, 102, 99, 55, 55, 56, 100, 50, 56, 48, 102, 54, 52, 56, 50, 55, 101, 100, 49, 100, 54, 51, 55, 54, 54, 49, 98, 49, 97, 55, 48, 54, 51, 52, 49, 50, 101, 57, 99, 55, 100, 100, 51, 97, 48, 49, 56, 54, 102, 97, 50, 58, 58, 114, 101, 103, 117, 108, 97, 116, 101, 100, 95, 99, 111, 105, 110, 58, 58, 82, 69, 71, 85, 76, 65, 84, 69, 68, 95, 67, 79, 73, 78, 217, 21, 183, 252, 140, 153, 37, 23, 59, 178, 86, 46, 10, 245, 109, 11, 40, 24, 207, 249, 19, 236, 198, 173, 177, 13, 162, 98, 162, 120, 222, 237] }
+//# run iota::coin::deny_list_v1_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+events: Event { package_id: iota, transaction_module: Identifier("coin"), sender: A, type_: StructTag { address: iota, module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0, 96, 99, 54, 97, 101, 54, 51, 52, 57, 50, 101, 102, 97, 99, 102, 102, 101, 53, 52, 52, 101, 50, 48, 102, 99, 98, 53, 54, 97, 97, 53, 100, 50, 50, 100, 55, 57, 53, 55, 55, 50, 102, 51, 48, 53, 57, 102, 54, 56, 53, 100, 99, 99, 100, 57, 102, 99, 52, 51, 57, 53, 99, 99, 100, 51, 58, 58, 114, 101, 103, 117, 108, 97, 116, 101, 100, 95, 99, 111, 105, 110, 58, 58, 82, 69, 71, 85, 76, 65, 84, 69, 68, 95, 67, 79, 73, 78, 195, 206, 136, 5, 6, 49, 247, 11, 4, 73, 177, 199, 37, 211, 119, 247, 197, 163, 62, 153, 73, 22, 179, 71, 7, 165, 10, 8, 80, 114, 124, 5] }
 created: object(5,0), object(5,1), object(5,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
 gas summary: computation_cost: 1000000, storage_cost: 11985200,  storage_rebate: 2774000, non_refundable_storage_fee: 0
@@ -84,7 +84,7 @@ unchanged_shared: 0x000000000000000000000000000000000000000000000000000000000000
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 15, lines 114-116:
-//# run iota::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(5,1)
 gas summary: computation_cost: 1000000, storage_cost: 6657600,  storage_rebate: 6657600, non_refundable_storage_fee: 0
 
