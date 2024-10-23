@@ -185,7 +185,7 @@ async fn reconfig_with_revert_end_to_end_test() {
     client
         .handle_certificate_v3(
             HandleCertificateRequestV3::new(cert.clone()).with_events(),
-            None
+            None,
         )
         .await
         .unwrap();

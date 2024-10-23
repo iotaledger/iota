@@ -1591,7 +1591,10 @@ async fn test_handle_certificate_errors() {
     .unwrap();
 
     let err = client
-        .handle_certificate_v3(HandleCertificateRequestV3::new(ct.clone()).with_events(), Some(socket_addr))
+        .handle_certificate_v3(
+            HandleCertificateRequestV3::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
 
