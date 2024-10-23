@@ -22,7 +22,7 @@ use iota_types::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
+        HandleCertificateRequestV3, HandleCertificateResponseV3,
         HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
@@ -41,13 +41,6 @@ pub trait AuthorityAPI {
         transaction: Transaction,
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError>;
-
-    /// Handles a `CertifiedTransaction` for this account.
-    async fn handle_certificate_v2(
-        &self,
-        certificate: CertifiedTransaction,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError>;
 
     /// Execute a certificate.
     async fn handle_certificate_v3(
@@ -153,24 +146,6 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)
-    }
-
-    /// Handles a `CertifiedTransaction` for this account.
-    async fn handle_certificate_v2(
-        &self,
-        certificate: CertifiedTransaction,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        let mut request = certificate.into_request();
-        insert_metadata(&mut request, client_addr);
-
-        let response = self
-            .client()?
-            .handle_certificate_v2(request)
-            .await
-            .map(tonic::Response::into_inner);
-
-        response.map_err(Into::into)
     }
 
     async fn handle_certificate_v3(

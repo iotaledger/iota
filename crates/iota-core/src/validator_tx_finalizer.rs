@@ -293,15 +293,15 @@ mod tests {
             CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
         },
         messages_grpc::{
-            HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
+            HandleCertificateRequestV3, HandleCertificateResponseV3,
             HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
             HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
             TransactionInfoRequest, TransactionInfoResponse,
         },
         object::Object,
         transaction::{
-            CertifiedTransaction, SignedTransaction, Transaction, VerifiedCertificate,
-            VerifiedSignedTransaction, VerifiedTransaction,
+            SignedTransaction, Transaction, VerifiedCertificate, VerifiedSignedTransaction,
+            VerifiedTransaction,
         },
         utils::to_sender_signed_transaction,
     };
@@ -337,12 +337,6 @@ mod tests {
                 )
                 .await
         }
-
-        async fn handle_certificate_v2(
-            &self,
-            _certificate: CertifiedTransaction,
-            _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleCertificateResponseV2, IotaError> { unimplemented!() }
 
         async fn handle_certificate_v3(
             &self,

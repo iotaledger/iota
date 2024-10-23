@@ -98,6 +98,7 @@ use tokio::{
     time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
+use iota_types::messages_grpc::HandleCertificateRequestV3;
 
 const NUM_VALIDATOR: usize = 4;
 
@@ -755,7 +756,7 @@ impl TestCluster {
                 })
                 .map(|client| {
                     let cert = certificate.clone();
-                    async move { client.handle_certificate_v2(cert, None).await }
+                    async move { client.handle_certificate_v3(HandleCertificateRequestV3::new(cert).with_events(), None).await }
                 })
                 .collect();
 
@@ -777,9 +778,10 @@ impl TestCluster {
         let mut all_effects = HashMap::new();
         let mut all_events = HashMap::new();
         for reply in replies {
-            let effects = reply.signed_effects.into_data();
+            let effects = reply.effects.into_data();
+            let events = reply.events.unwrap();
             all_effects.insert(effects.digest(), effects);
-            all_events.insert(reply.events.digest(), reply.events);
+            all_events.insert(events.digest(), events);
             // reply.fastpath_input_objects is unused.
         }
         assert_eq!(all_effects.len(), 1);

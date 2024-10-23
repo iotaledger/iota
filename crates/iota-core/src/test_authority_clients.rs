@@ -21,12 +21,12 @@ use iota_types::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
+        HandleCertificateRequestV3, HandleCertificateResponseV3,
         HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
     },
-    transaction::{CertifiedTransaction, Transaction, VerifiedTransaction},
+    transaction::{Transaction, VerifiedTransaction},
 };
 
 use crate::{
@@ -83,30 +83,6 @@ impl AuthorityAPI for LocalAuthorityClient {
             });
         }
         result
-    }
-
-    async fn handle_certificate_v2(
-        &self,
-        certificate: CertifiedTransaction,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        let state = self.state.clone();
-        let fault_config = self.fault_config;
-        let request = HandleCertificateRequestV3 {
-            certificate,
-            include_events: true,
-            include_input_objects: false,
-            include_output_objects: false,
-            include_auxiliary_data: false,
-        };
-        spawn_monitored_task!(Self::handle_certificate(state, request, fault_config))
-            .await
-            .unwrap()
-            .map(|resp| HandleCertificateResponseV2 {
-                signed_effects: resp.effects,
-                events: resp.events.unwrap_or_default(),
-                fastpath_input_objects: vec![],
-            })
     }
 
     async fn handle_certificate_v3(
@@ -294,15 +270,6 @@ impl AuthorityAPI for MockAuthorityApi {
         unimplemented!();
     }
 
-    /// Execute a certificate.
-    async fn handle_certificate_v2(
-        &self,
-        _certificate: CertifiedTransaction,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        unimplemented!()
-    }
-
     async fn handle_certificate_v3(
         &self,
         _request: HandleCertificateRequestV3,
@@ -373,7 +340,7 @@ impl AuthorityAPI for MockAuthorityApi {
 #[derive(Clone)]
 pub struct HandleTransactionTestAuthorityClient {
     pub tx_info_resp_to_return: IotaResult<HandleTransactionResponse>,
-    pub cert_resp_to_return: IotaResult<HandleCertificateResponseV2>,
+    pub cert_resp_to_return: IotaResult<HandleCertificateResponseV3>,
     // If set, sleep for this duration before responding to a request.
     // This is useful in testing a timeout scenario.
     pub sleep_duration_before_responding: Option<Duration>,
@@ -392,23 +359,15 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         self.tx_info_resp_to_return.clone()
     }
 
-    async fn handle_certificate_v2(
-        &self,
-        _certificate: CertifiedTransaction,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        if let Some(duration) = self.sleep_duration_before_responding {
-            tokio::time::sleep(duration).await;
-        }
-        self.cert_resp_to_return.clone()
-    }
-
     async fn handle_certificate_v3(
         &self,
         _request: HandleCertificateRequestV3,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponseV3, IotaError> {
-        unimplemented!()
+        if let Some(duration) = self.sleep_duration_before_responding {
+            tokio::time::sleep(duration).await;
+        }
+        self.cert_resp_to_return.clone()
     }
 
     async fn handle_soft_bundle_certificates_v3(
@@ -476,7 +435,7 @@ impl HandleTransactionTestAuthorityClient {
         self.tx_info_resp_to_return = Err(IotaError::Unknown("".to_string()));
     }
 
-    pub fn set_cert_resp_to_return(&mut self, resp: HandleCertificateResponseV2) {
+    pub fn set_cert_resp_to_return(&mut self, resp: HandleCertificateResponseV3) {
         self.cert_resp_to_return = Ok(resp);
     }
 

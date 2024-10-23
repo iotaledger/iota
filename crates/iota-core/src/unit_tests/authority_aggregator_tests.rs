@@ -2504,10 +2504,12 @@ fn set_cert_response_with_certified_tx(
 ) {
     let effects = effects_with_tx(*cert.digest());
     for (name, secret) in authority_keys {
-        let resp = iota_types::messages_grpc::HandleCertificateResponseV2 {
-            signed_effects: sign_tx_effects(effects.clone(), epoch, *name, secret),
-            events: TransactionEvents::default(),
-            fastpath_input_objects: vec![],
+        let resp = HandleCertificateResponseV3 {
+            effects: sign_tx_effects(effects.clone(), epoch, *name, secret),
+            events: Some(TransactionEvents::default()),
+            input_objects: None,
+            output_objects: None,
+            auxiliary_data: None,
         };
         clients.get_mut(name).unwrap().set_cert_resp_to_return(resp);
     }

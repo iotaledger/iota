@@ -328,21 +328,6 @@ where
         Ok(response)
     }
 
-    fn verify_certificate_response_v2(
-        &self,
-        digest: &TransactionDigest,
-        response: HandleCertificateResponseV2,
-    ) -> IotaResult<HandleCertificateResponseV2> {
-        let signed_effects =
-            self.check_signed_effects_plain(digest, response.signed_effects, None)?;
-
-        Ok(HandleCertificateResponseV2 {
-            signed_effects,
-            events: response.events,
-            fastpath_input_objects: vec![], // unused field
-        })
-    }
-
     /// Execute a certificate.
     pub async fn handle_certificate_v2(
         &self,

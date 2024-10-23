@@ -432,13 +432,7 @@ async fn do_transaction_test_impl(
             let ct = CertifiedTransaction::new_from_data_and_sig(plain_tx.into_data(), cert_sig);
 
             let err = client
-                .handle_certificate_v3(HandleCertificateRequestV3 {
-                    certificate: ct.clone(),
-                    include_events: true,
-                    include_input_objects: false,
-                    include_output_objects: false,
-                    include_auxiliary_data: false,
-                }, Some(socket_addr))
+                .handle_certificate_v3(HandleCertificateRequestV3::new(ct.clone()).with_events(), Some(socket_addr))
                 .await
                 .unwrap_err();
             err_check(&err);
