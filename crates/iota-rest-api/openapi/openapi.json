@@ -1965,20 +1965,6 @@
           {
             "type": "object",
             "required": [
-              "kind"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "deny_list_state_create"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
               "chain_id",
               "kind"
             ],
@@ -5061,11 +5047,6 @@
                     "$ref": "#/components/schemas/MultisigCommittee"
                   }
                 ]
-              },
-              "legacy_bitmap": {
-                "description": "Legacy encoding for the bitmap.",
-                "type": "string",
-                "format": "base64"
               },
               "scheme": {
                 "type": "string",

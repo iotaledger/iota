@@ -298,7 +298,6 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
-    DenyListStateCreate,
     BridgeStateCreate(ChainIdentifier),
     BridgeCommitteeInit(SequenceNumber),
 }
@@ -340,10 +339,6 @@ impl EndOfEpochTransactionKind {
         Self::AuthenticatorStateCreate
     }
 
-    pub fn new_deny_list_state_create() -> Self {
-        Self::DenyListStateCreate
-    }
-
     pub fn new_bridge_create(chain_identifier: ChainIdentifier) -> Self {
         Self::BridgeStateCreate(chain_identifier)
     }
@@ -369,7 +364,6 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::DenyListStateCreate => vec![],
             Self::BridgeStateCreate(_) => vec![],
             Self::BridgeCommitteeInit(bridge_version) => vec![
                 InputObjectKind::SharedMoveObject {
@@ -400,7 +394,6 @@ impl EndOfEpochTransactionKind {
                 .into_iter(),
             ),
             Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
-            Self::DenyListStateCreate => Either::Right(iter::empty()),
             Self::BridgeStateCreate(_) => Either::Right(iter::empty()),
             Self::BridgeCommitteeInit(bridge_version) => Either::Left(
                 vec![
@@ -423,13 +416,6 @@ impl EndOfEpochTransactionKind {
                 if !config.enable_jwk_consensus_updates() {
                     return Err(UserInputError::Unsupported(
                         "authenticator state updates not enabled".to_string(),
-                    ));
-                }
-            }
-            Self::DenyListStateCreate => {
-                if !config.enable_coin_deny_list_v2() {
-                    return Err(UserInputError::Unsupported(
-                        "coin deny list not enabled".to_string(),
                     ));
                 }
             }

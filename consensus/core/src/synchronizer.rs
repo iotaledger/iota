@@ -1088,7 +1088,7 @@ mod tests {
         commit::{CommitRange, CommitVote, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        core_thread::{CoreThreadDispatcher, MockCoreThreadDispatcher},
+        core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::DagState,
         error::{ConsensusError, ConsensusResult},
         network::{BlockStream, NetworkClient},

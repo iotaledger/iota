@@ -20,7 +20,7 @@ use iota_macros::nondeterministic;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
     committee::{Committee, ProtocolVersion},
-    crypto::{AccountKeyPair, AuthorityKeyPair, PublicKey, get_key_pair_from_rng},
+    crypto::{AccountKeyPair, PublicKey, get_key_pair_from_rng},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -39,7 +39,6 @@ use crate::{
 pub enum CommitteeConfig {
     Size(NonZeroUsize),
     Validators(Vec<ValidatorGenesisConfig>),
-    AuthorityKeys(Vec<AuthorityKeyPair>),
     AccountKeys(Vec<AccountKeyPair>),
     /// Indicates that a committee should be deterministically generated, using
     /// the provided rng as a source of randomness as well as generating
@@ -157,10 +156,7 @@ impl<R> ConfigBuilder<R> {
         self.committee = CommitteeConfig::Validators(validators);
         self
     }
-    pub fn with_validator_authority_keys(mut self, authority_keys: Vec<AuthorityKeyPair>) -> Self {
-        self.committee = CommitteeConfig::AuthorityKeys(authority_keys);
-        self
-    }
+
     pub fn with_genesis_config(mut self, genesis_config: GenesisConfig) -> Self {
         assert!(self.genesis_config.is_none(), "Genesis config already set");
         self.genesis_config = Some(genesis_config);
@@ -354,18 +350,6 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             }
 
             CommitteeConfig::Validators(v) => v,
-
-            CommitteeConfig::AuthorityKeys(keys) => keys
-                .into_iter()
-                .map(|authority_key| {
-                    let mut builder =
-                        ValidatorGenesisConfigBuilder::new().with_protocol_key_pair(authority_key);
-                    if let Some(rgp) = self.reference_gas_price {
-                        builder = builder.with_gas_price(rgp);
-                    }
-                    builder.build(&mut rng)
-                })
-                .collect::<Vec<_>>(),
 
             CommitteeConfig::AccountKeys(keys) => {
                 // See above re fixed protocol keys
