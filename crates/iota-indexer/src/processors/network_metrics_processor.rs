@@ -115,7 +115,7 @@ where
                 .get_checkpoints_in_range(last_processed_cp_seq, last_processed_cp_seq + 1)
                 .await?
                 .first()
-                .ok_or(IndexerError::PostgresReadError(
+                .ok_or(IndexerError::PostgresRead(
                     "Cannot read checkpoint from PG for epoch peak TPS".to_string(),
                 ))?
                 .clone();

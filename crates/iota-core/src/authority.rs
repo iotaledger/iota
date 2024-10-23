@@ -57,8 +57,7 @@ use iota_types::{
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
-    deny_list_v1::check_coin_deny_list_v1,
-    deny_list_v2::check_coin_deny_list_v2_during_signing,
+    deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::{
@@ -884,23 +883,12 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
             )?;
 
-        if epoch_store.coin_deny_list_v1_enabled() {
-            check_coin_deny_list_v1(
-                tx_data.sender(),
-                &checked_input_objects,
-                &receiving_objects,
-                &self.get_object_store(),
-            )?;
-        }
-
-        if epoch_store.protocol_config().enable_coin_deny_list_v2() {
-            check_coin_deny_list_v2_during_signing(
-                tx_data.sender(),
-                &checked_input_objects,
-                &receiving_objects,
-                &self.get_object_store(),
-            )?;
-        }
+        check_coin_deny_list_v1_during_signing(
+            tx_data.sender(),
+            &checked_input_objects,
+            &receiving_objects,
+            &self.get_object_store(),
+        )?;
 
         let owned_objects = checked_input_objects.inner().filter_owned_objects();
 
@@ -4688,24 +4676,6 @@ impl AuthorityState {
         Some(tx)
     }
 
-    #[instrument(level = "debug", skip_all)]
-    fn create_deny_list_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().enable_coin_deny_list_v1() {
-            return None;
-        }
-
-        if epoch_store.coin_deny_list_state_exists() {
-            return None;
-        }
-
-        let tx = EndOfEpochTransactionKind::new_deny_list_state_create();
-        info!("Creating DenyListStateCreate tx");
-        Some(tx)
-    }
-
     /// Creates and execute the advance epoch transaction to effects without
     /// committing it to the database. The effects of the change epoch tx
     /// are only written to the database after a certified checkpoint has been
@@ -4735,9 +4705,6 @@ impl AuthorityState {
             txns.push(tx);
         }
         if let Some(tx) = self.init_bridge_committee_tx(epoch_store) {
-            txns.push(tx);
-        }
-        if let Some(tx) = self.create_deny_list_state_tx(epoch_store) {
             txns.push(tx);
         }
 
@@ -5050,8 +5017,7 @@ impl RandomnessRoundReceiver {
             bytes,
             epoch_store
                 .epoch_start_config()
-                .randomness_obj_initial_shared_version()
-                .expect("randomness state obj must exist"),
+                .randomness_obj_initial_shared_version(),
         );
         debug!(
             "created randomness state update transaction with digest: {:?}",
