@@ -32,6 +32,7 @@ use iota_types::{
 use rand::rngs::OsRng;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
+use iota_types::messages_grpc::HandleCertificateRequestV3;
 
 #[sim_test]
 async fn advance_epoch_tx_test() {
@@ -182,7 +183,7 @@ async fn reconfig_with_revert_end_to_end_test() {
         .get_client(&authorities[reverting_authority_idx].with(|node| node.state().name))
         .unwrap();
     client
-        .handle_certificate_v2(cert.clone(), None)
+        .handle_certificate_v3(HandleCertificateRequestV3::new(cert.clone()).with_events(), None)
         .await
         .unwrap();
 

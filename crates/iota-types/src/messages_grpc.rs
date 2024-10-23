@@ -225,6 +225,38 @@ pub struct HandleCertificateRequestV3 {
     pub include_auxiliary_data: bool,
 }
 
+impl HandleCertificateRequestV3 {
+    pub fn new(certificate: CertifiedTransaction) -> Self {
+        Self {
+            certificate,
+            include_events: false,
+            include_input_objects: false,
+            include_output_objects: false,
+            include_auxiliary_data: false,
+        }
+    }
+
+    pub fn with_events(mut self) -> Self {
+        self.include_events = true;
+        self
+    }
+
+    pub fn with_input_objects(mut self) -> Self {
+        self.include_input_objects = true;
+        self
+    }
+
+    pub fn with_output_objects(mut self) -> Self {
+        self.include_output_objects = true;
+        self
+    }
+
+    pub fn with_auxiliary_data(mut self) -> Self {
+        self.include_auxiliary_data = true;
+        self
+    }
+}
+
 impl From<HandleCertificateResponseV3> for HandleCertificateResponseV2 {
     fn from(value: HandleCertificateResponseV3) -> Self {
         Self {

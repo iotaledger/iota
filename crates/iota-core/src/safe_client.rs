@@ -353,15 +353,15 @@ where
         let _timer = self.metrics.handle_certificate_latency.start_timer();
         let response = self
             .authority_client
-            .handle_certificate_v2(certificate, client_addr)
+            .handle_certificate_v3(HandleCertificateRequestV3::new(certificate).with_events(), client_addr)
             .await?;
 
         let verified = check_error!(
             self.address,
-            self.verify_certificate_response_v2(&digest, response),
+            self.verify_certificate_response_v3(&digest, response),
             "Client error in handle_certificate"
         )?;
-        Ok(verified)
+        Ok(verified.into())
     }
 
     fn verify_certificate_response_v3(

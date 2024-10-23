@@ -363,9 +363,9 @@ impl ValidatorService {
     pub async fn execute_certificate_for_testing(
         &self,
         cert: CertifiedTransaction,
-    ) -> Result<tonic::Response<HandleCertificateResponseV2>, tonic::Status> {
-        let request = make_tonic_request_for_testing(cert);
-        self.handle_certificate_v2(request).await
+    ) -> Result<tonic::Response<HandleCertificateResponseV3>, tonic::Status> {
+        let request = make_tonic_request_for_testing(HandleCertificateRequestV3::new(cert).with_events());
+        self.handle_certificate_v3(request).await
     }
 
     /// Handles a `Transaction` request for benchmarking.

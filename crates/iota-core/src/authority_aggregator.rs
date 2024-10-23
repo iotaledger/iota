@@ -1623,12 +1623,12 @@ where
                             .await
                     } else {
                         client
-                            .handle_certificate_v2(request_ref.certificate, client_addr)
-                            .instrument(trace_span!("handle_certificate_v2", authority =? concise_name))
+                            .handle_certificate_v3(HandleCertificateRequestV3::new(request_ref.certificate).with_events(), client_addr)
+                            .instrument(trace_span!("handle_certificate_v3", authority =? concise_name))
                             .await
                             .map(|response| HandleCertificateResponseV3 {
-                                effects: response.signed_effects,
-                                events: Some(response.events),
+                                effects: response.effects,
+                                events: response.events,
                                 input_objects: None,
                                 output_objects: None,
                                 auxiliary_data: None,

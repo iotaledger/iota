@@ -340,15 +340,21 @@ mod tests {
 
         async fn handle_certificate_v2(
             &self,
-            certificate: CertifiedTransaction,
+            _certificate: CertifiedTransaction,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleCertificateResponseV2, IotaError> {
+        ) -> Result<HandleCertificateResponseV2, IotaError> { unimplemented!() }
+
+        async fn handle_certificate_v3(
+            &self,
+            _request: HandleCertificateRequestV3,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<HandleCertificateResponseV3, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
             let (effects, _) = self
                 .authority
                 .try_execute_immediately(
                     &VerifiedExecutableTransaction::new_from_certificate(
-                        VerifiedCertificate::new_unchecked(certificate),
+                        VerifiedCertificate::new_unchecked(_request.certificate),
                     ),
                     None,
                     &epoch_store,
@@ -362,19 +368,13 @@ mod tests {
                 .authority
                 .sign_effects(effects, &epoch_store)?
                 .into_inner();
-            Ok(HandleCertificateResponseV2 {
-                signed_effects,
-                events,
-                fastpath_input_objects: vec![],
+            Ok(HandleCertificateResponseV3 {
+                effects: signed_effects,
+                events: Some(events),
+                input_objects: None,
+                output_objects: None,
+                auxiliary_data: None,
             })
-        }
-
-        async fn handle_certificate_v3(
-            &self,
-            _request: HandleCertificateRequestV3,
-            _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleCertificateResponseV3, IotaError> {
-            unimplemented!()
         }
 
         async fn handle_soft_bundle_certificates_v3(

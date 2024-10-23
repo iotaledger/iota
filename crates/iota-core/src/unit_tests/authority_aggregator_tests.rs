@@ -228,10 +228,10 @@ where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
     authority
-        .handle_certificate_v2(cert.clone(), Some(make_socket_addr()))
+        .handle_certificate_v3(HandleCertificateRequestV3::new(cert.clone()).with_events(), Some(make_socket_addr()))
         .await
         .unwrap()
-        .signed_effects
+        .effects
         .into_data()
 }
 
@@ -240,7 +240,7 @@ where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
     let result = authority
-        .handle_certificate_v2(cert.clone(), Some(make_socket_addr()))
+        .handle_certificate_v3(HandleCertificateRequestV3::new(cert.clone()).with_events(), Some(make_socket_addr()))
         .await;
     if result.is_err() {
         println!("Error in do cert {:?}", result.err());

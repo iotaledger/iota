@@ -54,7 +54,7 @@ use iota_types::{
     gas_coin::GasCoin,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     message_envelope::Envelope,
-    messages_grpc::{HandleCertificateResponseV2, TransactionStatus},
+    messages_grpc::{HandleCertificateRequestV3, HandleCertificateResponseV3, TransactionStatus},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
@@ -524,7 +524,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             let name = *name;
             futures.push(async move {
                 client
-                    .handle_certificate_v2(certificate, None)
+                    .handle_certificate_v3(HandleCertificateRequestV3::new(certificate).with_events(), None)
                     .map(move |r| (r, name))
                     .await
             });
@@ -539,14 +539,14 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             auth_agg.metrics.inflight_certificate_requests.dec();
             match response {
                 // If all goes well, the validators reply with signed effects.
-                Ok(HandleCertificateResponseV2 {
-                    signed_effects,
+                Ok(HandleCertificateResponseV3 {
+                    effects,
                     events,
-                    fastpath_input_objects: _, // unused field
+                    .. // unused field
                 }) => {
-                    let author = signed_effects.auth_sig().authority;
-                    transaction_effects = Some(signed_effects.data().clone());
-                    transaction_events = Some(events);
+                    let author = effects.auth_sig().authority;
+                    transaction_effects = Some(effects.data().clone());
+                    transaction_events = events;
                     total_stake += self.committee.weight(&author);
                 }
 
