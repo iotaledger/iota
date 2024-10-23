@@ -363,7 +363,8 @@ impl ValidatorService {
         &self,
         cert: CertifiedTransaction,
     ) -> Result<tonic::Response<HandleCertificateResponseV3>, tonic::Status> {
-        let request = make_tonic_request_for_testing(HandleCertificateRequestV3::new(cert).with_events());
+        let request =
+            make_tonic_request_for_testing(HandleCertificateRequestV3::new(cert));
         self.handle_certificate_v3(request).await
     }
 
