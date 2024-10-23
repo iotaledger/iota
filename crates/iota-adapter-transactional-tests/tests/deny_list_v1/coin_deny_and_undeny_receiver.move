@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// This test verifies the basic e2e work flow of coin deny list v2 for receiver of regulated coins.
+// This test verifies the basic e2e work flow of coin deny list v1 for receiver of regulated coins.
 // Regulated coin issuer can use the deny cap to deny addresses, which will no longer be able to
 // receive the coin during execution.
 // Undeny the address will restore the original behavior.
@@ -17,7 +17,7 @@ module test::regulated_coin {
     public struct REGULATED_COIN has drop {}
 
     fun init(otw: REGULATED_COIN, ctx: &mut TxContext) {
-        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v1(
             otw,
             9,
             b"RC",
@@ -39,7 +39,7 @@ module test::regulated_coin {
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Deny account B.
-//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v1_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Transfer the regulated coin to @B still works normally.
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
@@ -50,7 +50,7 @@ module test::regulated_coin {
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Undeny account B.
-//# run iota::coin::deny_list_v2_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Transfer the regulated coin to @B still does not work.
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
