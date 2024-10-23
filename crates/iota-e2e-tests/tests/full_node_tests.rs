@@ -749,7 +749,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let digest = *txn.digest();
     let res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV1::new_v2(txn),
+            ExecuteTransactionRequestV1::new_v1(txn),
             ExecuteTransactionRequestType::WaitForLocalExecution,
             None,
         )
@@ -784,7 +784,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let digest = *txn.digest();
     let res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV1::new_v2(txn),
+            ExecuteTransactionRequestV1::new_v1(txn),
             ExecuteTransactionRequestType::WaitForEffectsCert,
             None,
         )
@@ -1194,7 +1194,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     let digest = *tx.digest();
     let _res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV1::new_v2(tx),
+            ExecuteTransactionRequestV1::new_v1(tx),
             ExecuteTransactionRequestType::WaitForLocalExecution,
             None,
         )
