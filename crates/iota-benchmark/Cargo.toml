@@ -55,4 +55,5 @@ iota-framework.workspace = true
 iota-framework-snapshot.workspace = true
 iota-macros.workspace = true
 iota-simulator.workspace = true
+iota-surfer.workspace = true
 typed-store.workspace = true
