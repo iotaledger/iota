@@ -686,8 +686,8 @@ async fn test_traffic_sketch_with_sampled_spam() {
         spam_sample_rate: Weight::new(0.5).unwrap(),
         dry_run: false,
         // keeping channel capacity small results in less errors in test metrics,
-        // in case of congestion (due to running on slower hardware) request is dropped
-        // and do not influence the rate and make spam rate inconsistent
+        // in case of congestion (due to running on slower hardware) requests are dropped
+        // and do not influence the rate and do not make the spam rate inconsistent
         channel_capacity: 10,
         ..Default::default()
     };
