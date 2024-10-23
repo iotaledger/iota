@@ -22,7 +22,7 @@ fn test_serde_batch() {
     assert_tokens(&batch, &[
         NewtypeVariant {
             name: "Batch",
-            variant: "V2",
+            variant: "V1",
         },
         Token::Struct {
             name: "BatchV1",
