@@ -364,7 +364,7 @@ impl ValidatorService {
         cert: CertifiedTransaction,
     ) -> Result<tonic::Response<HandleCertificateResponse>, tonic::Status> {
         let request = make_tonic_request_for_testing(HandleCertificateRequest::new(cert));
-        self.handle_certificate_v3(request).await
+        self.handle_certificate(request).await
     }
 
     /// Handles a `Transaction` request for benchmarking.
@@ -703,7 +703,7 @@ impl ValidatorService {
         })
     }
 
-    async fn handle_certificate_v3_impl(
+    async fn handle_certificate_impl(
         &self,
         request: tonic::Request<HandleCertificateRequest>,
     ) -> WrappedServiceResponse<HandleCertificateResponse> {
@@ -713,7 +713,7 @@ impl ValidatorService {
             .certificate
             .validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
-        let span = error_span!("handle_certificate_v3", tx_digest = ?request.certificate.digest());
+        let span = error_span!("handle_certificate", tx_digest = ?request.certificate.digest());
         self.handle_certificates(
             nonempty![request.certificate],
             request.include_events,
@@ -1133,11 +1133,11 @@ impl Validator for ValidatorService {
         .unwrap()
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_certificate(
         &self,
         request: tonic::Request<HandleCertificateRequest>,
     ) -> Result<tonic::Response<HandleCertificateResponse>, tonic::Status> {
-        handle_with_decoration!(self, handle_certificate_v3_impl, request)
+        handle_with_decoration!(self, handle_certificate_impl, request)
     }
 
     async fn handle_soft_bundle_certificates_v3(

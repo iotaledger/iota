@@ -85,7 +85,7 @@ impl AuthorityAPI for LocalAuthorityClient {
         result
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_certificate(
         &self,
         request: HandleCertificateRequest,
         _client_addr: Option<SocketAddr>,
@@ -270,7 +270,7 @@ impl AuthorityAPI for MockAuthorityApi {
         unimplemented!();
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_certificate(
         &self,
         _request: HandleCertificateRequest,
         _client_addr: Option<SocketAddr>,
@@ -359,7 +359,7 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         self.tx_info_resp_to_return.clone()
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_certificate(
         &self,
         _request: HandleCertificateRequest,
         _client_addr: Option<SocketAddr>,

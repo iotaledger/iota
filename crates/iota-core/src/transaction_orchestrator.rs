@@ -211,7 +211,7 @@ where
         Ok((response, executed_locally))
     }
 
-    // Utilize the handle_certificate_v3 validator api to request input/output
+    // Utilize the handle_certificate validator api to request input/output
     // objects
     #[instrument(name = "tx_orchestrator_execute_transaction_v3", level = "trace", skip_all,
                  fields(tx_digest = ?request.transaction.digest()))]

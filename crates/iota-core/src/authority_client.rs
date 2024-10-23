@@ -43,7 +43,7 @@ pub trait AuthorityAPI {
     ) -> Result<HandleTransactionResponse, IotaError>;
 
     /// Execute a certificate.
-    async fn handle_certificate_v3(
+    async fn handle_certificate(
         &self,
         request: HandleCertificateRequest,
         client_addr: Option<SocketAddr>,
@@ -148,7 +148,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_certificate(
         &self,
         request: HandleCertificateRequest,
         client_addr: Option<SocketAddr>,
@@ -158,7 +158,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
 
         let response = self
             .client()?
-            .handle_certificate_v3(request)
+            .handle_certificate(request)
             .await
             .map(tonic::Response::into_inner);
 

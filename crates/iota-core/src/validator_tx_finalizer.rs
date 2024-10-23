@@ -338,7 +338,7 @@ mod tests {
                 .await
         }
 
-        async fn handle_certificate_v3(
+        async fn handle_certificate(
             &self,
             request: HandleCertificateRequest,
             _client_addr: Option<SocketAddr>,
