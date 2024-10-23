@@ -1,10 +1,8 @@
 # Move on IOTA Capture the Flag (CTF)
 
-
 ## Trying the Challenges
 
 The challneges are already deployed on the IOTA alphanet. To get started, you need to start with reading the [CTF introduction](../../docs/content/developer/iota-move-ctf/introduction.mdx), follow its steps to interact with the challenges, and capture the flags.
-
 
 ## Deploying the challneges yourself (Not Required)
 
@@ -28,5 +26,5 @@ To deploy the challenges yourself:
 
 3. **Interact with the Deployed Contracts:**
    - Once the challenges are deployed in your local environment, you can interact with them in a similar way as on the devnet. You’ll be able to submit transactions, test edge cases, and attempt to capture the flags using the deployed contracts.
-   
+
 This setup allows you to modify the contracts and experiment with different scenarios.
