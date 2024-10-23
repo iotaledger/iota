@@ -995,12 +995,6 @@ impl AuthorityPerEpochStore {
         result
     }
 
-    pub fn coin_deny_list_state_exists(&self) -> bool {
-        self.epoch_start_configuration
-            .coin_deny_list_obj_initial_shared_version()
-            .is_some()
-    }
-
     pub fn bridge_exists(&self) -> bool {
         self.epoch_start_configuration
             .bridge_obj_initial_shared_version()

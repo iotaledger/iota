@@ -92,7 +92,7 @@ impl StoredEvent {
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<IotaEvent, IndexerError> {
         let package_id = ObjectID::from_bytes(self.package.clone()).map_err(|_e| {
-            IndexerError::PersistentStorageDataCorruptionError(format!(
+            IndexerError::PersistentStorageDataCorruption(format!(
                 "Failed to parse event package ID: {:?}",
                 self.package
             ))
@@ -102,7 +102,7 @@ impl StoredEvent {
             #[cfg(feature = "postgres-feature")]
             {
                 self.senders.first().ok_or_else(|| {
-                    IndexerError::PersistentStorageDataCorruptionError(
+                    IndexerError::PersistentStorageDataCorruption(
                         "Event senders should contain at least one address".to_string(),
                     )
                 })?
@@ -113,13 +113,13 @@ impl StoredEvent {
                 self.senders
                     .as_array()
                     .ok_or_else(|| {
-                        IndexerError::PersistentStorageDataCorruptionError(
+                        IndexerError::PersistentStorageDataCorruption(
                             "Failed to parse event senders as array".to_string(),
                         )
                     })?
                     .first()
                     .ok_or_else(|| {
-                        IndexerError::PersistentStorageDataCorruptionError(
+                        IndexerError::PersistentStorageDataCorruption(
                             "Event senders should contain at least one address".to_string(),
                         )
                     })?
@@ -129,13 +129,13 @@ impl StoredEvent {
         };
         let sender = match sender {
             Some(ref s) => IotaAddress::from_bytes(s).map_err(|_e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to parse event sender address: {:?}",
                     sender
                 ))
             })?,
             None => {
-                return Err(IndexerError::PersistentStorageDataCorruptionError(
+                return Err(IndexerError::PersistentStorageDataCorruption(
                     "Event senders element should not be null".to_string(),
                 ));
             }
@@ -146,17 +146,17 @@ impl StoredEvent {
             .type_layout(type_.clone().into())
             .await
             .map_err(|e| {
-                IndexerError::ResolveMoveStructError(format!(
+                IndexerError::ResolveMoveStruct(format!(
                     "Failed to convert to iota event with Error: {e}",
                 ))
             })?;
         let move_object = BoundedVisitor::deserialize_value(&self.bcs, &move_type_layout)
-            .map_err(|e| IndexerError::SerdeError(e.to_string()))?;
+            .map_err(|e| IndexerError::Serde(e.to_string()))?;
         let (_, parsed_json) = type_and_fields_from_move_event_data(move_object)
-            .map_err(|e| IndexerError::SerdeError(e.to_string()))?;
+            .map_err(|e| IndexerError::Serde(e.to_string()))?;
         let tx_digest =
             TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
-                IndexerError::SerdeError(format!(
+                IndexerError::Serde(format!(
                     "Failed to parse transaction digest: {:?}, error: {}",
                     self.transaction_digest, e
                 ))

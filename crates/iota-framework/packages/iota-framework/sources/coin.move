@@ -33,7 +33,7 @@ module iota::coin {
     const ENotEnough: u64 = 2;
     // #[error]
     // const EGlobalPauseNotAllowed: vector<u8> =
-    //    b"Kill switch was not allowed at the creation of the DenyCapV2";
+    //    b"Kill switch was not allowed at the creation of the DenyCapV1";
     const EGlobalPauseNotAllowed: u64 = 3;
 
     /// The index into the deny list vector for the `iota::coin::Coin` type.
@@ -86,7 +86,7 @@ module iota::coin {
     /// transaction and at the start of the next preventing them from receiving the coin.
     /// If `allow_global_pause` is true, the bearer can enable a global pause that behaves as if
     /// all addresses were added to the deny list.
-    public struct DenyCapV2<phantom T> has key, store {
+    public struct DenyCapV1<phantom T> has key, store {
         id: UID,
         allow_global_pause: bool,
     }
@@ -253,7 +253,7 @@ module iota::coin {
     /// The `allow_global_pause` flag enables an additional API that will cause all addresses to be
     /// be denied. Note however, that this doesn't affect per-address entries of the deny list and
     /// will not change the result of the "contains" APIs.
-    public fun create_regulated_currency_v2<T: drop>(
+    public fun create_regulated_currency_v1<T: drop>(
         witness: T,
         decimals: u8,
         symbol: vector<u8>,
@@ -262,7 +262,7 @@ module iota::coin {
         icon_url: Option<Url>,
         allow_global_pause: bool,
         ctx: &mut TxContext,
-    ): (TreasuryCap<T>, DenyCapV2<T>, CoinMetadata<T>) {
+    ): (TreasuryCap<T>, DenyCapV1<T>, CoinMetadata<T>) {
         let (treasury_cap, metadata) = create_currency(
             witness,
             decimals,
@@ -272,7 +272,7 @@ module iota::coin {
             icon_url,
             ctx
         );
-        let deny_cap = DenyCapV2 {
+        let deny_cap = DenyCapV1 {
             id: object::new(ctx),
             allow_global_pause,
         };
@@ -315,94 +315,94 @@ module iota::coin {
     /// Adds the given address to the deny list, preventing it from interacting with the specified
     /// coin type as an input to a transaction. Additionally at the start of the next epoch, the
     /// address will be unable to receive objects of this coin type.
-    public fun deny_list_v2_add<T>(
+    public fun deny_list_v1_add<T>(
         deny_list: &mut DenyList,
-        _deny_cap: &mut DenyCapV2<T>,
+        _deny_cap: &mut DenyCapV1<T>,
         addr: address,
         ctx: &mut TxContext,
     ) {
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.v2_add(DENY_LIST_COIN_INDEX, ty, addr, ctx)
+        deny_list.add(DENY_LIST_COIN_INDEX, ty, addr, ctx)
     }
 
-    /// Removes an address from the deny list. Similar to `deny_list_v2_add`, the effect for input
+    /// Removes an address from the deny list. Similar to `deny_list_v1_add`, the effect for input
     /// objects will be immediate, but the effect for receiving objects will be delayed until the
     /// next epoch.
-    public fun deny_list_v2_remove<T>(
+    public fun deny_list_v1_remove<T>(
         deny_list: &mut DenyList,
-        _deny_cap: &mut DenyCapV2<T>,
+        _deny_cap: &mut DenyCapV1<T>,
         addr: address,
         ctx: &mut TxContext,
     ) {
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.v2_remove(DENY_LIST_COIN_INDEX, ty, addr, ctx)
+        deny_list.remove(DENY_LIST_COIN_INDEX, ty, addr, ctx)
     }
 
     /// Check if the deny list contains the given address for the current epoch. Denied addresses
     /// in the current epoch will be unable to receive objects of this coin type.
-    public fun deny_list_v2_contains_current_epoch<T>(
+    public fun deny_list_v1_contains_current_epoch<T>(
         deny_list: &DenyList,
         addr: address,
         ctx: &TxContext,
     ): bool {
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.v2_contains_current_epoch(DENY_LIST_COIN_INDEX, ty, addr, ctx)
+        deny_list.contains_current_epoch(DENY_LIST_COIN_INDEX, ty, addr, ctx)
     }
 
     /// Check if the deny list contains the given address for the next epoch. Denied addresses in
     /// the next epoch will immediately be unable to use objects of this coin type as inputs. At the
     /// start of the next epoch, the address will be unable to receive objects of this coin type.
-    public fun deny_list_v2_contains_next_epoch<T>(
+    public fun deny_list_v1_contains_next_epoch<T>(
         deny_list: &DenyList,
         addr: address,
     ): bool {
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.v2_contains_next_epoch(DENY_LIST_COIN_INDEX, ty, addr)
+        deny_list.contains_next_epoch(DENY_LIST_COIN_INDEX, ty, addr)
     }
 
     /// Enable the global pause for the given coin type. This will immediately prevent all addresses
     /// from using objects of this coin type as inputs. At the start of the next epoch, all
     /// addresses will be unable to receive objects of this coin type.
     #[allow(unused_mut_parameter)]
-    public fun deny_list_v2_enable_global_pause<T>(
+    public fun deny_list_v1_enable_global_pause<T>(
         deny_list: &mut DenyList,
-        deny_cap: &mut DenyCapV2<T>,
+        deny_cap: &mut DenyCapV1<T>,
         ctx: &mut TxContext,
     ) {
         assert!(deny_cap.allow_global_pause, EGlobalPauseNotAllowed);
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.v2_enable_global_pause(DENY_LIST_COIN_INDEX, ty, ctx)
+        deny_list.enable_global_pause(DENY_LIST_COIN_INDEX, ty, ctx)
     }
 
     /// Disable the global pause for the given coin type. This will immediately allow all addresses
     /// to resume using objects of this coin type as inputs. However, receiving objects of this coin
     /// type will still be paused until the start of the next epoch.
     #[allow(unused_mut_parameter)]
-    public fun deny_list_v2_disable_global_pause<T>(
+    public fun deny_list_v1_disable_global_pause<T>(
         deny_list: &mut DenyList,
-        deny_cap: &mut DenyCapV2<T>,
+        deny_cap: &mut DenyCapV1<T>,
         ctx: &mut TxContext,
     ) {
         assert!(deny_cap.allow_global_pause, EGlobalPauseNotAllowed);
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.v2_disable_global_pause(DENY_LIST_COIN_INDEX, ty, ctx)
+        deny_list.disable_global_pause(DENY_LIST_COIN_INDEX, ty, ctx)
     }
 
     /// Check if the global pause is enabled for the given coin type in the current epoch.
-    public fun deny_list_v2_is_global_pause_enabled_current_epoch<T>(
+    public fun deny_list_v1_is_global_pause_enabled_current_epoch<T>(
         deny_list: &DenyList,
         ctx: &TxContext,
     ): bool {
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.v2_is_global_pause_enabled_current_epoch(DENY_LIST_COIN_INDEX, ty, ctx)
+        deny_list.is_global_pause_enabled_current_epoch(DENY_LIST_COIN_INDEX, ty, ctx)
     }
 
     /// Check if the global pause is enabled for the given coin type in the next epoch.
-    public fun deny_list_v2_is_global_pause_enabled_next_epoch<T>(
+    public fun deny_list_v1_is_global_pause_enabled_next_epoch<T>(
         deny_list: &DenyList,
     ): bool {
         let ty = type_name::get_with_original_ids<T>().into_string().into_bytes();
-        deny_list.v2_is_global_pause_enabled_next_epoch(DENY_LIST_COIN_INDEX, ty)
+        deny_list.is_global_pause_enabled_next_epoch(DENY_LIST_COIN_INDEX, ty)
     }
 
     // === Entrypoints ===
