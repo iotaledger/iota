@@ -3031,7 +3031,7 @@ async fn test_invalid_mutable_clock_parameter() {
 
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
-        UserInputError::ImmutableParameterExpectedError {
+        UserInputError::ImmutableParameterExpected {
             object_id: IOTA_CLOCK_OBJECT_ID
         }
     );
@@ -3134,7 +3134,7 @@ async fn test_invalid_randomness_parameter() {
     };
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
-        UserInputError::ImmutableParameterExpectedError {
+        UserInputError::ImmutableParameterExpected {
             object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID
         }
     );

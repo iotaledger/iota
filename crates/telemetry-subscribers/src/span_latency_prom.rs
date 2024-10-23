@@ -36,12 +36,12 @@ pub struct PrometheusSpanLatencyLayer {
 pub enum PrometheusSpanError {
     /// num_buckets must be positive >= 1
     ZeroOrNegativeNumBuckets,
-    PromError(prometheus::Error),
+    Prometheus(prometheus::Error),
 }
 
 impl From<prometheus::Error> for PrometheusSpanError {
     fn from(err: prometheus::Error) -> Self {
-        Self::PromError(err)
+        Self::Prometheus(err)
     }
 }
 
