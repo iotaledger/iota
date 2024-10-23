@@ -28,7 +28,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
+        HandleCertificateRequestV3, HandleCertificateResponseV3,
         HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
         SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
@@ -704,40 +704,6 @@ impl ValidatorService {
         })
     }
 
-    async fn handle_certificate_v2_impl(
-        &self,
-        request: tonic::Request<CertifiedTransaction>,
-    ) -> WrappedServiceResponse<HandleCertificateResponseV2> {
-        let epoch_store = self.state.load_epoch_store_one_call_per_task();
-        let certificate = request.into_inner();
-        certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
-
-        let span = error_span!("handle_certificate", tx_digest = ?certificate.digest());
-        self.handle_certificates(
-            nonempty![certificate],
-            true,
-            false,
-            false,
-            false,
-            &epoch_store,
-            true,
-        )
-        .instrument(span)
-        .await
-        .map(|(resp, spam_weight)| {
-            (
-                tonic::Response::new(
-                    resp.expect(
-                        "handle_certificate should not return none with wait_for_effects=true",
-                    )
-                    .remove(0)
-                    .into(),
-                ),
-                spam_weight,
-            )
-        })
-    }
-
     async fn handle_certificate_v3_impl(
         &self,
         request: tonic::Request<HandleCertificateRequestV3>,
@@ -1166,14 +1132,6 @@ impl Validator for ValidatorService {
         })
         .await
         .unwrap()
-    }
-
-    /// Handles a `CertifiedTransaction` request.
-    async fn handle_certificate_v2(
-        &self,
-        request: tonic::Request<CertifiedTransaction>,
-    ) -> Result<tonic::Response<HandleCertificateResponseV2>, tonic::Status> {
-        handle_with_decoration!(self, handle_certificate_v2_impl, request)
     }
 
     async fn handle_certificate_v3(
