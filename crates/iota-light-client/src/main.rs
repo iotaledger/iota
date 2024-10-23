@@ -565,7 +565,7 @@ mod tests {
 
     async fn read_data() -> (Committee, CheckpointData) {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/803.json");
+        d.push("example_config/528.json");
 
         let checkpoint: Envelope<CheckpointSummary, AuthorityQuorumSignInfo<true>> =
             serde_json::from_reader(&fs::File::open(&d).unwrap())
@@ -588,7 +588,7 @@ mod tests {
         let committee = Committee::new(checkpoint.epoch().checked_add(1).unwrap(), prev_committee);
 
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/1073.chk");
+        d.push("example_config/794.chk");
 
         let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
 
@@ -602,7 +602,7 @@ mod tests {
         extract_verified_effects_and_events(
             &full_checkpoint,
             &committee,
-            TransactionDigest::from_str("6ciKBJF3gZ2zNNKLqwRMBL4ftZRGL2kHPfKepWP2thbs").unwrap(),
+            TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi").unwrap(),
         )
         .unwrap();
     }
@@ -618,7 +618,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("6ciKBJF3gZ2zNNKLqwRMBL4ftZRGL2kHPfKepWP2thbs")
+                TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi")
                     .unwrap(),
             )
             .is_err()
@@ -652,7 +652,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("6ciKBJF3gZ2zNNKLqwRMBL4ftZRGL2kHPfKepWP2thbs")
+                TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi")
                     .unwrap(),
             )
             .is_err()

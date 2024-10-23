@@ -667,13 +667,6 @@ type CoinConnection {
 	nodes: [Coin!]!
 }
 
-type CoinDenyListStateCreateTransaction {
-	"""
-	A workaround to define an empty variant of a GraphQL union.
-	"""
-	_: Boolean
-}
-
 """
 An edge in a connection.
 """
@@ -1054,7 +1047,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | CoinDenyListStateCreateTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
+union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
 
 type EndOfEpochTransactionKindConnection {
 	"""
@@ -1179,6 +1172,10 @@ type Epoch {
 	The total IOTA supply.
 	"""
 	iotaTotalSupply: Int
+	"""
+	The treasury-cap id.
+	"""
+	iotaTreasuryCapId: IotaAddress
 	"""
 	Details of the system that are decided during genesis.
 	"""
@@ -4493,8 +4490,8 @@ type Validator {
 	"""
 	reportRecords(first: Int, before: String, last: Int, after: String): AddressConnection!
 	"""
-	The APY of this validator in basis points.
-	To get the APY in percentage, divide by 100.
+	The APY of this validator in basis points. To get the APY in
+	percentage, divide by 100.
 	"""
 	apy: Int
 }

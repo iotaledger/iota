@@ -193,10 +193,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "Option::is_none")]
     mysticeti_num_leaders_per_round: Option<usize>,
 
-    // If true, enable the coin deny list V2.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_coin_deny_list_v2: bool,
-
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
     passkey_auth: bool,
@@ -1056,10 +1052,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_poseidon
     }
 
-    pub fn enable_coin_deny_list_v2(&self) -> bool {
-        self.feature_flags.enable_coin_deny_list_v2
-    }
-
     pub fn enable_group_ops_native_functions(&self) -> bool {
         self.feature_flags.enable_group_ops_native_functions
     }
@@ -1684,8 +1676,6 @@ impl ProtocolConfig {
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
         cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
-
-        cfg.feature_flags.enable_coin_deny_list_v2 = true;
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;

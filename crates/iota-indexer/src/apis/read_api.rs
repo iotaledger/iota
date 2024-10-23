@@ -41,7 +41,7 @@ impl<T: R2D2Connection + 'static> ReadApi<T> {
             .await
         {
             Ok(Some(epoch_info)) => Ok(epoch_info),
-            Ok(None) => Err(IndexerError::InvalidArgumentError(format!(
+            Ok(None) => Err(IndexerError::InvalidArgument(format!(
                 "Checkpoint {id:?} not found"
             ))),
             Err(e) => Err(e),
@@ -150,7 +150,7 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
             .await?;
 
         let txn = txn.pop().ok_or_else(|| {
-            IndexerError::InvalidArgumentError(format!("Transaction {digest} not found"))
+            IndexerError::InvalidArgument(format!("Transaction {digest} not found"))
         })?;
 
         Ok(txn)
