@@ -18,9 +18,8 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
     },
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse, ObjectInfoRequest,
-        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionStatus,
-        VerifiedObjectInfoResponse,
+        HandleCertificateRequest, HandleCertificateResponse, ObjectInfoRequest, ObjectInfoResponse,
+        SystemStateRequest, TransactionInfoRequest, TransactionStatus, VerifiedObjectInfoResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,

@@ -28,10 +28,9 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse,
-        HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
+        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV3,
+        HandleSoftBundleCertificatesResponseV3, HandleTransactionResponse, ObjectInfoRequest,
+        ObjectInfoResponse, SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
         TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
