@@ -5,50 +5,34 @@
 import { execSync } from 'child_process';
 import { readFile } from 'fs/promises';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import path, { resolve } from 'node:path';
 
-// get all iota-graphql-rpc branches with version from remote
-const result = execSync(`git branch --remote --list "origin/releases/iota-graphql-rpc-v*"`)
-    .toString()
-    .trim()
-    .split('\n')
-    .map((ref) => {
-        const branch = ref.trim().replace('origin/', '');
-        const match = branch.match(/^releases\/iota-graphql-rpc-v([\d.]+)-release$/);
+const BRANCH = 'develop';
+const MAJOR = 2024;
+const MINOR = 10;
+const PATCH = 0;
 
-        if (!match) {
-            return null;
-        }
+const VERSION = `${MAJOR}.${MINOR}.${PATCH}`;
+const MINOR_VERSION = `${MAJOR}.${MINOR}`;
 
-        const version = match[1];
-        const [major, minor, patch] = version ? version.split('.') : [0, 0, 0];
+const releases = [
+    {
+        version: VERSION,
+        minorVersion: MINOR_VERSION,
+        major: MAJOR,
+        minor: MINOR,
+        patch: PATCH,
+        branch: BRANCH,
+    },
+];
 
-        return match
-            ? {
-                  version: match[1],
-                  minorVersion: `${major}.${minor}`,
-                  major,
-                  minor,
-                  patch,
-                  branch,
-                  schema: `https://raw.githubusercontent.com/iotaledger/iota/${branch}/crates/iota-graphql-rpc/schema.graphql`,
-              }
-            : null;
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null);
+for (const { minorVersion } of releases.values()) {
+    const packageRoot = path.resolve(import.meta.url.slice(5), '../..');
 
-const releasesByVersion = new Map<string, (typeof result)[number]>();
-for (const release of result) {
-    const { minorVersion } = release;
-    const existing = releasesByVersion.get(minorVersion);
-    if (!existing || existing.patch < release.patch) {
-        releasesByVersion.set(minorVersion, release);
-    }
-}
-
-for (const { minorVersion, schema } of releasesByVersion.values()) {
-    const res = await fetch(schema);
-    const schemaContent = await res.text();
+    const schema = await readFile(
+        path.resolve(packageRoot, '../../crates/iota-graphql-rpc/schema.graphql'),
+        'utf-8',
+    );
 
     const filePath = resolve(
         import.meta.url.slice(5),
@@ -56,7 +40,7 @@ for (const { minorVersion, schema } of releasesByVersion.values()) {
     );
 
     await mkdir(resolve(filePath, '..'), { recursive: true });
-    await writeFile(filePath, schemaContent);
+    await writeFile(filePath, schema);
 
     await writeFile(
         resolve(filePath, '..', 'tsconfig.tada.json'),
@@ -103,7 +87,9 @@ export const graphql = initGraphQLTada<{
     );
 }
 
-await addExportsToPackageJson(Array.from(releasesByVersion.keys()));
+const releaseVersions = releases.map(({ minorVersion }) => minorVersion);
+
+await addExportsToPackageJson(releaseVersions);
 
 async function addExportsToPackageJson(versions: string[]) {
     const packageJsonPath = resolve(import.meta.url.slice(5), '../../package.json');
@@ -116,5 +102,5 @@ async function addExportsToPackageJson(versions: string[]) {
         };
     }
 
-    await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, '\t')}\n`);
+    await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, '    ')}\n`);
 }
