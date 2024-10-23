@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use fastcrypto::hash::MultisetHash;
 use iota_metrics::monitored_scope;
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{ObjectID, SequenceNumber},
@@ -16,7 +15,7 @@ use iota_types::{
     error::IotaResult,
     in_memory_storage::InMemoryStorage,
     messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
-    storage::{ObjectKey, ObjectStore},
+    storage::ObjectStore,
 };
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use serde::Serialize;
@@ -131,68 +130,7 @@ impl WrappedObject {
     }
 }
 
-pub fn accumulate_effects<T, S>(
-    store: S,
-    effects: Vec<TransactionEffects>,
-    protocol_config: &ProtocolConfig,
-) -> Accumulator
-where
-    S: std::ops::Deref<Target = T>,
-    T: AccumulatorStore + ?Sized,
-{
-    if protocol_config.enable_effects_v2() {
-        accumulate_effects_v3(effects)
-    } else {
-        accumulate_effects_v2(store, effects)
-    }
-}
-
-fn accumulate_effects_v2<T, S>(store: S, effects: Vec<TransactionEffects>) -> Accumulator
-where
-    S: std::ops::Deref<Target = T>,
-    T: AccumulatorStore + ?Sized,
-{
-    let mut acc = Accumulator::default();
-
-    // process insertions to the set
-    acc.insert_all(
-        effects
-            .iter()
-            .flat_map(|fx| {
-                fx.all_changed_objects()
-                    .into_iter()
-                    .map(|(oref, _, _)| oref.2)
-            })
-            .collect::<Vec<ObjectDigest>>(),
-    );
-
-    // Collect keys from modified_at_versions to remove from the accumulator.
-    let modified_at_version_keys: Vec<_> = effects
-        .iter()
-        .flat_map(|fx| {
-            fx.modified_at_versions()
-                .into_iter()
-                .map(|(id, version)| ObjectKey(id, version))
-        })
-        .collect();
-
-    let modified_at_digests: Vec<_> = store
-        .multi_get_objects_by_key(&modified_at_version_keys.clone())
-        .expect("Failed to get modified_at_versions object from object table")
-        .into_iter()
-        .zip(modified_at_version_keys)
-        .map(|(obj, key)| {
-            obj.unwrap_or_else(|| panic!("Object for key {:?} from modified_at_versions effects does not exist in objects table", key))
-                .compute_object_reference()
-                .2
-        })
-        .collect();
-    acc.remove_all(modified_at_digests);
-
-    acc
-}
-
-fn accumulate_effects_v3(effects: Vec<TransactionEffects>) -> Accumulator {
+fn accumulate_effects(effects: Vec<TransactionEffects>) -> Accumulator {
     let mut acc = Accumulator::default();
 
     // process insertions to the set
@@ -275,7 +213,7 @@ impl StateAccumulator {
             return Ok(acc);
         }
 
-        let acc = self.accumulate_effects(effects, epoch_store.protocol_config());
+        let acc = self.accumulate_effects(effects);
 
         epoch_store.insert_state_hash_for_checkpoint(&checkpoint_seq_num, &acc)?;
         debug!("Accumulated checkpoint {}", checkpoint_seq_num);
@@ -349,14 +287,10 @@ impl StateAccumulator {
 
     /// Accumulates given effects and returns the accumulator without side
     /// effects.
-    pub fn accumulate_effects(
-        &self,
-        effects: Vec<TransactionEffects>,
-        protocol_config: &ProtocolConfig,
-    ) -> Accumulator {
+    pub fn accumulate_effects(&self, effects: Vec<TransactionEffects>) -> Accumulator {
         match self {
-            StateAccumulator::V1(impl_v1) => impl_v1.accumulate_effects(effects, protocol_config),
-            StateAccumulator::V2(impl_v2) => impl_v2.accumulate_effects(effects, protocol_config),
+            StateAccumulator::V1(impl_v1) => impl_v1.accumulate_effects(effects),
+            StateAccumulator::V2(impl_v2) => impl_v2.accumulate_effects(effects),
         }
     }
 
@@ -481,12 +415,8 @@ impl StateAccumulatorV1 {
         Ok(root_state_accumulator)
     }
 
-    pub fn accumulate_effects(
-        &self,
-        effects: Vec<TransactionEffects>,
-        protocol_config: &ProtocolConfig,
-    ) -> Accumulator {
-        accumulate_effects(&*self.store, effects, protocol_config)
+    pub fn accumulate_effects(&self, effects: Vec<TransactionEffects>) -> Accumulator {
+        accumulate_effects(effects)
     }
 }
 
@@ -609,11 +539,7 @@ impl StateAccumulatorV2 {
         Ok(running_root.clone())
     }
 
-    pub fn accumulate_effects(
-        &self,
-        effects: Vec<TransactionEffects>,
-        protocol_config: &ProtocolConfig,
-    ) -> Accumulator {
-        accumulate_effects(&*self.store, effects, protocol_config)
+    pub fn accumulate_effects(&self, effects: Vec<TransactionEffects>) -> Accumulator {
+        accumulate_effects(effects)
     }
 }

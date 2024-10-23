@@ -14,10 +14,7 @@ use std::{
 
 use anyhow::anyhow;
 use clap::Parser;
-use fastcrypto::{
-    encoding::{Encoding, Hex},
-    traits::EncodeDecodeBase64,
-};
+use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     Config, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME, NodeConfig, iota_config_dir,
 };
@@ -221,7 +218,7 @@ fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::
     let keys = kp_strings
         .iter()
         .map(|kpstr| {
-            let key = IotaKeyPair::decode_base64(kpstr);
+            let key = IotaKeyPair::decode(kpstr);
             key.map(|k| (IotaAddress::from(&k.public()), k))
         })
         .collect::<Result<BTreeMap<_, _>, _>>()

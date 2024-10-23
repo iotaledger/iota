@@ -21,4 +21,3 @@ packages:
   - "!sdk/typescript/utils"
   - "!sdk/typescript/verify"
   - "!sdk/move-bytecode-template/pkg"
-  - "!sdk/move-bytecode-template/pkg"

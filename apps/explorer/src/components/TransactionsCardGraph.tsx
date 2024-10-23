@@ -4,19 +4,8 @@
 
 import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Text } from '@iota/ui';
-import { ParentSize } from '@visx/responsive';
-import { AreaGraph } from './AreaGraph';
-import { ErrorBoundary } from './error-boundary/ErrorBoundary';
-import {
-    LabelText,
-    LabelTextSize,
-    LoadingIndicator,
-    Panel,
-    Title,
-    TitleSize,
-    TooltipPosition,
-} from '@iota/apps-ui-kit';
+import { LabelTextSize, TooltipPosition } from '@iota/apps-ui-kit';
+import { GraphTooltip, StatisticsPanel } from './StatisticsPanel';
 
 interface TooltipContentProps {
     data: {
@@ -31,16 +20,11 @@ function TooltipContent({
 }: TooltipContentProps): JSX.Element {
     const dateFormatted = formatDate(new Date(epochStartTimestamp), ['day', 'month']);
     const totalFormatted = formatAmount(epochTotalTransactions);
+
+    const overline = `${dateFormatted}, Epoch ${epoch}`;
+
     return (
-        <div className="flex flex-col gap-0.5">
-            <Text variant="subtitleSmallExtra/medium" color="steel-darker">
-                {dateFormatted}, Epoch {epoch}
-            </Text>
-            <span className="text-label-lg text-neutral-12">{totalFormatted}</span>
-            <Text variant="subtitleSmallExtra/medium" color="steel-darker" uppercase>
-                Transaction Blocks
-            </Text>
-        </div>
+        <GraphTooltip overline={overline} title={totalFormatted} subtitle="Transaction Blocks" />
     );
 }
 
@@ -84,57 +68,31 @@ export function TransactionsCardGraph() {
         ? formatBalance(lastEpochTotalTransactions, 0, CoinFormat.ROUNDED)
         : '--';
 
-    return (
-        <Panel>
-            <Title title="Transaction Blocks" size={TitleSize.Medium} />
-            <div className="flex h-full flex-col gap-md p-md--rs">
-                <div className="flex flex-row gap-md">
-                    <div className="flex-1">
-                        <LabelText
-                            size={LabelTextSize.Large}
-                            label="Total"
-                            text={totalTransactions ? formatBalance(totalTransactions, 0) : '--'}
-                            tooltipPosition={TooltipPosition.Right}
-                            tooltipText="The total number of transaction blocks."
-                        />
-                    </div>
+    const stats: React.ComponentProps<typeof StatisticsPanel>['stats'] = [
+        {
+            size: LabelTextSize.Large,
+            label: 'Total',
+            text: totalTransactions ? formatBalance(totalTransactions, 0) : '--',
+            tooltipPosition: TooltipPosition.Right,
+            tooltipText: 'The total number of transaction blocks.',
+        },
+        {
+            size: LabelTextSize.Large,
+            label: 'Last epoch',
+            text: lastEpochTotalTransactionsFormatted,
+        },
+    ];
 
-                    <div className="flex-1">
-                        <LabelText
-                            size={LabelTextSize.Large}
-                            label="Last epoch"
-                            text={lastEpochTotalTransactionsFormatted}
-                        />
-                    </div>
-                </div>
-                <div className="flex min-h-[340px] flex-1 flex-col items-center justify-center rounded-xl transition-colors">
-                    {isPending ? (
-                        <LoadingIndicator text="Loading data" />
-                    ) : epochMetrics?.length ? (
-                        <div className="relative flex-1 self-stretch">
-                            <ErrorBoundary>
-                                <ParentSize className="absolute">
-                                    {({ height, width }) => (
-                                        <AreaGraph
-                                            data={epochMetrics}
-                                            height={height}
-                                            width={width}
-                                            getX={({ epoch }) => Number(epoch)}
-                                            getY={({ epochTotalTransactions }) =>
-                                                Number(epochTotalTransactions)
-                                            }
-                                            formatY={formatAmount}
-                                            tooltipContent={TooltipContent}
-                                        />
-                                    )}
-                                </ParentSize>
-                            </ErrorBoundary>
-                        </div>
-                    ) : (
-                        <LoadingIndicator text="No historical data available" />
-                    )}
-                </div>
-            </div>
-        </Panel>
+    return (
+        <StatisticsPanel
+            title="Transaction Blocks"
+            data={epochMetrics}
+            stats={stats}
+            isPending={isPending}
+            getX={({ epoch }) => Number(epoch)}
+            getY={({ epochTotalTransactions }) => Number(epochTotalTransactions)}
+            formatY={formatAmount}
+            tooltipContent={TooltipContent}
+        />
     );
 }

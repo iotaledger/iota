@@ -54,7 +54,6 @@ impl Client {
 
         let inner = reqwest::ClientBuilder::new()
             .user_agent(USER_AGENT)
-            .http2_prior_knowledge()
             .build()?;
 
         Self {
