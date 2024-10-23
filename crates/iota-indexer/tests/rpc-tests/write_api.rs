@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
+use iota_indexer::store::indexer_store::IndexerStore;
 use iota_json_rpc_api::{
     IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
@@ -98,14 +99,31 @@ fn dev_inspect_transaction_block() {
             IotaExecutionStatus::Success
         );
 
-        assert_eq!(
-            indexer_devinspect_results
-                .effects
-                .mutated()
-                .iter()
-                .find_map(|obj| { (obj.reference.object_id == obj_id).then_some(obj.owner) })
-                .unwrap(),
-            Owner::AddressOwner(receiver)
+        let (new_seq_num, owner) = indexer_devinspect_results
+            .effects
+            .mutated()
+            .iter()
+            .find_map(|obj| {
+                (obj.reference.object_id == obj_id).then_some((obj.reference.version, obj.owner))
+            })
+            .unwrap();
+
+        assert_eq!(owner, Owner::AddressOwner(receiver));
+
+        let latest_checkpoint_seq_number = client
+            .get_latest_checkpoint_sequence_number()
+            .await
+            .unwrap();
+
+        indexer_wait_for_checkpoint(store, latest_checkpoint_seq_number.into_inner() + 1).await;
+        assert!(
+            store
+                .get_object_read(obj_id, Some(new_seq_num))
+                .await
+                .unwrap()
+                .object()
+                .is_err(),
+            "The actual object should not have the sequence number incremented"
         );
 
         let actual_object_info = client
@@ -115,7 +133,8 @@ fn dev_inspect_transaction_block() {
 
         assert_eq!(
             actual_object_info.data.unwrap().owner.unwrap(),
-            Owner::AddressOwner(sender)
+            Owner::AddressOwner(sender),
+            "The initial owner of the object should not change"
         );
     });
 }
