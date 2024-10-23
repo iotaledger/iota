@@ -141,10 +141,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
 
-    // Enable throughput aware consensus submission
-    #[serde(skip_serializing_if = "is_false")]
-    throughput_aware_consensus_submission: bool,
-
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
@@ -1038,10 +1034,6 @@ impl ProtocolConfig {
 
     pub fn zklogin_max_epoch_upper_bound_delta(&self) -> Option<u64> {
         self.feature_flags.zklogin_max_epoch_upper_bound_delta
-    }
-
-    pub fn throughput_aware_consensus_submission(&self) -> bool {
-        self.feature_flags.throughput_aware_consensus_submission
     }
 
     pub fn hardened_otw_check(&self) -> bool {
