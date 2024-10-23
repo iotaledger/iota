@@ -45,7 +45,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-    events(filter: {transactionDigest: "5a9JZB8Sj4ZBUbw92Lhh5FPUELjF7DQu86axPnAoshUS"}) {
+    events(filter: {transactionDigest: "4vfRbw935a7aQwvwhgN1X8trQTz14fS3vQvg4KwSQT3o"}) {
         edges {
             cursor
             node {
@@ -58,7 +58,7 @@ module Test::M1 {
 //# run-graphql --cursors {"tx":3,"e":1,"c":1}
 # When the tx digest and after cursor are on the same tx, we'll use the after cursor's event sequence number
 {
-    events(after: "@{cursor_0}" filter: {transactionDigest: "5a9JZB8Sj4ZBUbw92Lhh5FPUELjF7DQu86axPnAoshUS"}) {
+    events(after: "@{cursor_0}" filter: {transactionDigest: "4vfRbw935a7aQwvwhgN1X8trQTz14fS3vQvg4KwSQT3o"}) {
         edges {
             cursor
             node {
@@ -73,7 +73,7 @@ module Test::M1 {
 # we will get an empty response, since it's not possible to fetch an event
 # that isn't of the same tx sequence number
 {
-    events(after: "@{cursor_0}" filter: {transactionDigest: "5a9JZB8Sj4ZBUbw92Lhh5FPUELjF7DQu86axPnAoshUS"}) {
+    events(after: "@{cursor_0}" filter: {transactionDigest: "4vfRbw935a7aQwvwhgN1X8trQTz14fS3vQvg4KwSQT3o"}) {
         edges {
             cursor
             node {
@@ -86,7 +86,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-    events(filter: {transactionDigest: "mggojgjMhBoxL5AYtYav6kuwnLBT6AwJ9XeFcnJagab"}) {
+    events(filter: {transactionDigest: "FgDEyvc5GSReyhSoPVf638tLT8awecrM8czPWfmPfeak"}) {
         edges {
             cursor
             node {
@@ -98,7 +98,7 @@ module Test::M1 {
 
 //# run-graphql --cursors {"tx":4,"e":0,"c":1}
 {
-    events(after: "@{cursor_0}" filter: {transactionDigest: "mggojgjMhBoxL5AYtYav6kuwnLBT6AwJ9XeFcnJagab"}) {
+    events(after: "@{cursor_0}" filter: {transactionDigest: "FgDEyvc5GSReyhSoPVf638tLT8awecrM8czPWfmPfeak"}) {
         edges {
             cursor
             node {
@@ -111,7 +111,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-    events(last: 10 filter: {transactionDigest: "5a9JZB8Sj4ZBUbw92Lhh5FPUELjF7DQu86axPnAoshUS"}) {
+    events(last: 10 filter: {transactionDigest: "4vfRbw935a7aQwvwhgN1X8trQTz14fS3vQvg4KwSQT3o"}) {
         edges {
             cursor
             node {
@@ -124,7 +124,7 @@ module Test::M1 {
 //# run-graphql --cursors {"tx":3,"e":1,"c":1}
 # When the tx digest and cursor are on the same tx, we'll use the cursor's event sequence number
 {
-    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "5a9JZB8Sj4ZBUbw92Lhh5FPUELjF7DQu86axPnAoshUS"}) {
+    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "4vfRbw935a7aQwvwhgN1X8trQTz14fS3vQvg4KwSQT3o"}) {
         edges {
             cursor
             node {
@@ -139,7 +139,7 @@ module Test::M1 {
 # we will get an empty response, since it's not possible to fetch an event
 # that isn't of the same tx sequence number
 {
-    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "5a9JZB8Sj4ZBUbw92Lhh5FPUELjF7DQu86axPnAoshUS"}) {
+    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "4vfRbw935a7aQwvwhgN1X8trQTz14fS3vQvg4KwSQT3o"}) {
         edges {
             cursor
             node {
@@ -152,7 +152,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-    events(last: 10 filter: {transactionDigest: "mggojgjMhBoxL5AYtYav6kuwnLBT6AwJ9XeFcnJagab"}) {
+    events(last: 10 filter: {transactionDigest: "FgDEyvc5GSReyhSoPVf638tLT8awecrM8czPWfmPfeak"}) {
         edges {
             cursor
             node {
@@ -164,7 +164,7 @@ module Test::M1 {
 
 //# run-graphql --cursors {"tx":4,"e":1,"c":1}
 {
-    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "mggojgjMhBoxL5AYtYav6kuwnLBT6AwJ9XeFcnJagab"}) {
+    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "FgDEyvc5GSReyhSoPVf638tLT8awecrM8czPWfmPfeak"}) {
         edges {
             cursor
             node {
@@ -177,7 +177,7 @@ module Test::M1 {
 //# run-graphql
 # correct sender
 {
-    events(filter: {sender: "@{A}" transactionDigest: "5a9JZB8Sj4ZBUbw92Lhh5FPUELjF7DQu86axPnAoshUS"}) {
+    events(filter: {sender: "@{A}" transactionDigest: "4vfRbw935a7aQwvwhgN1X8trQTz14fS3vQvg4KwSQT3o"}) {
         edges {
             cursor
             node {
@@ -190,7 +190,7 @@ module Test::M1 {
 //# run-graphql
 # correct sender
 {
-    events(filter: {sender: "@{B}" transactionDigest: "mggojgjMhBoxL5AYtYav6kuwnLBT6AwJ9XeFcnJagab"}) {
+    events(filter: {sender: "@{B}" transactionDigest: "FgDEyvc5GSReyhSoPVf638tLT8awecrM8czPWfmPfeak"}) {
         edges {
             cursor
             node {
@@ -203,7 +203,7 @@ module Test::M1 {
 //# run-graphql
 # incorrect sender
 {
-    events(filter: {sender: "@{B}" transactionDigest: "5a9JZB8Sj4ZBUbw92Lhh5FPUELjF7DQu86axPnAoshUS"}) {
+    events(filter: {sender: "@{B}" transactionDigest: "4vfRbw935a7aQwvwhgN1X8trQTz14fS3vQvg4KwSQT3o"}) {
         edges {
             cursor
             node {
@@ -216,7 +216,7 @@ module Test::M1 {
 //# run-graphql
 # incorrect sender
 {
-    events(filter: {sender: "@{A}" transactionDigest: "mggojgjMhBoxL5AYtYav6kuwnLBT6AwJ9XeFcnJagab"}) {
+    events(filter: {sender: "@{A}" transactionDigest: "FgDEyvc5GSReyhSoPVf638tLT8awecrM8czPWfmPfeak"}) {
         edges {
             cursor
             node {
