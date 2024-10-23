@@ -65,9 +65,35 @@ import_address=$(iota keytool import "$ADMIN_PHRASE" ed25519)
 switch_res=$(iota client switch --address ${MULTISIG_ADMIN_ADDRESS})
 
 # Optional: Request tokens from the faucet (for testing purposes)
-faucet_res=$(curl --location --request POST "$IOTA_FAUCET" --header 'Content-Type: application/json' --data-raw '{"FixedAmountRequest": { "recipient": '$MULTISIG_ADMIN_ADDRESS'}}')
+echo "Requesting tokens from faucet..."
+faucet_res=""
+attempt=0
+max_attempts=5
+
+# Loop to check the faucet response
+while [[ "$faucet_res" == "" && $attempt -lt $max_attempts ]]; do
+  attempt=$((attempt+1))
+  faucet_res=$(curl --location --request POST '$IOTA_FAUCEThttps://faucet.iota-rebased-alphanet.iota.cafe/gas' --header 'Content-Type: application/json' --data-raw "{ \"FixedAmountRequest\": { \"recipient\": '$MULTISIG_ADMIN_ADDRESS' } }")
+  
+  # Check for successful response
+  if echo "$faucet_res" | grep -q "error"; then
+    echo "Faucet request failed: $faucet_res"
+    echo "Retrying... attempt $attempt of $max_attempts"
+    faucet_res=""
+    sleep 10 # wait before retrying
+  fi
+done
+
+# Check if faucet request was successful
+if [[ "$faucet_res" == "" ]]; then
+  echo "Failed to request tokens from faucet after $max_attempts attempts."
+  exit 1
+else
+  echo "Faucet request succeeded."
+fi
 
 # Publish the Move package using values from .env
+echo "Publishing Move package..."
 publish_res=$(iota client publish --skip-fetch-latest-git-deps --gas-budget 2000000000 --json ${MOVE_PACKAGE_PATH} --skip-dependency-verification)
 
 echo ${publish_res} >.publish.res.json
