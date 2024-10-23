@@ -4975,7 +4975,7 @@ async fn test_consensus_message_processed() {
     );
 }
 
-#[test]
+#[sim_test]
 fn test_choose_next_system_packages() {
     telemetry_subscribers::init_for_testing();
     let o1 = random_object_ref();
