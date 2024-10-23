@@ -228,7 +228,10 @@ where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
     authority
-        .handle_certificate_v3(HandleCertificateRequestV3::new(cert.clone()), Some(make_socket_addr()))
+        .handle_certificate_v3(
+            HandleCertificateRequestV3::new(cert.clone()),
+            Some(make_socket_addr()),
+        )
         .await
         .unwrap()
         .effects
