@@ -14,7 +14,7 @@ on:
       - ".github/workflows/apps-ui-kit-production.deploy.yml"
 
 jobs:
-  deploy-preview:
+  deploy-production:
     permissions:
       contents: read
       pull-requests: write

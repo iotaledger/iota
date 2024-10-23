@@ -337,10 +337,10 @@ impl MoveObjectType {
             && self.name().as_str() == "RegulatedCoinMetadata"
     }
 
-    pub fn is_coin_deny_cap_v2(&self) -> bool {
+    pub fn is_coin_deny_cap_v1(&self) -> bool {
         self.address() == IOTA_FRAMEWORK_ADDRESS
             && self.module().as_str() == "coin"
-            && self.name().as_str() == "DenyCapV2"
+            && self.name().as_str() == "DenyCapV1"
     }
 
     pub fn is_dynamic_field(&self) -> bool {

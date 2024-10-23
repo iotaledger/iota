@@ -22,8 +22,8 @@ module iota::coin_tests {
         ctx: &TxContext,
     ) {
         use iota::coin::{
-            deny_list_v2_contains_next_epoch as contains_next_epoch,
-            deny_list_v2_contains_current_epoch as contains_current_epoch,
+            deny_list_v1_contains_next_epoch as contains_next_epoch,
+            deny_list_v1_contains_current_epoch as contains_current_epoch,
         };
         assert!(contains_current_epoch<COIN_TESTS>(deny_list, addr, ctx) == contains_current_epoch);
         assert!(contains_next_epoch<COIN_TESTS>(deny_list, addr) == contains_next_epoch);
@@ -36,8 +36,8 @@ module iota::coin_tests {
         ctx: &TxContext,
     ) {
         use iota::coin::{
-            deny_list_v2_is_global_pause_enabled_next_epoch as is_global_pause_enabled_next_epoch,
-            deny_list_v2_is_global_pause_enabled_current_epoch
+            deny_list_v1_is_global_pause_enabled_next_epoch as is_global_pause_enabled_next_epoch,
+            deny_list_v1_is_global_pause_enabled_current_epoch
                 as is_global_pause_enabled_current_epoch,
         };
         assert!(
@@ -130,17 +130,17 @@ module iota::coin_tests {
     }
 
     #[test]
-    fun deny_list_v2() {
+    fun deny_list_v1() {
         use iota::coin::{
-            deny_list_v2_add as add,
-            deny_list_v2_remove as remove,
+            deny_list_v1_add as add,
+            deny_list_v1_remove as remove,
         };
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
         scenario.next_tx(TEST_ADDR);
 
         let witness = COIN_TESTS {};
-        let (treasury, mut deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (treasury, mut deny_cap, metadata) = coin::create_regulated_currency_v1(
             witness,
             6,
             b"COIN_TESTS",
@@ -205,19 +205,19 @@ module iota::coin_tests {
     }
 
     #[test]
-    fun deny_list_v2_global_pause() {
+    fun deny_list_v1_global_pause() {
         use iota::coin::{
-            deny_list_v2_add as add,
-            deny_list_v2_remove as remove,
-            deny_list_v2_enable_global_pause as enable_global_pause,
-            deny_list_v2_disable_global_pause as disable_global_pause,
+            deny_list_v1_add as add,
+            deny_list_v1_remove as remove,
+            deny_list_v1_enable_global_pause as enable_global_pause,
+            deny_list_v1_disable_global_pause as disable_global_pause,
         };
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
         scenario.next_tx(TEST_ADDR);
 
         let witness = COIN_TESTS {};
-        let (treasury, mut deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (treasury, mut deny_cap, metadata) = coin::create_regulated_currency_v1(
             witness,
             6,
             b"COIN_TESTS",
@@ -282,17 +282,17 @@ module iota::coin_tests {
     }
 
     #[test]
-    fun deny_list_v2_double_add() {
+    fun deny_list_v1_double_add() {
         use iota::coin::{
-            deny_list_v2_add as add,
-            deny_list_v2_remove as remove,
+            deny_list_v1_add as add,
+            deny_list_v1_remove as remove,
         };
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
         scenario.next_tx(TEST_ADDR);
 
         let witness = COIN_TESTS {};
-        let (treasury, mut deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (treasury, mut deny_cap, metadata) = coin::create_regulated_currency_v1(
             witness,
             6,
             b"COIN_TESTS",
@@ -322,13 +322,13 @@ module iota::coin_tests {
     }
 
     #[test, expected_failure(abort_code = iota::coin::EGlobalPauseNotAllowed)]
-    fun deny_list_v2_global_pause_not_allowed_enable() {
+    fun deny_list_v1_global_pause_not_allowed_enable() {
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
         scenario.next_tx(TEST_ADDR);
 
         let witness = COIN_TESTS {};
-        let (_treasury, mut deny_cap, _metadata) = coin::create_regulated_currency_v2(
+        let (_treasury, mut deny_cap, _metadata) = coin::create_regulated_currency_v1(
             witness,
             6,
             b"COIN_TESTS",
@@ -339,18 +339,18 @@ module iota::coin_tests {
             scenario.ctx(),
         );
         let mut deny_list: deny_list::DenyList = scenario.take_shared();
-        coin::deny_list_v2_enable_global_pause(&mut deny_list, &mut deny_cap, scenario.ctx());
+        coin::deny_list_v1_enable_global_pause(&mut deny_list, &mut deny_cap, scenario.ctx());
         abort 0
     }
 
     #[test, expected_failure(abort_code = iota::coin::EGlobalPauseNotAllowed)]
-    fun deny_list_v2_global_pause_not_allowed_disable() {
+    fun deny_list_v1_global_pause_not_allowed_disable() {
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
         scenario.next_tx(TEST_ADDR);
 
         let witness = COIN_TESTS {};
-        let (_treasury, mut deny_cap, _metadata) = coin::create_regulated_currency_v2(
+        let (_treasury, mut deny_cap, _metadata) = coin::create_regulated_currency_v1(
             witness,
             6,
             b"COIN_TESTS",
@@ -361,22 +361,22 @@ module iota::coin_tests {
             scenario.ctx(),
         );
         let mut deny_list: deny_list::DenyList = scenario.take_shared();
-        coin::deny_list_v2_disable_global_pause(&mut deny_list, &mut deny_cap, scenario.ctx());
+        coin::deny_list_v1_disable_global_pause(&mut deny_list, &mut deny_cap, scenario.ctx());
         abort 0
     }
 
     #[test]
-    fun deny_list_v2_add_remove() {
+    fun deny_list_v1_add_remove() {
         use iota::coin::{
-            deny_list_v2_add as add,
-            deny_list_v2_remove as remove,
+            deny_list_v1_add as add,
+            deny_list_v1_remove as remove,
         };
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
         scenario.next_tx(TEST_ADDR);
 
         let witness = COIN_TESTS {};
-        let (treasury, mut deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (treasury, mut deny_cap, metadata) = coin::create_regulated_currency_v1(
             witness,
             6,
             b"COIN_TESTS",

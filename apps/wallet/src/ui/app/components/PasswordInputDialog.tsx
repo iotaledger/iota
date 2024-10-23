@@ -4,14 +4,14 @@
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { Button } from '_src/ui/app/shared/ButtonUI';
-import { PasswordInputField } from '_src/ui/app/shared/input/password';
 import classNames from 'clsx';
-import { ErrorMessage, Form, Formik } from 'formik';
+import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
-import { ArrowLeft, ArrowRight, Warning } from '@iota/ui-icons';
-import { Header, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { ArrowLeft, ArrowRight } from '@iota/ui-icons';
+import { Header, InputType } from '@iota/apps-ui-kit';
+import { PasswordInputField } from '../shared/input/password';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),
@@ -59,7 +59,7 @@ export function PasswordInputDialog({
             validationSchema={validation}
             validateOnMount
         >
-            {({ isSubmitting, isValid }) => (
+            {({ isSubmitting, isValid, errors }) => (
                 <Form
                     className={classNames('flex flex-1 flex-col flex-nowrap items-center gap-7.5', {
                         'bg-white': background,
@@ -67,21 +67,12 @@ export function PasswordInputDialog({
                     })}
                 >
                     <Header title={title} titleCentered />
-                    <div className="flex flex-1 flex-col gap-sm self-stretch">
-                        <span className="text-label-sm text-neutral-40">
-                            Enter Wallet Password to Continue
-                        </span>
-                        <PasswordInputField name="password" />
-                        <ErrorMessage
-                            render={(error) => (
-                                <InfoBox
-                                    type={InfoBoxType.Error}
-                                    title={error}
-                                    icon={<Warning />}
-                                    style={InfoBoxStyle.Elevated}
-                                />
-                            )}
+                    <div className="flex-1 self-stretch">
+                        <PasswordInputField
                             name="password"
+                            type={InputType.Password}
+                            label="Enter your wallet password to continue"
+                            errorMessage={errors.password}
                         />
                         <div className="mt-4 text-center">
                             <span className="text-body-md text-neutral-40">

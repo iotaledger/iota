@@ -109,7 +109,7 @@ export function AccountGroup({
                 hideArrow
                 hideBorder
                 render={({ isOpen }) => (
-                    <div className="relative flex w-full items-center justify-between gap-1 py-2 pl-1 pr-sm">
+                    <div className="relative flex min-h-[52px] w-full items-center justify-between gap-1 py-2 pl-1 pr-sm">
                         <div className="flex items-center gap-1">
                             <TriangleDown
                                 className={clsx(
