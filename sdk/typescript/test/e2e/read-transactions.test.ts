@@ -32,16 +32,10 @@ describe('Transaction Reading API', () => {
             const tx = new Transaction();
             const [coin] = tx.splitCoins(tx.gas, [1]);
             tx.transferObjects([coin], toolbox.address());
-            const result = await toolbox.client.signAndExecuteTransaction({
+            return toolbox.client.signAndExecuteTransaction({
                 signer: toolbox.keypair,
                 transaction: tx,
             });
-
-            await toolbox.client.waitForTransaction({
-                digest: result.digest,
-            });
-
-            return result;
         }
 
         afterEach(() => {

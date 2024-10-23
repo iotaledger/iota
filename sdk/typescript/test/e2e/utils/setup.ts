@@ -328,6 +328,10 @@ export async function payIota(
         },
     });
 
+    await client.waitForTransaction({
+        digest: txn.digest,
+    });
+
     expect(txn.effects?.status.status).toEqual('success');
     return txn;
 }
