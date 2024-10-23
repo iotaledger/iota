@@ -7,11 +7,13 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 arc-swap.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 bcs.workspace = true
+cached.workspace = true
 eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
@@ -20,15 +22,12 @@ hyper.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
-move-binary-format.workspace = true
-move-bytecode-utils.workspace = true
-move-core-types.workspace = true
-move-package.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 signature.workspace = true
+tap.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["rt"] }
@@ -36,9 +35,7 @@ tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 
-tap.workspace = true
-
-cached.workspace = true
+# internal dependencies
 iota-config.workspace = true
 iota-core.workspace = true
 iota-json.workspace = true
@@ -51,11 +48,18 @@ iota-protocol-config.workspace = true
 iota-storage.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
+move-binary-format.workspace = true
+move-bytecode-utils.workspace = true
+move-core-types.workspace = true
+move-package.workspace = true
 shared-crypto.workspace = true
 typed-store-error.workspace = true
 
 [dev-dependencies]
+# external dependencies
 expect-test.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
 mockall.workspace = true
+
+# internal dependencies
+iota-types = { workspace = true, features = ["test-utils"] }
 telemetry-subscribers.workspace = true
