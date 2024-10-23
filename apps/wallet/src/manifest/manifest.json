@@ -11,7 +11,6 @@
         "default_popup": "ui.html?type=popup"
     },
     "host_permissions": [
-        "http://127.0.0.1:5001/",
         "https://fullnode.devnet.iota.io/",
         "https://fullnode.staging.iota.io/"
     ],
@@ -32,10 +31,6 @@
         {
             "resources": ["dapp-interface.js"],
             "matches": ["<all_urls>"]
-        },
-        {
-            "resources": ["ui.html"],
-            "matches": ["https://*.banxa.com/*"]
         }
     ],
     "content_security_policy": {
