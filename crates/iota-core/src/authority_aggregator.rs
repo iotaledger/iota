@@ -39,7 +39,7 @@ use iota_types::{
     },
     message_envelope::Message,
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV3, LayoutGenerationOption,
+        HandleCertificateRequest, HandleCertificateResponse, LayoutGenerationOption,
         ObjectInfoRequest, TransactionInfoRequest,
     },
     messages_safe_client::PlainTransactionInfoResponse,
@@ -1545,7 +1545,7 @@ where
     #[instrument(level = "trace", skip_all)]
     pub async fn process_certificate(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequest,
         client_addr: Option<SocketAddr>,
     ) -> Result<QuorumDriverResponse, AggregatorProcessCertificateError> {
         let state = ProcessCertificateState {
@@ -1608,7 +1608,7 @@ where
                         let req = if validators_to_sample.contains(&name) {
                             request_ref
                         } else {
-                            HandleCertificateRequestV3 {
+                            HandleCertificateRequest {
                                 include_events: false,
                                 include_input_objects: false,
                                 include_output_objects: false,
@@ -1623,10 +1623,10 @@ where
                             .await
                     } else {
                         client
-                            .handle_certificate_v3(HandleCertificateRequestV3::new(request_ref.certificate).with_events(), client_addr)
+                            .handle_certificate_v3(HandleCertificateRequest::new(request_ref.certificate).with_events(), client_addr)
                             .instrument(trace_span!("handle_certificate_v3", authority =? concise_name))
                             .await
-                            .map(|response| HandleCertificateResponseV3 {
+                            .map(|response| HandleCertificateResponse {
                                 effects: response.effects,
                                 events: response.events,
                                 input_objects: None,
@@ -1755,16 +1755,16 @@ where
         Ok(result)
     }
 
-    /// Handles the `HandleCertificateResponseV2` variants.
+    /// Handles the `HandleCertificateResponse` variants.
     fn handle_process_certificate_response(
         committee: Arc<Committee>,
         tx_digest: &TransactionDigest,
         state: &mut ProcessCertificateState,
-        response: IotaResult<HandleCertificateResponseV3>,
+        response: IotaResult<HandleCertificateResponse>,
         name: AuthorityName,
     ) -> IotaResult<Option<QuorumDriverResponse>> {
         match response {
-            Ok(HandleCertificateResponseV3 {
+            Ok(HandleCertificateResponse {
                 effects: signed_effects,
                 events,
                 input_objects,
@@ -1860,7 +1860,7 @@ where
         let _cert_guard = GaugeGuard::acquire(&self.metrics.inflight_certificates);
         let response = self
             .process_certificate(
-                HandleCertificateRequestV3 {
+                HandleCertificateRequest {
                     certificate: cert.clone(),
                     include_events: true,
                     include_input_objects: false,

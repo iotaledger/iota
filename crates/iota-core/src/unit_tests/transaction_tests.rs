@@ -61,7 +61,7 @@ macro_rules! assert_matches {
 use fastcrypto::traits::AggregateAuthenticator;
 use iota_types::{
     digests::ConsensusCommitDigest, messages_consensus::ConsensusCommitPrologueV1,
-    messages_grpc::HandleCertificateRequestV3,
+    messages_grpc::HandleCertificateRequest,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 
@@ -434,7 +434,7 @@ async fn do_transaction_test_impl(
 
             let err = client
                 .handle_certificate_v3(
-                    HandleCertificateRequestV3::new(ct.clone()),
+                    HandleCertificateRequest::new(ct.clone()),
                     Some(socket_addr),
                 )
                 .await
@@ -443,7 +443,7 @@ async fn do_transaction_test_impl(
             epoch_store.clear_signature_cache();
             let err = client
                 .handle_certificate_v3(
-                    HandleCertificateRequestV3::new(ct.clone()),
+                    HandleCertificateRequest::new(ct.clone()),
                     Some(socket_addr),
                 )
                 .await
@@ -1453,7 +1453,7 @@ async fn test_very_large_certificate() {
     );
 
     let res = client
-        .handle_certificate_v3(HandleCertificateRequestV3::new(cert), Some(socket_addr))
+        .handle_certificate_v3(HandleCertificateRequest::new(cert), Some(socket_addr))
         .await;
     assert!(res.is_err());
     let err = res.err().unwrap();
@@ -1525,7 +1525,7 @@ async fn test_handle_certificate_errors() {
 
     let err = client
         .handle_certificate_v3(
-            HandleCertificateRequestV3::new(ct.clone()),
+            HandleCertificateRequest::new(ct.clone()),
             Some(socket_addr),
         )
         .await
@@ -1561,7 +1561,7 @@ async fn test_handle_certificate_errors() {
 
     let err = client
         .handle_certificate_v3(
-            HandleCertificateRequestV3::new(ct.clone()),
+            HandleCertificateRequest::new(ct.clone()),
             Some(socket_addr),
         )
         .await
@@ -1585,7 +1585,7 @@ async fn test_handle_certificate_errors() {
     .unwrap();
     let err = client
         .handle_certificate_v3(
-            HandleCertificateRequestV3::new(ct.clone()),
+            HandleCertificateRequest::new(ct.clone()),
             Some(socket_addr),
         )
         .await
@@ -1610,7 +1610,7 @@ async fn test_handle_certificate_errors() {
 
     let err = client
         .handle_certificate_v3(
-            HandleCertificateRequestV3::new(ct.clone()),
+            HandleCertificateRequest::new(ct.clone()),
             Some(socket_addr),
         )
         .await

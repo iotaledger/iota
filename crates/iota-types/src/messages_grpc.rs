@@ -162,18 +162,10 @@ pub struct TransactionInfoResponse {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCertificateResponseV2 {
-    pub signed_effects: SignedTransactionEffects,
-    pub events: TransactionEvents,
-    /// Not used. Full node local execution fast path was deprecated.
-    pub fastpath_input_objects: Vec<Object>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitCertificateResponse {
     /// If transaction is already executed, return same result as
     /// handle_certificate
-    pub executed: Option<HandleCertificateResponseV2>,
+    pub executed: Option<HandleCertificateResponse>,
 }
 
 #[derive(Clone, Debug)]
@@ -197,7 +189,7 @@ pub struct SystemStateRequest {
 /// executed locally on the validator and will not be returned for requests to
 /// previously executed transactions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCertificateResponseV3 {
+pub struct HandleCertificateResponse {
     pub effects: SignedTransactionEffects,
     pub events: Option<TransactionEvents>,
 
@@ -216,7 +208,7 @@ pub struct HandleCertificateResponseV3 {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCertificateRequestV3 {
+pub struct HandleCertificateRequest {
     pub certificate: CertifiedTransaction,
 
     pub include_events: bool,
@@ -225,7 +217,7 @@ pub struct HandleCertificateRequestV3 {
     pub include_auxiliary_data: bool,
 }
 
-impl HandleCertificateRequestV3 {
+impl HandleCertificateRequest {
     pub fn new(certificate: CertifiedTransaction) -> Self {
         Self {
             certificate,
@@ -257,16 +249,6 @@ impl HandleCertificateRequestV3 {
     }
 }
 
-impl From<HandleCertificateResponseV3> for HandleCertificateResponseV2 {
-    fn from(value: HandleCertificateResponseV3) -> Self {
-        Self {
-            signed_effects: value.effects,
-            events: value.events.unwrap_or_default(),
-            fastpath_input_objects: Vec::new(),
-        }
-    }
-}
-
 /// Response type for the handle Soft Bundle certificates validator API.
 /// If `wait_for_effects` is true, it is guaranteed that:
 ///  - Number of responses will be equal to the number of input transactions.
@@ -275,7 +257,7 @@ impl From<HandleCertificateResponseV3> for HandleCertificateResponseV2 {
 /// Otherwise, `responses` will be empty.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HandleSoftBundleCertificatesResponseV3 {
-    pub responses: Vec<HandleCertificateResponseV3>,
+    pub responses: Vec<HandleCertificateResponse>,
 }
 
 /// Soft Bundle request.  See [SIP-19](https://github.com/sui-foundation/sips/blob/main/sips/sip-19.md).

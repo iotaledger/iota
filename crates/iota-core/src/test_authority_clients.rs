@@ -21,7 +21,7 @@ use iota_types::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV3,
+        HandleCertificateRequest, HandleCertificateResponse,
         HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
@@ -87,9 +87,9 @@ impl AuthorityAPI for LocalAuthorityClient {
 
     async fn handle_certificate_v3(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequest,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponse, IotaError> {
         let state = self.state.clone();
         let fault_config = self.fault_config;
         spawn_monitored_task!(Self::handle_certificate(state, request, fault_config))
@@ -173,9 +173,9 @@ impl LocalAuthorityClient {
     // transactions.
     async fn handle_certificate(
         state: Arc<AuthorityState>,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequest,
         fault_config: LocalAuthorityClientFaultConfig,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponse, IotaError> {
         if fault_config.fail_before_handle_confirmation {
             return Err(IotaError::GenericAuthority {
                 error: "Mock error before handle_confirmation_transaction".to_owned(),
@@ -228,7 +228,7 @@ impl LocalAuthorityClient {
             .then(|| state.get_transaction_output_objects(&signed_effects))
             .and_then(Result::ok);
 
-        Ok(HandleCertificateResponseV3 {
+        Ok(HandleCertificateResponse {
             effects: signed_effects,
             events,
             input_objects,
@@ -272,9 +272,9 @@ impl AuthorityAPI for MockAuthorityApi {
 
     async fn handle_certificate_v3(
         &self,
-        _request: HandleCertificateRequestV3,
+        _request: HandleCertificateRequest,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponse, IotaError> {
         unimplemented!()
     }
 
@@ -340,7 +340,7 @@ impl AuthorityAPI for MockAuthorityApi {
 #[derive(Clone)]
 pub struct HandleTransactionTestAuthorityClient {
     pub tx_info_resp_to_return: IotaResult<HandleTransactionResponse>,
-    pub cert_resp_to_return: IotaResult<HandleCertificateResponseV3>,
+    pub cert_resp_to_return: IotaResult<HandleCertificateResponse>,
     // If set, sleep for this duration before responding to a request.
     // This is useful in testing a timeout scenario.
     pub sleep_duration_before_responding: Option<Duration>,
@@ -361,9 +361,9 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
 
     async fn handle_certificate_v3(
         &self,
-        _request: HandleCertificateRequestV3,
+        _request: HandleCertificateRequest,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponse, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {
             tokio::time::sleep(duration).await;
         }
@@ -435,7 +435,7 @@ impl HandleTransactionTestAuthorityClient {
         self.tx_info_resp_to_return = Err(IotaError::Unknown("".to_string()));
     }
 
-    pub fn set_cert_resp_to_return(&mut self, resp: HandleCertificateResponseV3) {
+    pub fn set_cert_resp_to_return(&mut self, resp: HandleCertificateResponse) {
         self.cert_resp_to_return = Ok(resp);
     }
 

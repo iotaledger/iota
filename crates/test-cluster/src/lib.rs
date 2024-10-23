@@ -79,7 +79,7 @@ use iota_types::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     message_envelope::Message,
-    messages_grpc::HandleCertificateRequestV3,
+    messages_grpc::HandleCertificateRequest,
     object::Object,
     quorum_driver_types::ExecuteTransactionRequestType,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -758,7 +758,7 @@ impl TestCluster {
                     let cert = certificate.clone();
                     async move {
                         client
-                            .handle_certificate_v3(HandleCertificateRequestV3::new(cert), None)
+                            .handle_certificate_v3(HandleCertificateRequest::new(cert), None)
                             .await
                     }
                 })

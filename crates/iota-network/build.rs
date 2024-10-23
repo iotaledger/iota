@@ -37,8 +37,8 @@ fn main() -> Result<()> {
             Method::builder()
                 .name("handle_certificate_v3")
                 .route_name("CertifiedTransactionV3")
-                .input_type("iota_types::messages_grpc::HandleCertificateRequestV3")
-                .output_type("iota_types::messages_grpc::HandleCertificateResponseV3")
+                .input_type("iota_types::messages_grpc::HandleCertificateRequest")
+                .output_type("iota_types::messages_grpc::HandleCertificateResponse")
                 .codec_path(codec_path)
                 .build(),
         )
