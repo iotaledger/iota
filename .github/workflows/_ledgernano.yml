@@ -25,19 +25,18 @@ jobs:
 
       - name: Install ledgernano dependencies
         run: |
-          sudo apt-get install qemu-user-static
-          sudo apt-get install libxcb-xinerama0
+          sudo apt-get install -y qemu-user-static
+          sudo apt-get install -y libxcb-xinerama0
           sudo pip install speculos --break-system-packages
 
-      # Currently disabled, as the repo is still private: https://github.com/iotaledger/iota/issues/3268
-      # - name: Download ledgernano bin
-      #   run: |
-      #     sudo apt-get install gh
-      #     gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz untagged-a706a550379839d8db15
-      #     tar -xvf nanos.tar.gz
-      #     mv nanos/iota sdk/ledgerjs-hw-app-iota/tests/iota
-      #   env:
-      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download ledgernano bin
+        run: |
+          sudo apt-get install -y gh
+          echo ${{ secrets.LEDGER_APP_TOKEN }} | gh auth login --with-token
+          gh release list --repo https://github.com/iotaledger/ledger-app-iota
+          gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz untagged-a706a550379839d8db15
+          tar -xvf nanos.tar.gz
+          mv nanos/iota sdk/ledgerjs-hw-app-iota/tests/iota
 
       - name: Start speculos simulator
         run: speculos --api-port 5000 --display headless ./sdk/ledgerjs-hw-app-iota/tests/iota &

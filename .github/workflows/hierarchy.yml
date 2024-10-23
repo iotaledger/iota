@@ -154,3 +154,4 @@ jobs:
       - license-check
       - typos
     uses: ./.github/workflows/_ledgernano.yml
+    secrets: inherit
