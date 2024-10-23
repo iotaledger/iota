@@ -34,13 +34,13 @@ impl CustomEq for IotaMoveNormalizedStruct {
             type_parameters: other_type_parameters,
         } = other;
 
-        let abilites = abilities.eq(other_abilities);
+        let abilities = abilities.eq(other_abilities);
         let fields = fields.as_slice().eq(&other_fields.as_slice());
         let type_parameters = type_parameters
             .as_slice()
             .eq(&other_type_parameters.as_slice());
 
-        abilites && fields && type_parameters
+        abilities && fields && type_parameters
     }
 }
 
