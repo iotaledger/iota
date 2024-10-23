@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 anyhow = { workspace = true, features = ["backtrace"] }
 async-trait.workspace = true
 bcs.workspace = true
@@ -20,17 +21,6 @@ fastcrypto-zkp.workspace = true
 futures.workspace = true
 hdrhistogram.workspace = true
 indicatif.workspace = true
-iota-config.workspace = true
-iota-core.workspace = true
-iota-json-rpc-types.workspace = true
-iota-keys.workspace = true
-iota-network.workspace = true
-iota-protocol-config.workspace = true
-iota-sdk.workspace = true
-iota-storage.workspace = true
-iota-swarm-config.workspace = true
-iota-test-transaction-builder.workspace = true
-iota-types.workspace = true
 itertools.workspace = true
 prometheus.workspace = true
 rand.workspace = true
@@ -40,14 +30,26 @@ serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
-telemetry-subscribers.workspace = true
+sysinfo = "0.31"
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
 
+# internal dependencies
+iota-config.workspace = true
+iota-core.workspace = true
+iota-json-rpc-types.workspace = true
+iota-keys.workspace = true
 iota-metrics.workspace = true
+iota-network.workspace = true
+iota-protocol-config.workspace = true
+iota-sdk.workspace = true
+iota-storage.workspace = true
+iota-swarm-config.workspace = true
+iota-test-transaction-builder.workspace = true
+iota-types.workspace = true
 move-core-types.workspace = true
-sysinfo = "0.31"
+telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]

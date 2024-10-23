@@ -16,20 +16,22 @@ serde_json.workspace = true
 versions = "4.1.0"
 
 [dev-dependencies]
+# external dependencies
 anyhow.workspace = true
 bcs.workspace = true
 clap.workspace = true
 fastcrypto = { workspace = true }
+pretty_assertions.workspace = true
+rand.workspace = true
+tokio = { workspace = true, features = ["full"] }
+
+# internal dependencies
 iota-json.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-protocol-config.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
-pretty_assertions.workspace = true
-rand.workspace = true
-tokio = { workspace = true, features = ["full"] }
-
 move-core-types.workspace = true
 
 [[example]]

@@ -7,6 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 arrow = "53.1"
 arrow-array = "53.1"
@@ -21,6 +22,23 @@ csv.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 gcp-bigquery-client = "=0.18.0"
+num_enum.workspace = true
+object_store.workspace = true
+parquet = "53.1"
+prometheus.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+snowflake-api = "0.10"
+strum.workspace = true
+tap = "1.0"
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-stream.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+# internal dependencies
 iota-analytics-indexer-derive.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
@@ -34,23 +52,8 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
-num_enum.workspace = true
-object_store.workspace = true
-parquet = "53.1"
-prometheus.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-snowflake-api = "0.10"
-strum.workspace = true
-tap = "1.0"
 telemetry-subscribers.workspace = true
-tempfile.workspace = true
-thiserror.workspace = true
-tokio = { workspace = true, features = ["full"] }
-tokio-stream.workspace = true
-tracing.workspace = true
 typed-store.workspace = true
-url.workspace = true
 
 [dev-dependencies]
 simulacrum.workspace = true
