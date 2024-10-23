@@ -3,6 +3,9 @@ title: Database Snapshots
 description: Database snapshots of the IOTA network enable Full node operators a way to bootstrap a Full node without having to execute all the transactions that occurred after genesis.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/snapshots.json';
+
 Database snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. While validators can enable snapshots, they are typically most valuable for Full node operators.
 
 Snapshots of the IOTA network enable Full node operators a way to bootstrap a Full node without having to execute all the transactions that occurred after genesis. You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your Full node. With snapshots stored in the cloud, you're more easily able to recover quickly from catastrophic failures in your system or hardware.
@@ -180,3 +183,4 @@ Add an entry to the config file for `state-snapshot-write-config`. Using Amazon'
    ```
 The configuration settings shown in the example are specific to AWS S3, but GCS, Azure Storage, and Cloudflare R2 are all supported.
 
+<Quiz questions={questions} />

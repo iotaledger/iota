@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use fastcrypto::traits::KeyPair;
 use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
@@ -19,7 +20,7 @@ use iota_macros::nondeterministic;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
     committee::{Committee, ProtocolVersion},
-    crypto::{AccountKeyPair, KeypairTraits, PublicKey, get_key_pair_from_rng},
+    crypto::{AccountKeyPair, PublicKey, get_key_pair_from_rng},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},

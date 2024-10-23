@@ -25,7 +25,12 @@ const bisectX = bisector((x: number) => x).center;
 
 function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
     return (
-        <text x={x} y={y} textAnchor="middle" className="fill-steel font-sans text-sm font-medium">
+        <text
+            x={x}
+            y={y}
+            textAnchor="middle"
+            className="fill-current text-label-lg text-neutral-60 dark:text-neutral-40"
+        >
             {formattedValue}
         </text>
     );
@@ -52,8 +57,8 @@ export function AreaGraph<D>({
     formatY,
     tooltipContent,
 }: AreaGraphProps<D>): JSX.Element | null {
-    const graphTop = 0;
-    const graphBottom = Math.max(0, height - 0);
+    const graphTop = 1;
+    const graphBottom = Math.max(0, height - 30);
     const graphLeft = 0;
     const graphRight = Math.max(0, width - 0);
     const [fillGradientID] = useState(() => getID('areaGraph_fillGradient'));
@@ -134,11 +139,11 @@ export function AreaGraph<D>({
             <svg width={width} height={height}>
                 <defs>
                     <linearGradient id={fillGradientID} gradientTransform="rotate(90)">
-                        <stop offset="1%" stopColor="#d6d6ff" />
-                        <stop offset="99%" stopColor="white" />
+                        <stop stopColor="#0067EE" stopOpacity="0.16" />
+                        <stop offset="1" stopColor="#0067EE" stopOpacity="0" />
                     </linearGradient>
                     <linearGradient id={lineGradientID}>
-                        <stop stopColor="#3131ff" />
+                        <stop stopColor="currentColor" className="text-primary-30" />
                     </linearGradient>
                 </defs>
                 <AreaClosed<D>

@@ -337,16 +337,10 @@ impl MoveObjectType {
             && self.name().as_str() == "RegulatedCoinMetadata"
     }
 
-    pub fn is_coin_deny_cap(&self) -> bool {
+    pub fn is_coin_deny_cap_v1(&self) -> bool {
         self.address() == IOTA_FRAMEWORK_ADDRESS
             && self.module().as_str() == "coin"
-            && self.name().as_str() == "DenyCap"
-    }
-
-    pub fn is_coin_deny_cap_v2(&self) -> bool {
-        self.address() == IOTA_FRAMEWORK_ADDRESS
-            && self.module().as_str() == "coin"
-            && self.name().as_str() == "DenyCapV2"
+            && self.name().as_str() == "DenyCapV1"
     }
 
     pub fn is_dynamic_field(&self) -> bool {
@@ -801,14 +795,6 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 Ok(IotaAddress::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
-            GenericSignature::MultiSigLegacy(ms) => {
-                Ok(crate::multisig::MultiSig::try_from(ms.clone())
-                    .map_err(|_| IotaError::InvalidSignature {
-                        error: "Invalid legacy multisig".to_string(),
-                    })?
-                    .get_pk()
-                    .into())
-            }
             GenericSignature::ZkLoginAuthenticator(zklogin) => {
                 IotaAddress::try_from_unpadded(&zklogin.inputs)
             }

@@ -30,7 +30,7 @@ mod ingestion_tests {
                 .build_transaction()
                 .read_only()
                 .run($query)
-                .map_err(|e| IndexerError::PostgresReadError(e.to_string()))
+                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
         }};
     }
 

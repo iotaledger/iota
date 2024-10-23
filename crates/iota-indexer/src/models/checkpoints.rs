@@ -96,7 +96,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
     fn try_from(checkpoint: StoredCheckpoint) -> Result<RpcCheckpoint, IndexerError> {
         let parsed_digest = CheckpointDigest::try_from(checkpoint.checkpoint_digest.clone())
             .map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to decode checkpoint digest: {:?} with err: {:?}",
                     checkpoint.checkpoint_digest, e
                 ))
@@ -106,7 +106,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             .previous_checkpoint_digest
             .map(|digest| {
                 CheckpointDigest::try_from(digest.clone()).map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "Failed to decode previous checkpoint digest: {:?} with err: {:?}",
                         digest, e
                     ))
@@ -121,12 +121,12 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
                     .tx_digests
                     .into_iter()
                     .map(|tx_digest| match tx_digest {
-                        None => Err(IndexerError::PersistentStorageDataCorruptionError(
+                        None => Err(IndexerError::PersistentStorageDataCorruption(
                             "tx_digests should not contain null elements".to_string(),
                         )),
                         Some(tx_digest) => TransactionDigest::try_from(tx_digest.as_slice())
                             .map_err(|e| {
-                                IndexerError::PersistentStorageDataCorruptionError(format!(
+                                IndexerError::PersistentStorageDataCorruption(format!(
                                     "Failed to decode transaction digest: {:?} with err: {:?}",
                                     tx_digest, e
                                 ))
@@ -141,26 +141,26 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
                     .tx_digests
                     .as_array()
                     .ok_or_else(|| {
-                        IndexerError::PersistentStorageDataCorruptionError(
+                        IndexerError::PersistentStorageDataCorruption(
                             "Failed to parse tx_digests as array".to_string(),
                         )
                     })?
                     .iter()
                     .map(|tx_digest| match tx_digest {
                         serde_json::Value::Null => {
-                            Err(IndexerError::PersistentStorageDataCorruptionError(
+                            Err(IndexerError::PersistentStorageDataCorruption(
                                 "tx_digests should not contain null elements".to_string(),
                             ))
                         }
                         serde_json::Value::String(tx_digest) => {
                             TransactionDigest::try_from(tx_digest.as_bytes()).map_err(|e| {
-                                IndexerError::PersistentStorageDataCorruptionError(format!(
+                                IndexerError::PersistentStorageDataCorruption(format!(
                                     "Failed to decode transaction digest: {:?} with err: {:?}",
                                     tx_digest, e
                                 ))
                             })
                         }
-                        _ => Err(IndexerError::PersistentStorageDataCorruptionError(
+                        _ => Err(IndexerError::PersistentStorageDataCorruption(
                             "tx_digests should contain only string elements".to_string(),
                         )),
                     })
@@ -169,7 +169,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
         };
         let validator_signature =
             bcs::from_bytes(&checkpoint.validator_signature).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to decode validator signature: {:?} with err: {:?}",
                     checkpoint.validator_signature, e
                 ))
@@ -177,7 +177,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
 
         let checkpoint_commitments =
             bcs::from_bytes(&checkpoint.checkpoint_commitments).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to decode checkpoint commitments: {:?} with err: {:?}",
                     checkpoint.checkpoint_commitments, e
                 ))
@@ -187,7 +187,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             .end_of_epoch_data
             .map(|data| {
                 bcs::from_bytes(&data).map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "Failed to decode end of epoch data: {:?} with err: {:?}",
                         data, e
                     ))

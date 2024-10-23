@@ -249,7 +249,7 @@ impl StoredTransaction {
         let options = options.clone();
         let tx_digest =
             TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Can't convert {:?} as tx_digest. Error: {e}",
                     self.transaction_digest
                 ))
@@ -291,14 +291,14 @@ impl StoredTransaction {
                         .map(|event| match event {
                             Some(event) => {
                                 let event: Event = bcs::from_bytes(&event).map_err(|e| {
-                                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                                    IndexerError::PersistentStorageDataCorruption(format!(
                                         "Can't convert event bytes into Event. tx_digest={:?} Error: {e}",
                                         tx_digest
                                     ))
                                 })?;
                                 Ok(event)
                             }
-                            None => Err(IndexerError::PersistentStorageDataCorruptionError(format!(
+                            None => Err(IndexerError::PersistentStorageDataCorruption(format!(
                                 "Event should not be null, tx_digest={:?}",
                                 tx_digest
                             ))),
@@ -311,25 +311,25 @@ impl StoredTransaction {
                     self.events
                         .as_array()
                         .ok_or_else(|| {
-                            IndexerError::PersistentStorageDataCorruptionError(
+                            IndexerError::PersistentStorageDataCorruption(
                                 "Failed to parse events as array".to_string(),
                             )
                         })?
                         .iter()
                         .map(|event| match event {
-                            serde_json::Value::Null => Err(IndexerError::PersistentStorageDataCorruptionError(
+                            serde_json::Value::Null => Err(IndexerError::PersistentStorageDataCorruption(
                                 "events should not contain null elements".to_string(),
                             )),
                             serde_json::Value::String(event) => {
                                 let event: Event = bcs::from_bytes(event.as_bytes()).map_err(|e| {
-                                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                                    IndexerError::PersistentStorageDataCorruption(format!(
                                         "Can't convert event bytes into Event. tx_digest={:?} Error: {e}",
                                         tx_digest
                                     ))
                                 })?;
                                 Ok(event)
                             }
-                            _ => Err(IndexerError::PersistentStorageDataCorruptionError(
+                            _ => Err(IndexerError::PersistentStorageDataCorruption(
                                 "events should contain only string elements".to_string(),
                             )),
                         })
@@ -352,12 +352,12 @@ impl StoredTransaction {
                         match object_change {
                             Some(object_change) => {
                                 let object_change: IndexedObjectChange = bcs::from_bytes(&object_change)
-                                    .map_err(|e| IndexerError::PersistentStorageDataCorruptionError(
+                                    .map_err(|e| IndexerError::PersistentStorageDataCorruption(
                                         format!("Can't convert object_change bytes into IndexedObjectChange. tx_digest={:?} Error: {e}", tx_digest)
                                     ))?;
                                 Ok(ObjectChange::from(object_change))
                             }
-                            None => Err(IndexerError::PersistentStorageDataCorruptionError(format!("object_change should not be null, tx_digest={:?}", tx_digest))),
+                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={:?}", tx_digest))),
                         }
                     }).collect::<Result<Vec<ObjectChange>, IndexerError>>()?
                 }
@@ -367,23 +367,23 @@ impl StoredTransaction {
                     self.object_changes
                         .as_array()
                         .ok_or_else(|| {
-                            IndexerError::PersistentStorageDataCorruptionError(
+                            IndexerError::PersistentStorageDataCorruption(
                                 "Failed to parse object_changes as array".to_string(),
                             )
                         })?
                         .iter()
                         .map(|object_change| match object_change {
-                            serde_json::Value::Null => Err(IndexerError::PersistentStorageDataCorruptionError(
+                            serde_json::Value::Null => Err(IndexerError::PersistentStorageDataCorruption(
                                 "object_changes should not contain null elements".to_string(),
                             )),
                             serde_json::Value::String(object_change) => {
                                 let object_change: IndexedObjectChange = bcs::from_bytes(object_change.as_bytes())
-                                    .map_err(|e| IndexerError::PersistentStorageDataCorruptionError(
+                                    .map_err(|e| IndexerError::PersistentStorageDataCorruption(
                                         format!("Can't convert object_change bytes into IndexedObjectChange. tx_digest={:?} Error: {e}", tx_digest)
                                     ))?;
                                 Ok(ObjectChange::from(object_change))
                             }
-                            _ => Err(IndexerError::PersistentStorageDataCorruptionError(
+                            _ => Err(IndexerError::PersistentStorageDataCorruption(
                                 "object_changes should contain only string elements".to_string(),
                             )),
                         })
@@ -403,12 +403,12 @@ impl StoredTransaction {
                         match balance_change {
                             Some(balance_change) => {
                                 let balance_change: BalanceChange = bcs::from_bytes(&balance_change)
-                                    .map_err(|e| IndexerError::PersistentStorageDataCorruptionError(
+                                    .map_err(|e| IndexerError::PersistentStorageDataCorruption(
                                         format!("Can't convert balance_change bytes into BalanceChange. tx_digest={:?} Error: {e}", tx_digest)
                                     ))?;
                                 Ok(balance_change)
                             }
-                            None => Err(IndexerError::PersistentStorageDataCorruptionError(format!("object_change should not be null, tx_digest={:?}", tx_digest))),
+                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={:?}", tx_digest))),
                         }
                     }).collect::<Result<Vec<BalanceChange>, IndexerError>>()?
                 }
@@ -418,23 +418,23 @@ impl StoredTransaction {
                     self.balance_changes
                         .as_array()
                         .ok_or_else(|| {
-                            IndexerError::PersistentStorageDataCorruptionError(
+                            IndexerError::PersistentStorageDataCorruption(
                                 "Failed to parse balance_changes as array".to_string(),
                             )
                         })?
                         .iter()
                         .map(|balance_change| match balance_change {
-                            serde_json::Value::Null => Err(IndexerError::PersistentStorageDataCorruptionError(
+                            serde_json::Value::Null => Err(IndexerError::PersistentStorageDataCorruption(
                                 "balance_changes should not contain null elements".to_string(),
                             )),
                             serde_json::Value::String(balance_change) => {
                                 let balance_change: BalanceChange = bcs::from_bytes(balance_change.as_bytes())
-                                    .map_err(|e| IndexerError::PersistentStorageDataCorruptionError(
+                                    .map_err(|e| IndexerError::PersistentStorageDataCorruption(
                                         format!("Can't convert balance_change bytes into BalanceChange. tx_digest={:?} Error: {e}", tx_digest)
                                     ))?;
                                 Ok(balance_change)
                             }
-                            _ => Err(IndexerError::PersistentStorageDataCorruptionError(
+                            _ => Err(IndexerError::PersistentStorageDataCorruption(
                                 "balance_changes should contain only string elements".to_string(),
                             )),
                         })
@@ -465,7 +465,7 @@ impl StoredTransaction {
     fn try_into_sender_signed_data(&self) -> IndexerResult<SenderSignedData> {
         let sender_signed_data: SenderSignedData =
             bcs::from_bytes(&self.raw_transaction).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Can't convert raw_transaction of {} into SenderSignedData. Error: {e}",
                     self.tx_sequence_number
                 ))
@@ -475,7 +475,7 @@ impl StoredTransaction {
 
     pub fn try_into_iota_transaction_effects(&self) -> IndexerResult<IotaTransactionBlockEffects> {
         let effects: TransactionEffects = bcs::from_bytes(&self.raw_effects).map_err(|e| {
-            IndexerError::PersistentStorageDataCorruptionError(format!(
+            IndexerError::PersistentStorageDataCorruption(format!(
                 "Can't convert raw_effects of {} into TransactionEffects. Error: {e}",
                 self.tx_sequence_number
             ))
@@ -559,9 +559,9 @@ impl StoredTransaction {
     ) -> Result<Self, IndexerError> {
         tracing::debug!("Setting large object data as raw transaction");
         let raw_oid = std::mem::take(&mut self.raw_transaction);
-        let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
-            IndexerError::GenericError("invalid large object identifier".to_owned())
-        })?;
+        let raw_oid: [u8; 4] = raw_oid
+            .try_into()
+            .map_err(|_| IndexerError::Generic("invalid large object identifier".to_owned()))?;
         let oid = u32::from_le_bytes(raw_oid);
 
         self.raw_transaction =
@@ -578,9 +578,9 @@ impl StoredTransaction {
     ) -> Result<Self, IndexerError> {
         tracing::debug!("Setting large object data as raw effects");
         let raw_oid = std::mem::take(&mut self.raw_effects);
-        let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
-            IndexerError::GenericError("invalid large object identifier".to_owned())
-        })?;
+        let raw_oid: [u8; 4] = raw_oid
+            .try_into()
+            .map_err(|_| IndexerError::Generic("invalid large object identifier".to_owned()))?;
         let oid = u32::from_le_bytes(raw_oid);
 
         self.raw_effects = get_large_object_in_chunks(oid, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
@@ -598,14 +598,13 @@ impl StoredTransaction {
         let raw_oid = std::mem::take(&mut self.object_changes)
             .pop()
             .flatten()
-            .ok_or_else(|| {
-                IndexerError::GenericError("invalid large object identifier".to_owned())
-            })?;
+            .ok_or_else(|| IndexerError::Generic("invalid large object identifier".to_owned()))?;
 
         // The first values is the raw oid
-        let oid = u32::from_le_bytes(raw_oid.try_into().map_err(|_| {
-            IndexerError::GenericError("invalid large object identifier".to_owned())
-        })?);
+        let oid =
+            u32::from_le_bytes(raw_oid.try_into().map_err(|_| {
+                IndexerError::Generic("invalid large object identifier".to_owned())
+            })?);
         let stored_data = get_large_object_in_chunks(oid, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
         self.object_changes = bcs::from_bytes(&stored_data)
             .map_err(IndexerError::from)
@@ -641,13 +640,13 @@ pub fn stored_events_to_events(
             .map(|event| match event {
                 Some(event) => {
                     let event: Event = bcs::from_bytes(&event).map_err(|e| {
-                        IndexerError::PersistentStorageDataCorruptionError(format!(
+                        IndexerError::PersistentStorageDataCorruption(format!(
                             "Can't convert event bytes into Event. Error: {e}",
                         ))
                     })?;
                     Ok(event)
                 }
-                None => Err(IndexerError::PersistentStorageDataCorruptionError(
+                None => Err(IndexerError::PersistentStorageDataCorruption(
                     "Event should not be null".to_string(),
                 )),
             })
@@ -659,24 +658,24 @@ pub fn stored_events_to_events(
         stored_events
             .as_array()
             .ok_or_else(|| {
-                IndexerError::PersistentStorageDataCorruptionError(
+                IndexerError::PersistentStorageDataCorruption(
                     "Failed to parse events as array".to_string(),
                 )
             })?
             .iter()
             .map(|event| match event {
-                serde_json::Value::Null => Err(IndexerError::PersistentStorageDataCorruptionError(
+                serde_json::Value::Null => Err(IndexerError::PersistentStorageDataCorruption(
                     "events should not contain null elements".to_string(),
                 )),
                 serde_json::Value::String(event) => {
                     let event: Event = bcs::from_bytes(event.as_bytes()).map_err(|e| {
-                        IndexerError::PersistentStorageDataCorruptionError(format!(
+                        IndexerError::PersistentStorageDataCorruption(format!(
                             "Can't convert event bytes into Event. Error: {e}",
                         ))
                     })?;
                     Ok(event)
                 }
-                _ => Err(IndexerError::PersistentStorageDataCorruptionError(
+                _ => Err(IndexerError::PersistentStorageDataCorruption(
                     "events should contain only string elements".to_string(),
                 )),
             })
@@ -708,7 +707,7 @@ pub async fn tx_events_to_iota_tx_events(
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| {
-            IndexerError::ResolveMoveStructError(format!(
+            IndexerError::ResolveMoveStruct(format!(
                 "Failed to convert to iota event with Error: {e}",
             ))
         })?;

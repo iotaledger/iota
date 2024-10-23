@@ -1,28 +1,16 @@
-processed 7 tasks
+processed 6 tasks
 
 task 1, line 7:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 2, line 9:
-//# advance-epoch --create-random-state
-Epoch advanced: 0
-
-task 3, lines 11-47:
+task 2, lines 9-38:
 //# run-graphql
 Response: {
   "data": {
-    "epoch": {
-      "protocolConfigs": {
-        "protocolVersion": 1,
-        "randomBeacon": {
-          "value": true
-        }
-      }
-    },
     "object": {
       "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
-      "version": 2,
+      "version": 1,
       "asMoveObject": {
         "contents": {
           "type": {
@@ -31,7 +19,7 @@ Response: {
           "json": {
             "id": "0x0000000000000000000000000000000000000000000000000000000000000008",
             "inner": {
-              "id": "0x045d785393de37379954535d3c98c98c4067f88b8fb6bd94289b2c3f14f5767f",
+              "id": "0x9b0bff650abbfb6f12494e571d931a5d67d633bdcb4cf09c0266d682e9a2670d",
               "version": "1"
             }
           }
@@ -42,23 +30,7 @@ Response: {
       "nodes": [
         {
           "kind": {
-            "__typename": "EndOfEpochTransaction",
-            "transactions": {
-              "edges": [
-                {
-                  "cursor": "eyJpIjowLCJjIjoyfQ",
-                  "node": {
-                    "__typename": "RandomnessStateCreateTransaction"
-                  }
-                },
-                {
-                  "cursor": "eyJpIjoxLCJjIjoyfQ",
-                  "node": {
-                    "__typename": "ChangeEpochTransaction"
-                  }
-                }
-              ]
-            }
+            "__typename": "GenesisTransaction"
           }
         }
       ]
@@ -66,11 +38,11 @@ Response: {
   }
 }
 
-task 5, line 53:
+task 4, line 44:
 //# create-checkpoint
-Checkpoint created: 3
+Checkpoint created: 2
 
-task 6, lines 55-70:
+task 5, lines 46-61:
 //# run-graphql
 Response: {
   "data": {
