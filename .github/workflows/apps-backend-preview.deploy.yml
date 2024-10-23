@@ -36,10 +36,10 @@ jobs:
             turbo-${{ runner.os }}-
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
-      - name: Pull Vercel Environment
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build the Apps Backend
         run: pnpm apps-backend build
+      - name: Pull Vercel Environment
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build Project Artifacts
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
