@@ -9,11 +9,11 @@ use std::{
 
 use iota_config::node::RunWithRange;
 use iota_indexer::{
+    IndexerConfig,
     errors::IndexerError,
     indexer::Indexer,
-    store::{indexer_store::IndexerStore, PgIndexerStore},
-    test_utils::{start_test_indexer, ReaderWriterConfig},
-    IndexerConfig,
+    store::{PgIndexerStore, indexer_store::IndexerStore},
+    test_utils::{ReaderWriterConfig, start_test_indexer},
 };
 use iota_metrics::init_metrics;
 use iota_types::storage::ReadStore;
@@ -31,6 +31,12 @@ const DEFAULT_INDEXER_PORT: u16 = 9005;
 const DEFAULT_SERVER_PORT: u16 = 3000;
 
 static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
+
+/// Define custom equality logic for types that don't implement the `Eq` or
+/// `PartialEq` traits.
+pub trait CustomEq {
+    fn eq(&self, other: &Self) -> bool;
+}
 
 pub struct ApiTestSetup {
     pub runtime: Runtime,
