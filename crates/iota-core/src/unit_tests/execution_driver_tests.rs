@@ -770,7 +770,6 @@ async fn test_authority_txn_signing_pushback() {
         None,
         None,
         ConsensusAdapterMetrics::new_test(),
-        epoch_store.protocol_config().clone(),
     ));
     let validator_service = Arc::new(ValidatorService::new_for_tests(
         authority_state.clone(),
@@ -892,7 +891,6 @@ async fn test_authority_txn_execution_pushback() {
         .await;
 
     // Create a validator service around the `authority_state`.
-    let epoch_store = authority_state.epoch_store_for_testing();
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
         Arc::new(MockSubmitToConsensus::new()),
         authority_state.name,
@@ -902,7 +900,6 @@ async fn test_authority_txn_execution_pushback() {
         None,
         None,
         ConsensusAdapterMetrics::new_test(),
-        epoch_store.protocol_config().clone(),
     ));
     let validator_service = Arc::new(ValidatorService::new_for_tests(
         authority_state.clone(),

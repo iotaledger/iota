@@ -7,6 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
@@ -17,6 +18,18 @@ eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 hyper.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+signature.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+# internal dependencies
 iota-config.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
@@ -25,28 +38,19 @@ iota-node.workspace = true
 iota-sdk.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
-once_cell.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+move-core-types.workspace = true
 shared-crypto.workspace = true
-signature.workspace = true
-strum.workspace = true
-strum_macros.workspace = true
-tempfile.workspace = true
-thiserror.workspace = true
-tokio.workspace = true
-tracing.workspace = true
+telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
-move-core-types.workspace = true
-
-telemetry-subscribers.workspace = true
-
 [dev-dependencies]
-iota-move-build.workspace = true
-iota-sdk.workspace = true
+# external dependencies
 rand.workspace = true
 reqwest.workspace = true
 signature = { version = "1.6.0", features = ["rand-preview"] }
 tempfile.workspace = true
+
+# internal dependencies
+iota-move-build.workspace = true
+iota-sdk.workspace = true
 test-cluster.workspace = true

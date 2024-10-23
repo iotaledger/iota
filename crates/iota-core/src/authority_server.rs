@@ -136,7 +136,6 @@ impl AuthorityServer {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
-            state.epoch_store_for_testing().protocol_config().clone(),
         ));
         Self::new_for_test_with_consensus_adapter(state, consensus_adapter)
     }
@@ -766,14 +765,14 @@ impl ValidatorService {
             fp_ensure!(
                 certificate.contains_shared_object(),
                 IotaError::UserInput {
-                    error: UserInputError::NoSharedObjectError { digest: tx_digest }
+                    error: UserInputError::NoSharedObject { digest: tx_digest }
                 }
                 .into()
             );
             fp_ensure!(
                 !self.state.is_tx_already_executed(&tx_digest)?,
                 IotaError::UserInput {
-                    error: UserInputError::AlreadyExecutedError { digest: tx_digest }
+                    error: UserInputError::AlreadyExecuted { digest: tx_digest }
                 }
                 .into()
             );
@@ -781,7 +780,7 @@ impl ValidatorService {
                 fp_ensure!(
                     gas == certificate.gas_price(),
                     IotaError::UserInput {
-                        error: UserInputError::GasPriceMismatchError {
+                        error: UserInputError::GasPriceMismatch {
                             digest: tx_digest,
                             expected: gas,
                             actual: certificate.gas_price()
@@ -802,7 +801,7 @@ impl ValidatorService {
         fp_ensure!(
             !epoch_store.is_any_tx_certs_consensus_message_processed(certificates.iter())?,
             IotaError::UserInput {
-                error: UserInputError::CeritificateAlreadyProcessed
+                error: UserInputError::CertificateAlreadyProcessed
             }
             .into()
         );
@@ -823,7 +822,7 @@ impl ValidatorService {
         let request = request.into_inner();
 
         let certificates = NonEmpty::from_vec(request.certificates)
-            .ok_or_else(|| IotaError::NoCertificateProvidedError)?;
+            .ok_or_else(|| IotaError::NoCertificateProvided)?;
         for certificate in &certificates {
             // We need to check this first because we haven't verified the cert signature.
             certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;

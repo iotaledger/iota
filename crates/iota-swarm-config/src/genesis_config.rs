@@ -39,9 +39,9 @@ pub struct SsfnGenesisConfig {
 #[derive(Serialize, Deserialize)]
 pub struct ValidatorGenesisConfig {
     #[serde(default = "default_bls12381_key_pair")]
-    pub key_pair: AuthorityKeyPair,
+    pub authority_key_pair: AuthorityKeyPair,
     #[serde(default = "default_ed25519_key_pair")]
-    pub worker_key_pair: NetworkKeyPair,
+    pub protocol_key_pair: NetworkKeyPair,
     #[serde(default = "default_iota_key_pair")]
     pub account_key_pair: IotaKeyPair,
     #[serde(default = "default_ed25519_key_pair")]
@@ -55,9 +55,7 @@ pub struct ValidatorGenesisConfig {
     pub narwhal_metrics_address: Multiaddr,
     pub gas_price: u64,
     pub commission_rate: u64,
-    pub narwhal_primary_address: Multiaddr,
-    pub narwhal_worker_address: Multiaddr,
-    pub consensus_address: Multiaddr,
+    pub primary_address: Multiaddr,
     #[serde(default = "default_stake")]
     pub stake: u64,
     pub name: Option<String>,
@@ -65,30 +63,31 @@ pub struct ValidatorGenesisConfig {
 
 impl ValidatorGenesisConfig {
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
-        let protocol_key: AuthorityPublicKeyBytes = self.key_pair.public().into();
+        let authority_key: AuthorityPublicKeyBytes = self.authority_key_pair.public().into();
         let account_key: PublicKey = self.account_key_pair.public();
         let network_key: NetworkPublicKey = self.network_key_pair.public().clone();
-        let worker_key: NetworkPublicKey = self.worker_key_pair.public().clone();
+        let protocol_key: NetworkPublicKey = self.protocol_key_pair.public().clone();
         let network_address = self.network_address.clone();
 
         let info = ValidatorInfo {
             name,
+            authority_key,
             protocol_key,
-            worker_key,
             network_key,
             account_address: IotaAddress::from(&account_key),
             gas_price: self.gas_price,
             commission_rate: self.commission_rate,
             network_address,
             p2p_address: self.p2p_address.clone(),
-            narwhal_primary_address: self.narwhal_primary_address.clone(),
-            narwhal_worker_address: self.narwhal_worker_address.clone(),
+            primary_address: self.primary_address.clone(),
             description: String::new(),
             image_url: String::new(),
             project_url: String::new(),
         };
-        let proof_of_possession =
-            generate_proof_of_possession(&self.key_pair, (&self.account_key_pair.public()).into());
+        let proof_of_possession = generate_proof_of_possession(
+            &self.authority_key_pair,
+            (&self.account_key_pair.public()).into(),
+        );
         GenesisValidatorInfo {
             info,
             proof_of_possession,
@@ -97,13 +96,13 @@ impl ValidatorGenesisConfig {
 
     /// Use validator public key as validator name.
     pub fn to_validator_info_with_random_name(&self) -> GenesisValidatorInfo {
-        self.to_validator_info(self.key_pair.public().to_string())
+        self.to_validator_info(self.authority_key_pair.public().to_string())
     }
 }
 
 #[derive(Default)]
 pub struct ValidatorGenesisConfigBuilder {
-    protocol_key_pair: Option<AuthorityKeyPair>,
+    authority_key_pair: Option<AuthorityKeyPair>,
     account_key_pair: Option<AccountKeyPair>,
     ip: Option<String>,
     gas_price: Option<u64>,
@@ -120,8 +119,8 @@ impl ValidatorGenesisConfigBuilder {
         Self::default()
     }
 
-    pub fn with_protocol_key_pair(mut self, key_pair: AuthorityKeyPair) -> Self {
-        self.protocol_key_pair = Some(key_pair);
+    pub fn with_authority_key_pair(mut self, key_pair: AuthorityKeyPair) -> Self {
+        self.authority_key_pair = Some(key_pair);
         self
     }
 
@@ -154,15 +153,15 @@ impl ValidatorGenesisConfigBuilder {
         let ip = self.ip.unwrap_or_else(local_ip_utils::get_new_ip);
         let localhost = local_ip_utils::localhost_for_testing();
 
-        let protocol_key_pair = self
-            .protocol_key_pair
+        let authority_key_pair = self
+            .authority_key_pair
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
         let account_key_pair = self
             .account_key_pair
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
         let gas_price = self.gas_price.unwrap_or(DEFAULT_VALIDATOR_GAS_PRICE);
 
-        let (worker_key_pair, network_key_pair): (NetworkKeyPair, NetworkKeyPair) =
+        let (protocol_key_pair, network_key_pair): (NetworkKeyPair, NetworkKeyPair) =
             (get_key_pair_from_rng(rng).1, get_key_pair_from_rng(rng).1);
 
         let (
@@ -170,9 +169,7 @@ impl ValidatorGenesisConfigBuilder {
             p2p_address,
             metrics_address,
             narwhal_metrics_address,
-            narwhal_primary_address,
-            narwhal_worker_address,
-            consensus_address,
+            primary_address,
         ) = if let Some(offset) = self.port_offset {
             (
                 local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset),
@@ -182,8 +179,6 @@ impl ValidatorGenesisConfigBuilder {
                 local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 3)
                     .with_zero_ip(),
                 local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 4),
-                local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 5),
-                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 6),
             )
         } else {
             (
@@ -192,8 +187,6 @@ impl ValidatorGenesisConfigBuilder {
                 local_ip_utils::new_tcp_address_for_testing(&localhost),
                 local_ip_utils::new_tcp_address_for_testing(&localhost),
                 local_ip_utils::new_udp_address_for_testing(&ip),
-                local_ip_utils::new_udp_address_for_testing(&ip),
-                local_ip_utils::new_tcp_address_for_testing(&ip),
             )
         };
 
@@ -202,8 +195,8 @@ impl ValidatorGenesisConfigBuilder {
             .map(|ip| SocketAddr::new(ip, p2p_address.port().unwrap()));
 
         ValidatorGenesisConfig {
-            key_pair: protocol_key_pair,
-            worker_key_pair,
+            authority_key_pair,
+            protocol_key_pair,
             account_key_pair: account_key_pair.into(),
             network_key_pair,
             network_address,
@@ -213,9 +206,7 @@ impl ValidatorGenesisConfigBuilder {
             narwhal_metrics_address,
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
-            narwhal_primary_address,
-            narwhal_worker_address,
-            consensus_address,
+            primary_address,
             stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             name: None,
         }
