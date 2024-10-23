@@ -48,7 +48,7 @@ Response: {
                 "edges": [
                   {
                     "node": {
-                      "amount": "2000"
+                      "amount": "5000"
                     },
                     "cursor": "eyJpIjowLCJjIjoyfQ"
                   },
@@ -72,7 +72,7 @@ Response: {
                   },
                   {
                     "node": {
-                      "amount": "5000"
+                      "amount": "2000"
                     },
                     "cursor": "eyJpIjo0LCJjIjoyfQ"
                   },
@@ -117,7 +117,7 @@ Response: {
                   },
                   {
                     "node": {
-                      "amount": "5000"
+                      "amount": "2000"
                     },
                     "cursor": "eyJpIjo0LCJjIjoxfQ"
                   }
@@ -150,7 +150,7 @@ Response: {
                 "edges": [
                   {
                     "node": {
-                      "amount": "2000"
+                      "amount": "5000"
                     },
                     "cursor": "eyJpIjowLCJjIjoxfQ"
                   },
