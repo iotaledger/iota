@@ -219,22 +219,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         // (serialized, transaction, output_cert)
         let mut transactions = vec![];
-        let timestamp = consensus_output.commit_timestamp_ms();
         let leader_author = consensus_output.leader_author_index();
         let commit_sub_dag_index = consensus_output.commit_sub_dag_index();
-
-        let epoch_start = self
-            .epoch_store
-            .epoch_start_config()
-            .epoch_start_timestamp_ms();
-        let timestamp = if timestamp < epoch_start {
-            error!(
-                "Unexpected commit timestamp {timestamp} less then epoch start time {epoch_start}, author {leader_author}, round {round}",
-            );
-            epoch_start
-        } else {
-            timestamp
-        };
 
         debug!(
             %consensus_output,

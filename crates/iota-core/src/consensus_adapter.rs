@@ -13,7 +13,7 @@ use std::{
     time::Instant,
 };
 
-use arc_swap::{ArcSwap, ArcSwapOption};
+use arc_swap::ArcSwap;
 use bytes::Bytes;
 use dashmap::{DashMap, try_result::TryResult};
 use futures::{
@@ -22,7 +22,6 @@ use futures::{
     pin_mut,
 };
 use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, spawn_monitored_task};
-use iota_protocol_config::ProtocolConfig;
 use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
@@ -245,7 +244,6 @@ pub struct ConsensusAdapter {
     /// Semaphore limiting parallel submissions to narwhal
     submit_semaphore: Semaphore,
     latency_observer: LatencyObserver,
-    protocol_config: ProtocolConfig,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -277,7 +275,6 @@ impl ConsensusAdapter {
         max_submit_position: Option<usize>,
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
-        protocol_config: ProtocolConfig,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -294,7 +291,6 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
-            protocol_config,
         }
     }
 
@@ -1133,7 +1129,6 @@ mod adapter_tests {
             Some(1),
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
         );
 
         // transaction to submit
@@ -1163,7 +1158,6 @@ mod adapter_tests {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
         );
 
         let (delay_step, position, positions_moved, _) =

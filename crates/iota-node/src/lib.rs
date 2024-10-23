@@ -1195,7 +1195,6 @@ impl IotaNode {
             state.name,
             connection_monitor_status.clone(),
             &registry_service.default_registry(),
-            epoch_store.protocol_config().clone(),
             client.clone(),
         ));
         let consensus_manager =
@@ -1414,7 +1413,6 @@ impl IotaNode {
         authority: AuthorityName,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         prometheus_registry: &Registry,
-        protocol_config: ProtocolConfig,
         consensus_client: Arc<dyn SubmitToConsensus>,
     ) -> ConsensusAdapter {
         let ca_metrics = ConsensusAdapterMetrics::new(prometheus_registry);
@@ -1430,7 +1428,6 @@ impl IotaNode {
             consensus_config.max_submit_position,
             consensus_config.submit_delay_step_override(),
             ca_metrics,
-            protocol_config,
         )
     }
 
