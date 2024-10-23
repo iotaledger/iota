@@ -75,6 +75,7 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 
 # Scripts
 /scripts/dependency_graphs/ @muXxer
+/scripts/cargo_sort/ @muXxer
 /scripts/codesearch/ @muXxer
 /scripts/slipstream/ @muXxer
 
