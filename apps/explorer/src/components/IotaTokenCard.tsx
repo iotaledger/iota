@@ -9,7 +9,7 @@ import { ButtonOrLink } from '~/components/ui';
 
 export function IotaTokenCard(): JSX.Element {
     const { data } = useIotaCoinData();
-    const { currentPrice = 0.1219 } = data || {};
+    const { currentPrice } = data || {};
 
     const formattedPrice = currentPrice
         ? currentPrice.toLocaleString('en', {
