@@ -43,7 +43,7 @@ pub mod collection_types;
 pub mod committee;
 pub mod config;
 pub mod crypto;
-pub mod deny_list_v2;
+pub mod deny_list_v1;
 pub mod digests;
 pub mod display;
 pub mod dynamic_field;

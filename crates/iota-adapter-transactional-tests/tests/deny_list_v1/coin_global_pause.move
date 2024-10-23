@@ -21,7 +21,7 @@ module test::regulated_coin {
     }
 
     fun init(otw: REGULATED_COIN, ctx: &mut TxContext) {
-        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v1(
             otw,
             9,
             b"RC",
@@ -65,7 +65,7 @@ module test::regulated_coin {
         expected: bool,
     ) {
         let status =
-            coin::deny_list_v2_is_global_pause_enabled_next_epoch<REGULATED_COIN>(deny_list);
+            coin::deny_list_v1_is_global_pause_enabled_next_epoch<REGULATED_COIN>(deny_list);
         assert!(status == expected, 0);
     }
 }
@@ -80,7 +80,7 @@ module test::regulated_coin {
 //# run test::regulated_coin::partial_wrap --args object(1,0) --sender A
 
 // Enable global pause.
-//# run iota::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v1_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that global pause is enabled.
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A
@@ -111,7 +111,7 @@ module test::regulated_coin {
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A
 
 // Disable global pause.
-//# run iota::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that global pause is disabled.
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) false --sender A
