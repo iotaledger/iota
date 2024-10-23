@@ -1,9 +1,10 @@
-// Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-//! Example demonstrating how to unlock an output owned by an alias output.
-//! In order to work, it requires a network with test objects
-//! generated from iota-genesis-builder/src/stardust/test_outputs.
+/** Copyright (c) 2024 IOTA Stiftung
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Example demonstrating how to unlock an output owned by an alias output.
+ * In order to work, it requires a network with test objects
+ * generated from iota-genesis-builder/src/stardust/test_outputs.
+ */
 
 import {getFullnodeUrl, IotaClient} from "@iota/iota-sdk/client";
 import {Ed25519Keypair} from "@iota/iota-sdk/keypairs/ed25519";
@@ -12,6 +13,9 @@ import {bcs} from '@iota/iota-sdk/bcs'
 import {Transaction} from "@iota/iota-sdk/transactions";
 
 const MAIN_ADDRESS_MNEMONIC = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
+const STARDUST_PACKAGE_ID = "0x107a";
+const NFT_OUTPUT_MODULE_NAME = "nft_output";
+const NFT_OUTPUT_STRUCT_NAME = "NftOutput";
 
 async function main() {
     // 1. Build a client to connect to the local IOTA network.
@@ -70,36 +74,6 @@ async function main() {
     // type using the NftOutput type.
 
     // Fetch the owned objects with the specified filter.
-
-    // The StructTag is defined as follows:
-    // StructTag {
-    //     address: STARDUST_PACKAGE_ID.into(),
-    //         module: NFT_OUTPUT_MODULE_NAME.to_owned(),
-    //         name: NFT_OUTPUT_STRUCT_NAME.to_owned(),
-    //         type_params: vec![type_param],
-    // }
-    //
-    // with:
-    const STARDUST_PACKAGE_ID = "0x107a";
-    const NFT_OUTPUT_MODULE_NAME = "nft_output";
-    const NFT_OUTPUT_STRUCT_NAME = "NftOutput";
-
-    // todo: use this instead of the hardcoded nftOutputStructTag
-    // const gasTypeTag: TypeTag = {
-    //     struct: {
-    //         address: "0x2",
-    //         module: "iota",
-    //         name: "IOTA",
-    //         typeParams: [],
-    //     },
-    // };
-    //
-    // const nftOutputStructTag = bcs.StructTag.serialize({
-    //     address: STARDUST_PACKAGE_ID,
-    //     module: NFT_OUTPUT_MODULE_NAME,
-    //     name: NFT_OUTPUT_STRUCT_NAME,
-    //     typeParams: [gasTypeTag],
-    // });
 
     const gasTypeTag = "0x2::iota::IOTA";
     const nftOutputStructTag = `${STARDUST_PACKAGE_ID}::${NFT_OUTPUT_MODULE_NAME}::${NFT_OUTPUT_STRUCT_NAME}<${gasTypeTag}>`;
