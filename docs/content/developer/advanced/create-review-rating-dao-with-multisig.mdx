@@ -50,6 +50,14 @@ Moderators operate within a multisignature setup, ensuring that significant acti
 
 Although this guide does not provide a built-in incentive structure for moderators, service owners could contribute to a compensation pool that rewards moderators over time. A staking mechanism could also be implemented, where individuals stake tokens to influence how rewards are allocated to moderators, akin to staking systems for on-chain validators. In this setup, moderator decisions would be influenced by a quorum based on the amount of staked tokens, creating incentives for moderators to perform their duties effectively.
 
+#### Multisig Environment for Moderators
+
+Moderators operate within a multisignature (multisig) framework, which means any key actions, such as removing inappropriate content or distributing rewards, must be collectively approved by multiple parties, rather than a single individual. This process significantly enhances the security of the system by preventing unilateral decisions and reducing the risk of malicious activity.
+
+In practice, this collaborative decision-making model ensures that no single moderator can act alone. Instead, any action taken requires the agreement of multiple stakeholders. This not only mitigates the risk of abuse but also promotes greater accountability and transparency, as all decisions are publicly verifiable and must meet the required signature threshold before they are executed.
+
+By enforcing these shared responsibilities, the multisig structure fosters a sense of trust within the community. It encourages balanced and thoughtful deliberation when dealing with sensitive issues like content moderation and rewards distribution, thus promoting a more fair and reliable system overall.
+
 Moderators work within a multisig environment, meaning key actions—such as removing inappropriate reviews or distributing rewards—must be approved by multiple parties. This approach enhances security, encourages collaborative decision-making, and ensures transparency.
 
 ## Creating a Multisig for Moderators
@@ -57,7 +65,7 @@ Moderators work within a multisig environment, meaning key actions—such as rem
 To implement multisig for moderators, follow these steps:
 
 ### 1. Create Keys for Each Moderator
-Each moderator needs a unique key. To generate these keys, use the following commands to create an IOTA address and corresponding key for each moderator:
+Each moderator requires a unique key and corresponding IOTA address. To generate these keys and addresses, you can use any of the following key types: `ed25519`, `secp256k1`, or `secp256r1`. Use the following commands to create a key and address for each moderator:
 
 ```shell
 iota client new-address ed25519
@@ -71,38 +79,88 @@ iota keytool list
 ```
 This command will list the generated keys with their corresponding addresses and public keys.
 
+expected output : 
+
+```shell
+╭────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ╭─────────────────┬──────────────────────────────────────────────────────────────────────╮ │
+│ │ iotaAddress      │  <IOTA-ADDRESS>                                                       │ │
+│ │ publicBase64Key │  <PUBLIC-KEY>                                                        │ │
+│ │ keyScheme       │  ed25519                                                             │ │
+│ │ flag            │  0                                                                   │ │
+│ │ peerId          │  <PEER-ID>                                                           │ │
+│ ╰─────────────────┴──────────────────────────────────────────────────────────────────────╯ │
+│ ╭─────────────────┬──────────────────────────────────────────────────────────────────────╮ │
+│ │ iotaAddress      │  <IOTA-ADDRESS>                                                       │ │
+│ │ publicBase64Key │  <PUBLIC-KEY>                                                        │ │
+│ │ keyScheme       │  secp256k1                                                           │ │
+│ │ flag            │  0                                                                   │ │
+│ │ peerId          │  <PEER-ID>                                                           │ │
+│ ╰─────────────────┴──────────────────────────────────────────────────────────────────────╯ │
+│ ╭─────────────────┬──────────────────────────────────────────────────────────────────────╮ │
+│ │ iotaAddress      │  <IOTA-ADDRESS>                                                       │ │
+│ │ publicBase64Key │  <PUBLIC-KEY>                                                        │ │
+│ │ keyScheme       │  secp256r1                                                           │ │
+│ │ flag            │  0                                                                   │ │
+│ │ peerId          │  <PEER-ID>                                                           │ │
+│ ╰─────────────────┴──────────────────────────────────────────────────────────────────────╯ │
+╰────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
 ### 3. Create a Multisig Address
 Create the multisig address by combining the public keys of all moderators and setting their weights and a threshold:
 
 ```shell
 iota keytool multi-sig-address --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> <PUBLIC-KEY-3> --weights 1 1 1 --threshold 2
 ```
-This command sets up a multisig address where at least two out of the three keys must sign to authorize a transaction.
+This command sets up a multisig address where `PUBLIC-KEY-1`, `PUBLIC-KEY-2` & `PUBLIC-KEY-3` are the public keys we retreived in step 2.
 
-### 4. Moderator Multisig Transaction Workflow
+expected output :
+```shell
+╭─────────────────┬────────────────────────────────────────────────────────────────────────────────────╮
+│ multisigAddress │  <MULTISIG-ADDRESS>                                                                │
+│ multisig        │ ╭────────────────────────────────────────────────────────────────────────────────╮ │
+│                 │ │ ╭─────────────────┬──────────────────────────────────────────────────────────╮ │ │
+│                 │ │ │ address         │  <IOTA-ADDRESS>                                           │ │ │
+│                 │ │ │ publicBase64Key │  <PUBLIC-KEY>                                            │ │ │
+│                 │ │ │ weight          │  1                                                       │ │ │
+│                 │ │ ╰─────────────────┴──────────────────────────────────────────────────────────╯ │ │
+│                 │ │ ╭─────────────────┬──────────────────────────────────────────────────────────╮ │ │
+│                 │ │ │ address         │  <IOTA-ADDRESS>                                           │ │ │
+│                 │ │ │ publicBase64Key │  <PUBLIC-KEY>                                            │ │ │
+│                 │ │ │ weight          │  2                                                       │ │ │
+│                 │ │ ╰─────────────────┴──────────────────────────────────────────────────────────╯ │ │
+│                 │ │ ╭─────────────────┬──────────────────────────────────────────────────────────╮ │ │
+│                 │ │ │ address         │  <IOTA-ADDRESS>                                           │ │ │
+│                 │ │ │ publicBase64Key │  <PUBLIC-KEY>                                            │ │ │
+│                 │ │ │ weight          │  3                                                       │ │ │
+│                 │ │ ╰─────────────────┴──────────────────────────────────────────────────────────╯ │ │
+│                 │ ╰────────────────────────────────────────────────────────────────────────────────╯ │
+╰─────────────────┴────────────────────────────────────────────────────────────────────────────────────╯
+```
 To remove a review, moderators must sign a transaction using the multisig setup. The transaction will require signatures from two out of the three moderators to be executed.
 
-### 5. Serialize a Transaction
+### 4. Serialize a Transaction
 Serialize the transaction to be signed by the multisig account:
 
 ```shell
 iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --serialize-unsigned-transaction
 ```
 
-### 6. Sign the Transaction
+### 5. Sign the Transaction
 Each moderator signs the serialized transaction:
 
 ```shell
 iota keytool sign --address <IOTA-ADDRESS> --data <TX_BYTES>
 ```
 
-### 7. Combine Signatures
+### 6. Combine Signatures
 Once two moderators have signed, combine their signatures into a single multisig signature:
 
 ```shell
 iota keytool multi-sig-combine-partial-sig --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> --weights 1 1 1 --threshold 2 --sigs <SIGNATURE-1> <SIGNATURE-2>
 ```
-### 8. Execute the Multisig Transaction
+### 7. Execute the Multisig Transaction
 Finally, execute the multisig transaction using the combined signatures:
 
 ```shell
@@ -117,7 +175,7 @@ The reviews are scored on chain using the following criteria:
 
 - Intrinsic score (IS): Length of review content.
 - Extrinsic score (ES): Number of votes a review receives.
-- Verification multiplier (VM): Reviews with PoE receive a multiplier to improve rating.
+- Verification multiplier (VM): Reviews with Proof of Experience(PoE) receive a multiplier to improve rating.
 
 ```
 Total Score = (IS + ES) * VM
@@ -186,7 +244,7 @@ After `total_score` is updated, the [`update_top_reviews`](#casting-votes) funct
 
 #### Code Explanation
 
-#### `Review` Struct:
+##### `Review` Struct:
 
 - **`id: UID`**: Unique identifier for the review.
 - **`owner: address`**: Address of the review owner.
@@ -313,12 +371,12 @@ To learn more about the capabilities pattern, see [The Move Book](https://move-b
 
 ## Deployment
 
-Navigate to the [`publish.sh`](https://github.com/iotaledger/iota/blob/devx/tutorial-for-review-rating-with-multisig/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps for deployment of the contract. 
+Navigate to the [`publish.sh`](https://github.com/iotaledger/iota/blob/devx/tutorial-for-review-rating-with-multisig/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps to deploy the contract. 
 
 ### 1. Create the `.env` File
 You need to create a `.env` file that contains important environment variables required for the deployment. Here's an example of what the .env file should look like:
 
-```shell
+```env
 # Admin mnemonic phrase (for deployment account)
 ADMIN_PHRASE="your-secret-mnemonic-phrase-here"
 
