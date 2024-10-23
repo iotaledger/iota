@@ -20,8 +20,6 @@ module iota::deny_list {
         lists: Bag,
     }
 
-    // === V2 ===
-
     /// The capability used to write to the deny list config. Ensures that the Configs for the
     /// DenyList are modified only by this module.
     public struct ConfigWriteCap() has drop;
@@ -46,7 +44,7 @@ module iota::deny_list {
         config_id: ID,
     }
 
-    public(package) fun v2_add(
+    public(package) fun add(
         deny_list: &mut DenyList,
         per_type_index: u64,
         per_type_key: vector<u8>,
@@ -64,7 +62,7 @@ module iota::deny_list {
         *next_epoch_entry = true;
     }
 
-    public(package) fun v2_remove(
+    public(package) fun remove(
         deny_list: &mut DenyList,
         per_type_index: u64,
         per_type_key: vector<u8>,
@@ -80,7 +78,7 @@ module iota::deny_list {
         );
     }
 
-    public(package) fun v2_contains_current_epoch(
+    public(package) fun contains_current_epoch(
         deny_list: &DenyList,
         per_type_index: u64,
         per_type_key: vector<u8>,
@@ -93,7 +91,7 @@ module iota::deny_list {
         config::read_setting(object::id(per_type_config), setting_name, ctx).destroy_or!(false)
     }
 
-    public(package) fun v2_contains_next_epoch(
+    public(package) fun contains_next_epoch(
         deny_list: &DenyList,
         per_type_index: u64,
         per_type_key: vector<u8>,
@@ -105,14 +103,7 @@ module iota::deny_list {
         per_type_config.read_setting_for_next_epoch(setting_name).destroy_or!(false)
     }
 
-    // public(package) fun v2_per_type_contains(
-    //     per_type_config: ID,
-    //     addr: address,
-    // ): bool {
-    //    // TODO can read from the config directly once the ID is set
-    // }
-
-    public(package) fun v2_enable_global_pause(
+    public(package) fun enable_global_pause(
         deny_list: &mut DenyList,
         per_type_index: u64,
         per_type_key: vector<u8>,
@@ -129,7 +120,7 @@ module iota::deny_list {
         *next_epoch_entry = true;
     }
 
-    public(package) fun v2_disable_global_pause(
+    public(package) fun disable_global_pause(
         deny_list: &mut DenyList,
         per_type_index: u64,
         per_type_key: vector<u8>,
@@ -144,7 +135,7 @@ module iota::deny_list {
         );
     }
 
-    public(package) fun v2_is_global_pause_enabled_current_epoch(
+    public(package) fun is_global_pause_enabled_current_epoch(
         deny_list: &DenyList,
         per_type_index: u64,
         per_type_key: vector<u8>,
@@ -156,7 +147,7 @@ module iota::deny_list {
         config::read_setting(object::id(per_type_config), setting_name, ctx).destroy_or!(false)
     }
 
-    public(package) fun v2_is_global_pause_enabled_next_epoch(
+    public(package) fun is_global_pause_enabled_next_epoch(
         deny_list: &DenyList,
         per_type_index: u64,
         per_type_key: vector<u8>,
@@ -166,12 +157,6 @@ module iota::deny_list {
         let setting_name = GlobalPauseKey();
         per_type_config.read_setting_for_next_epoch(setting_name).destroy_or!(false)
     }
-
-    // public(package) fun v2_per_type_is_global_pause_enabled(
-    //     per_type_config: ID,
-    // ): bool {
-    //    // TODO can read from the config directly once the ID is set
-    // }
 
     fun add_per_type_config(
         deny_list: &mut DenyList,

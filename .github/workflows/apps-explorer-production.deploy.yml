@@ -13,7 +13,7 @@ on:
       - ".github/workflows/apps-explorer-production.deploy.yml"
 
 jobs:
-  deploy-prod:
+  deploy-production:
     permissions:
       contents: read
       pull-requests: write

@@ -21,7 +21,7 @@ use iota_types::{
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
-    deny_list_v2::get_deny_list_root_object,
+    deny_list_v1::get_deny_list_root_object,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{

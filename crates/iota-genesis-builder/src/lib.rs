@@ -42,7 +42,7 @@ use iota_types::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
         AuthoritySignature, DefaultHash, IotaAuthoritySignature,
     },
-    deny_list_v2::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+    deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
