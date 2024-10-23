@@ -433,19 +433,13 @@ async fn do_transaction_test_impl(
             let ct = CertifiedTransaction::new_from_data_and_sig(plain_tx.into_data(), cert_sig);
 
             let err = client
-                .handle_certificate(
-                    HandleCertificateRequest::new(ct.clone()),
-                    Some(socket_addr),
-                )
+                .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
                 .await
                 .unwrap_err();
             err_check(&err);
             epoch_store.clear_signature_cache();
             let err = client
-                .handle_certificate(
-                    HandleCertificateRequest::new(ct.clone()),
-                    Some(socket_addr),
-                )
+                .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
                 .await
                 .unwrap_err();
             err_check(&err);
@@ -1524,10 +1518,7 @@ async fn test_handle_certificate_errors() {
     let socket_addr = make_socket_addr();
 
     let err = client
-        .handle_certificate(
-            HandleCertificateRequest::new(ct.clone()),
-            Some(socket_addr),
-        )
+        .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
         .await
         .unwrap_err();
     assert_matches!(err, IotaError::WrongEpoch {
@@ -1560,10 +1551,7 @@ async fn test_handle_certificate_errors() {
     .unwrap();
 
     let err = client
-        .handle_certificate(
-            HandleCertificateRequest::new(ct.clone()),
-            Some(socket_addr),
-        )
+        .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
         .await
         .unwrap_err();
 
@@ -1584,10 +1572,7 @@ async fn test_handle_certificate_errors() {
     )
     .unwrap();
     let err = client
-        .handle_certificate(
-            HandleCertificateRequest::new(ct.clone()),
-            Some(socket_addr),
-        )
+        .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
         .await
         .unwrap_err();
 
@@ -1609,10 +1594,7 @@ async fn test_handle_certificate_errors() {
     .unwrap();
 
     let err = client
-        .handle_certificate(
-            HandleCertificateRequest::new(ct.clone()),
-            Some(socket_addr),
-        )
+        .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
         .await
         .unwrap_err();
 
