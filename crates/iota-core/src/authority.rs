@@ -4356,19 +4356,11 @@ impl AuthorityState {
     /// has voted to upgrade to. If the proposed protocol version is not
     /// supported, None is returned.
     fn is_protocol_version_supported_v1(
-        current_protocol_version: ProtocolVersion,
         proposed_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
     ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
-        if proposed_protocol_version > current_protocol_version + 1
-            && !protocol_config.advance_to_highest_supported_protocol_version()
-        {
-            return None;
-        }
-
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4444,19 +4436,11 @@ impl AuthorityState {
     }
 
     fn is_protocol_version_supported_v2(
-        current_protocol_version: ProtocolVersion,
         proposed_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV2>,
         mut buffer_stake_bps: u64,
     ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
-        if proposed_protocol_version > current_protocol_version + 1
-            && !protocol_config.advance_to_highest_supported_protocol_version()
-        {
-            return None;
-        }
-
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4538,7 +4522,6 @@ impl AuthorityState {
     /// returns the current protocol version and system packages.
     fn choose_protocol_version_and_system_packages_v1(
         current_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
@@ -4547,9 +4530,7 @@ impl AuthorityState {
         let mut system_packages = vec![];
 
         while let Some((version, packages)) = Self::is_protocol_version_supported_v1(
-            current_protocol_version,
             next_protocol_version + 1,
-            protocol_config,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
@@ -4563,7 +4544,6 @@ impl AuthorityState {
 
     fn choose_protocol_version_and_system_packages_v2(
         current_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV2>,
         buffer_stake_bps: u64,
@@ -4575,9 +4555,7 @@ impl AuthorityState {
         // incrementing the proposed protocol version by one until no further
         // upgrades are supported.
         while let Some((version, packages)) = Self::is_protocol_version_supported_v2(
-            current_protocol_version,
             next_protocol_version + 1,
-            protocol_config,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
@@ -4716,7 +4694,6 @@ impl AuthorityState {
             if epoch_store.protocol_config().authority_capabilities_v2() {
                 Self::choose_protocol_version_and_system_packages_v2(
                     epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
                     epoch_store.committee(),
                     epoch_store
                         .get_capabilities_v2()
@@ -4726,7 +4703,6 @@ impl AuthorityState {
             } else {
                 Self::choose_protocol_version_and_system_packages_v1(
                     epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
                     epoch_store.committee(),
                     epoch_store
                         .get_capabilities_v1()
