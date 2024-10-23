@@ -8,7 +8,9 @@ use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use futures::future::join_all;
 use iota_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
 use iota_framework::BuiltInFramework;
-use iota_genesis_builder::validator_info::ValidatorInfo;
+use iota_genesis_builder::{
+    genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
+};
 use iota_macros::nondeterministic;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_protocol_config::ProtocolConfig;
@@ -79,17 +81,10 @@ pub async fn send_and_confirm_transaction(
     // set against StateAccumulator for testing and regression detection
     let state_acc =
         StateAccumulator::new_for_tests(authority.get_accumulator_store().clone(), &epoch_store);
-    let include_wrapped_tombstone = !authority
-        .epoch_store_for_testing()
-        .protocol_config()
-        .simplified_unwrap_then_delete();
-    let mut state = state_acc.accumulate_live_object_set(include_wrapped_tombstone);
+    let mut state = state_acc.accumulate_live_object_set();
     let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate).await?;
-    let state_after = state_acc.accumulate_live_object_set(include_wrapped_tombstone);
-    let effects_acc = state_acc.accumulate_effects(
-        vec![result.inner().data().clone()],
-        epoch_store.protocol_config(),
-    );
+    let state_after = state_acc.accumulate_live_object_set();
+    let effects_acc = state_acc.accumulate_effects(vec![result.inner().data().clone()]);
     state.union(&effects_acc);
 
     assert_eq!(state_after.digest(), state.digest());
@@ -113,7 +108,7 @@ where
         .build();
     let genesis = network_config.genesis;
     let authority_key = network_config.validator_configs[0]
-        .protocol_key_pair()
+        .authority_key_pair()
         .copy();
 
     (genesis, authority_key)
@@ -228,36 +223,37 @@ async fn init_genesis(
     let mut builder = iota_genesis_builder::Builder::new().add_objects(genesis_objects);
     let mut key_pairs = Vec::new();
     for i in 0..committee_size {
-        let key_pair: AuthorityKeyPair = get_key_pair().1;
-        let authority_name = key_pair.public().into();
-        let worker_key_pair: NetworkKeyPair = get_key_pair().1;
-        let worker_name = worker_key_pair.public().clone();
+        let authority_key_pair: AuthorityKeyPair = get_key_pair().1;
+        let authority_pubkey_bytes = authority_key_pair.public().into();
+        let protocol_key_pair: NetworkKeyPair = get_key_pair().1;
+        let protocol_pubkey = protocol_key_pair.public().clone();
         let account_key_pair: IotaKeyPair = get_key_pair::<AccountKeyPair>().1.into();
         let network_key_pair: NetworkKeyPair = get_key_pair().1;
         let validator_info = ValidatorInfo {
             name: format!("validator-{i}"),
-            protocol_key: authority_name,
-            worker_key: worker_name,
+            authority_key: authority_pubkey_bytes,
+            protocol_key: protocol_pubkey,
             account_address: IotaAddress::from(&account_key_pair.public()),
             network_key: network_key_pair.public().clone(),
             gas_price: 1,
             commission_rate: 0,
             network_address: local_ip_utils::new_local_tcp_address_for_testing(),
             p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
-            narwhal_primary_address: local_ip_utils::new_local_udp_address_for_testing(),
-            narwhal_worker_address: local_ip_utils::new_local_udp_address_for_testing(),
+            primary_address: local_ip_utils::new_local_udp_address_for_testing(),
             description: String::new(),
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop = generate_proof_of_possession(&key_pair, (&account_key_pair.public()).into());
+        let pop =
+            generate_proof_of_possession(&authority_key_pair, (&account_key_pair.public()).into());
         builder = builder.add_validator(validator_info, pop);
-        key_pairs.push((authority_name, key_pair));
+        key_pairs.push((authority_pubkey_bytes, authority_key_pair));
     }
     for (_, key) in &key_pairs {
         builder = builder.add_validator_signature(key);
     }
-    let genesis = builder.build();
+
+    let GenesisBuildEffects { genesis, .. } = builder.build();
     (genesis, key_pairs, pkg_id)
 }
 

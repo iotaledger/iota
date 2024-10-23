@@ -60,10 +60,7 @@ macro_rules! assert_matches {
 
 use fastcrypto::traits::AggregateAuthenticator;
 use iota_types::{
-    digests::ConsensusCommitDigest,
-    messages_consensus::{
-        ConsensusCommitPrologue, ConsensusCommitPrologueV2, ConsensusCommitPrologueV3,
-    },
+    digests::ConsensusCommitDigest, messages_consensus::ConsensusCommitPrologueV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 
@@ -214,34 +211,9 @@ async fn test_user_sends_genesis_transaction() {
 }
 
 #[tokio::test]
-async fn test_user_sends_consensus_commit_prologue() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologue(
-        ConsensusCommitPrologue {
-            epoch: 0,
-            round: 0,
-            commit_timestamp_ms: 42,
-        },
-    ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_consensus_commit_prologue_v2() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV2(
-        ConsensusCommitPrologueV2 {
-            epoch: 0,
-            round: 0,
-            commit_timestamp_ms: 42,
-            consensus_commit_digest: ConsensusCommitDigest::default(),
-        },
-    ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_consensus_commit_prologue_v3() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV3(
-        ConsensusCommitPrologueV3 {
+async fn test_user_sends_consensus_commit_prologue_v1() {
+    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV1(
+        ConsensusCommitPrologueV1 {
             epoch: 0,
             round: 0,
             sub_dag_index: None,
@@ -251,21 +223,6 @@ async fn test_user_sends_consensus_commit_prologue_v3() {
                 ConsensusDeterminedVersionAssignments::CancelledTransactions(Vec::new()),
         },
     ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_change_epoch_transaction() {
-    test_user_sends_system_transaction_impl(TransactionKind::ChangeEpoch(ChangeEpoch {
-        epoch: 0,
-        protocol_version: ProtocolVersion::MIN,
-        storage_charge: 0,
-        computation_charge: 0,
-        storage_rebate: 0,
-        non_refundable_storage_fee: 0,
-        epoch_start_timestamp_ms: 0,
-        system_packages: vec![],
-    }))
     .await;
 }
 
@@ -511,6 +468,7 @@ async fn do_transaction_test_impl(
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_transfer_with_bad_ephemeral_sig() {
     do_zklogin_transaction_test(
         1,
@@ -533,6 +491,7 @@ async fn test_zklogin_transfer_with_bad_ephemeral_sig() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_transfer_with_large_address_seed() {
     telemetry_subscribers::init_for_testing();
     let (
@@ -577,7 +536,8 @@ async fn test_zklogin_transfer_with_large_address_seed() {
 }
 
 #[sim_test]
-async fn zklogin_test_caching_scenarios() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_caching_scenarios() {
     telemetry_subscribers::init_for_testing();
     let (
         object_ids,
@@ -1170,7 +1130,8 @@ fn make_socket_addr() -> std::net::SocketAddr {
 }
 
 #[tokio::test]
-async fn zklogin_txn_fail_if_missing_jwk() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_txn_fail_if_missing_jwk() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authorty state with some objects under a zklogin address.
@@ -1244,7 +1205,8 @@ async fn zklogin_txn_fail_if_missing_jwk() {
 }
 
 #[tokio::test]
-async fn zk_multisig_test() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_multisig() {
     telemetry_subscribers::init_for_testing();
 
     // User generate a multisig account with no zklogin signer.
@@ -1571,7 +1533,13 @@ async fn test_handle_certificate_errors() {
 
     let committee = epoch_store.committee().deref().clone();
 
-    let tx = VerifiedTransaction::new_consensus_commit_prologue(0, 0, 42);
+    let tx = VerifiedTransaction::new_consensus_commit_prologue_v1(
+        0,
+        0,
+        42,
+        ConsensusCommitDigest::default(),
+        Vec::new(),
+    );
     let ct = CertifiedTransaction::new(
         tx.data().clone(),
         vec![signed_transaction.auth_sig().clone()],
@@ -1636,7 +1604,6 @@ async fn test_handle_soft_bundle_certificates() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_soft_bundle_for_testing(true);
     protocol_config.set_max_soft_bundle_size_for_testing(10);
 
     let authority = TestAuthorityBuilder::new()
@@ -1808,7 +1775,6 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_soft_bundle_for_testing(true);
     protocol_config.set_max_soft_bundle_size_for_testing(3);
     let authority = TestAuthorityBuilder::new()
         .with_reference_gas_price(1000)
@@ -1898,7 +1864,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::NoCertificateProvidedError { .. }
+            IotaError::NoCertificateProvided { .. }
         );
     }
 
@@ -1988,7 +1954,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::NoSharedObjectError { .. },
+            error: UserInputError::NoSharedObject { .. },
         });
     }
 
@@ -2072,7 +2038,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::GasPriceMismatchError { .. },
+            error: UserInputError::GasPriceMismatch { .. },
         });
     }
 
@@ -2158,7 +2124,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::CeritificateAlreadyProcessed { .. },
+            error: UserInputError::CertificateAlreadyProcessed { .. },
         });
     }
 }

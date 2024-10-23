@@ -1,7 +1,7 @@
 [package]
 name = "iota-node"
 version.workspace = true
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 anemo.workspace = true
 anemo-tower.workspace = true
 anyhow.workspace = true
@@ -17,9 +18,10 @@ arc-swap.workspace = true
 axum.workspace = true
 base64.workspace = true
 bcs.workspace = true
-bin-version.workspace = true
 clap.workspace = true
 const-str.workspace = true
+fastcrypto.workspace = true
+fastcrypto-zkp.workspace = true
 futures.workspace = true
 git-version.workspace = true
 humantime.workspace = true
@@ -33,8 +35,8 @@ tower.workspace = true
 tracing.workspace = true
 url.workspace = true
 
-fastcrypto.workspace = true
-fastcrypto-zkp.workspace = true
+# internal dependencies
+bin-version.workspace = true
 iota-archival.workspace = true
 iota-common.workspace = true
 iota-config.workspace = true
@@ -53,7 +55,6 @@ iota-tls.workspace = true
 iota-types.workspace = true
 move-vm-profiler.workspace = true
 narwhal-network.workspace = true
-narwhal-worker.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

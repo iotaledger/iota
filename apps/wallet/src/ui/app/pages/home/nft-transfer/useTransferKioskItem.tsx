@@ -11,6 +11,7 @@ import {
     ORIGINBYTE_KIOSK_OWNER_TOKEN,
     useGetKioskContents,
     useGetObject,
+    Feature,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { KioskTransaction } from '@iota/kiosk';
@@ -30,7 +31,7 @@ export function useTransferKioskItem({
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);
     const address = activeAccount?.address;
-    const obPackageId = useFeatureValue('kiosk-originbyte-packageid', ORIGINBYTE_PACKAGE_ID);
+    const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageid, ORIGINBYTE_PACKAGE_ID);
     const { data: kioskData } = useGetKioskContents(address); // show personal kiosks too
     const objectData = useGetObject(objectId);
     const kioskClient = useKioskClient();

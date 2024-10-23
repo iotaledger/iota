@@ -110,11 +110,11 @@ export default function MultiSigCombineSignatureGenerator() {
             </h2>
 
             <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
-                <p>The following demo allow you to create Iota MultiSig Combined Signatures.</p>
-                <p>Iota Pubkeys, weights, signatures for testing/playing with:</p>
+                <p>The following demo allow you to create IOTA MultiSig Combined Signatures.</p>
+                <p>IOTA Pubkeys, weights, signatures for testing/playing with:</p>
                 <div className="flex flex-col gap-2 bg-gray-600 p-4 rounded-md">
                     <div className="flex gap-0 border-b">
-                        <div className="flex-1 font-bold border-r p-2">Iota Pubkeys</div>
+                        <div className="flex-1 font-bold border-r p-2">IOTA Pubkeys</div>
                         <div className="flex-1 font-bold border-r p-2">Weights</div>
                         <div className="flex-1 font-bold p-2">Signatures</div>
                     </div>
@@ -230,7 +230,7 @@ export default function MultiSigCombineSignatureGenerator() {
             {msAddress && (
                 <Card key={msAddress}>
                     <CardHeader>
-                        <CardTitle>Iota MultiSig Address</CardTitle>
+                        <CardTitle>IOTA MultiSig Address</CardTitle>
                         <CardDescription>
                             https://wiki.iota.org/testnet/learn/cryptography/iota-multisig
                         </CardDescription>
@@ -247,7 +247,7 @@ export default function MultiSigCombineSignatureGenerator() {
             {msSignature && (
                 <Card key={msSignature}>
                     <CardHeader>
-                        <CardTitle>Iota MultiSig Combined Address</CardTitle>
+                        <CardTitle>IOTA MultiSig Combined Address</CardTitle>
                         <CardDescription>
                             https://wiki.iota.org/testnet/learn/cryptography/iota-multisig
                         </CardDescription>

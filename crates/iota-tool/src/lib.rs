@@ -119,7 +119,7 @@ async fn make_clients(
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
-            AuthorityPublicKeyBytes::from_bytes(&validator.protocol_pubkey_bytes)?;
+            AuthorityPublicKeyBytes::from_bytes(&validator.authority_pubkey_bytes)?;
         authority_clients.insert(public_key_bytes, (net_addr.clone(), client));
     }
 
@@ -498,56 +498,9 @@ async fn get_object_impl(
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
     use iota_network::{discovery::*, state_sync::*};
-    use narwhal_types::*;
 
     // TODO: implement `ServiceInfo` generation in anemo-build and use here.
     anemo_cli::Config::new()
-        // Narwhal primary-to-primary
-        .add_service(
-            "PrimaryToPrimary",
-            anemo_cli::ServiceInfo::new()
-                .add_method(
-                    "SendCertificate",
-                    anemo_cli::ron_method!(
-                        PrimaryToPrimaryClient,
-                        send_certificate,
-                        SendCertificateRequest
-                    ),
-                )
-                .add_method(
-                    "RequestVote",
-                    anemo_cli::ron_method!(
-                        PrimaryToPrimaryClient,
-                        request_vote,
-                        RequestVoteRequest
-                    ),
-                )
-                .add_method(
-                    "FetchCertificates",
-                    anemo_cli::ron_method!(
-                        PrimaryToPrimaryClient,
-                        fetch_certificates,
-                        FetchCertificatesRequest
-                    ),
-                ),
-        )
-        // Narwhal worker-to-worker
-        .add_service(
-            "WorkerToWorker",
-            anemo_cli::ServiceInfo::new()
-                .add_method(
-                    "ReportBatch",
-                    anemo_cli::ron_method!(WorkerToWorkerClient, report_batch, WorkerBatchMessage),
-                )
-                .add_method(
-                    "RequestBatches",
-                    anemo_cli::ron_method!(
-                        WorkerToWorkerClient,
-                        request_batches,
-                        RequestBatchesRequest
-                    ),
-                ),
-        )
         // Iota discovery
         .add_service(
             "Discovery",
@@ -1033,7 +986,6 @@ pub async fn download_formal_snapshot(
         perpetual_db.clone(),
         checkpoint_store,
         committee_store,
-        network,
         verify == SnapshotVerifyMode::Strict,
         num_live_objects,
         m,

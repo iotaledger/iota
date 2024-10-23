@@ -8,11 +8,13 @@ import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { CheckpointSequenceLink, EpochLink } from '~/components';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
+import { CoinFormat, formatBalance } from '@iota/core';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
 /**
  * Generate table columns renderers for the epochs data.
  */
-export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
+export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<EpochMetrics>[] {
     return [
         {
             header: 'Epoch',
@@ -31,11 +33,14 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
         {
             header: 'Transaction Blocks',
             accessorKey: 'epochTotalTransactions',
-            cell: ({ getValue }) => {
+            cell: ({ getValue, row }) => {
                 const epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
+                const isCurrentEpoch = row.original.epoch === currentEpoch;
+                const displayedEpochTotalTransactions =
+                    isCurrentEpoch || !epochTotalTransactions ? '--' : epochTotalTransactions;
                 return (
                     <TableCellBase>
-                        <TableCellText>{epochTotalTransactions}</TableCellText>
+                        <TableCellText>{displayedEpochTotalTransactions}</TableCellText>
                     </TableCellBase>
                 );
             },
@@ -45,11 +50,24 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             id: 'stakeRewards',
             accessorKey: 'endOfEpochInfo.totalStakeRewardsDistributed',
             cell: ({ row: { original: epochMetrics } }) => {
+                const isCurrentEpoch = epochMetrics.epoch === currentEpoch;
                 const totalStakeRewardsDistributed =
                     epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
+                const totalStakeRewardsDistributedFormatted =
+                    isCurrentEpoch || !totalStakeRewardsDistributed
+                        ? '--'
+                        : formatBalance(
+                              Number(totalStakeRewardsDistributed) / Number(NANOS_PER_IOTA),
+                              0,
+                              CoinFormat.ROUNDED,
+                          );
                 return (
                     <TableCellBase>
-                        <TableCellText>{totalStakeRewardsDistributed ?? '0'}</TableCellText>
+                        <TableCellText
+                            supportingLabel={totalStakeRewardsDistributed ? 'IOTA' : undefined}
+                        >
+                            {totalStakeRewardsDistributedFormatted ?? '0'}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },
@@ -75,11 +93,15 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             accessorKey: 'endOfEpochInfo',
             cell: ({ getValue }) => {
                 const endOfEpochInfo = getValue<EpochMetrics['endOfEpochInfo']>();
-                const storageNetInflow =
-                    getEpochStorageFundFlow(endOfEpochInfo).netInflow?.toString() ?? '--';
+                const storageNetInflow = getEpochStorageFundFlow(endOfEpochInfo).netInflow;
+                const storageNetInflowFormatted = storageNetInflow
+                    ? formatBalance(storageNetInflow / NANOS_PER_IOTA, 0, CoinFormat.ROUNDED)
+                    : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText>{storageNetInflow}</TableCellText>
+                        <TableCellText supportingLabel={storageNetInflow ? 'IOTA' : undefined}>
+                            {storageNetInflowFormatted}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },

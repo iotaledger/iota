@@ -216,7 +216,6 @@ const developer = [
             id: 'developer/evm-to-move/evm-to-move',
         },
         items: [
-            'developer/evm-to-move/why-move',
             'developer/evm-to-move/tooling-apis',
             'developer/evm-to-move/creating-token',
             'developer/evm-to-move/creating-nft',
@@ -279,7 +278,7 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Migrating from IOTA/Shimmer Stardust',
+        label: 'Migrating from IOTA Stardust',
         link: {
             type: 'doc',
             id: 'developer/stardust/stardust-migration',
@@ -325,7 +324,7 @@ const developer = [
                     },
                     {
                         type: 'doc',
-                        label: 'Self-sponsor Shimmer Claiming',
+                        label: 'Self-sponsor Iota Claiming',
                         id: 'developer/stardust/claiming/self-sponsor',
                     },
                 ],

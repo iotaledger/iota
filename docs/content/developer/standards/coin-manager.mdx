@@ -4,6 +4,9 @@ description: The Coin Manager Standard provides additional assurances and functi
 sidebar_label: Coin Manager
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/coin-manager.json';
+
 The [Coin Standard](./coin.mdx) is a simple standard that ensures consistent and predictable behavior for custom assets, allowing dApps to support every asset made with it in a similar matter. It is, however, lacking some functionality and assurances for both the deployer of the `Coin` and the end-users:
 
 - There is no option to set a maximum supply for an asset.
@@ -184,3 +187,5 @@ let oldmeta = metacap.replace_additional_metadata<COIN_TYPE, NewCustomMetadata, 
 
 let CustomMetadata { version: _ } = oldmeta;
 ```
+
+<Quiz questions={questions} />

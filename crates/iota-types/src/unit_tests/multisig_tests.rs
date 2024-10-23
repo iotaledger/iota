@@ -19,7 +19,6 @@ use fastcrypto_zkp::{
 use im::hashmap::HashMap as ImHashMap;
 use once_cell::sync::OnceCell;
 use rand::{SeedableRng, rngs::StdRng};
-use roaring::RoaringBitmap;
 use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 
 use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
@@ -30,7 +29,6 @@ use crate::{
         ZkLoginPublicIdentifier, get_key_pair, get_key_pair_from_rng,
     },
     multisig::{MAX_SIGNER_IN_MULTISIG, MultiSig, as_indices},
-    multisig_legacy::bitmap_to_u16,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
     utils::{
@@ -264,20 +262,12 @@ fn test_max_sig() {
 }
 
 #[test]
-fn test_to_from_indices() {
+fn test_to_indices() {
     assert!(as_indices(0b11111111110).is_err());
     assert_eq!(as_indices(0b0000010110).unwrap(), vec![1, 2, 4]);
     assert_eq!(as_indices(0b1111111111).unwrap(), vec![
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9
     ]);
-
-    let mut bitmap = RoaringBitmap::new();
-    bitmap.insert(1);
-    bitmap.insert(2);
-    bitmap.insert(4);
-    assert_eq!(bitmap_to_u16(bitmap.clone()).unwrap(), 0b0000010110);
-    bitmap.insert(11);
-    assert!(bitmap_to_u16(bitmap).is_err());
 }
 
 #[test]
@@ -336,7 +326,8 @@ fn multisig_get_indices() {
 }
 
 #[test]
-fn multisig_zklogin_scenarios() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_multisig_zklogin_scenarios() {
     // consistency test with
     // iota/sdk/typescript/test/unit/cryptography/multisig.test.ts
     let mut seed = StdRng::from_seed([0; 32]);
@@ -381,7 +372,8 @@ fn multisig_zklogin_scenarios() {
 }
 
 #[test]
-fn zklogin_in_multisig_works_with_both_addresses() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_zklogin_in_multisig_works_with_both_addresses() {
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
     let ikp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
@@ -426,7 +418,7 @@ fn zklogin_in_multisig_works_with_both_addresses() {
         .into_iter()
         .collect();
 
-    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true, Some(30));
+    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, Some(30));
     let res = multisig.verify_claims(
         intent_msg,
         multisig_address,
@@ -480,7 +472,8 @@ fn zklogin_in_multisig_works_with_both_addresses() {
 }
 
 #[test]
-fn test_derive_multisig_address() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_zklogin_derive_multisig_address() {
     // consistency test with typescript:
     // /sdk/typescript/test/unit/cryptography/multisig.test.ts
     let pk1 = PublicKey::ZkLogin(

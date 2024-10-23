@@ -2,6 +2,9 @@
 title: Action Request
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/closed-loop-token/action-request.json';
+
 The main difference between tokens and coins is that tokens do not allow transfers, conversions, or spends by default. There is an authorization mechanism, however, that allows these actions. This mechanism is called an `ActionRequest`. You can choose to allow or disallow any of the actions independently (see the [Request confirmation](#request-confirmation) section).
 
 ## Protected actions
@@ -226,3 +229,5 @@ public fun new_request<T>(
     ctx: &mut TxContext
 ): ActionRequest<T>;
 ```
+
+<Quiz questions={questions} />

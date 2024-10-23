@@ -2,6 +2,8 @@
 title: Coin Management
 description: Because IOTA uses Coins as owned objects for transactions, you need to explicitly manage them in your programmable transaction block development.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/coin-mgt.json';
 
 A key concept when programming on IOTA is that of owned objects. Address-owned objects are important in that they allow for highly parallelizable transactions. And they also logically map to assets or resources that someone exclusively owns. Coins are a typical case of owned object usage, with cash being a real-life reference. The owned objects paradigm, however, and particularly as related to coins, is somewhat of a divergence from other blockchains which have a concept of balance. In other words, in other systems, especially account based systems, coins are held in a single location (field) which can be thought of as a balance in a bank account.
 
@@ -38,3 +40,5 @@ So when you require heavy concurrency, you should first split a coin into as man
 The possible pitfalls in dealing with heavy concurrency are many. Concurrency in transaction execution is not the only performance bottleneck. In creating and submitting a transaction, several round trips with a Full node might be required to discover and fetch the right objects, and to dry run a transaction. Those round trips might affect performance significantly.
 
 Concurrency is a difficult subject and is beyond the scope of this documentation. You must take maximum care when dealing with coin management in the face of concurrency, and the right strategy is often tied to the specific scenario, rather than universally available.
+
+<Quiz questions={questions} />

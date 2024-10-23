@@ -14,11 +14,18 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionSummary } from '../../shared/transaction-summary';
 import { StakeTxn } from './StakeTxn';
 import { UnStakeTxn } from './UnstakeTxn';
-import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { CheckmarkFilled } from '@iota/ui-icons';
+import {
+    Button,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+} from '@iota/apps-ui-kit';
+import { ArrowTopRight, CheckmarkFilled } from '@iota/ui-icons';
 import cl from 'clsx';
-import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
 import { GasFees } from '../../pages/approval-request/transaction-request/GasFees';
+import ExplorerLink, { ExplorerLinkType } from '../explorer-link';
 
 interface TransactionStatusProps {
     success: boolean;
@@ -29,7 +36,7 @@ function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
     const txnDate = timestamp ? formatDate(Number(timestamp)) : '';
     return (
         <InfoBox
-            type={success ? InfoBoxType.Default : InfoBoxType.Warning}
+            type={success ? InfoBoxType.Default : InfoBoxType.Error}
             style={InfoBoxStyle.Elevated}
             title={success ? 'Successfully sent' : 'Transaction Failed'}
             supportingText={timestamp ? txnDate : ''}
@@ -59,8 +66,8 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 
     if (!summary) return null;
 
+    const { digest } = summary;
     const stakedTxn = events?.find(({ type }) => type === STAKING_REQUEST_EVENT);
-
     const unstakeTxn = events?.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
 
     return (
@@ -87,7 +94,22 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 )}
             </div>
             <div className="pt-sm">
-                <ExplorerLinkCard digest={summary?.digest} />
+                <ExplorerLink transactionID={digest ?? ''} type={ExplorerLinkType.Transaction}>
+                    <Button
+                        type={ButtonType.Outlined}
+                        text="View on Explorer"
+                        fullWidth
+                        icon={
+                            digest ? (
+                                <ArrowTopRight />
+                            ) : (
+                                <LoadingIndicator data-testid="loading-indicator" />
+                            )
+                        }
+                        iconAfterText
+                        disabled={!digest}
+                    />
+                </ExplorerLink>
             </div>
         </div>
     );

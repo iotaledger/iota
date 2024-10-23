@@ -15,12 +15,16 @@ import {
     ButtonSegmentType,
     ButtonSegment,
     SegmentedButton,
+    Select,
+    DropdownPosition,
+    SelectSize,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { ListViewLarge, ListViewMedium, ListViewSmall } from '@iota/ui-icons';
-import { Text } from '@iota/ui';
+import { ListViewLarge, ListViewMedium, ListViewSmall, Warning } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
-
 import { ListView, SmallThumbnailsView, ThumbnailsView } from '~/components';
 import { ObjectViewMode } from '~/lib/enums';
 import { Pagination, useCursorPagination } from '~/components/ui';
@@ -162,7 +166,15 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
 
     if (isError) {
         return (
-            <div className="pt-2 font-sans font-semibold text-issue-dark">Failed to load NFTs</div>
+            <div className="p-sm--rs">
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Assets"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
+            </div>
         );
     }
 
@@ -253,32 +265,27 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         )}
                     </div>
                     {showPagination && hasAssets && (
-                        <div className="flex flex-1 items-end p-md pt-none">
-                            <div className="flex w-full flex-row flex-wrap items-center justify-between gap-2">
-                                <Pagination {...pagination} />
-                                <div className="ml-auto flex items-center">
-                                    {!isPending && (
-                                        <Text variant="body/medium" color="steel">
-                                            Showing {start} - {end}
-                                        </Text>
-                                    )}
-                                </div>
-                                <div className="hidden sm:block">
-                                    <select
-                                        className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                                        value={limit}
-                                        onChange={(e) => {
-                                            setLimit(Number(e.target.value));
-                                            pagination.onFirst();
-                                        }}
-                                    >
-                                        {PAGE_SIZES.map((size) => (
-                                            <option key={size} value={size}>
-                                                {size} Per Page
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                        <div className="flex flex-row flex-wrap items-center justify-between gap-sm px-sm--rs py-sm--rs">
+                            <Pagination {...pagination} />
+                            <div className="flex items-center gap-3">
+                                {!isPending && (
+                                    <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
+                                        Showing {start} - {end}
+                                    </span>
+                                )}
+                                <Select
+                                    dropdownPosition={DropdownPosition.Top}
+                                    value={limit.toString()}
+                                    options={PAGE_SIZES.map((size) => ({
+                                        label: `${size} / page`,
+                                        id: size.toString(),
+                                    }))}
+                                    onValueChange={(value) => {
+                                        setLimit(Number(value));
+                                        pagination.onFirst();
+                                    }}
+                                    size={SelectSize.Small}
+                                />
                             </div>
                         </div>
                     )}

@@ -726,6 +726,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_encode_call_data() {
         let abi_json =
             std::fs::read_to_string("../iota-bridge/abi/tests/mock_iota_bridge_v2.json").unwrap();

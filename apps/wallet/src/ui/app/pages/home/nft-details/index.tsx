@@ -6,7 +6,6 @@ import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Collapsible } from '_app/shared/collapse';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useOwnedNFT } from '_hooks';
-import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -52,10 +51,6 @@ function NFTDetailsPage() {
     const metaKeys: string[] = metaFields ? metaFields.keys : [];
     const metaValues = metaFields ? metaFields.values : [];
     const { data: nftDisplayData, isPending: isPendingDisplay } = useGetNFTMeta(nftId || '');
-    const objectExplorerLink = useExplorerLink({
-        type: ExplorerLinkType.Object,
-        objectID: nftId || '',
-    });
     const ownerAddress =
         (objectData?.owner &&
             typeof objectData?.owner === 'object' &&
@@ -77,10 +72,6 @@ function NFTDetailsPage() {
         navigate(`/nft-transfer/${nftId}`);
     }
 
-    function handleViewOnExplorer() {
-        window.open(objectExplorerLink || '', '_blank');
-    }
-
     function formatMetaValue(value: string) {
         if (value.includes('http')) {
             return {
@@ -97,7 +88,12 @@ function NFTDetailsPage() {
     }
 
     return (
-        <PageTemplate title="Visual Asset" isTitleCentered onClose={() => navigate(-1)}>
+        <PageTemplate
+            title="Visual Asset"
+            isTitleCentered
+            onClose={() => navigate(-1)}
+            showBackButton
+        >
             <div
                 className={cl('flex h-full flex-1 flex-col flex-nowrap gap-5', {
                     'items-center': isPending,
@@ -111,11 +107,15 @@ function NFTDetailsPage() {
                                     <div className="flex w-[172px] flex-col items-center gap-xs self-center">
                                         <NFTDisplayCard objectId={nftId!} />
                                         {nftId ? (
-                                            <Button
-                                                type={ButtonType.Ghost}
-                                                onClick={handleViewOnExplorer}
-                                                text="View on Explorer"
-                                            />
+                                            <ExplorerLink
+                                                objectID={nftId}
+                                                type={ExplorerLinkType.Object}
+                                            >
+                                                <Button
+                                                    type={ButtonType.Ghost}
+                                                    text="View on Explorer"
+                                                />
+                                            </ExplorerLink>
                                         ) : null}
                                     </div>
                                     <div className="flex flex-col gap-md">

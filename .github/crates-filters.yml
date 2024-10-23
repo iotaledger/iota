@@ -62,6 +62,8 @@ iota-framework-tests:
   - "crates/iota-framework-tests/**"
 iota-genesis-builder:
   - "crates/iota-genesis-builder/**"
+iota-genesis-common:
+  - "crates/iota-genesis-common/**"
 iota-graphql-e2e-tests:
   - "crates/iota-graphql-e2e-tests/**"
 iota-graphql-rpc:
@@ -172,22 +174,12 @@ narwhal-config:
   - "narwhal/config/**"
 narwhal-crypto:
   - "narwhal/crypto/**"
-narwhal-executor:
-  - "narwhal/executor/**"
 narwhal-network:
   - "narwhal/network/**"
-narwhal-node:
-  - "narwhal/node/**"
-narwhal-primary:
-  - "narwhal/primary/**"
-narwhal-storage:
-  - "narwhal/storage/**"
 narwhal-test-utils:
   - "narwhal/test-utils/**"
 narwhal-types:
   - "narwhal/types/**"
-narwhal-worker:
-  - "narwhal/worker/**"
 iota-execution:
   - "iota-execution/**"
 iota-execution-cut:

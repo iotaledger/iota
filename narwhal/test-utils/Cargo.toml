@@ -1,37 +1,27 @@
 [package]
 name = "narwhal-test-utils"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
+anemo.workspace = true
+fastcrypto.workspace = true
 fdlimit.workspace = true
 indexmap.workspace = true
-itertools.workspace = true
 once_cell.workspace = true
-prometheus.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tonic.workspace = true
 tracing.workspace = true
 
+# internal dependencies
 config = { path = "../config", package = "narwhal-config" }
 crypto = { path = "../crypto", package = "narwhal-crypto" }
-executor = { path = "../executor", package = "narwhal-executor" }
-fastcrypto.workspace = true
-iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-network = { path = "../network", package = "narwhal-network" }
-node = { path = "../node", package = "narwhal-node" }
-primary = { path = "../primary", package = "narwhal-primary" }
-storage = { path = "../storage", package = "narwhal-storage" }
-store = { path = "../../crates/typed-store", package = "typed-store" }
-telemetry-subscribers.workspace = true
 types = { path = "../types", package = "narwhal-types" }
-worker = { path = "../worker", package = "narwhal-worker" }
-
-anemo.workspace = true

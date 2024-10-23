@@ -2,19 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
 import { useAppSelector } from '_hooks';
-import { Feature } from '_src/shared/experimentation/features';
+import { Feature } from '@iota/core';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-
 import { permissionsSelectors } from '../../redux/slices/permissions';
 import { AppsPageBanner } from './Banner';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
+import { Header } from '@iota/apps-ui-kit';
 
 export function AppsPlayGround() {
     const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value;
@@ -43,12 +42,7 @@ export function AppsPlayGround() {
 
     return (
         <>
-            <div className="mb-4 flex justify-center">
-                <Heading variant="heading6" color="gray-90" weight="semibold">
-                    IOTA Apps
-                </Heading>
-            </div>
-
+            <Header titleCentered title="IOTA Apps" />
             <AppsPageBanner />
 
             {filteredEcosystemApps?.length ? (

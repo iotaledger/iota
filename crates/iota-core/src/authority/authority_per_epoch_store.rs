@@ -23,7 +23,7 @@ use futures::{
     future::{Either, join_all, select},
 };
 use iota_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
-use iota_config::node::{ConsensusProtocol, ExpensiveSafetyCheckConfig};
+use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::{fail_point, fail_point_arg};
 use iota_metrics::monitored_scope;
@@ -64,7 +64,6 @@ use iota_types::{
 };
 use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use narwhal_executor::ExecutionIndices;
 use narwhal_types::{Round, TimestampMs};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus::IntCounter;
@@ -98,13 +97,12 @@ use crate::{
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
-        PendingCheckpoint, PendingCheckpointInfo, PendingCheckpointV2, PendingCheckpointV2Contents,
+        PendingCheckpointInfo, PendingCheckpointV2, PendingCheckpointV2Contents,
     },
     consensus_handler::{
         ConsensusCommitInfo, SequencedConsensusTransaction, SequencedConsensusTransactionKey,
         SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
     },
-    consensus_manager::ConsensusManager,
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
@@ -246,6 +244,39 @@ impl ConsensusStatsAPI for ConsensusStatsV1 {
     fn inc_num_user_transactions(&mut self, authority: usize) -> u64 {
         self.num_user_transactions[authority] += 1;
         self.num_user_transactions[authority]
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Copy)]
+pub struct ExecutionIndices {
+    /// The round number of the last committed leader.
+    pub last_committed_round: u64,
+    /// The index of the last sub-DAG that was executed (either fully or
+    /// partially).
+    pub sub_dag_index: u64,
+    /// The index of the last transaction was executed (used for
+    /// crash-recovery).
+    pub transaction_index: u64,
+}
+
+impl Ord for ExecutionIndices {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (
+            self.last_committed_round,
+            self.sub_dag_index,
+            self.transaction_index,
+        )
+            .cmp(&(
+                other.last_committed_round,
+                other.sub_dag_index,
+                other.transaction_index,
+            ))
+    }
+}
+
+impl PartialOrd for ExecutionIndices {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -418,8 +449,7 @@ pub struct AuthorityEpochTables {
     ///
     /// REQUIRED: all authorities must assign the same shared object versions
     /// for each transaction.
-    assigned_shared_object_versions: DBMap<TransactionDigest, Vec<(ObjectID, SequenceNumber)>>,
-    assigned_shared_object_versions_v2: DBMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
+    assigned_shared_object_versions: DBMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
     next_shared_object_versions: DBMap<ObjectID, SequenceNumber>,
 
     /// Certificates that have been received from clients or received from
@@ -498,9 +528,7 @@ pub struct AuthorityEpochTables {
     /// with empty content(see CheckpointBuilder::write_checkpoint),
     /// the sequence number of checkpoint does not match height here.
     #[default_options_override_fn = "pending_checkpoints_table_default_config"]
-    pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpoint>,
-    #[default_options_override_fn = "pending_checkpoints_table_default_config"]
-    pending_checkpoints_v2: DBMap<CheckpointHeight, PendingCheckpointV2>,
+    pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpointV2>,
 
     /// Checkpoint builder maintains internal list of transactions it included
     /// in checkpoints here
@@ -847,7 +875,6 @@ impl AuthorityPerEpochStore {
             signature_verifier_metrics,
             supported_providers,
             zklogin_env,
-            protocol_config.verify_legacy_zklogin_address(),
             protocol_config.accept_zklogin_in_multisig(),
             protocol_config.zklogin_max_epoch_upper_bound_delta(),
         );
@@ -945,18 +972,6 @@ impl AuthorityPerEpochStore {
             .is_some()
     }
 
-    // Returns true if randomness state is enabled in the protocol config *and* the
-    // randomness state object already exists
-    pub fn randomness_state_enabled(&self) -> bool {
-        self.protocol_config().random_beacon() && self.randomness_state_exists()
-    }
-
-    pub fn randomness_state_exists(&self) -> bool {
-        self.epoch_start_configuration
-            .randomness_obj_initial_shared_version()
-            .is_some()
-    }
-
     pub fn randomness_reporter(&self) -> Option<RandomnessReporter> {
         self.randomness_reporter.get().cloned()
     }
@@ -978,16 +993,6 @@ impl AuthorityPerEpochStore {
             error!("BUG: `set_randomness_manager` called more than once; this should never happen");
         }
         result
-    }
-
-    pub fn coin_deny_list_state_exists(&self) -> bool {
-        self.epoch_start_configuration
-            .coin_deny_list_obj_initial_shared_version()
-            .is_some()
-    }
-
-    pub fn coin_deny_list_v1_enabled(&self) -> bool {
-        self.protocol_config().enable_coin_deny_list_v1() && self.coin_deny_list_state_exists()
     }
 
     pub fn bridge_exists(&self) -> bool {
@@ -1508,15 +1513,9 @@ impl AuthorityPerEpochStore {
         tx_digest: &TransactionDigest,
         assigned_versions: &Vec<(ObjectID, SequenceNumber)>,
     ) -> IotaResult {
-        if self.randomness_state_enabled() {
-            self.tables()?
-                .assigned_shared_object_versions_v2
-                .insert(&TransactionKey::Digest(*tx_digest), assigned_versions)?;
-        } else {
-            self.tables()?
-                .assigned_shared_object_versions
-                .insert(tx_digest, assigned_versions)?;
-        }
+        self.tables()?
+            .assigned_shared_object_versions
+            .insert(&TransactionKey::Digest(*tx_digest), assigned_versions)?;
         Ok(())
     }
 
@@ -1660,17 +1659,7 @@ impl AuthorityPerEpochStore {
         db_batch: &mut DBBatch,
     ) -> IotaResult {
         debug!("set_assigned_shared_object_versions: {:?}", versions);
-
-        if self.randomness_state_enabled() {
-            db_batch.insert_batch(&self.tables()?.assigned_shared_object_versions_v2, versions)?;
-        } else {
-            db_batch.insert_batch(
-                &self.tables()?.assigned_shared_object_versions,
-                versions
-                    .iter()
-                    .map(|(key, versions)| (key.unwrap_digest(), versions)),
-            )?;
-        }
+        db_batch.insert_batch(&self.tables()?.assigned_shared_object_versions, versions)?;
         Ok(())
     }
 
@@ -1803,14 +1792,8 @@ impl AuthorityPerEpochStore {
     }
 
     fn get_max_accumulated_txn_cost_per_object_in_commit(&self) -> Option<u64> {
-        match ConsensusManager::get_consensus_protocol_in_epoch(self) {
-            ConsensusProtocol::Narwhal => self
-                .protocol_config()
-                .max_accumulated_txn_cost_per_object_in_narwhal_commit_as_option(),
-            ConsensusProtocol::Mysticeti => self
-                .protocol_config()
-                .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
-        }
+        self.protocol_config()
+            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
     }
 
     fn should_defer(
@@ -1825,11 +1808,7 @@ impl AuthorityPerEpochStore {
         // Defer transaction if it uses randomness but we aren't generating any this
         // round. Don't defer if DKG has permanently failed; in that case we
         // need to ignore.
-        if !dkg_failed
-            && !generating_randomness
-            && self.randomness_state_enabled()
-            && cert.transaction_data().uses_randomness()
-        {
+        if !dkg_failed && !generating_randomness && cert.transaction_data().uses_randomness() {
             let deferred_from_round = previously_deferred_tx_digests
                 .get(cert.digest())
                 .map(|previous_key| previous_key.deferred_from_round())
@@ -2627,10 +2606,7 @@ impl AuthorityPerEpochStore {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
-            } else if tx
-                .0
-                .is_user_tx_with_randomness(self.randomness_state_enabled())
-            {
+            } else if tx.0.is_user_tx_with_randomness() {
                 current_commit_sequenced_randomness_transactions.push(tx);
             } else {
                 current_commit_sequenced_consensus_transactions.push(tx);
@@ -2682,7 +2658,7 @@ impl AuthorityPerEpochStore {
                 .expect("should only ever be called from the commit handler thread")
         });
         let mut dkg_failed = false;
-        let randomness_round = if self.randomness_state_enabled() {
+        let randomness_round = {
             let randomness_manager = randomness_manager
                 .as_mut()
                 .expect("randomness manager should exist if randomness is enabled");
@@ -2710,8 +2686,6 @@ impl AuthorityPerEpochStore {
                     }
                 }
             }
-        } else {
-            None
         };
 
         // We should load any previously-deferred randomness-using tx:
@@ -2730,10 +2704,7 @@ impl AuthorityPerEpochStore {
             .into_iter()
             .flat_map(|(_, txs)| txs.into_iter())
         {
-            if tx
-                .0
-                .is_user_tx_with_randomness(self.randomness_state_enabled())
-            {
+            if tx.0.is_user_tx_with_randomness() {
                 sequenced_randomness_transactions.push(tx);
             } else {
                 sequenced_transactions.push(tx);
@@ -2826,24 +2797,13 @@ impl AuthorityPerEpochStore {
         let make_checkpoint = should_accept_tx || final_round;
         if make_checkpoint {
             // Generate pending checkpoint for regular user tx.
-            let checkpoint_height = if self.randomness_state_enabled() {
-                consensus_commit_info.round * 2
-            } else {
-                consensus_commit_info.round
-            };
+            let checkpoint_height = consensus_commit_info.round * 2;
 
             let mut checkpoint_roots: Vec<TransactionKey> = Vec::with_capacity(roots.len() + 1);
 
             if let Some(consensus_commit_prologue_root) = consensus_commit_prologue_root {
-                if self
-                    .protocol_config()
-                    .prepend_prologue_tx_in_consensus_commit_in_checkpoints()
-                {
-                    // Put consensus commit prologue root at the beginning of the checkpoint roots.
-                    checkpoint_roots.push(consensus_commit_prologue_root);
-                } else {
-                    roots.insert(consensus_commit_prologue_root);
-                }
+                // Put consensus commit prologue root at the beginning of the checkpoint roots.
+                checkpoint_roots.push(consensus_commit_prologue_root);
             }
             checkpoint_roots.extend(roots.into_iter());
             let pending_checkpoint = PendingCheckpointV2::V2(PendingCheckpointV2Contents {
@@ -2968,11 +2928,8 @@ impl AuthorityPerEpochStore {
             }
         );
 
-        let transaction = consensus_commit_info.create_consensus_commit_prologue_transaction(
-            self.epoch(),
-            self.protocol_config(),
-            version_assignment,
-        );
+        let transaction = consensus_commit_info
+            .create_consensus_commit_prologue_transaction(self.epoch(), version_assignment);
         let consensus_commit_prologue_root = match self
             .process_consensus_system_transaction(&transaction)
         {
@@ -3021,25 +2978,14 @@ impl AuthorityPerEpochStore {
 
     #[cfg(any(test, feature = "test-utils"))]
     pub fn get_highest_pending_checkpoint_height(&self) -> CheckpointHeight {
-        if self.randomness_state_enabled() {
-            self.tables()
-                .expect("test should not cross epoch boundary")
-                .pending_checkpoints_v2
-                .unbounded_iter()
-                .skip_to_last()
-                .next()
-                .map(|(key, _)| key)
-                .unwrap_or_default()
-        } else {
-            self.tables()
-                .expect("test should not cross epoch boundary")
-                .pending_checkpoints
-                .unbounded_iter()
-                .skip_to_last()
-                .next()
-                .map(|(key, _)| key)
-                .unwrap_or_default()
-        }
+        self.tables()
+            .expect("test should not cross epoch boundary")
+            .pending_checkpoints
+            .unbounded_iter()
+            .skip_to_last()
+            .next()
+            .map(|(key, _)| key)
+            .unwrap_or_default()
     }
 
     // Caller is not required to set ExecutionIndices with the right semantics in
@@ -3061,11 +3007,7 @@ impl AuthorityPerEpochStore {
             checkpoint_service,
             cache_reader,
             &ConsensusCommitInfo::new_for_test(
-                if self.randomness_state_enabled() {
-                    self.get_highest_pending_checkpoint_height() / 2 + 1
-                } else {
-                    self.get_highest_pending_checkpoint_height() + 1
-                },
+                self.get_highest_pending_checkpoint_height() / 2 + 1,
                 0,
                 skip_consensus_commit_prologue_in_test,
             ),
@@ -3177,10 +3119,7 @@ impl AuthorityPerEpochStore {
             let key = tx.0.transaction.key();
             let mut ignored = false;
             let mut filter_roots = false;
-            let execution_cost = if tx
-                .0
-                .is_user_tx_with_randomness(self.randomness_state_enabled())
-            {
+            let execution_cost = if tx.0.is_user_tx_with_randomness() {
                 &mut shared_object_using_randomness_congestion_tracker
             } else {
                 &mut shared_object_congestion_tracker
@@ -3553,10 +3492,7 @@ impl AuthorityPerEpochStore {
                     return Ok(deferral_result);
                 }
 
-                if dkg_failed
-                    && self.randomness_state_enabled()
-                    && certificate.transaction_data().uses_randomness()
-                {
+                if dkg_failed && certificate.transaction_data().uses_randomness() {
                     debug!(
                         "Canceling randomness-using certificate for transaction {:?} because DKG failed",
                         certificate.digest(),
@@ -3789,34 +3725,18 @@ impl AuthorityPerEpochStore {
         last: Option<CheckpointHeight>,
     ) -> IotaResult<Vec<(CheckpointHeight, PendingCheckpointV2)>> {
         let tables = self.tables()?;
-        if self.randomness_state_enabled() {
-            let mut iter = tables.pending_checkpoints_v2.unbounded_iter();
-            if let Some(last_processed_height) = last {
-                iter = iter.skip_to(&(last_processed_height + 1))?;
-            }
-            Ok(iter.collect())
-        } else {
-            let mut iter = tables.pending_checkpoints.unbounded_iter();
-            if let Some(last_processed_height) = last {
-                iter = iter.skip_to(&(last_processed_height + 1))?;
-            }
-            Ok(iter.map(|(height, cp)| (height, cp.into())).collect())
+        let mut iter = tables.pending_checkpoints.unbounded_iter();
+        if let Some(last_processed_height) = last {
+            iter = iter.skip_to(&(last_processed_height + 1))?;
         }
+        Ok(iter.collect())
     }
 
     pub fn get_pending_checkpoint(
         &self,
         index: &CheckpointHeight,
     ) -> IotaResult<Option<PendingCheckpointV2>> {
-        if self.randomness_state_enabled() {
-            Ok(self.tables()?.pending_checkpoints_v2.get(index)?)
-        } else {
-            Ok(self
-                .tables()?
-                .pending_checkpoints
-                .get(index)?
-                .map(|c| c.into()))
-        }
+        Ok(self.tables()?.pending_checkpoints.get(index)?)
     }
 
     pub fn process_pending_checkpoint(
@@ -4250,19 +4170,7 @@ impl ConsensusCommitOutput {
         )?;
 
         if let Some((assigned_versions, next_versions)) = self.shared_object_versions {
-            if epoch_store.randomness_state_enabled() {
-                batch.insert_batch(
-                    &tables.assigned_shared_object_versions_v2,
-                    assigned_versions,
-                )?;
-            } else {
-                batch.insert_batch(
-                    &tables.assigned_shared_object_versions,
-                    assigned_versions
-                        .into_iter()
-                        .map(|(key, versions)| (*key.unwrap_digest(), versions)),
-                )?;
-            }
+            batch.insert_batch(&tables.assigned_shared_object_versions, assigned_versions)?;
 
             batch.insert_batch(&tables.next_shared_object_versions, next_versions)?;
         }
@@ -4275,21 +4183,12 @@ impl ConsensusCommitOutput {
             self.user_signatures_for_checkpoints,
         )?;
 
-        if epoch_store.randomness_state_enabled() {
-            batch.insert_batch(
-                &tables.pending_checkpoints_v2,
-                self.pending_checkpoints
-                    .into_iter()
-                    .map(|cp| (cp.height(), cp)),
-            )?;
-        } else {
-            batch.insert_batch(
-                &tables.pending_checkpoints,
-                self.pending_checkpoints
-                    .into_iter()
-                    .map(|cp| (cp.height(), cp.expect_v1())),
-            )?;
-        }
+        batch.insert_batch(
+            &tables.pending_checkpoints,
+            self.pending_checkpoints
+                .into_iter()
+                .map(|cp| (cp.height(), cp)),
+        )?;
 
         if let Some((round, commit_timestamp)) = self.next_randomness_round {
             batch.insert_batch(&tables.randomness_next_round, [(SINGLETON_KEY, round)])?;
@@ -4333,19 +4232,11 @@ impl GetSharedLocks for AuthorityPerEpochStore {
         &self,
         key: &TransactionKey,
     ) -> Result<Vec<(ObjectID, SequenceNumber)>, IotaError> {
-        if self.randomness_state_enabled() {
-            Ok(self
-                .tables()?
-                .assigned_shared_object_versions_v2
-                .get(key)?
-                .unwrap_or_default())
-        } else {
-            Ok(self
-                .tables()?
-                .assigned_shared_object_versions
-                .get(key.unwrap_digest())?
-                .unwrap_or_default())
-        }
+        Ok(self
+            .tables()?
+            .assigned_shared_object_versions
+            .get(key)?
+            .unwrap_or_default())
     }
 }
 

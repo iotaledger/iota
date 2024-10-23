@@ -32,7 +32,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: get-npm-version
         id: package-version
-        uses: martinbeentjes/npm-get-version-action@v1.3.1
+        uses: martinbeentjes/npm-get-version-action@3cf273023a0dda27efcd3164bdfb51908dd46a5b # pin@v1.3.1
         with:
           path: apps/wallet
       - name: Create artifact name
@@ -43,7 +43,7 @@ jobs:
       - name: Build Wallet
         run: pnpm wallet build:rc
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         with:
           name: ${{ env.artifact_name }}
           path: |

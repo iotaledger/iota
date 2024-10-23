@@ -3031,13 +3031,16 @@ async fn test_invalid_mutable_clock_parameter() {
 
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
-        UserInputError::ImmutableParameterExpectedError {
+        UserInputError::ImmutableParameterExpected {
             object_id: IOTA_CLOCK_OBJECT_ID
         }
     );
 }
 
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+// If "enable_jwk_consensus_updates" is set to false, the AuthorityState is
+// never created and therefore the test will fail.
 async fn test_invalid_authenticator_state_parameter() {
     // User transactions that take the singleton AuthenticatorState object at `0x7`
     // by mutable reference will fail to sign, to prevent transactions
@@ -3096,7 +3099,6 @@ async fn test_invalid_randomness_parameter() {
 
     let init_random_version =
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
-            .unwrap()
             .unwrap();
     let random_mut = CallArg::Object(ObjectArg::SharedObject {
         id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
@@ -3132,7 +3134,7 @@ async fn test_invalid_randomness_parameter() {
     };
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
-        UserInputError::ImmutableParameterExpectedError {
+        UserInputError::ImmutableParameterExpected {
             object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID
         }
     );
@@ -4802,14 +4804,6 @@ async fn test_consensus_commit_prologue_generation() {
     let processed_consensus_transactions =
         send_batch_consensus_no_execution(&authority_state, &certificates, false).await;
 
-    // Consensus commit prologue V2 should be turned on everywhere.
-    assert!(
-        authority_state
-            .epoch_store_for_testing()
-            .protocol_config()
-            .include_consensus_digest_in_prologue()
-    );
-
     // Tests that new consensus commit prologue transaction is added to the batch,
     // and it is the first transaction.
     assert_eq!(processed_consensus_transactions.len(), 3);
@@ -4818,7 +4812,7 @@ async fn test_consensus_commit_prologue_generation() {
             .data()
             .transaction_data()
             .kind(),
-        TransactionKind::ConsensusCommitPrologueV3(..)
+        TransactionKind::ConsensusCommitPrologueV1(..)
     ));
 
     // Tests that the system clock object is updated by the new consensus commit
@@ -4873,10 +4867,10 @@ async fn test_consensus_message_processed() {
     let genesis = network_config.genesis;
 
     let sec1 = network_config.validator_configs[0]
-        .protocol_key_pair()
+        .authority_key_pair()
         .copy();
     let sec2 = network_config.validator_configs[1]
-        .protocol_key_pair()
+        .authority_key_pair()
         .copy();
 
     let authority1 = init_state_with_objects_and_committee(
@@ -5949,11 +5943,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Checks that deferral keys are formed correctly.
     let epoch_store = authority.epoch_store_for_testing();
-    let commit_round = if epoch_store.randomness_state_enabled() {
-        epoch_store.get_highest_pending_checkpoint_height() / 2
-    } else {
-        epoch_store.get_highest_pending_checkpoint_height()
-    };
+    let commit_round = epoch_store.get_highest_pending_checkpoint_height() / 2;
     let deferred_txns = epoch_store
         .get_all_deferred_transactions_for_test()
         .unwrap();
@@ -6170,7 +6160,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // transaction, and it must be the first one.
     assert!(matches!(
         scheduled_txns[0].data().transaction_data().kind(),
-        TransactionKind::ConsensusCommitPrologueV3(..)
+        TransactionKind::ConsensusCommitPrologueV1(..)
     ));
     assert!(scheduled_txns[1].data().transaction_data().gas_price() == 2000);
 
@@ -6178,7 +6168,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(scheduled_txns.len(), 2);
     assert!(matches!(
         scheduled_txns[0].data().transaction_data().kind(),
-        TransactionKind::ConsensusCommitPrologueV3(..)
+        TransactionKind::ConsensusCommitPrologueV1(..)
     ));
     assert!(scheduled_txns[1].data().transaction_data().gas_price() == 2000);
 
@@ -6243,7 +6233,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
 
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
-    if let TransactionKind::ConsensusCommitPrologueV3(prologue_txn) =
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_txn) =
         scheduled_txns[0].data().transaction_data().kind()
     {
         assert!(matches!(
@@ -6258,7 +6248,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
                             )]
         ));
     } else {
-        panic!("First scheduled transaction must be a ConsensusCommitPrologueV3 transaction.");
+        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
     }
 }
 

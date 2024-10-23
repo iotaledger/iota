@@ -75,10 +75,13 @@ pub struct IotaEnv {
 impl IotaEnv {
     pub async fn create_rpc_client(
         &self,
-        request_timeout: Option<std::time::Duration>,
-        max_concurrent_requests: Option<u64>,
+        request_timeout: impl Into<Option<std::time::Duration>>,
+        max_concurrent_requests: impl Into<Option<u64>>,
     ) -> Result<IotaClient, anyhow::Error> {
+        let request_timeout = request_timeout.into();
+        let max_concurrent_requests = max_concurrent_requests.into();
         let mut builder = IotaClientBuilder::default();
+
         if let Some(request_timeout) = request_timeout {
             builder = builder.request_timeout(request_timeout);
         }
