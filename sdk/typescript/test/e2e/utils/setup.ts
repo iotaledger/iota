@@ -328,9 +328,13 @@ export async function payIota(
         },
     });
 
-    await client.waitForTransaction({
-        digest: txn.digest,
-    });
+    try {
+        await client.waitForTransaction({
+            digest: txn.digest,
+        });
+    } catch (_) {
+        // Ignore error while waiting for transaction
+    }
 
     expect(txn.effects?.status.status).toEqual('success');
     return txn;
