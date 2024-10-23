@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, btree_map::Entry},
+    collections::{BTreeMap, btree_map::Entry, HashSet},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
+    cmp::Eq
 };
 
 use anyhow::{Context, anyhow, bail, ensure};
@@ -656,8 +657,8 @@ pub struct Opts {
     /// If not provided, all fields are displayed.
     /// The fields are: effects, input, events, object_changes,
     /// balance_changes.
-    #[clap(long, required = false, value_delimiter = ',', num_args = 0..)]
-    pub emit: Vec<EmitOption>,
+    #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_option)]
+    pub emit: HashSet<EmitOption>,
 }
 
 /// Global options with gas
@@ -681,7 +682,7 @@ impl Opts {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: vec![],
+            emit: HashSet::new(),
         }
     }
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
@@ -692,13 +693,13 @@ impl Opts {
             dry_run: true,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: vec![],
+            emit: HashSet::new(),
         }
     }
 
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
     /// false, and sets all other flags to false, and emit to the passed emit vector.
-    pub fn for_testing_emit_options(gas_budget: u64, emit: Vec<EmitOption>) -> Self {
+    pub fn for_testing_emit_options(gas_budget: u64, emit: HashSet<EmitOption>) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
@@ -733,7 +734,7 @@ impl OptsWithGas {
     pub fn for_testing_emit_options(
         gas: Option<ObjectID>,
         gas_budget: u64,
-        emit: Vec<EmitOption>,
+        emit: HashSet<EmitOption>,
     ) -> Self {
         Self {
             gas,
@@ -742,7 +743,7 @@ impl OptsWithGas {
     }
 }
 
-#[derive(Clone, Debug, EnumString)]
+#[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]
 #[strum(serialize_all = "snake_case")]
 pub enum EmitOption {
     Effects,
@@ -3008,7 +3009,7 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
-fn opts_from_cli(opts: Vec<EmitOption>) -> IotaTransactionBlockResponseOptions {
+fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         return IotaTransactionBlockResponseOptions::new()
             .with_effects()
@@ -3029,4 +3030,8 @@ fn opts_from_cli(opts: Vec<EmitOption>) -> IotaTransactionBlockResponseOptions {
         }
     }
     options
+}
+
+fn parse_emit_option(s: &str) -> Result<EmitOption, String> {
+    EmitOption::from_str(s).map_err(|_| format!("Invalid emit option: {}", s))
 }

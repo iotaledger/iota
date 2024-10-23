@@ -9,7 +9,7 @@ use std::os::windows::fs::FileExt;
 #[cfg(not(msim))]
 use std::str::FromStr;
 use std::{
-    collections::BTreeSet, env, fmt::Write, fs::read_dir, io::Read, net::SocketAddr, path::PathBuf,
+    collections::{BTreeSet, HashSet}, env, fmt::Write, fs::read_dir, io::Read, net::SocketAddr, path::PathBuf,
     str, thread, time::Duration,
 };
 
@@ -2970,7 +2970,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
-            emit: Vec::new(),
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -2985,7 +2985,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: Vec::new(),
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -3001,7 +3001,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: Vec::new(),
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -3853,7 +3853,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: Vec::new(),
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -4241,7 +4241,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         opts: OptsWithGas::for_testing_emit_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-            vec![EmitOption::BalanceChanges],
+            HashSet::from([EmitOption::BalanceChanges]),
         ),
     }
     .execute(context)
@@ -4271,11 +4271,11 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         opts: OptsWithGas::for_testing_emit_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-            vec![
+            HashSet::from([
                 EmitOption::BalanceChanges,
                 EmitOption::Effects,
                 EmitOption::ObjectChanges,
-            ],
+            ]),
         ),
     }
     .execute(context)
@@ -4307,7 +4307,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         opts: OptsWithGas::for_testing_emit_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-            vec![],
+            HashSet::new(),
         ),
     }
     .execute(context)
