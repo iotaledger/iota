@@ -228,11 +228,11 @@ impl JsonRpcServerBuilder {
         let listener = tokio::net::TcpListener::bind(listen_address)
             .await
             .map_err(|e| {
-                Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+                Error::Unexpected(format!("invalid listen address {listen_address}: {e}"))
             })?;
 
         let addr = listener.local_addr().map_err(|e| {
-            Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+            Error::Unexpected(format!("invalid listen address {listen_address}: {e}"))
         })?;
 
         let fut = async move {

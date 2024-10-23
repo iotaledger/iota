@@ -115,7 +115,7 @@ pub enum UserInputError {
     #[error("Dependent package not found on-chain: {package_id:?}")]
     DependentPackageNotFound { package_id: ObjectID },
     #[error("Mutable parameter provided, immutable parameter expected")]
-    ImmutableParameterExpectedError { object_id: ObjectID },
+    ImmutableParameterExpected { object_id: ObjectID },
     #[error("Size limit exceeded: {limit} is {value}")]
     SizeLimitExceeded { limit: String, value: String },
     #[error(
@@ -143,7 +143,7 @@ pub enum UserInputError {
     IncorrectUserSignature { error: String },
 
     #[error("Object used as shared is not shared")]
-    NotSharedObjectError,
+    NotSharedObject,
     #[error("The transaction inputs contain duplicated ObjectRef's")]
     DuplicateObjectRefInput,
 
@@ -214,7 +214,7 @@ pub enum UserInputError {
     #[error(
         "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call"
     )]
-    TransferObjectWithoutPublicTransferError { object_id: ObjectID },
+    TransferObjectWithoutPublicTransfer { object_id: ObjectID },
 
     #[error(
         "TransferObjects, MergeCoin, and Publish cannot have empty arguments. \
@@ -281,18 +281,18 @@ pub enum UserInputError {
     )]
     TooManyTransactionsInSoftBundle { limit: u64 },
     #[error("Transaction {:?} in Soft Bundle contains no shared objects", digest)]
-    NoSharedObjectError { digest: TransactionDigest },
+    NoSharedObject { digest: TransactionDigest },
     #[error("Transaction {:?} in Soft Bundle has already been executed", digest)]
-    AlreadyExecutedError { digest: TransactionDigest },
+    AlreadyExecuted { digest: TransactionDigest },
     #[error("At least one certificate in Soft Bundle has already been processed")]
-    CeritificateAlreadyProcessed,
+    CertificateAlreadyProcessed,
     #[error(
         "Gas price for transaction {:?} in Soft Bundle mismatch: want {:?}, have {:?}",
         digest,
         expected,
         actual
     )]
-    GasPriceMismatchError {
+    GasPriceMismatch {
         digest: TransactionDigest,
         expected: u64,
         actual: u64,
@@ -337,7 +337,7 @@ pub enum IotaObjectResponseError {
     #[error("Unknown Error")]
     Unknown,
     #[error("Display Error: {:?}", error)]
-    DisplayError { error: String },
+    Display { error: String },
     // TODO: also integrate IotaPastObjectResponse (VersionNotFound,  VersionTooHigh)
 }
 
@@ -541,7 +541,7 @@ pub enum IotaError {
     GenericAuthority { error: String },
 
     #[error("Generic Bridge Error: {error:?}")]
-    GenericBridgeError { error: String },
+    GenericBridge { error: String },
 
     #[error("Failed to dispatch subscription: {error:?}")]
     FailedToDispatchSubscription { error: String },
@@ -611,7 +611,7 @@ pub enum IotaError {
     Rpc(String, String),
 
     #[error("Method not allowed")]
-    InvalidRpcMethodError,
+    InvalidRpcMethod,
 
     // TODO: We should fold this into UserInputError::Unsupported.
     #[error("Use of disabled feature: {:?}", error)]
@@ -671,7 +671,7 @@ pub enum IotaError {
     TooManyRequests,
 
     #[error("The request did not contain a certificate")]
-    NoCertificateProvidedError,
+    NoCertificateProvided,
 }
 
 #[repr(u64)]

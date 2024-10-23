@@ -255,7 +255,7 @@ impl LocalGrafana {
             let mut file = path.clone();
             file.push(format!("instance-{}.yml", i));
             fs::write(&file, Self::datasource(&instance, i)).map_err(|e| {
-                MonitorError::GrafanaError(format!("Failed to write grafana datasource ({e})"))
+                MonitorError::Grafana(format!("Failed to write grafana datasource ({e})"))
             })?;
         }
 
@@ -266,7 +266,7 @@ impl LocalGrafana {
             .arg("grafana")
             .arg("-q")
             .spawn()
-            .map_err(|e| MonitorError::GrafanaError(e.to_string()))?;
+            .map_err(|e| MonitorError::Grafana(e.to_string()))?;
 
         Ok(())
     }
