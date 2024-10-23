@@ -103,7 +103,7 @@ function LeftContent({
         >
             <div
                 className={cn(
-                    'rounded-full p-1 text-neutral-100 [&_svg]:h-5 [&_svg]:w-5',
+                    'flex h-8 w-8 items-center justify-center rounded-full bg-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
                     backgroundColor,
                 )}
             >
