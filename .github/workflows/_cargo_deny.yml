@@ -6,6 +6,7 @@ on:
       manifest-path:
         type: string
         required: false
+        default: "./Cargo.toml"
     secrets:
       SSH_PRIVATE_KEY_IOTA_CI:
         required: true
