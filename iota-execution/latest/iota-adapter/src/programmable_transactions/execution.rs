@@ -599,8 +599,8 @@ mod checked {
 
         // Check digest.
         let computed_digest =
-            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids);
-        if computed_digest != upgrade_ticket.digest.as_ref() {
+            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids).into();
+        if computed_digest != upgrade_ticket.digest {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
                     upgrade_error: PackageUpgradeError::DigestDoesNotMatch {

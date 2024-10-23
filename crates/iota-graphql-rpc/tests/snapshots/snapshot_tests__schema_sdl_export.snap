@@ -1173,6 +1173,10 @@ type Epoch {
 	"""
 	iotaTotalSupply: Int
 	"""
+	The treasury-cap id.
+	"""
+	iotaTreasuryCapId: IotaAddress
+	"""
 	Details of the system that are decided during genesis.
 	"""
 	systemParameters: SystemParameters
@@ -4486,8 +4490,8 @@ type Validator {
 	"""
 	reportRecords(first: Int, before: String, last: Int, after: String): AddressConnection!
 	"""
-	The APY of this validator in basis points.
-	To get the APY in percentage, divide by 100.
+	The APY of this validator in basis points. To get the APY in
+	percentage, divide by 100.
 	"""
 	apy: Int
 }
