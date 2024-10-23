@@ -524,10 +524,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             let name = *name;
             futures.push(async move {
                 client
-                    .handle_certificate_v3(
-                        HandleCertificateRequestV3::new(certificate),
-                        None,
-                    )
+                    .handle_certificate_v3(HandleCertificateRequestV3::new(certificate), None)
                     .map(move |r| (r, name))
                     .await
             });

@@ -61,9 +61,10 @@ macro_rules! assert_matches {
 use fastcrypto::traits::AggregateAuthenticator;
 use iota_types::{
     digests::ConsensusCommitDigest, messages_consensus::ConsensusCommitPrologueV1,
+    messages_grpc::HandleCertificateRequestV3,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
-use iota_types::messages_grpc::HandleCertificateRequestV3;
+
 use super::*;
 pub use crate::authority::authority_test_utils::init_state_with_ids;
 use crate::{
