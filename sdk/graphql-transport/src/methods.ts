@@ -797,6 +797,7 @@ export const RPC_METHODS: {
             epochStartTimestampMs: String(new Date(systemState.startTimestamp).getTime()),
             inactivePoolsSize: String(systemState.validatorSet?.inactivePoolsSize),
             iotaTotalSupply: String(systemState.iotaTotalSupply),
+            iotaTreasuryCapId: String(systemState.iotaTreasuryCapId),
             maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
             minValidatorJoiningStake: String(
                 systemState.systemParameters?.minValidatorJoiningStake,
