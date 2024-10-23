@@ -28,6 +28,10 @@ use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{runtime::Runtime, task::JoinHandle};
+use iota_types::digests::TransactionDigest;
+use iota_json_rpc_api::ReadApiClient;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 
 const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
@@ -146,6 +150,26 @@ pub async fn indexer_wait_for_object(
     })
     .await
     .expect("Timeout waiting for indexer to catchup to given object's sequence number");
+}
+
+pub async fn indexer_wait_for_transaction(
+    tx_digest: TransactionDigest,
+    pg_store: &PgIndexerStore,
+    indexer_client: &HttpClient,
+) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if let Ok(tx) = indexer_client.get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new())).await {
+                if let Some(checkpoint) = tx.checkpoint {
+                    indexer_wait_for_checkpoint(pg_store, checkpoint).await;
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+        .await
+        .expect("Timeout waiting for indexer to catchup to given transaction");
 }
 
 /// Start an Indexer instance in `Read` mode

@@ -98,6 +98,9 @@ use tokio::{
     time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::utils::to_sender_signed_transaction;
 
 const NUM_VALIDATOR: usize = 4;
 
@@ -124,13 +127,19 @@ impl FullNodeHandle {
     }
 }
 
+struct FaucetContext {
+    address: IotaAddress,
+    keypair: IotaKeyPair,
+    mutex: Arc<tokio::sync::Mutex<()>>
+}
+
 pub struct TestCluster {
     pub swarm: Swarm,
     pub wallet: WalletContext,
     pub fullnode_handle: FullNodeHandle,
-
     pub bridge_authority_keys: Option<Vec<BridgeAuthorityKeyPair>>,
     pub bridge_server_ports: Option<Vec<u16>>,
+    faucet: FaucetContext
 }
 
 impl TestCluster {
@@ -790,7 +799,7 @@ impl TestCluster {
         ))
     }
 
-    /// This call sends some funds from the seeded address to the funding
+    /// This call sends some funds from the seeded faucet address to the funding
     /// address for the given amount and returns the gas object ref. This
     /// is useful to construct transactions from the funding address.
     pub async fn fund_address_and_return_gas(
@@ -799,20 +808,32 @@ impl TestCluster {
         amount: Option<u64>,
         funding_address: IotaAddress,
     ) -> ObjectRef {
-        let context = &self.wallet;
-        let (sender, gas) = context.get_one_gas_object().await.unwrap().unwrap();
-        let tx = context.sign_transaction(
-            &TestTransactionBuilder::new(sender, gas, rgp)
-                .transfer_iota(amount, funding_address)
-                .build(),
-        );
-        context.execute_transaction_must_succeed(tx).await;
+        let FaucetContext {
+            address, keypair, mutex
+        } = &self.faucet;
 
-        context
-            .get_one_gas_object_owned_by_address(funding_address)
+        let _lock = mutex.lock().await;
+
+        let gas_ref = self.wallet.get_gas_objects_owned_by_address(*address, None).await.unwrap().first().unwrap().clone();
+
+        let tx_data = TestTransactionBuilder::new(*address, gas_ref, rgp)
+            .transfer_iota(amount, funding_address)
+            .build();
+
+        let signed_transaction = to_sender_signed_transaction(tx_data, keypair);
+
+        let response = self.iota_client()
+            .quorum_driver_api()
+            .execute_transaction_block(
+                signed_transaction,
+                IotaTransactionBlockResponseOptions::new().with_effects(),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
             .await
-            .unwrap()
-            .unwrap()
+            .unwrap();
+
+        response.effects.unwrap().created().first().unwrap().reference.to_object_ref()
+
     }
 
     pub async fn transfer_iota_must_exceed(
@@ -1267,6 +1288,14 @@ impl TestClusterBuilder {
     }
 
     pub async fn build(mut self) -> TestCluster {
+        // Add a faucet address
+        let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
+        let accounts = &mut self.get_or_init_genesis_config().accounts;
+        accounts.push(AccountConfig {
+            address: Some(faucet_address.clone()),
+            gas_amounts: vec![DEFAULT_GAS_AMOUNT],
+        });
+
         // All test clusters receive a continuous stream of random JWKs.
         // If we later use zklogin authenticated transactions in tests we will need to
         // supply valid JWKs as well.
@@ -1329,6 +1358,11 @@ impl TestClusterBuilder {
             fullnode_handle,
             bridge_authority_keys: None,
             bridge_server_ports: None,
+            faucet: FaucetContext {
+                address: faucet_address,
+                keypair: IotaKeyPair::Ed25519(faucet_keypair),
+                mutex: Arc::new(tokio::sync::Mutex::new(())),
+            }
         }
     }
 

@@ -4,13 +4,25 @@
 use std::{str::FromStr, time::SystemTime};
 
 use iota_json_rpc_api::IndexerApiClient;
-use iota_json_rpc_types::{EventFilter, EventPage};
+use iota_json_rpc_types::{EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectRef, IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage, TransactionFilter};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
 };
-
-use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, rpc_call_error_msg_matches};
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_json_rpc_api::WriteApiClient;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::transaction::TransactionData;
+use crate::common::{indexer_wait_for_checkpoint, rpc_call_error_msg_matches, ApiTestSetup, indexer_wait_for_object, indexer_wait_for_transaction};
+use iota_types::transaction::Command;
+use move_core_types::identifier::Identifier;
+use iota_types::IOTA_FRAMEWORK_ADDRESS;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_json::call_args;
+use iota_types::gas_coin::GAS;
+use iota_json::type_args;
+use iota_types::crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair};
+use iota_types::utils::to_sender_signed_transaction;
 
 #[test]
 fn query_events_no_events_descending() {
@@ -162,3 +174,255 @@ fn query_events_supported_events() {
         }
     });
 }
+
+#[test]
+fn test_get_owned_objects() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let address = cluster.get_address_0();
+
+        let objects = client
+            .get_owned_objects(
+                address,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::new(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert_eq!(5, objects.data.len());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+
+        let _gas_ref = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let coin_to_split = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let iota_client = cluster.wallet.get_client().await.unwrap();
+
+        let mut tx_responses = vec![];
+        for _ in 0..5 {
+            let tx_data = iota_client
+                .transaction_builder()
+                .split_coin_equal(address, coin_to_split.0, 2, None, 10_000_000)
+                .await?;
+
+            let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+
+            let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+            let res = client
+                .execute_transaction_block(
+                    tx_bytes,
+                    signatures,
+                    Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                )
+                .await?;
+
+            tx_responses.push(res)
+        }
+
+        let tx_res = tx_responses.pop().unwrap();
+
+        indexer_wait_for_transaction(tx_res.digest, &store, &client).await;
+
+        let objects = client
+            .get_owned_objects(
+                address,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction(),
+                )),
+                None,
+                None,
+            )
+            .await?
+            .data;
+
+        // 2 gas coins + 5 coins from the split
+        assert_eq!(7, objects.len());
+
+        // filter transactions by address
+        let query = IotaTransactionBlockResponseQuery {
+            options: Some(IotaTransactionBlockResponseOptions {
+                show_input: true,
+                show_effects: true,
+                show_events: true,
+                ..Default::default()
+            }),
+            filter: Some(TransactionFilter::FromAddress(address)),
+        };
+
+        let first_page = iota_client
+            .read_api()
+            .query_transaction_blocks(query.clone(), None, Some(3), true)
+            .await
+            .unwrap();
+        assert_eq!(3, first_page.data.len());
+        assert!(first_page.data[0].transaction.is_some());
+        assert!(first_page.data[0].effects.is_some());
+        assert!(first_page.data[0].events.is_some());
+        assert!(first_page.has_next_page);
+
+        // Read the next page for the last transaction
+        let next_page = iota_client
+            .read_api()
+            .query_transaction_blocks(query, first_page.next_cursor, None, true)
+            .await
+            .unwrap();
+
+        assert_eq!(2, next_page.data.len());
+        assert!(next_page.data[0].transaction.is_some());
+        assert!(next_page.data[0].effects.is_some());
+        assert!(next_page.data[0].events.is_some());
+        assert!(!next_page.has_next_page);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+
+        let gas = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let coin_1 = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let coin_2 = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let iota_client = cluster.wallet.get_client().await.unwrap();
+
+        indexer_wait_for_object(&store, gas.0, gas.1).await;
+        indexer_wait_for_object(&store, coin_1.0, coin_1.1).await;
+        indexer_wait_for_object(&store, coin_2.0, coin_2.1).await;
+
+        let objects = client
+            .get_owned_objects(
+                address,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction(),
+                )),
+                None,
+                None,
+            )
+            .await?
+            .data;
+
+        assert_eq!(objects.len(), 3);
+
+        // make 2 move calls of same package & module, but different functions
+        let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+        let signer = address;
+
+        let tx_builder = iota_client.transaction_builder().clone();
+        let mut pt_builder = ProgrammableTransactionBuilder::new();
+
+        let module = Identifier::from_str("pay")?;
+        let function_1 = Identifier::from_str("split")?;
+        let function_2 = Identifier::from_str("divide_and_keep")?;
+
+        let iota_type_args = type_args![GAS::type_tag()]?;
+        let type_args = iota_type_args
+            .into_iter()
+            .map(|ty| ty.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let iota_call_args_1 = call_args!(coin_1.0, 10)?;
+        let call_args_1 = tx_builder
+            .resolve_and_checks_json_args(
+                &mut pt_builder,
+                package_id,
+                &module,
+                &function_1,
+                &type_args,
+                iota_call_args_1,
+            )
+            .await?;
+        let cmd_1 = Command::move_call(
+            package_id,
+            module.clone(),
+            function_1,
+            type_args.clone(),
+            call_args_1.clone(),
+        );
+
+        let iota_call_args_2 = call_args!(coin_2.0, 10)?;
+        let call_args_2 = tx_builder
+            .resolve_and_checks_json_args(
+                &mut pt_builder,
+                package_id,
+                &module,
+                &function_2,
+                &type_args,
+                iota_call_args_2,
+            )
+            .await?;
+        let cmd_2 = Command::move_call(package_id, module, function_2, type_args, call_args_2);
+        pt_builder.command(cmd_1);
+        pt_builder.command(cmd_2);
+        let pt = pt_builder.finish();
+
+        let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+
+        let response = iota_client
+            .quorum_driver_api()
+            .execute_transaction_block(
+                signed_transaction,
+                IotaTransactionBlockResponseOptions::new(),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await
+            .unwrap();
+
+        indexer_wait_for_transaction(response.digest, &store, &client).await;
+
+        // match with None function, the DB should have 2 records, but both points to
+        // the same tx
+        let filter = TransactionFilter::FromAddress(signer);
+        let move_call_query = IotaTransactionBlockResponseQuery::new_with_filter(filter);
+        let res = client
+            .query_transaction_blocks(move_call_query, None, Some(20), Some(true))
+            .await
+            .unwrap();
+
+        assert_eq!(1, res.data.len());
+
+        Ok(())
+    })
+}
+
