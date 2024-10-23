@@ -51,7 +51,6 @@ use tracing::{debug, info, warn};
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     consensus_handler::{SequencedConsensusTransactionKey, classify},
-    consensus_throughput_calculator::ConsensusThroughputProfiler,
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
     metrics::LatencyObserver,
 };
@@ -241,9 +240,6 @@ pub struct ConsensusAdapter {
     connection_monitor_status: Arc<dyn CheckConnection>,
     /// A structure to check the reputation scores populated by Consensus
     low_scoring_authorities: ArcSwap<Arc<ArcSwap<HashMap<AuthorityName, u64>>>>,
-    /// The throughput profiler to be used when making decisions to submit to
-    /// consensus
-    consensus_throughput_profiler: ArcSwapOption<ConsensusThroughputProfiler>,
     /// A structure to register metrics
     metrics: ConsensusAdapterMetrics,
     /// Semaphore limiting parallel submissions to narwhal
@@ -298,7 +294,6 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
-            consensus_throughput_profiler: ArcSwapOption::empty(),
             protocol_config,
         }
     }
@@ -308,10 +303,6 @@ impl ConsensusAdapter {
         new_low_scoring: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
     ) {
         self.low_scoring_authorities.swap(Arc::new(new_low_scoring));
-    }
-
-    pub fn swap_throughput_profiler(&self, profiler: Arc<ConsensusThroughputProfiler>) {
-        self.consensus_throughput_profiler.store(Some(profiler))
     }
 
     // todo - this probably need to hold some kind of lock to make sure epoch does

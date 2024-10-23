@@ -50,10 +50,8 @@ use iota_core::{
         CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
         SubmitToConsensus,
     },
+    consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{ConsensusClient, ConsensusManager, ConsensusManagerTrait},
-    consensus_throughput_calculator::{
-        ConsensusThroughputCalculator, ConsensusThroughputProfiler, ThroughputProfileRanges,
-    },
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     db_checkpoint_handler::DBCheckpointHandler,
     epoch::{
@@ -65,11 +63,13 @@ use iota_core::{
     module_cache_metrics::ResolverMetrics,
     overload_monitor::overload_monitor,
     rest_index::RestIndexStore,
+    safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
     state_accumulator::{StateAccumulator, StateAccumulatorMetrics},
     storage::{RestReadStore, RocksDbStore},
     traffic_controller::metrics::TrafficControllerMetrics,
     transaction_orchestrator::TransactionOrchestrator,
+    validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_json_rpc::{
     JsonRpcServerBuilder, bridge_api::BridgeReadApi, coin_api::CoinReadApi,
@@ -99,6 +99,7 @@ use iota_types::{
     crypto::{KeypairTraits, RandomnessRound},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
+    execution_config_utils::to_binary_config,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
@@ -115,6 +116,10 @@ use narwhal_network::metrics::{
     MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
 };
 use prometheus::Registry;
+#[cfg(msim)]
+pub use simulator::set_jwk_injector;
+#[cfg(msim)]
+use simulator::*;
 use tap::tap::TapFallible;
 use tokio::{
     runtime::Handle,
@@ -150,6 +155,7 @@ mod simulator {
     use std::sync::atomic::AtomicBool;
 
     use super::*;
+
     pub(super) struct SimState {
         pub sim_node: iota_simulator::runtime::NodeHandle,
         pub sim_safe_mode_expected: AtomicBool,
@@ -196,16 +202,6 @@ mod simulator {
         JWK_INJECTOR.with(|cell| *cell.borrow_mut() = injector);
     }
 }
-
-use iota_core::{
-    consensus_handler::ConsensusHandlerInitializer, safe_client::SafeClientMetricsBase,
-    validator_tx_finalizer::ValidatorTxFinalizer,
-};
-use iota_types::execution_config_utils::to_binary_config;
-#[cfg(msim)]
-pub use simulator::set_jwk_injector;
-#[cfg(msim)]
-use simulator::*;
 
 pub struct IotaNode {
     config: NodeConfig,
@@ -1315,27 +1311,11 @@ impl IotaNode {
                 .await?;
         }
 
-        let throughput_calculator = Arc::new(ConsensusThroughputCalculator::new(
-            None,
-            state.metrics.clone(),
-        ));
-
-        let throughput_profiler = Arc::new(ConsensusThroughputProfiler::new(
-            throughput_calculator.clone(),
-            None,
-            None,
-            state.metrics.clone(),
-            ThroughputProfileRanges::from_chain(epoch_store.get_chain_identifier()),
-        ));
-
-        consensus_adapter.swap_throughput_profiler(throughput_profiler);
-
         let consensus_handler_initializer = ConsensusHandlerInitializer::new(
             state.clone(),
             checkpoint_service.clone(),
             epoch_store.clone(),
             low_scoring_authorities,
-            throughput_calculator,
         );
 
         consensus_manager
