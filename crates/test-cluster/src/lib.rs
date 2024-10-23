@@ -79,6 +79,7 @@ use iota_types::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     message_envelope::Message,
+    messages_grpc::HandleCertificateRequestV3,
     object::Object,
     quorum_driver_types::ExecuteTransactionRequestType,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -98,7 +99,6 @@ use tokio::{
     time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
-use iota_types::messages_grpc::HandleCertificateRequestV3;
 
 const NUM_VALIDATOR: usize = 4;
 
