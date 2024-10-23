@@ -7,12 +7,13 @@ import { readFile } from 'fs/promises';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path, { resolve } from 'node:path';
 
-const VERSION = '2024.10.0';
-const MINOR_VERSION = '2024.10';
+const BRANCH = 'develop';
 const MAJOR = 2024;
 const MINOR = 10;
 const PATCH = 0;
-const BRANCH = 'develop';
+
+const VERSION = `${MAJOR}.${MINOR}.${PATCH}`;
+const MINOR_VERSION = `${MAJOR}.${MINOR}`;
 
 const releases = [
     {
