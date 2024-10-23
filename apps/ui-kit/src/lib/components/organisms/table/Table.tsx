@@ -56,7 +56,7 @@ export type TableProps = {
      */
     paginationOptions?: TablePaginationOptions;
     /**
-     * The action component..
+     * The action component.
      */
     action?: ReactNode;
     /**
@@ -71,6 +71,10 @@ export type TableProps = {
      * Numeric indexes of all the rows.
      */
     rowIndexes: number[];
+    /**
+     * The page size selector component.
+     */
+    pageSizeSelector?: ReactNode;
 };
 
 export function Table({
@@ -80,6 +84,7 @@ export function Table({
     selectedRowIndexes = new Set(),
     rowIndexes,
     children,
+    pageSizeSelector,
 }: PropsWithChildren<TableProps>): JSX.Element {
     return (
         <TableProvider selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
@@ -130,6 +135,7 @@ export function Table({
                             {supportingLabel}
                         </span>
                     )}
+                    {pageSizeSelector && <div>{pageSizeSelector}</div>}
                 </div>
             </div>
         </TableProvider>
