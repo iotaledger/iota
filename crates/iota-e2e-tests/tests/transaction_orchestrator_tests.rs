@@ -304,7 +304,7 @@ async fn execute_with_orchestrator(
 }
 
 #[sim_test]
-async fn execute_transaction_v3() -> Result<(), anyhow::Error> {
+async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     let handle = &test_cluster.fullnode_handle.iota_node;
@@ -328,7 +328,7 @@ async fn execute_transaction_v3() -> Result<(), anyhow::Error> {
         include_output_objects: true,
         include_auxiliary_data: false,
     };
-    let response = orchestrator.execute_transaction_v3(request, None).await?;
+    let response = orchestrator.execute_transaction_v1(request, None).await?;
     let fx = &response.effects.effects;
 
     let mut expected_input_objects = fx.modified_at_versions();
@@ -362,7 +362,7 @@ async fn execute_transaction_v3() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn execute_transaction_v3_staking_transaction() -> Result<(), anyhow::Error> {
+async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     let handle = &test_cluster.fullnode_handle.iota_node;
@@ -387,7 +387,7 @@ async fn execute_transaction_v3_staking_transaction() -> Result<(), anyhow::Erro
         include_output_objects: true,
         include_auxiliary_data: false,
     };
-    let response = orchestrator.execute_transaction_v3(request, None).await?;
+    let response = orchestrator.execute_transaction_v1(request, None).await?;
     let fx = &response.effects.effects;
 
     let mut expected_input_objects = fx.modified_at_versions();

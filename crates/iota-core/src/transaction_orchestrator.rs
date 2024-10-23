@@ -213,9 +213,9 @@ where
 
     // Utilize the handle_certificate_v3 validator api to request input/output
     // objects
-    #[instrument(name = "tx_orchestrator_execute_transaction_v3", level = "trace", skip_all,
+    #[instrument(name = "tx_orchestrator_execute_transaction_v1", level = "trace", skip_all,
                  fields(tx_digest = ?request.transaction.digest()))]
-    pub async fn execute_transaction_v3(
+    pub async fn execute_transaction_v1(
         &self,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
@@ -738,6 +738,6 @@ where
         request: ExecuteTransactionRequestV1,
         client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        self.execute_transaction_v3(request, client_addr).await
+        self.execute_transaction_v1(request, client_addr).await
     }
 }
