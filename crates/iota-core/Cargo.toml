@@ -90,7 +90,6 @@ iota-types.workspace = true
 narwhal-types.workspace = true
 nonempty.workspace = true
 shared-crypto.workspace = true
-time = "0.3.36"
 zeroize = "1.6"
 
 [dev-dependencies]

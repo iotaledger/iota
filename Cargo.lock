@@ -6237,7 +6237,6 @@ dependencies = [
  "test-cluster",
  "test-fuzz",
  "thiserror",
- "time",
  "tokio",
  "tokio-stream",
  "tracing",
