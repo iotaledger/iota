@@ -61,27 +61,26 @@ fn populated_genesis_snapshot_matches() {
         .generate_accounts(StdRng::from_seed([0; 32]))
         .unwrap();
     let mut rng = StdRng::from_seed([0; 32]);
-    let key: AuthorityKeyPair = get_key_pair_from_rng(&mut rng).1;
-    let worker_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
+    let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rng).1;
+    let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
     let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
     let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rng).1;
     let validator = ValidatorInfo {
         name: "0".into(),
-        protocol_key: key.public().into(),
-        worker_key: worker_key.public().clone(),
+        authority_key: authority_key.public().into(),
+        protocol_key: protocol_key.public().clone(),
         account_address: IotaAddress::from(account_key.public()),
         network_key: network_key.public().clone(),
         gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
         commission_rate: DEFAULT_COMMISSION_RATE,
         network_address: "/ip4/127.0.0.1/tcp/80".parse().unwrap(),
         p2p_address: "/ip4/127.0.0.1/udp/80".parse().unwrap(),
-        narwhal_primary_address: "/ip4/127.0.0.1/udp/80".parse().unwrap(),
-        narwhal_worker_address: "/ip4/127.0.0.1/udp/80".parse().unwrap(),
+        primary_address: "/ip4/127.0.0.1/udp/80".parse().unwrap(),
         description: String::new(),
         image_url: String::new(),
         project_url: String::new(),
     };
-    let pop = generate_proof_of_possession(&key, account_key.public().into());
+    let pop = generate_proof_of_possession(&authority_key, account_key.public().into());
 
     let token_distribution_schedule = {
         let mut builder = TokenDistributionScheduleBuilder::new();
@@ -99,7 +98,7 @@ fn populated_genesis_snapshot_matches() {
             chain_start_timestamp_ms: 10,
             ..GenesisCeremonyParameters::new()
         })
-        .add_validator_signature(&key)
+        .add_validator_signature(&authority_key)
         .build();
     assert_yaml_snapshot!(genesis.iota_system_wrapper_object());
     assert_yaml_snapshot!(
@@ -139,7 +138,6 @@ fn network_config_snapshot_matches() {
         validator_config.p2p_config.external_address = None;
         validator_config.admin_interface_port = 8888;
         if let Some(consensus_config) = validator_config.consensus_config.as_mut() {
-            consensus_config.address = Multiaddr::empty();
             consensus_config.db_path = PathBuf::from("/tmp/foo/");
         }
     }

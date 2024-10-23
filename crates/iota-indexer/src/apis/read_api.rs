@@ -88,7 +88,7 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
                                     IotaObjectData::new(object_ref, o, layout, options, None)
                                         .map_err(internal_error)?,
                                 ),
-                                Some(IotaObjectResponseError::DisplayError {
+                                Some(IotaObjectResponseError::Display {
                                     error: e.to_string(),
                                 }),
                             ));
