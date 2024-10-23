@@ -603,8 +603,8 @@ async fn test_traffic_sketch_no_blocks() {
         spam_policy_type: PolicyType::NoOp,
         error_policy_type: PolicyType::FreqThreshold(sketch_config),
         // keeping channel capacity small results in less errors in test metrics,
-        // in case of congestion (due to running on slower hardware) request is dropped
-        // and do not influence the rate and make spam rate inconsistent
+        // in case of congestion (due to running on slower hardware) requests are dropped
+        // and do not influence the rate and do not make the spam rate inconsistent
         channel_capacity: 10,
         dry_run: false,
         ..Default::default()
