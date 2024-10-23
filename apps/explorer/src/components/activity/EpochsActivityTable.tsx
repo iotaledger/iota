@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { InfoBox, InfoBoxStyle, InfoBoxType, Select } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
 import { useIotaClientQuery, useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
 import { Warning } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import { generateEpochsTableColumns } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';
@@ -71,29 +70,27 @@ export function EpochsActivityTable({
                     data={data.data}
                     columns={tableColumns}
                     totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
-                    viewAll={!disablePagination ? '/recent?tab=epochs' : undefined}
+                    viewAll="/recent?tab=epochs"
                     paginationOptions={!disablePagination ? pagination : undefined}
+                    pageSizeSelector={
+                        !disablePagination && (
+                            <Select
+                                value={limit.toString()}
+                                options={[
+                                    { id: '20', label: '20 / page' },
+                                    { id: '40', label: '40 / page' },
+                                    { id: '60', label: '60 / page' },
+                                ]}
+                                size={SelectSize.Small}
+                                onValueChange={(e) => {
+                                    setLimit(Number(e));
+                                    pagination.onFirst();
+                                }}
+                            />
+                        )
+                    }
                 />
             )}
-
-            <div className="flex justify-between">
-                <div className="flex items-center space-x-3">
-                    {!disablePagination && (
-                        <Select
-                            value={limit.toString()}
-                            options={[
-                                { id: '20', label: '20 Per Page' },
-                                { id: '40', label: '40 Per Page' },
-                                { id: '60', label: '60 Per Page' },
-                            ]}
-                            onValueChange={(e) => {
-                                setLimit(Number(e));
-                                pagination.onFirst();
-                            }}
-                        />
-                    )}
-                </div>
-            </div>
         </div>
     );
 }

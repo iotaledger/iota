@@ -4,7 +4,7 @@
 
 import { DropdownPosition, Select, SelectSize } from '@iota/apps-ui-kit';
 import { useState } from 'react';
-import { Pagination, PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
+import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
@@ -35,27 +35,28 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
                 />
             ) : (
                 <div>
-                    <TableCard data={data.data} columns={tableColumns} />
-                </div>
-            )}
-            <div className="flex items-center justify-between">
-                <Pagination {...pagination} />
-                <div className="flex items-center gap-3">
-                    <Select
-                        dropdownPosition={DropdownPosition.Top}
-                        value={limit.toString()}
-                        options={PAGE_SIZES.map((size) => ({
-                            label: `${size} / page`,
-                            id: size.toString(),
-                        }))}
-                        onValueChange={(value) => {
-                            setLimit(Number(value));
-                            pagination.onFirst();
-                        }}
-                        size={SelectSize.Small}
+                    <TableCard
+                        data={data.data}
+                        columns={tableColumns}
+                        paginationOptions={pagination}
+                        pageSizeSelector={
+                            <Select
+                                dropdownPosition={DropdownPosition.Top}
+                                value={limit.toString()}
+                                options={PAGE_SIZES.map((size) => ({
+                                    label: `${size} / page`,
+                                    id: size.toString(),
+                                }))}
+                                onValueChange={(value) => {
+                                    setLimit(Number(value));
+                                    pagination.onFirst();
+                                }}
+                                size={SelectSize.Small}
+                            />
+                        }
                     />
                 </div>
-            </div>
+            )}
         </div>
     );
 }
