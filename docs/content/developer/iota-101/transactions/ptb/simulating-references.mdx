@@ -107,7 +107,7 @@ Defined as `struct Borrow { ref: address, obj: ID }`, it cannot be dropped or st
 ensuring it is consumed within the same transaction (the hot potato pattern).
 This structure ensures you cannot keep the retrieved object or swap it with another, maintaining consistency.
 
-:::cautio
+:::caution
 
 Using `Referent` requires explicit changes to your codebase and can be intrusive.
 Carefully consider this approach when designing your solution.
