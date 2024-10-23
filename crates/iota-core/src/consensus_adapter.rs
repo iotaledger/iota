@@ -51,7 +51,7 @@ use tracing::{debug, info, warn};
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     consensus_handler::{SequencedConsensusTransactionKey, classify},
-    consensus_throughput_calculator::{ConsensusThroughputProfiler, Level},
+    consensus_throughput_calculator::ConsensusThroughputProfiler,
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
     metrics::LatencyObserver,
 };
