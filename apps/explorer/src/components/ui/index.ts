@@ -25,5 +25,4 @@ export * from './ProgressCircle';
 export * from './RingChart';
 export * from './SplitPanes';
 export * from './TableCard';
-export * from './Tooltip';
 export * from './VerticalList';
