@@ -17,7 +17,7 @@
         "declaration": true,
         "declarationMap": true,
         "outDir": "dist",
-        "noEmit": false,
+        "noEmit": true,
         "paths": {
             "@/*": ["./src/*"],
             "@/components": ["./src/lib/components"],
