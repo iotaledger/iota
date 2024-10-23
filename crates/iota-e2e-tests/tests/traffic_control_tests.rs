@@ -102,7 +102,7 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
-        spam_policy_type: PolicyType::TestNConnIP(10),
+        spam_policy_type: PolicyType::TestNConnIP(5),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
         error_policy_type: PolicyType::TestPanicOnInvocation,
