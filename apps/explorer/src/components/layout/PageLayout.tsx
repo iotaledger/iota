@@ -10,8 +10,8 @@ import { type ReactNode, useRef } from 'react';
 import Footer from '../footer/Footer';
 import Header from '../header/Header';
 import { useNetworkContext } from '~/contexts';
-import { Banner } from '~/components/ui';
-import { LoadingIndicator } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Info } from '@iota/ui-icons';
 
 type PageLayoutProps = {
     content: ReactNode;
@@ -47,9 +47,12 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
         <div className="relative min-h-screen w-full">
             <section ref={headerRef} className="fixed top-0 z-20 flex w-full flex-col">
                 {renderNetworkDegradeBanner && (
-                    <Banner rounded="none" align="center" variant="warning" fullWidth>
-                        <div className="break-normal">{networkDegradeBannerCopy}</div>
-                    </Banner>
+                    <InfoBox
+                        supportingText={networkDegradeBannerCopy}
+                        icon={<Info />}
+                        type={InfoBoxType.Default}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 )}
                 <Header />
             </section>

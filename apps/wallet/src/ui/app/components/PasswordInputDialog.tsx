@@ -3,24 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
-import FieldLabel from '_src/ui/app/shared/field-label';
-import { PasswordInputField } from '_src/ui/app/shared/input/password';
 import { Text } from '_src/ui/app/shared/text';
 import classNames from 'clsx';
-import { ErrorMessage, Form, Formik } from 'formik';
+import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
-import { Loader, Warning } from '@iota/ui-icons';
-import {
-    Button,
-    ButtonHtmlType,
-    ButtonType,
-    InfoBox,
-    InfoBoxStyle,
-    InfoBoxType,
-    Header,
-} from '@iota/apps-ui-kit';
+import { Loader } from '@iota/ui-icons';
+import { Button, ButtonHtmlType, ButtonType, Header, InputType } from '@iota/apps-ui-kit';
+import { PasswordInputField } from '../shared/input/password';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),
@@ -68,7 +59,7 @@ export function PasswordInputDialog({
             validationSchema={validation}
             validateOnMount
         >
-            {({ isSubmitting, isValid }) => (
+            {({ isSubmitting, isValid, errors }) => (
                 <Form
                     className={classNames('flex flex-1 flex-col flex-nowrap items-center gap-7.5', {
                         'bg-white': background,
@@ -77,20 +68,12 @@ export function PasswordInputDialog({
                 >
                     <Header title={title} titleCentered />
                     <div className="flex-1 self-stretch">
-                        <FieldLabel txt="Enter Wallet Password to Continue">
-                            <PasswordInputField name="password" />
-                            <ErrorMessage
-                                render={(error) => (
-                                    <InfoBox
-                                        type={InfoBoxType.Error}
-                                        title={error}
-                                        icon={<Warning />}
-                                        style={InfoBoxStyle.Elevated}
-                                    />
-                                )}
-                                name="password"
-                            />
-                        </FieldLabel>
+                        <PasswordInputField
+                            name="password"
+                            type={InputType.Password}
+                            label="Enter your wallet password to continue"
+                            errorMessage={errors.password}
+                        />
                         <div className="mt-4 text-center">
                             <Text variant="pBodySmall" color="steel-dark" weight="normal">
                                 This is the password you currently use to lock and unlock your IOTA
