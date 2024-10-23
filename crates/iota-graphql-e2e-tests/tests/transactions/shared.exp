@@ -42,7 +42,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xbdb330154278907b67b652840e36ea7a17344e858e0d582bc73a29ece1d200dc",
+                  "package": "0x71d87e5791ff3906a59a0b2eadfd040b887268dc8e7884306955093c3619fe52",
                   "module": "m",
                   "functionName": "get"
                 }
@@ -55,17 +55,17 @@ Response: {
               "nodes": [
                 {
                   "__typename": "SharedObjectRead",
-                  "address": "0x95e6d9952ac8897e76dfd3aa13798263034fded2565dc3a52713b9cab248247d",
+                  "address": "0x88e7759df0b28bfbbd82a3c53839e2b2f13d6cbb24e1db5f61c4d9d4f9666d2a",
                   "version": 2,
-                  "digest": "A6oBMaAnevpcp2X5hXm8WeX14v6u4Z5hDf2W1kkLJXiq",
+                  "digest": "Edb4KNHLUj8S5V3zq9Q9mT8pj7UxHdTX8s3hQY9aTuiv",
                   "object": {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0xbdb330154278907b67b652840e36ea7a17344e858e0d582bc73a29ece1d200dc::m::Foo"
+                          "repr": "0x71d87e5791ff3906a59a0b2eadfd040b887268dc8e7884306955093c3619fe52::m::Foo"
                         },
                         "json": {
-                          "id": "0x95e6d9952ac8897e76dfd3aa13798263034fded2565dc3a52713b9cab248247d",
+                          "id": "0x88e7759df0b28bfbbd82a3c53839e2b2f13d6cbb24e1db5f61c4d9d4f9666d2a",
                           "x": "0"
                         }
                       }
@@ -82,7 +82,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xbdb330154278907b67b652840e36ea7a17344e858e0d582bc73a29ece1d200dc",
+                  "package": "0x71d87e5791ff3906a59a0b2eadfd040b887268dc8e7884306955093c3619fe52",
                   "module": "m",
                   "functionName": "inc"
                 }
@@ -102,12 +102,12 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xbdb330154278907b67b652840e36ea7a17344e858e0d582bc73a29ece1d200dc",
+                  "package": "0x71d87e5791ff3906a59a0b2eadfd040b887268dc8e7884306955093c3619fe52",
                   "module": "m",
                   "functionName": "get"
                 },
                 {
-                  "package": "0xbdb330154278907b67b652840e36ea7a17344e858e0d582bc73a29ece1d200dc",
+                  "package": "0x71d87e5791ff3906a59a0b2eadfd040b887268dc8e7884306955093c3619fe52",
                   "module": "m",
                   "functionName": "inc"
                 }

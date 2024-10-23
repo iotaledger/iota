@@ -41,12 +41,12 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "vector<u8>"
+                "repr": "u64"
               },
               "data": {
-                "Vector": []
+                "Number": "0"
               },
-              "bcs": "AA=="
+              "bcs": "AAAAAAAAAAA="
             },
             "value": {
               "__typename": "MoveValue"
@@ -55,12 +55,12 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
+                "repr": "bool"
               },
               "data": {
-                "Number": "0"
+                "Bool": false
               },
-              "bcs": "AAAAAAAAAAA="
+              "bcs": "AA=="
             },
             "value": {
               "__typename": "MoveValue"
@@ -83,10 +83,10 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "bool"
+                "repr": "vector<u8>"
               },
               "data": {
-                "Bool": false
+                "Vector": []
               },
               "bcs": "AA=="
             },
@@ -121,12 +121,12 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "vector<u8>"
+                "repr": "u64"
               },
               "data": {
-                "Vector": []
+                "Number": "0"
               },
-              "bcs": "AA=="
+              "bcs": "AAAAAAAAAAA="
             },
             "value": {
               "__typename": "MoveValue"
@@ -135,12 +135,12 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
+                "repr": "bool"
               },
               "data": {
-                "Number": "0"
+                "Bool": false
               },
-              "bcs": "AAAAAAAAAAA="
+              "bcs": "AA=="
             },
             "value": {
               "__typename": "MoveValue"
@@ -163,10 +163,10 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "bool"
+                "repr": "vector<u8>"
               },
               "data": {
-                "Bool": false
+                "Vector": []
               },
               "bcs": "AA=="
             },
@@ -190,24 +190,6 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "vector<u8>"
-              },
-              "data": {
-                "Vector": []
-              },
-              "bcs": "AA=="
-            },
-            "value": {
-              "bcs": "AQAAAAAAAAA=",
-              "data": {
-                "Number": "1"
-              },
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
                 "repr": "u64"
               },
               "data": {
@@ -219,6 +201,24 @@ Response: {
               "bcs": "AAAAAAAAAAA=",
               "data": {
                 "Number": "0"
+              },
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "bool"
+              },
+              "data": {
+                "Bool": false
+              },
+              "bcs": "AA=="
+            },
+            "value": {
+              "bcs": "AgAAAAAAAAA=",
+              "data": {
+                "Number": "2"
               },
               "__typename": "MoveValue"
             }
@@ -240,17 +240,17 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "bool"
+                "repr": "vector<u8>"
               },
               "data": {
-                "Bool": false
+                "Vector": []
               },
               "bcs": "AA=="
             },
             "value": {
-              "bcs": "AgAAAAAAAAA=",
+              "bcs": "AQAAAAAAAAA=",
               "data": {
-                "Number": "2"
+                "Number": "1"
               },
               "__typename": "MoveValue"
             }

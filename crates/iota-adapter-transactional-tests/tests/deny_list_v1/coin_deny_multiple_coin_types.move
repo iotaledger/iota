@@ -16,7 +16,7 @@ module test::regulated_coin1 {
     public struct REGULATED_COIN1 has drop {}
 
     fun init(otw: REGULATED_COIN1, ctx: &mut TxContext) {
-        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v1(
             otw,
             9,
             b"RC",
@@ -40,7 +40,7 @@ module test::regulated_coin2 {
     public struct REGULATED_COIN2 has drop {}
 
     fun init(otw: REGULATED_COIN2, ctx: &mut TxContext) {
-        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v1(
             otw,
             9,
             b"RC",
@@ -65,7 +65,7 @@ module test::regulated_coin2 {
 //# view-object 1,1
 
 // Deny account A for coin2.
-//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,5) @A --type-args test::regulated_coin2::REGULATED_COIN2 --sender A
+//# run iota::coin::deny_list_v1_add --args object(0x403) object(1,5) @A --type-args test::regulated_coin2::REGULATED_COIN2 --sender A
 
 //# programmable --sender A --inputs object(1,0) object(1,1) @A
 //> TransferObjects([Input(0), Input(1)], Input(2))

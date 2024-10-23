@@ -11,14 +11,14 @@ unchanged_shared: 0x000000000000000000000000000000000000000000000000000000000000
 gas summary: computation_cost: 1000000, storage_cost: 20428800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 55-57:
-//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-events: Event { package_id: iota, transaction_module: Identifier("coin"), sender: A, type_: StructTag { address: iota, module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0, 96, 50, 56, 55, 48, 99, 57, 98, 53, 49, 53, 53, 57, 55, 99, 99, 55, 98, 57, 56, 98, 99, 56, 56, 57, 57, 97, 54, 52, 101, 54, 50, 50, 101, 55, 57, 101, 57, 102, 57, 101, 98, 48, 52, 50, 55, 99, 101, 51, 48, 55, 99, 50, 49, 97, 101, 50, 53, 100, 100, 98, 97, 52, 99, 57, 58, 58, 114, 101, 103, 117, 108, 97, 116, 101, 100, 95, 99, 111, 105, 110, 58, 58, 82, 69, 71, 85, 76, 65, 84, 69, 68, 95, 67, 79, 73, 78, 77, 135, 41, 28, 157, 76, 202, 56, 87, 241, 81, 1, 31, 153, 218, 62, 58, 220, 242, 78, 53, 237, 43, 185, 8, 239, 39, 19, 211, 211, 138, 185] }
+//# run iota::coin::deny_list_v1_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+events: Event { package_id: iota, transaction_module: Identifier("coin"), sender: A, type_: StructTag { address: iota, module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0, 96, 56, 97, 102, 99, 50, 53, 53, 100, 98, 49, 55, 55, 102, 56, 56, 102, 52, 49, 55, 54, 101, 98, 57, 53, 49, 100, 55, 99, 50, 102, 100, 49, 52, 54, 52, 51, 99, 52, 55, 56, 56, 55, 55, 97, 57, 51, 100, 101, 102, 101, 99, 54, 100, 101, 53, 56, 98, 52, 102, 102, 48, 57, 57, 54, 58, 58, 114, 101, 103, 117, 108, 97, 116, 101, 100, 95, 99, 111, 105, 110, 58, 58, 82, 69, 71, 85, 76, 65, 84, 69, 68, 95, 67, 79, 73, 78, 200, 43, 69, 14, 230, 177, 181, 7, 175, 120, 189, 53, 103, 99, 234, 147, 102, 94, 137, 176, 121, 164, 12, 14, 220, 228, 228, 153, 21, 48, 176, 221] }
 created: object(2,0), object(2,1), object(2,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
 gas summary: computation_cost: 1000000, storage_cost: 12190400,  storage_rebate: 2774000, non_refundable_storage_fee: 0
 
 task 3, lines 58-60:
-//# run iota::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v1_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 created: object(3,0)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
 gas summary: computation_cost: 1000000, storage_cost: 6657600,  storage_rebate: 4400400, non_refundable_storage_fee: 0
@@ -88,13 +88,13 @@ Contents: iota::dynamic_field::Field<iota::deny_list::GlobalPauseKey, iota::conf
 }
 
 task 6, lines 66-68:
-//# run iota::coin::deny_list_v2_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
 deleted: object(2,1)
 gas summary: computation_cost: 1000000, storage_cost: 4400400,  storage_rebate: 6862800, non_refundable_storage_fee: 0
 
 task 7, lines 69-71:
-//# run iota::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
 deleted: object(3,0)
 gas summary: computation_cost: 1000000, storage_cost: 4400400,  storage_rebate: 6657600, non_refundable_storage_fee: 0

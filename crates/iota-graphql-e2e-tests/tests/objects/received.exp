@@ -30,7 +30,7 @@ Response: {
       "receivedTransactionBlocks": {
         "nodes": [
           {
-            "digest": "2U8x6TCqGmabbywmWU3undDb6YMuJvLEVB8pbNrEPyh2"
+            "digest": "CdmEdMiMSJqG6gBt3UVYWuoWNQVuzpbiM2kAV4wxhrzw"
           }
         ]
       }

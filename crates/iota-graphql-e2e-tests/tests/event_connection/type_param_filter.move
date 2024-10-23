@@ -79,7 +79,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  events(filter: {eventType: "@{Test}::M1::EventA<@{Test}::M1::T2>", transactionDigest: "E9xCv1AWfvmLq2QRoRo7kMW1UQyW1D9raDPcTFy5si8i"}) {
+  events(filter: {eventType: "@{Test}::M1::EventA<@{Test}::M1::T2>", transactionDigest: "8bEBaTe64zp4HtJrttdfzuUiX5g157r4RKnD4jTLqZAS"}) {
     nodes {
       type {
         repr
