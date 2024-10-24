@@ -332,6 +332,7 @@ def run_dprint_fmt(directory):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Format the Cargo.toml files and sort internal and external dependencies.')
     parser.add_argument('--target', default="../../", help='Target directory to search in.')
+    parser.add_argument('--skip-dprint', action='store_true', help='Skip running dprint fmt.')
     parser.add_argument('--debug', action='store_true', help='Display the line where the occurrence was found.')
     
     args = parser.parse_args()
@@ -348,4 +349,5 @@ if __name__ == '__main__':
     
     find_and_process_toml_files(args.target, internal_crates_dict, ignored_folders, args.debug)
 
-    run_dprint_fmt(args.target)
+    if not args.skip_dprint:
+        run_dprint_fmt(args.target)
