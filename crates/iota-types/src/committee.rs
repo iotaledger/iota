@@ -368,7 +368,7 @@ pub trait CommitteeTrait<K: Ord> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NetworkMetadata {
     pub network_address: Multiaddr,
-    pub narwhal_primary_address: Multiaddr,
+    pub primary_address: Multiaddr,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

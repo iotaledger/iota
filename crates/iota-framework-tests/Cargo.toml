@@ -15,19 +15,19 @@ name = "move_tests"
 harness = false
 
 [dev-dependencies]
+# external dependencies
 datatest-stable.workspace = true
 prometheus.workspace = true
 
+# internal dependencies
+iota-adapter = { path = "../../iota-execution/latest/iota-adapter", package = "iota-adapter-latest" }
 iota-framework.workspace = true
 iota-move = { workspace = true, features = ["unit_test"] }
 iota-move-build.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-
-iota-adapter = { path = "../../iota-execution/latest/iota-adapter", package = "iota-adapter-latest" }
 iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
 move-bytecode-verifier = { path = "../../external-crates/move/crates/move-bytecode-verifier" }
-
 move-bytecode-verifier-meter.workspace = true
 move-cli.workspace = true
 move-package.workspace = true

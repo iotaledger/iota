@@ -7,8 +7,11 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 futures.workspace = true
-iota-metrics.workspace = true
-iota-types.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+# internal dependencies
+iota-metrics.workspace = true
+iota-types.workspace = true
