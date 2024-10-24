@@ -3,60 +3,60 @@ processed 21 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, lines 10-26:
+task 1, lines 11-27:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 4795600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 28:
+task 2, line 29:
 //# run Test::M1::no_emit --sender A --args 0
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 30:
+task 3, line 31:
 //# run Test::M1::emit_2 --sender A --args 2
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [2, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [3, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4, line 32:
+task 4, line 33:
 //# run Test::M1::emit_2 --sender B --args 4
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: B, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [4, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: B, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [5, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 5, line 34:
+task 5, line 35:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 6, lines 36-43:
+task 6, lines 37-44:
 //# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "AXoD3PWjAdYov3o7FaWgAqJA8RmvQrjwxGxAi2MNEujz"
+          "digest": "5kxKxJyFgHd4UJ5hRdDAqFKpxQ2By93WD5QBirmGxV5G"
         },
         {
-          "digest": "3nuQk9o2VVoqWbF6gS5vBTPwVLhMRbFJREDCvQJUavZ2"
+          "digest": "3VvtCtpFF6d1xVP8MaxQG1jKhGMwztHkgmr4oxFQvwQB"
         },
         {
-          "digest": "5VAhspujQVcgJNvqe9Ed8BuFTeZdTRCCTzS6WwSZ9Dke"
+          "digest": "GmxLBE86X53MRMtMSsrvT7jQNgP2WUm58f2vTUmnWCmb"
         },
         {
-          "digest": "8n1pk5fYM7v7tvsh4dcKxLRy8uf3he24FZCwdEKi9cSj"
+          "digest": "D8JKWZpfXiixotdWiU4U8gFsMP1zqytn67BrcmMcs8Ta"
         },
         {
-          "digest": "4dqR1zeomDMNHbUAZjooSZXrosPEb67gvvsUFeUSet9v"
+          "digest": "BocKaPfQva3uSbuNjdWjQ7L8PGT3QH5TMENKyM4Tk6y9"
         }
       ]
     }
   }
 }
 
-task 7, lines 45-55:
+task 7, lines 46-58:
 //# run-graphql
 Response: {
   "data": {
@@ -83,7 +83,7 @@ Response: {
   }
 }
 
-task 8, lines 57-68:
+task 8, lines 60-73:
 //# run-graphql --cursors {"tx":3,"e":1,"c":1}
 Response: {
   "data": {
@@ -93,7 +93,7 @@ Response: {
   }
 }
 
-task 9, lines 70-83:
+task 9, lines 75-90:
 //# run-graphql --cursors {"tx":1,"e":1,"c":1}
 Response: {
   "data": {
@@ -103,7 +103,7 @@ Response: {
   }
 }
 
-task 10, lines 86-96:
+task 10, lines 93-105:
 //# run-graphql
 Response: {
   "data": {
@@ -130,7 +130,7 @@ Response: {
   }
 }
 
-task 11, lines 98-108:
+task 11, lines 107-119:
 //# run-graphql --cursors {"tx":4,"e":0,"c":1}
 Response: {
   "data": {
@@ -149,7 +149,7 @@ Response: {
   }
 }
 
-task 12, lines 111-121:
+task 12, lines 122-134:
 //# run-graphql
 Response: {
   "data": {
@@ -176,7 +176,7 @@ Response: {
   }
 }
 
-task 13, lines 123-134:
+task 13, lines 136-149:
 //# run-graphql --cursors {"tx":3,"e":1,"c":1}
 Response: {
   "data": {
@@ -195,7 +195,7 @@ Response: {
   }
 }
 
-task 14, lines 136-149:
+task 14, lines 151-166:
 //# run-graphql --cursors {"tx":4,"e":1,"c":1}
 Response: {
   "data": {
@@ -205,7 +205,7 @@ Response: {
   }
 }
 
-task 15, lines 152-162:
+task 15, lines 169-181:
 //# run-graphql
 Response: {
   "data": {
@@ -232,7 +232,7 @@ Response: {
   }
 }
 
-task 16, lines 164-174:
+task 16, lines 183-195:
 //# run-graphql --cursors {"tx":4,"e":1,"c":1}
 Response: {
   "data": {
@@ -251,7 +251,7 @@ Response: {
   }
 }
 
-task 17, lines 176-187:
+task 17, lines 197-210:
 //# run-graphql
 Response: {
   "data": {
@@ -278,7 +278,7 @@ Response: {
   }
 }
 
-task 18, lines 189-200:
+task 18, lines 212-225:
 //# run-graphql
 Response: {
   "data": {
@@ -305,7 +305,7 @@ Response: {
   }
 }
 
-task 19, lines 202-213:
+task 19, lines 227-240:
 //# run-graphql
 Response: {
   "data": {
@@ -315,7 +315,7 @@ Response: {
   }
 }
 
-task 20, lines 215-226:
+task 20, lines 242-255:
 //# run-graphql
 Response: {
   "data": {

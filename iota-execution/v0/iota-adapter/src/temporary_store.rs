@@ -12,7 +12,7 @@ use iota_types::{
         IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
     },
     committee::EpochId,
-    deny_list_v2::check_coin_deny_list_v2_during_execution,
+    deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
@@ -138,7 +138,6 @@ impl<'backing> TemporaryStore<'backing> {
             self.lamport_timestamp,
             self.tx_digest,
             &self.input_objects,
-            self.protocol_config.reshare_at_same_initial_version(),
         );
 
         #[cfg(debug_assertions)]
@@ -243,8 +242,6 @@ impl<'backing> TemporaryStore<'backing> {
                 }
             }
         }
-
-        assert!(self.protocol_config.enable_effects_v2());
 
         // In the case of special transactions that don't require a gas object,
         // we don't really care about the effects to gas, just use the input for it.
@@ -847,14 +844,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// This function is intended to be called *after* we have charged for
     /// gas + applied the storage rebate to the gas object, but *before* we
     /// have updated object versions.
-    pub fn check_iota_conserved(
-        &self,
-        simple_conservation_checks: bool,
-        gas_summary: &GasCostSummary,
-    ) -> Result<(), ExecutionError> {
-        if !simple_conservation_checks {
-            return Ok(());
-        }
+    pub fn check_iota_conserved(&self, gas_summary: &GasCostSummary) -> Result<(), ExecutionError> {
         // total amount of IOTA in storage rebate of input objects
         let mut total_input_rebate = 0;
         // total amount of IOTA in storage rebate of output objects
@@ -1061,7 +1051,7 @@ impl<'backing> Storage for TemporaryStore<'backing> {
     }
 
     fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult {
-        let result = check_coin_deny_list_v2_during_execution(
+        let result = check_coin_deny_list_v1_during_execution(
             written_objects,
             self.cur_epoch,
             self.store.as_object_store(),
@@ -1092,9 +1082,9 @@ impl<'backing> BackingPackageStore for TemporaryStore<'backing> {
         if let Some(obj) = self.execution_results.written_objects.get(package_id) {
             Ok(Some(PackageObject::new(obj.clone())))
         } else {
-            self.store.get_package_object(package_id).map(|obj| {
+            self.store.get_package_object(package_id).inspect(|obj| {
                 // Track object but leave unchanged
-                if let Some(v) = &obj {
+                if let Some(v) = obj {
                     if !self
                         .runtime_packages_loaded_from_db
                         .read()
@@ -1109,7 +1099,6 @@ impl<'backing> BackingPackageStore for TemporaryStore<'backing> {
                             .insert(*package_id, v.clone());
                     }
                 }
-                obj
             })
         }
     }

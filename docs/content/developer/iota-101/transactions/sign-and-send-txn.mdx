@@ -2,6 +2,8 @@
 title: Signing and Sending Transactions
 ---
 import AlphaNet from "../../../_snippets/alphanet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/sign-and-send-txn.json';
 
 Transactions in IOTA represent calls to specific functionality (like calling a smart contract function) that execute on inputs to define the result of the transaction.
 
@@ -261,3 +263,5 @@ iota client execute-signed-tx --tx-bytes $TX_BYTES --signatures $SERIALIZED_SIGN
 2. If you decide to implement your own signing mechanisms instead of using the previous tools, see the [Signatures](../../cryptography/transaction-auth/signatures.mdx) doc on the accepted signature specifications for each scheme.
 3. Flag is one byte that differentiates signature schemes. See supported schemes and its flag in [Signatures](../../cryptography/transaction-auth/signatures.mdx).
 4. The `execute_transaction_block` endpoint takes a list of signatures, so it should contain exactly one user signature, unless you are using sponsored transaction that a second signature for the gas object can be provided. See [Sponsored Transactions](sponsored-transactions.mdx) for more information.
+
+<Quiz questions={questions} />

@@ -1,0 +1,20 @@
+[
+  {
+    "questionText": "What is the primary purpose of the ID pointer technique in Move?",
+    "answerOptions": [
+      { "answerText": "To optimize the performance of Move modules.", "isCorrect": false },
+      { "answerText": "To encrypt data within Move objects.", "isCorrect": false },
+      { "answerText": "To link accessors or capabilities back to the original object, separating data from its accessors.", "isCorrect": true },
+      { "answerText": "To manage memory allocation dynamically.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is an application of the ID pointer pattern in Move?",
+    "answerOptions": [
+      { "answerText": "Improving transaction gas efficiency.", "isCorrect": false },
+      { "answerText": "Implementing transferable capabilities for shared objects.", "isCorrect": true },
+      { "answerText": "Enabling multi-threading in smart contracts.", "isCorrect": false },
+      { "answerText": "Creating immutable data structures.", "isCorrect": false }
+    ]
+  }
+]

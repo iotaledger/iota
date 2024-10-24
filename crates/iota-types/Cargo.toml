@@ -1,7 +1,7 @@
 [package]
 name = "iota-types"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,31 +10,28 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 anemo.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
+better_any.workspace = true
 bincode.workspace = true
 byteorder.workspace = true
 chrono.workspace = true
-consensus-config.workspace = true
 derivative.workspace = true
+derive_more = "0.99.17"
 enum_dispatch.workspace = true
 eyre.workspace = true
+fastcrypto = { workspace = true, features = ["copy_key"] }
+fastcrypto-tbls.workspace = true
+fastcrypto-zkp.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
-iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
+iota-sdk2.workspace = true
 itertools.workspace = true
-move-binary-format.workspace = true
-move-bytecode-utils.workspace = true
-move-command-line-common.workspace = true
-move-core-types.workspace = true
-move-disassembler.workspace = true
-move-ir-types.workspace = true
-move-vm-profiler.workspace = true
-move-vm-test-utils.workspace = true
-move-vm-types.workspace = true
+lru.workspace = true
 nonempty.workspace = true
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 num-rational = "0.4"
@@ -42,12 +39,16 @@ num-traits = "0.2.18"
 num_enum.workspace = true
 once_cell.workspace = true
 packable = { version = "0.8", default-features = false, features = ["io"] }
+parking_lot.workspace = true
+passkey-types.workspace = true
 prometheus.workspace = true
+proptest = { workspace = true, optional = true }
+proptest-derive = { workspace = true, optional = true }
 rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true
 serde.workspace = true
-serde-name.workspace = true
+serde-name = "0.2.1"
 serde_json.workspace = true
 serde_with.workspace = true
 signature.workspace = true
@@ -59,42 +60,37 @@ thiserror.workspace = true
 tonic.workspace = true
 tracing.workspace = true
 
+# internal dependencies
+consensus-config.workspace = true
 iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-narwhal-config.workspace = true
-narwhal-crypto.workspace = true
-parking_lot.workspace = true
+iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
+move-binary-format.workspace = true
+move-bytecode-utils.workspace = true
+move-command-line-common.workspace = true
+move-core-types.workspace = true
+move-disassembler.workspace = true
+move-ir-types.workspace = true
+move-vm-profiler.workspace = true
+move-vm-test-utils.workspace = true
+move-vm-types.workspace = true
 shared-crypto.workspace = true
-
-fastcrypto = { workspace = true, features = ["copy_key"] }
-fastcrypto-tbls.workspace = true
-fastcrypto-zkp.workspace = true
-passkey-types.workspace = true
-
-better_any.workspace = true
-derive_more.workspace = true
-lru.workspace = true
-proptest = { workspace = true, optional = true }
-proptest-derive = { workspace = true, optional = true }
 typed-store-error.workspace = true
 
-iota-sdk2.workspace = true
-
 [dev-dependencies]
+async-trait.workspace = true
 bincode.workspace = true
+coset.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
-proptest.workspace = true
-serde_yaml.workspace = true
-
-async-trait.workspace = true
-coset.workspace = true
 p256.workspace = true
 passkey-authenticator.workspace = true
 passkey-client.workspace = true
+proptest.workspace = true
+serde_yaml.workspace = true
 tokio.workspace = true
 url.workspace = true
 
@@ -107,7 +103,7 @@ default = []
 test-utils = []
 gas-profiler = [
   "move-vm-profiler/gas-profiler",
-  "move-vm-types/gas-profiler",
   "move-vm-test-utils/gas-profiler",
+  "move-vm-types/gas-profiler",
 ]
 fuzzing = ["move-core-types/fuzzing", "dep:proptest-derive", "dep:proptest"]

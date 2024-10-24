@@ -1,7 +1,7 @@
 [package]
 name = "iota-macros"
 version = "0.7.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,7 +10,10 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 futures.workspace = true
-iota-proc-macros.workspace = true
 once_cell.workspace = true
 tracing.workspace = true
+
+# internal dependencies
+iota-proc-macros.workspace = true

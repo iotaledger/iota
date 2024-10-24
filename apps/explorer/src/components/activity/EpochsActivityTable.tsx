@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Select } from '@iota/apps-ui-kit';
-import { useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Select } from '@iota/apps-ui-kit';
+import { useIotaClientQuery, useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { Warning } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -25,7 +26,7 @@ export function EpochsActivityTable({
 }: EpochsActivityTableProps): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
-
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: count } = useQuery({
         queryKey: ['epochs', 'current'],
         queryFn: async () => client.getCurrentEpoch(),
@@ -39,14 +40,18 @@ export function EpochsActivityTable({
     const { data, isFetching, pagination, isPending, isError } =
         useCursorPagination(epochMetricsQuery);
 
-    const tableColumns = generateEpochsTableColumns();
+    const tableColumns = generateEpochsTableColumns(systemState?.epoch);
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">
             {isError && (
-                <div className="pt-2 font-sans font-semibold text-issue-dark">
-                    Failed to load Epochs
-                </div>
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Epochs"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
             )}
             {isPending || isFetching || !data?.data ? (
                 <PlaceholderTable

@@ -1,7 +1,7 @@
 {
     "name": "@iota/iota-sdk",
-    "author": "IOTA Foundation <contact@iota.org>",
-    "description": "Iota TypeScript API",
+    "author": "IOTA Foundation <info@iota.org>",
+    "description": "IOTA TypeScript API",
     "version": "0.2.0",
     "license": "Apache-2.0",
     "sideEffects": false,
@@ -76,9 +76,9 @@
             "import": "./dist/esm/verify/index.js",
             "require": "./dist/cjs/verify/index.js"
         },
-        "./graphql/schemas/2024.9": {
-            "import": "./dist/esm/graphql/schemas/2024.9/index.js",
-            "require": "./dist/cjs/graphql/schemas/2024.9/index.js"
+        "./graphql/schemas/2024.10": {
+            "import": "./dist/esm/graphql/schemas/2024.10/index.js",
+            "require": "./dist/cjs/graphql/schemas/2024.10/index.js"
         }
     },
     "scripts": {
@@ -92,7 +92,7 @@
         "test:unit": "vitest run unit __tests__",
         "test:e2e": "wait-on http://127.0.0.1:9123 -l --timeout 180000 && vitest run e2e",
         "test:e2e:nowait": "vitest run e2e",
-        "prepare:e2e": "docker-compose down && docker-compose up -d && cargo build --bin iota --features indexer --profile dev && cross-env RUST_LOG=warn,iota=error,anemo_tower=warn,consensus=off ../../target/debug/iota start --with-faucet --force-regenesis --with-indexer --pg-port 5435 --pg-db-name iota_indexer_v2 --with-graphql",
+        "prepare:e2e": "docker-compose down && docker-compose up -d && cargo build --bin iota --features indexer --profile dev && cross-env RUST_LOG=warn,iota=error,anemo_tower=warn,consensus=off ../../target/debug/iota start --with-faucet --force-regenesis --with-indexer --with-graphql",
         "prepublishOnly": "pnpm build",
         "size": "size-limit",
         "analyze": "size-limit --why",
@@ -102,9 +102,8 @@
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
-        "update-graphql-schema": "pnpm run generate-schema -c src/graphql/generated/2024.9/tsconfig.tada.json",
         "update-graphql-schemas": "pnpm tsx scripts/update-graphql-schemas.ts",
-        "update-open-rpc-schema": "pnpm tsx scripts/generate.ts",
+        "update-open-rpc-client-types": "pnpm tsx scripts/generate.ts",
         "generate-schema": "gql.tada generate-output"
     },
     "bugs": {

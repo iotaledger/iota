@@ -6,7 +6,7 @@ import type { Message } from '_messages';
 import { filter, fromEvent, map, share } from 'rxjs';
 import type { Observable } from 'rxjs';
 
-export type ClientType = 'iota_in-page' | 'iota_content-script';
+export type ClientType = string;
 
 type WindowMessage = {
     target: ClientType;

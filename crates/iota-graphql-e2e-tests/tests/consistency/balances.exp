@@ -3,62 +3,62 @@ processed 34 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, lines 19-46:
+task 1, lines 20-47:
 //# publish --sender A
 created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
 gas summary: computation_cost: 1000000, storage_cost: 15663600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 48:
+task 2, line 49:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 3, lines 50-52:
+task 3, lines 51-53:
 //# programmable --sender A --inputs object(1,5) 100 object(1,1)
 //> 0: iota::coin::mint<P0::fake::FAKE>(Input(0), Input(1));
 //> MergeCoins(Input(2), [Result(0)]);
 mutated: object(0,0), object(1,1), object(1,5)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, storage_cost: 4012800,  storage_rebate: 3972672, non_refundable_storage_fee: 40128
+gas summary: computation_cost: 1000000, storage_cost: 4012800,  storage_rebate: 4012800, non_refundable_storage_fee: 0
 
-task 4, line 54:
+task 4, line 55:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 5, line 56:
+task 5, line 57:
 //# transfer-object 1,2 --sender A --recipient B
 mutated: object(0,0), object(1,2)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, storage_cost: 2310400,  storage_rebate: 2287296, non_refundable_storage_fee: 23104
+gas summary: computation_cost: 1000000, storage_cost: 2310400,  storage_rebate: 2310400, non_refundable_storage_fee: 0
 
-task 6, line 58:
+task 6, line 59:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 7, line 60:
+task 7, line 61:
 //# transfer-object 1,3 --sender A --recipient B
 mutated: object(0,0), object(1,3)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, storage_cost: 2310400,  storage_rebate: 2287296, non_refundable_storage_fee: 23104
+gas summary: computation_cost: 1000000, storage_cost: 2310400,  storage_rebate: 2310400, non_refundable_storage_fee: 0
 
-task 9, line 64:
+task 9, line 65:
 //# create-checkpoint
 Checkpoint created: 4
 
-task 11, line 68:
+task 11, line 69:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 13, line 72:
+task 13, line 73:
 //# create-checkpoint
 Checkpoint created: 6
 
-task 15, line 76:
+task 15, line 77:
 //# create-checkpoint
 Checkpoint created: 7
 
-task 16, lines 78-99:
+task 16, lines 79-100:
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 Response: {
   "data": {
@@ -76,11 +76,11 @@ Response: {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "299999982296272"
+                  "totalBalance": "299999982336400"
                 },
                 {
                   "coinType": {
-                    "repr": "0x4cb538cc5d434cbcb404ea346e0fcd175e5db3edccbada62a489de17da4e81f1::fake::FAKE"
+                    "repr": "0x72b0096564296b83ded200a9cef7f4aa3257b9f63d2cb41305171e2cc3758afd::fake::FAKE"
                   },
                   "coinObjectCount": 3,
                   "totalBalance": "700"
@@ -94,7 +94,7 @@ Response: {
   }
 }
 
-task 17, lines 101-122:
+task 17, lines 102-123:
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 Response: {
   "data": {
@@ -103,7 +103,7 @@ Response: {
         {
           "sender": {
             "fakeCoinBalance": {
-              "totalBalance": "500"
+              "totalBalance": "600"
             },
             "allBalances": {
               "nodes": [
@@ -112,14 +112,14 @@ Response: {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "299999981273168"
+                  "totalBalance": "299999981336400"
                 },
                 {
                   "coinType": {
-                    "repr": "0x4cb538cc5d434cbcb404ea346e0fcd175e5db3edccbada62a489de17da4e81f1::fake::FAKE"
+                    "repr": "0x72b0096564296b83ded200a9cef7f4aa3257b9f63d2cb41305171e2cc3758afd::fake::FAKE"
                   },
                   "coinObjectCount": 2,
-                  "totalBalance": "500"
+                  "totalBalance": "600"
                 }
               ]
             }
@@ -130,7 +130,7 @@ Response: {
   }
 }
 
-task 18, lines 124-145:
+task 18, lines 125-146:
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 Response: {
   "data": {
@@ -139,7 +139,7 @@ Response: {
         {
           "sender": {
             "fakeCoinBalance": {
-              "totalBalance": "400"
+              "totalBalance": "300"
             },
             "allBalances": {
               "nodes": [
@@ -148,14 +148,14 @@ Response: {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "299999980250064"
+                  "totalBalance": "299999980336400"
                 },
                 {
                   "coinType": {
-                    "repr": "0x4cb538cc5d434cbcb404ea346e0fcd175e5db3edccbada62a489de17da4e81f1::fake::FAKE"
+                    "repr": "0x72b0096564296b83ded200a9cef7f4aa3257b9f63d2cb41305171e2cc3758afd::fake::FAKE"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "400"
+                  "totalBalance": "300"
                 }
               ]
             }
@@ -166,15 +166,15 @@ Response: {
   }
 }
 
-task 19, line 147:
+task 19, line 148:
 //# force-object-snapshot-catchup --start-cp 0 --end-cp 3
 Objects snapshot updated to [0 to 3)
 
-task 20, line 149:
+task 20, line 150:
 //# create-checkpoint
 Checkpoint created: 8
 
-task 21, lines 151-172:
+task 21, lines 152-173:
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 Response: {
   "data": {
@@ -192,11 +192,11 @@ Response: {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "299999982296272"
+                  "totalBalance": "299999982336400"
                 },
                 {
                   "coinType": {
-                    "repr": "0x4cb538cc5d434cbcb404ea346e0fcd175e5db3edccbada62a489de17da4e81f1::fake::FAKE"
+                    "repr": "0x72b0096564296b83ded200a9cef7f4aa3257b9f63d2cb41305171e2cc3758afd::fake::FAKE"
                   },
                   "coinObjectCount": 3,
                   "totalBalance": "700"
@@ -210,7 +210,7 @@ Response: {
   }
 }
 
-task 22, lines 174-195:
+task 22, lines 175-196:
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 Response: {
   "data": {
@@ -219,7 +219,7 @@ Response: {
         {
           "sender": {
             "fakeCoinBalance": {
-              "totalBalance": "500"
+              "totalBalance": "600"
             },
             "allBalances": {
               "nodes": [
@@ -228,14 +228,14 @@ Response: {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "299999981273168"
+                  "totalBalance": "299999981336400"
                 },
                 {
                   "coinType": {
-                    "repr": "0x4cb538cc5d434cbcb404ea346e0fcd175e5db3edccbada62a489de17da4e81f1::fake::FAKE"
+                    "repr": "0x72b0096564296b83ded200a9cef7f4aa3257b9f63d2cb41305171e2cc3758afd::fake::FAKE"
                   },
                   "coinObjectCount": 2,
-                  "totalBalance": "500"
+                  "totalBalance": "600"
                 }
               ]
             }
@@ -246,7 +246,7 @@ Response: {
   }
 }
 
-task 23, lines 197-218:
+task 23, lines 198-219:
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 Response: {
   "data": {
@@ -255,7 +255,7 @@ Response: {
         {
           "sender": {
             "fakeCoinBalance": {
-              "totalBalance": "400"
+              "totalBalance": "300"
             },
             "allBalances": {
               "nodes": [
@@ -264,14 +264,14 @@ Response: {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "299999980250064"
+                  "totalBalance": "299999980336400"
                 },
                 {
                   "coinType": {
-                    "repr": "0x4cb538cc5d434cbcb404ea346e0fcd175e5db3edccbada62a489de17da4e81f1::fake::FAKE"
+                    "repr": "0x72b0096564296b83ded200a9cef7f4aa3257b9f63d2cb41305171e2cc3758afd::fake::FAKE"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "400"
+                  "totalBalance": "300"
                 }
               ]
             }
@@ -282,15 +282,15 @@ Response: {
   }
 }
 
-task 24, line 220:
+task 24, line 221:
 //# force-object-snapshot-catchup --start-cp 0 --end-cp 4
 Objects snapshot updated to [0 to 4)
 
-task 25, line 222:
+task 25, line 223:
 //# create-checkpoint
 Checkpoint created: 9
 
-task 26, lines 224-245:
+task 26, lines 225-246:
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 Response: {
   "data": {
@@ -325,7 +325,7 @@ Response: {
   ]
 }
 
-task 27, lines 247-268:
+task 27, lines 248-269:
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 Response: {
   "data": {
@@ -334,7 +334,7 @@ Response: {
         {
           "sender": {
             "fakeCoinBalance": {
-              "totalBalance": "500"
+              "totalBalance": "600"
             },
             "allBalances": {
               "nodes": [
@@ -343,14 +343,14 @@ Response: {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "299999981273168"
+                  "totalBalance": "299999981336400"
                 },
                 {
                   "coinType": {
-                    "repr": "0x4cb538cc5d434cbcb404ea346e0fcd175e5db3edccbada62a489de17da4e81f1::fake::FAKE"
+                    "repr": "0x72b0096564296b83ded200a9cef7f4aa3257b9f63d2cb41305171e2cc3758afd::fake::FAKE"
                   },
                   "coinObjectCount": 2,
-                  "totalBalance": "500"
+                  "totalBalance": "600"
                 }
               ]
             }
@@ -361,7 +361,7 @@ Response: {
   }
 }
 
-task 28, lines 270-291:
+task 28, lines 271-292:
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 Response: {
   "data": {
@@ -370,7 +370,7 @@ Response: {
         {
           "sender": {
             "fakeCoinBalance": {
-              "totalBalance": "400"
+              "totalBalance": "300"
             },
             "allBalances": {
               "nodes": [
@@ -379,14 +379,14 @@ Response: {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "299999980250064"
+                  "totalBalance": "299999980336400"
                 },
                 {
                   "coinType": {
-                    "repr": "0x4cb538cc5d434cbcb404ea346e0fcd175e5db3edccbada62a489de17da4e81f1::fake::FAKE"
+                    "repr": "0x72b0096564296b83ded200a9cef7f4aa3257b9f63d2cb41305171e2cc3758afd::fake::FAKE"
                   },
                   "coinObjectCount": 1,
-                  "totalBalance": "400"
+                  "totalBalance": "300"
                 }
               ]
             }
@@ -397,15 +397,15 @@ Response: {
   }
 }
 
-task 29, line 294:
+task 29, line 295:
 //# force-object-snapshot-catchup --start-cp 0 --end-cp 6
 Objects snapshot updated to [0 to 6)
 
-task 30, line 296:
+task 30, line 297:
 //# create-checkpoint
 Checkpoint created: 10
 
-task 31, lines 298-319:
+task 31, lines 299-320:
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 Response: {
   "data": {
@@ -440,7 +440,7 @@ Response: {
   ]
 }
 
-task 32, lines 321-342:
+task 32, lines 322-343:
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 Response: {
   "data": {
@@ -475,7 +475,7 @@ Response: {
   ]
 }
 
-task 33, lines 344-365:
+task 33, lines 345-366:
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 Response: {
   "data": {

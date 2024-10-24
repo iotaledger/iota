@@ -18,7 +18,10 @@ use crate::{
     base_types::{IotaAddress, ObjectID},
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
-    crypto::{AuthorityPublicKeyBytes, verify_proof_of_possession},
+    crypto::{
+        AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
+        verify_proof_of_possession,
+    },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
@@ -28,13 +31,12 @@ use crate::{
 };
 
 const E_METADATA_INVALID_POP: u64 = 0;
-const E_METADATA_INVALID_PUBKEY: u64 = 1;
+const E_METADATA_INVALID_AUTHORITY_PUBKEY: u64 = 1;
 const E_METADATA_INVALID_NET_PUBKEY: u64 = 2;
-const E_METADATA_INVALID_WORKER_PUBKEY: u64 = 3;
+const E_METADATA_INVALID_PROTOCOL_PUBKEY: u64 = 3;
 const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
-const E_METADATA_INVALID_WORKER_ADDR: u64 = 7;
 
 /// Rust version of the Move iota::iota_system::SystemParameters type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -69,9 +71,9 @@ pub struct SystemParametersV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorMetadataV1 {
     pub iota_address: IotaAddress,
-    pub protocol_pubkey_bytes: Vec<u8>,
+    pub authority_pubkey_bytes: Vec<u8>,
     pub network_pubkey_bytes: Vec<u8>,
-    pub worker_pubkey_bytes: Vec<u8>,
+    pub protocol_pubkey_bytes: Vec<u8>,
     pub proof_of_possession_bytes: Vec<u8>,
     pub name: String,
     pub description: String,
@@ -80,15 +82,13 @@ pub struct ValidatorMetadataV1 {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub worker_address: String,
-    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_authority_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
     pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
-    pub next_epoch_worker_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,
     pub next_epoch_primary_address: Option<String>,
-    pub next_epoch_worker_address: Option<String>,
     pub extra_fields: Bag,
 }
 
@@ -96,9 +96,9 @@ pub struct ValidatorMetadataV1 {
 #[derivative(Debug)]
 pub struct VerifiedValidatorMetadataV1 {
     pub iota_address: IotaAddress,
-    pub protocol_pubkey: narwhal_crypto::PublicKey,
-    pub network_pubkey: narwhal_crypto::NetworkPublicKey,
-    pub worker_pubkey: narwhal_crypto::NetworkPublicKey,
+    pub authority_pubkey: AuthorityPublicKey,
+    pub network_pubkey: NetworkPublicKey,
+    pub protocol_pubkey: NetworkPublicKey,
     #[derivative(Debug = "ignore")]
     pub proof_of_possession_bytes: Vec<u8>,
     pub name: String,
@@ -108,20 +108,18 @@ pub struct VerifiedValidatorMetadataV1 {
     pub net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
-    pub worker_address: Multiaddr,
-    pub next_epoch_protocol_pubkey: Option<narwhal_crypto::PublicKey>,
+    pub next_epoch_authority_pubkey: Option<AuthorityPublicKey>,
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
-    pub next_epoch_network_pubkey: Option<narwhal_crypto::NetworkPublicKey>,
-    pub next_epoch_worker_pubkey: Option<narwhal_crypto::NetworkPublicKey>,
+    pub next_epoch_network_pubkey: Option<NetworkPublicKey>,
+    pub next_epoch_protocol_pubkey: Option<NetworkPublicKey>,
     pub next_epoch_net_address: Option<Multiaddr>,
     pub next_epoch_p2p_address: Option<Multiaddr>,
     pub next_epoch_primary_address: Option<Multiaddr>,
-    pub next_epoch_worker_address: Option<Multiaddr>,
 }
 
 impl VerifiedValidatorMetadataV1 {
     pub fn iota_pubkey_bytes(&self) -> AuthorityPublicKeyBytes {
-        (&self.protocol_pubkey).into()
+        (&self.authority_pubkey).into()
     }
 }
 
@@ -129,30 +127,27 @@ impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
-        let protocol_pubkey =
-            narwhal_crypto::PublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
-                .map_err(|_| E_METADATA_INVALID_PUBKEY)?;
+        let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
+            .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
-        // Verify proof of possession for the protocol key
-        let pop = narwhal_crypto::Signature::from_bytes(self.proof_of_possession_bytes.as_ref())
+        // Verify proof of possession for the authority key
+        let pop = AuthoritySignature::from_bytes(self.proof_of_possession_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_POP)?;
-        verify_proof_of_possession(&pop, &protocol_pubkey, self.iota_address)
+        verify_proof_of_possession(&pop, &authority_pubkey, self.iota_address)
             .map_err(|_| E_METADATA_INVALID_POP)?;
 
-        let network_pubkey =
-            narwhal_crypto::NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
-                .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
-        let worker_pubkey =
-            narwhal_crypto::NetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref())
-                .map_err(|_| E_METADATA_INVALID_WORKER_PUBKEY)?;
-        if worker_pubkey == network_pubkey {
-            return Err(E_METADATA_INVALID_WORKER_PUBKEY);
+        let network_pubkey = NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
+            .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
+        let protocol_pubkey = NetworkPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
+            .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?;
+        if protocol_pubkey == network_pubkey {
+            return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
         }
 
         let net_address = Multiaddr::try_from(self.net_address.clone())
             .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
 
-        // Ensure p2p, primary, and worker addresses are both Multiaddr's and valid
+        // Ensure p2p and primary address are both Multiaddr's and valid
         // anemo addresses
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
@@ -166,34 +161,28 @@ impl ValidatorMetadataV1 {
             .to_anemo_address()
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
 
-        let worker_address = Multiaddr::try_from(self.worker_address.clone())
-            .map_err(|_| E_METADATA_INVALID_WORKER_ADDR)?;
-        worker_address
-            .to_anemo_address()
-            .map_err(|_| E_METADATA_INVALID_WORKER_ADDR)?;
-
-        let next_epoch_protocol_pubkey = match self.next_epoch_protocol_pubkey_bytes.clone() {
-            None => Ok::<Option<narwhal_crypto::PublicKey>, u64>(None),
+        let next_epoch_authority_pubkey = match self.next_epoch_authority_pubkey_bytes.clone() {
+            None => Ok::<Option<AuthorityPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
-                narwhal_crypto::PublicKey::from_bytes(bytes.as_ref())
-                    .map_err(|_| E_METADATA_INVALID_PUBKEY)?,
+                AuthorityPublicKey::from_bytes(bytes.as_ref())
+                    .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?,
             )),
         }?;
 
         let next_epoch_pop = match self.next_epoch_proof_of_possession.clone() {
-            None => Ok::<Option<narwhal_crypto::Signature>, u64>(None),
+            None => Ok::<Option<AuthoritySignature>, u64>(None),
             Some(bytes) => Ok(Some(
-                narwhal_crypto::Signature::from_bytes(bytes.as_ref())
+                AuthoritySignature::from_bytes(bytes.as_ref())
                     .map_err(|_| E_METADATA_INVALID_POP)?,
             )),
         }?;
-        // Verify proof of possession for the next epoch protocol key
-        if let Some(ref next_epoch_protocol_pubkey) = next_epoch_protocol_pubkey {
+        // Verify proof of possession for the next epoch authority key
+        if let Some(ref next_epoch_authority_pubkey) = next_epoch_authority_pubkey {
             match next_epoch_pop {
                 Some(next_epoch_pop) => {
                     verify_proof_of_possession(
                         &next_epoch_pop,
-                        next_epoch_protocol_pubkey,
+                        next_epoch_authority_pubkey,
                         self.iota_address,
                     )
                     .map_err(|_| E_METADATA_INVALID_POP)?;
@@ -205,25 +194,25 @@ impl ValidatorMetadataV1 {
         }
 
         let next_epoch_network_pubkey = match self.next_epoch_network_pubkey_bytes.clone() {
-            None => Ok::<Option<narwhal_crypto::NetworkPublicKey>, u64>(None),
+            None => Ok::<Option<NetworkPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
-                narwhal_crypto::NetworkPublicKey::from_bytes(bytes.as_ref())
+                NetworkPublicKey::from_bytes(bytes.as_ref())
                     .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?,
             )),
         }?;
 
-        let next_epoch_worker_pubkey: Option<narwhal_crypto::NetworkPublicKey> =
-            match self.next_epoch_worker_pubkey_bytes.clone() {
-                None => Ok::<Option<narwhal_crypto::NetworkPublicKey>, u64>(None),
+        let next_epoch_protocol_pubkey: Option<NetworkPublicKey> =
+            match self.next_epoch_protocol_pubkey_bytes.clone() {
+                None => Ok::<Option<NetworkPublicKey>, u64>(None),
                 Some(bytes) => Ok(Some(
-                    narwhal_crypto::NetworkPublicKey::from_bytes(bytes.as_ref())
-                        .map_err(|_| E_METADATA_INVALID_WORKER_PUBKEY)?,
+                    NetworkPublicKey::from_bytes(bytes.as_ref())
+                        .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?,
                 )),
             }?;
         if next_epoch_network_pubkey.is_some()
-            && next_epoch_network_pubkey == next_epoch_worker_pubkey
+            && next_epoch_network_pubkey == next_epoch_protocol_pubkey
         {
-            return Err(E_METADATA_INVALID_WORKER_PUBKEY);
+            return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
         }
 
         let next_epoch_net_address = match self.next_epoch_net_address.clone() {
@@ -259,24 +248,11 @@ impl ValidatorMetadataV1 {
             }
         }?;
 
-        let next_epoch_worker_address = match self.next_epoch_worker_address.clone() {
-            None => Ok::<Option<Multiaddr>, u64>(None),
-            Some(address) => {
-                let address =
-                    Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_WORKER_ADDR)?;
-                address
-                    .to_anemo_address()
-                    .map_err(|_| E_METADATA_INVALID_WORKER_ADDR)?;
-
-                Ok(Some(address))
-            }
-        }?;
-
         Ok(VerifiedValidatorMetadataV1 {
             iota_address: self.iota_address,
-            protocol_pubkey,
+            authority_pubkey,
             network_pubkey,
-            worker_pubkey,
+            protocol_pubkey,
             proof_of_possession_bytes: self.proof_of_possession_bytes.clone(),
             name: self.name.clone(),
             description: self.description.clone(),
@@ -285,15 +261,13 @@ impl ValidatorMetadataV1 {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
-            next_epoch_protocol_pubkey,
+            next_epoch_authority_pubkey,
             next_epoch_proof_of_possession: self.next_epoch_proof_of_possession.clone(),
             next_epoch_network_pubkey,
-            next_epoch_worker_pubkey,
+            next_epoch_protocol_pubkey,
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,
-            next_epoch_worker_address,
         })
     }
 }
@@ -330,9 +304,9 @@ impl ValidatorV1 {
             metadata:
                 ValidatorMetadataV1 {
                     iota_address,
-                    protocol_pubkey_bytes,
+                    authority_pubkey_bytes,
                     network_pubkey_bytes,
-                    worker_pubkey_bytes,
+                    protocol_pubkey_bytes,
                     proof_of_possession_bytes,
                     name,
                     description,
@@ -341,15 +315,13 @@ impl ValidatorV1 {
                     net_address,
                     p2p_address,
                     primary_address,
-                    worker_address,
-                    next_epoch_protocol_pubkey_bytes,
+                    next_epoch_authority_pubkey_bytes,
                     next_epoch_proof_of_possession,
                     next_epoch_network_pubkey_bytes,
-                    next_epoch_worker_pubkey_bytes,
+                    next_epoch_protocol_pubkey_bytes,
                     next_epoch_net_address,
                     next_epoch_p2p_address,
                     next_epoch_primary_address,
-                    next_epoch_worker_address,
                     extra_fields: _,
                 },
             verified_metadata: _,
@@ -382,9 +354,9 @@ impl ValidatorV1 {
         } = self;
         IotaValidatorSummary {
             iota_address,
-            protocol_pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession_bytes,
             name,
             description,
@@ -393,15 +365,13 @@ impl ValidatorV1 {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
-            next_epoch_protocol_pubkey_bytes,
+            next_epoch_authority_pubkey_bytes,
             next_epoch_proof_of_possession,
             next_epoch_network_pubkey_bytes,
-            next_epoch_worker_pubkey_bytes,
+            next_epoch_protocol_pubkey_bytes,
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,
-            next_epoch_worker_address,
             voting_power,
             operation_cap_id: operation_cap_id.bytes,
             gas_price,
@@ -537,7 +507,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
                     name,
                     (validator.voting_power, NetworkMetadata {
                         network_address: verified_metadata.net_address.clone(),
-                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
                     }),
                 )
             })
@@ -574,13 +544,12 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
+                        authority_pubkey: metadata.authority_pubkey.clone(),
+                        network_pubkey: metadata.network_pubkey.clone(),
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: metadata.name.clone(),
                     }

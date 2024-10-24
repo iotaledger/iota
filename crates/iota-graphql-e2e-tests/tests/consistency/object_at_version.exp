@@ -3,23 +3,23 @@ processed 20 tasks
 init:
 A: object(0,0)
 
-task 1, lines 19-56:
+task 1, lines 20-57:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 7014800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 58:
+task 2, line 59:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, line 60:
+task 3, line 61:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 62-75:
+task 4, lines 63-76:
 //# run-graphql
 Response: {
   "data": {
@@ -29,7 +29,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x08db6cef6b0f6a69902b4476a5e9b3db98789497a664bbfe054c4754625d86d7",
+            "id": "0xeabd1fec2bdf0127bb76f33a127372a8f49d362822878329073f6c09e827a375",
             "value": "0"
           }
         }
@@ -38,16 +38,16 @@ Response: {
   }
 }
 
-task 5, line 77:
+task 5, line 78:
 //# run Test::M1::update --sender A --args object(2,0) 1
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 1301652, non_refundable_storage_fee: 13148
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 1314800, non_refundable_storage_fee: 0
 
-task 6, line 79:
+task 6, line 80:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 7, lines 81-107:
+task 7, lines 82-108:
 //# run-graphql
 Response: {
   "data": {
@@ -57,7 +57,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x08db6cef6b0f6a69902b4476a5e9b3db98789497a664bbfe054c4754625d86d7",
+            "id": "0xeabd1fec2bdf0127bb76f33a127372a8f49d362822878329073f6c09e827a375",
             "value": "1"
           }
         }
@@ -69,7 +69,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x08db6cef6b0f6a69902b4476a5e9b3db98789497a664bbfe054c4754625d86d7",
+            "id": "0xeabd1fec2bdf0127bb76f33a127372a8f49d362822878329073f6c09e827a375",
             "value": "0"
           }
         }
@@ -78,18 +78,18 @@ Response: {
   }
 }
 
-task 8, line 109:
+task 8, line 110:
 //# run Test::M1::wrap --sender A --args object(2,0)
 created: object(8,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2553600,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2553600,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 9, line 111:
+task 9, line 112:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 10, lines 113-139:
+task 10, lines 114-140:
 //# run-graphql
 Response: {
   "data": {
@@ -104,7 +104,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x08db6cef6b0f6a69902b4476a5e9b3db98789497a664bbfe054c4754625d86d7",
+            "id": "0xeabd1fec2bdf0127bb76f33a127372a8f49d362822878329073f6c09e827a375",
             "value": "1"
           }
         }
@@ -113,18 +113,18 @@ Response: {
   }
 }
 
-task 11, line 141:
+task 11, line 142:
 //# run Test::M1::unwrap --sender A --args object(8,0)
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(8,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2528064, non_refundable_storage_fee: 25536
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2553600, non_refundable_storage_fee: 0
 
-task 12, line 143:
+task 12, line 144:
 //# create-checkpoint
 Checkpoint created: 4
 
-task 13, lines 145-183:
+task 13, lines 146-184:
 //# run-graphql
 Response: {
   "data": {
@@ -134,7 +134,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x08db6cef6b0f6a69902b4476a5e9b3db98789497a664bbfe054c4754625d86d7",
+            "id": "0xeabd1fec2bdf0127bb76f33a127372a8f49d362822878329073f6c09e827a375",
             "value": "1"
           }
         }
@@ -151,7 +151,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x08db6cef6b0f6a69902b4476a5e9b3db98789497a664bbfe054c4754625d86d7",
+            "id": "0xeabd1fec2bdf0127bb76f33a127372a8f49d362822878329073f6c09e827a375",
             "value": "0"
           }
         }
@@ -160,17 +160,17 @@ Response: {
   }
 }
 
-task 14, line 185:
+task 14, line 186:
 //# run Test::M1::delete --sender A --args object(2,0)
 mutated: object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 15, line 187:
+task 15, line 188:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 16, lines 189-215:
+task 16, lines 190-216:
 //# run-graphql
 Response: {
   "data": {
@@ -187,15 +187,15 @@ Response: {
   }
 }
 
-task 17, line 217:
+task 17, line 218:
 //# force-object-snapshot-catchup --start-cp 0 --end-cp 5
 Objects snapshot updated to [0 to 5)
 
-task 18, line 219:
+task 18, line 220:
 //# create-checkpoint
 Checkpoint created: 6
 
-task 19, lines 221-260:
+task 19, lines 222-261:
 //# run-graphql
 Response: {
   "data": {
@@ -205,7 +205,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x08db6cef6b0f6a69902b4476a5e9b3db98789497a664bbfe054c4754625d86d7",
+            "id": "0xeabd1fec2bdf0127bb76f33a127372a8f49d362822878329073f6c09e827a375",
             "value": "1"
           }
         }
@@ -222,7 +222,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x08db6cef6b0f6a69902b4476a5e9b3db98789497a664bbfe054c4754625d86d7",
+            "id": "0xeabd1fec2bdf0127bb76f33a127372a8f49d362822878329073f6c09e827a375",
             "value": "0"
           }
         }

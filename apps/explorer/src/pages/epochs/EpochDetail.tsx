@@ -3,19 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
     ButtonSegment,
     ButtonSegmentType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
 
 import { CheckpointsTable, PageLayout } from '~/components';
-import { Banner, TableCard } from '~/components/ui';
+import { TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
@@ -24,6 +27,7 @@ import cx from 'clsx';
 import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
+import { Warning } from '@iota/ui-icons';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -79,9 +83,13 @@ export default function EpochDetail() {
         return (
             <PageLayout
                 content={
-                    <Banner variant="error" fullWidth>
-                        {`There was an issue retrieving data for epoch ${id}.`}
-                    </Banner>
+                    <InfoBox
+                        title="Failed to load epoch data"
+                        supportingText={`There was an issue retrieving data for epoch ${id}`}
+                        icon={<Warning />}
+                        type={InfoBoxType.Error}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 }
             />
         );

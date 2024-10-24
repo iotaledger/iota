@@ -72,7 +72,6 @@ impl SingleValidator {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
-            epoch_store.protocol_config().clone(),
         ));
         // TODO: for validator benchmarking purposes, we should allow for traffic
         // control to be configurable and introduce traffic control benchmarks
@@ -297,7 +296,7 @@ impl SingleValidator {
         let objects: HashMap<_, _> = self
             .get_validator()
             .get_accumulator_store()
-            .iter_cached_live_object_set_for_testing(false)
+            .iter_cached_live_object_set_for_testing()
             .map(|o| match o {
                 LiveObject::Normal(object) => (object.id(), object),
                 LiveObject::Wrapped(_) => unreachable!(),

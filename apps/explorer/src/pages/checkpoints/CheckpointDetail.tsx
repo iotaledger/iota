@@ -3,16 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { PageLayout, Banner, PageHeader } from '~/components';
+import { PageLayout, PageHeader } from '~/components';
 import { CheckpointTransactionBlocks } from './CheckpointTransactionBlocks';
 import {
     ButtonSegment,
     ButtonSegmentType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
     LabelText,
     LabelTextSize,
+    LoadingIndicator,
     Panel,
     SegmentedButton,
     SegmentedButtonType,
@@ -21,6 +24,7 @@ import {
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { Warning } from '@iota/ui-icons';
 
 enum FeesTabs {
     GasAndStorageFees = 'gas-and-storage-fees',
@@ -64,9 +68,13 @@ export default function CheckpointDetail(): JSX.Element {
         <PageLayout
             content={
                 isError ? (
-                    <Banner variant="error" fullWidth>
-                        There was an issue retrieving data for checkpoint: {id}
-                    </Banner>
+                    <InfoBox
+                        title="Failed to load checkpoint data"
+                        supportingText={`There was an issue retrieving data for checkpoint: ${id}`}
+                        icon={<Warning />}
+                        type={InfoBoxType.Error}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 ) : isPending ? (
                     <LoadingIndicator />
                 ) : (

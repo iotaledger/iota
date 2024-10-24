@@ -3,7 +3,7 @@ processed 10 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-38:
+task 1, lines 7-39:
 //# run-graphql
 Response: {
   "data": {
@@ -63,7 +63,7 @@ Response: {
             ],
             "return": [
               {
-                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IotaTreasuryCap"
               }
             ]
           }
@@ -73,17 +73,17 @@ Response: {
   }
 }
 
-task 2, lines 40-44:
+task 2, lines 41-45:
 //# publish --upgradeable --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5183200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 46:
+task 3, line 47:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 48-86:
+task 4, lines 49-87:
 //# run-graphql
 Response: {
   "data": {
@@ -95,19 +95,25 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x3719b3c504667a19c9e74ef201f80de7ec442c36168ec906f9c071eaea0c2310",
+                    "address": "0x7ab276e07bc81d3c00ac3f5234cce7214b5e69f5cbfa07535f14b05eeca5597c",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x3b0214c71a45ce74c853ec2b17a64ccbe92c09daaf2bc21a7f4a15a972a1e0e2",
+                    "address": "0xc1d3538ac73128faa829ebaa9b30627b579215e00c2e47960311bbd2d5086c09",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0xf2091469462fa60ab4f96f0f5ef490f77890aae5fa8d485ab5f05d8fe6a9e5b3",
                     "asMovePackage": {
                       "module": {
                         "function": {
                           "module": {
                             "package": {
-                              "address": "0x3b0214c71a45ce74c853ec2b17a64ccbe92c09daaf2bc21a7f4a15a972a1e0e2"
+                              "address": "0xf2091469462fa60ab4f96f0f5ef490f77890aae5fa8d485ab5f05d8fe6a9e5b3"
                             }
                           },
                           "name": "f",
@@ -137,12 +143,6 @@ Response: {
                       }
                     }
                   }
-                },
-                {
-                  "outputState": {
-                    "address": "0x53eaddee260f724b981b7b53658dcd981214bc2ccffe988cff73f6a04f46a9bb",
-                    "asMovePackage": null
-                  }
                 }
               ]
             }
@@ -153,17 +153,17 @@ Response: {
   }
 }
 
-task 5, lines 88-93:
-//# upgrade --package P0 --upgrade-capability 2,1 --sender A
+task 5, lines 89-94:
+//# upgrade --package P0 --upgrade-capability 2,0 --sender A
 created: object(5,0)
-mutated: object(0,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 5418800,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 5418800,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
-task 6, line 95:
+task 6, line 96:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 7, lines 97-136:
+task 7, lines 98-137:
 //# run-graphql
 Response: {
   "data": {
@@ -175,25 +175,13 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x3719b3c504667a19c9e74ef201f80de7ec442c36168ec906f9c071eaea0c2310",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x53eaddee260f724b981b7b53658dcd981214bc2ccffe988cff73f6a04f46a9bb",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x76ebf19f8ea6bfa546ad4517196f912bc1eaf5652752eeceb48d03a35340e49e",
+                    "address": "0x114752060737346a4ec7c59dac8629f83b1934589d8f085401d3bbd783bfba90",
                     "asMovePackage": {
                       "module": {
                         "f": {
                           "module": {
                             "package": {
-                              "address": "0x76ebf19f8ea6bfa546ad4517196f912bc1eaf5652752eeceb48d03a35340e49e"
+                              "address": "0x114752060737346a4ec7c59dac8629f83b1934589d8f085401d3bbd783bfba90"
                             }
                           },
                           "name": "f",
@@ -223,7 +211,7 @@ Response: {
                         "g": {
                           "module": {
                             "package": {
-                              "address": "0x76ebf19f8ea6bfa546ad4517196f912bc1eaf5652752eeceb48d03a35340e49e"
+                              "address": "0x114752060737346a4ec7c59dac8629f83b1934589d8f085401d3bbd783bfba90"
                             }
                           },
                           "name": "g",
@@ -240,6 +228,18 @@ Response: {
                       }
                     }
                   }
+                },
+                {
+                  "outputState": {
+                    "address": "0x7ab276e07bc81d3c00ac3f5234cce7214b5e69f5cbfa07535f14b05eeca5597c",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0xc1d3538ac73128faa829ebaa9b30627b579215e00c2e47960311bbd2d5086c09",
+                    "asMovePackage": null
+                  }
                 }
               ]
             }
@@ -250,7 +250,7 @@ Response: {
   }
 }
 
-task 8, lines 138-173:
+task 8, lines 139-174:
 //# run-graphql --cursors {"n":"consensus_commit_prologue","c":2} {"n":"timestamp_ms","c":2}
 Response: {
   "data": {
@@ -398,7 +398,7 @@ Response: {
   }
 }
 
-task 9, lines 175-246:
+task 9, lines 176-247:
 //# run-graphql --cursors {"n":"consensus_commit_prologue","c":2} {"n":"timestamp_ms","c":2}
 Response: {
   "data": {

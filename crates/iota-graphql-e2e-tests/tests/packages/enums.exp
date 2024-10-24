@@ -3,17 +3,17 @@ processed 8 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-17:
+task 1, lines 7-18:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5783600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 19:
+task 2, line 20:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 3, lines 21-66:
+task 3, lines 22-67:
 //# run-graphql
 Response: {
   "data": {
@@ -25,19 +25,13 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x0483b83855b7046d6a5fc1dff0f25b77b1534d747c7319852c6b9d922c48df23",
+                    "address": "0x0db69147531907018e7ef8ffb915739dec59f5429d05c9185fbadb7611fc809e",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x53eaddee260f724b981b7b53658dcd981214bc2ccffe988cff73f6a04f46a9bb",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0xf3d86fb7e84350b48622005e24ff77cc59bf3b30d2855853030eb7528f3ad646",
+                    "address": "0x13ab44ee556ad8724e413be666922fa51857ffe553640a8a81a0b077a9454c49",
                     "asMovePackage": {
                       "module": {
                         "enum": {
@@ -93,6 +87,12 @@ Response: {
                       }
                     }
                   }
+                },
+                {
+                  "outputState": {
+                    "address": "0x7ab276e07bc81d3c00ac3f5234cce7214b5e69f5cbfa07535f14b05eeca5597c",
+                    "asMovePackage": null
+                  }
                 }
               ]
             }
@@ -103,17 +103,17 @@ Response: {
   }
 }
 
-task 4, lines 68-81:
-//# upgrade --package P0 --upgrade-capability 1,1 --sender A
+task 4, lines 69-82:
+//# upgrade --package P0 --upgrade-capability 1,0 --sender A
 created: object(4,0)
-mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 6657600,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+mutated: object(0,0), object(1,0)
+gas summary: computation_cost: 1000000, storage_cost: 6657600,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
-task 5, line 83:
+task 5, line 84:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 6, lines 85-148:
+task 6, lines 86-149:
 //# run-graphql
 Response: {
   "data": {
@@ -125,25 +125,25 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x0483b83855b7046d6a5fc1dff0f25b77b1534d747c7319852c6b9d922c48df23",
+                    "address": "0x0db69147531907018e7ef8ffb915739dec59f5429d05c9185fbadb7611fc809e",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x53eaddee260f724b981b7b53658dcd981214bc2ccffe988cff73f6a04f46a9bb",
+                    "address": "0x7ab276e07bc81d3c00ac3f5234cce7214b5e69f5cbfa07535f14b05eeca5597c",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0xfd70c6e4a3dba33764886514466b1063dc3005945c4792dd2c7b41b1dc3d4591",
+                    "address": "0xee91556fa4546eb038a6a74f34443839d75f83514c7eee2c567aac6ca5daca50",
                     "asMovePackage": {
                       "module": {
                         "s": {
                           "module": {
                             "package": {
-                              "address": "0xf3d86fb7e84350b48622005e24ff77cc59bf3b30d2855853030eb7528f3ad646"
+                              "address": "0x13ab44ee556ad8724e413be666922fa51857ffe553640a8a81a0b077a9454c49"
                             }
                           },
                           "name": "S",
@@ -198,7 +198,7 @@ Response: {
                         "t": {
                           "module": {
                             "package": {
-                              "address": "0xfd70c6e4a3dba33764886514466b1063dc3005945c4792dd2c7b41b1dc3d4591"
+                              "address": "0xee91556fa4546eb038a6a74f34443839d75f83514c7eee2c567aac6ca5daca50"
                             }
                           },
                           "name": "T",
@@ -228,12 +228,12 @@ Response: {
                                 {
                                   "name": "s",
                                   "type": {
-                                    "repr": "0xf3d86fb7e84350b48622005e24ff77cc59bf3b30d2855853030eb7528f3ad646::m::S",
+                                    "repr": "0x13ab44ee556ad8724e413be666922fa51857ffe553640a8a81a0b077a9454c49::m::S",
                                     "signature": {
                                       "ref": null,
                                       "body": {
                                         "datatype": {
-                                          "package": "0xf3d86fb7e84350b48622005e24ff77cc59bf3b30d2855853030eb7528f3ad646",
+                                          "package": "0x13ab44ee556ad8724e413be666922fa51857ffe553640a8a81a0b077a9454c49",
                                           "module": "m",
                                           "type": "S",
                                           "typeParameters": []
@@ -267,7 +267,7 @@ Response: {
                                 {
                                   "name": "t",
                                   "type": {
-                                    "repr": "0xf3d86fb7e84350b48622005e24ff77cc59bf3b30d2855853030eb7528f3ad646::m::T<0xf3d86fb7e84350b48622005e24ff77cc59bf3b30d2855853030eb7528f3ad646::m::S>"
+                                    "repr": "0x13ab44ee556ad8724e413be666922fa51857ffe553640a8a81a0b077a9454c49::m::T<0x13ab44ee556ad8724e413be666922fa51857ffe553640a8a81a0b077a9454c49::m::S>"
                                   }
                                 }
                               ]
@@ -287,7 +287,7 @@ Response: {
   }
 }
 
-task 7, lines 150-185:
+task 7, lines 151-186:
 //# run-graphql
 Response: {
   "data": {

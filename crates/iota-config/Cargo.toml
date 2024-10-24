@@ -1,7 +1,7 @@
 [package]
 name = "iota-config"
 version = "0.0.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 anemo.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
 bcs.workspace = true
@@ -27,11 +28,12 @@ serde_with.workspace = true
 serde_yaml.workspace = true
 tracing.workspace = true
 
+# internal dependencies
 consensus-config.workspace = true
+iota-genesis-common.workspace = true
 iota-keys.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-narwhal-config.workspace = true
 
 [dev-dependencies]
 iota-types = { workspace = true, features = ["test-utils"] }

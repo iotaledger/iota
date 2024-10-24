@@ -1229,7 +1229,7 @@ async fn test_access_old_object_pruned() {
         .effects
         .unwrap();
     let new_gas_version = effects.gas_object().reference.version;
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     // Construct a new transaction that uses the old gas object reference.
     let tx = test_cluster.sign_transaction(
         &test_cluster

@@ -3,6 +3,9 @@ title: Data Management
 description: A high-level description of data management on the IOTA network that you can use to optimize your IOTA Full node configuration. 
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/data-management.json';
+
 Managing the data on your IOTA Full node is critical to ensuring a healthy IOTA network. This topic provides a high-level description of data management on IOTA Full nodes that you can use to optimize your Full node configuration. For more information about IOTA Full nodes, such as pruning policies and archival settings, see [Run an IOTA Full Node](iota-full-node.mdx).
 
 ## Basic IOTA Full node functionality
@@ -176,3 +179,5 @@ authority-store-pruning-config:
   # Smooth pruning traffic throughout an epoch
   smooth: true
 ```
+
+<Quiz questions={questions} />

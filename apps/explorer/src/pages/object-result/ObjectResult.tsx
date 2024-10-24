@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetObject } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
 import { useParams } from 'react-router-dom';
 import { ErrorBoundary, PageLayout } from '~/components';
-import { Banner, PageHeader } from '~/components/ui';
+import { PageHeader } from '~/components/ui';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { translate, type DataType } from './ObjectResultType';
 import PkgView from './views/PkgView';
 import { TokenView } from './views/TokenView';
+import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/ui-icons';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 
@@ -46,10 +47,13 @@ export function ObjectResult(): JSX.Element {
                         </div>
                     )}
                     {isPageError || !data || !resp ? (
-                        <Banner variant="error" spacing="lg" fullWidth>
-                            Data could not be extracted on the following specified object ID:{' '}
-                            {objID}
-                        </Banner>
+                        <InfoBox
+                            title="Error extracting data"
+                            supportingText={`Data could not be extracted on the following specified object ID: ${objID}`}
+                            icon={<Warning />}
+                            type={InfoBoxType.Error}
+                            style={InfoBoxStyle.Elevated}
+                        />
                     ) : (
                         <>
                             {isPackage && <PageHeader type="Package" title={resp.id} />}

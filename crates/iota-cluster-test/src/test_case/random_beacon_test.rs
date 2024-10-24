@@ -24,11 +24,6 @@ impl TestCaseImpl for RandomBeaconTest {
 
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {
         let wallet_context: &WalletContext = ctx.get_wallet();
-        // Test only if the beacon is enabled.
-        if !Self::is_beacon_enabled(wallet_context).await {
-            info!("Random beacon is not enabled. Skipping test.");
-            return Ok(());
-        }
 
         info!("Testing a transaction that uses Random.");
 
@@ -62,13 +57,5 @@ impl TestCaseImpl for RandomBeaconTest {
         ctx.let_fullnode_sync(vec![response.digest], 5).await;
 
         Ok(())
-    }
-}
-
-impl RandomBeaconTest {
-    async fn is_beacon_enabled(wallet_context: &WalletContext) -> bool {
-        let client = wallet_context.get_client().await.unwrap();
-        let config = client.read_api().get_protocol_config(None).await.unwrap();
-        *config.feature_flags.get("random_beacon").unwrap()
     }
 }

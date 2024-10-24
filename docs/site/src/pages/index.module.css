@@ -27,6 +27,11 @@
   background-size: 50% 100%;
   margin-bottom: 2rem;
 }
+@media (max-width: 599px) {
+  .backgroundImage {
+    background-size: 125% 70% !important;
+  }
+}
 
 @media (max-width: 1000px) {
   .backgroundImage {
