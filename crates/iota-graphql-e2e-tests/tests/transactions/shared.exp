@@ -1,26 +1,37 @@
 processed 7 tasks
 
-task 1 'publish'. lines 7-23:
+task 1, lines 7-23:
+//# publish
 created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 6862800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'programmable'. lines 25-26:
+task 2, lines 25-26:
+//# programmable --inputs immshared(1,0)
+//> 0: P0::m::get(Input(0))
 mutated: object(0,0)
+unchanged_shared: object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3 'programmable'. lines 28-29:
+task 3, lines 28-29:
+//# programmable --inputs object(1,0)
+//> 0: P0::m::inc(Input(0))
 mutated: object(0,0), object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2272400, non_refundable_storage_fee: 0
 
-task 4 'programmable'. lines 31-33:
+task 4, lines 31-33:
+//# programmable --inputs object(1,0)
+//> 0: P0::m::get(Input(0));
+//> P0::m::inc(Input(0))
 mutated: object(0,0), object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2272400, non_refundable_storage_fee: 0
 
-task 5 'create-checkpoint'. lines 35-35:
+task 5, line 35:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 6 'run-graphql'. lines 37-85:
+task 6, lines 37-85:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {
@@ -31,7 +42,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xf929cc38defcde0edcf70b16e88bb6c8da2815bed01a45e1336f5b81a2b7548b",
+                  "package": "0x81fecfec8cda1ae043aaf7af6c09e893ed847c1551585cef97e4f66e48d2f979",
                   "module": "m",
                   "functionName": "get"
                 }
@@ -44,17 +55,17 @@ Response: {
               "nodes": [
                 {
                   "__typename": "SharedObjectRead",
-                  "address": "0x4ddfbe378193af9d159d5b394771c6180b4fa711b2b4809a764207d4a9aabc68",
+                  "address": "0x925dea6dd7c8fcb192b66c8ca68159433a2c4bc13a418b330d2da39c5dacb4ed",
                   "version": 2,
-                  "digest": "GuKAMS19W91fzUFJcwWA3bttNXM598rJDGcc8EzqcfjU",
+                  "digest": "8sg1MfrfY93MygRY2VmiZNkq94uWETfK3BihkyMrgzag",
                   "object": {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0xf929cc38defcde0edcf70b16e88bb6c8da2815bed01a45e1336f5b81a2b7548b::m::Foo"
+                          "repr": "0x81fecfec8cda1ae043aaf7af6c09e893ed847c1551585cef97e4f66e48d2f979::m::Foo"
                         },
                         "json": {
-                          "id": "0x4ddfbe378193af9d159d5b394771c6180b4fa711b2b4809a764207d4a9aabc68",
+                          "id": "0x925dea6dd7c8fcb192b66c8ca68159433a2c4bc13a418b330d2da39c5dacb4ed",
                           "x": "0"
                         }
                       }
@@ -71,7 +82,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xf929cc38defcde0edcf70b16e88bb6c8da2815bed01a45e1336f5b81a2b7548b",
+                  "package": "0x81fecfec8cda1ae043aaf7af6c09e893ed847c1551585cef97e4f66e48d2f979",
                   "module": "m",
                   "functionName": "inc"
                 }
@@ -91,12 +102,12 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0xf929cc38defcde0edcf70b16e88bb6c8da2815bed01a45e1336f5b81a2b7548b",
+                  "package": "0x81fecfec8cda1ae043aaf7af6c09e893ed847c1551585cef97e4f66e48d2f979",
                   "module": "m",
                   "functionName": "get"
                 },
                 {
-                  "package": "0xf929cc38defcde0edcf70b16e88bb6c8da2815bed01a45e1336f5b81a2b7548b",
+                  "package": "0x81fecfec8cda1ae043aaf7af6c09e893ed847c1551585cef97e4f66e48d2f979",
                   "module": "m",
                   "functionName": "inc"
                 }

@@ -10,7 +10,7 @@
 module iota_system::iota_system_tests {
     use iota::test_scenario::{Self, Scenario};
     use iota::iota::IOTA;
-    use iota_system::governance_test_utils::{add_validator_full_flow, advance_epoch, remove_validator, set_up_iota_system_state, create_iota_system_state_for_testing};
+    use iota_system::governance_test_utils::{add_validator_full_flow, advance_epoch, remove_validator, set_up_iota_system_state, create_iota_system_state_for_testing, stake_with, unstake};
     use iota_system::iota_system::IotaSystemState;
     use iota_system::iota_system_state_inner;
     use iota_system::validator::{Self, Validator};
@@ -28,40 +28,40 @@ module iota_system::iota_system_tests {
         set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
 
         report_helper(@0x1, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
         report_helper(@0x3, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3]);
 
         // Report again and result should stay the same.
         report_helper(@0x1, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3]);
 
         // Undo the report.
         report_helper(@0x3, @0x2, true, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         advance_epoch(scenario);
 
         // After an epoch ends, report records are still present.
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         report_helper(@0x2, @0x1, false, scenario);
-        assert!(get_reporters_of(@0x1, scenario) == vector[@0x2], 0);
+        assert!(get_reporters_of(@0x1, scenario) == vector[@0x2]);
 
 
         report_helper(@0x3, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3]);
 
         // After 0x3 leaves, its reports are gone
         remove_validator(@0x3, scenario);
         advance_epoch(scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         // After 0x1 leaves, both its reports and the reports on its name are gone
         remove_validator(@0x1, scenario);
         advance_epoch(scenario);
-        assert!(get_reporters_of(@0x1, scenario).is_empty(), 0);
-        assert!(get_reporters_of(@0x2, scenario).is_empty(), 0);
+        assert!(get_reporters_of(@0x1, scenario).is_empty());
+        assert!(get_reporters_of(@0x2, scenario).is_empty());
         scenario_val.end();
     }
 
@@ -79,11 +79,11 @@ module iota_system::iota_system_tests {
 
         // With the cap object in hand, stakee could report validators on behalf of @0x1.
         report_helper(stakee_address, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         // stakee could also undo report.
         report_helper(stakee_address, @0x2, true, scenario);
-        assert!(get_reporters_of(@0x2, scenario).is_empty(), 0);
+        assert!(get_reporters_of(@0x2, scenario).is_empty());
 
         scenario.next_tx(stakee_address);
         let cap = scenario.take_from_sender<UnverifiedValidatorOperationCap>();
@@ -92,7 +92,7 @@ module iota_system::iota_system_tests {
 
         // New stakee could report validators on behalf of @0x1.
         report_helper(new_stakee_address, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         // New stakee could also set reference gas price on behalf of @0x1.
         set_gas_price_helper(new_stakee_address, 666, scenario);
@@ -111,9 +111,9 @@ module iota_system::iota_system_tests {
         scenario.next_tx(new_stakee_address);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let validator = system_state.active_validator_by_address(@0x1);
-        assert!(validator.next_epoch_gas_price() == 666, 0);
+        assert!(validator.next_epoch_gas_price() == 666);
         let pending_validator = system_state.pending_validator_by_address(new_validator_addr);
-        assert!(pending_validator.next_epoch_gas_price() == 777, 0);
+        assert!(pending_validator.next_epoch_gas_price() == 777);
         test_scenario::return_shared(system_state);
 
         scenario_val.end();
@@ -133,7 +133,7 @@ module iota_system::iota_system_tests {
         transfer::public_transfer(cap, stakee_address);
 
         report_helper(stakee_address, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         // @0x1 revokes stakee's permission by creating a new
         // operation cap object.
@@ -164,7 +164,7 @@ module iota_system::iota_system_tests {
         scenario.next_tx(stakee_address);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let validator = system_state.active_validator_by_address(@0x1);
-        assert!(validator.next_epoch_gas_price() == 888, 0);
+        assert!(validator.next_epoch_gas_price() == 888);
         test_scenario::return_shared(system_state);
 
         // @0x1 revokes stakee's permssion by creating a new
@@ -351,7 +351,7 @@ module iota_system::iota_system_tests {
         scenario: &mut Scenario,
         system_state: &mut IotaSystemState,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
@@ -366,13 +366,12 @@ module iota_system::iota_system_tests {
         system_state.update_candidate_validator_network_address(network_address, ctx);
         system_state.update_candidate_validator_p2p_address(p2p_address, ctx);
         system_state.update_candidate_validator_primary_address(b"/ip4/127.0.0.1/udp/80", ctx);
-        system_state.update_candidate_validator_worker_address(b"/ip4/127.0.0.1/udp/80", ctx);
-        system_state.update_candidate_validator_protocol_pubkey(
-            protocol_pub_key,
+        system_state.update_candidate_validator_authority_pubkey(
+            authority_pub_key,
             pop,
             ctx
         );
-        system_state.update_candidate_validator_worker_pubkey(vector[68, 55, 206, 25, 199, 14, 169, 53, 68, 92, 142, 136, 174, 149, 54, 215, 101, 63, 249, 206, 197, 98, 233, 80, 60, 12, 183, 32, 216, 88, 103, 25], ctx);
+        system_state.update_candidate_validator_protocol_pubkey(vector[68, 55, 206, 25, 199, 14, 169, 53, 68, 92, 142, 136, 174, 149, 54, 215, 101, 63, 249, 206, 197, 98, 233, 80, 60, 12, 183, 32, 216, 88, 103, 25], ctx);
         system_state.update_candidate_validator_network_pubkey(vector[32, 219, 38, 23, 242, 109, 116, 235, 225, 192, 219, 45, 40, 124, 162, 25, 33, 68, 52, 41, 123, 9, 98, 11, 184, 150, 214, 62, 60, 210, 121, 62], ctx);
 
         system_state.set_candidate_validator_commission_rate(commission_rate, ctx);
@@ -385,7 +384,7 @@ module iota_system::iota_system_tests {
     fun verify_candidate(
         validator: &Validator,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
@@ -396,32 +395,31 @@ module iota_system::iota_system_tests {
         verify_current_epoch_metadata(
             validator,
             name,
-            protocol_pub_key,
+            authority_pub_key,
             pop,
-            b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             network_address,
             p2p_address,
             vector[32, 219, 38, 23, 242, 109, 116, 235, 225, 192, 219, 45, 40, 124, 162, 25, 33, 68, 52, 41, 123, 9, 98, 11, 184, 150, 214, 62, 60, 210, 121, 62],
             vector[68, 55, 206, 25, 199, 14, 169, 53, 68, 92, 142, 136, 174, 149, 54, 215, 101, 63, 249, 206, 197, 98, 233, 80, 60, 12, 183, 32, 216, 88, 103, 25],
         );
-        assert!(validator.commission_rate() == commission_rate, 0);
-        assert!(validator.gas_price() == gas_price, 0);
+        assert!(validator.commission_rate() == commission_rate);
+        assert!(validator.gas_price() == gas_price);
 
     }
 
-    // Note: `pop` MUST be a valid signature using iota_address and protocol_pubkey_bytes.
+    // Note: `pop` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     // To produce a valid PoP, run [fn test_proof_of_possession].
     fun update_metadata(
         scenario: &mut Scenario,
         system_state: &mut IotaSystemState,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey: vector<u8>,
-        worker_pubkey: vector<u8>,
+        protocol_pubkey: vector<u8>,
     ) {
         let ctx = scenario.ctx();
         system_state.update_validator_name(name, ctx);
@@ -431,53 +429,50 @@ module iota_system::iota_system_tests {
         system_state.update_validator_next_epoch_network_address(network_address, ctx);
         system_state.update_validator_next_epoch_p2p_address(p2p_address, ctx);
         system_state.update_validator_next_epoch_primary_address(b"/ip4/168.168.168.168/udp/80", ctx);
-        system_state.update_validator_next_epoch_worker_address(b"/ip4/168.168.168.168/udp/80", ctx);
-        system_state.update_validator_next_epoch_protocol_pubkey(
-            protocol_pub_key,
+        system_state.update_validator_next_epoch_authority_pubkey(
+            authority_pub_key,
             pop,
             ctx
         );
         system_state.update_validator_next_epoch_network_pubkey(network_pubkey, ctx);
-        system_state.update_validator_next_epoch_worker_pubkey(worker_pubkey, ctx);
+        system_state.update_validator_next_epoch_protocol_pubkey(protocol_pubkey, ctx);
     }
 
     fun verify_metadata(
         validator: &Validator,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey: vector<u8>,
-        worker_pubkey: vector<u8>,
-        new_protocol_pub_key: vector<u8>,
+        protocol_pubkey: vector<u8>,
+        new_authority_pub_key: vector<u8>,
         new_pop: vector<u8>,
         new_network_address: vector<u8>,
         new_p2p_address: vector<u8>,
         new_network_pubkey: vector<u8>,
-        new_worker_pubkey: vector<u8>,
+        new_protocol_pubkey: vector<u8>,
     ) {
         // Current epoch
         verify_current_epoch_metadata(
             validator,
             name,
-            protocol_pub_key,
+            authority_pub_key,
             pop,
-            b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             network_address,
             p2p_address,
             network_pubkey,
-            worker_pubkey,
+            protocol_pubkey,
         );
 
         // Next epoch
-        assert!(validator.next_epoch_network_address() == &option::some(new_network_address.to_string()), 0);
-        assert!(validator.next_epoch_p2p_address() == &option::some(new_p2p_address.to_string()), 0);
-        assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()), 0);
-        assert!(validator.next_epoch_worker_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()), 0);
+        assert!(validator.next_epoch_network_address() == &option::some(new_network_address.to_string()));
+        assert!(validator.next_epoch_p2p_address() == &option::some(new_p2p_address.to_string()));
+        assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()));
         assert!(
-            validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pub_key),
+            validator.next_epoch_authority_pubkey_bytes() == &option::some(new_authority_pub_key),
             0
         );
         assert!(
@@ -485,7 +480,7 @@ module iota_system::iota_system_tests {
             0
         );
         assert!(
-            validator.next_epoch_worker_pubkey_bytes() == &option::some(new_worker_pubkey),
+            validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pubkey),
             0
         );
         assert!(
@@ -497,64 +492,60 @@ module iota_system::iota_system_tests {
     fun verify_current_epoch_metadata(
         validator: &Validator,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
     ) {
         // Current epoch
-        assert!(validator.name() == &name.to_string(), 0);
-        assert!(validator.description() == &b"new_desc".to_string(), 0);
-        assert!(validator.image_url() == &url::new_unsafe_from_bytes(b"new_image_url"), 0);
-        assert!(validator.project_url() == &url::new_unsafe_from_bytes(b"new_project_url"), 0);
-        assert!(validator.network_address() == &network_address.to_string(), 0);
-        assert!(validator.p2p_address() == &p2p_address.to_string(), 0);
-        assert!(validator.primary_address() == &primary_address.to_string(), 0);
-        assert!(validator.worker_address() == &worker_address.to_string(), 0);
-        assert!(validator.protocol_pubkey_bytes() == &protocol_pub_key, 0);
-        assert!(validator.proof_of_possession() == &pop, 0);
-        assert!(validator.worker_pubkey_bytes() == &worker_pubkey_bytes, 0);
-        assert!(validator.network_pubkey_bytes() == &network_pubkey_bytes, 0);
+        assert!(validator.name() == &name.to_string());
+        assert!(validator.description() == &b"new_desc".to_string());
+        assert!(validator.image_url() == &url::new_unsafe_from_bytes(b"new_image_url"));
+        assert!(validator.project_url() == &url::new_unsafe_from_bytes(b"new_project_url"));
+        assert!(validator.network_address() == &network_address.to_string());
+        assert!(validator.p2p_address() == &p2p_address.to_string());
+        assert!(validator.primary_address() == &primary_address.to_string());
+        assert!(validator.authority_pubkey_bytes() == &authority_pub_key);
+        assert!(validator.proof_of_possession() == &pop);
+        assert!(validator.protocol_pubkey_bytes() == &protocol_pubkey_bytes);
+        assert!(validator.network_pubkey_bytes() == &network_pubkey_bytes);
     }
 
 
     fun verify_metadata_after_advancing_epoch(
         validator: &Validator,
         name: vector<u8>,
-        protocol_pub_key: vector<u8>,
+        authority_pub_key: vector<u8>,
         pop: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey: vector<u8>,
-        worker_pubkey: vector<u8>,
+        protocol_pubkey: vector<u8>,
     ) {
         // Current epoch
         verify_current_epoch_metadata(
             validator,
             name,
-            protocol_pub_key,
+            authority_pub_key,
             pop,
-            b"/ip4/168.168.168.168/udp/80",
             b"/ip4/168.168.168.168/udp/80",
             network_address,
             p2p_address,
             network_pubkey,
-            worker_pubkey,
+            protocol_pubkey,
         );
 
         // Next epoch
-        assert!(validator.next_epoch_network_address().is_none(), 0);
-        assert!(validator.next_epoch_p2p_address().is_none(), 0);
-        assert!(validator.next_epoch_primary_address().is_none(), 0);
-        assert!(validator.next_epoch_worker_address().is_none(), 0);
-        assert!(validator.next_epoch_protocol_pubkey_bytes().is_none(), 0);
-        assert!(validator.next_epoch_proof_of_possession().is_none(), 0);
-        assert!(validator.next_epoch_worker_pubkey_bytes().is_none(), 0);
-        assert!(validator.next_epoch_network_pubkey_bytes().is_none(), 0);
+        assert!(validator.next_epoch_network_address().is_none());
+        assert!(validator.next_epoch_p2p_address().is_none());
+        assert!(validator.next_epoch_primary_address().is_none());
+        assert!(validator.next_epoch_authority_pubkey_bytes().is_none());
+        assert!(validator.next_epoch_proof_of_possession().is_none());
+        assert!(validator.next_epoch_protocol_pubkey_bytes().is_none());
+        assert!(validator.next_epoch_network_pubkey_bytes().is_none());
     }
 
     #[test]
@@ -562,19 +553,19 @@ module iota_system::iota_system_tests {
         let validator_addr = @0xaf76afe6f866d8426d2be85d6ef0b11f871a251d043b2f11e15563bf418f5a5a;
         // pubkey generated with protocol key on seed [0; 32]
         let pubkey = x"99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10";
-        // pop generated using the protocol key and address with [fn test_proof_of_possession]
+        // pop generated using the authority key and address with [fn test_proof_of_possession]
         let pop = x"b01cc86f421beca7ab4cfca87c0799c4d038c199dd399fbec1924d4d4367866dba9e84d514710b91feb65316e4ceef43";
 
-        // pubkey generated with protocol key on seed [1; 32]
+        // pubkey generated with authority key on seed [1; 32]
         let pubkey1 = x"96d19c53f1bee2158c3fcfb5bb2f06d3a8237667529d2d8f0fbb22fe5c3b3e64748420b4103674490476d98530d063271222d2a59b0f7932909cc455a30f00c69380e6885375e94243f7468e9563aad29330aca7ab431927540e9508888f0e1c";
         let pop1 = x"a8a0bcaf04e13565914eb22fa9f27a76f297db04446860ee2b923d10224cedb130b30783fb60b12556e7fc50e5b57a86";
 
         let new_validator_addr = @0x8e3446145b0c7768839d71840df389ffa3b9742d0baaff326a3d453b595f87d7;
-        // pubkey generated with protocol key on seed [2; 32]
+        // pubkey generated with authority key on seed [2; 32]
         let new_pubkey = x"adf2e2350fe9a58f3fa50777499f20331c4550ab70f6a4fb25a58c61b50b5366107b5c06332e71bb47aa99ce2d5c07fe0dab04b8af71589f0f292c50382eba6ad4c90acb010ab9db7412988b2aba1018aaf840b1390a8b2bee3fde35b4ab7fdf";
         let new_pop = x"926fdb08b2b46d802e3642044f215dcb049e6c17a376a272ffd7dba32739bb995370966698ab235ee172fbd974985cfe";
 
-        // pubkey generated with protocol key on seed [3; 32]
+        // pubkey generated with authority key on seed [3; 32]
         let new_pubkey1 = x"91b8de031e0b60861c655c8168596d98b065d57f26f287f8c810590b06a636eff13c4055983e95b2f60a4d6ba5484fa4176923d1f7807cc0b222ddf6179c1db099dba0433f098aae82542b3fd27b411d64a0a35aad01b2c07ac67f7d0a1d2c11";
         let new_pop1 = x"b61913eb4dc7ea1d92f174e1a3c6cad3f49ae8de40b13b69046ce072d8d778bfe87e734349c7394fd1543fff0cb6e2d0";
 
@@ -595,7 +586,6 @@ module iota_system::iota_system_tests {
             b"image_url",
             b"project_url",
             b"/ip4/127.0.0.1/tcp/80",
-            b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             option::some(balance::create_for_testing<IOTA>(100_000_000_000)),
@@ -667,7 +657,6 @@ module iota_system::iota_system_tests {
                 b"project_url2",
                 b"/ip4/127.0.0.2/tcp/80",
                 b"/ip4/127.0.0.2/udp/80",
-                b"/ip4/127.0.0.1/udp/80",
                 b"/ip4/127.0.0.1/udp/80",
                 1,
                 0,
@@ -751,12 +740,12 @@ module iota_system::iota_system_tests {
     #[test]
     fun test_validator_candidate_update() {
         let validator_addr = @0xaf76afe6f866d8426d2be85d6ef0b11f871a251d043b2f11e15563bf418f5a5a;
-        // pubkey generated with protocol key on seed [0; 32]
+        // pubkey generated with authority key on seed [0; 32]
         let pubkey = x"99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10";
-        // pop generated using the protocol key and address with [fn test_proof_of_possession]
+        // pop generated using the authority key and address with [fn test_proof_of_possession]
         let pop = x"b01cc86f421beca7ab4cfca87c0799c4d038c199dd399fbec1924d4d4367866dba9e84d514710b91feb65316e4ceef43";
 
-        // pubkey generated with protocol key on seed [1; 32]
+        // pubkey generated with authority key on seed [1; 32]
         let pubkey1 = x"96d19c53f1bee2158c3fcfb5bb2f06d3a8237667529d2d8f0fbb22fe5c3b3e64748420b4103674490476d98530d063271222d2a59b0f7932909cc455a30f00c69380e6885375e94243f7468e9563aad29330aca7ab431927540e9508888f0e1c";
         let pop1 = x"a8a0bcaf04e13565914eb22fa9f27a76f297db04446860ee2b923d10224cedb130b30783fb60b12556e7fc50e5b57a86";
 
@@ -779,7 +768,6 @@ module iota_system::iota_system_tests {
                 b"project_url2",
                 b"/ip4/127.0.0.2/tcp/80",
                 b"/ip4/127.0.0.2/udp/80",
-                b"/ip4/168.168.168.168/udp/80",
                 b"/ip4/168.168.168.168/udp/80",
                 1,
                 0,
@@ -821,7 +809,7 @@ module iota_system::iota_system_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = validator::EMetadataInvalidWorkerPubkey)]
+    #[expected_failure(abort_code = validator::EMetadataInvalidProtocolPubkey)]
     fun test_add_validator_candidate_failure_invalid_metadata() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
@@ -845,7 +833,6 @@ module iota_system::iota_system_tests {
             b"project_url2",
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             1,
             0,
@@ -879,7 +866,6 @@ module iota_system::iota_system_tests {
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             1,
             0,
             scenario.ctx(),
@@ -897,7 +883,6 @@ module iota_system::iota_system_tests {
             b"project_url2",
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             1,
             0,
@@ -938,7 +923,6 @@ module iota_system::iota_system_tests {
             b"/ip4/127.0.0.1/tcp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             option::some(balance::create_for_testing<IOTA>(100_000_000_000)),
             1,
             0,
@@ -965,12 +949,61 @@ module iota_system::iota_system_tests {
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             1,
             0,
             scenario.ctx(),
         );
         test_scenario::return_shared(system_state);
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_withdraw_inactive_stake() {
+        let mut scenario_val = test_scenario::begin(@0x0);
+        let scenario = &mut scenario_val;
+        // Epoch duration is set to be 42 here.
+        set_up_iota_system_state(vector[@0x1, @0x2]);
+
+        {
+            scenario.next_tx(@0x0);
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
+
+            assert!(staking_pool.pending_stake_amount() == 0, 0);
+            assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
+
+            test_scenario::return_shared(system_state);
+        };
+
+        stake_with(@0x0, @0x1, 1, scenario);
+
+        {
+            scenario.next_tx(@0x0);
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
+
+            assert!(staking_pool.pending_stake_amount() == 1_000_000_000, 0);
+            assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
+
+            test_scenario::return_shared(system_state);
+        };
+
+        unstake(@0x0, 0, scenario);
+
+        {
+            scenario.next_tx(@0x0);
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
+
+            assert!(staking_pool.pending_stake_amount() == 0, 0);
+            assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
+
+            test_scenario::return_shared(system_state);
+        };
+
         scenario_val.end();
     }
 }

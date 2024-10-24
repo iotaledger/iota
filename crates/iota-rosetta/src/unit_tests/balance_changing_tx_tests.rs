@@ -16,25 +16,27 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_move_build::BuildConfig;
 use iota_sdk::{
+    IotaClient,
     rpc_types::{
         IotaData, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
         IotaTransactionBlockResponse, OwnedObjectRef,
     },
-    IotaClient,
 };
 use iota_types::{
+    TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
-        CallArg, InputObjectKind, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_STAKING, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, InputObjectKind, ObjectArg, ProgrammableTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN, TEST_ONLY_GAS_UNIT_FOR_STAKING,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKind,
     },
 };
-use move_core_types::identifier::Identifier;
+use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use rand::seq::{IteratorRandom, SliceRandom};
 use serde_json::json;
 use shared_crypto::intent::Intent;
@@ -148,17 +150,11 @@ async fn test_publish_and_move_call() {
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.extend([
-        "..",
-        "..",
-        "iota_programmability",
-        "examples",
-        "fungible_tokens",
-    ]);
-    let compiled_package = BuildConfig::new_for_testing().build(path).unwrap();
+    path.extend(["..", "..", "examples", "move", "coin"]);
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
     let compiled_modules_bytes =
         compiled_package.get_package_bytes(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -191,8 +187,18 @@ async fn test_publish_and_move_call() {
         })
         .unwrap();
 
-    // TODO: Improve tx response to make it easier to find objects.
-    let treasury = find_module_object(&object_changes, "::TreasuryCap");
+    let treasury = find_module_object(&object_changes, |type_| {
+        if type_.name.as_str() != "TreasuryCap" {
+            return false;
+        }
+
+        let Some(TypeTag::Struct(otw)) = type_.type_params.first() else {
+            return false;
+        };
+
+        otw.name.as_str() == "MY_COIN"
+    });
+
     let treasury = treasury.clone().reference.to_object_ref();
     let recipient = *addresses.choose(&mut OsRng).unwrap();
     let pt = {
@@ -200,7 +206,7 @@ async fn test_publish_and_move_call() {
         builder
             .move_call(
                 *package,
-                Identifier::from_str("managed").unwrap(),
+                Identifier::from_str("my_coin").unwrap(),
                 Identifier::from_str("mint").unwrap(),
                 vec![],
                 vec![
@@ -344,11 +350,9 @@ async fn test_pay_multiple_coin_multiple_recipient() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay(
-                vec![coin1, coin2],
-                vec![recipient1, recipient2],
-                vec![100000, 200000],
-            )
+            .pay(vec![coin1, coin2], vec![recipient1, recipient2], vec![
+                100000, 200000,
+            ])
             .unwrap();
         builder.finish()
     };
@@ -382,10 +386,9 @@ async fn test_pay_iota_multiple_coin_same_recipient() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_iota(
-                vec![recipient1, recipient1, recipient1],
-                vec![100000, 100000, 100000],
-            )
+            .pay_iota(vec![recipient1, recipient1, recipient1], vec![
+                100000, 100000, 100000,
+            ])
             .unwrap();
         builder.finish()
     };
@@ -635,12 +638,15 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
         budget: rgp * TEST_ONLY_GAS_UNIT_FOR_STAKING,
     };
     let parsed_data = ops.clone().into_internal()?.try_into_data(metadata)?;
-    assert_eq!(ops, Operations::try_from(parsed_data)?);
+    assert_eq!(ops, Operations::from_transaction_data(parsed_data, None)?);
 
     Ok(())
 }
 
-fn find_module_object(changes: &[ObjectChange], object_type_name: &str) -> OwnedObjectRef {
+fn find_module_object(
+    changes: &[ObjectChange],
+    type_pred: impl Fn(&StructTag) -> bool,
+) -> OwnedObjectRef {
     let mut results: Vec<_> = changes
         .iter()
         .filter_map(|change| {
@@ -653,7 +659,7 @@ fn find_module_object(changes: &[ObjectChange], object_type_name: &str) -> Owned
                 ..
             } = change
             {
-                if object_type.to_string().contains(object_type_name) {
+                if type_pred(object_type) {
                     return Some(OwnedObjectRef {
                         owner: *owner,
                         reference: IotaObjectRef {

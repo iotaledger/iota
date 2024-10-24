@@ -20,12 +20,11 @@ use iota_types::{
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectStore,
 };
-use narwhal_storage::NodeStorage;
 use typed_store::rocks::MetricConf;
 
 use self::{
-    db_dump::{dump_table, duplicate_objects_summary, list_tables, table_summary, StoreName},
-    index_search::{search_index, SearchRange},
+    db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
+    index_search::{SearchRange, search_index},
 };
 use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
 pub mod db_dump;
@@ -42,7 +41,6 @@ pub enum DbToolCommand {
     DuplicatesSummary,
     ListDBMetadata(Options),
     PrintLastConsensusIndex,
-    PrintConsensusCommit(PrintConsensusCommitOptions),
     PrintTransaction(PrintTransactionOptions),
     PrintObject(PrintObjectOptions),
     PrintCheckpoint(PrintCheckpointOptions),
@@ -99,13 +97,6 @@ pub struct Options {
     /// The epoch to use when loading AuthorityEpochTables.
     #[arg(long = "epoch", short = 'e')]
     epoch: Option<EpochId>,
-}
-
-#[derive(Parser)]
-#[command(rename_all = "kebab-case")]
-pub struct PrintConsensusCommitOptions {
-    #[arg(long, help = "Sequence number of the consensus commit")]
-    seqnum: u64,
 }
 
 #[derive(Parser)]
@@ -208,7 +199,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             print_table_metadata(d.store_name, d.epoch, db_path, &d.table_name)
         }
         DbToolCommand::PrintLastConsensusIndex => print_last_consensus_index(&db_path),
-        DbToolCommand::PrintConsensusCommit(d) => print_consensus_commit(&db_path, d),
         DbToolCommand::PrintTransaction(d) => print_transaction(&db_path, d),
         DbToolCommand::PrintObject(o) => print_object(&db_path, o),
         DbToolCommand::PrintCheckpoint(d) => print_checkpoint(&db_path, d),
@@ -275,18 +265,6 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn print_consensus_commit(path: &Path, opt: PrintConsensusCommitOptions) -> anyhow::Result<()> {
-    let consensus_db = NodeStorage::reopen(path, None);
-    let consensus_commit = consensus_db
-        .consensus_store
-        .read_consensus_commit(&opt.seqnum)?;
-    match consensus_commit {
-        Some(commit) => println!("Consensus commit at {} is {:?}", opt.seqnum, commit),
-        None => println!("Consensus commit at {} is not found!", opt.seqnum),
-    }
-    Ok(())
-}
-
 pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::Result<()> {
     let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
     if let Some((epoch, checkpoint_seq_num)) =
@@ -335,12 +313,9 @@ pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Res
         ))?;
     println!("Checkpoint: {:?}", checkpoint);
     drop(checkpoint_store);
-    print_checkpoint_content(
-        path,
-        PrintCheckpointContentOptions {
-            digest: checkpoint.content_digest,
-        },
-    )
+    print_checkpoint_content(path, PrintCheckpointContentOptions {
+        digest: checkpoint.content_digest,
+    })
 }
 
 pub fn print_checkpoint_content(
@@ -374,8 +349,9 @@ pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // /opt/iota/db/authorities_db/live Reset the downloaded db to execute from
     // genesis with: cargo run --package iota-tool -- db-tool --db-path
     // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
-    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.
-    // yaml A sample fullnode.yaml config would be: ---
+    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.yaml
+    // A sample fullnode.yaml config would be:
+    // ---
     // db-path:  /opt/iota/db/authorities_db
     // network-address: /ip4/0.0.0.0/tcp/8080/http
     // json-rpc-address: "0.0.0.0:9000"

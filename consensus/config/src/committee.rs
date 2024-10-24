@@ -138,11 +138,14 @@ pub struct Authority {
     pub address: Multiaddr,
     /// The authority's hostname, for metrics and logging.
     pub hostname: String,
-    /// The authority's public key as Iota identity.
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign transactions.
     pub authority_key: AuthorityPublicKey,
-    /// The authority's public key for verifying blocks.
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign consensus blocks.
     pub protocol_key: ProtocolPublicKey,
-    /// The authority's public key for TLS and as network identity.
+    /// The public key bytes corresponding to the private key that the validator
+    /// uses to establish TLS connections.
     pub network_key: NetworkPublicKey,
 }
 
@@ -160,7 +163,11 @@ pub struct AuthorityIndex(u32);
 
 impl AuthorityIndex {
     // Minimum committee size is 1, so 0 index is always valid.
-    pub const ZERO: AuthorityIndex = AuthorityIndex(0);
+    pub const ZERO: Self = Self(0);
+
+    // Only for scanning rows in the database. Invalid elsewhere.
+    pub const MIN: Self = Self::ZERO;
+    pub const MAX: Self = Self(u32::MAX);
 
     pub fn value(&self) -> usize {
         self.0 as usize
@@ -215,7 +222,8 @@ impl<T> IndexMut<AuthorityIndex> for Vec<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{local_committee_and_keys, Stake};
+    use super::*;
+    use crate::local_committee_and_keys;
 
     #[test]
     fn committee_basic() {

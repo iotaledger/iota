@@ -1,4 +1,4 @@
-This crate provides the IOTA Rust SDK, containing APIs to interact with the IOTA network.
+This crate provides the IOTA Rust SDK, containing APIs to interact with the IOTA network. Auto-generated documentation for this crate is [here](https://github.com/iotaledger/iota/iota_sdk/index.html).
 
 ## Getting started
 
@@ -10,7 +10,7 @@ tokio = { version = "1.2", features = ["full"] }
 anyhow = "1.0"
 ```
 
-The main building block for the IOTA Rust SDK is the `IotaClientBuilder`, which provides a simple and straightforward way of connecting to a Iota network and having access to the different available APIs.
+The main building block for the IOTA Rust SDK is the `IotaClientBuilder`, which provides a simple and straightforward way of connecting to a IOTA network and having access to the different available APIs.
 
 In the following example, the application connects to the IOTA `testnet` and `devnet` networks and prints out their respective RPC API versions.
 
@@ -157,32 +157,26 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
       ```shell
       git clone https://github.com/iotaledger/iota
       ```
-   1. Publish the [`games` package(iota/iota_programmability/examples/games)](https://github.com/iotaledger/iota/tree/develop/iota_programmability/examples/games)
+   1. Publish the [`tic-tac-toe` package](https://github.com/iotaledger/iota/tree/develop/examples/tic-tac-toe/move)
       using the IOTA client:
       ```shell
-      iota client publish --gas-budget 1000000000 iota/iota_programmability/examples/games
+      iota client publish --gas-budget 1000000000 iota/examples/tic-tac-toe/move
       ```
    1. Record the package object ID.
 
 3. Create a new tic-tac-toe game
-
-   1. Run the following command in the IOTA source code directory to start a new game, replacing the game package objects ID with the one you recorded:
+   1. Run the following command in the [`tic-tac-toe/cli` directory](https://github.com/iotaledger/iota/tree/develop/examples/tic-tac-toe/cli) to start a new game, replacing the game package objects ID with the one you recorded:
       ```shell
-      cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> new-game
+      cargo run -- new --package-id <<tic-tac-toe package object ID>> <<player O address>>
       ```
-      This will create a game for the first two addresses in your keystore by default. If you want to specify the identity of each player,
-      use the following command and replace the variables with the actual player's addresses:
-      ```shell
-      cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> new-game --player-x <<player X address>> --player-o <<player O address>>
-      ```
+      This will create a game between the active address in the keystore, and the specified Player O.
    1. Copy the game ID and pass it to your friend to join the game.
 
-4. Joining the game
+4. Making a move
 
-   Run the following command in the IOTA source code directory to join the game, replacing the game ID and address accordingly:
-
+   Run the following command in the [`tic-tac-toe/cli` directory](https://github.com/iotaledger/iota/tree/main/examples/tic-tac-toe/cli) to make a move in an existing game, as the active address in the CLI, replacing the game ID and address accordingly:
    ```shell
-   cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> join-game --my-identity <<address>> --game-id <<game ID>>
+   cargo run -- move --package-id <<tic-tac-toe package object ID>> --row $R --col $C <<game ID>>
    ```
 
 ## License

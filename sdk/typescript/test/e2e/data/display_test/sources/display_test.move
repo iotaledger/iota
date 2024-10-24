@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module display_test::boars {
-    use iota::object::{Self, UID};
-    use std::option::{Self, Option};
-    use iota::tx_context::{TxContext, sender};
+    use iota::tx_context::{sender};
     use iota::transfer;
     use iota::package;
     use iota::url::{Self, Url};
@@ -16,9 +14,9 @@ module display_test::boars {
     const ENotOneTimeWitness: u64 = 0;
 
     /// An OTW to use when creating a Publisher
-    struct BOARS has drop {}
+    public struct BOARS has drop {}
 
-    struct Boar has key, store {
+    public struct Boar has key, store {
         id: UID,
         img_url: String,
         name: String,
@@ -30,7 +28,7 @@ module display_test::boars {
         full_url: Url,
     }
 
-    struct Metadata has store {
+    public struct Metadata has store {
         age: u64,
     }
 
@@ -38,7 +36,7 @@ module display_test::boars {
         assert!(iota::types::is_one_time_witness(&otw), ENotOneTimeWitness);
 
         let pub = package::claim(otw, ctx);
-        let display = display::new<Boar>(&pub, ctx);
+        let mut display = display::new<Boar>(&pub, ctx);
 
         display::add_multiple(&mut display, vector[
             utf8(b"name"),

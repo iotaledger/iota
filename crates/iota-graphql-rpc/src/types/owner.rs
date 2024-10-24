@@ -5,38 +5,50 @@
 use async_graphql::{connection::Connection, *};
 use iota_types::{dynamic_field::DynamicFieldType, gas_coin::GAS};
 
-use super::{
+use crate::types::{
     address::Address,
+    balance::{self, Balance},
+    coin::Coin,
     coin_metadata::CoinMetadata,
     cursor::Page,
     dynamic_field::{DynamicField, DynamicFieldName},
-    move_package::MovePackage,
-    object::ObjectLookupKey,
-    stake::StakedIota,
-};
-use crate::types::{
-    balance::{self, Balance},
-    coin::Coin,
     iota_address::IotaAddress,
     move_object::MoveObject,
+    move_package::MovePackage,
     object::{self, Object, ObjectFilter},
+    stake::StakedIota,
     type_filter::ExactTypeFilter,
 };
 
 #[derive(Clone, Debug)]
 pub(crate) struct Owner {
     pub address: IotaAddress,
-    /// The checkpoint sequence number at which this was viewed at, or None if
-    /// the data was requested at the latest checkpoint.
-    pub checkpoint_viewed_at: Option<u64>,
+    /// The checkpoint sequence number at which this was viewed at.
+    pub checkpoint_viewed_at: u64,
+    /// Root parent object version for dynamic fields.
+    ///
+    /// This enables consistent dynamic field reads in the case of chained
+    /// dynamic object fields, e.g., `Parent -> DOF1 -> DOF2`. In such
+    /// cases, the object versions may end up like `Parent >= DOF1, DOF2`
+    /// but `DOF1 < DOF2`. Thus, database queries for dynamic fields must
+    /// bound the object versions by the version of the root object of the tree.
+    ///
+    /// Also, if this Owner is an object itself, `root_version` will be used to
+    /// bound its version from above in [`Owner::as_object`].
+    ///
+    /// Essentially, lamport timestamps of objects are updated for all top-level
+    /// mutable objects provided as inputs to a transaction as well as any
+    /// mutated dynamic child objects. However, any dynamic child objects
+    /// that were loaded but not actually mutated don't end up having
+    /// their versions updated.
+    pub root_version: Option<u64>,
 }
 
 /// Type to implement GraphQL fields that are shared by all Owners.
 pub(crate) struct OwnerImpl {
     pub address: IotaAddress,
-    /// The checkpoint sequence number at which this was viewed at, or None if
-    /// the data was requested at the latest checkpoint.
-    pub checkpoint_viewed_at: Option<u64>,
+    /// The checkpoint sequence number at which this was viewed at.
+    pub checkpoint_viewed_at: u64,
 }
 
 /// Interface implemented by GraphQL types representing entities that can own
@@ -199,11 +211,12 @@ impl Owner {
 
     async fn as_object(&self, ctx: &Context<'_>) -> Result<Option<Object>> {
         Object::query(
-            ctx.data_unchecked(),
+            ctx,
             self.address,
-            match self.checkpoint_viewed_at {
-                Some(checkpoint_viewed_at) => ObjectLookupKey::LatestAt(checkpoint_viewed_at),
-                None => ObjectLookupKey::Latest,
+            if let Some(parent_version) = self.root_version {
+                Object::under_parent(parent_version, self.checkpoint_viewed_at)
+            } else {
+                Object::latest_at(self.checkpoint_viewed_at)
             },
         )
         .await
@@ -222,7 +235,7 @@ impl Owner {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_field(ctx, name, /* parent_version */ None)
+            .dynamic_field(ctx, name, self.root_version)
             .await
     }
 
@@ -240,7 +253,7 @@ impl Owner {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_object_field(ctx, name, /* parent_version */ None)
+            .dynamic_object_field(ctx, name, self.root_version)
             .await
     }
 
@@ -257,10 +270,7 @@ impl Owner {
         before: Option<object::Cursor>,
     ) -> Result<Connection<String, DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_fields(
-                ctx, first, after, last, before, // parent_version
-                None,
-            )
+            .dynamic_fields(ctx, first, after, last, before, self.root_version)
             .await
     }
 }
@@ -386,7 +396,7 @@ impl OwnerImpl {
     ) -> Result<Option<DynamicField>> {
         use DynamicFieldType as T;
         DynamicField::query(
-            ctx.data_unchecked(),
+            ctx,
             self.address,
             parent_version,
             name,
@@ -405,7 +415,7 @@ impl OwnerImpl {
     ) -> Result<Option<DynamicField>> {
         use DynamicFieldType as T;
         DynamicField::query(
-            ctx.data_unchecked(),
+            ctx,
             self.address,
             parent_version,
             name,

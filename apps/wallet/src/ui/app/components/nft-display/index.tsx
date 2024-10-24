@@ -52,7 +52,7 @@ export function NFTDisplayCard({
     return (
         <div className={nftDisplayCardStyles({ isHoverable, wideView })}>
             <Loading loading={isPending}>
-                <div className="flex flex-col justify-center gap-sm text-center">
+                <div className="flex w-full flex-col justify-center gap-sm text-center">
                     {objectData?.data && isOwnerToken ? (
                         <Kiosk object={objectData} />
                     ) : (

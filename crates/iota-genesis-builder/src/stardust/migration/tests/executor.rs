@@ -5,21 +5,21 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
-        unlock_condition::ImmutableAliasAddressUnlockCondition, AliasId, FoundryOutputBuilder,
-        NativeToken, NativeTokens, SimpleTokenScheme, UnlockCondition,
+        AliasId, FoundryOutputBuilder, NativeToken, NativeTokens, SimpleTokenScheme,
+        UnlockCondition, unlock_condition::ImmutableAliasAddressUnlockCondition,
     },
 };
 use iota_types::{
     balance::Balance,
-    dynamic_field::{derive_dynamic_field_id, Field},
+    dynamic_field::{Field, derive_dynamic_field_id},
     object::Owner,
     stardust::coin_type::CoinType,
 };
 
 use crate::stardust::{
     migration::{
-        executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
-        MigrationTargetNetwork,
+        MigrationTargetNetwork, executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE,
+        tests::random_output_header,
     },
     native_token::{
         package_builder,
@@ -66,7 +66,7 @@ fn create_bag_with_pt() {
     // * CoinManager
     // * CoinManagerTreasuryCap
     // * The total supply native token coin
-    // * The coin held by the foundry which can be a gas coin or a smr coin
+    // * The coin held by the foundry which is a gas coin
     assert_eq!(executor.store().objects().len() - object_count, 5);
     assert!(executor.native_tokens().get(&foundry_id.into()).is_some());
     let initial_supply_coin_object = executor

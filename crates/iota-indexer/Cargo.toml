@@ -1,33 +1,47 @@
 [package]
 name = "iota-indexer"
 version.workspace = true
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
+
+
+clap.workspace = true
 anyhow.workspace = true
+# external dependencies
 async-trait.workspace = true
 axum.workspace = true
 backoff.workspace = true
 bcs.workspace = true
-clap.workspace = true
-diesel.workspace = true
+cached.workspace = true
+chrono.workspace = true
+diesel = { workspace = true, optional = true }
+diesel_migrations = "2.0.0"
+downcast = "0.11.0"
+fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
+mysqlclient-sys = { version = "0.4", optional = true }
 prometheus.workspace = true
+rayon.workspace = true
 regex.workspace = true
+secrecy = "0.8.0"
 serde.workspace = true
 serde_with.workspace = true
 tap.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 url.workspace = true
 
-fastcrypto = { workspace = true, features = ["copy_key"] }
+# internal dependencies
+iota-data-ingestion-core.workspace = true
 iota-json.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
@@ -37,31 +51,35 @@ iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
+iota-sdk.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
-telemetry-subscribers.workspace = true
-
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
-
-cached.workspace = true
-diesel_migrations = "2.2"
+telemetry-subscribers.workspace = true
 
 [features]
 pg_integration = []
 shared_test_runtime = []
+default = ["postgres-feature"]
+postgres-feature = ["diesel/postgres", "diesel/postgres_backend"]
+mysql-feature = ["diesel/mysql", "diesel/mysql_backend", "dep:mysqlclient-sys"]
+bundled-mysql = ["mysqlclient-sys?/bundled"]
 
 [dev-dependencies]
+# external dependencies
+rand.workspace = true
 fastcrypto.workspace = true
+serde_json.workspace = true
+serial_test = "2.0"
+
+# internal dependencies
 iota-config.workspace = true
 iota-genesis-builder.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-swarm-config.workspace = true
-rand.workspace = true
-serde_json.workspace = true
-serial_test = "2.0"
 simulacrum.workspace = true
 test-cluster.workspace = true
 

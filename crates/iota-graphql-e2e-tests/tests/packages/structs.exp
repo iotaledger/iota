@@ -3,7 +3,8 @@ processed 11 tasks
 init:
 A: object(0,0)
 
-task 1 'run-graphql'. lines 7-51:
+task 1, lines 7-51:
+//# run-graphql
 Response: {
   "data": {
     "object": {
@@ -131,15 +132,18 @@ Response: {
   }
 }
 
-task 2 'publish'. lines 53-57:
+task 2, lines 53-57:
+//# publish --upgradeable --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5213600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'create-checkpoint'. lines 59-59:
+task 3, line 59:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 4 'run-graphql'. lines 61-103:
+task 4, lines 61-103:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {
@@ -150,19 +154,19 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x3466153dfa525a31246a646469667b7e7bf148a6dec31619524acd7ece86081f",
+                    "address": "0x37256da94764212f98d6ad0e8127abfa76f1f162ef41d95418647d57e8eaca7a",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x86d45e43b07bbdeae331a4c216367e97644e0998da6e24d6853c05061dc60b0d",
+                    "address": "0x7ab276e07bc81d3c00ac3f5234cce7214b5e69f5cbfa07535f14b05eeca5597c",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0xfc79ff352e6acd59184968a6cb79683e7454f7ff062fee290492b89200ae722f",
+                    "address": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce",
                     "asMovePackage": {
                       "module": {
                         "struct": {
@@ -198,15 +202,18 @@ Response: {
   }
 }
 
-task 5 'upgrade'. lines 105-111:
+task 5, lines 105-111:
+//# upgrade --package P0 --upgrade-capability 2,0 --sender A
 created: object(5,0)
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 6049600,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
-task 6 'create-checkpoint'. lines 113-113:
+task 6, line 113:
+//# create-checkpoint
 Checkpoint created: 2
 
-task 7 'run-graphql'. lines 115-172:
+task 7, lines 115-172:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {
@@ -217,19 +224,13 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x3466153dfa525a31246a646469667b7e7bf148a6dec31619524acd7ece86081f",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x726808136efb7a0dd994da773d969c142c6ab302f0cbeb088cd58f0097d95c17",
+                    "address": "0x10be345598e39acb2359e836c0b9abc86e1d7f952964f32e94bc7df976af1639",
                     "asMovePackage": {
                       "module": {
                         "s": {
                           "module": {
                             "package": {
-                              "address": "0xfc79ff352e6acd59184968a6cb79683e7454f7ff062fee290492b89200ae722f"
+                              "address": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce"
                             }
                           },
                           "name": "S",
@@ -254,7 +255,7 @@ Response: {
                         "t": {
                           "module": {
                             "package": {
-                              "address": "0x726808136efb7a0dd994da773d969c142c6ab302f0cbeb088cd58f0097d95c17"
+                              "address": "0x10be345598e39acb2359e836c0b9abc86e1d7f952964f32e94bc7df976af1639"
                             }
                           },
                           "name": "T",
@@ -281,12 +282,12 @@ Response: {
                             {
                               "name": "s",
                               "type": {
-                                "repr": "0xfc79ff352e6acd59184968a6cb79683e7454f7ff062fee290492b89200ae722f::m::S",
+                                "repr": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce::m::S",
                                 "signature": {
                                   "ref": null,
                                   "body": {
                                     "datatype": {
-                                      "package": "0xfc79ff352e6acd59184968a6cb79683e7454f7ff062fee290492b89200ae722f",
+                                      "package": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce",
                                       "module": "m",
                                       "type": "S",
                                       "typeParameters": []
@@ -315,7 +316,7 @@ Response: {
                             {
                               "name": "t",
                               "type": {
-                                "repr": "0xfc79ff352e6acd59184968a6cb79683e7454f7ff062fee290492b89200ae722f::m::T<0xfc79ff352e6acd59184968a6cb79683e7454f7ff062fee290492b89200ae722f::m::S>"
+                                "repr": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce::m::T<0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce::m::S>"
                               }
                             }
                           ]
@@ -326,7 +327,13 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0x86d45e43b07bbdeae331a4c216367e97644e0998da6e24d6853c05061dc60b0d",
+                    "address": "0x37256da94764212f98d6ad0e8127abfa76f1f162ef41d95418647d57e8eaca7a",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x7ab276e07bc81d3c00ac3f5234cce7214b5e69f5cbfa07535f14b05eeca5597c",
                     "asMovePackage": null
                   }
                 }
@@ -339,7 +346,8 @@ Response: {
   }
 }
 
-task 8 'run-graphql'. lines 174-209:
+task 8, lines 174-209:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {
@@ -348,11 +356,6 @@ Response: {
           "effects": {
             "objectChanges": {
               "nodes": [
-                {
-                  "outputState": {
-                    "asMovePackage": null
-                  }
-                },
                 {
                   "outputState": {
                     "asMovePackage": {
@@ -377,6 +380,11 @@ Response: {
                   "outputState": {
                     "asMovePackage": null
                   }
+                },
+                {
+                  "outputState": {
+                    "asMovePackage": null
+                  }
                 }
               ]
             }
@@ -387,7 +395,8 @@ Response: {
   }
 }
 
-task 9 'run-graphql'. lines 212-252:
+task 9, lines 212-252:
+//# run-graphql --cursors {"n":"Coin","c":2} {"n":"TreasuryCap","c":2}
 Response: {
   "data": {
     "object": {
@@ -465,12 +474,18 @@ Response: {
                 ]
               },
               {
-                "name": "DenyCap",
+                "name": "DenyCapV1",
                 "fields": [
                   {
                     "name": "id",
                     "type": {
                       "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::object::UID"
+                    }
+                  },
+                  {
+                    "name": "allow_global_pause",
+                    "type": {
+                      "repr": "bool"
                     }
                   }
                 ]
@@ -536,9 +551,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -580,9 +595,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -603,7 +618,8 @@ Response: {
   }
 }
 
-task 10 'run-graphql'. lines 254-301:
+task 10, lines 254-301:
+//# run-graphql --cursors {"n":"Coin","c":2} {"n":"TreasuryCap","c":2}
 Response: {
   "data": {
     "object": {
@@ -644,9 +660,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               }
             ],
@@ -670,9 +686,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -696,9 +712,9 @@ Response: {
           "suffix": {
             "edges": [
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -722,9 +738,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -760,9 +776,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {

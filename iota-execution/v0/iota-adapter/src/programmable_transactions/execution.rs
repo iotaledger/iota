@@ -15,40 +15,37 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
+        IOTA_FRAMEWORK_ADDRESS,
         base_types::{
-            IotaAddress, MoveObjectType, ObjectID, TxContext, TxContextKind, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
+            IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
+            TxContextKind,
         },
         coin::Coin,
-        error::{command_argument_error, ExecutionError, ExecutionErrorKind},
-        execution::{
-            CommandKind, ExecutionState, ObjectContents, ObjectValue, RawValueType, Value,
-        },
+        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
-        execution_mode::ExecutionMode,
         execution_status::{CommandArgumentError, PackageUpgradeError},
         id::{RESOLVED_IOTA_ID, UID},
         metrics::LimitsMetrics,
         move_package::{
-            normalize_deserialized_modules, MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt,
-            UpgradeTicket,
+            MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            normalize_deserialized_modules,
         },
-        storage::{get_package_objects, PackageObject},
+        storage::{PackageObject, get_package_objects},
         transaction::{Argument, Command, ProgrammableMoveCall, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
-        IOTA_FRAMEWORK_ADDRESS,
     };
     use iota_verifier::{
-        default_verifier_config,
-        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
         INIT_FN_NAME,
+        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
     };
     use move_binary_format::{
-        access::ModuleAccess,
+        CompiledModule,
         compatibility::{Compatibility, InclusionCheck},
         errors::{Location, PartialVMResult, VMResult},
         file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
-        normalized, CompiledModule,
+        file_format_common::VERSION_6,
+        normalized,
     };
     use move_core_types::{
         account_address::AccountAddress,
@@ -60,12 +57,17 @@ mod checked {
         move_vm::MoveVM,
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
-    use move_vm_types::loaded_data::runtime_types::{StructType, Type};
-    use serde::{de::DeserializeSeed, Deserialize};
+    use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
+    use serde::{Deserialize, de::DeserializeSeed};
     use tracing::instrument;
 
     use crate::{
-        adapter::substitute_package_id, gas_charger::GasCharger,
+        adapter::substitute_package_id,
+        execution_mode::ExecutionMode,
+        execution_value::{
+            CommandKind, ExecutionState, ObjectContents, ObjectValue, RawValueType, Value,
+        },
+        gas_charger::GasCharger,
         programmable_transactions::context::*,
     };
 
@@ -443,12 +445,8 @@ mod checked {
         used_in_non_entry_move_call: bool,
     ) -> Result<Value, ExecutionError> {
         Ok(match value_info {
-            ValueKind::Object {
+            ValueKind::Object { type_, .. } => Value::Object(context.make_object_value(
                 type_,
-                has_public_transfer,
-            } => Value::Object(context.make_object_value(
-                type_,
-                has_public_transfer,
                 used_in_non_entry_move_call,
                 &bytes,
             )?),
@@ -522,8 +520,6 @@ mod checked {
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
                 UpgradeCap::type_().into(),
-                // has_public_transfer
-                true,
                 // used_in_non_entry_move_call
                 false,
                 &bcs::to_bytes(cap).unwrap(),
@@ -584,10 +580,8 @@ mod checked {
         }
 
         // Check digest.
-        let hash_modules = true;
         let computed_digest =
-            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids, hash_modules)
-                .to_vec();
+            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids).into();
         if computed_digest != upgrade_ticket.digest {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
@@ -688,12 +682,14 @@ mod checked {
             UpgradePolicy::DepOnly => InclusionCheck::Equal.check(cur_module, new_module),
             UpgradePolicy::Compatible => {
                 let compatibility = Compatibility {
-                    check_struct_and_pub_function_linking: true,
-                    check_struct_layout: true,
+                    check_datatype_and_pub_function_linking: true,
+                    check_datatype_layout: true,
                     check_friend_linking: false,
                     check_private_entry_linking: false,
                     disallowed_new_abilities: AbilitySet::ALL,
-                    disallow_change_struct_type_params: true,
+                    disallow_change_datatype_type_params: true,
+                    // We disallow adding new variants to enums for now
+                    disallow_new_variants: true,
                 };
 
                 compatibility.check(cur_module, new_module)
@@ -833,11 +829,17 @@ mod checked {
         modules: &[CompiledModule],
     ) -> Result<(), ExecutionError> {
         // TODO(https://github.com/iotaledger/iota/issues/69): avoid this redundant serialization by exposing VM API that allows us to run the linker directly on `Vec<CompiledModule>`
+        let binary_version = context.protocol_config.move_binary_format_version();
         let new_module_bytes: Vec<_> = modules
             .iter()
             .map(|m| {
                 let mut bytes = Vec::new();
-                m.serialize(&mut bytes).unwrap();
+                let version = if binary_version > VERSION_6 {
+                    m.version
+                } else {
+                    VERSION_6
+                };
+                m.serialize_with_version(version, &mut bytes).unwrap();
                 bytes
             })
             .collect();
@@ -849,11 +851,7 @@ mod checked {
         for module in modules {
             // Run Iota bytecode verifier, which runs some additional checks that assume the
             // Move bytecode verifier has passed.
-            iota_verifier::verifier::iota_verify_module_unmetered(
-                module,
-                &BTreeMap::new(),
-                &default_verifier_config(context.protocol_config, false),
-            )?;
+            iota_verifier::verifier::iota_verify_module_unmetered(module, &BTreeMap::new())?;
         }
 
         Ok(())
@@ -913,10 +911,7 @@ mod checked {
     /// Used to remember type information about a type when resolving the
     /// signature
     enum ValueKind {
-        Object {
-            type_: MoveObjectType,
-            has_public_transfer: bool,
-        },
+        Object { type_: MoveObjectType },
         Raw(Type, AbilitySet),
     }
 
@@ -976,8 +971,8 @@ mod checked {
             ));
         };
 
-        // entry on init is now banned, so ban invoking it
-        if !from_init && function == INIT_FN_NAME && context.protocol_config.ban_entry_init() {
+        // entry on init is banned, so ban invoking it
+        if !from_init && function == INIT_FN_NAME {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 "Cannot call 'init'",
@@ -1101,7 +1096,7 @@ mod checked {
                     Type::TyParam(_) => {
                         invariant_violation!("TyParam should have been substituted")
                     }
-                    Type::Struct(_) | Type::StructInstantiation(_) if abilities.has_key() => {
+                    Type::Datatype(_) | Type::DatatypeInstantiation(_) if abilities.has_key() => {
                         let type_tag = context
                             .vm
                             .get_runtime()
@@ -1112,11 +1107,10 @@ mod checked {
                         };
                         ValueKind::Object {
                             type_: MoveObjectType::from(*struct_tag),
-                            has_public_transfer: abilities.has_store(),
                         }
                     }
-                    Type::Struct(_)
-                    | Type::StructInstantiation(_)
+                    Type::Datatype(_)
+                    | Type::DatatypeInstantiation(_)
                     | Type::Bool
                     | Type::U8
                     | Type::U64
@@ -1229,12 +1223,7 @@ mod checked {
             let (value, non_ref_param_ty): (Value, &Type) = match param_ty {
                 Type::MutableReference(inner) => {
                     let value = context.borrow_arg_mut(idx, arg)?;
-                    let object_info = if let Value::Object(ObjectValue {
-                        type_,
-                        has_public_transfer,
-                        ..
-                    }) = &value
-                    {
+                    let object_info = if let Value::Object(ObjectValue { type_, .. }) = &value {
                         let type_tag = context
                             .vm
                             .get_runtime()
@@ -1244,10 +1233,7 @@ mod checked {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
                         let type_ = (*struct_tag).into();
-                        ValueKind::Object {
-                            type_,
-                            has_public_transfer: *has_public_transfer,
-                        }
+                        ValueKind::Object { type_ }
                     } else {
                         let abilities = context
                             .vm
@@ -1352,17 +1338,17 @@ mod checked {
 
                 // Now make sure the param type is a struct instantiation of the receiving
                 // struct
-                let Type::StructInstantiation(struct_inst) = param_ty else {
+                let Type::DatatypeInstantiation(inst) = param_ty else {
                     return Err(command_argument_error(
                         CommandArgumentError::TypeMismatch,
                         idx,
                     ));
                 };
-                let (sidx, targs) = &**struct_inst;
-                let Some(s) = context.vm.get_runtime().get_struct_type(*sidx) else {
+                let (sidx, targs) = &**inst;
+                let Some(s) = context.vm.get_runtime().get_type(*sidx) else {
                     invariant_violation!("iota::transfer::Receiving struct not found in session")
                 };
-                let resolved_struct = get_struct_ident(&s);
+                let resolved_struct = get_datatype_ident(&s);
 
                 if resolved_struct != RESOLVED_RECEIVING_STRUCT || targs.len() != 1 {
                     return Err(command_argument_error(
@@ -1375,7 +1361,7 @@ mod checked {
         Ok(())
     }
 
-    fn get_struct_ident(s: &StructType) -> (&AccountAddress, &IdentStr, &IdentStr) {
+    fn get_datatype_ident(s: &CachedDatatype) -> (&AccountAddress, &IdentStr, &IdentStr) {
         let module_id = &s.defining_id;
         let struct_name = &s.name;
         (
@@ -1397,13 +1383,13 @@ mod checked {
             Type::Reference(inner) => (false, inner),
             _ => return Ok(TxContextKind::None),
         };
-        let Type::Struct(idx) = &**inner else {
+        let Type::Datatype(idx) = &**inner else {
             return Ok(TxContextKind::None);
         };
-        let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
+        let Some(s) = context.vm.get_runtime().get_type(*idx) else {
             invariant_violation!("Loaded struct not found")
         };
-        let (module_addr, module_name, struct_name) = get_struct_ident(&s);
+        let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
         let is_tx_context_type = module_addr == &IOTA_FRAMEWORK_ADDRESS
             && module_name == TX_CONTEXT_MODULE_NAME
             && struct_name == TX_CONTEXT_STRUCT_NAME;
@@ -1442,12 +1428,12 @@ mod checked {
                 let info_opt = primitive_serialization_layout(context, inner)?;
                 info_opt.map(|layout| PrimitiveArgumentLayout::Vector(Box::new(layout)))
             }
-            Type::StructInstantiation(struct_inst) => {
-                let (idx, targs) = &**struct_inst;
-                let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
+            Type::DatatypeInstantiation(inst) => {
+                let (idx, targs) = &**inst;
+                let Some(s) = context.vm.get_runtime().get_type(*idx) else {
                     invariant_violation!("Loaded struct not found")
                 };
-                let resolved_struct = get_struct_ident(&s);
+                let resolved_struct = get_datatype_ident(&s);
                 // is option of a string
                 if resolved_struct == RESOLVED_STD_OPTION && targs.len() == 1 {
                     let info_opt = primitive_serialization_layout(context, &targs[0])?;
@@ -1456,11 +1442,11 @@ mod checked {
                     None
                 }
             }
-            Type::Struct(idx) => {
-                let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
+            Type::Datatype(idx) => {
+                let Some(s) = context.vm.get_runtime().get_type(*idx) else {
                     invariant_violation!("Loaded struct not found")
                 };
-                let resolved_struct = get_struct_ident(&s);
+                let resolved_struct = get_datatype_ident(&s);
                 if resolved_struct == RESOLVED_IOTA_ID {
                     Some(PrimitiveArgumentLayout::Address)
                 } else if resolved_struct == RESOLVED_ASCII_STR {

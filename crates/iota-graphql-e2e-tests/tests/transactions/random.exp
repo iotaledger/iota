@@ -1,25 +1,16 @@
-processed 7 tasks
+processed 6 tasks
 
-task 1 'create-checkpoint'. lines 7-7:
+task 1, line 7:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 2 'advance-epoch'. lines 9-9:
-Epoch advanced: 0
-
-task 3 'run-graphql'. lines 11-47:
+task 2, lines 9-38:
+//# run-graphql
 Response: {
   "data": {
-    "epoch": {
-      "protocolConfigs": {
-        "protocolVersion": 1,
-        "randomBeacon": {
-          "value": true
-        }
-      }
-    },
     "object": {
       "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
-      "version": 2,
+      "version": 1,
       "asMoveObject": {
         "contents": {
           "type": {
@@ -28,7 +19,7 @@ Response: {
           "json": {
             "id": "0x0000000000000000000000000000000000000000000000000000000000000008",
             "inner": {
-              "id": "0x045d785393de37379954535d3c98c98c4067f88b8fb6bd94289b2c3f14f5767f",
+              "id": "0x64245391f93d86304a99e09b136505481f2374b4bf9e6aeeae25976310517f76",
               "version": "1"
             }
           }
@@ -39,23 +30,7 @@ Response: {
       "nodes": [
         {
           "kind": {
-            "__typename": "EndOfEpochTransaction",
-            "transactions": {
-              "edges": [
-                {
-                  "cursor": "eyJpIjowLCJjIjoyfQ",
-                  "node": {
-                    "__typename": "RandomnessStateCreateTransaction"
-                  }
-                },
-                {
-                  "cursor": "eyJpIjoxLCJjIjoyfQ",
-                  "node": {
-                    "__typename": "ChangeEpochTransaction"
-                  }
-                }
-              ]
-            }
+            "__typename": "GenesisTransaction"
           }
         }
       ]
@@ -63,10 +38,12 @@ Response: {
   }
 }
 
-task 5 'create-checkpoint'. lines 53-53:
-Checkpoint created: 3
+task 4, line 44:
+//# create-checkpoint
+Checkpoint created: 2
 
-task 6 'run-graphql'. lines 55-70:
+task 5, lines 46-61:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {

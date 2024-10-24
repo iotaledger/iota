@@ -1,0 +1,44 @@
+[
+  {
+    "questionText": "What does the `IotaKeyPair` commit to when signing a transaction?",
+    "answerOptions": [
+      {
+        "answerText": "The full transaction data",
+        "isCorrect": false
+      },
+      {
+        "answerText": "The public key of the sender",
+        "isCorrect": false
+      },
+      {
+        "answerText": "The Blake2b hash digest of the intent message",
+        "isCorrect": true
+      },
+      {
+        "answerText": "The recipient's IOTA address",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "questionText": "Which signature schemes are supported by IOTA for signing transactions?",
+    "answerOptions": [
+      {
+        "answerText": "RSA and Ed448",
+        "isCorrect": false
+      },
+      {
+        "answerText": "Ed25519 Pure, ECDSA Secp256k1, ECDSA Secp256r1, and Multisig",
+        "isCorrect": true
+      },
+      {
+        "answerText": "SHA-256 and RSA",
+        "isCorrect": false
+      },
+      {
+        "answerText": "ECDSA Secp256k2 and Multisig",
+        "isCorrect": false
+      }
+    ]
+  }
+]

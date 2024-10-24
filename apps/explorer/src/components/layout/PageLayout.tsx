@@ -3,16 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useAppsBackend } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
+import { useAppsBackend, Feature } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useRef } from 'react';
-
 import Footer from '../footer/Footer';
 import Header from '../header/Header';
 import { useNetworkContext } from '~/contexts';
-import { Banner } from '~/components/ui';
+import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Info } from '@iota/ui-icons';
 
 type PageLayoutProps = {
     content: ReactNode;
@@ -22,7 +21,7 @@ type PageLayoutProps = {
 export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
     const { request } = useAppsBackend();
-    const outageOverride = useFeatureIsOn('network-outage-override');
+    const outageOverride = useFeatureIsOn(Feature.NetworkOutageOverride as string);
 
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
@@ -41,25 +40,28 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
 
     const networkDegradeBannerCopy =
         network === Network.Testnet
-            ? 'Iota Explorer (Testnet) is currently under-going maintenance. Some data may be incorrect or missing.'
+            ? 'IOTA Explorer (Testnet) is currently under-going maintenance. Some data may be incorrect or missing.'
             : "The explorer is running slower than usual. We're working to fix the issue and appreciate your patience.";
 
     return (
-        <div className="relative min-h-screen w-full">
+        <div className="relative min-h-screen w-full bg-neutral-98">
             <section ref={headerRef} className="fixed top-0 z-20 flex w-full flex-col">
                 {renderNetworkDegradeBanner && (
-                    <Banner rounded="none" align="center" variant="warning" fullWidth>
-                        <div className="break-normal">{networkDegradeBannerCopy}</div>
-                    </Banner>
+                    <InfoBox
+                        supportingText={networkDegradeBannerCopy}
+                        icon={<Info />}
+                        type={InfoBoxType.Default}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 )}
                 <Header />
             </section>
             {loading && (
                 <div className="absolute left-1/2 right-0 top-1/2 flex -translate-x-1/2 -translate-y-1/2 transform justify-center">
-                    <LoadingIndicator variant="lg" />
+                    <LoadingIndicator size="w-6 h-6" />
                 </div>
             )}
-            <main className="relative z-10 bg-neutral-98">
+            <main className="relative z-10">
                 {!loading && <section className="container pb-20 pt-28">{content}</section>}
             </main>
             <Footer />

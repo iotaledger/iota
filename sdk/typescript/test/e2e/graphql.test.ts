@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { IotaGraphQLClient } from '../../src/graphql';
-import { graphql } from '../../src/graphql/schemas/2024-01';
+import { graphql } from '../../src/graphql/schemas/2024.10';
 
 const queries = {
     getFirstTransactionBlock: graphql(`

@@ -3,30 +3,36 @@ processed 13 tasks
 init:
 A: object(0,0)
 
-task 1 'publish'. lines 14-53:
+task 1, lines 14-53:
+//# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 8329600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 55-55:
+task 2, line 55:
+//# run Test::m::create_obj --sender A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 57-57:
+task 3, line 57:
+//# run Test::m::add_df --sender A --args object(2,0)
 created: object(3,0), object(3,1), object(3,2)
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 6536000,  storage_rebate: 2234400, non_refundable_storage_fee: 0
 
-task 4 'run'. lines 59-59:
+task 4, line 59:
+//# run Test::m::add_dof --sender A --args object(2,0)
 created: object(4,0), object(4,1)
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 5928000,  storage_rebate: 2234400, non_refundable_storage_fee: 0
 
-task 5 'create-checkpoint'. lines 61-61:
+task 5, line 61:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 6 'run-graphql'. lines 63-86:
+task 6, lines 63-86:
+//# run-graphql
 Response: {
   "data": {
     "object": {
@@ -41,20 +47,6 @@ Response: {
                 "Bool": false
               },
               "bcs": "AA=="
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
             },
             "value": {
               "__typename": "MoveValue"
@@ -85,6 +77,20 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
               "__typename": "MoveObject"
             }
           }
@@ -94,16 +100,19 @@ Response: {
   }
 }
 
-task 7 'run'. lines 88-88:
+task 7, line 88:
+//# run Test::m::wrap --sender A --args object(2,0)
 created: object(7,0)
 mutated: object(0,0)
 wrapped: object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 2485200,  storage_rebate: 2234400, non_refundable_storage_fee: 0
 
-task 8 'create-checkpoint'. lines 90-90:
+task 8, line 90:
+//# create-checkpoint
 Checkpoint created: 2
 
-task 9 'run-graphql'. lines 92-115:
+task 9, lines 92-115:
+//# run-graphql
 Response: {
   "data": {
     "object": {
@@ -118,20 +127,6 @@ Response: {
                 "Bool": false
               },
               "bcs": "AA=="
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
             },
             "value": {
               "__typename": "MoveValue"
@@ -162,6 +157,20 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
               "__typename": "MoveObject"
             }
           }
@@ -171,7 +180,8 @@ Response: {
   }
 }
 
-task 10 'run-graphql'. lines 117-142:
+task 10, lines 117-142:
+//# run-graphql
 Response: {
   "data": {
     "owner": {
@@ -191,24 +201,6 @@ Response: {
               "bcs": "AgAAAAAAAAA=",
               "data": {
                 "Number": "2"
-              },
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
-            },
-            "value": {
-              "bcs": "AAAAAAAAAAA=",
-              "data": {
-                "Number": "0"
               },
               "__typename": "MoveValue"
             }
@@ -242,6 +234,24 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
+              "bcs": "AAAAAAAAAAA=",
+              "data": {
+                "Number": "0"
+              },
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
               "__typename": "MoveObject"
             }
           }
@@ -251,7 +261,8 @@ Response: {
   }
 }
 
-task 11 'run-graphql'. lines 144-164:
+task 11, lines 144-164:
+//# run-graphql
 Response: {
   "data": {
     "owner": {
@@ -277,7 +288,8 @@ Response: {
   }
 }
 
-task 12 'run-graphql'. lines 166-177:
+task 12, lines 166-177:
+//# run-graphql
 Response: {
   "data": {
     "owner": {

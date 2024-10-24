@@ -1,0 +1,86 @@
+[
+  {
+    "questionText": "What is the main purpose of gas smashing on IOTA?",
+    "answerOptions": [
+      {
+        "answerText": "To allow the use of multiple coins to pay for gas fees",
+        "isCorrect": true
+      },
+      {
+        "answerText": "To prevent coins from being transferred",
+        "isCorrect": false
+      },
+      {
+        "answerText": "To destroy unused coins",
+        "isCorrect": false
+      },
+      {
+        "answerText": "To increase the number of coins available",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "questionText": "What happens to the gas coins after gas smashing occurs?",
+    "answerOptions": [
+      {
+        "answerText": "All the coins are kept separate for future use",
+        "isCorrect": false
+      },
+      {
+        "answerText": "All but the first gas coin are deleted",
+        "isCorrect": true
+      },
+      {
+        "answerText": "The coins are stored for later transactions",
+        "isCorrect": false
+      },
+      {
+        "answerText": "The coins are transferred to the network",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "questionText": "What is the maximum number of gas coins that can be smashed in a single PTB on IOTA?",
+    "answerOptions": [
+      {
+        "answerText": "128",
+        "isCorrect": false
+      },
+      {
+        "answerText": "512",
+        "isCorrect": false
+      },
+      {
+        "answerText": "256",
+        "isCorrect": true
+      },
+      {
+        "answerText": "1024",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "questionText": "What happens to the remaining gas balance and storage rebate after a transaction?",
+    "answerOptions": [
+      {
+        "answerText": "It is returned to the first gas coin provided",
+        "isCorrect": true
+      },
+      {
+        "answerText": "It is transferred to the sender's account",
+        "isCorrect": false
+      },
+      {
+        "answerText": "It is destroyed after the transaction",
+        "isCorrect": false
+      },
+      {
+        "answerText": "It is used to pay for future transactions automatically",
+        "isCorrect": false
+      }
+    ]
+  }
+]

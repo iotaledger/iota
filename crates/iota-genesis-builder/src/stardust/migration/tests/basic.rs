@@ -6,14 +6,14 @@ use std::str::FromStr;
 use iota_sdk::types::block::{
     address::{AliasAddress, Ed25519Address},
     output::{
+        AliasId, BasicOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, SimpleTokenScheme,
+        TokenScheme,
         feature::{Irc30Metadata, MetadataFeature},
         unlock_condition::{
             AddressUnlockCondition, ExpirationUnlockCondition,
             ImmutableAliasAddressUnlockCondition, StorageDepositReturnUnlockCondition,
             TimelockUnlockCondition,
         },
-        AliasId, BasicOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, SimpleTokenScheme,
-        TokenScheme,
     },
     payload::transaction::TransactionId,
 };
@@ -26,11 +26,11 @@ use iota_types::{
 
 use crate::stardust::{
     migration::{
-        tests::{
-            create_foundry, extract_native_tokens_from_bag, random_output_header, unlock_object,
-            ExpectedAssets, UnlockObjectTestResult,
-        },
         Migration, MigrationTargetNetwork,
+        tests::{
+            ExpectedAssets, UnlockObjectTestResult, create_foundry, extract_native_tokens_from_bag,
+            random_output_header, unlock_object,
+        },
     },
     types::output_header::OutputHeader,
 };

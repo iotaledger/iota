@@ -3,25 +3,30 @@ processed 9 tasks
 init:
 A: object(0,0)
 
-task 1 'publish'. lines 7-23:
+task 1, lines 7-23:
+//# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 4818400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 25-25:
+task 2, line 25:
+//# run Test::M1::emit_1 --sender A --args 0
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 27-27:
+task 3, line 27:
+//# run Test::M1::emit_2 --sender A --args 1
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [1, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [2, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4 'create-checkpoint'. lines 29-29:
+task 4, line 29:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 5 'run-graphql'. lines 31-55:
+task 5, lines 31-55:
+//# run-graphql
 Response: {
   "data": {
     "events": {
@@ -37,7 +42,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -55,7 +60,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -73,7 +78,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -89,7 +94,8 @@ Response: {
   }
 }
 
-task 6 'run-graphql'. lines 57-81:
+task 6, lines 57-81:
+//# run-graphql --cursors {"tx":2,"e":0,"c":1}
 Response: {
   "data": {
     "events": {
@@ -105,7 +111,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -123,7 +129,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -139,7 +145,8 @@ Response: {
   }
 }
 
-task 7 'run-graphql'. lines 83-107:
+task 7, lines 83-107:
+//# run-graphql --cursors {"tx":3,"e":1,"c":1}
 Response: {
   "data": {
     "events": {
@@ -155,7 +162,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -173,7 +180,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -189,7 +196,8 @@ Response: {
   }
 }
 
-task 8 'run-graphql'. lines 109-133:
+task 8, lines 109-133:
+//# run-graphql
 Response: {
   "data": {
     "events": {
@@ -205,7 +213,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -223,7 +231,7 @@ Response: {
               "name": "M1"
             },
             "type": {
-              "repr": "0x5b61c96dae50b079dd39010fc5eaee9de71049468987e2807a1d5dca4945c2d1::M1::EventA"
+              "repr": "0x1f57915ce0ae42aa219f3cc99dc4c285414b0df9ffdac98c0eb944c64c1cd4ad::M1::EventA"
             },
             "sender": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"

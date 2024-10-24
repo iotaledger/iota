@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use rand::{rngs::ThreadRng, thread_rng, Rng};
+use rand::{Rng, rngs::ThreadRng, thread_rng};
 
 /// This library provides two functions to generate
 /// a random combination of an adjective

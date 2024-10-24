@@ -1,39 +1,50 @@
 [package]
 name = "iota-core"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
+# external dependencies
+anemo.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
 arc-swap.workspace = true
 async-trait.workspace = true
+axum.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 chrono.workspace = true
-consensus-config.workspace = true
-consensus-core.workspace = true
+count-min-sketch = "0.1.7"
 dashmap.workspace = true
 diffy = { version = "0.3", default-features = false }
 either.workspace = true
 enum_dispatch.workspace = true
 eyre.workspace = true
+fastcrypto.workspace = true
+fastcrypto-tbls.workspace = true
+fastcrypto-zkp.workspace = true
 futures.workspace = true
 im.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
+jsonrpsee.workspace = true
 lru.workspace = true
 mockall.workspace = true
+nonempty.workspace = true
 num_cpus.workspace = true
 object_store.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 rand.workspace = true
+rayon.workspace = true
+reqwest.workspace = true
 roaring.workspace = true
-rocksdb.workspace = true
 scopeguard.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -47,24 +58,14 @@ tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
 tokio-stream.workspace = true
 tracing.workspace = true
 twox-hash = "1.6"
+zeroize = "1.6"
 
-anemo.workspace = true
-fastcrypto.workspace = true
-fastcrypto-tbls.workspace = true
-fastcrypto-zkp.workspace = true
-iota-common.workspace = true
-iota-network-stack.workspace = true
-move-binary-format.workspace = true
-move-bytecode-utils.workspace = true
-move-core-types.workspace = true
-move-package.workspace = true
-move-symbol-pool.workspace = true
-telemetry-subscribers.workspace = true
-typed-store.workspace = true
-typed-store-derive.workspace = true
-
+# internal dependencies
+consensus-config.workspace = true
+consensus-core.workspace = true
 iota-archival.workspace = true
 iota-authority-aggregation.workspace = true
+iota-common.workspace = true
 iota-config.workspace = true
 iota-execution = { path = "../../iota-execution" }
 iota-framework.workspace = true
@@ -74,43 +75,49 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-move-build.workspace = true
 iota-network.workspace = true
+iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-simulator.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
-narwhal-config.workspace = true
-narwhal-crypto.workspace = true
-narwhal-executor.workspace = true
-narwhal-network.workspace = true
-narwhal-node.workspace = true
+move-binary-format.workspace = true
+move-bytecode-utils.workspace = true
+move-core-types.workspace = true
+move-package.workspace = true
+move-symbol-pool.workspace = true
 narwhal-types.workspace = true
-narwhal-worker.workspace = true
 shared-crypto.workspace = true
-zeroize = "1.6"
+telemetry-subscribers.workspace = true
+typed-store.workspace = true
+typed-store-derive.workspace = true
 
 [dev-dependencies]
+# external dependencies
 clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
 more-asserts.workspace = true
-narwhal-test-utils.workspace = true
 num-bigint.workspace = true
 pretty_assertions.workspace = true
+rstest.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
 
-move-symbol-pool.workspace = true
-
+# internal dependencies
+iota-move.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
+move-symbol-pool.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dev-dependencies]
+# external dependencies
 pprof = { version = "0.13", features = ["cpp", "frame-pointer"] }
 test-fuzz.workspace = true
 
+# internal dependencies
 iota-macros.workspace = true
 iota-protocol-config.workspace = true
 

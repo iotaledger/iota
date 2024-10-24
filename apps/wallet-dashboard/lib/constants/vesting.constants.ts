@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TimelockedObject } from '../interfaces';
+import { getMockedTimelockedStakedObjectsWithDynamicDate } from '../utils/vesting/getMockedTimelockedStakedObjectsWithDynamicDate';
 import { DAYS_PER_WEEK, DAYS_PER_YEAR, MILLISECONDS_PER_DAY } from './time.constants';
 import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
 
@@ -14,6 +15,8 @@ export const SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR = Math.round(
 export const SUPPLY_INCREASE_STARTING_VESTING_YEAR: number = 2023;
 export const SUPPLY_INCREASE_STAKER_VESTING_DURATION = 2; // Years
 export const SUPPLY_INCREASE_INVESTOR_VESTING_DURATION = 4; // Years
+
+export const MIN_STAKING_THRESHOLD = 1_000_000_000;
 
 // https://github.com/iotaledger/iota/blob/b0db487868fd5d61241a43eb8bc9886d7c1be1c9/crates/iota-types/src/timelock/stardust_upgrade_label.rs#L12
 export const SUPPLY_INCREASE_VESTING_LABEL =
@@ -659,3 +662,6 @@ export const MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS: DelegatedTimelockedStake[
         ],
     },
 ];
+
+export const mockedTimelockedStackedObjectsWithDynamicDate =
+    getMockedTimelockedStakedObjectsWithDynamicDate(MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS);

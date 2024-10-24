@@ -52,17 +52,11 @@ module iota_system::iota_system {
     use iota_system::iota_system_state_inner::{Self, SystemParameters, IotaSystemStateInner, IotaSystemStateInnerV2};
     use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::dynamic_field;
+    use iota::vec_map::VecMap;
 
     #[test_only] use iota::balance;
     #[test_only] use iota_system::validator_set::ValidatorSet;
     #[test_only] use iota::vec_set::VecSet;
-
-    /* friend iota_system::genesis; */
-
-    /* #[test_only] */
-    /* friend iota_system::governance_test_utils; */
-    /* #[test_only] */
-    /* friend iota_system::iota_system_tests; */
 
     public struct IotaSystemState has key {
         id: UID,
@@ -114,13 +108,13 @@ module iota_system::iota_system {
     /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
     /// can call `request_add_validator` to officially become an active validator at the next epoch.
     /// Aborts if the caller is already a pending or active validator, or a validator candidate.
-    /// Note: `proof_of_possession` MUST be a valid signature using iota_address and protocol_pubkey_bytes.
+    /// Note: `proof_of_possession` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     /// To produce a valid PoP, run [fn test_proof_of_possession].
     public entry fun request_add_validator_candidate(
         wrapper: &mut IotaSystemState,
-        pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -129,16 +123,15 @@ module iota_system::iota_system {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext,
     ) {
         let self = load_system_state_mut(wrapper);
         self.request_add_validator_candidate(
-            pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name,
             description,
@@ -147,7 +140,6 @@ module iota_system::iota_system {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
             gas_price,
             commission_rate,
             ctx,
@@ -409,7 +401,7 @@ module iota_system::iota_system {
         self.update_candidate_validator_p2p_address(p2p_address, ctx)
     }
 
-    /// Update a validator's narwhal primary address.
+    /// Update a validator's primary address.
     /// The change will only take effects starting from the next epoch.
     public entry fun update_validator_next_epoch_primary_address(
         self: &mut IotaSystemState,
@@ -420,7 +412,7 @@ module iota_system::iota_system {
         self.update_validator_next_epoch_primary_address(primary_address, ctx)
     }
 
-    /// Update candidate validator's narwhal primary address.
+    /// Update candidate validator's primary address.
     public entry fun update_candidate_validator_primary_address(
         self: &mut IotaSystemState,
         primary_address: vector<u8>,
@@ -430,69 +422,48 @@ module iota_system::iota_system {
         self.update_candidate_validator_primary_address(primary_address, ctx)
     }
 
-    /// Update a validator's narwhal worker address.
+    /// Update a validator's public key of authority key and proof of possession.
     /// The change will only take effects starting from the next epoch.
-    public entry fun update_validator_next_epoch_worker_address(
+    public entry fun update_validator_next_epoch_authority_pubkey(
         self: &mut IotaSystemState,
-        worker_address: vector<u8>,
+        authority_pubkey: vector<u8>,
+        proof_of_possession: vector<u8>,
         ctx: &TxContext,
     ) {
         let self = load_system_state_mut(self);
-        self.update_validator_next_epoch_worker_address(worker_address, ctx)
+        self.update_validator_next_epoch_authority_pubkey(authority_pubkey, proof_of_possession, ctx)
     }
 
-    /// Update candidate validator's narwhal worker address.
-    public entry fun update_candidate_validator_worker_address(
+    /// Update candidate validator's public key of authority key and proof of possession.
+    public entry fun update_candidate_validator_authority_pubkey(
         self: &mut IotaSystemState,
-        worker_address: vector<u8>,
+        authority_pubkey: vector<u8>,
+        proof_of_possession: vector<u8>,
         ctx: &TxContext,
     ) {
         let self = load_system_state_mut(self);
-        self.update_candidate_validator_worker_address(worker_address, ctx)
+        self.update_candidate_validator_authority_pubkey(authority_pubkey, proof_of_possession, ctx)
     }
 
-    /// Update a validator's public key of protocol key and proof of possession.
+    /// Update a validator's public key of protocol key.
     /// The change will only take effects starting from the next epoch.
     public entry fun update_validator_next_epoch_protocol_pubkey(
         self: &mut IotaSystemState,
         protocol_pubkey: vector<u8>,
-        proof_of_possession: vector<u8>,
         ctx: &TxContext,
     ) {
         let self = load_system_state_mut(self);
-        self.update_validator_next_epoch_protocol_pubkey(protocol_pubkey, proof_of_possession, ctx)
+        self.update_validator_next_epoch_protocol_pubkey(protocol_pubkey, ctx)
     }
 
-    /// Update candidate validator's public key of protocol key and proof of possession.
+    /// Update candidate validator's public key of protocol key.
     public entry fun update_candidate_validator_protocol_pubkey(
         self: &mut IotaSystemState,
         protocol_pubkey: vector<u8>,
-        proof_of_possession: vector<u8>,
         ctx: &TxContext,
     ) {
         let self = load_system_state_mut(self);
-        self.update_candidate_validator_protocol_pubkey(protocol_pubkey, proof_of_possession, ctx)
-    }
-
-    /// Update a validator's public key of worker key.
-    /// The change will only take effects starting from the next epoch.
-    public entry fun update_validator_next_epoch_worker_pubkey(
-        self: &mut IotaSystemState,
-        worker_pubkey: vector<u8>,
-        ctx: &TxContext,
-    ) {
-        let self = load_system_state_mut(self);
-        self.update_validator_next_epoch_worker_pubkey(worker_pubkey, ctx)
-    }
-
-    /// Update candidate validator's public key of worker key.
-    public entry fun update_candidate_validator_worker_pubkey(
-        self: &mut IotaSystemState,
-        worker_pubkey: vector<u8>,
-        ctx: &TxContext,
-    ) {
-        let self = load_system_state_mut(self);
-        self.update_candidate_validator_worker_pubkey(worker_pubkey, ctx)
+        self.update_candidate_validator_protocol_pubkey(protocol_pubkey, ctx)
     }
 
     /// Update a validator's public key of network key.
@@ -584,10 +555,10 @@ module iota_system::iota_system {
 
     fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateInnerV2 {
         if (self.version == 1) {
-          let v1: IotaSystemStateInner = dynamic_field::remove(&mut self.id, self.version);
-          let v2 = v1.v1_to_v2();
-          self.version = 2;
-          dynamic_field::add(&mut self.id, self.version, v2);
+            let v1: IotaSystemStateInner = dynamic_field::remove(&mut self.id, self.version);
+            let v2 = v1.v1_to_v2();
+            self.version = 2;
+            dynamic_field::add(&mut self.id, self.version, v2);
         };
 
         let inner: &mut IotaSystemStateInnerV2 = dynamic_field::borrow_mut(
@@ -603,6 +574,18 @@ module iota_system::iota_system {
             &self.id,
             SYSTEM_TIMELOCK_CAP_DF_KEY
         )
+    }
+
+    #[allow(unused_function)]
+    /// Returns the voting power of the active validators, values are voting power in the scale of 10000.
+    fun validator_voting_powers(wrapper: &mut IotaSystemState): VecMap<address, u64> {
+        let self = load_system_state(wrapper);
+        iota_system_state_inner::active_validator_voting_powers(self)
+    }
+
+    #[test_only]
+    public fun validator_voting_powers_for_testing(wrapper: &mut IotaSystemState): VecMap<address, u64> {
+        validator_voting_powers(wrapper)
     }
 
     #[test_only]
@@ -715,9 +698,9 @@ module iota_system::iota_system {
     #[test_only]
     public entry fun request_add_validator_candidate_for_testing(
         wrapper: &mut IotaSystemState,
-        pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -726,16 +709,15 @@ module iota_system::iota_system {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext,
     ) {
         let self = load_system_state_mut(wrapper);
         self.request_add_validator_candidate_for_testing(
-            pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name,
             description,
@@ -744,7 +726,6 @@ module iota_system::iota_system {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
             gas_price,
             commission_rate,
             ctx

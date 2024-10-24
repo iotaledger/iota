@@ -2,20 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeSet,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::TransactionDigest,
     committee::Committee,
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     object::{Object, Owner},
     transaction::{
-        CertifiedTransaction, Transaction, VerifiedCertificate,
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
+        VerifiedCertificate,
     },
 };
 use itertools::Itertools;
@@ -26,9 +31,9 @@ use tokio::{
 
 use crate::{
     authority::{
+        AuthorityState,
         authority_tests::{send_consensus, send_consensus_no_execution},
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState, EffectsNotifyRead,
     },
     authority_aggregator::authority_aggregator_tests::{
         create_object_move_transaction, do_cert, do_transaction, extract_cert, get_latest_ref,
@@ -44,7 +49,6 @@ use crate::{
         init_local_authorities, init_local_authorities_with_overload_thresholds,
         make_transfer_object_move_transaction, make_transfer_object_transaction,
     },
-    transaction_manager::MAX_PER_OBJECT_QUEUE_LENGTH,
 };
 
 #[allow(dead_code)]
@@ -253,7 +257,7 @@ async fn execute_owned_on_first_three_authorities(
     do_transaction(&authority_clients[2], txn).await;
     let cert = extract_cert(authority_clients, committee, txn.digest())
         .await
-        .verify_authenticated(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &Default::default())
         .unwrap();
     do_cert(&authority_clients[0], &cert).await;
     do_cert(&authority_clients[1], &cert).await;
@@ -267,8 +271,8 @@ pub async fn do_cert_with_shared_objects(
 ) -> TransactionEffects {
     send_consensus(authority, cert).await;
     authority
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![*cert.digest()])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[*cert.digest()])
         .await
         .unwrap()
         .pop()
@@ -285,7 +289,7 @@ async fn execute_shared_on_first_three_authorities(
     do_transaction(&authority_clients[2], txn).await;
     let cert = extract_cert(authority_clients, committee, txn.digest())
         .await
-        .verify_authenticated(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &Default::default())
         .unwrap();
     do_cert_with_shared_objects(&authority_clients[0].authority_client().state, &cert).await;
     do_cert_with_shared_objects(&authority_clients[1].authority_client().state, &cert).await;
@@ -442,16 +446,20 @@ async fn test_execution_with_dependencies() {
     }
 
     // All certs should get executed eventually.
-    let digests = executed_shared_certs
+    let digests: Vec<_> = executed_shared_certs
         .iter()
         .chain(executed_owned_certs.iter())
         .map(|cert| *cert.digest())
         .collect();
     authorities[3]
-        .get_effects_notify_read()
-        .notify_read_executed_effects(digests)
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&digests)
         .await
         .unwrap();
+}
+
+fn make_socket_addr() -> std::net::SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0)
 }
 
 async fn try_sign_on_first_three_authorities(
@@ -460,11 +468,13 @@ async fn try_sign_on_first_three_authorities(
     txn: &Transaction,
 ) -> IotaResult<VerifiedCertificate> {
     for client in authority_clients.iter().take(3) {
-        client.handle_transaction(txn.clone()).await?;
+        client
+            .handle_transaction(txn.clone(), Some(make_socket_addr()))
+            .await?;
     }
     extract_cert(authority_clients, committee, txn.digest())
         .await
-        .verify_authenticated(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &Default::default())
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -506,8 +516,8 @@ async fn test_per_object_overload() {
     }
     for authority in authorities.iter().take(3) {
         authority
-            .get_effects_notify_read()
-            .notify_read_executed_effects(vec![*create_counter_cert.digest()])
+            .get_transaction_cache_reader()
+            .notify_read_executed_effects(&[*create_counter_cert.digest()])
             .await
             .unwrap()
             .pop()
@@ -516,13 +526,13 @@ async fn test_per_object_overload() {
 
     // Signing and executing this transaction on the last authority should succeed.
     authority_clients[3]
-        .handle_transaction(create_counter_txn.clone())
+        .handle_transaction(create_counter_txn.clone(), Some(make_socket_addr()))
         .await
         .unwrap();
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![*create_counter_cert.digest()])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[*create_counter_cert.digest()])
         .await
         .unwrap()
         .pop()
@@ -544,7 +554,10 @@ async fn test_per_object_overload() {
     // them on the last authority. First shared counter txn has input object
     // available on authority 3. So to overload authority 3, 1 more
     // txn is needed.
-    let num_txns = MAX_PER_OBJECT_QUEUE_LENGTH + 1;
+    let num_txns = authorities[3]
+        .overload_config()
+        .max_transaction_manager_per_object_queue_length
+        + 1;
     for gas_object in gas_objects.iter().take(num_txns) {
         let gas_ref = get_latest_ref(authority_clients[0].clone(), gas_object.id()).await;
         let shared_txn = TestTransactionBuilder::new(addr, gas_ref, rgp)
@@ -578,7 +591,7 @@ async fn test_per_object_overload() {
         .build_and_sign(&key);
     let res = authorities[3]
         .transaction_manager()
-        .check_execution_overload(authorities[3].max_txn_age_in_queue(), shared_txn.data());
+        .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
     let message = format!("{res:?}");
     assert!(
         message.contains("TooManyTransactionsPendingOnObject"),
@@ -633,8 +646,8 @@ async fn test_txn_age_overload() {
     }
     for authority in authorities.iter().take(3) {
         authority
-            .get_effects_notify_read()
-            .notify_read_executed_effects(vec![*create_counter_cert.digest()])
+            .get_transaction_cache_reader()
+            .notify_read_executed_effects(&[*create_counter_cert.digest()])
             .await
             .unwrap()
             .pop()
@@ -643,13 +656,13 @@ async fn test_txn_age_overload() {
 
     // Signing and executing this transaction on the last authority should succeed.
     authority_clients[3]
-        .handle_transaction(create_counter_txn.clone())
+        .handle_transaction(create_counter_txn.clone(), Some(make_socket_addr()))
         .await
         .unwrap();
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![*create_counter_cert.digest()])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[*create_counter_cert.digest()])
         .await
         .unwrap()
         .pop()
@@ -708,7 +721,7 @@ async fn test_txn_age_overload() {
         .build_and_sign(&key);
     let res = authorities[3]
         .transaction_manager()
-        .check_execution_overload(authorities[3].max_txn_age_in_queue(), shared_txn.data());
+        .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
     let message = format!("{res:?}");
     assert!(
         message.contains("TooOldTransactionPendingOnObject"),
@@ -757,9 +770,8 @@ async fn test_authority_txn_signing_pushback() {
         None,
         None,
         ConsensusAdapterMetrics::new_test(),
-        epoch_store.protocol_config().clone(),
     ));
-    let validator_service = Arc::new(ValidatorService::new(
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
         authority_state.clone(),
         consensus_adapter,
         Arc::new(ValidatorServiceMetrics::new_for_tests()),
@@ -781,7 +793,7 @@ async fn test_authority_txn_signing_pushback() {
 
     // Txn shouldn't get signed with ValidatorOverloadedRetryAfter error.
     let response = validator_service
-        .handle_transaction_for_testing(tx.clone())
+        .handle_transaction_for_benchmarking(tx.clone())
         .await;
     assert!(matches!(
         IotaError::from(response.err().unwrap()),
@@ -800,7 +812,7 @@ async fn test_authority_txn_signing_pushback() {
     // load shedding mode, it should still pushback the transaction.
     assert!(matches!(
         validator_service
-            .handle_transaction_for_testing(tx.clone())
+            .handle_transaction_for_benchmarking(tx.clone())
             .await
             .err()
             .unwrap()
@@ -821,7 +833,7 @@ async fn test_authority_txn_signing_pushback() {
     );
     assert!(matches!(
         validator_service
-            .handle_transaction_for_testing(tx2)
+            .handle_transaction_for_benchmarking(tx2)
             .await
             .err()
             .unwrap()
@@ -835,7 +847,7 @@ async fn test_authority_txn_signing_pushback() {
     // Re-send the first transaction, now the transaction can be successfully
     // signed.
     let response = validator_service
-        .handle_transaction_for_testing(tx.clone())
+        .handle_transaction_for_benchmarking(tx.clone())
         .await;
     assert!(response.is_ok());
     assert_eq!(
@@ -879,7 +891,6 @@ async fn test_authority_txn_execution_pushback() {
         .await;
 
     // Create a validator service around the `authority_state`.
-    let epoch_store = authority_state.epoch_store_for_testing();
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
         Arc::new(MockSubmitToConsensus::new()),
         authority_state.name,
@@ -889,9 +900,8 @@ async fn test_authority_txn_execution_pushback() {
         None,
         None,
         ConsensusAdapterMetrics::new_test(),
-        epoch_store.protocol_config().clone(),
     ));
-    let validator_service = Arc::new(ValidatorService::new(
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
         authority_state.clone(),
         consensus_adapter,
         Arc::new(ValidatorServiceMetrics::new_for_tests()),
@@ -913,7 +923,7 @@ async fn test_authority_txn_execution_pushback() {
 
     // Ask validator to sign the transaction and then create a certificate.
     let response = validator_service
-        .handle_transaction_for_testing(tx.clone())
+        .handle_transaction_for_benchmarking(tx.clone())
         .await
         .unwrap()
         .into_inner();

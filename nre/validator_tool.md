@@ -6,7 +6,7 @@ This document is focused on using Validator Tool.
 
 ## Preparation
 
-1. Make sure you have completed all the [prerequisites](https://docs.iota.io/devnet/build/install).
+1. Make sure you have completed all the [prerequisites](https://wiki.iota.org/devnet/build/install).
 
 2. Build the `iota` binary, which you will need for the genesis ceremony. This step can be done on any machine you like. It does not have to be done on the machine on which you will run the validator.
 
@@ -35,7 +35,7 @@ This document is focused on using Validator Tool.
       b. `active_address` is correct in `client.yaml`.
       b. `iota.keystore` contains your account key pair.
 
-   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://docs.iota.io/devnet/build/cli-client).
+   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://wiki.iota.org/devnet/build/cli-client).
 
 ```bash
 $IOTA_BINARY client
@@ -86,10 +86,9 @@ You can update the following on-chain metadata:
 5. network address
 6. p2p address
 7. primary address
-8. worker address
-9. protocol public key
-10. network public key
-11. worker public key
+8. authority public key
+9. network public key
+10. protocol public key
 
 Notably, only the first 4 metadata listed above take effect immediately.
 
@@ -105,7 +104,7 @@ $IOTA_BINARY validator update-metadata --help
 
 Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](./validator-operation/validator-tasks#operation-cap).
 
-The Operation Cap holder (either the valdiator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
+The Operation Cap holder (either the validator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
 
 #### Update Gas Price
 
@@ -169,6 +168,8 @@ At this point you are validator candidate and can start to accept self staking a
 
 **If you haven't, start a fullnode now to catch up with the network. When you officially join the committee but is not fully up-to-date, you cannot make meaningful contribution to the network and may be subject to peer reporting hence face the risk of reduced staking rewards for you and your delegators.**
 
+Add stake to a validator's staking pool: https://docs.iota.org/references/framework/iota-system/iota_system#function-request_add_stake
+
 Once you collect enough staking amount, run
 
 ```bash
@@ -194,4 +195,72 @@ Serialize the payload that is used to generate Proof of Possession. This is allo
 ```bash
 $IOTA_BINARY validator serialize-payload-pop --account-address $ACCOUNT_ADDRESS --protocol-public-key $BLS_PUBKEY
 Serialized payload: $PAYLOAD_TO_SIGN
+```
+
+## Test becoming a validator in a local network
+
+#### Start a local network with larger faucet amount
+
+Set a larger faucet amount, so a single faucet request provides enough coins to become a validator.
+
+```bash
+iota start --force-regenesis --with-faucet --faucet-amount 2600000000000000
+```
+
+#### Request coins from the faucet
+
+```bash
+iota client switch --env localnet
+```
+
+Then request funds:
+
+```bash
+iota client faucet --url http://127.0.0.1:9123/gas
+```
+
+#### Make validator info
+
+```bash
+iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
+```
+
+#### Become a validator
+
+```bash
+iota validator become-candidate validator.info
+```
+
+#### Stake funds
+
+Get an object id for a gas coin to stake and the address to stake to:
+
+```bash
+iota client gas && iota client active-address
+```
+
+Stake the coin object:
+
+```bash
+iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 <gas-coin-id> <validator-address> --gas-budget 10000000
+```
+
+Example where 0xfff7... is a coin object id, 0x111... is the validator address:
+
+```bash
+iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 0xfff7d5a924a599e811e307c3eeb65d69906054466ac098a2715a19ab802ddf15 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --gas-budget 10000000
+```
+
+All in one:
+
+```bash
+coinObjectId=$(iota client gas --json | jq '.[0].gasCoinId')
+validatorAddress=$(iota client active-address)
+iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
+```
+
+#### Finally, join the committee
+
+```bash
+iota validator join-committee
 ```

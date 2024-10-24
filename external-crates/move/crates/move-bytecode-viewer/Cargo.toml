@@ -1,7 +1,7 @@
 [package]
 name = "move-bytecode-viewer"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,9 +10,9 @@ description = "Explore Move bytecode and how the source code compiles to it"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
-crossterm = "0.28"
-ratatui = "0.28"
+crossterm.workspace = true
 regex.workspace = true
+tui.workspace = true
 
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true

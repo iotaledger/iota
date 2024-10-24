@@ -14,7 +14,7 @@ use iota_types::{
     error::IotaObjectResponseError,
 };
 
-use crate::common::{indexer_wait_for_checkpoint, rpc_call_error_msg_matches, ApiTestSetup};
+use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, rpc_call_error_msg_matches};
 
 fn is_ascending(vec: &[u64]) -> bool {
     vec.windows(2).all(|window| window[0] <= window[1])
@@ -592,17 +592,14 @@ fn get_object_not_found() {
             .await
             .unwrap();
 
-        assert_eq!(
-            indexer_obj,
-            IotaObjectResponse {
-                data: None,
-                error: Some(IotaObjectResponseError::NotExists {
-                    object_id: "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
-                        .parse()
-                        .unwrap()
-                })
-            }
-        )
+        assert_eq!(indexer_obj, IotaObjectResponse {
+            data: None,
+            error: Some(IotaObjectResponseError::NotExists {
+                object_id: "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
+                    .parse()
+                    .unwrap()
+            })
+        })
     });
 }
 
@@ -708,29 +705,24 @@ fn multi_get_objects_not_found() {
 
         let indexer_objects = client.multi_get_objects(object_ids, None).await.unwrap();
 
-        assert_eq!(
-            indexer_objects,
-            vec![
-                IotaObjectResponse {
-                    data: None,
-                    error: Some(IotaObjectResponseError::NotExists {
-                        object_id:
-                            "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
-                                .parse()
-                                .unwrap()
-                    })
-                },
-                IotaObjectResponse {
-                    data: None,
-                    error: Some(IotaObjectResponseError::NotExists {
-                        object_id:
-                            "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82"
-                                .parse()
-                                .unwrap()
-                    })
-                }
-            ]
-        )
+        assert_eq!(indexer_objects, vec![
+            IotaObjectResponse {
+                data: None,
+                error: Some(IotaObjectResponseError::NotExists {
+                    object_id: "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
+                        .parse()
+                        .unwrap()
+                })
+            },
+            IotaObjectResponse {
+                data: None,
+                error: Some(IotaObjectResponseError::NotExists {
+                    object_id: "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82"
+                        .parse()
+                        .unwrap()
+                })
+            }
+        ])
     });
 }
 

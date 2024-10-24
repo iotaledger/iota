@@ -7,8 +7,6 @@ module deepbook::custodian {
     use iota::coin::{Self, Coin};
     use iota::table::{Self, Table};
 
-    /* friend deepbook::clob; */
-
     // <<<<<<<<<<<<<<<<<<<<<<<< Error codes <<<<<<<<<<<<<<<<<<<<<<<<
     #[test_only]
     const EUserBalanceDoesNotExist: u64 = 1;
@@ -159,8 +157,6 @@ module deepbook::custodian {
         table::borrow(&custodian.account_balances, user)
     }
 
-    /* #[test_only] */
-    /* friend deepbook::clob_test; */
     #[test_only]
     use iota::test_scenario::{Self, Scenario, take_shared, take_from_sender, ctx};
     #[test_only]

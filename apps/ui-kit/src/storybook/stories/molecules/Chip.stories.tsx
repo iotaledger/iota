@@ -42,7 +42,7 @@ export const Default: Story = {
 export const WithIcon: Story = {
     args: {
         label: 'Label',
-        icon: <PlaceholderReplace />,
+        leadingElement: <PlaceholderReplace />,
     },
     render: (props) => {
         return (

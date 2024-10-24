@@ -13,7 +13,8 @@ use iota_core::{
 };
 use iota_types::{
     committee::Committee,
-    crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair},
+    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
+    signature_verification::VerifiedDigestCache,
     transaction::CertifiedTransaction,
 };
 use prometheus::Registry;
@@ -78,10 +79,9 @@ fn async_verifier_bench(c: &mut Criterion) {
                         committee.clone(),
                         batch_size,
                         metrics.clone(),
-                        vec![],
                         ZkLoginEnv::Test,
                         true,
-                        true,
+                        Some(30),
                     ));
 
                     b.iter(|| {
@@ -134,7 +134,11 @@ fn batch_verification_bench(c: &mut Criterion) {
                     assert_eq!(certs.len() as u64, *batch_size);
                     b.iter(|| {
                         certs.shuffle(&mut thread_rng());
-                        batch_verify_certificates(&committee, &certs);
+                        batch_verify_certificates(
+                            &committee,
+                            &certs,
+                            Arc::new(VerifiedDigestCache::new_empty()),
+                        );
                     })
                 },
             );

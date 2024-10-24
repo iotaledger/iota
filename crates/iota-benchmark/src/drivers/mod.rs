@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt::Formatter, str::FromStr, time::Duration};
-
-use duration_str::parse;
-
 pub mod bench_driver;
 pub mod driver;
+
+use std::{fmt::Formatter, str::FromStr, time::Duration};
+
 use comfy_table::{Cell, Color, ContentArrangement, Row, Table};
-use hdrhistogram::{serialization::Serializer, Histogram};
+use duration_str::parse;
+use hdrhistogram::{Histogram, serialization::Serializer};
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub enum Interval {

@@ -7,9 +7,9 @@ use std::{marker::PhantomData, sync::Arc};
 use bincode::Options;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::Direction;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
-use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
+use super::{RocksDBRawIter, TypedStoreError, be_fix_int_ser};
 use crate::metrics::{DBMetrics, RocksDBPerfContext};
 
 /// An iterator over all key-value pairs in a data map.
@@ -89,7 +89,7 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for SafeIter<'a, K, 
         } else {
             match self.db_iter.status() {
                 Ok(_) => None,
-                Err(err) => Some(Err(TypedStoreError::RocksDBError(format!("{err}")))),
+                Err(err) => Some(Err(TypedStoreError::RocksDB(format!("{err}")))),
             }
         }
     }

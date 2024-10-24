@@ -1,7 +1,7 @@
 [package]
 name = "typed-store"
 version = "0.4.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -9,6 +9,7 @@ repository = "https://github.com/mystenlabs/mysten-infra"
 description = "a typed database interface"
 
 [dependencies]
+# external dependencies
 async-trait.workspace = true
 bcs.workspace = true
 bincode.workspace = true
@@ -27,16 +28,17 @@ tap.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing.workspace = true
-typed-store-error.workspace = true
 
+# internal dependencies
 iota-macros.workspace = true
+typed-store-derive.workspace = true
+typed-store-error.workspace = true
 
 [dev-dependencies]
 once_cell.workspace = true
 rand.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
-typed-store-derive.workspace = true
 uint = "0.9"
 
 # Most packages should depend on iota-simulator instead of directly on msim, but for typed-store

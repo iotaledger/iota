@@ -16,6 +16,9 @@
         "noImplicitAny": false,
         "strictBindCallApply": false,
         "forceConsistentCasingInFileNames": false,
-        "noFallthroughCasesInSwitch": false
-    }
+        "noFallthroughCasesInSwitch": false,
+        "paths": {
+            "@iota/core/constants/*": ["./../core/src/constants/*"]
+        }
+    },
 }

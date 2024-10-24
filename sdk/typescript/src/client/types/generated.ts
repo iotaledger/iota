@@ -111,6 +111,10 @@ export type CompressedSignature =
     | {
           ZkLogin: string;
       };
+/** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
+export type ConsensusDeterminedVersionAssignments = {
+    CancelledTransactions: [string, [string, string][]][];
+};
 export type IotaParsedData =
     | {
           dataType: 'moveObject';
@@ -496,13 +500,17 @@ export interface CoinMetadata {
 }
 export type IotaEndOfEpochTransactionKind =
     | 'AuthenticatorStateCreate'
-    | 'RandomnessStateCreate'
-    | 'CoinDenyListStateCreate'
     | {
           ChangeEpoch: IotaChangeEpoch;
       }
     | {
           AuthenticatorStateExpire: IotaAuthenticatorStateExpire;
+      }
+    | {
+          BridgeStateCreate: string;
+      }
+    | {
+          BridgeCommitteeUpdate: string;
       };
 export interface IotaExecutionResult {
     /** The value of any arguments that were mutably borrowed. Non-mut borrowed values are not included */
@@ -675,6 +683,8 @@ export interface IotaSystemStateSummary {
     inactivePoolsSize: string;
     /** The current IOTA supply. */
     iotaTotalSupply: string;
+    /** The `TreasuryCap<IOTA>` object ID. */
+    iotaTreasuryCapId: string;
     /**
      * Maximum number of active validators at any moment. We do not allow the number of validators in any
      * epoch to go above this.
@@ -841,13 +851,6 @@ export interface IotaValidatorSummary {
     workerAddress: string;
     workerPubkeyBytes: string;
 }
-export interface LoadedChildObject {
-    objectId: string;
-    sequenceNumber: string;
-}
-export interface LoadedChildObjectsResponse {
-    loadedChildObjects: LoadedChildObject[];
-}
 export interface MoveCallMetrics {
     /** The count of calls of each function in the last 30 days. */
     rank30Days: [MoveFunctionName, string][];
@@ -898,7 +901,15 @@ export type MoveValue =
           id: string;
       }
     | MoveStruct
-    | null;
+    | null
+    | MoveVariant;
+export interface MoveVariant {
+    fields: {
+        [key: string]: MoveValue;
+    };
+    type: string;
+    variant: string;
+}
 /** The struct that contains signatures and public keys necessary for authenticating a MultiSig. */
 export interface MultiSig {
     /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
@@ -911,36 +922,8 @@ export interface MultiSig {
     /** The plain signature encoded with signature scheme. */
     sigs: CompressedSignature[];
 }
-/**
- * Deprecated, use [struct MultiSig] instead. The struct that contains signatures and public keys necessary
- * for authenticating a MultiSigLegacy.
- */
-export interface MultiSigLegacy {
-    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
-    bitmap: string;
-    /**
-     * The public key encoded with each public key with its signature scheme used along with the
-     * corresponding weight.
-     */
-    multisig_pk: MultiSigPublicKeyLegacy;
-    /** The plain signature encoded with signature scheme. */
-    sigs: CompressedSignature[];
-}
 /** The struct that contains the public key used for authenticating a MultiSig. */
 export interface MultiSigPublicKey {
-    /** A list of public key and its corresponding weight. */
-    pk_map: [PublicKey, number][];
-    /**
-     * If the total weight of the public keys corresponding to verified signatures is larger than
-     * threshold, the MultiSig is verified.
-     */
-    threshold: number;
-}
-/**
- * Deprecated, use [struct MultiSigPublicKey] instead. The struct that contains the public key used for
- * authenticating a MultiSig.
- */
-export interface MultiSigPublicKeyLegacy {
     /** A list of public key and its corresponding weight. */
     pk_map: [PublicKey, number][];
     /**
@@ -1243,6 +1226,24 @@ export interface PaginatedTransactionResponse {
     hasNextPage: boolean;
     nextCursor?: string | null;
 }
+/**
+ * An passkey authenticator with parsed fields. See field definition below. Can be initialized from
+ * [struct RawPasskeyAuthenticator].
+ */
+export interface PasskeyAuthenticator {
+    /**
+     * `authenticatorData` is a bytearray that encodes
+     * [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data) structure returned
+     * by the authenticator attestation response as is.
+     */
+    authenticator_data: number[];
+    /**
+     * `clientDataJSON` contains a JSON-compatible UTF-8 encoded string of the client data which is passed
+     * to the authenticator by the client during the authentication request (see
+     * [CollectedClientData](https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata))
+     */
+    client_data_json: string;
+}
 export interface ProtocolConfig {
     attributes: {
         [key: string]: ProtocolConfigValue | null;
@@ -1266,6 +1267,9 @@ export type ProtocolConfigValue =
       }
     | {
           f64: string;
+      }
+    | {
+          bool: string;
       };
 export type PublicKey =
     | {
@@ -1279,6 +1283,9 @@ export type PublicKey =
       }
     | {
           ZkLogin: string;
+      }
+    | {
+          Passkey: string;
       };
 export type RPCTransactionRequestParams =
     | {
@@ -1447,24 +1454,20 @@ export interface TransactionBlockEffectsModifiedAtVersions {
     sequenceNumber: string;
 }
 export type IotaTransactionBlockKind =
-    /** A system transaction that will update epoch information on-chain. */
+    /** A system transaction used for initializing the initial state of the chain. */
     | {
-          computation_charge: string;
-          epoch: string;
-          epoch_start_timestamp_ms: string;
-          kind: 'ChangeEpoch';
-          storage_charge: string;
-          storage_rebate: string;
-      } /** A system transaction used for initializing the initial state of the chain. */
-    | {
+          events: EventId[];
           kind: 'Genesis';
           objects: string[];
       } /** A system transaction marking the start of a series of transactions scheduled as part of a checkpoint */
     | {
           commit_timestamp_ms: string;
+          consensus_commit_digest: string;
+          consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments;
           epoch: string;
-          kind: 'ConsensusCommitPrologue';
+          kind: 'ConsensusCommitPrologueV1';
           round: string;
+          sub_dag_index?: string | null;
       } /** A series of transactions where the results of one transaction can be used in future transactions */
     | {
           /** Input objects or primitive values */
@@ -1491,13 +1494,6 @@ export type IotaTransactionBlockKind =
     | {
           kind: 'EndOfEpochTransaction';
           transactions: IotaEndOfEpochTransactionKind[];
-      }
-    | {
-          commit_timestamp_ms: string;
-          consensus_commit_digest: string;
-          epoch: string;
-          kind: 'ConsensusCommitPrologueV2';
-          round: string;
       };
 export interface IotaTransactionBlockResponse {
     balanceChanges?: BalanceChange[] | null;
@@ -1591,9 +1587,9 @@ export interface TransferObjectParams {
 }
 /** Identifies a struct and the module it was defined in */
 export interface TypeOrigin {
+    datatype_name: string;
     module_name: string;
     package: string;
-    struct_name: string;
 }
 /** Upgraded package info for the linkage table */
 export interface UpgradeInfo {

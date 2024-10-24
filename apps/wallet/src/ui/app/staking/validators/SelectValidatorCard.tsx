@@ -2,17 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert } from '_components';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
-import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
+import { calculateStakeShare, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import cl from 'clsx';
 import { useMemo, useState } from 'react';
-import { Button, Card, CardAction, CardActionType, CardBody, CardImage } from '@iota/apps-ui-kit';
-import { ImageIcon } from '../../shared/image-icon';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { Button, InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
+import { ValidatorLogo } from './ValidatorLogo';
+import { Warning } from '@iota/ui-icons';
 
 type Validator = {
     name: string;
@@ -27,7 +25,7 @@ export function SelectValidatorCard() {
 
     const navigate = useNavigate();
 
-    const { data, isPending, isError } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data, isPending, isError, error } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const selectValidator = (validator: Validator) => {
@@ -46,7 +44,7 @@ export function SelectValidatorCard() {
         () => [...(data?.activeValidators || [])].sort(() => 0.5 - Math.random()),
         [data?.activeValidators],
     );
-    const validatorList = useMemo(() => {
+    const validatorList: Validator[] = useMemo(() => {
         const sortedAsc = validatorsRandomOrder.map((validator) => {
             const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
                 apy: null,
@@ -75,10 +73,14 @@ export function SelectValidatorCard() {
 
     if (isError) {
         return (
-            <div className="p-2">
-                <Alert>
-                    <div className="mb-1 font-semibold">Something went wrong</div>
-                </Alert>
+            <div className="mb-2 flex h-full w-full items-center justify-center p-2">
+                <InfoBox
+                    type={InfoBoxType.Error}
+                    title="Something went wrong"
+                    supportingText={error?.message ?? 'An error occurred'}
+                    icon={<Warning />}
+                    style={InfoBoxStyle.Default}
+                />
             </div>
         );
     }
@@ -94,27 +96,13 @@ export function SelectValidatorCard() {
                             })}
                             key={validator.address}
                         >
-                            <Card onClick={() => selectValidator(validator)}>
-                                <CardImage>
-                                    <ImageIcon
-                                        src={null}
-                                        label={validator?.name || ''}
-                                        fallback={validator?.name || ''}
-                                    />
-                                </CardImage>
-                                <CardBody
-                                    title={validator.name}
-                                    subtitle={formatAddress(validator.address)}
-                                />
-                                <CardAction
-                                    type={CardActionType.SupportingText}
-                                    title={formatPercentageDisplay(
-                                        validator.apy,
-                                        '-',
-                                        validator?.isApyApproxZero,
-                                    )}
-                                />
-                            </Card>
+                            <ValidatorLogo
+                                validatorAddress={validator.address}
+                                showApy
+                                onClick={() => {
+                                    selectValidator(validator);
+                                }}
+                            />
                         </div>
                     ))}
             </div>

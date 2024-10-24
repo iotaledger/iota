@@ -7,14 +7,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use cluster::{Cluster, ClusterFactory};
 use config::ClusterTestOpt;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use helper::ObjectChecker;
 use iota_faucet::CoinInfo;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
-use iota_sdk::{wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
@@ -32,7 +32,8 @@ use test_case::{
     coin_index_test::CoinIndexTest, coin_merge_split_test::CoinMergeSplitTest,
     fullnode_build_publish_transaction_test::FullNodeBuildPublishTransactionTest,
     fullnode_execute_transaction_test::FullNodeExecuteTransactionTest,
-    native_transfer_test::NativeTransferTest, shared_object_test::SharedCounterTest,
+    native_transfer_test::NativeTransferTest, random_beacon_test::RandomBeaconTest,
+    shared_object_test::SharedCounterTest,
 };
 use tokio::time::{self, Duration};
 use tracing::{error, info};
@@ -313,6 +314,7 @@ impl ClusterTest {
             TestCase::new(FullNodeExecuteTransactionTest {}),
             TestCase::new(FullNodeBuildPublishTransactionTest {}),
             TestCase::new(CoinIndexTest {}),
+            TestCase::new(RandomBeaconTest {}),
         ];
 
         // TODO: improve the runner parallelism for efficiency

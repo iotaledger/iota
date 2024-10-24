@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::iota_system {
+    use std::vector;
+
     use iota::balance::Balance;
     use iota::object::UID;
     use iota::iota::IOTA;
@@ -13,14 +15,12 @@ module iota_system::iota_system {
     use iota_system::validator::Validator;
     use iota_system::iota_system_state_inner::{Self, IotaSystemStateInner, IotaSystemStateInnerV2};
 
-    friend iota_system::genesis;
-
-    struct IotaSystemState has key {
+    public struct IotaSystemState has key {
         id: UID,
         version: u64,
     }
 
-    public(friend) fun create(
+    public(package) fun create(
         id: UID,
         validators: vector<Validator>,
         storage_fund: Balance<IOTA>,
@@ -38,7 +38,7 @@ module iota_system::iota_system {
             ctx,
         );
         let version = iota_system_state_inner::genesis_system_state_version();
-        let self = IotaSystemState {
+        let mut self = IotaSystemState {
             id,
             version,
         };
@@ -75,12 +75,16 @@ module iota_system::iota_system {
         storage_rebate
     }
 
+    public fun active_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
+        vector::empty()
+    }
+
     fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateInnerV2 {
         load_inner_maybe_upgrade(self)
     }
 
     fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateInnerV2 {
-        let version = self.version;
+        let mut version = self.version;
         if (version == iota_system_state_inner::genesis_system_state_version()) {
             let inner: IotaSystemStateInner = dynamic_field::remove(&mut self.id, version);
             let new_inner = iota_system_state_inner::v1_to_v2(inner);

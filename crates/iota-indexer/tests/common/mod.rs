@@ -141,7 +141,10 @@ pub async fn indexer_wait_for_object(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to given object's sequence number");
+    .expect(
+        "Timeout waiting for indexer to catchup to given object's
+sequence number",
+    );
 }
 
 /// Start an Indexer instance in `Read` mode

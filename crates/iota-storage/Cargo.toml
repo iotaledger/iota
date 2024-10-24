@@ -1,12 +1,16 @@
 [package]
 name = "iota-storage"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 backoff.workspace = true
@@ -15,14 +19,12 @@ bcs.workspace = true
 byteorder.workspace = true
 bytes.workspace = true
 chrono.workspace = true
-clap.workspace = true
+clap = "4.3.2"
 eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
-http-body-util.workspace = true
 hyper.workspace = true
-hyper-rustls = { version = "0.27", features = ["webpki-roots", "http2"] }
-hyper-util = { workspace = true, features = ["http2", "client-legacy", "tokio"] }
+hyper-rustls.workspace = true
 indicatif.workspace = true
 integer-encoding.workspace = true
 itertools.workspace = true
@@ -33,19 +35,16 @@ parking_lot.workspace = true
 percent-encoding = "2.3"
 prometheus.workspace = true
 reqwest.workspace = true
-rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
-telemetry-subscribers.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full", "tracing"] }
 tracing.workspace = true
-typed-store.workspace = true
-typed-store-derive.workspace = true
 url.workspace = true
 zstd = "0.13"
 
+# internal dependencies
 iota-config.workspace = true
 iota-json-rpc-types.workspace = true
 iota-metrics.workspace = true
@@ -54,17 +53,24 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
+telemetry-subscribers.workspace = true
+typed-store.workspace = true
 
 [dev-dependencies]
+# external dependencies
 anyhow.workspace = true
 once_cell.workspace = true
 tempfile.workspace = true
 
+# internal dependencies
 iota-macros = { workspace = true }
 iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 
-[target.'cfg(msim)'.dev-dependencies]
+[target.'cfg(msim)'.dependencies]
+# external dependencies
 axum.workspace = true
-iota-simulator.workspace = true
 rustls = "0.23"
+
+# internal dependencies
+iota-simulator.workspace = true
