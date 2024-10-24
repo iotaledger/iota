@@ -127,10 +127,9 @@ impl FullNodeHandle {
     }
 }
 
-struct FaucetContext {
+struct Faucet {
     address: IotaAddress,
-    keypair: IotaKeyPair,
-    mutex: Arc<tokio::sync::Mutex<()>>
+    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>
 }
 
 pub struct TestCluster {
@@ -808,11 +807,11 @@ impl TestCluster {
         amount: Option<u64>,
         funding_address: IotaAddress,
     ) -> ObjectRef {
-        let FaucetContext {
-            address, keypair, mutex
+        let Faucet {
+            address, keypair
         } = &self.faucet;
 
-        let _lock = mutex.lock().await;
+        let keypair = &*keypair.lock().await;
 
         let gas_ref = self.wallet.get_gas_objects_owned_by_address(*address, None).await.unwrap().first().unwrap().clone();
 
@@ -1358,10 +1357,9 @@ impl TestClusterBuilder {
             fullnode_handle,
             bridge_authority_keys: None,
             bridge_server_ports: None,
-            faucet: FaucetContext {
+            faucet: Faucet {
                 address: faucet_address,
-                keypair: IotaKeyPair::Ed25519(faucet_keypair),
-                mutex: Arc::new(tokio::sync::Mutex::new(())),
+                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(faucet_keypair))),
             }
         }
     }
