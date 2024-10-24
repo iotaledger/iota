@@ -81,13 +81,13 @@ async fn basic_reconfig_end_to_end_test() {
     // TODO remove this sleep when this test passes consistently
     sleep(Duration::from_secs(1)).await;
     let test_cluster = TestClusterBuilder::new().build().await;
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 }
 
 #[sim_test]
 async fn test_transaction_expiration() {
     let test_cluster = TestClusterBuilder::new().build().await;
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     let (sender, gas) = test_cluster
         .wallet
@@ -487,7 +487,7 @@ async fn test_validator_resign_effects() {
         .effects
         .unwrap();
     assert_eq!(effects0.executed_epoch(), 0);
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     let net = test_cluster
         .fullnode_handle
@@ -574,7 +574,7 @@ async fn test_inactive_validator_pool_read() {
     });
     execute_remove_validator_tx(&test_cluster, &validator).await;
 
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     // Check that this node is no longer a validator.
     validator.with(|node| {
@@ -626,7 +626,7 @@ async fn test_reconfig_with_committee_change_basic() {
 
     execute_add_validator_transactions(&test_cluster, &new_validator).await;
 
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     // Check that a new validator has joined the committee.
     test_cluster.fullnode_handle.iota_node.with(|node| {
@@ -649,7 +649,7 @@ async fn test_reconfig_with_committee_change_basic() {
     });
 
     execute_remove_validator_tx(&test_cluster, &new_validator_handle).await;
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     test_cluster.fullnode_handle.iota_node.with(|node| {
         assert_eq!(
             node.state()
@@ -728,7 +728,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
             )
         );
 
-        test_cluster.trigger_reconfiguration().await;
+        test_cluster.force_new_epoch().await;
         let committee = test_cluster
             .fullnode_handle
             .iota_node
