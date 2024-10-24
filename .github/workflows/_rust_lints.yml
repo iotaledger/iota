@@ -27,7 +27,7 @@ jobs:
       - name: Check Rust formatting
         run: cargo +nightly ci-fmt
 
-  cargo_sort:
+  cargo-sort:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted]
     steps:
