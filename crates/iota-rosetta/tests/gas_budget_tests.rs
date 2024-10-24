@@ -167,7 +167,7 @@ async fn test_pay_with_gas_budget_fail() {
         TransactionIdentifierResponseResult::Error(rosetta_submit_gas_error) => {
             assert_eq!(rosetta_submit_gas_error, RosettaSubmitGasError {
                 code: 11,
-                message: "Transaction dry run error".to_string(),
+                message: "Transaction dry run".to_string(),
                 description: None,
                 retriable: false,
                 details: RosettaSubmitGasErrorDetails {
