@@ -293,32 +293,30 @@ impl StoredObject {
     ) -> Result<ObjectRead, IndexerError> {
         let oref = self.get_object_ref()?;
         let object: iota_types::object::Object = self.try_into()?;
-        let Some(move_object) = object.data.try_as_move().cloned() else {
-            return Err(IndexerError::PostgresRead(format!(
-                "Object {:?} is not a Move object",
-                oref,
-            )));
-        };
 
-        let move_type_layout = package_resolver
-            .type_layout(move_object.type_().clone().into())
-            .await
-            .map_err(|e| {
-                IndexerError::ResolveMoveStruct(format!(
-                    "Failed to convert into object read for obj {}:{}, type: {}. Error: {e}",
-                    object.id(),
-                    object.version(),
-                    move_object.type_(),
-                ))
-            })?;
-        let move_struct_layout = match move_type_layout {
-            MoveTypeLayout::Struct(s) => Ok(s),
-            _ => Err(IndexerError::ResolveMoveStruct(
-                "MoveTypeLayout is not Struct".to_string(),
-            )),
-        }?;
+        if let Some(move_object) = object.data.try_as_move().cloned() {
+            let move_type_layout = package_resolver
+                .type_layout(move_object.type_().clone().into())
+                .await
+                .map_err(|e| {
+                    IndexerError::ResolveMoveStruct(format!(
+                        "Failed to convert into object read for obj {}:{}, type: {}. Error: {e}",
+                        object.id(),
+                        object.version(),
+                        move_object.type_(),
+                    ))
+                })?;
+            let move_struct_layout = match move_type_layout {
+                MoveTypeLayout::Struct(s) => Ok(s),
+                _ => Err(IndexerError::ResolveMoveStruct(
+                    "MoveTypeLayout is not Struct".to_string(),
+                )),
+            }?;
 
-        Ok(ObjectRead::Exists(oref, object, Some(move_struct_layout)))
+            return Ok(ObjectRead::Exists(oref, object, Some(move_struct_layout)));
+        }
+
+        Ok(ObjectRead::Exists(oref, object, None))
     }
 
     pub async fn try_into_expectant_dynamic_field_info(
