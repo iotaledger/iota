@@ -43,6 +43,7 @@ use iota_types::{
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
         generate_proof_of_possession, get_authority_key_pair,
     },
+    dynamic_field::Field,
     iota_system_state::{
         iota_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
@@ -1108,16 +1109,13 @@ async fn display_metadata(
     json: bool,
 ) -> anyhow::Result<()> {
     match get_validator_summary(client, validator_address).await? {
-        None => println!(
-            "{} is not an active or pending Validator.",
-            validator_address
-        ),
+        None => println!("{validator_address} is not an active or pending Validator.",),
         Some((status, info)) => {
-            println!("{}'s valdiator status: {:?}", validator_address, status);
+            println!("{validator_address}'s validator status: {status:?}");
             if json {
                 println!("{}", serde_json::to_string_pretty(&info)?);
             } else {
-                println!("{:#?}", info);
+                println!("{info:#?}");
             }
         }
     }
@@ -1149,20 +1147,15 @@ async fn get_pending_candidate_summary(
         // included.
         let object_id = resp.object_id()?;
         let bcs = resp.move_object_bcs().ok_or_else(|| {
+            anyhow::anyhow!("Object {object_id} does not exist or does not return bcs bytes",)
+        })?;
+        let field = bcs::from_bytes::<Field<u64, ValidatorV1>>(bcs).map_err(|e| {
             anyhow::anyhow!(
-                "Object {} does not exist or does not return bcs bytes",
-                object_id
+                "Can't convert bcs bytes of object {object_id} to Field<u64, ValidatorV1>: {e}",
             )
         })?;
-        let val = bcs::from_bytes::<ValidatorV1>(bcs).map_err(|e| {
-            anyhow::anyhow!(
-                "Can't convert bcs bytes of object {} to ValidatorV1: {}",
-                object_id,
-                e,
-            )
-        })?;
-        if val.verified_metadata().iota_address == validator_address {
-            return Ok(Some(val));
+        if field.value.verified_metadata().iota_address == validator_address {
+            return Ok(Some(field.value));
         }
     }
     Ok(None)
