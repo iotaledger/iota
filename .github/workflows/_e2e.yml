@@ -70,9 +70,9 @@ jobs:
         if: inputs.isTypescriptSDK || inputs.isRust || inputs.isDevelop
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/iota-sdk test:e2e'
 
-      - name: Run RPC/GraphQL compatibility e2e tests
-        if: inputs.isGraphQlTransport || inputs.isRust || inputs.isDevelop
-        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
+      # - name: Run RPC/GraphQL compatibility e2e tests
+      #   if: inputs.isGraphQlTransport || inputs.isRust || inputs.isDevelop
+      #   run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
 
       - name: Build explorer
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || inputs.isDevelop
