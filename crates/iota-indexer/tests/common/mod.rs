@@ -31,7 +31,6 @@ use tokio::{runtime::Runtime, task::JoinHandle};
 use iota_types::digests::TransactionDigest;
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
-use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 
 const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";

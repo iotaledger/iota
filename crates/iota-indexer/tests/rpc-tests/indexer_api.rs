@@ -4,12 +4,18 @@
 use std::{str::FromStr, time::SystemTime};
 
 use iota_json_rpc_api::IndexerApiClient;
-use iota_json_rpc_types::{EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectRef, IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage, TransactionFilter};
+use iota_json_rpc_types::{EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage, TransactionFilter};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
 };
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_types::transaction::CallArg;
+use iota_types::transaction::ObjectArg;
+use move_core_types::annotated_value::MoveValue;
+use iota_types::dynamic_field::DynamicFieldName;
+use move_core_types::language_storage::TypeTag;
+use move_core_types::language_storage::StructTag;
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_json_rpc_api::WriteApiClient;
 use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use iota_types::transaction::TransactionData;
@@ -21,7 +27,7 @@ use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder
 use iota_json::call_args;
 use iota_types::gas_coin::GAS;
 use iota_json::type_args;
-use iota_types::crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair};
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 use iota_types::utils::to_sender_signed_transaction;
 
 #[test]
@@ -421,6 +427,205 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .unwrap();
 
         assert_eq!(1, res.data.len());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+
+        let gas = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000_000), address).await;
+        indexer_wait_for_object(&store, gas.0, gas.1).await;
+
+        // Create a bag object
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let bag = builder.programmable_move_call(
+                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                Identifier::from_str("bag")?,
+                Identifier::from_str("new")?,
+                vec![],
+                vec![],
+            );
+
+            let field_name_argument = builder.pure(0u64).expect("valid pure");
+            let field_value_argument = builder.pure(0u64).expect("valid pure");
+
+            let _ = builder.programmable_move_call(
+                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                Identifier::from_str("bag")?,
+                Identifier::from_str("add")?,
+                vec![TypeTag::U64, TypeTag::U64],
+                vec![bag, field_name_argument, field_value_argument],
+            );
+
+            builder.transfer_arg(address, bag);
+            builder.finish()
+        };
+
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+
+        let res = cluster.wallet.execute_transaction_must_succeed(signed_transaction).await;
+
+        // Wait for the transaction to be executed
+        indexer_wait_for_transaction(res.digest, &store, &client).await;
+
+        // Find the bag object
+        let objects: ObjectsPage = client
+            .get_owned_objects(
+                address,
+                Some(IotaObjectResponseQuery::new(
+                    Some(IotaObjectDataFilter::StructType(StructTag {
+                        address: IOTA_FRAMEWORK_ADDRESS,
+                        module: Identifier::from_str("bag")?,
+                        name: Identifier::from_str("Bag")?,
+                        type_params: Vec::new(),
+                    })),
+                    Some(
+                        IotaObjectDataOptions::new()
+                            .with_type()
+                            .with_owner()
+                            .with_previous_transaction()
+                            .with_display(),
+                    ),
+                )),
+                None,
+                None,
+            )
+            .await?;
+
+        let bag_object_ref = objects.data.first().unwrap().object().unwrap().object_ref();
+
+        // Verify that the dynamic field was successfully added
+        let dynamic_fields = client
+            .get_dynamic_fields(bag_object_ref.0, None, None)
+            .await
+            .expect("Failed to get dynamic fields");
+
+        assert!(
+            !dynamic_fields.data.is_empty(),
+            "Dynamic field was not added"
+        );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+
+        let gas = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000_000), address).await;
+        indexer_wait_for_object(&store, gas.0, gas.1).await;
+
+        let child_object = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+
+        // Create a object bag object
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let bag = builder.programmable_move_call(
+                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                Identifier::from_str("object_bag")?,
+                Identifier::from_str("new")?,
+                vec![],
+                vec![],
+            );
+
+            let field_name_argument = builder.pure(0u64).expect("valid pure");
+            let field_value_argument = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(child_object)))
+                .unwrap();
+
+            let _ = builder.programmable_move_call(
+                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                Identifier::from_str("object_bag")?,
+                Identifier::from_str("add")?,
+                vec![
+                    TypeTag::U64,
+                    TypeTag::Struct(Box::new(StructTag {
+                        address: IOTA_FRAMEWORK_ADDRESS,
+                        module: Identifier::from_str("coin")?,
+                        name: Identifier::from_str("Coin")?,
+                        type_params: vec![GAS::type_tag()],
+                    })),
+                ],
+                vec![bag, field_name_argument, field_value_argument],
+            );
+
+            builder.transfer_arg(address, bag);
+            builder.finish()
+        };
+
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+
+        let res = cluster.wallet.execute_transaction_must_succeed(signed_transaction).await;
+
+        // Wait for the transaction to be executed
+        indexer_wait_for_transaction(res.digest, &store, &client).await;
+
+        // Find the bag object
+        let objects: ObjectsPage = client
+            .get_owned_objects(
+                address,
+                Some(IotaObjectResponseQuery::new(
+                    Some(IotaObjectDataFilter::StructType(StructTag {
+                        address: IOTA_FRAMEWORK_ADDRESS,
+                        module: Identifier::from_str("object_bag")?,
+                        name: Identifier::from_str("ObjectBag")?,
+                        type_params: Vec::new(),
+                    })),
+                    Some(
+                        IotaObjectDataOptions::new()
+                            .with_type()
+                            .with_owner()
+                            .with_previous_transaction()
+                            .with_display(),
+                    ),
+                )),
+                None,
+                None,
+            )
+            .await?;
+
+        let bag_object_ref = objects.data.first().unwrap().object().unwrap().object_ref();
+
+        let name = DynamicFieldName {
+            type_: TypeTag::U64,
+            value: IotaMoveValue::from(MoveValue::U64(0u64)).to_json_value(),
+        };
+
+        // Verify that the dynamic field was successfully added
+        let dynamic_fields = client
+            .get_dynamic_field_object(bag_object_ref.0, name)
+            .await
+            .expect("Failed to get dynamic field object");
+
+        assert!(
+            dynamic_fields.data.is_some(),
+            "Dynamic field object was not added"
+        );
 
         Ok(())
     })
