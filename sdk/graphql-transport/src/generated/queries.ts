@@ -5254,7 +5254,7 @@ export type GetCommitteeInfoQueryVariables = Exact<{
 }>;
 
 
-export type GetCommitteeInfoQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', protocolPubKey?: any | null } | null }> } } | null } | null };
+export type GetCommitteeInfoQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null } | null };
 
 export type GetCurrentEpochQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -6786,7 +6786,7 @@ export const GetCommitteeInfoDocument = new TypedDocumentString(`
         }
         nodes {
           credentials {
-            protocolPubKey
+            authorityPubKey
           }
           votingPower
         }
