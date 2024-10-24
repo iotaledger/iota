@@ -9,9 +9,9 @@ import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 import { generateTransactionsTableColumns } from '~/lib/ui';
 
-const PAGE_SIZES = [20, 40, 60];
 export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
     const transactions = useGetTransactionBlocks(
@@ -43,7 +43,7 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
                             <Select
                                 dropdownPosition={DropdownPosition.Top}
                                 value={limit.toString()}
-                                options={PAGE_SIZES.map((size) => ({
+                                options={PAGE_SIZES_RANGE_20_60.map((size) => ({
                                     label: `${size} / page`,
                                     id: size.toString(),
                                 }))}

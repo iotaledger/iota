@@ -8,6 +8,7 @@ import { Warning } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 import { generateEpochsTableColumns } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';
 
@@ -76,11 +77,10 @@ export function EpochsActivityTable({
                         !disablePagination && (
                             <Select
                                 value={limit.toString()}
-                                options={[
-                                    { id: '20', label: '20 / page' },
-                                    { id: '40', label: '40 / page' },
-                                    { id: '60', label: '60 / page' },
-                                ]}
+                                options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                    label: `${size} / page`,
+                                    id: size.toString(),
+                                }))}
                                 size={SelectSize.Small}
                                 onValueChange={(e) => {
                                     setLimit(Number(e));

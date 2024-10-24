@@ -14,6 +14,7 @@ import { numberSuffix } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
 import { generateTransactionsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/ui-icons';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
@@ -79,11 +80,10 @@ export function TransactionsActivityTable({
                             !disablePagination && (
                                 <Select
                                     value={limit.toString()}
-                                    options={[
-                                        { id: '20', label: '20 / page' },
-                                        { id: '40', label: '40 / page' },
-                                        { id: '60', label: '60 / page' },
-                                    ]}
+                                    options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                        label: `${size} / page`,
+                                        id: size.toString(),
+                                    }))}
                                     onValueChange={(e) => {
                                         setLimit(Number(e));
                                         pagination.onFirst();
