@@ -15,7 +15,9 @@
 /docker/ @iotaledger/l1-core-infra @iotaledger/core-node @iotaledger/devops-admin
 /crates/iota-json-rpc*/ @iotaledger/l1-core-infra
 /crates/iota-graphql*/ @iotaledger/l1-core-infra
-/crates/iota-indexer/ @iotaledger/l1-core-infra
+/crates/iota-indexer*/ @iotaledger/l1-core-infra
+/crates/iota-data-ingestion*/ @iotaledger/l1-core-infra
+/crates/iota-analytics-indexer/ @iotaledger/l1-core-infra
 
 # core-node team
 /crates/iota-archival/ @iotaledger/core-node
