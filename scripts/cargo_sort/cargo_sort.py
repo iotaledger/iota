@@ -335,7 +335,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Format the Cargo.toml files and sort internal and external dependencies.')
     parser.add_argument('--target', default="../../", help='Target directory to search in.')
     parser.add_argument('--skip-dprint', action='store_true', help='Skip running dprint fmt.')
-    parser.add_argument('--debug', action='store_true', help='Display the line where the occurrence was found.')
+    parser.add_argument('--debug', action='store_true', help='Show debug prints.')
     
     args = parser.parse_args()
 
