@@ -26,16 +26,15 @@ module iota_system::genesis {
         gas_price: u64,
         commission_rate: u64,
 
-        protocol_public_key: vector<u8>,
+        authority_public_key: vector<u8>,
         proof_of_possession: vector<u8>,
 
         network_public_key: vector<u8>,
-        worker_public_key: vector<u8>,
+        protocol_public_key: vector<u8>,
 
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
     }
 
     public struct GenesisChainParameters has drop, copy {
@@ -114,21 +113,20 @@ module iota_system::genesis {
                 iota_address,
                 gas_price,
                 commission_rate,
-                protocol_public_key,
+                authority_public_key,
                 proof_of_possession,
                 network_public_key,
-                worker_public_key,
+                protocol_public_key,
                 network_address,
                 p2p_address,
                 primary_address,
-                worker_address,
             } = genesis_validators[i];
 
             let validator = validator::new(
                 iota_address,
-                protocol_public_key,
+                authority_public_key,
                 network_public_key,
-                worker_public_key,
+                protocol_public_key,
                 proof_of_possession,
                 name,
                 description,
@@ -137,7 +135,6 @@ module iota_system::genesis {
                 network_address,
                 p2p_address,
                 primary_address,
-                worker_address,
                 gas_price,
                 commission_rate,
                 ctx

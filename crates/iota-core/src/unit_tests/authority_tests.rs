@@ -3031,7 +3031,7 @@ async fn test_invalid_mutable_clock_parameter() {
 
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
-        UserInputError::ImmutableParameterExpectedError {
+        UserInputError::ImmutableParameterExpected {
             object_id: IOTA_CLOCK_OBJECT_ID
         }
     );
@@ -3134,7 +3134,7 @@ async fn test_invalid_randomness_parameter() {
     };
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
-        UserInputError::ImmutableParameterExpectedError {
+        UserInputError::ImmutableParameterExpected {
             object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID
         }
     );
@@ -4867,10 +4867,10 @@ async fn test_consensus_message_processed() {
     let genesis = network_config.genesis;
 
     let sec1 = network_config.validator_configs[0]
-        .protocol_key_pair()
+        .authority_key_pair()
         .copy();
     let sec2 = network_config.validator_configs[1]
-        .protocol_key_pair()
+        .authority_key_pair()
         .copy();
 
     let authority1 = init_state_with_objects_and_committee(

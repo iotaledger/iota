@@ -415,7 +415,6 @@ module iota_system::validator_set_tests {
             vector[hint],
             vector[hint],
             vector[hint],
-            vector[hint],
             option::some(balance::create_for_testing(stake_value)),
             gas_price,
             0,

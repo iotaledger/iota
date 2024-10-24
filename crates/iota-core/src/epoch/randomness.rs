@@ -890,7 +890,7 @@ mod tests {
 
             let state = TestAuthorityBuilder::new()
                 .with_protocol_config(protocol_config.clone())
-                .with_genesis_and_keypair(&network_config.genesis, validator.protocol_key_pair())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
                 .build()
                 .await;
             let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -902,14 +902,13 @@ mod tests {
                 None,
                 None,
                 ConsensusAdapterMetrics::new_test(),
-                state.epoch_store_for_testing().protocol_config().clone(),
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
                 iota_network::randomness::Handle::new_stub(),
-                validator.protocol_key_pair(),
+                validator.authority_key_pair(),
             )
             .await
             .unwrap();
@@ -1022,7 +1021,7 @@ mod tests {
 
             let state = TestAuthorityBuilder::new()
                 .with_protocol_config(protocol_config.clone())
-                .with_genesis_and_keypair(&network_config.genesis, validator.protocol_key_pair())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
                 .build()
                 .await;
             let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -1034,14 +1033,13 @@ mod tests {
                 None,
                 None,
                 ConsensusAdapterMetrics::new_test(),
-                state.epoch_store_for_testing().protocol_config().clone(),
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
                 iota_network::randomness::Handle::new_stub(),
-                validator.protocol_key_pair(),
+                validator.authority_key_pair(),
             )
             .await
             .unwrap();

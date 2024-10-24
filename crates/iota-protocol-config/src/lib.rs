@@ -2,12 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeSet,
-    sync::{
-        RwLock,
-        atomic::{AtomicBool, Ordering},
-    },
+use std::sync::{
+    RwLock,
+    atomic::{AtomicBool, Ordering},
 };
 
 use clap::*;
@@ -130,20 +127,12 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    // A list of supported OIDC providers that can be used for zklogin.
-    #[serde(skip_serializing_if = "is_empty")]
-    zklogin_supported_providers: BTreeSet<String>,
-
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
 
     // Enable bridge protocol
     #[serde(skip_serializing_if = "is_false")]
     bridge: bool,
-
-    // Enable throughput aware consensus submission
-    #[serde(skip_serializing_if = "is_false")]
-    throughput_aware_consensus_submission: bool,
 
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
@@ -208,10 +197,6 @@ struct FeatureFlags {
 
 fn is_false(b: &bool) -> bool {
     !b
-}
-
-fn is_empty(b: &BTreeSet<String>) -> bool {
-    b.is_empty()
 }
 
 /// Ordering mechanism for transactions in one Narwhal consensus output.
@@ -998,10 +983,6 @@ impl ProtocolConfig {
         self.feature_flags.zklogin_auth
     }
 
-    pub fn zklogin_supported_providers(&self) -> &BTreeSet<String> {
-        &self.feature_flags.zklogin_supported_providers
-    }
-
     pub fn consensus_transaction_ordering(&self) -> ConsensusTransactionOrdering {
         self.feature_flags.consensus_transaction_ordering
     }
@@ -1038,10 +1019,6 @@ impl ProtocolConfig {
 
     pub fn zklogin_max_epoch_upper_bound_delta(&self) -> Option<u64> {
         self.feature_flags.zklogin_max_epoch_upper_bound_delta
-    }
-
-    pub fn throughput_aware_consensus_submission(&self) -> bool {
-        self.feature_flags.throughput_aware_consensus_submission
     }
 
     pub fn hardened_otw_check(&self) -> bool {
@@ -1660,10 +1637,6 @@ impl ProtocolConfig {
         {
             cfg.feature_flags.zklogin_auth = false;
             cfg.feature_flags.enable_jwk_consensus_updates = false;
-            // zklogin_supported_providers config is deprecated, zklogin
-            // signature verifier will use the fetched jwk map to determine
-            // whether the provider is supported based on node config.
-            cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
             cfg.feature_flags.accept_zklogin_in_multisig = false;
         }
