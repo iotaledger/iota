@@ -42,7 +42,7 @@ function HomeDashboardPage(): JSX.Element {
                         </span>
                     </div>
                     <div className="[&_button]:!bg-neutral-90">
-                    <ConnectButton connectText="Connect" />
+                        <ConnectButton connectText="Connect" />
                     </div>
                 </div>
                 <div className="text-body-lg text-neutral-60">
