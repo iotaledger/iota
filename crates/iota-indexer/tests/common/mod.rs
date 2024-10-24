@@ -71,12 +71,7 @@ impl ApiTestSetup {
     }
 }
 
-pub struct SimulacrumApiTestEnvDefinition {
-    pub unique_env_name: String,
-    pub env_initializer: Box<dyn Fn() -> Simulacrum>,
-}
-
-pub struct InitializedSimulacrumEnv {
+pub struct SimulacrumTestSetup {
     pub runtime: Runtime,
     pub sim: Arc<Simulacrum>,
     pub store: PgIndexerStore,
@@ -84,20 +79,21 @@ pub struct InitializedSimulacrumEnv {
     pub client: HttpClient,
 }
 
-impl SimulacrumApiTestEnvDefinition {
-    pub fn get_or_init_env<'a>(
-        &self,
-        initialized_env_container: &'a OnceLock<InitializedSimulacrumEnv>,
-    ) -> &'a InitializedSimulacrumEnv {
+impl SimulacrumTestSetup {
+    pub fn get_or_init<'a>(
+        unique_env_name: &str,
+        env_initializer: impl Fn() -> Simulacrum,
+        initialized_env_container: &'a OnceLock<SimulacrumTestSetup>,
+    ) -> &'a SimulacrumTestSetup {
         initialized_env_container.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            let sim = Arc::new((self.env_initializer)());
-            let db_name = format!("simulacrum_env_db_{}", self.unique_env_name);
+            let sim = Arc::new(env_initializer());
+            let db_name = format!("simulacrum_env_db_{}", unique_env_name);
             let (_, store, _, client) = runtime.block_on(
                 start_simulacrum_rest_api_with_read_write_indexer(sim.clone(), Some(&db_name)),
             );
 
-            InitializedSimulacrumEnv {
+            SimulacrumTestSetup {
                 runtime,
                 sim,
                 store,

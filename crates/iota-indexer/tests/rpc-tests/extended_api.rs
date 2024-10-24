@@ -22,19 +22,16 @@ use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use test_cluster::TestCluster;
 
-use crate::common::{
-    indexer_wait_for_checkpoint, ApiTestSetup, InitializedSimulacrumEnv,
-    SimulacrumApiTestEnvDefinition,
-};
+use crate::common::{ApiTestSetup, SimulacrumTestSetup, indexer_wait_for_checkpoint};
 
-static EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV: OnceLock<InitializedSimulacrumEnv> =
+static EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV: OnceLock<SimulacrumTestSetup> =
     OnceLock::new();
 
-fn get_or_init_shared_extended_api_simulacrum_env() -> &'static InitializedSimulacrumEnv {
+fn get_or_init_shared_extended_api_simulacrum_env() -> &'static SimulacrumTestSetup {
     let data_ingestion_path = tempdir().unwrap().into_path();
-    let extended_api_env = SimulacrumApiTestEnvDefinition {
-        unique_env_name: "extended_api".to_string(),
-        env_initializer: Box::new(|| {
+    SimulacrumTestSetup::get_or_init(
+        "extended_api",
+        || {
             let mut sim = Simulacrum::new();
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -50,14 +47,14 @@ fn get_or_init_shared_extended_api_simulacrum_env() -> &'static InitializedSimul
             add_checkpoints(&mut sim, 300);
 
             sim
-        }),
-    };
-    extended_api_env.get_or_init_env(&EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV)
+        },
+        &EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV,
+    )
 }
 
 #[test]
 fn get_epochs() {
-    let InitializedSimulacrumEnv {
+    let SimulacrumTestSetup {
         runtime,
         sim,
         store,
@@ -94,7 +91,7 @@ fn get_epochs() {
 
 #[test]
 fn get_epochs_descending() {
-    let InitializedSimulacrumEnv {
+    let SimulacrumTestSetup {
         runtime,
         sim,
         store,
@@ -121,7 +118,7 @@ fn get_epochs_descending() {
 
 #[test]
 fn get_epochs_paging() {
-    let InitializedSimulacrumEnv {
+    let SimulacrumTestSetup {
         runtime,
         sim,
         store,
@@ -163,7 +160,7 @@ fn get_epochs_paging() {
 
 #[test]
 fn get_epoch_metrics() {
-    let InitializedSimulacrumEnv {
+    let SimulacrumTestSetup {
         runtime,
         sim,
         store,
@@ -200,7 +197,7 @@ fn get_epoch_metrics() {
 
 #[test]
 fn get_epoch_metrics_descending() {
-    let InitializedSimulacrumEnv {
+    let SimulacrumTestSetup {
         runtime,
         sim,
         store,
@@ -230,7 +227,7 @@ fn get_epoch_metrics_descending() {
 
 #[test]
 fn get_epoch_metrics_paging() {
-    let InitializedSimulacrumEnv {
+    let SimulacrumTestSetup {
         runtime,
         sim,
         store,
@@ -272,7 +269,7 @@ fn get_epoch_metrics_paging() {
 
 #[test]
 fn get_current_epoch() {
-    let InitializedSimulacrumEnv {
+    let SimulacrumTestSetup {
         runtime,
         sim,
         store,
@@ -400,7 +397,7 @@ fn get_all_epoch_address_metrics() {
 
 #[test]
 fn get_total_transactions() {
-    let InitializedSimulacrumEnv {
+    let SimulacrumTestSetup {
         runtime,
         sim,
         store,
