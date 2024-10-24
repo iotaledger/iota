@@ -98,7 +98,7 @@ async fn test_bridge_api_compatibility() {
         .build()
         .await;
 
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     let client = test_cluster.rpc_client();
     client.get_latest_bridge().await.unwrap();
     // TODO: assert fields in summary

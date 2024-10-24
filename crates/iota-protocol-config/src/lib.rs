@@ -2,12 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeSet,
-    sync::{
-        RwLock,
-        atomic::{AtomicBool, Ordering},
-    },
+use std::sync::{
+    RwLock,
+    atomic::{AtomicBool, Ordering},
 };
 
 use clap::*;
@@ -40,10 +37,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create one additional "fake" version in simulator builds so that we can
+    // We create 4 additional "fake" versions in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 1);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 4);
 
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -115,10 +112,6 @@ struct FeatureFlags {
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
     #[serde(skip_serializing_if = "is_false")]
     disable_invariant_violation_check_in_swap_loc: bool,
-    // advance to highest supported protocol version at epoch change, instead of the next
-    // consecutive protocol version.
-    #[serde(skip_serializing_if = "is_false")]
-    advance_to_highest_supported_protocol_version: bool,
     // If true, checks no extra bytes in a compiled module
     #[serde(skip_serializing_if = "is_false")]
     no_extraneous_module_bytes: bool,
@@ -129,10 +122,6 @@ struct FeatureFlags {
     // How we order transactions coming out of consensus before sending to execution.
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
-
-    // A list of supported OIDC providers that can be used for zklogin.
-    #[serde(skip_serializing_if = "is_empty")]
-    zklogin_supported_providers: BTreeSet<String>,
 
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
@@ -204,10 +193,6 @@ struct FeatureFlags {
 
 fn is_false(b: &bool) -> bool {
     !b
-}
-
-fn is_empty(b: &BTreeSet<String>) -> bool {
-    b.is_empty()
 }
 
 /// Ordering mechanism for transactions in one Narwhal consensus output.
@@ -981,21 +966,12 @@ impl ProtocolConfig {
             .disable_invariant_violation_check_in_swap_loc
     }
 
-    pub fn advance_to_highest_supported_protocol_version(&self) -> bool {
-        self.feature_flags
-            .advance_to_highest_supported_protocol_version
-    }
-
     pub fn no_extraneous_module_bytes(&self) -> bool {
         self.feature_flags.no_extraneous_module_bytes
     }
 
     pub fn zklogin_auth(&self) -> bool {
         self.feature_flags.zklogin_auth
-    }
-
-    pub fn zklogin_supported_providers(&self) -> &BTreeSet<String> {
-        &self.feature_flags.zklogin_supported_providers
     }
 
     pub fn consensus_transaction_ordering(&self) -> ConsensusTransactionOrdering {
@@ -1639,8 +1615,6 @@ impl ProtocolConfig {
         cfg.feature_flags
             .disable_invariant_violation_check_in_swap_loc = true;
         cfg.feature_flags.no_extraneous_module_bytes = true;
-        cfg.feature_flags
-            .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
 
         cfg.feature_flags.hardened_otw_check = true;
@@ -1652,10 +1626,6 @@ impl ProtocolConfig {
         {
             cfg.feature_flags.zklogin_auth = false;
             cfg.feature_flags.enable_jwk_consensus_updates = false;
-            // zklogin_supported_providers config is deprecated, zklogin
-            // signature verifier will use the fetched jwk map to determine
-            // whether the provider is supported based on node config.
-            cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
             cfg.feature_flags.accept_zklogin_in_multisig = false;
         }
@@ -1698,8 +1668,11 @@ impl ProtocolConfig {
             cfg.feature_flags.authority_capabilities_v2 = true;
         }
 
-        // TODO: remove the never_loop attribute when the version 2 is added.
+        // Ignore this check for the fake versions for
+        // `test_choose_next_system_packages`. TODO: remove the never_loop
+        // attribute when the version 2 is added.
         #[allow(clippy::never_loop)]
+        #[cfg(not(msim))]
         for cur in 2..=version.0 {
             match cur {
                 1 => unreachable!(),
@@ -1786,10 +1759,6 @@ impl ProtocolConfig {
 // `_for_testing`. Non-feature_flags should already have test setters defined
 // through macros.
 impl ProtocolConfig {
-    pub fn set_advance_to_highest_supported_protocol_version_for_testing(&mut self, val: bool) {
-        self.feature_flags
-            .advance_to_highest_supported_protocol_version = val
-    }
     pub fn set_zklogin_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.zklogin_auth = val
     }

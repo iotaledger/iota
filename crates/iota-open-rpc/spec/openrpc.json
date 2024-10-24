@@ -10066,7 +10066,7 @@
               "code": {
                 "type": "string",
                 "enum": [
-                  "displayError"
+                  "display"
                 ]
               },
               "error": {
