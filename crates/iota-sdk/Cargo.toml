@@ -7,23 +7,27 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 bcs.workspace = true
 clap.workspace = true
 colored.workspace = true
+fastcrypto.workspace = true
 futures.workspace = true
 futures-core = "0.3.21"
 jsonrpsee.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
-fastcrypto.workspace = true
+# internal dependencies
 iota-config.workspace = true
 iota-json.workspace = true
 iota-json-rpc-api.workspace = true
@@ -32,19 +36,19 @@ iota-keys.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
-rustls.workspace = true
 shared-crypto.workspace = true
-tracing.workspace = true
-
 # NOTE: It's important to keep the above dependency list short.
 # This and the iota-json-rpc-api crate are widely used to develop on Iota and it's valuable
 # to not have to pull in the entire iota repo for it.
 
 [dev-dependencies]
+# external dependencies
 dirs.workspace = true
-iota-move-build.workspace = true
 rand.workspace = true
 tempfile.workspace = true
+
+# internal dependencies
+iota-move-build.workspace = true
 
 [[example]]
 name = "coin_read_api"
@@ -70,7 +74,6 @@ path = "examples/json_rpc_errors.rs"
 name = "utils"
 path = "examples/utils.rs"
 crate-type = ["staticlib"]
-
 # Read API folder
 
 [[example]]
