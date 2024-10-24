@@ -4,17 +4,20 @@
 
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 import { useLocation } from 'react-router-dom';
-
-import { Banner } from '~/components/ui';
-
 import type { ReactNode } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/ui-icons';
 
 function Fallback({ error }: FallbackProps): JSX.Element {
     return (
-        <Banner variant="error" fullWidth>
-            {error.message}
-        </Banner>
+        <InfoBox
+            title="Error"
+            supportingText={error.message}
+            icon={<Warning />}
+            type={InfoBoxType.Error}
+            style={InfoBoxStyle.Elevated}
+        />
     );
 }
 

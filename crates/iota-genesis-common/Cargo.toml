@@ -10,8 +10,10 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 prometheus.workspace = true
 
+# internal dependencies
 iota-execution.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true

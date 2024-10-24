@@ -716,8 +716,16 @@ async fn do_test_reconfig_with_committee_change_stress() {
         let handle2 = test_cluster.spawn_new_validator(v2).await;
 
         tokio::join!(
-            test_cluster.wait_for_epoch_on_node(&handle1, Some(cur_epoch), Duration::from_secs(60)),
-            test_cluster.wait_for_epoch_on_node(&handle2, Some(cur_epoch), Duration::from_secs(60))
+            test_cluster.wait_for_epoch_on_node(
+                &handle1,
+                Some(cur_epoch),
+                Duration::from_secs(300)
+            ),
+            test_cluster.wait_for_epoch_on_node(
+                &handle2,
+                Some(cur_epoch),
+                Duration::from_secs(300)
+            )
         );
 
         test_cluster.force_new_epoch().await;
@@ -726,7 +734,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
             .iota_node
             .with(|node| node.state().epoch_store_for_testing().committee().clone());
         cur_epoch = committee.epoch();
-        assert_eq!(committee.num_members(), 9);
+        assert_eq!(committee.num_members(), 7);
         assert!(committee.authority_exists(&handle1.state().name));
         assert!(committee.authority_exists(&handle2.state().name));
         removed_validators
@@ -905,6 +913,15 @@ async fn add_validator_candidate(
 }
 
 async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNodeHandle) {
+    let cur_pending_removals = test_cluster.fullnode_handle.iota_node.with(|node| {
+        node.state()
+            .get_iota_system_state_object_for_testing()
+            .unwrap()
+            .into_iota_system_state_summary()
+            .pending_removals
+            .len()
+    });
+
     let address = handle.with(|node| node.get_config().iota_address());
     let gas = test_cluster
         .wallet
@@ -920,6 +937,20 @@ async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNo
             .build_and_sign(node.get_config().account_key_pair.keypair())
     });
     test_cluster.execute_transaction(tx).await;
+
+    // Check that the validator can be found in the removal list now.
+    test_cluster.fullnode_handle.iota_node.with(|node| {
+        let system_state = node
+            .state()
+            .get_iota_system_state_object_for_testing()
+            .unwrap();
+        let system_state_summary = system_state.into_iota_system_state_summary();
+
+        assert_eq!(
+            system_state_summary.pending_removals.len(),
+            cur_pending_removals + 1
+        );
+    });
 }
 
 /// Execute a sequence of transactions to add a validator, including adding

@@ -13,16 +13,16 @@ on:
       - ".github/workflows/apps-backend-production.deploy.yml"
 
 jobs:
-  deploy-preview:
+  deploy-production:
     permissions:
       contents: read
       pull-requests: write
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@v3
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4
       - name: Install Nodejs
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # pin@v4
         with:
           node-version: "20"
           cache: "pnpm"
@@ -30,7 +30,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Turbo Cache
         id: turbo-cache
-        uses: actions/cache@v3
+        uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # pin@v4
         with:
           path: node_modules/.cache/turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}

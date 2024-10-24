@@ -227,21 +227,6 @@ async fn test_user_sends_consensus_commit_prologue_v1() {
 }
 
 #[tokio::test]
-async fn test_user_sends_change_epoch_transaction() {
-    test_user_sends_system_transaction_impl(TransactionKind::ChangeEpoch(ChangeEpoch {
-        epoch: 0,
-        protocol_version: ProtocolVersion::MIN,
-        storage_charge: 0,
-        computation_charge: 0,
-        storage_rebate: 0,
-        non_refundable_storage_fee: 0,
-        epoch_start_timestamp_ms: 0,
-        system_packages: vec![],
-    }))
-    .await;
-}
-
-#[tokio::test]
 async fn test_user_sends_end_of_epoch_transaction() {
     test_user_sends_system_transaction_impl(TransactionKind::EndOfEpochTransaction(vec![])).await;
 }
@@ -1619,7 +1604,6 @@ async fn test_handle_soft_bundle_certificates() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_soft_bundle_for_testing(true);
     protocol_config.set_max_soft_bundle_size_for_testing(10);
 
     let authority = TestAuthorityBuilder::new()
@@ -1791,7 +1775,6 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_soft_bundle_for_testing(true);
     protocol_config.set_max_soft_bundle_size_for_testing(3);
     let authority = TestAuthorityBuilder::new()
         .with_reference_gas_price(1000)
@@ -1881,7 +1864,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::NoCertificateProvidedError { .. }
+            IotaError::NoCertificateProvided { .. }
         );
     }
 
@@ -1971,7 +1954,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::NoSharedObjectError { .. },
+            error: UserInputError::NoSharedObject { .. },
         });
     }
 
@@ -2055,7 +2038,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::GasPriceMismatchError { .. },
+            error: UserInputError::GasPriceMismatch { .. },
         });
     }
 
@@ -2141,7 +2124,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::CeritificateAlreadyProcessed { .. },
+            error: UserInputError::CertificateAlreadyProcessed { .. },
         });
     }
 }

@@ -135,7 +135,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                     name,
                     (validator.voting_power, NetworkMetadata {
                         network_address: verified_metadata.net_address.clone(),
-                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
                     }),
                 )
             })
@@ -172,13 +172,12 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
+                        authority_pubkey: metadata.authority_pubkey.clone(),
+                        network_pubkey: metadata.network_pubkey.clone(),
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: metadata.name.clone(),
                     }

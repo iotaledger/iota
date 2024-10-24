@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LinkGroup } from './LinkGroup';
-import { Banner } from '~/components/ui';
-
 import type { IotaTransactionBlockResponse, OwnedObjectRef } from '@iota/iota-sdk/client';
+import { Close } from '@iota/ui-icons';
 
 interface ToObjectLink {
     text: string;
@@ -27,10 +26,9 @@ type FunctionExecutionResultProps = {
 
 export function FunctionExecutionResult({ error, result, onClear }: FunctionExecutionResultProps) {
     const adjError = error || (result && result.effects?.status.error) || null;
-    const variant = adjError ? 'error' : 'message';
     return (
-        <Banner icon={null} fullWidth variant={variant} spacing="lg" onDismiss={onClear}>
-            <div className="space-y-4 text-bodySmall">
+        <div className="relative inline-flex flex-nowrap items-center gap-2 overflow-hidden rounded-lg bg-neutral-96 p-xs dark:bg-neutral-12">
+            <div className="space-y-4 text-body-sm">
                 <LinkGroup
                     title="Digest"
                     links={
@@ -53,7 +51,14 @@ export function FunctionExecutionResult({ error, result, onClear }: FunctionExec
                     links={(result && result.effects?.mutated?.map(toObjectLink)) || []}
                 />
                 <LinkGroup title="Transaction failed" text={adjError} />
+                <div className="absolute right-2 top-2">
+                    <Close
+                        className="h-3 w-3 text-neutral-10 dark:text-neutral-92"
+                        onClick={onClear}
+                        aria-label="Close"
+                    />
+                </div>
             </div>
-        </Banner>
+        </div>
     );
 }

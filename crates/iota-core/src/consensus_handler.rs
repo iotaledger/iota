@@ -14,7 +14,6 @@ use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::CommitConsumerMonitor;
 use iota_macros::{fail_point_async, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
@@ -38,7 +37,6 @@ use crate::{
         epoch_start_configuration::EpochStartConfigTrait,
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
-    consensus_throughput_calculator::ConsensusThroughputCalculator,
     consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
     execution_cache::ObjectCacheRead,
     scoring_decision::update_low_scoring_authorities,
@@ -50,7 +48,6 @@ pub struct ConsensusHandlerInitializer {
     checkpoint_service: Arc<CheckpointService>,
     epoch_store: Arc<AuthorityPerEpochStore>,
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-    throughput_calculator: Arc<ConsensusThroughputCalculator>,
 }
 
 impl ConsensusHandlerInitializer {
@@ -59,14 +56,12 @@ impl ConsensusHandlerInitializer {
         checkpoint_service: Arc<CheckpointService>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-        throughput_calculator: Arc<ConsensusThroughputCalculator>,
     ) -> Self {
         Self {
             state,
             checkpoint_service,
             epoch_store,
             low_scoring_authorities,
-            throughput_calculator,
         }
     }
 
@@ -79,10 +74,6 @@ impl ConsensusHandlerInitializer {
             checkpoint_service,
             epoch_store: state.epoch_store_for_testing().clone(),
             low_scoring_authorities: Arc::new(Default::default()),
-            throughput_calculator: Arc::new(ConsensusThroughputCalculator::new(
-                None,
-                state.metrics.clone(),
-            )),
         }
     }
 
@@ -98,7 +89,6 @@ impl ConsensusHandlerInitializer {
             self.low_scoring_authorities.clone(),
             consensus_committee,
             self.state.metrics.clone(),
-            self.throughput_calculator.clone(),
         )
     }
 }
@@ -129,9 +119,6 @@ pub struct ConsensusHandler<C> {
     /// Lru cache to quickly discard transactions processed by consensus
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
-    /// Using the throughput calculator to record the current consensus
-    /// throughput
-    throughput_calculator: Arc<ConsensusThroughputCalculator>,
 }
 
 const PROCESSED_CACHE_CAP: usize = 1024 * 1024;
@@ -145,7 +132,6 @@ impl<C> ConsensusHandler<C> {
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
         committee: ConsensusCommittee,
         metrics: Arc<AuthorityMetrics>,
-        throughput_calculator: Arc<ConsensusThroughputCalculator>,
     ) -> Self {
         // Recover last_consensus_stats so it is consistent across validators.
         let mut last_consensus_stats = epoch_store
@@ -167,7 +153,6 @@ impl<C> ConsensusHandler<C> {
             metrics,
             processed_cache: LruCache::new(NonZeroUsize::new(PROCESSED_CACHE_CAP).unwrap()),
             transaction_scheduler,
-            throughput_calculator,
         }
     }
 
@@ -234,22 +219,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         // (serialized, transaction, output_cert)
         let mut transactions = vec![];
-        let timestamp = consensus_output.commit_timestamp_ms();
         let leader_author = consensus_output.leader_author_index();
         let commit_sub_dag_index = consensus_output.commit_sub_dag_index();
-
-        let epoch_start = self
-            .epoch_store
-            .epoch_start_config()
-            .epoch_start_timestamp_ms();
-        let timestamp = if timestamp < epoch_start {
-            error!(
-                "Unexpected commit timestamp {timestamp} less then epoch start time {epoch_start}, author {leader_author}, round {round}",
-            );
-            epoch_start
-        } else {
-            timestamp
-        };
 
         debug!(
             %consensus_output,
@@ -433,15 +404,11 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
                 self.cache_reader.as_ref(),
-                &ConsensusCommitInfo::new(self.epoch_store.protocol_config(), &consensus_output),
+                &ConsensusCommitInfo::new(&consensus_output),
                 &self.metrics,
             )
             .await
             .expect("Unrecoverable error in consensus handler");
-
-        // update the calculated throughput
-        self.throughput_calculator
-            .add_transactions(timestamp, transactions_to_schedule.len() as u64);
 
         fail_point_if!("correlated-crash-after-consensus-commit-boundary", || {
             let key = [commit_sub_dag_index, self.epoch_store.epoch()];
@@ -781,11 +748,11 @@ pub struct ConsensusCommitInfo {
 }
 
 impl ConsensusCommitInfo {
-    fn new(protocol_config: &ProtocolConfig, consensus_output: &impl ConsensusOutputAPI) -> Self {
+    fn new(consensus_output: &impl ConsensusOutputAPI) -> Self {
         Self {
             round: consensus_output.leader_round(),
             timestamp: consensus_output.commit_timestamp_ms(),
-            consensus_commit_digest: consensus_output.consensus_digest(protocol_config),
+            consensus_commit_digest: consensus_output.consensus_digest(),
 
             #[cfg(any(test, feature = "test-utils"))]
             skip_consensus_commit_prologue_in_test: false,
@@ -889,8 +856,6 @@ mod tests {
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
-        let throughput_calculator = ConsensusThroughputCalculator::new(None, metrics.clone());
-
         let mut consensus_handler = ConsensusHandler::new(
             epoch_store,
             Arc::new(CheckpointServiceNoop {}),
@@ -899,7 +864,6 @@ mod tests {
             Arc::new(ArcSwap::default()),
             consensus_committee.clone(),
             metrics,
-            Arc::new(throughput_calculator),
         );
 
         // AND

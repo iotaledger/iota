@@ -122,7 +122,7 @@ impl ValidatorConfigBuilder {
     }
 
     pub fn build_without_genesis(self, validator: ValidatorGenesisConfig) -> NodeConfig {
-        let key_path = get_key_path(&validator.key_pair);
+        let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
@@ -132,11 +132,9 @@ impl ValidatorConfigBuilder {
             .join(AUTHORITIES_DB_NAME)
             .join(key_path.clone());
         let network_address = validator.network_address;
-        let consensus_address = validator.consensus_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
         let localhost = local_ip_utils::localhost_for_testing();
         let consensus_config = ConsensusConfig {
-            address: consensus_address,
             db_path: consensus_db_path,
             db_retention_epochs: None,
             db_pruner_period_secs: None,
@@ -174,12 +172,14 @@ impl ValidatorConfigBuilder {
         };
 
         NodeConfig {
-            protocol_key_pair: AuthorityKeyPairWithPath::new(validator.key_pair),
+            authority_key_pair: AuthorityKeyPairWithPath::new(validator.authority_key_pair),
             network_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
                 validator.network_key_pair,
             )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
-            worker_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(validator.worker_key_pair)),
+            protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
+                validator.protocol_key_pair,
+            )),
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
@@ -190,7 +190,7 @@ impl ValidatorConfigBuilder {
             consensus_config: Some(consensus_config),
             remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
-            genesis: iota_config::node::Genesis::new_empty(),
+            genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
             grpc_concurrency_limit: Some(DEFAULT_GRPC_CONCURRENCY_LIMIT),
@@ -227,7 +227,6 @@ impl ValidatorConfigBuilder {
             firewall_config: self.firewall_config,
             execution_cache: ExecutionCacheConfig::default(),
             state_accumulator_v2: self.state_accumulator_v2,
-            enable_soft_bundle: true,
             enable_validator_tx_finalizer: true,
         }
     }
@@ -402,7 +401,7 @@ impl FullnodeConfigBuilder {
             .ip()
             .to_string();
 
-        let key_path = get_key_path(&validator_config.key_pair);
+        let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
@@ -458,10 +457,10 @@ impl FullnodeConfigBuilder {
         };
 
         NodeConfig {
-            protocol_key_pair: AuthorityKeyPairWithPath::new(validator_config.key_pair),
+            authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
-            worker_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator_config.worker_key_pair,
+            protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
+                validator_config.protocol_key_pair,
             )),
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
                 IotaKeyPair::Ed25519(validator_config.network_key_pair),
@@ -517,7 +516,6 @@ impl FullnodeConfigBuilder {
             firewall_config: self.fw_config,
             execution_cache: ExecutionCacheConfig::default(),
             state_accumulator_v2: true,
-            enable_soft_bundle: true,
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
         }

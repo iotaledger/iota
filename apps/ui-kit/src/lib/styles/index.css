@@ -39,11 +39,11 @@
     .text-headline-md,
     .text-headline-sm,
     .text-body-ds-lg {
-        font-feature-settings: 'ss02' on;
+        font-variant-alternates: 'ss02';
     }
 
     .text-label-md {
-        font-feature-settings: 'ss01' on;
+        font-variant-alternates: 'ss01';
     }
 }
 

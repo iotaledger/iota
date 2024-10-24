@@ -20,7 +20,7 @@ use iota_macros::nondeterministic;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
     committee::{Committee, ProtocolVersion},
-    crypto::{AccountKeyPair, AuthorityKeyPair, PublicKey, get_key_pair_from_rng},
+    crypto::{AccountKeyPair, PublicKey, get_key_pair_from_rng},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -39,7 +39,6 @@ use crate::{
 pub enum CommitteeConfig {
     Size(NonZeroUsize),
     Validators(Vec<ValidatorGenesisConfig>),
-    AuthorityKeys(Vec<AuthorityKeyPair>),
     AccountKeys(Vec<AccountKeyPair>),
     /// Indicates that a committee should be deterministically generated, using
     /// the provided rng as a source of randomness as well as generating
@@ -157,10 +156,7 @@ impl<R> ConfigBuilder<R> {
         self.committee = CommitteeConfig::Validators(validators);
         self
     }
-    pub fn with_validator_authority_keys(mut self, authority_keys: Vec<AuthorityKeyPair>) -> Self {
-        self.committee = CommitteeConfig::AuthorityKeys(authority_keys);
-        self
-    }
+
     pub fn with_genesis_config(mut self, genesis_config: GenesisConfig) -> Self {
         assert!(self.genesis_config.is_none(), "Genesis config already set");
         self.genesis_config = Some(genesis_config);
@@ -335,7 +331,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         let mut rng = self.rng.unwrap();
         let validators = match committee {
             CommitteeConfig::Size(size) => {
-                // We always get fixed protocol keys from this function (which is isolated from
+                // We always get fixed authority keys from this function (which is isolated from
                 // external test randomness because it uses a fixed seed). Necessary because
                 // some tests call `make_tx_certs_and_signed_effects`, which
                 // locally forges a cert using this same committee.
@@ -344,7 +340,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 keys.into_iter()
                     .map(|authority_key| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
-                            .with_protocol_key_pair(authority_key);
+                            .with_authority_key_pair(authority_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
                         }
@@ -355,26 +351,14 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
             CommitteeConfig::Validators(v) => v,
 
-            CommitteeConfig::AuthorityKeys(keys) => keys
-                .into_iter()
-                .map(|authority_key| {
-                    let mut builder =
-                        ValidatorGenesisConfigBuilder::new().with_protocol_key_pair(authority_key);
-                    if let Some(rgp) = self.reference_gas_price {
-                        builder = builder.with_gas_price(rgp);
-                    }
-                    builder.build(&mut rng)
-                })
-                .collect::<Vec<_>>(),
-
             CommitteeConfig::AccountKeys(keys) => {
-                // See above re fixed protocol keys
-                let (_, protocol_keys) = Committee::new_simple_test_committee_of_size(keys.len());
+                // See above re fixed authority keys
+                let (_, authority_keys) = Committee::new_simple_test_committee_of_size(keys.len());
                 keys.into_iter()
-                    .zip(protocol_keys)
-                    .map(|(account_key, protocol_key)| {
+                    .zip(authority_keys)
+                    .map(|(account_key, authority_key)| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
-                            .with_protocol_key_pair(protocol_key)
+                            .with_authority_key_pair(authority_key)
                             .with_account_key_pair(account_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
@@ -465,7 +449,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder = builder.with_token_distribution_schedule(token_distribution_schedule);
 
             for validator in &validators {
-                builder = builder.add_validator_signature(&validator.key_pair);
+                builder = builder.add_validator_signature(&validator.authority_key_pair);
             }
 
             builder.build()
@@ -520,7 +504,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         }
                         ProtocolVersionsConfig::Global(v) => *v,
                         ProtocolVersionsConfig::PerValidator(func) => {
-                            func(idx, Some(validator.key_pair.public().into()))
+                            func(idx, Some(validator.authority_key_pair.public().into()))
                         }
                     };
                     builder = builder.with_supported_protocol_versions(supported_versions);

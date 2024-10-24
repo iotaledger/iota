@@ -214,7 +214,7 @@ impl BridgeClient {
             .await?;
         if !resp.status().is_success() {
             let error_status = format!("{:?}", resp.error_for_status_ref());
-            return Err(BridgeError::RestAPIError(format!(
+            return Err(BridgeError::RestAPI(format!(
                 "request_sign_bridge_action failed with status {:?}: {:?}",
                 error_status,
                 resp.text().await?
