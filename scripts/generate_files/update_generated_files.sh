@@ -1,19 +1,20 @@
 #!/bin/bash
 TARGET_FOLDER="../.."
-GRAPHQL_VERSION="2024.9"
+SKIP_SPEC_GENERATION=false
 
 # Parse command line arguments
 # Usage:
 # --target-folder <path>        - the target folder of the repository
-# --graphql-version <version>   - the version (folder name) of the generated graphql files
+# --skip-spec-generation        - skip the generation of the open rpc and graphql schema
 while [ $# -gt 0 ]; do
-    if [[ $1 == *"--graphql-version"* ]]; then
-        GRAPHQL_VERSION=$2
-    fi
-
     if [[ $1 == *"--target-folder"* ]]; then
         TARGET_FOLDER=$2
     fi
+
+    if [[ $1 == *"--skip-spec-generation"* ]]; then
+        SKIP_SPEC_GENERATION=true
+    fi
+
     shift
 done
 
@@ -43,23 +44,22 @@ function cleanup {
 
 trap cleanup EXIT
 
-print_step "Generating open rpc schema..."
-cargo run --package iota-open-rpc --example generate-json-rpc-spec -- record
-if [ $? -ne 0 ]; then
-    echo -e "\e[31mFailed to generate open rpc schema"
-    exit 1
-fi
+# if the spec generation is not skipped, generate the spec
+if [ "$SKIP_SPEC_GENERATION" = false ]; then
+    print_step "Generating open rpc schema..."
+    cargo run --package iota-open-rpc --example generate-json-rpc-spec -- record
+    if [ $? -ne 0 ]; then
+        echo -e "\e[31mFailed to generate open rpc schema"
+        exit 1
+    fi
 
-echo -e "\e[32mGenerating graphql schema..."
-cargo run --package iota-graphql-rpc generate-schema --file ./crates/iota-graphql-rpc/schema.graphql
-if [ $? -ne 0 ]; then
-    echo -e "\e[31mFailed to generate graphql schema"
-    exit 1
+    echo -e "\e[32mGenerating graphql schema..."
+    cargo run --package iota-graphql-rpc generate-schema --file ./crates/iota-graphql-rpc/schema.graphql
+    if [ $? -ne 0 ]; then
+        echo -e "\e[31mFailed to generate graphql schema"
+        exit 1
+    fi
 fi
-
-echo -e "\e[32mCopying generated graphlql schema to sdk folder..."
-mkdir -p ./sdk/typescript/src/graphql/generated/${GRAPHQL_VERSION}
-cp ./crates/iota-graphql-rpc/schema.graphql ./sdk/typescript/src/graphql/generated/${GRAPHQL_VERSION}/schema.graphql
 
 print_step "Installing typescript sdk dependencies..."
 docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm i"
@@ -70,8 +70,8 @@ docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $
 print_step "Updating open rpc schema..."
 docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm update-open-rpc-schema"
 
-print_step "Updating graphql schema in 'client/types/generated.ts'..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm run generate-schema -c src/graphql/generated/${GRAPHQL_VERSION}/tsconfig.tada.json"
+print_step "Create graphql schema in 'client/types/generated.ts'..."
+docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm update-graphql-schemas"
 
 print_step "Updating graphql schema using gql.tada..."
 docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm generate-schema"
