@@ -1,12 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { Text } from '_app/shared/text';
+
 import cl from 'clsx';
 import { memo } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-
 import st from './IconLink.module.scss';
 
 export interface IconLinkProps {
@@ -24,9 +23,9 @@ function IconLink({ to, icon, disabled = false, text }: IconLinkProps) {
             tabIndex={disabled ? -1 : undefined}
         >
             <div className={cl(disabled ? 'text-gray-60' : 'text-hero-dark')}>{icon}</div>
-            <Text color={disabled ? 'gray-60' : 'hero-dark'} weight="semibold" variant="bodySmall">
+            <span className={cl('text-body-sm', disabled ? 'opacity-60' : 'text-neutral-10')}>
                 {text}
-            </Text>
+            </span>
         </Link>
     );
 }
