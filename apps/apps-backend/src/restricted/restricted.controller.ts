@@ -9,7 +9,7 @@ export class RestrictedController {
     @Post('/')
     @Header('Cache-Control', 'max-age=0, must-revalidate')
     checkRestrictions(@Res() res: Response) {
-        // No restrictions implemented yet
+        // No restrictions implemented yet.
         res.status(HttpStatus.OK).send();
     }
 }
