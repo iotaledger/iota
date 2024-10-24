@@ -13,7 +13,7 @@ use fastcrypto::{
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId, OIDCProvider},
+    zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
 };
 use im::hashmap::HashMap as ImHashMap;
@@ -39,7 +39,6 @@ use crate::{
 pub struct VerifyParams {
     // map from JwkId (iss, kid) => JWK
     pub oidc_provider_jwks: ImHashMap<JwkId, JWK>,
-    pub supported_providers: Vec<OIDCProvider>,
     pub zk_login_env: ZkLoginEnv,
     pub accept_zklogin_in_multisig: bool,
     pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
@@ -48,14 +47,12 @@ pub struct VerifyParams {
 impl VerifyParams {
     pub fn new(
         oidc_provider_jwks: ImHashMap<JwkId, JWK>,
-        supported_providers: Vec<OIDCProvider>,
         zk_login_env: ZkLoginEnv,
         accept_zklogin_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
     ) -> Self {
         Self {
             oidc_provider_jwks,
-            supported_providers,
             zk_login_env,
             accept_zklogin_in_multisig,
             zklogin_max_epoch_upper_bound_delta,

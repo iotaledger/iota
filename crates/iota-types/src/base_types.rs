@@ -1187,7 +1187,7 @@ impl ObjectID {
     /// Parse the ObjectID from byte array or buffer.
     pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, ObjectIDParseError> {
         <[u8; Self::LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| ObjectIDParseError::TryFromSliceError)
+            .map_err(|_| ObjectIDParseError::TryFromSlice)
             .map(ObjectID::new)
     }
 
@@ -1393,7 +1393,7 @@ pub enum ObjectIDParseError {
     HexLiteralPrefixMissing,
 
     #[error("Could not convert from bytes slice")]
-    TryFromSliceError,
+    TryFromSlice,
 }
 
 impl From<ObjectID> for AccountAddress {

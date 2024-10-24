@@ -139,7 +139,7 @@ impl<'a> TestAuthorityBuilder<'a> {
     pub fn with_network_config(self, config: &'a NetworkConfig, node_idx: usize) -> Self {
         self.with_genesis_and_keypair(
             &config.genesis,
-            config.validator_configs()[node_idx].protocol_key_pair(),
+            config.validator_configs()[node_idx].authority_key_pair(),
         )
     }
 
@@ -217,7 +217,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         let keypair = if let Some(keypair) = self.node_keypair {
             keypair.copy()
         } else {
-            config.protocol_key_pair().copy()
+            config.authority_key_pair().copy()
         };
 
         let secret = Arc::pin(keypair.copy());

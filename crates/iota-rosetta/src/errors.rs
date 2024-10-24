@@ -42,39 +42,39 @@ pub enum Error {
     #[error("Missing metadata")]
     MissingMetadata,
     #[error("{0}")]
-    MalformedOperationError(String),
+    MalformedOperation(String),
     #[error("Unsupported operation: {0:?}")]
     UnsupportedOperation(OperationType),
     #[error("Data error: {0}")]
-    DataError(String),
+    Data(String),
     #[error("Block not found, index: {index:?}, hash: {hash:?}")]
     BlockNotFound {
         index: Option<u64>,
         hash: Option<BlockHash>,
     },
     #[error("Public key deserialization error: {0:?}")]
-    PublicKeyDeserializationError(PublicKey),
+    PublicKeyDeserialization(PublicKey),
 
     #[error("Error executing transaction: {0}")]
-    TransactionExecutionError(String),
+    TransactionExecution(String),
 
     #[error("{0}")]
-    TransactionDryRunError(String),
+    TransactionDryRun(String),
 
     #[error(transparent)]
-    InternalError(#[from] anyhow::Error),
+    Internal(#[from] anyhow::Error),
     #[error(transparent)]
-    BCSSerializationError(#[from] bcs::Error),
+    BCSSerialization(#[from] bcs::Error),
     #[error(transparent)]
-    CryptoError(#[from] FastCryptoError),
+    Crypto(#[from] FastCryptoError),
     #[error(transparent)]
-    IotaError(#[from] IotaError),
+    Iota(#[from] IotaError),
     #[error(transparent)]
-    IotaRpcError(#[from] iota_sdk::error::Error),
+    IotaRpc(#[from] iota_sdk::error::Error),
     #[error(transparent)]
-    EncodingError(#[from] eyre::Report),
+    Encoding(#[from] eyre::Report),
     #[error(transparent)]
-    DBError(#[from] TypedStoreError),
+    DB(#[from] TypedStoreError),
     #[error(transparent)]
     JsonExtractorRejection(#[from] JsonRejection),
 

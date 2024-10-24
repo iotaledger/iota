@@ -320,7 +320,7 @@ impl GovernanceReadApi {
                         .find_object_lt_or_eq_version(&object_id, &version.one_before().unwrap())
                         .await?
                     else {
-                        Err(IotaRpcInputError::UserInputError(
+                        Err(IotaRpcInputError::UserInput(
                             UserInputError::ObjectNotFound {
                                 object_id,
                                 version: None,
@@ -329,7 +329,7 @@ impl GovernanceReadApi {
                     };
                     stakes.push((o, false));
                 }
-                ObjectRead::NotExists(id) => Err(IotaRpcInputError::UserInputError(
+                ObjectRead::NotExists(id) => Err(IotaRpcInputError::UserInput(
                     UserInputError::ObjectNotFound {
                         object_id: id,
                         version: None,

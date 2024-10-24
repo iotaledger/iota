@@ -10,10 +10,13 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 fastcrypto.workspace = true
-iota-network-stack.workspace = true
 rand.workspace = true
 serde.workspace = true
+
+# internal dependencies
+iota-network-stack.workspace = true
 shared-crypto.workspace = true
 
 [dev-dependencies]

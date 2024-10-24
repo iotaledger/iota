@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search } from '@iota/ui-icons';
-import { LoadingIndicator, Button, ButtonType, ButtonSize } from '@iota/apps-ui-kit';
+import { Button, ButtonType, ButtonSize, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -130,47 +130,46 @@ export function AccountsFinderView(): JSX.Element {
                 <div className="flex flex-col gap-2">
                     {isLedgerLocked ? (
                         <Button
-                            fullWidth
-                            type={ButtonType.Outlined}
                             size={ButtonSize.Small}
+                            type={ButtonType.Secondary}
                             text="Unlock Ledger"
                             onClick={unlockLedger}
+                            fullWidth
                         />
                     ) : isLocked ? (
                         <Button
-                            fullWidth
-                            type={ButtonType.Outlined}
+                            type={ButtonType.Secondary}
                             size={ButtonSize.Small}
                             text="Verify password"
                             onClick={verifyPassword}
+                            fullWidth
                         />
                     ) : (
                         <>
                             <Button
-                                fullWidth
-                                type={ButtonType.Outlined}
                                 size={ButtonSize.Small}
+                                type={ButtonType.Secondary}
                                 text={searchOptions.text}
                                 icon={searchOptions.icon}
                                 iconAfterText
                                 onClick={runAccountsFinder}
                                 disabled={isSearchOngoing}
+                                fullWidth
                             />
 
                             <div className="flex flex-row gap-2">
                                 <Button
-                                    fullWidth
-                                    type={ButtonType.Outlined}
                                     size={ButtonSize.Small}
+                                    type={ButtonType.Secondary}
                                     text="Skip"
                                     disabled={isSearchOngoing}
+                                    fullWidth
                                 />
                                 <Button
-                                    fullWidth
-                                    type={ButtonType.Outlined}
                                     size={ButtonSize.Small}
                                     text="Continue"
                                     disabled={isSearchOngoing}
+                                    fullWidth
                                 />
                             </div>
                         </>
