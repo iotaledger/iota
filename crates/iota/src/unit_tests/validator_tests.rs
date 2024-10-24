@@ -18,7 +18,7 @@ use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
 use crate::{
-    client_commands::{IotaClientCommands, OptsWithGas},
+    client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas},
     validator_commands::{
         IotaValidatorCommand, IotaValidatorCommandResponse, get_validator_summary,
     },
@@ -115,6 +115,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
     let IotaValidatorCommandResponse::BecomeCandidate(_become_candidate_tx) = response else {
         panic!("Expected BecomeCandidate");
     };
+    // Wait some time to be sure that the tx is executed
     sleep(Duration::from_secs(2)).await;
 
     // Get coin and stake
@@ -122,7 +123,7 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         .coin_read_api()
         .get_coins(address, None, None, None)
         .await?;
-    let _stake_result = IotaClientCommands::Call {
+    let stake_result = IotaClientCommands::Call {
         package: "0x3".parse()?,
         module: "iota_system".to_string(),
         function: "request_add_stake".to_string(),
@@ -138,6 +139,10 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
     }
     .execute(&mut context)
     .await?;
+    let IotaClientCommandResult::TransactionBlock(_) = stake_result else {
+        panic!("Expected TransactionBlock");
+    };
+    // Wait some time to be sure that the tx is executed
     sleep(Duration::from_secs(2)).await;
 
     let response = IotaValidatorCommand::JoinCommittee { gas_budget: None }
@@ -158,8 +163,9 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         panic!("Expected DisplayMetadata");
     };
 
-    // Cleanup
     cleanup_fs();
+    // These files get generated in IotaValidatorCommand::MakeValidatorInfo in the
+    // current directory, so we have to clean them up
     fn cleanup_fs() {
         std::fs::remove_file("validator.info").ok();
         std::fs::remove_file("account.key").ok();
