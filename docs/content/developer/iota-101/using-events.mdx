@@ -1,16 +1,22 @@
 ---
-title: Using Events
-description: Monitor IOTA on-chain activity by subscribing to events that Move packages published on IOTA emit.
+description: Learn how to monitor IOTA on-chain activity by subscribing to events emitted by Move packages.
 ---
 import AlphaNet from "../../_snippets/alphanet.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/iota-101/using-events.json';
 
-The IOTA network stores countless objects on chain where Move code can perform actions using those objects. Tracking this activity is often desired, for example, to discover how many times a module mints an NFT or to tally the amount of IOTA in transactions that a smart contract generates.
+# Subscribing to On-Chain Events in IOTA
 
-To support activity monitoring, Move provides a structure to emit events on the IOTA network. When you establish a connection with the IOTA network, you create a two-way interactive communication session between your client and a IOTA network node. With an open session, you can subscribe to specific events that the IOTA network adds to the stream to create real-time monitoring of events.
+Monitoring on-chain activity is essential for understanding and reacting to actions performed by smart contracts on the IOTA network.
+By subscribing to events emitted by Move packages, you can track activities such as NFT minting or IOTA transactions in real-time.
+This guide will show you how to emit events in Move and subscribe to them using the IOTA network.
 
-## Move Event Structure
+## Understanding Events in IOTA
+
+Events in IOTA provide a structured way to capture and broadcast on-chain activities.
+Each event contains specific attributes that offer detailed information about what occurred.
+
+### Event Structure
 
 An event object in IOTA consists of the following attributes:
 
@@ -23,23 +29,26 @@ An event object in IOTA consists of the following attributes:
 - `bcs`: Binary canonical serialization value.
 - `timestampMs`: Unix epoch timestamp in milliseconds.
 
-## Discovering Events
+## Exploring Available Events
 
-If you want to subscribe to events on chain, you first need to know what events are available. You typically know or can discover the events your own code emits, but it's not as straightforward when you need to subscribe to on-chain events from packages you don't own. The IOTA RPC provides a [queryEvents](/iota-api-ref#iotax_queryevents) method to query on-chain packages and return available events that you can subscribe to.
+To subscribe to on-chain events, you first need to identify which events are available. While you can easily track events emitted by your own code, discovering events from external packages can be more challenging. The IOTA RPC provides the [`queryEvents`](/iota-api-ref#iotax_queryevents) method, which allows you to query on-chain packages and obtain a list of events you can subscribe to.
 
-## Filter Events
+## Applying Event Filters
 
-You can filter the events your code targets for either querying or subscribing. Both filter options are similar but have some differences.
+When targeting specific events for querying or subscribing, you can use filters to refine your results. Although the filtering options for querying and subscribing are similar, there are notable differences to be aware of.
 
-## Emit Events in Move
+## Emitting Events in Move
 
-To create an event in your Move modules, add the `iota::event` dependency.
+To emit events from your Move modules, you need to use the [`iota::event`](../../references/framework/iota-framework/event.mdx) module.
+Emitting events allows external applications to subscribe and respond to specific on-chain activities.
+
+First, import the `event` module in your Move code:
 
 ```move
 use iota::event;
 ```
 
-With the dependency added, you can use the `emit` function to fire an event whenever the action you want to monitor fires. For example, the following code is part of an example application using digital donuts. The `collect_profits` function handles the collection of IOTA and emits an event whenever the function is called. To act on that event, you need to subscribe to it.
+Then, within your function, you can emit an event using the [`emit`](../../references/framework/iota-framework/event.mdx#function-emit) function. For example:
 
 ```move
 /// Take coin from `DonutShop` and transfer it to tx sender.
@@ -53,11 +62,12 @@ public fun collect_profits( _: &ShopOwnerCap, shop: &mut DonutShop, ctx: &mut Tx
 }
 ```
 
-## Subscribe to Events in Move
+## Subscribing to Events
 
-Firing events is not very useful in a vacuum. You also need the ability to listen for those events so that you can act on them. In IOTA, you subscribe to those events and provide logic that triggers when the event fires.
+To react to events emitted by Move modules, you need to subscribe to them.
+IOTA full nodes support event subscriptions via JSON-RPC notifications over WebSocket. You can interact with the [RPC directly][iotax_subscribeEvent](/iota-api-ref#iotax_subscribeevent), [iotax_subscribeTransaction](/iota-api-ref#iotax_subscribetransaction) or use an SDK like the [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx).
 
-IOTA Full nodes support subscribe functionality using JSON-RPC notifications transmitted through the WebSocket API. You can interact with the RPC directly ([iotax_subscribeEvent](/iota-api-ref#iotax_subscribeevent), [iotax_subscribeTransaction](/iota-api-ref#iotax_subscribetransaction)) or you can use an SDK like the IOTA TypeScript SDK. The following excerpt from one of the examples uses the TypeScript SDK to create an asynchronous subscription to the filter identified in the filter.
+The following excerpt from one of the examples uses the TypeScript SDK to create an asynchronous subscription to the filter identified in the filter.
 
 ```move
 let unsubscribe = await provider.subscribeEvent({
@@ -122,7 +132,7 @@ Move smart contracts can call other smart contracts that emit events. For exampl
 
 ## Examples
 
-## Subscribe to Event
+### Subscribe to Event
 
 This example leverages the IOTA TypeScript SDK to subscribe to events the package with ID `<PACKAGE_ID>` emits. Each time the event fires, the code displays the response to the console.
 
@@ -224,9 +234,9 @@ subscribeEvent {
 </TabItem>
 </Tabs>
 
-## Filtering Event Queries
+## Filtering Events
 
-To filter the events returned from your queries, use the following data structures.
+You can filter events when querying or subscribing to receive only the events you are interested in.
 
 :::info
 
@@ -234,6 +244,9 @@ This set of filters applies only to event querying APIs. It differs from the fil
 
 :::
 
+### Filtering Event Queries
+
+When querying events, use the following filters:
 
 | Query         | Description                                              | JSON-RPC Parameter Example                                                                          |
 | ------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -248,9 +261,9 @@ This set of filters applies only to event querying APIs. It differs from the fil
 | `Object`      | Return events associated with the given object           | `{"Object":"0x727b37454ab13d5c1dbb22e8741bff72b145d1e660f71b275c01f24e7860e5e5"}`                     |
 | `TimeRange`   | Return events emitted in [start_time, end_time] interval | `{"TimeRange":{"startTime":1669039504014, "endTime":1669039604014}}`                                  |
 
-## Filtering Events for Subscription
+### Filtering Events for Subscription
 
-To create a subscription, you can set a filter to return only the set of events you're interested in listening for. Unlike filtering event queries, you are able to combine subscription filters.
+When subscribing to events, you can combine filters for more precise results:
 
 | Filter            | Description                                           | JSON-RPC Parameter Example                                                                 |
 | ----------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------ |
