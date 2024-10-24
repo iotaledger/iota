@@ -1,13 +1,19 @@
 ---
-title: Regulated Coin and Deny List
-description: You can create regulated coins on IOTA, such as stablecoins. These coins are similar to other coins like IOTA, but include the ability to control access to the coin using a deny list.
+description: Learn how to create regulated coins on IOTA using deny lists for access control.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/create-coin/regulated.json';
 
-The IOTA [Coin](../../standards/coin.mdx) standard provides a `create_regulated_currency` function to create coins. This function is different than `create_currency` in that it generates a coin that you can block certain addresses from being able to use those coins in transactions. This ability is a requirement for assets like stablecoins.
+# Creating Regulated Coins with Deny Lists on IOTA
 
-Behind the scenes, `create_regulated_currency` uses the `create_currency` function to create the coin, but also produces a `DenyCap` object that allows its bearer to control access to the coin's deny list in a `DenyList` object. Consequently, the way to create a coin using `create_regulated_currency` is similar to the previous example, with the addition of a transfer of the `DenyCap` object to the module publisher.
+Regulated coins on IOTA allow you to control access by restricting certain addresses,
+which is crucial for assets like stablecoins.
+These coins are similar to standard IOTA coins but provide additional control through a deny list.
+
+The IOTA [Coin](../../standards/coin.mdx) standard offers the [`create_regulated_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_regulated_currency) function
+to create such coins.
+This function not only creates the coin but also generates a [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycap) object,
+\enabling you to manage a deny list via a [`DenyList`](../../../references/framework/iota-framework/deny_list.mdx) object.
+The process is akin to using [`create_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_currency),
+with the added step of handling the `DenyCap` object.
 
 ```move title="regcoin.move"
 module examples::regcoin {
@@ -24,7 +30,7 @@ module examples::regcoin {
 }
 ```
 
-When you deploy the previous module using `iota client publish`, the console responds with transaction effects, including the creation of the following objects:
+Deploying this module with `iota client publish` results in transaction effects that include the creation of several objects:
 
 ```shell
 ...
@@ -72,43 +78,52 @@ Created Objects:
 ...
 ```
 
-As you might have noticed, the publish action creates a `RegulatedCoinMetadata` object along with the standard `CoinMetadata` object. You don't need to explicitly call the `freeze_object` on the `RegulatedCoinMetadata` object, however, because `create_regulated_currency` automatically performs this action.
+Notice that a [`RegulatedCoinMetadata`](../../../references/framework/iota-framework/coin.mdx#resource-regulatedcoinmetadata) object 
+is created alongside the standard [`CoinMetadata`](../../../references/framework/iota-framework/coin.mdx#resource-coinmetadata) object.
+You don't need to explicitly freeze the `RegulatedCoinMetadata` object because `create_regulated_currency` does this automatically.
 
-The output also shows the three objects that the publisher now owns: `UpgradeCap` for [package upgrades](../move-overview/package-upgrades/upgrade.mdx), `TreasuryCap` for minting or burning coins, and the `DenyCap` for adding or removing addresses to or from the deny list for this coin.
+The output also shows three objects now owned by the publisher:
 
-## DenyList
+- [`UpgradeCap`](../../../references/framework/iota-framework/package.mdx#resource-upgradecap) for [package upgrades](../move-overview/package-upgrades/upgrade.mdx).
+- [`TreasuryCap`](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap) for minting or burning coins.
+- [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycap) for managing the deny list associated with this coin.
 
-The IOTA framework provides a `DenyList` singleton, shared object that the bearer of a `DenyCap` can access to specify a list of addresses that are unable to use a IOTA core type. The initial use case for `DenyList`, however, focuses on limiting access to coins of a specified type. This is useful, for example, when creating a regulated coin on IOTA that requires the ability to block certain addresses from using it as inputs to transactions. Regulated coins on IOTA satisfy any regulations that require the ability to prevent known bad actors from having access to those coins. 
+## Understanding the DenyList
+
+The IOTA framework provides a `DenyList` singleton shared object, identified by the address `0x403`.
+Holders of a `DenyCap` can specify addresses prohibited from using certain IOTA core types,
+which is particularly useful for regulated coins needing to comply with regulations.
 
 :::info
 
-The `DenyList` object is a system object that has the address `0x403`. You cannot create it yourself.
+You cannot create the `DenyList` object yourself; it is a system object at address `0x403`.
 
 :::
 
+### Managing the Deny List
 
-### Manipulate deny list
-
-For the ability to manipulate the addresses assigned to the deny list for your coin, you must add a few functions to the previous example.
+To manipulate the deny list for your coin, add these functions to your module:
 
 ```move
-public fun add_addr_from_deny_list(denylist: &mut DenyList, denycap: &mut DenyCap<REGCOIN>, denyaddy: address, ctx: &mut TxContext){
-    coin::deny_list_add(denylist, denycap, denyaddy, ctx );
+public fun add_address_to_deny_list(denylist: &mut DenyList, denycap: &mut DenyCap<REGCOIN>, address_to_deny: address, ctx: &mut TxContext){
+    coin::deny_list_add(denylist, denycap, address_to_deny, ctx);
 }
 
-public fun remove_addr_from_deny_list(denylist: &mut DenyList, denycap: &mut DenyCap<REGCOIN>, denyaddy: address, ctx: &mut TxContext){
-    coin::deny_list_remove(denylist, denycap, denyaddy, ctx );
+public fun remove_address_from_deny_list(denylist: &mut DenyList, denycap: &mut DenyCap<REGCOIN>, address_to_allow: address, ctx: &mut TxContext){
+    coin::deny_list_remove(denylist, denycap, address_to_allow, ctx);
 }
 ```
 
-To use these functions, you pass the `DenyList` object (`0x403`), your `DenyCap` object ID, and the address you want to either add or remove. Using the IOTA CLI, you could use `iota client call` with the required information:
+To use these functions, pass the `DenyList` object (`0x403`), your `DenyCap` object ID, and the address you wish to add or remove.
+
+Using the IOTA CLI:
 
 ```shell
-iota client call --function add_addr_from_deny_list --module regcoin --package <PACKAGE-ID> --args <DENY-LIST> <DENY-CAP> <ADDRESS-TO-DENY>
+iota client call --function add_address_to_deny_list --module regcoin --package <PACKAGE-ID> --args <DENY-LIST> <DENY-CAP> <ADDRESS-TO-DENY>
 Transaction Digest: <DIGEST-HASH>
 ```
 
-The console displays the response from the network, where you can verify the `DenyList` object is mutated.
+The console will display the network response, confirming that the `DenyList` object has been mutated:
 
 ```shell
 ...
@@ -123,9 +138,8 @@ MutatedObjects:
   Digest: <DIGEST-HASH>
 
 ...
-
 ```
 
-For all `Coin` functions available, see the IOTA framework [`coin` module documentation](/references/framework/iota-framework/coin.mdx).
+For a complete list of available `Coin` functions, refer to the IOTA framework [`coin` module documentation](../../../references/framework/iota-framework/coin.mdx).
 
 <Quiz questions={questions} />
