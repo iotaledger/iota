@@ -1,24 +1,19 @@
-name: Preview Deploy for Explorer
+name: Deploy for Wallet Dashboard
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.EXPLORER_VERCEL_PROJECT_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.WALLET_DASHBOARD_VERCEL_PROJECT_ID }}
 
 on:
   workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "apps/explorer/**"
-      - ".github/workflows/apps-explorer-preview.deploy.yml"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      isProd:
+        type: boolean
+        required: true
 
 jobs:
-  deploy-preview:
-    if: github.event.pull_request.draft == false
+  deploy:
     permissions:
       contents: read
       pull-requests: write
@@ -33,6 +28,18 @@ jobs:
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Setup Prod Flag
+        id: setup_prod_flags
+        run: |
+          if [[ "${{ inputs.isProd }}" = "true" ]]; then
+            echo "PROD_FLAG=--prod" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT=production" >> $GITHUB_OUTPUT
+            echo "VERCEL_OUTPUT=" >> $GITHUB_OUTPUT
+          else
+            echo "PROD_FLAG=" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT=preview" >> $GITHUB_OUTPUT
+            echo "VERCEL_OUTPUT=> vercel_output.txt" >> $GITHUB_OUTPUT
+          fi
       - name: Turbo Cache
         id: turbo-cache
         uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # pin@v4
@@ -44,21 +51,22 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Env variables (network configs)
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=${{steps.setup_prod_flags.outputs.ENVIRONMENT}} --token=${{ secrets.VERCEL_TOKEN }}
       - name: Copy the .env file
-        run: cp ./.vercel/.env.preview.local ./sdk/.env
-      - name: Build Explorer
-        run: pnpm explorer build
-      - name: Build Project Artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        run: cp ./.vercel/.env.${{steps.setup_prod_flags.outputs.ENVIRONMENT}}.local ./sdk/.env
+      - name: Build Wallet Dashboard
+        run: pnpm wallet-dashboard build
+      - name: Build Vercel Project Artifacts
+        run: vercel build ${{steps.setup_prod_flags.outputs.PROD_FLAG}} --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
+        run: vercel deploy ${{steps.setup_prod_flags.outputs.PROD_FLAG}} --prebuilt --token=${{ secrets.VERCEL_TOKEN }} ${{ steps.setup_prod_flags.outputs.VERCEL_OUTPUT }}
       - name: Extract Deploy URL
         id: deploy_url
+        if: ${{ inputs.isProd == false }}
         run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
       - name: Comment on pull request
+        if: ${{ inputs.isProd == false }}
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # pin@v7
-        if: github.event_name == 'pull_request'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
