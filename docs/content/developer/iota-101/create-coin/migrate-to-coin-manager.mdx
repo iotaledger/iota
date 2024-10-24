@@ -2,9 +2,6 @@
 title: Migrating a Coin to Coin Manager
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/create-coin/migrate-to-coin-manager.json';
-
 The previous articles in this section showcase how to create a [`Coin`](../../../references/framework/iota-framework/coin.mdx) object with different constructors. Namely,  [`create_currency`](create-coin.mdx) and [`create_regulated_currency`](regulated.mdx).
 
 This article will show how an existing `Coin` object can be migrated to [`CoinManager`](../../../references/framework/iota-framework/coin_manager.mdx). By doing so, the `Coin` deployer and its end-users will gain [extra-functionalites](../../standards/coin-manager.mdx). Generally, we recommend initially creating a `Coin` via `CoinManager` to avoid the need for migration later on. However, if you have an existing `Coin` and wish to migrate it to `CoinManager`, this article will guide you through the process.
