@@ -7,7 +7,6 @@ use std::{str::FromStr, time::Duration};
 use anyhow::Ok;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_json::IotaJsonValue;
-use iota_json_rpc_types::{IotaObjectDataOptions, IotaObjectResponseQuery};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{IotaKeyPair, Signature},

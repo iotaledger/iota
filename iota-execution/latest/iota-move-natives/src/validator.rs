@@ -59,7 +59,7 @@ pub fn validate_metadata_bcs(
     let validator_metadata =
         bcs::from_bytes::<ValidatorMetadataV1>(&metadata_bytes).map_err(|_| {
             PartialVMError::new(StatusCode::MALFORMED).with_message(
-                "ValidateMetadata Move struct does not match internal ValidateMetadata struct"
+                "ValidatorMetadata Move struct does not match internal ValidatorMetadataV1 struct"
                     .to_string(),
             )
         })?;
