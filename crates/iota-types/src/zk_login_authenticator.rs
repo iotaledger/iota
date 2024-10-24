@@ -10,7 +10,7 @@ use std::{
 
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId, OIDCProvider, ZkLoginInputs},
+    zk_login::{JWK, JwkId, ZkLoginInputs},
     zk_login_api::{ZkLoginEnv, verify_zk_login},
 };
 use once_cell::sync::OnceCell;
@@ -177,23 +177,6 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         // Always evaluate the unpadded address derivation.
         if author != IotaAddress::try_from_unpadded(&self.inputs)? {
             return Err(IotaError::InvalidAddress);
-        }
-
-        // Only when supported_providers list is not empty, we check if the provider is
-        // supported. Otherwise, we just use the JWK map to check if its
-        // supported.
-        if !aux_verify_data.supported_providers.is_empty()
-            && !aux_verify_data.supported_providers.contains(
-                &OIDCProvider::from_iss(self.inputs.get_iss()).map_err(|_| {
-                    IotaError::InvalidSignature {
-                        error: "Unknown provider".to_string(),
-                    }
-                })?,
-            )
-        {
-            return Err(IotaError::InvalidSignature {
-                error: format!("OIDC provider not supported: {}", self.inputs.get_iss()),
-            });
         }
 
         // Verify the ephemeral signature over the intent message of the transaction
