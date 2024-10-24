@@ -8,7 +8,6 @@ export * from './modal';
 
 export * from './ButtonOrLink';
 export * from './Card';
-export * from './Divider';
 export * from './ExpandableList';
 export * from './FilterList';
 export * from './ImageIcon';

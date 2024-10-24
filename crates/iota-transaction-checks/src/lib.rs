@@ -304,7 +304,7 @@ mod checked {
                             .into()
                         )
                     }
-                    Owner::Shared { .. } => fp_bail!(UserInputError::NotSharedObjectError.into()),
+                    Owner::Shared { .. } => fp_bail!(UserInputError::NotSharedObject.into()),
                     Owner::Immutable => fp_bail!(
                         UserInputError::MutableParameterExpected {
                             object_id: *object_id
@@ -484,7 +484,7 @@ mod checked {
                     Owner::Shared { .. } => {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
-                        return Err(UserInputError::NotSharedObjectError);
+                        return Err(UserInputError::NotSharedObject);
                     }
                 };
             }
@@ -498,7 +498,7 @@ mod checked {
                 if system_transaction {
                     return Ok(());
                 } else {
-                    return Err(UserInputError::ImmutableParameterExpectedError {
+                    return Err(UserInputError::ImmutableParameterExpected {
                         object_id: IOTA_CLOCK_OBJECT_ID,
                     });
                 }
@@ -525,7 +525,7 @@ mod checked {
                 if system_transaction {
                     return Ok(());
                 } else {
-                    return Err(UserInputError::ImmutableParameterExpectedError {
+                    return Err(UserInputError::ImmutableParameterExpected {
                         object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
                     });
                 }
@@ -542,7 +542,7 @@ mod checked {
                 match object.owner {
                     Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
                         // When someone locks an object as shared it must be shared already.
-                        return Err(UserInputError::NotSharedObjectError);
+                        return Err(UserInputError::NotSharedObject);
                     }
                     Owner::Shared {
                         initial_shared_version: actual_initial_shared_version,

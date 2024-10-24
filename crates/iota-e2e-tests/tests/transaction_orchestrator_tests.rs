@@ -193,7 +193,7 @@ async fn test_transaction_orchestrator_reconfig() {
     });
     assert_eq!(epoch, 0);
 
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     // After epoch change on a fullnode, there could be a delay before the
     // transaction orchestrator updates its committee (happens asynchronously

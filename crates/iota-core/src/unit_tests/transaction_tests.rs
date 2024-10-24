@@ -1864,7 +1864,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::NoCertificateProvidedError { .. }
+            IotaError::NoCertificateProvided { .. }
         );
     }
 
@@ -1954,7 +1954,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::NoSharedObjectError { .. },
+            error: UserInputError::NoSharedObject { .. },
         });
     }
 
@@ -2038,7 +2038,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::GasPriceMismatchError { .. },
+            error: UserInputError::GasPriceMismatch { .. },
         });
     }
 
@@ -2124,7 +2124,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::CeritificateAlreadyProcessed { .. },
+            error: UserInputError::CertificateAlreadyProcessed { .. },
         });
     }
 }
