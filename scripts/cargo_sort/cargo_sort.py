@@ -5,6 +5,7 @@ COMMENT_DEPENDENCIES_START_INTERNAL = "# internal dependencies"
 
 def get_package_name_from_cargo_toml(file_path):
     # search for the [package] section in the Cargo.toml file
+    section_regex = re.compile(r'^\[([a-zA-Z0-9_-]+)\]$')
     package_section_regex = re.compile(r'^\[package\]$')
     package_name_regex = re.compile(r'^name\s*=\s*"(.*)"$')
 
@@ -24,8 +25,9 @@ def get_package_name_from_cargo_toml(file_path):
             if package_name_match:
                 return package_name_match.group(1)
             
-            # we are done with the package section
-            return None
+            if section_regex.match(stripped_line):
+                # we are done with the package section
+                return None
     
     # no package section found
     return None
