@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
-import { Text } from '_src/ui/app/shared/text';
 import classNames from 'clsx';
 import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
@@ -75,10 +74,10 @@ export function PasswordInputDialog({
                             errorMessage={errors.password}
                         />
                         <div className="mt-4 text-center">
-                            <Text variant="pBodySmall" color="steel-dark" weight="normal">
+                            <span className="text-body-md text-neutral-40">
                                 This is the password you currently use to lock and unlock your IOTA
                                 wallet.
-                            </Text>
+                            </span>
                         </div>
                     </div>
                     <div className="flex flex-nowrap gap-3.75 self-stretch">
