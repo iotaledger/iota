@@ -7,15 +7,13 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 byteorder.workspace = true
 bytes.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 indicatif.workspace = true
-iota-config.workspace = true
-iota-storage.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
 num_enum.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
@@ -25,17 +23,25 @@ serde_json = "1.0.95"
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 
+# internal dependencies
+iota-config.workspace = true
+iota-storage.workspace = true
+iota-types = { workspace = true, features = ["test-utils"] }
+
 [dev-dependencies]
+# external dependencies
 ed25519-consensus.workspace = true
 fastcrypto = { workspace = true }
+more-asserts.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+
+# internal dependencies
 iota-macros.workspace = true
 iota-swarm-config.workspace = true
-more-asserts.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
-tempfile.workspace = true
-tokio = { workspace = true, features = ["test-util"] }
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

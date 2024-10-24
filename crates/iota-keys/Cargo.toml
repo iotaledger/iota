@@ -7,18 +7,21 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 bip32.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-iota-types.workspace = true
 rand.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-shared-crypto.workspace = true
 signature.workspace = true
 slip10_ed25519 = "0.1"
 tiny-bip39 = "1.0"
+
+# internal dependencies
+iota-types.workspace = true
+shared-crypto.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

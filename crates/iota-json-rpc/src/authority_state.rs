@@ -653,9 +653,9 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
 #[derive(Debug, Error)]
 pub enum StateReadInternalError {
     #[error(transparent)]
-    IotaError(#[from] IotaError),
+    Iota(#[from] IotaError),
     #[error(transparent)]
-    JoinError(#[from] JoinError),
+    Join(#[from] JoinError),
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -663,9 +663,9 @@ pub enum StateReadInternalError {
 #[derive(Debug, Error)]
 pub enum StateReadClientError {
     #[error(transparent)]
-    IotaError(#[from] IotaError),
+    Iota(#[from] IotaError),
     #[error(transparent)]
-    UserInputError(#[from] UserInputError),
+    UserInput(#[from] UserInputError),
 }
 
 /// `StateReadError` is the error type for callers to work with.

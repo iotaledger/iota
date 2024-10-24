@@ -7,6 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
 async-graphql-axum = "=7.0.1"
@@ -14,7 +15,9 @@ async-graphql-value = "=7.0.1"
 async-trait.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
-bin-version.workspace = true
+# TODO: put these behind feature flag to prevent leakage
+# Used for dummy data
+bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
 const-str.workspace = true
@@ -29,16 +32,8 @@ http.workspace = true
 http-body-util = "0.1.2"
 hyper.workspace = true
 im.workspace = true
-iota-metrics.workspace = true
-iota-network-stack.workspace = true
-iota-sdk.workspace = true
-iota-types.workspace = true
 itertools.workspace = true
 lru.workspace = true
-move-binary-format.workspace = true
-move-core-types.workspace = true
-move-disassembler.workspace = true
-move-ir-types.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 regex.workspace = true
@@ -47,10 +42,8 @@ serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
-shared-crypto.workspace = true
 similar.workspace = true
 tap.workspace = true
-telemetry-subscribers.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
@@ -61,34 +54,45 @@ tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
+# internal dependencies
+bin-version.workspace = true
 iota-graphql-config.workspace = true
 iota-graphql-rpc-client.workspace = true
 iota-graphql-rpc-headers.workspace = true
-
-# TODO: put these behind feature flag to prevent leakage
-# Used for dummy data
-bcs.workspace = true
 iota-indexer = { workspace = true, default-features = true }
 iota-json-rpc.workspace = true
 iota-json-rpc-types.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
+iota-sdk.workspace = true
 iota-swarm-config.workspace = true
+iota-types.workspace = true
+move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
+move-core-types.workspace = true
+move-disassembler.workspace = true
+move-ir-types.workspace = true
+shared-crypto.workspace = true
+telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 
 [dev-dependencies]
+# external dependencies
 expect-test.workspace = true
 hyper.workspace = true
 insta.workspace = true
-iota-framework.workspace = true
-iota-test-transaction-builder.workspace = true
 rand.workspace = true
 serde_json.workspace = true
 serial_test = "2.0.0"
-simulacrum.workspace = true
 tower.workspace = true
+
+# internal dependencies
+iota-framework.workspace = true
+iota-test-transaction-builder.workspace = true
+simulacrum.workspace = true
 
 [features]
 default = ["pg_backend", "postgres-feature"]
