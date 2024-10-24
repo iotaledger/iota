@@ -45,11 +45,11 @@ for (const { minorVersion } of releases.values()) {
         `src/graphql/generated/${minorVersion}/`,
     );
     const targetFolderSchemas = resolve(packageRoot, `src/graphql/schemas/${minorVersion}/`);
-    
+
     // create target folders
     await mkdir(targetFolderGenerated, { recursive: true });
     await mkdir(targetFolderSchemas, { recursive: true });
-    
+
     // copy the schema file to the target folder
     copyFile(schemaSourceFilePath, resolve(targetFolderGenerated, 'schema.graphql'), (err) => {
         if (err) throw err;

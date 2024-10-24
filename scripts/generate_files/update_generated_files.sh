@@ -1,11 +1,13 @@
 #!/bin/bash
 TARGET_FOLDER="../.."
 SKIP_SPEC_GENERATION=false
+CHECK_BUILDS=false
 
 # Parse command line arguments
 # Usage:
 # --target-folder <path>        - the target folder of the repository
 # --skip-spec-generation        - skip the generation of the open rpc and graphql schema
+# --check-builds                - run a build check after the generation of the files
 while [ $# -gt 0 ]; do
     if [[ $1 == *"--target-folder"* ]]; then
         TARGET_FOLDER=$2
@@ -13,6 +15,10 @@ while [ $# -gt 0 ]; do
 
     if [[ $1 == *"--skip-spec-generation"* ]]; then
         SKIP_SPEC_GENERATION=true
+    fi
+
+    if [[ $1 == *"--check-builds"* ]]; then
+        CHECK_BUILDS=true
     fi
 
     shift
@@ -25,14 +31,31 @@ function print_step {
     echo -e "\e[32m$1\e[0m"
 }
 
-print_step "Building pnpm docker image..."
-docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) -t pnpm-image -f ./Dockerfile .
+function print_error {
+    echo -e "\e[31m$1\e[0m"
+}
 
-# Check if the docker image was built successfully
-if [ $? -ne 0 ]; then
-    echo -e "\e[31mFailed to build pnpm docker image"
+function check_error {
+    if [ $? -ne 0 ]; then
+        print_error "$1"
+        exit 1
+    fi
+}
+
+function docker_run {
+    docker run --rm --name pnpm-cargo-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-cargo-image sh -c "$1"
+}
+
+print_step "Parse the rust toolchain version from 'rust-toolchain.toml'..."
+RUST_VERSION=$(grep -oP 'channel = "\K[^"]+' ./../../rust-toolchain.toml)
+if [ -z "$RUST_VERSION" ]; then
+    print_error "Failed to parse the rust toolchain version"
     exit 1
 fi
+
+print_step "Building pnpm-cargo docker image with rust version ${RUST_VERSION}..."
+docker build --build-arg RUST_VERSION=${RUST_VERSION} --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) -t pnpm-cargo-image -f ./Dockerfile .
+check_error "Failed to build pnpm-cargo docker image"
 
 print_step "Changing directory to ${TARGET_FOLDER}"
 pushd ${TARGET_FOLDER}
@@ -48,33 +71,43 @@ trap cleanup EXIT
 if [ "$SKIP_SPEC_GENERATION" = false ]; then
     print_step "Generating open rpc schema..."
     cargo run --package iota-open-rpc --example generate-json-rpc-spec -- record
-    if [ $? -ne 0 ]; then
-        echo -e "\e[31mFailed to generate open rpc schema"
-        exit 1
-    fi
+    check_error "Failed to generate open rpc schema"
 
     echo -e "\e[32mGenerating graphql schema..."
     cargo run --package iota-graphql-rpc generate-schema --file ./crates/iota-graphql-rpc/schema.graphql
-    if [ $? -ne 0 ]; then
-        echo -e "\e[31mFailed to generate graphql schema"
-        exit 1
-    fi
+    check_error "Failed to generate graphql schema"
 fi
 
 print_step "Installing typescript sdk dependencies..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm i"
+docker_run "cd sdk/typescript && pnpm i"
+check_error "Failed to install typescript sdk dependencies"
 
 print_step "Installing graphql-transport dependencies..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/graphql-transport && pnpm i"
+docker_run "cd sdk/graphql-transport && pnpm i"
+check_error "Failed to install graphql-transport dependencies"
 
-print_step "Updating open rpc schema..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm update-open-rpc-schema"
+print_step "Updating open rpc client types..."
+docker_run "cd sdk/typescript && pnpm update-open-rpc-client-types"
+check_error "Failed to update open rpc client types"
 
 print_step "Create graphql schema in 'client/types/generated.ts'..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm update-graphql-schemas"
-
-print_step "Updating graphql schema using gql.tada..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/typescript && pnpm generate-schema"
+docker_run "cd sdk/typescript && pnpm update-graphql-schemas"
+check_error "Failed to create graphql schema"
 
 print_step "Generating graphql-transport typescript types..."
-docker run --rm --name pnpm-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-image sh -c "cd sdk/graphql-transport && pnpm codegen"
+docker_run "cd sdk/graphql-transport && pnpm codegen"
+check_error "Failed to generate graphql-transport typescript types"
+
+if [ "$CHECK_BUILDS" = true ]; then
+    print_step "Run a typescript sdk build to check if the generated files are correct..."
+    docker_run "cd sdk/typescript && pnpm run build"
+    check_error "Failed to build typescript sdk"
+
+    print_step "Run a graphql-transport build to check if the generated files are correct..."
+    docker_run "cd sdk/graphql-transport && pnpm run build"
+    check_error "Failed to build graphql-transport"
+
+    print_step "Run a complete turbo build to catch possible issues in other SDK modules or apps..."
+    docker_run "pnpm turbo build"
+    check_error "Failed to build the complete project"    
+fi
