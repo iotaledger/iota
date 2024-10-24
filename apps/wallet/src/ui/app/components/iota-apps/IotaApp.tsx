@@ -60,7 +60,7 @@ function ListView({ name, icon, description, tags }: ListViewProps) {
                 <span className="text-label-md text-neutral-10">{name}</span>
                 <span className="text-body-sm text-neutral-40">{description}</span>
                 {tags?.length && (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-xxs">
                         {tags?.map((tag) => (
                             <Badge key={tag} label={tag} type={BadgeType.Neutral} />
                         ))}
