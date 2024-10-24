@@ -7,6 +7,7 @@ import { IconButton } from '_components';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useBalance, useFormatCoin } from '@iota/core';
 import { Copy } from '@iota/ui-icons';
+import { Panel } from '@iota/apps-ui-kit';
 
 interface AccountBalanceItemProps {
     account: SerializedUIAccount;
@@ -23,25 +24,26 @@ export function AccountBalanceItem({ account }: AccountBalanceItemProps): JSX.El
     const totalBalance = balance?.totalBalance || '0';
     const coinType = balance?.coinType;
     const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
-
     return (
-        <div className="border-hero/10 group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid bg-white/40 px-4 py-3">
-            <div className="flex w-full flex-row items-center justify-between">
-                <div className="text-steel-dark flex gap-1.5 leading-none">
-                    <span className="text-body-md">{formatAddress(account.address)}</span>
-                    <div className="flex gap-1 opacity-0 duration-100 group-hover:opacity-100">
-                        <IconButton
-                            variant="transparent"
-                            icon={<Copy className="h-2.5 w-2.5" />}
-                            onClick={copyAddress}
-                        />
+        <Panel hasBorder>
+            <div className="group flex cursor-pointer flex-col gap-sm rounded-xl px-md py-sm">
+                <div className="flex w-full flex-row items-center justify-between">
+                    <div className="text-steel-dark flex gap-xs leading-none">
+                        <span className="text-body-md">{formatAddress(account.address)}</span>
+                        <div className="flex gap-xxs opacity-0 duration-100 group-hover:opacity-100">
+                            <IconButton
+                                variant="transparent"
+                                icon={<Copy className="h-2.5 w-2.5" />}
+                                onClick={copyAddress}
+                            />
+                        </div>
                     </div>
-                </div>
 
-                <span className="text-body-sm">
-                    {formatted} {symbol}
-                </span>
+                    <span className="text-body-sm">
+                        {formatted} {symbol}
+                    </span>
+                </div>
             </div>
-        </div>
+        </Panel>
     );
 }
