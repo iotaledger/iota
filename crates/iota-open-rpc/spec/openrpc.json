@@ -1311,7 +1311,6 @@
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "rethrow_serialization_type_layout_errors": true,
-                "throughput_aware_consensus_submission": false,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -8812,6 +8811,7 @@
         "description": "This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level fields so that they are decoupled from the internal definitions.",
         "type": "object",
         "required": [
+          "authorityPubkeyBytes",
           "commissionRate",
           "description",
           "exchangeRatesId",
@@ -8838,11 +8838,12 @@
           "rewardsPool",
           "stakingPoolId",
           "stakingPoolIotaBalance",
-          "votingPower",
-          "workerAddress",
-          "workerPubkeyBytes"
+          "votingPower"
         ],
         "properties": {
+          "authorityPubkeyBytes": {
+            "$ref": "#/components/schemas/Base64"
+          },
           "commissionRate": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
@@ -8882,6 +8883,17 @@
           },
           "networkPubkeyBytes": {
             "$ref": "#/components/schemas/Base64"
+          },
+          "nextEpochAuthorityPubkeyBytes": {
+            "default": null,
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base64"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "nextEpochCommissionRate": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -8942,23 +8954,6 @@
           },
           "nextEpochStake": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "nextEpochWorkerAddress": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "nextEpochWorkerPubkeyBytes": {
-            "default": null,
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Base64"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "operationCapId": {
             "$ref": "#/components/schemas/ObjectID"
@@ -9060,12 +9055,6 @@
           },
           "votingPower": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "workerAddress": {
-            "type": "string"
-          },
-          "workerPubkeyBytes": {
-            "$ref": "#/components/schemas/Base64"
           }
         }
       },
@@ -10077,7 +10066,7 @@
               "code": {
                 "type": "string",
                 "enum": [
-                  "displayError"
+                  "display"
                 ]
               },
               "error": {

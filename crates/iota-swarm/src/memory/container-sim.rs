@@ -57,7 +57,7 @@ impl Container {
         let startup_sender = Arc::new(startup_sender);
         let node = builder
             .ip(ip)
-            .name(&format!("{:?}", config.protocol_public_key().concise()))
+            .name(&format!("{:?}", config.authority_public_key().concise()))
             .init(move || {
                 info!("Node restarted");
                 let config = config.clone();

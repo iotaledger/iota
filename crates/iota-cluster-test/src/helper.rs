@@ -145,7 +145,7 @@ impl ObjectChecker {
                 }
                 Ok(CheckerResultObject::new(None, Some(object)))
             }
-            (None, Some(IotaObjectResponseError::DisplayError { error })) => {
+            (None, Some(IotaObjectResponseError::Display { error })) => {
                 panic!("Display Error: {error:?}");
             }
             (None, None) | (None, Some(IotaObjectResponseError::Unknown)) => {
