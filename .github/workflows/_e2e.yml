@@ -96,7 +96,7 @@ jobs:
         run: pnpm wallet build
 
       - name: Build Apps Backend
-        run: pnpm apps-backend build
+        run: pnpm --filter apps-backend build
 
       - name: Run Wallet e2e tests
         if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK || inputs.isDevelop
