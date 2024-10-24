@@ -26,14 +26,14 @@ jobs:
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
         run: cargo +nightly ci-fmt
-  
-  cargosort:
+
+  cargo_sort:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       - name: Check Cargo.toml format and sorting
-        run: python scripts/cargo_sort/cargo_sort.py
+        run: python3 scripts/cargo_sort/cargo_sort.py
       - name: Check Cargo.toml diffs after formatting
         uses: technote-space/get-diff-action/@f27caffdd0fb9b13f4fc191c016bb4e0632844af # pin@v6.1.2
         with:
