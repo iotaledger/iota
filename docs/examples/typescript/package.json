@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "address-unlock-condition": "ts-node src/stardust/address-unlock-condition.ts"
+    "address-unlock-condition": "ts-node src/stardust/address-unlock-condition.ts",
+    "alias-migration": "ts-node src/stardust/alias-migration.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/tmp": "^0.2.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3"
   },
