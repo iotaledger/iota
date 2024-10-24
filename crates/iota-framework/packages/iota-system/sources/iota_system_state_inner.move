@@ -670,7 +670,10 @@ module iota_system::iota_system_state_inner {
 
         let storage_charge_value = storage_charge.value();
         let computation_charge = computation_reward.value();
-
+        
+        // Mints or burns tokens depending on the target reward.
+        // Since not all rewards are distributed in case of slashed validators, 
+        // tokens might be minted here and burnt in the same epoch change.
         let (mut total_validator_rewards, minted_tokens_amount, mut burnt_tokens_amount) = match_computation_reward_to_target_reward(
             validator_target_reward,
             computation_reward,
