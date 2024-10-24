@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search } from '@iota/ui-icons';
-import { LoadingIndicator } from '@iota/apps-ui-kit';
+import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -22,7 +22,6 @@ import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
 import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
-import { Button } from '_src/ui/app/shared/ButtonUI';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useParams } from 'react-router-dom';
@@ -131,42 +130,38 @@ export function AccountsFinderView(): JSX.Element {
                 <div className="flex flex-col gap-2">
                     {isLedgerLocked ? (
                         <Button
-                            variant="outline"
-                            size="tall"
+                            type={ButtonType.Secondary}
                             text="Unlock Ledger"
                             onClick={unlockLedger}
+                            fullWidth
                         />
                     ) : isLocked ? (
                         <Button
-                            variant="outline"
-                            size="tall"
+                            type={ButtonType.Secondary}
                             text="Verify password"
                             onClick={verifyPassword}
+                            fullWidth
                         />
                     ) : (
                         <>
                             <Button
-                                variant="outline"
-                                size="tall"
+                                type={ButtonType.Secondary}
                                 text={searchOptions.text}
-                                after={searchOptions.icon}
+                                icon={searchOptions.icon}
+                                iconAfterText
                                 onClick={runAccountsFinder}
                                 disabled={isSearchOngoing}
+                                fullWidth
                             />
 
                             <div className="flex flex-row gap-2">
                                 <Button
-                                    variant="outline"
-                                    size="tall"
+                                    type={ButtonType.Secondary}
                                     text="Skip"
                                     disabled={isSearchOngoing}
+                                    fullWidth
                                 />
-                                <Button
-                                    variant="outline"
-                                    size="tall"
-                                    text="Continue"
-                                    disabled={isSearchOngoing}
-                                />
+                                <Button text="Continue" disabled={isSearchOngoing} fullWidth />
                             </div>
                         </>
                     )}
