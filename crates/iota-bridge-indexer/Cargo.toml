@@ -7,6 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 backoff.workspace = true
@@ -15,6 +16,14 @@ clap.workspace = true
 diesel = { workspace = true, features = ["postgres", "r2d2", "serde_json"] }
 ethers = { version = "2.0", features = ["rustls", "ws"] }
 futures.workspace = true
+prometheus.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+tap.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+
+# internal dependencies
 iota-bridge.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
@@ -23,13 +32,7 @@ iota-json-rpc-types.workspace = true
 iota-metrics.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
-prometheus.workspace = true
-serde.workspace = true
-serde_yaml.workspace = true
-tap.workspace = true
 telemetry-subscribers.workspace = true
-tokio = { workspace = true, features = ["full"] }
-tracing.workspace = true
 
 [dev-dependencies]
 iota-test-transaction-builder.workspace = true

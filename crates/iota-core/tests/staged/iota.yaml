@@ -1062,10 +1062,10 @@ TypeTag:
 TypedStoreError:
   ENUM:
     0:
-      RocksDBError:
+      RocksDB:
         NEWTYPE: STR
     1:
-      SerializationError:
+      Serialization:
         NEWTYPE: STR
     2:
       UnregisteredColumn:
@@ -1075,7 +1075,7 @@ TypedStoreError:
     4:
       MetricsReporting: UNIT
     5:
-      RetryableTransactionError: UNIT
+      RetryableTransaction: UNIT
 UnchangedSharedKind:
   ENUM:
     0:
