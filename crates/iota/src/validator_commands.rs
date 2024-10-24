@@ -1109,7 +1109,7 @@ async fn display_metadata(
     json: bool,
 ) -> anyhow::Result<()> {
     match get_validator_summary(client, validator_address).await? {
-        None => println!("{validator_address} is not an active or pending Validator.",),
+        None => println!("{validator_address} is not an active or pending Validator"),
         Some((status, info)) => {
             println!("{validator_address}'s validator status: {status:?}");
             if json {
