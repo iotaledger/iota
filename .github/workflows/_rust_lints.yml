@@ -35,14 +35,12 @@ jobs:
       - name: Check Cargo.toml format and sorting
         run: python3 scripts/cargo_sort/cargo_sort.py --skip-dprint
       - name: Check Cargo.toml diffs after formatting
-        uses: technote-space/get-diff-action/@f27caffdd0fb9b13f4fc191c016bb4e0632844af # pin@v6.1.2
-        with:
-          FILES: Cargo.toml
-      - run: |
-          echo "Cargo.toml files have been modified!"
-          exit 1
-        # Fail only if there are differences in the repository
-        if: env.GIT_DIFF && env.MATCHED_FILES
+        run: |
+          if git status --porcelain | grep -q "Cargo.toml"; then
+            echo "Cargo.toml files have been modified!"
+            git diff  # Show the actual diffs
+            exit 1    # Fail the workflow
+          fi
 
   clippy:
     if: (!cancelled() && !failure() && inputs.isRust)
