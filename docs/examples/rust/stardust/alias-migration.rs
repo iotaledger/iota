@@ -42,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the first account and set it as default
     let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
 
-    println!("Sender address: {}", sender);
+    println!("Sender address: {sender}");
 
     // Publish the package of a custom NFT collection and then get the package id.
     // The custom NFT module is obtained from a Move example in the docs.
@@ -220,7 +220,6 @@ async fn main() -> Result<(), anyhow::Error> {
             for type_key in df_type_keys {
                 let type_arguments = vec![TypeTag::from_str(&format!("0x{type_key}"))?];
                 let arguments = vec![extracted_native_tokens_bag, builder.pure(sender)?];
-
                 // Extract a native token balance.
                 extracted_native_tokens_bag = builder.programmable_move_call(
                     STARDUST_PACKAGE_ID,

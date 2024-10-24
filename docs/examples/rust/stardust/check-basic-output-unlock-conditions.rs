@@ -43,16 +43,16 @@ async fn main() -> Result<(), anyhow::Error> {
             .bcs_bytes,
     )?;
 
-    println!("Basic Output infos: {:?}", basic_output);
+    println!("Basic Output infos: {basic_output:?}");
 
     if let Some(sdruc) = basic_output.storage_deposit_return {
-        println!("Storage Deposit Return Unlock Condition infos: {:?}", sdruc);
+        println!("Storage Deposit Return Unlock Condition infos: {sdruc:?}");
     }
     if let Some(tuc) = basic_output.timelock {
         println!("Timelocked until: {}", tuc.unix_time);
     }
     if let Some(euc) = basic_output.expiration {
-        println!("Expiration Unlock Condition infos: {:?}", euc);
+        println!("Expiration Unlock Condition infos: {euc:?}");
     }
 
     Ok(())
