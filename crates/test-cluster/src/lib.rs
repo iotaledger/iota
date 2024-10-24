@@ -374,7 +374,7 @@ impl TestCluster {
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire
     /// network to reach the next epoch. This requires waiting for both the
     /// fullnode and all validators to reach the next epoch.
-    pub async fn trigger_reconfiguration(&self) {
+    pub async fn force_new_epoch(&self) {
         info!("Starting reconfiguration");
         let start = Instant::now();
 
@@ -554,7 +554,7 @@ impl TestCluster {
             return;
         }
         // wait for next epoch
-        self.trigger_reconfiguration().await;
+        self.force_new_epoch().await;
         bridge = get_bridge(self.fullnode_handle.iota_node.state().get_object_store()).unwrap();
         // Committee should be initiated
         assert!(bridge.committee().member_registrations.contents.is_empty());
