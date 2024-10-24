@@ -223,15 +223,17 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let _gas_ref = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let gas_ref = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        indexer_wait_for_object(&store, gas_ref.0, gas_ref.1).await;
         let coin_to_split = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        indexer_wait_for_object(&store, coin_to_split.0, coin_to_split.1).await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
         let mut tx_responses = vec![];
         for _ in 0..5 {
             let tx_data = iota_client
                 .transaction_builder()
-                .split_coin_equal(address, coin_to_split.0, 2, None, 10_000_000)
+                .split_coin_equal(address, coin_to_split.0, 2, Some(gas_ref.0), 10_000_000)
                 .await?;
 
             let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
