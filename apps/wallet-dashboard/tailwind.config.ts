@@ -10,7 +10,7 @@ export default {
         './app/**/*.{js,ts,jsx,tsx,mdx}',
         './pages/**/*.{js,ts,jsx,tsx,mdx}',
         './components/**/*.{js,ts,jsx,tsx,mdx}',
-        './node_modules/@iota/apps-ui-kit/dist/**/*.js',
+        './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}',
     ],
     darkMode: 'class',
     theme: {
