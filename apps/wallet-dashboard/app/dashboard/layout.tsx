@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { Button, Notifications, RouteLink } from '@/components/index';
+import { Notifications, RouteLink } from '@/components/index';
 import React, { useState, type PropsWithChildren } from 'react';
 import { ConnectButton } from '@iota/dapp-kit';
+import { Button } from '@iota/apps-ui-kit';
 
 const routes = [
     { title: 'Home', path: '/dashboard/home' },
@@ -36,7 +37,7 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
                 {routes.map((route) => {
                     return <RouteLink key={route.title} {...route} />;
                 })}
-                <Button onClick={toggleDarkMode}>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</Button>
+                <Button onClick={toggleDarkMode} text={isDarkMode ? 'Light Mode' : 'Dark Mode'} />
                 <ConnectButton />
             </section>
             <div>{children}</div>
