@@ -100,8 +100,7 @@ export function OnTheNetwork(): JSX.Element {
                             text={gasPriceFormatted ?? '-'}
                             supportingLabel={gasPriceFormatted !== null ? 'IOTA' : undefined}
                             tooltipPosition={TooltipPosition.Top}
-                            tooltipText="
-The reference gas price in the current epoch."
+                            tooltipText="The reference gas price in the current epoch."
                         />
                     </div>
                     <div className="flex-1">

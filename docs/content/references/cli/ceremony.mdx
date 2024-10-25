@@ -69,14 +69,13 @@ Each validator is added one at a time, and is persisted in the `committee` folde
 ```shell
 iota genesis-ceremony add-validator \
     --name validator0 \
-    --validator-key-file validator.key \
-    --worker-key-file validator-worker.key \
+    --authority-key-file validator-authority.key \
+    --protocol-key-file validator-protocol.key \
     --account-key-file validator-account.key \
     --network-key-file validator-network.key \
     --network-address /ip4/127.0.0.1/tcp/38189/http \
     --p2p-address /ip4/127.0.0.1/udp/34523 \
-    --narwhal-primary-address /ip4/127.0.0.1/udp/38603 \
-    --narwhal-worker-address /ip4/127.0.0.1/udp/36603 \
+    --primary-address /ip4/127.0.0.1/udp/38603 \
     --description validator0 \
     --image-url https://www.iota.org/favicon.png \
     --project-url https://www.iota.org
@@ -91,15 +90,14 @@ iota genesis-ceremony add-validator \
 info:
   name: validator0
   account-address: 0xae12525173c83e472daf8c30e80ec6e220675c329029fe81dcae9bb3e53d4aef
-  protocol-key: l5SIw1DYpic0kkkKDQm5NuLxWhzICh2WymxnVCutKkIzsaJx8u71qWdvRzN7QoRqEsGONoGpkCu8VbRFp0+prU/lTzeozmJTeou5JmW8JWSIZ1aLrZ41+vKluYoV2tVB
-  worker-key: bjoiPMq9KY38ug6fwYKLIz/uPegBrghszVphlEHbX4c=
+  authority-key: l5SIw1DYpic0kkkKDQm5NuLxWhzICh2WymxnVCutKkIzsaJx8u71qWdvRzN7QoRqEsGONoGpkCu8VbRFp0+prU/lTzeozmJTeou5JmW8JWSIZ1aLrZ41+vKluYoV2tVB
+  protocol-key: bjoiPMq9KY38ug6fwYKLIz/uPegBrghszVphlEHbX4c=
   network-key: lMg+5fuSD/E65lxbk6bqB1QWPuVsxGAUIQWHEmSKJWg=
   gas-price: 1000
   commission-rate: 200
   network-address: /ip4/127.0.0.1/tcp/38189/http
   p2p-address: /ip4/127.0.0.1/udp/34523
-  narwhal-primary-address: /ip4/127.0.0.1/udp/38603
-  narwhal-worker-address: /ip4/127.0.0.1/udp/36603
+  primary-address: /ip4/127.0.0.1/udp/38603
   description: validator0
   image-url: https://www.iota.org/favicon.png
   project-url: https://www.iota.org

@@ -6,7 +6,6 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     future::Future,
     path::{Path, PathBuf},
-    str::FromStr,
     sync::Arc,
 };
 
@@ -15,7 +14,7 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::{dkg, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId, OIDCProvider},
+    zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
 };
 use futures::{
@@ -864,16 +863,9 @@ impl AuthorityPerEpochStore {
             _ => ZkLoginEnv::Test,
         };
 
-        let supported_providers = protocol_config
-            .zklogin_supported_providers()
-            .iter()
-            .map(|s| OIDCProvider::from_str(s).expect("Invalid provider string"))
-            .collect::<Vec<_>>();
-
         let signature_verifier = SignatureVerifier::new(
             committee.clone(),
             signature_verifier_metrics,
-            supported_providers,
             zklogin_env,
             protocol_config.accept_zklogin_in_multisig(),
             protocol_config.zklogin_max_epoch_upper_bound_delta(),

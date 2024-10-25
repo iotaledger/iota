@@ -231,9 +231,9 @@ pub struct SystemStateSummary {
 pub struct ValidatorSummary {
     // Metadata
     pub address: Address,
-    pub protocol_public_key: iota_sdk2::types::Bls12381PublicKey,
+    pub authority_public_key: iota_sdk2::types::Bls12381PublicKey,
     pub network_public_key: iota_sdk2::types::Ed25519PublicKey,
-    pub worker_public_key: iota_sdk2::types::Ed25519PublicKey,
+    pub protocol_public_key: iota_sdk2::types::Ed25519PublicKey,
     #[serde_as(as = "fastcrypto::encoding::Base64")]
     #[schemars(with = "String")]
     pub proof_of_possession_bytes: Vec<u8>,
@@ -244,17 +244,15 @@ pub struct ValidatorSummary {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub worker_address: String,
-    pub next_epoch_protocol_public_key: Option<iota_sdk2::types::Bls12381PublicKey>,
+    pub next_epoch_authority_public_key: Option<iota_sdk2::types::Bls12381PublicKey>,
     pub next_epoch_network_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
-    pub next_epoch_worker_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
+    pub next_epoch_protocol_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
     #[serde_as(as = "Option<fastcrypto::encoding::Base64>")]
     #[schemars(with = "Option<String>")]
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,
     pub next_epoch_primary_address: Option<String>,
-    pub next_epoch_worker_address: Option<String>,
 
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
@@ -330,9 +328,9 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
     ) -> Self {
         let iota_types::iota_system_state::iota_system_state_summary::IotaValidatorSummary {
             iota_address,
-            protocol_pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession_bytes,
             name,
             description,
@@ -341,15 +339,13 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
-            next_epoch_protocol_pubkey_bytes,
+            next_epoch_authority_pubkey_bytes,
             next_epoch_proof_of_possession,
             next_epoch_network_pubkey_bytes,
-            next_epoch_worker_pubkey_bytes,
+            next_epoch_protocol_pubkey_bytes,
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,
-            next_epoch_worker_address,
             voting_power,
             operation_cap_id,
             gas_price,
@@ -372,16 +368,18 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
 
         Self {
             address: iota_address.into(),
-            protocol_public_key: iota_sdk2::types::Bls12381PublicKey::from_bytes(
-                protocol_pubkey_bytes,
+            authority_public_key: iota_sdk2::types::Bls12381PublicKey::from_bytes(
+                authority_pubkey_bytes,
             )
             .unwrap(),
             network_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(
                 network_pubkey_bytes,
             )
             .unwrap(),
-            worker_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(worker_pubkey_bytes)
-                .unwrap(),
+            protocol_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(
+                protocol_pubkey_bytes,
+            )
+            .unwrap(),
             proof_of_possession_bytes,
             name,
             description,
@@ -390,18 +388,16 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
-            next_epoch_protocol_public_key: next_epoch_protocol_pubkey_bytes
+            next_epoch_authority_public_key: next_epoch_authority_pubkey_bytes
                 .map(|bytes| iota_sdk2::types::Bls12381PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_network_public_key: next_epoch_network_pubkey_bytes
                 .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
-            next_epoch_worker_public_key: next_epoch_worker_pubkey_bytes
+            next_epoch_protocol_public_key: next_epoch_protocol_pubkey_bytes
                 .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_proof_of_possession,
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,
-            next_epoch_worker_address,
             voting_power,
             operation_cap_id: operation_cap_id.into(),
             gas_price,

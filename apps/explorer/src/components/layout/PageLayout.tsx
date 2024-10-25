@@ -29,7 +29,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
             request<{ degraded: boolean }>('monitor-network', {
                 project: 'EXPLORER',
             }),
-        // Keep cached for 2 minutes:
+        // Keep cached for 2 minutes
         staleTime: 2 * 60 * 1000,
         retry: false,
         enabled: network === Network.Mainnet,
@@ -44,7 +44,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
             : "The explorer is running slower than usual. We're working to fix the issue and appreciate your patience.";
 
     return (
-        <div className="relative min-h-screen w-full">
+        <div className="relative min-h-screen w-full bg-neutral-98">
             <section ref={headerRef} className="fixed top-0 z-20 flex w-full flex-col">
                 {renderNetworkDegradeBanner && (
                     <InfoBox
@@ -61,7 +61,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
                     <LoadingIndicator size="w-6 h-6" />
                 </div>
             )}
-            <main className="relative z-10 bg-neutral-98">
+            <main className="relative z-10">
                 {!loading && <section className="container pb-20 pt-28">{content}</section>}
             </main>
             <Footer />

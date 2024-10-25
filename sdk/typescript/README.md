@@ -101,7 +101,7 @@ https://stackoverflow.com/questions/52676244/node-version-not-updating-after-nvm
 To run E2E tests against Devnet
 
 ```
-VITE_FAUCET_URL='https://faucet.devnet.iota.io:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.iota.io' pnpm --filter @iota/iota-sdk exec vitest e2e
+VITE_FAUCET_URL='https://faucet.devnet.iota.org:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.iota.org' pnpm --filter @iota/iota-sdk exec vitest e2e
 ```
 
 ## Connecting to IOTA Network
@@ -110,7 +110,7 @@ The `IotaClient` class provides a connection to the JSON-RPC Server and should b
 read-only operations. The default URLs to connect with the RPC server are:
 
 - local: http://127.0.0.1:9000
-- Devnet: https://fullnode.devnet.iota.io
+- Devnet: https://fullnode.devnet.iota.org
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
@@ -147,7 +147,7 @@ import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 // create a client connected to devnet
 const client = new IotaClient({
-    url: 'https://fullnode.devnet.iota.io',
+    url: 'https://fullnode.devnet.iota.org',
 });
 
 // get coins owned by an address
