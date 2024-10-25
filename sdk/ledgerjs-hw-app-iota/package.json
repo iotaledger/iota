@@ -66,8 +66,10 @@
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",
         "@ledgerhq/hw-transport-mocker": "^6.29.0",
+        "@ledgerhq/hw-transport-node-speculos-http": "^6.29.2",
         "@size-limit/preset-small-lib": "^11.1.4",
         "@types/node": "^20.14.10",
+        "axios": "^1.7.4",
         "size-limit": "^11.1.4",
         "typescript": "^5.5.3",
         "vitest": "^2.0.1"
