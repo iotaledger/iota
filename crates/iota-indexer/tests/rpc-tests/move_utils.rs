@@ -2,193 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_api::MoveUtilsClient;
-use iota_json_rpc_types::{
-    IotaMoveAbility, IotaMoveAbilitySet, IotaMoveNormalizedField, IotaMoveNormalizedFunction,
-    IotaMoveNormalizedStruct, IotaMoveNormalizedType, IotaMoveStructTypeParameter,
-    IotaMoveVisibility, MoveFunctionArgType, ObjectValueKind,
-};
+use iota_json_rpc_types::{MoveFunctionArgType, ObjectValueKind};
 
-use crate::common::{
-    ApiTestSetup, CustomEq, indexer_wait_for_checkpoint, rpc_call_error_msg_matches,
-};
-
-impl<T: CustomEq> CustomEq for &[T] {
-    fn eq(&self, other: &Self) -> bool {
-        self.iter()
-            .zip(other.iter())
-            .all(|(fullnode, indexer)| fullnode.eq(indexer))
-    }
-}
-
-impl CustomEq for IotaMoveNormalizedStruct {
-    fn eq(&self, other: &Self) -> bool {
-        let IotaMoveNormalizedStruct {
-            abilities,
-            fields,
-            type_parameters,
-        } = self;
-
-        let IotaMoveNormalizedStruct {
-            abilities: other_abilities,
-            fields: other_fields,
-            type_parameters: other_type_parameters,
-        } = other;
-
-        let abilities = abilities.eq(other_abilities);
-        let fields = fields.as_slice().eq(&other_fields.as_slice());
-        let type_parameters = type_parameters
-            .as_slice()
-            .eq(&other_type_parameters.as_slice());
-
-        abilities && fields && type_parameters
-    }
-}
-
-impl CustomEq for IotaMoveNormalizedFunction {
-    fn eq(&self, other: &Self) -> bool {
-        let IotaMoveNormalizedFunction {
-            is_entry,
-            parameters,
-            return_,
-            type_parameters,
-            visibility,
-        } = self;
-
-        let IotaMoveNormalizedFunction {
-            is_entry: other_is_entry,
-            parameters: other_parameters,
-            return_: other_return_,
-            type_parameters: other_type_parameters,
-            visibility: other_visibility,
-        } = other;
-
-        let entry = is_entry == other_is_entry;
-        let parameters = parameters.as_slice().eq(&other_parameters.as_slice());
-        let returned_types = return_.as_slice().eq(&other_return_.as_slice());
-        let type_parameters = type_parameters
-            .as_slice()
-            .eq(&other_type_parameters.as_slice());
-
-        entry && parameters && returned_types && type_parameters && visibility.eq(other_visibility)
-    }
-}
-
-impl CustomEq for IotaMoveVisibility {
-    fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (IotaMoveVisibility::Friend, IotaMoveVisibility::Friend)
-                | (IotaMoveVisibility::Private, IotaMoveVisibility::Private)
-                | (IotaMoveVisibility::Public, IotaMoveVisibility::Public)
-        )
-    }
-}
-
-impl CustomEq for IotaMoveStructTypeParameter {
-    fn eq(&self, other: &Self) -> bool {
-        let IotaMoveStructTypeParameter {
-            constraints,
-            is_phantom,
-        } = self;
-        let IotaMoveStructTypeParameter {
-            constraints: other_constraints,
-            is_phantom: other_is_phantom,
-        } = other;
-
-        is_phantom == other_is_phantom && constraints.eq(other_constraints)
-    }
-}
-
-impl CustomEq for IotaMoveAbilitySet {
-    fn eq(&self, other: &Self) -> bool {
-        // we do this unpacking only to ensure that if a new field will be added then
-        // the impl should be changed accordingly as an error will be displayed
-        let IotaMoveAbilitySet { abilities } = self;
-        let IotaMoveAbilitySet {
-            abilities: other_abilities,
-        } = other;
-
-        abilities.as_slice().eq(&other_abilities.as_slice())
-    }
-}
-
-impl CustomEq for IotaMoveAbility {
-    fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (IotaMoveAbility::Copy, IotaMoveAbility::Copy)
-                | (IotaMoveAbility::Drop, IotaMoveAbility::Drop)
-                | (IotaMoveAbility::Store, IotaMoveAbility::Store)
-                | (IotaMoveAbility::Key, IotaMoveAbility::Key)
-        )
-    }
-}
-
-impl CustomEq for IotaMoveNormalizedField {
-    fn eq(&self, other: &Self) -> bool {
-        let IotaMoveNormalizedField { name, type_ } = self;
-        let IotaMoveNormalizedField {
-            name: other_name,
-            type_: other_type,
-        } = other;
-
-        name == other_name && type_.eq(other_type)
-    }
-}
-
-impl CustomEq for IotaMoveNormalizedType {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (IotaMoveNormalizedType::Bool, IotaMoveNormalizedType::Bool)
-            | (IotaMoveNormalizedType::U8, IotaMoveNormalizedType::U8)
-            | (IotaMoveNormalizedType::U16, IotaMoveNormalizedType::U16)
-            | (IotaMoveNormalizedType::U32, IotaMoveNormalizedType::U32)
-            | (IotaMoveNormalizedType::U64, IotaMoveNormalizedType::U64)
-            | (IotaMoveNormalizedType::U128, IotaMoveNormalizedType::U128)
-            | (IotaMoveNormalizedType::U256, IotaMoveNormalizedType::U256)
-            | (IotaMoveNormalizedType::Address, IotaMoveNormalizedType::Address)
-            | (IotaMoveNormalizedType::Signer, IotaMoveNormalizedType::Signer) => true,
-
-            (IotaMoveNormalizedType::Vector(fullnode), IotaMoveNormalizedType::Vector(indexer)) => {
-                fullnode.eq(indexer)
-            }
-            (
-                IotaMoveNormalizedType::TypeParameter(fullnode),
-                IotaMoveNormalizedType::TypeParameter(indexer),
-            ) => fullnode == indexer,
-            (
-                IotaMoveNormalizedType::Reference(fullnode),
-                IotaMoveNormalizedType::Reference(indexer),
-            ) => fullnode.eq(indexer),
-            (
-                IotaMoveNormalizedType::MutableReference(fullnode),
-                IotaMoveNormalizedType::MutableReference(indexer),
-            ) => fullnode.eq(indexer),
-            (
-                IotaMoveNormalizedType::Struct {
-                    address,
-                    module,
-                    name,
-                    type_arguments,
-                },
-                IotaMoveNormalizedType::Struct {
-                    address: indexer_address,
-                    module: indexer_module,
-                    name: indexer_name,
-                    type_arguments: indexer_type_arguments,
-                },
-            ) => {
-                address == indexer_address
-                    && module == indexer_module
-                    && name == indexer_name
-                    && type_arguments
-                        .as_slice()
-                        .eq(&indexer_type_arguments.as_slice())
-            }
-            _ => false,
-        }
-    }
-}
+use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, rpc_call_error_msg_matches};
 
 #[test]
 fn get_move_function_arg_types_empty() {
@@ -239,7 +55,7 @@ fn get_move_function_arg_types() {
             .await
             .unwrap();
 
-        assert!(matches!(indexer_function_args_type[..], [
+        assert!(matches!(indexer_function_args_type.as_slice(), [
             MoveFunctionArgType::Object(ObjectValueKind::ByMutableReference),
             MoveFunctionArgType::Pure
         ]));
@@ -419,7 +235,7 @@ fn get_normalized_move_struct() {
             .await
             .unwrap();
 
-        assert!(fullnode_response.eq(&indexer_response))
+        assert_eq!(fullnode_response, indexer_response)
     });
 }
 
@@ -477,7 +293,7 @@ fn get_normalized_move_function() {
             .await
             .unwrap();
 
-        assert!(fullnode_response.eq(&indexer_response))
+        assert_eq!(fullnode_response, indexer_response)
     });
 }
 

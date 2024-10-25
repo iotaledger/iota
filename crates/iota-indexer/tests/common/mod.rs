@@ -35,12 +35,6 @@ const DEFAULT_SERVER_PORT: u16 = 3000;
 
 static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
 
-/// Define custom equality logic for types that don't implement the `Eq` or
-/// `PartialEq` traits.
-pub trait CustomEq {
-    fn eq(&self, other: &Self) -> bool;
-}
-
 pub struct ApiTestSetup {
     pub runtime: Runtime,
     pub cluster: TestCluster,
