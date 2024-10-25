@@ -47,14 +47,14 @@ function docker_run {
 }
 
 print_step "Parse the rust toolchain version from 'rust-toolchain.toml'..."
-RUST_VERSION=$(grep -oP 'channel = "\K[^"]+' ./../../rust-toolchain.toml)
+RUST_VERSION=$(grep -oE 'channel = "[^"]+' ./../../rust-toolchain.toml | sed 's/channel = "//')
 if [ -z "$RUST_VERSION" ]; then
     print_error "Failed to parse the rust toolchain version"
     exit 1
 fi
 
 print_step "Building pnpm-cargo docker image with rust version ${RUST_VERSION}..."
-docker build --build-arg RUST_VERSION=${RUST_VERSION} --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) -t pnpm-cargo-image -f ./Dockerfile .
+docker build --build-arg RUST_VERSION=${RUST_VERSION} --build-arg USER_ID=$(id -u) -t pnpm-cargo-image -f ./Dockerfile .
 check_error "Failed to build pnpm-cargo docker image"
 
 print_step "Changing directory to ${TARGET_FOLDER}"

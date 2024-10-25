@@ -73,5 +73,5 @@ export async function addExportsToPackageJson(packageRoot: string, versions: str
         };
     }
 
-    await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, '\t')}\n`);
+    await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, '    ')}\n`);
 }
