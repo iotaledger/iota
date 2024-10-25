@@ -9,7 +9,6 @@ feature_flags:
   no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
   hardened_otw_check: true
-  enable_group_ops_native_functions: true
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
   mysticeti_leader_scoring_and_schedule: true
