@@ -121,22 +121,6 @@ pub struct QuorumDriverResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionRequest {
-    pub transaction: Transaction,
-    pub request_type: ExecuteTransactionRequestType,
-}
-
-impl ExecuteTransactionRequest {
-    pub fn transaction_type(&self) -> TransactionType {
-        if self.transaction.contains_shared_object() {
-            TransactionType::SharedObject
-        } else {
-            TransactionType::SingleWriter
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ExecuteTransactionRequestV1 {
     pub transaction: Transaction,
 
