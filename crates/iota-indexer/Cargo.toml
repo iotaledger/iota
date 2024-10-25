@@ -7,9 +7,6 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-
-
-clap.workspace = true
 anyhow.workspace = true
 # external dependencies
 async-trait.workspace = true
@@ -18,6 +15,7 @@ backoff.workspace = true
 bcs.workspace = true
 cached.workspace = true
 chrono.workspace = true
+clap.workspace = true
 diesel = { workspace = true, optional = true }
 diesel_migrations = "2.0.0"
 downcast = "0.11.0"
@@ -69,8 +67,8 @@ bundled-mysql = ["mysqlclient-sys?/bundled"]
 
 [dev-dependencies]
 # external dependencies
-rand.workspace = true
 fastcrypto.workspace = true
+rand.workspace = true
 serde_json.workspace = true
 serial_test = "2.0"
 
