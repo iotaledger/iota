@@ -41,6 +41,12 @@ We highly recommend you use the [Coin Manager](./coin-manager.mdx) functionality
 
 The Coin standard includes the ability to create regulated coins. To create a regulated coin, you use the `coin::create_regulated_currency` function (which uses the `coin::create_currency` function itself), but which also returns a `DenyCap` capability. The `DenyCap` capability allows the bearer to maintain a list of addresses that aren't allowed to use the token.   
 
+:::tip TIP
+
+The [regulated-coin-example](https://github.com/iotaledger/iota/blob/develop/examples/move/coin/sources/regcoin.move) repository provides an example of regulated coin creation.
+
+:::
+
 ### DenyList object
 
 The list of addresses that aren't able to use a particular regulated coin is held within a system-created `DenyList` shared object. If you have access to the `DenyCap`, then you can use the `coin::deny_list_add` and `coin::deny_list_remove` functions to add and remove addresses. You can also use the `coin::deny_list_contains` function to check if an address is already on the list.
