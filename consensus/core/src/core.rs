@@ -114,16 +114,14 @@ impl Core {
         sync_last_known_own_block: bool,
     ) -> Self {
         let last_decided_leader = dag_state.read().last_commit_leader();
-        let number_of_leaders = context
-            .protocol_config
-            .mysticeti_num_leaders_per_round()
-            .unwrap_or(1);
         let committer = UniversalCommitterBuilder::new(
             context.clone(),
             leader_schedule.clone(),
             dag_state.clone(),
         )
-        .with_number_of_leaders(number_of_leaders)
+        // we want to keep with_number_of_leaders param to be able to enable it in a future protocol
+        // upgrade
+        .with_number_of_leaders(1)
         .with_pipeline(true)
         .build();
 
@@ -1921,24 +1919,11 @@ mod test {
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_commit_on_leader_schedule_change_boundary_without_multileader() {
-        parameterized_test_commit_on_leader_schedule_change_boundary(Some(1)).await;
-    }
-
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_commit_on_leader_schedule_change_boundary_with_multileader() {
-        parameterized_test_commit_on_leader_schedule_change_boundary(None).await;
-    }
-
-    async fn parameterized_test_commit_on_leader_schedule_change_boundary(
-        num_leaders_per_round: Option<usize>,
-    ) {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (mut context, _) = Context::new_for_test(6);
-        context
-            .protocol_config
-            .set_mysticeti_num_leaders_per_round_for_testing(num_leaders_per_round);
+        let (context, _) = Context::new_for_test(6);
+
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]);
 
@@ -2024,10 +2009,12 @@ mod test {
             // NOTE: We used 61 leader rounds to specifically trigger the scenario
             // where the leader schedule boundary occurred AND we had a swap to a new
             // leader for the same round
-            let expected_commit_count = match num_leaders_per_round {
-                Some(1) => 60,
-                _ => 61,
-            };
+            let expected_commit_count = 60;
+            // Leave the code for re-use.
+            // let expected_commit_count = match num_leaders_per_round {
+            //     Some(1) => 60,
+            //     _ => 61,
+            // };
             assert_eq!(last_commit.index(), expected_commit_count);
             let all_stored_commits = core_fixture
                 .store
