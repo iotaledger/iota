@@ -73,7 +73,7 @@ async fn execute_transaction(
     Bcs(transaction): Bcs<SignedTransaction>,
 ) -> Result<ResponseContent<TransactionExecutionResponse>> {
     let executor = state.ok_or_else(|| anyhow::anyhow!("No Transaction Executor"))?;
-    let request = iota_types::quorum_driver_types::ExecuteTransactionRequestV3 {
+    let request = iota_types::quorum_driver_types::ExecuteTransactionRequestV1 {
         transaction: transaction.into(),
         include_events: parameters.events,
         include_input_objects: parameters.input_objects || parameters.balance_changes,
@@ -81,7 +81,7 @@ async fn execute_transaction(
         include_auxiliary_data: false,
     };
 
-    let iota_types::quorum_driver_types::ExecuteTransactionResponseV3 {
+    let iota_types::quorum_driver_types::ExecuteTransactionResponseV1 {
         effects,
         events,
         input_objects,
