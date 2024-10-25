@@ -257,7 +257,7 @@ impl<'backing> TemporaryStore<'backing> {
         let loaded_per_epoch_config_objects = self.loaded_per_epoch_config_objects.read().clone();
         let inner = self.into_inner();
 
-        let effects = TransactionEffects::new_from_execution_v2(
+        let effects = TransactionEffects::new_from_execution_v1(
             status,
             epoch,
             gas_cost_summary,
@@ -444,7 +444,7 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     pub fn estimate_effects_size_upperbound(&self) -> usize {
-        TransactionEffects::estimate_effects_size_upperbound_v2(
+        TransactionEffects::estimate_effects_size_upperbound_v1(
             self.execution_results.written_objects.len(),
             self.execution_results.modified_objects.len(),
             self.input_objects.len(),
