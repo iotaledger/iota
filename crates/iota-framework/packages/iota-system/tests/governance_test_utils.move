@@ -36,7 +36,6 @@ module iota_system::governance_test_utils {
             b"/ip4/127.0.0.1/tcp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             option::some(balance::create_for_testing<IOTA>(init_stake_amount_in_iota * NANOS_PER_IOTA)),
             1,
             0,
@@ -214,7 +213,6 @@ module iota_system::governance_test_utils {
             net_addr,
             net_addr,
             net_addr,
-            net_addr,
             1,
             0,
             ctx
@@ -238,7 +236,6 @@ module iota_system::governance_test_utils {
             b"description",
             b"image_url",
             b"project_url",
-            net_addr,
             net_addr,
             net_addr,
             net_addr,

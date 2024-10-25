@@ -337,10 +337,10 @@ impl MoveObjectType {
             && self.name().as_str() == "RegulatedCoinMetadata"
     }
 
-    pub fn is_coin_deny_cap_v2(&self) -> bool {
+    pub fn is_coin_deny_cap_v1(&self) -> bool {
         self.address() == IOTA_FRAMEWORK_ADDRESS
             && self.module().as_str() == "coin"
-            && self.name().as_str() == "DenyCapV2"
+            && self.name().as_str() == "DenyCapV1"
     }
 
     pub fn is_dynamic_field(&self) -> bool {
@@ -1187,7 +1187,7 @@ impl ObjectID {
     /// Parse the ObjectID from byte array or buffer.
     pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, ObjectIDParseError> {
         <[u8; Self::LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| ObjectIDParseError::TryFromSliceError)
+            .map_err(|_| ObjectIDParseError::TryFromSlice)
             .map(ObjectID::new)
     }
 
@@ -1393,7 +1393,7 @@ pub enum ObjectIDParseError {
     HexLiteralPrefixMissing,
 
     #[error("Could not convert from bytes slice")]
-    TryFromSliceError,
+    TryFromSlice,
 }
 
 impl From<ObjectID> for AccountAddress {

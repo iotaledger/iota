@@ -211,10 +211,7 @@ p2p_address
 primary_address
 	public fun
 	0x3::validator
-worker_address
-	public fun
-	0x3::validator
-protocol_pubkey_bytes
+authority_pubkey_bytes
 	public fun
 	0x3::validator
 proof_of_possession
@@ -223,7 +220,7 @@ proof_of_possession
 network_pubkey_bytes
 	public fun
 	0x3::validator
-worker_pubkey_bytes
+protocol_pubkey_bytes
 	public fun
 	0x3::validator
 next_epoch_network_address
@@ -235,10 +232,7 @@ next_epoch_p2p_address
 next_epoch_primary_address
 	public fun
 	0x3::validator
-next_epoch_worker_address
-	public fun
-	0x3::validator
-next_epoch_protocol_pubkey_bytes
+next_epoch_authority_pubkey_bytes
 	public fun
 	0x3::validator
 next_epoch_proof_of_possession
@@ -247,7 +241,7 @@ next_epoch_proof_of_possession
 next_epoch_network_pubkey_bytes
 	public fun
 	0x3::validator
-next_epoch_worker_pubkey_bytes
+next_epoch_protocol_pubkey_bytes
 	public fun
 	0x3::validator
 operation_cap_id
@@ -331,16 +325,10 @@ update_next_epoch_primary_address
 update_candidate_primary_address
 	public(package) fun
 	0x3::validator
-update_next_epoch_worker_address
+update_next_epoch_authority_pubkey
 	public(package) fun
 	0x3::validator
-update_candidate_worker_address
-	public(package) fun
-	0x3::validator
-update_next_epoch_protocol_pubkey
-	public(package) fun
-	0x3::validator
-update_candidate_protocol_pubkey
+update_candidate_authority_pubkey
 	public(package) fun
 	0x3::validator
 update_next_epoch_network_pubkey
@@ -349,10 +337,10 @@ update_next_epoch_network_pubkey
 update_candidate_network_pubkey
 	public(package) fun
 	0x3::validator
-update_next_epoch_worker_pubkey
+update_next_epoch_protocol_pubkey
 	public(package) fun
 	0x3::validator
-update_candidate_worker_pubkey
+update_candidate_protocol_pubkey
 	public(package) fun
 	0x3::validator
 effectuate_staged_metadata
@@ -733,22 +721,16 @@ update_validator_next_epoch_primary_address
 update_candidate_validator_primary_address
 	public(package) fun
 	0x3::iota_system_state_inner
-update_validator_next_epoch_worker_address
+update_validator_next_epoch_authority_pubkey
 	public(package) fun
 	0x3::iota_system_state_inner
-update_candidate_validator_worker_address
+update_candidate_validator_authority_pubkey
 	public(package) fun
 	0x3::iota_system_state_inner
 update_validator_next_epoch_protocol_pubkey
 	public(package) fun
 	0x3::iota_system_state_inner
 update_candidate_validator_protocol_pubkey
-	public(package) fun
-	0x3::iota_system_state_inner
-update_validator_next_epoch_worker_pubkey
-	public(package) fun
-	0x3::iota_system_state_inner
-update_candidate_validator_worker_pubkey
 	public(package) fun
 	0x3::iota_system_state_inner
 update_validator_next_epoch_network_pubkey
@@ -895,22 +877,16 @@ update_validator_next_epoch_primary_address
 update_candidate_validator_primary_address
 	public entry fun
 	0x3::iota_system
-update_validator_next_epoch_worker_address
+update_validator_next_epoch_authority_pubkey
 	public entry fun
 	0x3::iota_system
-update_candidate_validator_worker_address
+update_candidate_validator_authority_pubkey
 	public entry fun
 	0x3::iota_system
 update_validator_next_epoch_protocol_pubkey
 	public entry fun
 	0x3::iota_system
 update_candidate_validator_protocol_pubkey
-	public entry fun
-	0x3::iota_system
-update_validator_next_epoch_worker_pubkey
-	public entry fun
-	0x3::iota_system
-update_candidate_validator_worker_pubkey
 	public entry fun
 	0x3::iota_system
 update_validator_next_epoch_network_pubkey
@@ -1918,28 +1894,28 @@ GlobalPauseKey
 PerTypeConfigCreated
 	public struct
 	0x2::deny_list
-v2_add
+add
 	public(package) fun
 	0x2::deny_list
-v2_remove
+remove
 	public(package) fun
 	0x2::deny_list
-v2_contains_current_epoch
+contains_current_epoch
 	public(package) fun
 	0x2::deny_list
-v2_contains_next_epoch
+contains_next_epoch
 	public(package) fun
 	0x2::deny_list
-v2_enable_global_pause
+enable_global_pause
 	public(package) fun
 	0x2::deny_list
-v2_disable_global_pause
+disable_global_pause
 	public(package) fun
 	0x2::deny_list
-v2_is_global_pause_enabled_current_epoch
+is_global_pause_enabled_current_epoch
 	public(package) fun
 	0x2::deny_list
-v2_is_global_pause_enabled_next_epoch
+is_global_pause_enabled_next_epoch
 	public(package) fun
 	0x2::deny_list
 add_per_type_config
@@ -1969,7 +1945,7 @@ RegulatedCoinMetadata
 TreasuryCap
 	public struct
 	0x2::coin
-DenyCapV2
+DenyCapV1
 	public struct
 	0x2::coin
 CurrencyCreated
@@ -2026,7 +2002,7 @@ destroy_zero
 create_currency
 	public fun
 	0x2::coin
-create_regulated_currency_v2
+create_regulated_currency_v1
 	public fun
 	0x2::coin
 mint
@@ -2038,28 +2014,28 @@ mint_balance
 burn
 	public entry fun
 	0x2::coin
-deny_list_v2_add
+deny_list_v1_add
 	public fun
 	0x2::coin
-deny_list_v2_remove
+deny_list_v1_remove
 	public fun
 	0x2::coin
-deny_list_v2_contains_current_epoch
+deny_list_v1_contains_current_epoch
 	public fun
 	0x2::coin
-deny_list_v2_contains_next_epoch
+deny_list_v1_contains_next_epoch
 	public fun
 	0x2::coin
-deny_list_v2_enable_global_pause
+deny_list_v1_enable_global_pause
 	public fun
 	0x2::coin
-deny_list_v2_disable_global_pause
+deny_list_v1_disable_global_pause
 	public fun
 	0x2::coin
-deny_list_v2_is_global_pause_enabled_current_epoch
+deny_list_v1_is_global_pause_enabled_current_epoch
 	public fun
 	0x2::coin
-deny_list_v2_is_global_pause_enabled_next_epoch
+deny_list_v1_is_global_pause_enabled_next_epoch
 	public fun
 	0x2::coin
 mint_and_transfer

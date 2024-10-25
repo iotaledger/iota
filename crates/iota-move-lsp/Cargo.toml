@@ -7,7 +7,9 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 clap = { version = "4.1.4", features = ["derive"] }
 
+# internal dependencies
 bin-version.workspace = true
 move-analyzer.workspace = true

@@ -11,7 +11,7 @@ packages:
   - "!sdk/typescript/cryptography"
   - "!sdk/typescript/faucet"
   - "!sdk/typescript/graphql"
-  - "!sdk/typescript/graphql/schemas/2024.9"
+  - "!sdk/typescript/graphql/schemas/2024.10"
   - "!sdk/typescript/keypairs/ed25519"
   - "!sdk/typescript/keypairs/secp256k1"
   - "!sdk/typescript/keypairs/secp256r1"

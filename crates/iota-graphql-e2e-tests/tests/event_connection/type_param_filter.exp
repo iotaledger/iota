@@ -38,19 +38,19 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "5JYD4dXX1dbKTpkmyyzCjV4rwnDbRBpHF5MqzmUkuS5E"
+          "digest": "5kxKxJyFgHd4UJ5hRdDAqFKpxQ2By93WD5QBirmGxV5G"
         },
         {
-          "digest": "EqkWPPagLLCKcQn11rZ7KwX1tC8XfpFqbMFNVStrTe81"
+          "digest": "BEXbvgKWGQhMvS1PoV2a7c2Wgr3dfK229ir5Ubkfhm8o"
         },
         {
-          "digest": "5TEQsvzLeoPi3qUd9j3f6qDQLKbVsYBBRzQrFiQkytKJ"
+          "digest": "AzMRRSR2Uu39kRnpNZQDAs7Mg9rfo57uZn4zk7D8n9Ly"
         },
         {
-          "digest": "DDqyd568PKJmv6CGqqyFCzNXEtzm1yym6yC1a5NfwdKe"
+          "digest": "5ZnHMJYaowR9GX7j6uUbeJgDqDUwk8z5j9d5QeZ87w3E"
         },
         {
-          "digest": "DPFvzMLTHbcUccPSpkJVPy4gEDyy2uSc6DYzvdkzeGcn"
+          "digest": "tqCdKSzTf2AtDS5QwSup41Vr1kSGtzUMWZuAgKNHRNu"
         }
       ]
     }
@@ -65,7 +65,7 @@ Response: {
       "nodes": [
         {
           "type": {
-            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T1>"
+            "repr": "0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::EventA<0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -78,7 +78,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T2>"
+            "repr": "0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::EventA<0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::T2>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -91,7 +91,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T1>"
+            "repr": "0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::EventA<0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -104,7 +104,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T2>"
+            "repr": "0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::EventA<0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::T2>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -128,7 +128,7 @@ Response: {
       "nodes": [
         {
           "type": {
-            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T1>"
+            "repr": "0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::EventA<0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -141,7 +141,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::EventA<0x3477401412a9abe2698c2f0ab1d266c99273ced74f467f35e67e26a903c3e70c::M1::T1>"
+            "repr": "0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::EventA<0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -157,12 +157,26 @@ Response: {
   }
 }
 
-task 9, lines 80-93:
+task 9, lines 80-95:
 //# run-graphql
 Response: {
   "data": {
     "events": {
-      "nodes": []
+      "nodes": [
+        {
+          "type": {
+            "repr": "0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::EventA<0x2792abbe5866e4e9d048ea7b9a41fe13b198b4fdf6e3d8b68032e4b9e1065de9::M1::T2>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        }
+      ]
     }
   }
 }

@@ -427,7 +427,6 @@ async fn test_get_tx_from_fallback() {
 #[cfg(msim)]
 mod simtests {
     use std::{
-        net::SocketAddr,
         sync::Mutex,
         time::{Duration, Instant},
     };
@@ -441,6 +440,8 @@ mod simtests {
     use iota_macros::sim_test;
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
+    use rustls::crypto::{CryptoProvider, ring};
+    use tokio::net::TcpListener;
     use tracing::info;
 
     use super::*;
