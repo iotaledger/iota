@@ -174,10 +174,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
 
-    // Set number of leaders per round for Mysticeti commits.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mysticeti_num_leaders_per_round: Option<usize>,
-
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
     passkey_auth: bool,
@@ -1048,10 +1044,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_vdf
     }
 
-    pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
-        self.feature_flags.mysticeti_num_leaders_per_round
-    }
-
     pub fn passkey_auth(&self) -> bool {
         self.feature_flags.passkey_auth
     }
@@ -1637,8 +1629,6 @@ impl ProtocolConfig {
         // Enable leader scoring & schedule change on mainnet for mysticeti.
         cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
-        cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
-
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
 
@@ -1794,10 +1784,6 @@ impl ProtocolConfig {
 
     pub fn set_mysticeti_leader_scoring_and_schedule_for_testing(&mut self, val: bool) {
         self.feature_flags.mysticeti_leader_scoring_and_schedule = val;
-    }
-
-    pub fn set_mysticeti_num_leaders_per_round_for_testing(&mut self, val: Option<usize>) {
-        self.feature_flags.mysticeti_num_leaders_per_round = val;
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
