@@ -46,6 +46,7 @@ const developer = [
                     'developer/iota-101/move-overview/init',
                     'developer/iota-101/move-overview/entry-functions',
                     'developer/iota-101/move-overview/one-time-witness',
+                    'developer/iota-101/move-overview/visibility',
                     {
                         type: 'category',
                         label: 'Package Upgrades',
@@ -54,6 +55,17 @@ const developer = [
                             'developer/iota-101/move-overview/package-upgrades/upgrade',
                             'developer/iota-101/move-overview/package-upgrades/automated-address-management',
                             'developer/iota-101/move-overview/package-upgrades/custom-policies',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Structs and Abilities',
+                        items: [
+                            'developer/iota-101/move-overview/structs-and-abilities/struct',
+                            'developer/iota-101/move-overview/structs-and-abilities/copy',
+                            'developer/iota-101/move-overview/structs-and-abilities/drop',
+                            'developer/iota-101/move-overview/structs-and-abilities/key',
+                            'developer/iota-101/move-overview/structs-and-abilities/store',
                         ],
                     },
                     {
