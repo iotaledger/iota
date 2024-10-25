@@ -10,11 +10,7 @@
     "action": {
         "default_popup": "ui.html?type=popup"
     },
-    "host_permissions": [
-        "http://127.0.0.1:5001/",
-        "https://fullnode.devnet.iota.org/",
-        "https://fullnode.staging.iota.org/"
-    ],
+    "host_permissions": ["https://fullnode.devnet.iota.org/", "https://fullnode.staging.iota.org/"],
     "icons": {
         "16": "manifest/icons/iota-icon-16.png",
         "32": "manifest/icons/iota-icon-32.png",
@@ -32,10 +28,6 @@
         {
             "resources": ["dapp-interface.js"],
             "matches": ["<all_urls>"]
-        },
-        {
-            "resources": ["ui.html"],
-            "matches": ["https://*.banxa.com/*"]
         }
     ],
     "content_security_policy": {
