@@ -103,17 +103,6 @@ pub enum EffectsFinalityInfo {
 /// is confirmed to be executed on this node before the response returns.
 pub type IsTransactionExecutedLocally = bool;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum ExecuteTransactionResponse {
-    EffectsCert(
-        Box<(
-            FinalizedEffects,
-            TransactionEvents,
-            IsTransactionExecutedLocally,
-        )>,
-    ),
-}
-
 #[derive(Clone, Debug)]
 pub struct QuorumDriverRequest {
     pub transaction: VerifiedTransaction,
@@ -155,17 +144,6 @@ pub struct ExecuteTransactionRequestV1 {
     pub include_input_objects: bool,
     pub include_output_objects: bool,
     pub include_auxiliary_data: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct VerifiedExecuteTransactionResponseV1 {
-    pub effects: VerifiedCertifiedTransactionEffects,
-    pub events: Option<TransactionEvents>,
-    // Input objects will only be populated in the happy path
-    pub input_objects: Option<Vec<Object>>,
-    // Output objects will only be populated in the happy path
-    pub output_objects: Option<Vec<Object>>,
-    pub auxiliary_data: Option<Vec<u8>>,
 }
 
 impl ExecuteTransactionRequestV1 {
