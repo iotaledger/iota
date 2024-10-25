@@ -55,14 +55,7 @@ impl<T> TypeLayoutStore for T where T: BackingPackageStore {}
 
 #[derive(Debug)]
 pub enum ExecutionResults {
-    V1(ExecutionResultsV1),
     V2(ExecutionResultsV2),
-}
-
-#[derive(Debug)]
-pub struct ExecutionResultsV1 {
-    pub object_changes: BTreeMap<ObjectID, ObjectChange>,
-    pub user_events: Vec<Event>,
 }
 
 /// Used by iota-execution v1 and above, to capture the execution results from
