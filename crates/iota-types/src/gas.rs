@@ -57,8 +57,6 @@ pub mod checked {
     #[enum_dispatch(IotaGasStatusAPI)]
     #[derive(Debug)]
     pub enum IotaGasStatus {
-        // V1 does not exists any longer as it was a pre mainnet version.
-        // So we start the enum from V2
         V1(IotaGasStatusV1),
     }
 
