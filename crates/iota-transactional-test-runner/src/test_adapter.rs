@@ -37,11 +37,10 @@ use iota_storage::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID,
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
-    IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS,
-    STARDUST_PACKAGE_ID,
+    BRIDGE_ADDRESS, IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS,
+    IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
+    MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
     base_types::{
         IOTA_ADDRESS_LENGTH, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber,
     },
@@ -109,7 +108,6 @@ const DEFAULT_GAS_PRICE: u64 = 1_000;
 
 const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
     MOVE_STDLIB_PACKAGE_ID,
-    DEEPBOOK_PACKAGE_ID,
     IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_SYSTEM_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
@@ -1899,13 +1897,6 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
         ),
     );
     map.insert(
-        "deepbook".to_string(),
-        NumericalAddress::new(
-            DEEPBOOK_ADDRESS.into_bytes(),
-            move_compiler::shared::NumberFormat::Hex,
-        ),
-    );
-    map.insert(
         "stardust".to_string(),
         NumericalAddress::new(
             STARDUST_ADDRESS.into_bytes(),
@@ -1942,11 +1933,6 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
         buf.extend(["packages", "move-stdlib", "sources"]);
         buf.to_string_lossy().to_string()
     };
-    let deepbook_sources = {
-        let mut buf = iota_files.to_path_buf();
-        buf.extend(["packages", "deepbook", "sources"]);
-        buf.to_string_lossy().to_string()
-    };
     let config = PackageConfig {
         edition: Edition::E2024_BETA,
         flavor: Flavor::Iota,
@@ -1960,13 +1946,7 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: Some(("iota-framework".into(), config)),
-            paths: vec![
-                iota_system_sources,
-                iota_sources,
-                iota_deps,
-                deepbook_sources,
-                bridge_sources,
-            ],
+            paths: vec![iota_system_sources, iota_sources, iota_deps, bridge_sources],
             named_address_map: NAMED_ADDRESSES.clone(),
         }],
         None,
