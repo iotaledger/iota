@@ -106,8 +106,8 @@ pub const DEFAULT_EPOCH_ID: EpochId = 0;
 pub const IOTA_PRIV_KEY_PREFIX: &str = "iotaprivkey";
 
 /// Creates a proof of that the authority account address is owned by the
-/// holder of authority protocol key, and also ensures that the authority
-/// protocol public key exists. A proof of possession is an authority
+/// holder of authority key, and also ensures that the authority
+/// public key exists. A proof of possession is an authority
 /// signature committed over the intent message `intent || message || epoch`
 /// (See more at [struct IntentMessage] and [struct Intent]) where the message
 /// is constructed as `authority_pubkey_bytes || authority_account_address`.
@@ -126,23 +126,23 @@ pub fn generate_proof_of_possession(
 }
 
 /// Verify proof of possession against the expected intent message,
-/// consisting of the protocol pubkey and the authority account address.
+/// consisting of the authority pubkey and the authority account address.
 pub fn verify_proof_of_possession(
     pop: &AuthoritySignature,
-    protocol_pubkey: &AuthorityPublicKey,
+    authority_pubkey: &AuthorityPublicKey,
     iota_address: IotaAddress,
 ) -> Result<(), IotaError> {
-    protocol_pubkey
+    authority_pubkey
         .validate()
         .map_err(|_| IotaError::InvalidSignature {
             error: "Fail to validate pubkey".to_string(),
         })?;
-    let mut msg = protocol_pubkey.as_bytes().to_vec();
+    let mut msg = authority_pubkey.as_bytes().to_vec();
     msg.extend_from_slice(iota_address.as_ref());
     pop.verify_secure(
         &IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg),
         DEFAULT_EPOCH_ID,
-        protocol_pubkey.into(),
+        authority_pubkey.into(),
     )
 }
 ///////////////////////////////////////////////

@@ -11,36 +11,36 @@ description = "Adapter and accompanying CLI for local iota development"
 workspace = true
 
 [dependencies]
+# external dependencies
 anyhow = { workspace = true, features = ["backtrace"] }
 bcs.workspace = true
 leb128.workspace = true
+parking_lot.workspace = true
 serde.workspace = true
 tracing.workspace = true
 
+# internal dependencies
+iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-move-natives = { path = "../iota-move-natives", package = "iota-move-natives-v0" }
+iota-protocol-config.workspace = true
+iota-types.workspace = true
+iota-verifier = { path = "../iota-verifier", package = "iota-verifier-v0" }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
+move-bytecode-verifier = { path = "../../../external-crates/move/move-execution/v0/crates/move-bytecode-verifier", package = "move-bytecode-verifier-v0" }
 move-bytecode-verifier-meter.workspace = true
 move-core-types.workspace = true
 move-vm-config.workspace = true
-move-vm-types.workspace = true
-
-iota-move-natives = { path = "../iota-move-natives", package = "iota-move-natives-v0" }
-iota-verifier = { path = "../iota-verifier", package = "iota-verifier-v0" }
-move-bytecode-verifier = { path = "../../../external-crates/move/move-execution/v0/crates/move-bytecode-verifier", package = "move-bytecode-verifier-v0" }
 move-vm-profiler = { path = "../../../external-crates/move/crates/move-vm-profiler" }
 move-vm-runtime = { path = "../../../external-crates/move/move-execution/v0/crates/move-vm-runtime", package = "move-vm-runtime-v0" }
-
-iota-macros.workspace = true
-iota-protocol-config.workspace = true
-iota-types.workspace = true
-parking_lot.workspace = true
+move-vm-types.workspace = true
 
 [features]
 gas-profiler = [
   "iota-types/gas-profiler",
-  "move-vm-runtime/gas-profiler",
-  "move-vm-profiler/gas-profiler",
-  "move-vm-types/gas-profiler",
   "move-vm-config/gas-profiler",
+  "move-vm-profiler/gas-profiler",
+  "move-vm-runtime/gas-profiler",
+  "move-vm-types/gas-profiler",
 ]

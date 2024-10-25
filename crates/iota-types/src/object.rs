@@ -177,7 +177,7 @@ impl MoveObject {
 
     pub fn id_opt(contents: &[u8]) -> Result<ObjectID, ObjectIDParseError> {
         if ID_END_INDEX > contents.len() {
-            return Err(ObjectIDParseError::TryFromSliceError);
+            return Err(ObjectIDParseError::TryFromSlice);
         }
         ObjectID::try_from(&contents[0..ID_END_INDEX])
     }
