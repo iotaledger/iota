@@ -165,7 +165,7 @@ jobs:
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
-  
+
   ledgernano:
     if: (!cancelled() && !failure()) && needs.diff.outputs.isLedgerjs == 'true' && github.event.pull_request.draft == false
     needs:
@@ -175,4 +175,3 @@ jobs:
       - typos
     uses: ./.github/workflows/_ledgernano.yml
     secrets: inherit
-
