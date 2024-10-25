@@ -24,9 +24,12 @@ on:
       isDevelop:
         type: boolean
         required: true
+      githubRef:
+        type: boolean
+        required: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.githubRef }}
   cancel-in-progress: true
 
 jobs:

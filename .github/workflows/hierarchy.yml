@@ -165,3 +165,4 @@ jobs:
       isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
       isDevelop: ${{ github.ref_name == 'develop' }}
+      githubRef: ${{ github.event.pull_request.number || github.ref }}
