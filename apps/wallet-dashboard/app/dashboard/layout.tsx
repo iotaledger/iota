@@ -3,9 +3,10 @@
 'use client';
 
 import { Notifications, RouteLink } from '@/components/index';
-import React, { useState, type PropsWithChildren } from 'react';
-import { ConnectButton } from '@iota/dapp-kit';
+import React, { useEffect, useState, type PropsWithChildren } from 'react';
+import { ConnectButton, useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import { Button } from '@iota/apps-ui-kit';
+import { useRouter } from 'next/navigation';
 
 const routes = [
     { title: 'Home', path: '/dashboard/home' },
@@ -19,7 +20,10 @@ const routes = [
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const { connectionStatus } = useCurrentWallet();
+    const account = useCurrentAccount();
 
+    const router = useRouter();
     const toggleDarkMode = () => {
         setIsDarkMode(!isDarkMode);
         if (isDarkMode) {
@@ -29,7 +33,12 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
         }
     };
 
-    // TODO: check if the wallet is connected and if not redirect to the welcome screen
+    useEffect(() => {
+        if (connectionStatus !== 'connected' && !account) {
+            router.push('/');
+        }
+    }, [connectionStatus, account, router]);
+
     return (
         <>
             <section className="flex flex-row items-center justify-around pt-12">
