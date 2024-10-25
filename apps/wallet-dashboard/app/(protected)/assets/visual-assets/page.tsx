@@ -9,6 +9,7 @@ import { AssetCard, VirtualList } from '@/components/index';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
 import { useRouter } from 'next/navigation';
+import { ASSETS_ROUTE } from '@/lib/constants';
 
 function VisualAssetsPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -29,7 +30,7 @@ function VisualAssetsPage(): JSX.Element {
     const virtualItem = (asset: IotaObjectData): JSX.Element => <AssetCard asset={asset} />;
 
     const handleClick = (objectId: string) => {
-        router.push(`/dashboard/assets/visual-assets/${objectId}`);
+        router.push(ASSETS_ROUTE.path + `/visual-assets/${objectId}`);
     };
 
     return (

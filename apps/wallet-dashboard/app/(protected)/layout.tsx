@@ -6,24 +6,16 @@ import { Notifications, RouteLink } from '@/components/index';
 import React, { useEffect, useState, type PropsWithChildren } from 'react';
 import { ConnectButton, useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import { Button } from '@iota/apps-ui-kit';
-import { useRouter } from 'next/navigation';
-
-const routes = [
-    { title: 'Home', path: '/dashboard/home' },
-    { title: 'Assets', path: '/dashboard/assets' },
-    { title: 'Staking', path: '/dashboard/staking' },
-    { title: 'Apps', path: '/dashboard/apps' },
-    { title: 'Activity', path: '/dashboard/activity' },
-    { title: 'Migrations', path: '/dashboard/migrations' },
-    { title: 'Vesting', path: '/dashboard/vesting' },
-];
+import { redirect } from 'next/navigation';
+import { PROTECTED_ROUTES } from '@/lib/constants';
+import { Sidebar } from './components';
+import { TopNav } from './components/top-nav/TopNav';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
 
-    const router = useRouter();
     const toggleDarkMode = () => {
         setIsDarkMode(!isDarkMode);
         if (isDarkMode) {
@@ -35,22 +27,29 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
 
     useEffect(() => {
         if (connectionStatus !== 'connected' && !account) {
-            router.push('/');
+            redirect('/');
         }
-    }, [connectionStatus, account, router]);
+    }, [connectionStatus, account]);
 
     return (
-        <>
-            <section className="flex flex-row items-center justify-around pt-12">
-                <Notifications />
-                {routes.map((route) => {
-                    return <RouteLink key={route.title} {...route} />;
-                })}
-                <Button onClick={toggleDarkMode} text={isDarkMode ? 'Light Mode' : 'Dark Mode'} />
-                <ConnectButton />
-            </section>
+        <div className="h-full">
+            <Sidebar />
+            <div className="container">
+                <TopNav />
+                <div className="flex flex-row items-center justify-around pt-12">
+                    <Notifications />
+                    {PROTECTED_ROUTES.map(({ title, path }) => (
+                        <RouteLink key={title} title={title} path={path} />
+                    ))}
+                    <Button
+                        onClick={toggleDarkMode}
+                        text={isDarkMode ? 'Light Mode' : 'Dark Mode'}
+                    />
+                    <ConnectButton />
+                </div>
+            </div>
             <div>{children}</div>
-        </>
+        </div>
     );
 }
 
