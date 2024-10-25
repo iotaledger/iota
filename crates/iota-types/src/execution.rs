@@ -55,7 +55,7 @@ impl<T> TypeLayoutStore for T where T: BackingPackageStore {}
 
 #[derive(Debug)]
 pub enum ExecutionResults {
-    V2(ExecutionResultsV1),
+    V1(ExecutionResultsV1),
 }
 
 /// Used by iota-execution v1 and above, to capture the execution results from
