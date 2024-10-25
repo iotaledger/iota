@@ -24,7 +24,13 @@ function HomeDashboardPage(): JSX.Element {
     return (
         <main className="flex h-screen">
             <div className="hidden sm:flex md:w-1/4">
-                <video autoPlay muted loop className="h-full w-full object-cover">
+                <video
+                    autoPlay
+                    muted
+                    loop
+                    className="h-full w-full object-cover"
+                    disableRemotePlayback
+                >
                     <source
                         src="https://files.iota.org/media/tooling/wallet-dashboard-welcome.mp4"
                         type="video/mp4"
