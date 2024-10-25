@@ -29,6 +29,7 @@ jobs:
       isAppsUiKit: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/apps-ui-kit')) }}
       isWalletDashboard: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'wallet-dashboard')) }}
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
+      isLedgerjs: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/ledgerjs-hw-app-iota')) }}
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       - name: Detect Changes (turbo)
@@ -164,3 +165,15 @@ jobs:
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
+      isDevelop: ${{ github.ref_name == 'develop' }}
+      githubRef: ${{ github.event.pull_request.number || github.ref }}
+
+  ledgernano:
+    if: (!cancelled() && !failure()) && needs.diff.outputs.isLedgerjs == 'true' && github.event.pull_request.draft == false
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    uses: ./.github/workflows/_ledgernano.yml
+    secrets: inherit
