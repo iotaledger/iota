@@ -1260,7 +1260,7 @@ fn try_multi_get_past_objects() {
 }
 
 #[test]
-fn get_loaded_child_objects() {
+fn try_get_object_before_version() {
     let ApiTestSetup {
         runtime,
         store,
@@ -1271,7 +1271,7 @@ fn get_loaded_child_objects() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let result = client
-            .get_loaded_child_objects(TransactionDigest::ZERO)
+            .try_get_object_before_version(ObjectID::ZERO, SequenceNumber::from_u64(1))
             .await;
         assert!(rpc_call_error_msg_matches(
             result,

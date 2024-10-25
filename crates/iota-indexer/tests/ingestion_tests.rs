@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #[allow(dead_code)]
-// #[cfg(feature = "pg_integration")]
+#[cfg(feature = "pg_integration")]
 mod common;
-// #[cfg(feature = "pg_integration")]
+#[cfg(feature = "pg_integration")]
 mod ingestion_tests {
-    use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+    use std::sync::Arc;
 
     use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
     use iota_indexer::{
@@ -14,8 +14,6 @@ mod ingestion_tests {
         errors::{Context, IndexerError},
         models::{objects::StoredObject, transactions::StoredTransaction},
         schema::{objects, transactions},
-        store::{PgIndexerStore, indexer_store::IndexerStore},
-        test_utils::{ReaderWriterConfig, start_test_indexer},
     };
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
@@ -23,11 +21,10 @@ mod ingestion_tests {
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
-    use tokio::task::JoinHandle;
 
-    // use crate::common::{
-    //     indexer_wait_for_checkpoint,
-    // start_simulacrum_rest_api_with_write_indexer, };
+    use crate::common::{
+        indexer_wait_for_checkpoint, start_simulacrum_rest_api_with_write_indexer,
+    };
 
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{
@@ -38,61 +35,6 @@ mod ingestion_tests {
                 .run($query)
                 .map_err(|e| IndexerError::PostgresRead(e.to_string()))
         }};
-    }
-
-    const DEFAULT_SERVER_PORT: u16 = 3000;
-    const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
-
-    /// Set up a test indexer fetching from a REST endpoint served by the given
-    /// Simulacrum.
-    async fn set_up(
-        sim: Arc<Simulacrum>,
-        data_ingestion_path: PathBuf,
-    ) -> (
-        JoinHandle<()>,
-        PgIndexerStore<diesel::PgConnection>,
-        JoinHandle<Result<(), IndexerError>>,
-    ) {
-        let server_url: SocketAddr = format!("127.0.0.1:{}", DEFAULT_SERVER_PORT)
-            .parse()
-            .unwrap();
-
-        let server_handle = tokio::spawn(async move {
-            iota_rest_api::RestService::new_without_version(sim)
-                .start_service(server_url)
-                .await;
-        });
-        // Starts indexer
-        let (pg_store, pg_handle) = start_test_indexer(
-            Some(DEFAULT_DB_URL.to_owned()),
-            format!("http://{}", server_url),
-            ReaderWriterConfig::writer_mode(None),
-            data_ingestion_path,
-        )
-        .await;
-        (server_handle, pg_store, pg_handle)
-    }
-
-    /// Wait for the indexer to catch up to the given checkpoint sequence
-    /// number.
-    async fn wait_for_checkpoint(
-        pg_store: &PgIndexerStore<diesel::PgConnection>,
-        checkpoint_sequence_number: u64,
-    ) -> Result<(), IndexerError> {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            while {
-                let cp_opt = pg_store
-                    .get_latest_checkpoint_sequence_number()
-                    .await
-                    .unwrap();
-                cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
-            } {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-        })
-        .await
-        .expect("Timeout waiting for indexer to catchup to checkpoint");
-        Ok(())
     }
 
     #[tokio::test]
@@ -110,13 +52,10 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         let checkpoint = sim.create_checkpoint();
 
-        // let (_, pg_store, _) =
-        // start_simulacrum_rest_api_with_write_indexer(Arc::new(sim)).await;
-        let (_, pg_store, _) = set_up(Arc::new(sim), data_ingestion_path).await;
+        let (_, pg_store, _) =
+            start_simulacrum_rest_api_with_write_indexer(Arc::new(sim), data_ingestion_path).await;
 
-        // Wait for the indexer to catch up to the checkpoint.
-        // indexer_wait_for_checkpoint(&pg_store, 1).await;
-        wait_for_checkpoint(&pg_store, 1).await;
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let digest = effects.transaction_digest();
 
@@ -158,10 +97,10 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         let _ = sim.create_checkpoint();
 
-        let (_, pg_store, _) = set_up(Arc::new(sim), data_ingestion_path).await;
+        let (_, pg_store, _) =
+            start_simulacrum_rest_api_with_write_indexer(Arc::new(sim), data_ingestion_path).await;
 
-        // Wait for the indexer to catch up to the checkpoint.
-        wait_for_checkpoint(&pg_store, 1).await?;
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let obj_id = transaction.gas()[0].0;
 
