@@ -7,6 +7,9 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
+anemo.workspace = true
+fastcrypto.workspace = true
 fdlimit.workspace = true
 indexmap.workspace = true
 once_cell.workspace = true
@@ -16,11 +19,9 @@ tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tonic.workspace = true
 tracing.workspace = true
 
+# internal dependencies
 config = { path = "../config", package = "narwhal-config" }
 crypto = { path = "../crypto", package = "narwhal-crypto" }
-fastcrypto.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 types = { path = "../types", package = "narwhal-types" }
-
-anemo.workspace = true

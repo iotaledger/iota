@@ -384,9 +384,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             .map(|config| {
                 info!(
                     "SwarmBuilder configuring validator with name {}",
-                    config.protocol_public_key()
+                    config.authority_public_key()
                 );
-                (config.protocol_public_key(), Node::new(config.to_owned()))
+                (config.authority_public_key(), Node::new(config.to_owned()))
             })
             .collect();
 
@@ -424,9 +424,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 let config = builder.build(&mut OsRng, &network_config);
                 info!(
                     "SwarmBuilder configuring full node with name {}",
-                    config.protocol_public_key()
+                    config.authority_public_key()
                 );
-                nodes.insert(config.protocol_public_key(), Node::new(config));
+                nodes.insert(config.authority_public_key(), Node::new(config));
             });
         }
         Swarm {
@@ -535,7 +535,7 @@ impl Swarm {
     }
 
     pub async fn spawn_new_node(&mut self, config: NodeConfig) -> IotaNodeHandle {
-        let name = config.protocol_public_key();
+        let name = config.authority_public_key();
         let node = Node::new(config);
         node.start().await.unwrap();
         let handle = node.get_node_handle().unwrap();

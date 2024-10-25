@@ -10,8 +10,7 @@ Each validator participating in the ceremony will need the following:
 - Ed25519 Public key(s)
 - Iota network address
 - p2p_address network address
-- Narwhal_primary_address network address
-- Narwhal_worker_address network address
+- primary_address network address
 
 Note:
 
@@ -39,20 +38,19 @@ $ git push
 
 2. Contribute Validator information
 
-Once the shared workspace has been initialized, each validator can contribute their information (worker key and network key must be different):
+Once the shared workspace has been initialized, each validator can contribute their information (protocol key and network key must be different):
 
 ```
 $ git clone <url to genesis repo> && cd genesis
 $ iota genesis-ceremony add-validator \
     --name <human-readable validator name> \
-    --validator-key-file <BLS12381KeyPair VALIDATOR_KEY_FILE> \
-    --worker-key-file <Ed25519KeyPair WORKER_KEY_FILE> \
+    --authority-key-file <BLS12381KeyPair AUTHORITY_KEY_FILE> \
+    --protocol-key-file <Ed25519KeyPair PROTOCOL_KEY_FILE> \
     --account-key-file <Ed25519KeyPair ACCOUNT_KEY_FILE> \
     --network-key-file <Ed25519KeyPair NETWORK_KEY_FILE> \
     --network-address <multiaddr TCP> \
     --p2p-address <multiaddr UDP> \
-    --narwhal-primary-address <multiaddr UDP> \
-    --narwhal-worker-address <multiaddr UDP> \
+    --primary-address <multiaddr UDP> \
     --description <validator description> \
     --image-url <validator image url> \
     --project-url <validator project url>
@@ -67,14 +65,13 @@ Example:
 ```
 $ iota genesis-ceremony add-validator \
     --name validator0 \
-    --validator-key-file ./validator0/bls-0x7f9ca307a22d8ef380f1c702743e385baa1b01ba33a7e99f15ced59352e5a0a7.key \
-    --worker-key-file ./validator0/0x6c58f5df3d6749863ebac6592b1e4320e73ca7785764c93af7ea9ad63b98ded4.key \
+    --authority-key-file ./validator0/bls-0x7f9ca307a22d8ef380f1c702743e385baa1b01ba33a7e99f15ced59352e5a0a7.key \
+    --protocol-key-file ./validator0/0x6c58f5df3d6749863ebac6592b1e4320e73ca7785764c93af7ea9ad63b98ded4.key \
     --account-key-file ./validator0/0x1d1d0a66c82ba4b2c6a307b8fb85f675aa8af66d1ec1e41e21e677b3c3b38053.key \
     --network-key-file ./validator0/0x1d1d0a66c82ba4b2c6a307b8fb85f675aa8af66d1ec1e41e21e677b3c3b38053.key \
     --network-address /ip4/127.0.0.1/tcp/38189/http \
     --p2p-address /ip4/127.0.0.1/udp/34523 \
-    --narwhal-primary-address /ip4/127.0.0.1/udp/38603 \
-    --narwhal-worker-address /ip4/127.0.0.1/udp/36603 \
+    --primary-address /ip4/127.0.0.1/udp/38603 \
     --description validator0 \
     --image-url https://www.iota.org/favicon.png \
     --project-url https://www.iota.org
