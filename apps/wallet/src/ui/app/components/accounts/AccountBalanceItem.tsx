@@ -29,7 +29,7 @@ export function AccountBalanceItem({ account }: AccountBalanceItemProps): JSX.El
                 <div className="flex w-full flex-row items-center justify-between">
                     <div className="text-steel-dark flex gap-xs leading-none">
                         <span className="text-body-md">{formatAddress(account.address)}</span>
-                        <div className="flex gap-1 opacity-0 duration-100 group-hover:opacity-100">
+                        <div className="flex gap-xxs opacity-0 duration-100 group-hover:opacity-100">
                             <ButtonUnstyled onClick={copyAddress}>
                                 <Copy className="h-2.5 w-2.5" />
                             </ButtonUnstyled>
