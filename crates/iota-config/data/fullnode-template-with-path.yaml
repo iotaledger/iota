@@ -23,11 +23,11 @@ authority-store-pruning-config:
   max-transactions-in-batch: 1000
   pruning-run-delay-seconds: 60
 
-protocol-key-pair:
-  path: "protocol.key"
+authority-key-pair:
+  path: "authority.key"
 network-key-pair:
   path: "network.key"
 account-key-pair:
   path: "account.key"
-worker-key-pair:
-  path: "worker.key"
+protocol-key-pair:
+  path: "protocol.key"
