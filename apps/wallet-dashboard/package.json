@@ -15,6 +15,7 @@
         "node": ">= v18.17.0"
     },
     "dependencies": {
+        "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
