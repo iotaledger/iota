@@ -54,8 +54,8 @@ export type { FragmentOf, ResultOf, VariablesOf, TadaDocumentNode } from 'gql.ta
 export { readFragment, maskFragments } from 'gql.tada';
 
 export const graphql = initGraphQLTada<{
-	introspection: introspection;
-	scalars: CustomScalars;
+    introspection: introspection;
+    scalars: CustomScalars;
 }>();
 `.trimStart(),
     );
