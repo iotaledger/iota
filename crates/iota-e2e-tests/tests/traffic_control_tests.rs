@@ -78,7 +78,14 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
-        spam_policy_type: PolicyType::TestNConnIP(5),
+        // In this test, the validator gRPC API is receiving some requests that don't count towards
+        // the policy and two requests that do (/iota.validator.Validator/CertifiedTransactionV2 for
+        // an already executed transaction). However, the counter is updated only after the response
+        // is generated, but the limit is checked before we handle the request, so at the end we end
+        // up with 2 handled requests even if the limit is set to 1 and only the subsequent request
+        // would be rejected. Set the limit to the actual number of requests, so that it's
+        // not flaky on slower runners.
+        spam_policy_type: PolicyType::TestNConnIP(2),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
         error_policy_type: PolicyType::TestPanicOnInvocation,
@@ -102,6 +109,12 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
+        // The following JSON API requests are counted towards this limit:
+        // 2 x rpc.discover - those are not sent by the test scenario
+        // 5 x iotax_getOwnedObjects
+        // 1 x iotax_getReferenceGasPrice
+        // 2 x iota_executeTransactionBlock
+        // 1 x iota_getTransactionBlock
         spam_policy_type: PolicyType::TestNConnIP(11),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
@@ -210,7 +223,9 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
-        // Test that any N requests will cause an IP to be added to the blocklist.
+        // Test that any N requests to the gRPC API of the validator will cause an IP to be added to
+        // the blocklist. In this test we're directly calling
+        // `/iota.validator.Validator/Transaction` gRPC method to go above the limit.
         error_policy_type: PolicyType::TestNConnIP(n - 1),
         dry_run: false,
         ..Default::default()
@@ -253,7 +268,10 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     let txn_count = 15;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
-        // Test that any N requests will cause an IP to be added to the blocklist.
+        // Test that any N requests will cause an IP to be added to the blocklist. In the test we
+        // are performing `txn_count` `iota_getTransactionBlock` calls to the fullnode's JSON API,
+        // but additionally before that, we're performing other requests, but using `txn_count - 1`
+        // as the limit is enough to test the blocking functionality.
         spam_policy_type: PolicyType::TestNConnIP(txn_count - 1),
         spam_sample_rate: Weight::one(),
         dry_run: false,
