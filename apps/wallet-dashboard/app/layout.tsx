@@ -16,6 +16,7 @@ import { Popup, PopupProvider } from '@/components/Popup';
 import { growthbook } from '@/lib/utils';
 
 const inter = Inter({ subsets: ['latin'] });
+growthbook.init();
 
 export default function RootLayout({
     children,
@@ -26,8 +27,6 @@ export default function RootLayout({
 
     const allNetworks = getAllNetworks();
     const defaultNetwork = getDefaultNetwork();
-
-    growthbook.init();
 
     return (
         <html lang="en">
