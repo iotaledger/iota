@@ -12,8 +12,8 @@
     },
     "host_permissions": [
         "http://127.0.0.1:5001/",
-        "https://fullnode.devnet.iota.io/",
-        "https://fullnode.staging.iota.io/"
+        "https://fullnode.devnet.iota.org/",
+        "https://fullnode.staging.iota.org/"
     ],
     "icons": {
         "16": "manifest/icons/iota-icon-16.png",

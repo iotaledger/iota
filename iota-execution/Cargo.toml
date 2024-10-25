@@ -35,7 +35,6 @@ petgraph = "0.6"
 
 [features]
 default = []
-
 gas-profiler = [
   "iota-adapter-latest/gas-profiler",
   "move-vm-config/gas-profiler",
