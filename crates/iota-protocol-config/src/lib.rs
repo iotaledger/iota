@@ -109,11 +109,14 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
+
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     disable_invariant_violation_check_in_swap_loc: bool,
     // If true, checks no extra bytes in a compiled module
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     no_extraneous_module_bytes: bool,
 
     // Enable zklogin auth
@@ -135,7 +138,8 @@ struct FeatureFlags {
     accept_zklogin_in_multisig: bool,
 
     // If true, use the hardened OTW check
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     hardened_otw_check: bool,
 
     // Enable the poseidon hash function
@@ -183,8 +187,13 @@ struct FeatureFlags {
     authority_capabilities_v2: bool,
 
     // Rethrow type layout errors during serialization instead of trying to convert them.
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
+}
+
+fn is_true(b: &bool) -> bool {
+    *b
 }
 
 fn is_false(b: &bool) -> bool {
@@ -1604,12 +1613,16 @@ impl ProtocolConfig {
             // new_constant: None,
         };
 
-        cfg.feature_flags
-            .disable_invariant_violation_check_in_swap_loc = true;
-        cfg.feature_flags.no_extraneous_module_bytes = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
 
-        cfg.feature_flags.hardened_otw_check = true;
+        // MoveVM related flags
+        {
+            cfg.feature_flags
+                .disable_invariant_violation_check_in_swap_loc = true;
+            cfg.feature_flags.no_extraneous_module_bytes = true;
+            cfg.feature_flags.hardened_otw_check = true;
+            cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
+        }
 
         // zkLogin related flags
         {
@@ -1633,8 +1646,6 @@ impl ProtocolConfig {
 
         // Do not allow bridge committee to finalize on mainnet.
         cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
-
-        cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
 
         cfg.feature_flags.bridge = false;
 

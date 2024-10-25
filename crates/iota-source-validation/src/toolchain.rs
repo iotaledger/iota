@@ -256,9 +256,9 @@ fn download_and_compile(
         let mut dest_binary = dest_version.clone();
         dest_binary.extend(["target", "release"]);
         if platform == "windows-x86_64" {
-            dest_binary.push(&format!("iota-{platform}.exe"));
+            dest_binary.push(format!("iota-{platform}.exe"));
         } else {
-            dest_binary.push(&format!("iota-{platform}"));
+            dest_binary.push(format!("iota-{platform}"));
         }
         let dest_binary_os = OsStr::new(dest_binary.as_path());
         set_executable_permission(dest_binary_os)?;

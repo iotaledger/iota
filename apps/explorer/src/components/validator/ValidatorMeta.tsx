@@ -6,7 +6,7 @@ import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import toast from 'react-hot-toast';
 import { ArrowTopRight } from '@iota/ui-icons';
-import { AddressLink, ImageIcon } from '~/components/ui';
+import { AddressLink, ImageIcon, ImageIconSize } from '~/components/ui';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
@@ -28,12 +28,14 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
             <Panel>
                 <div className="flex flex-col gap-lg p-md--rs md:flex-row">
                     <div className="flex flex-row gap-lg">
-                        <ImageIcon
-                            src={logo}
-                            label={validatorName}
-                            fallback={validatorName}
-                            size="xl"
-                        />
+                        <div className="flex h-[120px] w-[120px]">
+                            <ImageIcon
+                                src={logo}
+                                label={validatorName}
+                                fallback={validatorName}
+                                size={ImageIconSize.Full}
+                            />
+                        </div>
                         <div className="flex flex-col gap-y-sm">
                             <div>
                                 <Badge type={BadgeType.Neutral} label="Validator" />
