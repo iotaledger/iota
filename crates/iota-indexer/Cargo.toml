@@ -7,8 +7,8 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-anyhow.workspace = true
 # external dependencies
+anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 backoff.workspace = true
