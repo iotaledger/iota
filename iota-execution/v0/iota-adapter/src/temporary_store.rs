@@ -1027,9 +1027,8 @@ impl<'backing> Storage for TemporaryStore<'backing> {
 
     /// Take execution results v1.
     fn record_execution_results(&mut self, results: ExecutionResults) {
-        let ExecutionResults::V1(results) = results else {
-            panic!("ExecutionResults::V1 expected in iota-execution v1 and above");
-        };
+        let ExecutionResults::V1(results) = results;
+
         // It's important to merge instead of override results because it's
         // possible to execute PT more than once during tx execution.
         self.execution_results.merge_results(results);
