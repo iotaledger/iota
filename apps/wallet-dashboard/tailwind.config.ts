@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Config } from 'tailwindcss';
-import { uiKitResponsivePreset } from '@iota/apps-ui-kit';
+// Note: exception for the tailwind preset import
+import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive.preset';
 
 export default {
     presets: [uiKitResponsivePreset],
