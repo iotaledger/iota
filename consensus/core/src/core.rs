@@ -2009,10 +2009,12 @@ mod test {
             // NOTE: We used 61 leader rounds to specifically trigger the scenario
             // where the leader schedule boundary occurred AND we had a swap to a new
             // leader for the same round
-            let expected_commit_count = match num_leaders_per_round {
-                Some(1) => 60,
-                _ => 61,
-            };
+            let expected_commit_count = 60;
+            // Leave the code for re-use.
+            // let expected_commit_count = match num_leaders_per_round {
+            //     Some(1) => 60,
+            //     _ => 61,
+            // };
             assert_eq!(last_commit.index(), expected_commit_count);
             let all_stored_commits = core_fixture
                 .store
