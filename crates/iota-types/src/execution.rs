@@ -14,7 +14,7 @@ use crate::{
     event::Event,
     is_system_package,
     object::{Data, Object, Owner},
-    storage::{BackingPackageStore, ObjectChange},
+    storage::BackingPackageStore,
     transaction::Argument,
 };
 
