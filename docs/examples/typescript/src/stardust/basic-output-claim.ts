@@ -22,7 +22,7 @@ async function main() {
     const sender = keypair.toIotaAddress();
     console.log(`Sender address: ${sender}`);
 
-    // Get the AliasOutput object containing the Native tokens.
+    // Get the Basic object containing the Native tokens.
     const basicOutputObjectId = "0xde09139ed46b9f5f876671e4403f312fad867c5ae5d300a252e4b6a6f1fa1fbd";
     const basicOutputObject = await iotaClient.getObject({id: basicOutputObjectId, options: { showContent: true }});
     if (!basicOutputObject) {

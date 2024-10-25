@@ -6,7 +6,8 @@
     "address-unlock-condition": "ts-node src/stardust/address-unlock-condition.ts",
     "alias-migration": "ts-node src/stardust/alias-migration.ts",
     "alias-output-claim": "ts-node src/stardust/alias-output-claim.ts",
-    "basic-output-claim": "ts-node src/stardust/basic-output-claim.ts"
+    "basic-output-claim": "ts-node src/stardust/basic-output-claim.ts",
+    "check-basic-output-unlock-conditions": "ts-node src/stardust/check-basic-output-unlock-conditions.ts"
   },
   "keywords": [],
   "author": "",
