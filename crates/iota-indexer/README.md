@@ -2,7 +2,7 @@ IOTA Indexer is an off-fullnode service to serve data from the IOTA protocol, in
 
 ## Architecture
 
-![enhanced_FN](../../docs/content/operator/images/indexer-arch.png)
+![enhanced_FN](../../docs/site/static/img/operator/indexer-functions/indexer-arch.png)
 
 > [!NOTE]
 >
