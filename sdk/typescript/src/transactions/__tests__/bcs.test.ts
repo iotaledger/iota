@@ -14,7 +14,7 @@ it('can serialize simplified programmable call struct', () => {
         package: '0x2',
         module: 'display',
         function: 'new',
-        typeArguments: [normalizeStructTag('0x6::capy::Capy')],
+        typeArguments: [normalizeStructTag('0x6::iota::IOTA')],
         arguments: [
             {
                 $kind: 'GasCoin',
@@ -104,9 +104,9 @@ it('can serialize transaction data with a programmable transaction', () => {
                                 bytes: bcs
                                     .vector(bcs.String)
                                     .serialize([
-                                        'Capy {name}',
-                                        'A cute little creature',
-                                        'https://api.capy.art/{id}/svg',
+                                        '{name}',
+                                        '{description}',
+                                        'https://api.iota.org/{id}/svg',
                                     ])
                                     .toBase64(),
                             },
@@ -126,7 +126,7 @@ it('can serialize transaction data with a programmable transaction', () => {
                                 package: iota,
                                 module: 'display',
                                 function: 'new',
-                                typeArguments: [`${iota}::capy::Capy`],
+                                typeArguments: [`${iota}::iota::IOTA`],
                                 arguments: [
                                     // publisher object
                                     {
@@ -142,7 +142,7 @@ it('can serialize transaction data with a programmable transaction', () => {
                                 package: iota,
                                 module: 'display',
                                 function: 'add_multiple',
-                                typeArguments: [`${iota}::capy::Capy`],
+                                typeArguments: [`${iota}::iota::IOTA`],
                                 arguments: [
                                     // result of the first transaction
                                     {
@@ -168,7 +168,7 @@ it('can serialize transaction data with a programmable transaction', () => {
                                 package: iota,
                                 module: 'display',
                                 function: 'update_version',
-                                typeArguments: [`${iota}::capy::Capy`],
+                                typeArguments: [`${iota}::iota::IOTA`],
                                 arguments: [
                                     // result of the first transaction again
                                     {

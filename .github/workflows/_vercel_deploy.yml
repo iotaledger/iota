@@ -1,0 +1,92 @@
+name: Vercel Deploys
+
+on:
+  workflow_call:
+    inputs:
+      isExplorer:
+        type: boolean
+        required: true
+      isTypescriptSDK:
+        type: boolean
+        required: true
+      isAppsBackend:
+        type: boolean
+        required: true
+      isAppsUiKit:
+        type: boolean
+        required: true
+      isWalletDashboard:
+        type: boolean
+        required: true
+      shouldDeployPreview:
+        type: boolean
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  explorer-preview:
+    name: Vercel Explorer Preview
+    if: inputs.shouldDeployPreview && inputs.isExplorer
+    uses: ./.github/workflows/apps-explorer.deploy.yml
+    secrets: inherit
+    with:
+      isProd: false
+
+  explorer-prod:
+    name: Vercel Explorer Production
+    if: github.ref_name == 'develop' && inputs.isExplorer
+    uses: ./.github/workflows/apps-explorer.deploy.yml
+    secrets: inherit
+    with:
+      isProd: true
+
+  ui-kit-preview:
+    name: Vercel UI Kit Preview
+    if: inputs.shouldDeployPreview && inputs.isAppsUiKit
+    uses: ./.github/workflows/apps-ui-kit.deploy.yml
+    secrets: inherit
+    with:
+      isProd: false
+
+  ui-kit-prod:
+    name: Vercel UI Kit Preview
+    if: github.ref_name == 'develop' && inputs.isAppsUiKit
+    uses: ./.github/workflows/apps-ui-kit.deploy.yml
+    secrets: inherit
+    with:
+      isProd: true
+
+  wallet-dashboard-preview:
+    name: Vercel Wallet Dashboard Preview
+    if: inputs.shouldDeployPreview && inputs.isWalletDashboard
+    uses: ./.github/workflows/apps-wallet-dashboard.deploy.yml
+    secrets: inherit
+    with:
+      isProd: false
+
+  wallet-dashboard-prod:
+    name: Vercel Wallet Dashboard Production
+    if: github.ref_name == 'develop' && inputs.isWalletDashboard
+    uses: ./.github/workflows/apps-wallet-dashboard.deploy.yml
+    secrets: inherit
+    with:
+      isProd: true
+
+  apps-backend-preview:
+    name: Vercel apps-backend Preview
+    if: inputs.shouldDeployPreview && inputs.isAppsBackend
+    uses: ./.github/workflows/apps-backend.deploy.yml
+    secrets: inherit
+    with:
+      isProd: false
+
+  apps-backend-prod:
+    name: Vercel apps-backend Production
+    if: github.ref_name == 'develop' && inputs.isAppsBackend
+    uses: ./.github/workflows/apps-backend.deploy.yml
+    secrets: inherit
+    with:
+      isProd: true
