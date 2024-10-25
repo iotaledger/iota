@@ -1235,7 +1235,7 @@ export const RPC_METHODS: {
         return {
             epoch: epochId.toString(),
             validators: validatorSet?.activeValidators?.nodes.map((val) => [
-                val.credentials?.protocolPubKey!,
+                val.credentials?.authorityPubKey!,
                 String(val.votingPower),
             ])!,
         };

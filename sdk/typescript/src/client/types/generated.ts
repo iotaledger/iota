@@ -800,6 +800,7 @@ export type IotaTransactionBlockBuilderMode = 'Commit' | 'DevInspect';
  * fields so that they are decoupled from the internal definitions.
  */
 export interface IotaValidatorSummary {
+    authorityPubkeyBytes: string;
     commissionRate: string;
     description: string;
     /** ID of the exchange rate table object. */
@@ -812,6 +813,7 @@ export interface IotaValidatorSummary {
     name: string;
     netAddress: string;
     networkPubkeyBytes: string;
+    nextEpochAuthorityPubkeyBytes?: string | null;
     nextEpochCommissionRate: string;
     nextEpochGasPrice: string;
     nextEpochNetAddress?: string | null;
@@ -821,8 +823,6 @@ export interface IotaValidatorSummary {
     nextEpochProofOfPossession?: string | null;
     nextEpochProtocolPubkeyBytes?: string | null;
     nextEpochStake: string;
-    nextEpochWorkerAddress?: string | null;
-    nextEpochWorkerPubkeyBytes?: string | null;
     operationCapId: string;
     p2pAddress: string;
     /** Pending pool token withdrawn during the current epoch, emptied at epoch boundaries. */
@@ -848,8 +848,6 @@ export interface IotaValidatorSummary {
     /** The total number of IOTA tokens in this pool. */
     stakingPoolIotaBalance: string;
     votingPower: string;
-    workerAddress: string;
-    workerPubkeyBytes: string;
 }
 export interface MoveCallMetrics {
     /** The count of calls of each function in the last 30 days. */
@@ -1114,7 +1112,7 @@ export type ObjectResponseError =
           code: 'unknown';
       }
     | {
-          code: 'displayError';
+          code: 'display';
           error: string;
       };
 export interface IotaObjectResponseQuery {
