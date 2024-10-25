@@ -56,7 +56,7 @@ export type TableProps = {
      */
     paginationOptions?: TablePaginationOptions;
     /**
-     * The action component..
+     * The action component.
      */
     action?: ReactNode;
     /**
@@ -71,6 +71,10 @@ export type TableProps = {
      * Numeric indexes of all the rows.
      */
     rowIndexes: number[];
+    /**
+     * The page size selector component.
+     */
+    pageSizeSelector?: ReactNode;
 };
 
 export function Table({
@@ -80,6 +84,7 @@ export function Table({
     selectedRowIndexes = new Set(),
     rowIndexes,
     children,
+    pageSizeSelector,
 }: PropsWithChildren<TableProps>): JSX.Element {
     return (
         <TableProvider selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
@@ -88,8 +93,10 @@ export function Table({
                     <table className="w-full table-auto">{children}</table>
                 </div>
                 <div
-                    className={cx('flex w-full items-center justify-between gap-2 pt-md', {
+                    className={cx('flex w-full items-center gap-2 pt-md', {
                         hidden: !supportingLabel && !paginationOptions && !action,
+                        'justify-between': paginationOptions,
+                        'justify-end': !paginationOptions && action,
                     })}
                 >
                     {paginationOptions && (
@@ -122,14 +129,19 @@ export function Table({
                                 disabled={!paginationOptions.hasLast}
                                 onClick={paginationOptions.onLast}
                             />
+                            {action}
                         </div>
                     )}
-                    {action}
-                    {supportingLabel && (
-                        <span className="ml-auto text-label-md text-neutral-40 dark:text-neutral-60">
-                            {supportingLabel}
-                        </span>
-                    )}
+                    {supportingLabel || pageSizeSelector ? (
+                        <div className="flex flex-row items-center gap-x-sm">
+                            {supportingLabel && (
+                                <span className=" text-label-md text-neutral-40 dark:text-neutral-60">
+                                    {supportingLabel}
+                                </span>
+                            )}
+                            {pageSizeSelector && <div className="ml-2">{pageSizeSelector}</div>}
+                        </div>
+                    ) : null}
                 </div>
             </div>
         </TableProvider>
