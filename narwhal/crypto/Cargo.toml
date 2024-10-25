@@ -7,9 +7,12 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 bcs.workspace = true
 fastcrypto.workspace = true
 serde.workspace = true
+
+# internal dependencies
 shared-crypto.workspace = true
 
 [features]

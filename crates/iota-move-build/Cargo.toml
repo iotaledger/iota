@@ -8,20 +8,20 @@ publish = false
 description = "Logic for building Iota Move Packages"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 fastcrypto.workspace = true
 serde-reflection.workspace = true
 tempfile.workspace = true
 
-iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
-move-bytecode-verifier = { path = "../../external-crates/move/crates/move-bytecode-verifier" }
-
+# internal dependencies
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-
+iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
+move-bytecode-verifier = { path = "../../external-crates/move/crates/move-bytecode-verifier" }
 move-command-line-common.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true

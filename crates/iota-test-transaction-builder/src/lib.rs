@@ -203,9 +203,9 @@ impl TestTransactionBuilder {
             "request_add_validator_candidate",
             vec![
                 CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Pure(bcs::to_bytes(&validator.protocol_public_key).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&validator.authority_public_key).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.network_public_key).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.worker_public_key).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&validator.protocol_public_key).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.proof_of_possession).unwrap()),
                 CallArg::Pure(bcs::to_bytes(validator.name.as_bytes()).unwrap()),
                 CallArg::Pure(bcs::to_bytes(validator.description.as_bytes()).unwrap()),
@@ -214,7 +214,6 @@ impl TestTransactionBuilder {
                 CallArg::Pure(bcs::to_bytes(&validator.network_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.p2p_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.primary_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.worker_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&DEFAULT_VALIDATOR_GAS_PRICE).unwrap()), // gas_price
                 CallArg::Pure(bcs::to_bytes(&0u64).unwrap()), // commission_rate
             ],

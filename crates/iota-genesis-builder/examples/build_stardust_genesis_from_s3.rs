@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
         let validator_config = ValidatorGenesisConfigBuilder::default().build(&mut rng);
         let validator_info = validator_config.to_validator_info(format!("validator-{i}"));
         builder = builder.add_validator(validator_info.info, validator_info.proof_of_possession);
-        key_pairs.push(validator_config.key_pair);
+        key_pairs.push(validator_config.authority_key_pair);
     }
 
     builder = tokio::task::spawn_blocking(move || {

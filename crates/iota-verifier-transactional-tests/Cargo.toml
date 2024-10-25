@@ -8,7 +8,10 @@ publish = false
 description = "Transactional tests for Iota Verifier"
 
 [dev-dependencies]
+# external dependencies
 datatest-stable.workspace = true
+
+# internal dependencies
 iota-transactional-test-runner.workspace = true
 
 [[test]]

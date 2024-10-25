@@ -1172,7 +1172,7 @@ async fn test_transaction_snapshot() {
     db.insert(&key, &"1".to_string()).unwrap();
     assert!(matches!(
         tx1.commit(),
-        Err(TypedStoreError::RetryableTransactionError)
+        Err(TypedStoreError::RetryableTransaction)
     ));
     assert_eq!(db.get(&key).unwrap().unwrap(), "1".to_string());
 
@@ -1184,7 +1184,7 @@ async fn test_transaction_snapshot() {
         .unwrap();
     assert!(matches!(
         tx1.commit(),
-        Err(TypedStoreError::RetryableTransactionError)
+        Err(TypedStoreError::RetryableTransaction)
     ));
 
     let mut tx1 = db.transaction().expect("failed to initiate transaction");
@@ -1209,7 +1209,7 @@ async fn test_transaction_snapshot() {
     tx1.commit().expect("failed to commit");
     assert!(matches!(
         tx2.commit(),
-        Err(TypedStoreError::RetryableTransactionError)
+        Err(TypedStoreError::RetryableTransaction)
     ));
 
     // IMPORTANT: a race is still possible if one tx commits before the other

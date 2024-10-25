@@ -1,8 +1,8 @@
 ---
+authority-key-pair:
+  path: /opt/iota/key-pairs/authority.key
 protocol-key-pair:
   path: /opt/iota/key-pairs/protocol.key
-worker-key-pair:
-  path: /opt/iota/key-pairs/worker.key
 network-key-pair:
   path: /opt/iota/key-pairs/network.key
 db-path: /opt/iota/db/authorities_db
@@ -10,7 +10,6 @@ network-address: /ip4/0.0.0.0/tcp/8080/http
 metrics-address: 0.0.0.0:9184
 admin-interface-port: 1337
 consensus-config:
-  address: /ip4/127.0.0.1/tcp/8083/http
   db-path: /opt/iota/db/consensus_db
   internal-worker-address: null
   narwhal-config:

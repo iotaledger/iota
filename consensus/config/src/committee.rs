@@ -138,11 +138,14 @@ pub struct Authority {
     pub address: Multiaddr,
     /// The authority's hostname, for metrics and logging.
     pub hostname: String,
-    /// The authority's public key as Iota identity.
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign transactions.
     pub authority_key: AuthorityPublicKey,
-    /// The authority's public key for verifying blocks.
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign consensus blocks.
     pub protocol_key: ProtocolPublicKey,
-    /// The authority's public key for TLS and as network identity.
+    /// The public key bytes corresponding to the private key that the validator
+    /// uses to establish TLS connections.
     pub network_key: NetworkPublicKey,
 }
 
