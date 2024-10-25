@@ -148,7 +148,7 @@ impl ExecuteTransactionRequest {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionRequestV3 {
+pub struct ExecuteTransactionRequestV1 {
     pub transaction: Transaction,
 
     pub include_events: bool,
@@ -158,7 +158,7 @@ pub struct ExecuteTransactionRequestV3 {
 }
 
 #[derive(Clone, Debug)]
-pub struct VerifiedExecuteTransactionResponseV3 {
+pub struct VerifiedExecuteTransactionResponseV1 {
     pub effects: VerifiedCertifiedTransactionEffects,
     pub events: Option<TransactionEvents>,
     // Input objects will only be populated in the happy path
@@ -168,7 +168,7 @@ pub struct VerifiedExecuteTransactionResponseV3 {
     pub auxiliary_data: Option<Vec<u8>>,
 }
 
-impl ExecuteTransactionRequestV3 {
+impl ExecuteTransactionRequestV1 {
     pub fn new_v2<T: Into<Transaction>>(transaction: T) -> Self {
         Self {
             transaction: transaction.into(),
@@ -181,7 +181,7 @@ impl ExecuteTransactionRequestV3 {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionResponseV3 {
+pub struct ExecuteTransactionResponseV1 {
     pub effects: FinalizedEffects,
 
     pub events: Option<TransactionEvents>,

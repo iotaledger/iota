@@ -26,7 +26,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
+        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
         QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
@@ -158,10 +158,10 @@ where
     err)]
     pub async fn execute_transaction_block(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         request_type: ExecuteTransactionRequestType,
         client_addr: Option<SocketAddr>,
-    ) -> Result<(ExecuteTransactionResponseV3, IsTransactionExecutedLocally), QuorumDriverError>
+    ) -> Result<(ExecuteTransactionResponseV1, IsTransactionExecutedLocally), QuorumDriverError>
     {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
@@ -200,7 +200,7 @@ where
             auxiliary_data,
         } = response;
 
-        let response = ExecuteTransactionResponseV3 {
+        let response = ExecuteTransactionResponseV1 {
             effects: FinalizedEffects::new_from_effects_cert(effects_cert.into()),
             events,
             input_objects,
@@ -217,9 +217,9 @@ where
                  fields(tx_digest = ?request.transaction.digest()))]
     pub async fn execute_transaction_v3(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<ExecuteTransactionResponseV3, QuorumDriverError> {
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
         let QuorumDriverResponse {
@@ -233,7 +233,7 @@ where
             .await
             .map(|(_, r)| r)?;
 
-        Ok(ExecuteTransactionResponseV3 {
+        Ok(ExecuteTransactionResponseV1 {
             effects: FinalizedEffects::new_from_effects_cert(effects_cert.into()),
             events,
             input_objects,
@@ -248,7 +248,7 @@ where
     pub async fn execute_transaction_impl(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<(VerifiedTransaction, QuorumDriverResponse), QuorumDriverError> {
         let transaction = epoch_store
@@ -319,7 +319,7 @@ where
     async fn submit(
         &self,
         transaction: VerifiedTransaction,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> IotaResult<impl Future<Output = IotaResult<QuorumDriverResult>> + '_> {
         let tx_digest = *transaction.digest();
@@ -536,7 +536,7 @@ where
                 // world. TODO(william) correctly extract client_addr from logs
                 if let Err(err) = quorum_driver
                     .submit_transaction_no_ticket(
-                        ExecuteTransactionRequestV3 {
+                        ExecuteTransactionRequestV1 {
                             transaction: tx,
                             include_events: true,
                             include_input_objects: false,
@@ -735,9 +735,9 @@ where
 {
     async fn execute_transaction(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         client_addr: Option<std::net::SocketAddr>,
-    ) -> Result<ExecuteTransactionResponseV3, QuorumDriverError> {
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         self.execute_transaction_v3(request, client_addr).await
     }
 }
