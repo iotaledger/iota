@@ -144,11 +144,11 @@ async fn test_zklogin_expired_zklogin_sig() {
         .await;
 
     // trigger reconfiguration that advanced epoch to 1.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     // trigger reconfiguration that advanced epoch to 2.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     // trigger reconfiguration that advanced epoch to 3.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     // load one test vector, the zklogin inputs corresponds to max_epoch = 1
     let (kp, pk_zklogin, inputs) =
