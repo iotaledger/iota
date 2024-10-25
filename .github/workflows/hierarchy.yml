@@ -165,6 +165,8 @@ jobs:
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
+      isDevelop: ${{ github.ref_name == 'develop' }}
+      githubRef: ${{ github.event.pull_request.number || github.ref }}
 
   ledgernano:
     if: (!cancelled() && !failure()) && needs.diff.outputs.isLedgerjs == 'true' && github.event.pull_request.draft == false

@@ -124,7 +124,7 @@ export function ImportRecoveryPhraseForm({
                 })}
             </div>
 
-            <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 py-sm">
+            <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 pt-sm">
                 {touchedFields.recoveryPhrase && errors.recoveryPhrase && (
                     <InfoBox
                         type={InfoBoxType.Default}
