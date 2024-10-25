@@ -164,3 +164,4 @@ jobs:
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
+      isDevelop: ${{ github.ref_name == 'develop' }}
