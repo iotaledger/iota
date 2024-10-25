@@ -1,15 +1,12 @@
 /** Copyright (c) 2024 IOTA Stiftung
  * SPDX-License-Identifier: Apache-2.0
  *
- * Example demonstrating the conversion of a stardust Alias into a custom
- * user's NFT collections controller. In order to work, it requires a network
- * with test objects generated from
- * iota-genesis-builder/src/stardust/test_outputs.
+ * Example demonstrating the claim of an alias output.
+ * In order to work, it requires a network with test objects
+ * generated from iota-genesis-builder/src/stardust/test_outputs.
  */
-
 import {getFullnodeUrl, IotaClient, IotaParsedData} from "@iota/iota-sdk/client";
 import {Ed25519Keypair} from "@iota/iota-sdk/keypairs/ed25519";
-import {publishCustomNftPackage} from "../utils";
 import {Transaction} from "@iota/iota-sdk/transactions";
 
 const MAIN_ADDRESS_MNEMONIC = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -24,22 +21,12 @@ async function main() {
     const sender = keypair.toIotaAddress();
     console.log(`Sender address: ${sender}`);
 
-    const customNftPackageId = await publishCustomNftPackage(iotaClient, keypair);
-    // console.log(`Custom NFT package ID: ${customNftPackageId}`);
-
     // Get the AliasOutput object.
     const aliasOutputObjectId = "0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554";
     const aliasOutputObject = await iotaClient.getObject({id: aliasOutputObjectId, options: { showContent: true }});
     if (!aliasOutputObject) {
         throw new Error("Alias output object not found");
     }
-
-    // // Convert AliasOutput to its rust representation.
-    // const AliasOutput = bcs.struct('AliasOutput', {
-    //     id: bcs.u8(),
-    //     balance: bcs.u64(),
-    //     native_tokens:
-    // })
 
     // Extract contents of the AliasOutput object.
     const moveObject = aliasOutputObject.data?.content as IotaParsedData;
@@ -72,11 +59,7 @@ async function main() {
         });
     }
 
-    // Create a PTB that extracts the related stardust Alias from the AliasOutput
-    // and then calls the
-    // `custom_nft::collection::convert_alias_to_collection_controller_cap` function
-    // to convert it into an NFT collection controller, create a collection and mint
-    // a few NFTs.
+    // Create a PTB to claim the assets related to the alias output.
     const tx = new Transaction();
     const gasTypeTag = "0x2::iota::IOTA";
     const args = [tx.object(aliasOutputObjectId)];
@@ -93,51 +76,6 @@ async function main() {
     const extractedBaseToken = extractedAliasOutputAssets[0];
     let extractedNativeTokensBag: any = extractedAliasOutputAssets[1];
     const alias = extractedAliasOutputAssets[2];
-
-    // Call the conversion function to create an NFT collection controller from the
-    // extracted alias.
-    let nftCollectionController = tx.moveCall({
-        target: `${customNftPackageId}::collection::convert_alias_to_collection_controller_cap`,
-        typeArguments: [],
-        arguments: [alias],
-    });
-
-    // Create an NFT collection.
-    let nftCollection = tx.moveCall({
-        target: `${customNftPackageId}::collection::create_collection`,
-        typeArguments: [],
-        arguments: [nftCollectionController, tx.pure.string("Collection name")],
-    });
-
-    // Mint a collection-related NFT
-    const nftName = tx.pure.string("NFT name");
-    const nftDescription = tx.pure.string("NFT description");
-    const nftUrlVal = tx.pure.string("NFT URL");
-
-    const nftUrl = tx.moveCall({
-        target: `0x2::url::new_unsafe`,
-        typeArguments: [],
-        arguments: [nftUrlVal],
-    });
-
-    const nft = tx.moveCall({
-        target: `${customNftPackageId}::nft::mint_collection_related`,
-        typeArguments: [],
-        arguments: [nftCollection, nftName, nftDescription, nftUrl],
-    });
-
-    // Transfer the NFT.
-    tx.transferObjects([nft], tx.pure.address(sender));
-
-    // Drop the NFT collection to make impossible to mint new related NFTs.
-    tx.moveCall({
-        target: `${customNftPackageId}::collection::drop_collection`,
-        typeArguments: [],
-        arguments: [nftCollectionController, nftCollection],
-    });
-
-    // Transfer the NFT collection controller.
-    tx.transferObjects([nftCollectionController], tx.pure.address(sender));
 
     // Extract the IOTA balance.
     const iotaCoin = tx.moveCall({
@@ -168,6 +106,9 @@ async function main() {
         arguments: [extractedNativeTokensBag],
     });
 
+    // Transfer the alias asset.
+    tx.transferObjects([alias], tx.pure.address(sender));
+
     // Set the gas budget for the transaction.
     tx.setGasBudget(10_000_000);
 
@@ -179,6 +120,7 @@ async function main() {
     console.log(`Transaction digest: ${response.digest}`);
 
 }
+
 
 main().catch(error => {
     console.error(`Error: ${error.message}`);
