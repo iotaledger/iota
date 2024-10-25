@@ -110,7 +110,11 @@ cargo test --features shared_test_runtime
 For a better testing experience is possible to use [nextest](https://nexte.st/)
 
 > [!NOTE]
-> rpc tests which rely on a shared runtime are not supported with `nextest`
+> rpc tests which rely on a shared runtime are not supported with `nextest`.
+>
+> This is because `cargo nextest` process-per-test execution model makes extremely difficult to share state and resources between tests.
+>
+> On the other hand `cargo test` does not run tests in separate processes by default. This means that tests can share state and resources.
 
 ```sh
 # run tests requiring only postgres integration
