@@ -38,7 +38,7 @@ mod checked {
         digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::{ExecutionResults, ExecutionResultsV2, is_certificate_denied},
+        execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
         execution_config_utils::to_binary_config,
         execution_status::{CongestedObjects, ExecutionStatus},
         gas::{GasCostSummary, IotaGasStatus},
@@ -577,8 +577,8 @@ mod checked {
                     }
                 }
 
-                temporary_store.record_execution_results(ExecutionResults::V2(
-                    ExecutionResultsV2 {
+                temporary_store.record_execution_results(ExecutionResults::V1(
+                    ExecutionResultsV1 {
                         user_events: events,
                         ..Default::default()
                     },
