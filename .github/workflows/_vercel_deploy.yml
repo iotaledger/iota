@@ -25,7 +25,7 @@ on:
         type: boolean
         required: true
       githubRef:
-        type: boolean
+        type: string
         required: true
 
 concurrency:
