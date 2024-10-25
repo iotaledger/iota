@@ -159,12 +159,12 @@ jobs:
     uses: ./.github/workflows/_vercel_deploy.yml
     secrets: inherit
     with:
-        shouldDeployPreview: ${{github.event_name == 'pull_request' && github.event.pull_request.draft == false}}
-        isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
-        isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
-        isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
-        isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
-        isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
+      shouldDeployPreview: ${{github.event_name == 'pull_request' && github.event.pull_request.draft == false}}
+      isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
+      isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
+      isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
+      isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
+      isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
   
   ledgernano:
     if: (!cancelled() && !failure()) && needs.diff.outputs.isLedgerjs == 'true' && github.event.pull_request.draft == false
