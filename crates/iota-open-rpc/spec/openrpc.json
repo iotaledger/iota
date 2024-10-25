@@ -1305,7 +1305,6 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
-                "mysticeti_leader_scoring_and_schedule": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "rethrow_serialization_type_layout_errors": true,

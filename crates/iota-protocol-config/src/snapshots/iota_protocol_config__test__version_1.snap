@@ -9,9 +9,7 @@ feature_flags:
   enable_group_ops_native_function_msm: true
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
-  mysticeti_leader_scoring_and_schedule: true
   enable_vdf: true
-  mysticeti_num_leaders_per_round: 1
   passkey_auth: true
   authority_capabilities_v2: true
 max_tx_size_bytes: 131072

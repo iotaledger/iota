@@ -166,10 +166,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "Option::is_none")]
     zklogin_max_epoch_upper_bound_delta: Option<u64>,
 
-    // Controls leader scoring & schedule change in Mysticeti consensus.
-    #[serde(skip_serializing_if = "is_false")]
-    mysticeti_leader_scoring_and_schedule: bool,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
@@ -1037,10 +1033,6 @@ impl ProtocolConfig {
         self.feature_flags.consensus_network
     }
 
-    pub fn mysticeti_leader_scoring_and_schedule(&self) -> bool {
-        self.feature_flags.mysticeti_leader_scoring_and_schedule
-    }
-
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
     }
@@ -1628,8 +1620,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
         // Use tonic networking for Mysticeti.
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
-        // Enable leader scoring & schedule change on mainnet for mysticeti.
-        cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
@@ -1780,10 +1770,6 @@ impl ProtocolConfig {
     }
     pub fn set_disable_bridge_for_testing(&mut self) {
         self.feature_flags.bridge = false
-    }
-
-    pub fn set_mysticeti_leader_scoring_and_schedule_for_testing(&mut self, val: bool) {
-        self.feature_flags.mysticeti_leader_scoring_and_schedule = val;
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
