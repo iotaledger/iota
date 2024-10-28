@@ -42,16 +42,16 @@ mod sim_only_tests {
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &wrap_child_txn_digest),
                 )
-                    .await
-                    .unwrap();
+                .await
+                .unwrap();
 
                 // Wait until the above checkpoint is pruned.
                 let _ = timeout(
                     Duration::from_secs(60),
                     wait_until_checkpoint_pruned(node, checkpoint),
                 )
-                    .await
-                    .unwrap();
+                .await
+                .unwrap();
 
                 let state = node.state();
                 let checkpoint_store = state.get_checkpoint_store();
@@ -96,21 +96,21 @@ mod sim_only_tests {
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &unwrap_delete_txn_digest),
                 )
-                    .await
-                    .unwrap();
+                .await
+                .unwrap();
                 let checkpoint2 = timeout(
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &delete_root_obj_txn_digest),
                 )
-                    .await
-                    .unwrap();
+                .await
+                .unwrap();
 
                 let _ = timeout(
                     Duration::from_secs(60),
                     wait_until_checkpoint_pruned(node, std::cmp::max(checkpoint1, checkpoint2)),
                 )
-                    .await
-                    .unwrap();
+                .await
+                .unwrap();
 
                 let state = node.state();
                 let checkpoit_store = state.get_checkpoint_store();
@@ -144,8 +144,8 @@ mod sim_only_tests {
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../iota-surfer/tests/move_building_blocks"),
         )
-            .await
-            .0;
+        .await
+        .0;
 
         let object_id = test_cluster
             .sign_and_execute_transaction(
