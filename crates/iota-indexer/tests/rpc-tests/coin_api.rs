@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr, sync::OnceLock};
+use std::{path::PathBuf, str::FromStr};
 
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{call_args, type_args};
@@ -24,44 +24,43 @@ use iota_types::{
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
-use tokio::sync::Mutex;
+use tokio::sync::OnceCell;
 
 use crate::common::{ApiTestSetup, indexer_wait_for_object};
 
-static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceLock<Mutex<Option<(IotaAddress, String)>>> =
-    OnceLock::new();
+static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, String)> =
+    OnceCell::const_new();
 
 async fn once_prepare_addr_with_iota_and_custom_coins(
     cluster: &TestCluster,
     store: &PgIndexerStore,
 ) -> (IotaAddress, String) {
-    let addr_and_coin_mutex =
-        COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME.get_or_init(|| Mutex::new(None));
-    let mut addr_and_coin = addr_and_coin_mutex.lock().await;
+    COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME
+        .get_or_init(|| async {
+            let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
-    if addr_and_coin.is_none() {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+            for _ in 0..5 {
+                cluster
+                    .fund_address_and_return_gas(
+                        cluster.get_reference_gas_price().await,
+                        Some(500_000_000),
+                        address,
+                    )
+                    .await;
+            }
 
-        for _ in 0..5 {
-            cluster
-                .fund_address_and_return_gas(
-                    cluster.get_reference_gas_price().await,
-                    Some(500_000_000),
-                    address,
-                )
+            let (coin_name, coin_object_ref) =
+                create_and_mint_trusted_coin(cluster, address, keypair, 100_000)
+                    .await
+                    .unwrap();
+
+            indexer_wait_for_object(store, coin_object_ref.object_id, coin_object_ref.version)
                 .await;
-        }
 
-        let (coin_name, coin_object_ref) = create_and_mint_coin(cluster, address, keypair, 100_000)
-            .await
-            .unwrap();
-
-        indexer_wait_for_object(store, coin_object_ref.object_id, coin_object_ref.version).await;
-
-        *addr_and_coin = Some((address, coin_name));
-    }
-
-    addr_and_coin.clone().unwrap()
+            (address, coin_name)
+        })
+        .await
+        .clone()
 }
 
 #[test]
@@ -405,7 +404,7 @@ async fn call_get_total_supply_fullnode_indexer(
     (result_fullnode, result_indexer)
 }
 
-async fn create_and_mint_coin(
+async fn create_and_mint_trusted_coin(
     cluster: &TestCluster,
     address: IotaAddress,
     account_keypair: AccountKeyPair,

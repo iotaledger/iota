@@ -1,6 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(feature = "shared_test_runtime")]
+mod coin_api;
+
 #[allow(dead_code)]
 #[path = "../common/mod.rs"]
 mod common;
@@ -15,9 +18,6 @@ mod move_utils;
 
 #[cfg(feature = "shared_test_runtime")]
 mod read_api;
-
-#[cfg(feature = "shared_test_runtime")]
-mod coin_api;
 
 #[cfg(feature = "shared_test_runtime")]
 mod write_api;
