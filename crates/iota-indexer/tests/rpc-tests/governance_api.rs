@@ -14,16 +14,18 @@ use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
     balance::Balance,
     base_types::ObjectID,
+    crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{CallArg, ObjectArg},
+    utils::to_sender_signed_transaction,
 };
 use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
-    indexer_wait_for_transaction,
+    indexer_wait_for_object, indexer_wait_for_transaction,
 };
 
 #[test]
@@ -239,16 +241,27 @@ fn test_timelocked_staking() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = cluster.get_address_0();
-        let context = &cluster.wallet;
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let gas_price = context.get_reference_gas_price().await.unwrap();
-        let mut gas_objects = context
-            .get_all_gas_objects_owned_by_address(sender)
-            .await
-            .unwrap();
-        assert!(gas_objects.len() >= 2);
-        let iota_coin_ref = gas_objects.pop().unwrap();
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let iota_coin_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -300,8 +313,11 @@ fn test_timelocked_staking() {
             builder.finish()
         };
 
-        let tx_builder = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price);
-        let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
+        let context = &cluster.wallet;
+        let gas_price = context.get_reference_gas_price().await.unwrap();
+
+        let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
+        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 
         let res = context.execute_transaction_must_succeed(txn).await;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -327,16 +343,27 @@ fn test_timelocked_unstaking() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = cluster.get_address_0();
-        let context = &cluster.wallet;
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let gas_price = context.get_reference_gas_price().await.unwrap();
-        let mut gas_objects = context
-            .get_all_gas_objects_owned_by_address(sender)
-            .await
-            .unwrap();
-        assert!(gas_objects.len() >= 2);
-        let iota_coin_ref = gas_objects.pop().unwrap();
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let iota_coin_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -388,12 +415,15 @@ fn test_timelocked_unstaking() {
             builder.finish()
         };
 
-        let tx_builder = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price);
-        let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
+        let context = &cluster.wallet;
+        let gas_price = context.get_reference_gas_price().await.unwrap();
+
+        let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
+        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 
         let res = context.execute_transaction_must_succeed(txn).await;
-
         indexer_wait_for_transaction(res.digest, store, client).await;
+
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
@@ -430,13 +460,13 @@ fn test_timelocked_unstaking() {
             builder.finish()
         };
 
-        let tx_builder = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price);
-
-        let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
+        let gas = cluster.wallet.get_object_ref(gas.0).await.unwrap();
+        let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
+        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 
         let res = context.execute_transaction_must_succeed(txn).await;
-
         indexer_wait_for_transaction(res.digest, store, client).await;
+
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
