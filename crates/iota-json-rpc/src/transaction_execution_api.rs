@@ -24,7 +24,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     iota_serde::BigInt,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
+        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
     signature::GenericSignature,
     storage::PostExecutionPackageResolver,
@@ -79,7 +79,7 @@ impl TransactionExecutionApi {
         opts: Option<IotaTransactionBlockResponseOptions>,
     ) -> Result<
         (
-            ExecuteTransactionRequestV3,
+            ExecuteTransactionRequestV1,
             IotaTransactionBlockResponseOptions,
             IotaAddress,
             Vec<InputObjectKind>,
@@ -116,7 +116,7 @@ impl TransactionExecutionApi {
             None
         };
 
-        let request = ExecuteTransactionRequestV3 {
+        let request = ExecuteTransactionRequestV1 {
             transaction: txn.clone(),
             include_events: opts.show_events,
             include_input_objects: opts.show_balance_changes || opts.show_object_changes,
@@ -175,7 +175,7 @@ impl TransactionExecutionApi {
 
     async fn handle_post_orchestration(
         &self,
-        response: ExecuteTransactionResponseV3,
+        response: ExecuteTransactionResponseV1,
         is_executed_locally: bool,
         opts: IotaTransactionBlockResponseOptions,
         digest: TransactionDigest,

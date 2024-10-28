@@ -25,6 +25,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { Pagination } from '../ui';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 
 export type CoinBalanceVerified = CoinBalance & {
     isRecognized?: boolean;
@@ -197,11 +198,10 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         <Select
                                             dropdownPosition={DropdownPosition.Top}
                                             value={limit.toString()}
-                                            options={[
-                                                { label: '20 / page', id: '20' },
-                                                { label: '40 / page', id: '40' },
-                                                { label: '60 / page', id: '60' },
-                                            ]}
+                                            options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                                label: `${size} / page`,
+                                                id: size.toString(),
+                                            }))}
                                             onValueChange={(value) => {
                                                 setLimit(Number(value));
                                                 setCurrentSlice(1);
