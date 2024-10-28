@@ -18,8 +18,8 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        get_module, load_package_object_from_object_store, BackingPackageStore,
-        ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        get_module, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -74,7 +74,7 @@ impl InMemoryStore {
             .and_then(|sequence_number| self.get_checkpoint_by_sequence_number(*sequence_number))
     }
 
-    pub fn get_highest_checkpint(&self) -> Option<&VerifiedCheckpoint> {
+    pub fn get_highest_checkpoint(&self) -> Option<&VerifiedCheckpoint> {
         self.checkpoints
             .last_key_value()
             .map(|(_, checkpoint)| checkpoint)
@@ -353,8 +353,8 @@ impl KeyStore {
             .iter()
             .map(|config| {
                 (
-                    config.protocol_public_key(),
-                    config.protocol_key_pair().copy(),
+                    config.authority_public_key(),
+                    config.authority_key_pair().copy(),
                 )
             })
             .collect();
@@ -392,8 +392,8 @@ impl SimulatorStore for InMemoryStore {
         self.get_checkpoint_by_digest(digest).cloned()
     }
 
-    fn get_highest_checkpint(&self) -> Option<VerifiedCheckpoint> {
-        self.get_highest_checkpint().cloned()
+    fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint> {
+        self.get_highest_checkpoint().cloned()
     }
 
     fn get_checkpoint_contents(

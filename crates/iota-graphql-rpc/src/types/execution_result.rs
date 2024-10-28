@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 
-use super::transaction_block_effects::TransactionBlockEffects;
+use crate::types::transaction_block_effects::TransactionBlockEffects;
 
 /// The result of an execution, including errors that occurred during said
 /// execution.

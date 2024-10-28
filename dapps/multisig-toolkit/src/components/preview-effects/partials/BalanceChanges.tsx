@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type BalanceChange } from '@iota/iota-sdk/src/client';
+import { type BalanceChange } from '@iota/iota-sdk/client';
+import { useQuery } from '@tanstack/react-query';
 
+import { useDryRunContext } from '../DryRunContext';
 import { PreviewCard } from '../PreviewCard';
 import { onChainAmountToFloat } from '../utils';
 
@@ -19,8 +20,16 @@ export function BalanceChanges({ changes }: { changes: BalanceChange[] }) {
 }
 
 function ChangedBalance({ change }: { change: BalanceChange }) {
-    const { data: coinMetadata } = useIotaClientQuery('getCoinMetadata', {
-        coinType: change.coinType,
+    const { network, client } = useDryRunContext();
+
+    const { data: coinMetadata } = useQuery({
+        queryKey: [network, 'getCoinMetadata', change.coinType],
+        queryFn: async () => {
+            return await client.getCoinMetadata({
+                coinType: change.coinType,
+            });
+        },
+        enabled: !!change.coinType,
     });
 
     const amount = () => {
@@ -29,6 +38,7 @@ function ChangedBalance({ change }: { change: BalanceChange }) {
 
         return `${amt && amt > 0.0 ? '+' : ''}${amt}`;
     };
+
     if (!coinMetadata) return <div>Loading...</div>;
 
     return (
@@ -36,17 +46,20 @@ function ChangedBalance({ change }: { change: BalanceChange }) {
             <PreviewCard.Body>
                 <>
                     {coinMetadata.iconUrl && (
-                        <img src={coinMetadata.iconUrl as string} alt={coinMetadata.name} />
+                        <img
+                            src={coinMetadata.iconUrl as string}
+                            alt={coinMetadata.name}
+                            className="w-12 h-auto"
+                        />
                     )}
                     <p>
                         <span
-                            className={`${
-                                Number(amount()) > 0.0 ? 'text-green-300' : 'text-red-700'
-                            }`}
+                            className={`${Number(amount()) > 0.0 ? 'text-green-300' : 'text-red-700'}`}
                         >
                             {amount()}{' '}
                         </span>{' '}
-                        {coinMetadata.symbol} ({change.coinType})
+                        {coinMetadata.symbol}
+                        <span className="block text-sm">{change.coinType}</span>
                     </p>
                 </>
             </PreviewCard.Body>

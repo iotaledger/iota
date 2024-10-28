@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use iota_replay::{execute_replay_command, ReplayToolCommand};
+use iota_replay::{ReplayToolCommand, execute_replay_command};
 
 #[tokio::test]
 #[ignore = "sandbox snapshots are invalidated by rename"]
@@ -20,7 +20,7 @@ async fn replay_sandboxes() {
         assert!(path.is_file());
         let cmd = ReplayToolCommand::ReplaySandbox { path };
 
-        execute_replay_command(None, true, true, None, cmd)
+        execute_replay_command(None, true, true, None, None, cmd)
             .await
             .unwrap();
     }

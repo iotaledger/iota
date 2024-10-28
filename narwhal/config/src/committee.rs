@@ -13,10 +13,10 @@ use crypto::{NetworkPublicKey, PublicKey, PublicKeyBytes};
 use fastcrypto::traits::EncodeDecodeBase64;
 use iota_network_stack::Multiaddr;
 use iota_util_mem::MallocSizeOf;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 
-use crate::{CommitteeUpdateError, ConfigError, Epoch, Stake};
+use crate::{Epoch, Stake};
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct Authority {
@@ -323,29 +323,6 @@ impl Committee {
             .clone()
     }
 
-    /// Returns the primary address of the target primary.
-    pub fn primary(&self, to: &PublicKey) -> Result<Multiaddr, ConfigError> {
-        self.authorities
-            .get(&to.clone())
-            .map(|x| x.primary_address.clone())
-            .ok_or_else(|| ConfigError::NotInCommittee((*to).encode_base64()))
-    }
-
-    /// Returns the primary address of the target primary.
-    pub fn primary_by_id(&self, to: &AuthorityIdentifier) -> Result<Multiaddr, ConfigError> {
-        self.authorities_by_id
-            .get(to)
-            .map(|x| x.primary_address.clone())
-            .ok_or_else(|| ConfigError::NotInCommittee(to.0.to_string()))
-    }
-
-    pub fn network_key(&self, pk: &PublicKey) -> Result<NetworkPublicKey, ConfigError> {
-        self.authorities
-            .get(&pk.clone())
-            .map(|x| x.network_key.clone())
-            .ok_or_else(|| ConfigError::NotInCommittee((*pk).encode_base64()))
-    }
-
     /// Return all the network addresses in the committee.
     pub fn others_primaries(
         &self,
@@ -396,76 +373,6 @@ impl Committee {
             .difference(&other.get_all_network_addresses())
             .cloned()
             .collect()
-    }
-
-    /// Update the networking information of some of the primaries. The
-    /// arguments are a full vector of authorities which Public key and
-    /// Stake must match the one stored in the current Committee. Any
-    /// discrepancy will generate no update and return a vector of errors.
-    #[allow(clippy::manual_try_fold)]
-    pub fn update_primary_network_info(
-        &mut self,
-        mut new_info: BTreeMap<PublicKey, (Stake, Multiaddr)>,
-    ) -> Result<(), Vec<CommitteeUpdateError>> {
-        let mut errors = None;
-
-        let table = &self.authorities;
-        let push_error_and_return = |acc, error| {
-            let mut error_table = if let Err(errors) = acc {
-                errors
-            } else {
-                Vec::new()
-            };
-            error_table.push(error);
-            Err(error_table)
-        };
-
-        let res = table
-            .iter()
-            .fold(Ok(BTreeMap::new()), |acc, (pk, authority)| {
-                if let Some((stake, address)) = new_info.remove(pk) {
-                    if stake == authority.stake {
-                        match acc {
-                            // No error met yet, update the accumulator
-                            Ok(mut bmap) => {
-                                let mut res = authority.clone();
-                                res.primary_address = address;
-                                bmap.insert(pk.clone(), res);
-                                Ok(bmap)
-                            }
-                            // in error mode, continue
-                            _ => acc,
-                        }
-                    } else {
-                        // Stake does not match: create or append error
-                        push_error_and_return(
-                            acc,
-                            CommitteeUpdateError::DifferentStake(pk.to_string()),
-                        )
-                    }
-                } else {
-                    // This key is absent from new information
-                    push_error_and_return(
-                        acc,
-                        CommitteeUpdateError::MissingFromUpdate(pk.to_string()),
-                    )
-                }
-            });
-
-        // If there are elements left in new_info, they are not in the original table
-        // If new_info is empty, this is a no-op.
-        let res = new_info.iter().fold(res, |acc, (pk, _)| {
-            push_error_and_return(acc, CommitteeUpdateError::NotInCommittee(pk.to_string()))
-        });
-
-        match res {
-            Ok(new_table) => self.authorities = new_table,
-            Err(errs) => {
-                errors = Some(errs);
-            }
-        };
-
-        errors.map(Err).unwrap_or(Ok(()))
     }
 
     /// Used for testing - not recommended to use for any other case.

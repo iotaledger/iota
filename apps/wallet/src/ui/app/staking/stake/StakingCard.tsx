@@ -6,9 +6,9 @@ import { Loading } from '_components';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
-import { Feature } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
+    Feature,
     createStakeTransaction,
     createUnstakeTransaction,
     parseAmount,
@@ -20,7 +20,7 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG, formatAddress } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
@@ -37,8 +37,9 @@ import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
-import { Button, ButtonType, Card, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
-import { ImageIcon } from '../../shared/image-icon';
+import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
+import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -66,18 +67,9 @@ function StakingCard() {
         Feature.WalletEffectsOnlySharedTransaction as string,
     );
 
-    const { data: system, isPending: validatorsisPending } = useIotaClientQuery(
+    const { data: system, isPending: validatorsIsPending } = useIotaClientQuery(
         'getLatestIotaSystemState',
     );
-    const validatorMeta = useMemo(() => {
-        if (!system) return null;
-
-        return (
-            system.activeValidators.find(
-                (validator) => validator.iotaAddress === validatorAddress,
-            ) || null
-        );
-    }, [validatorAddress, system]);
 
     const totalTokenBalance = useMemo(() => {
         if (!allDelegation) return 0n;
@@ -115,7 +107,7 @@ function StakingCard() {
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
 
-    const stakeToken = useMutation({
+    const { mutateAsync: stakeTokenMutateAsync } = useMutation({
         mutationFn: async ({
             tokenTypeArg,
             amount,
@@ -134,7 +126,7 @@ function StakingCard() {
             // });
             try {
                 const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                return await signer.signAndExecuteTransactionBlock({
+                return await signer.signAndExecuteTransaction({
                     transactionBlock,
                     requestType: effectsOnlySharedTransactions
                         ? 'WaitForEffectsCert'
@@ -151,13 +143,13 @@ function StakingCard() {
         },
         onSuccess: (_, { amount, validatorAddress }) => {
             ampli.stakedIota({
-                stakedAmount: Number(amount / NANO_PER_IOTA),
+                stakedAmount: Number(amount / NANOS_PER_IOTA),
                 validatorAddress: validatorAddress,
             });
         },
     });
 
-    const unStakeToken = useMutation({
+    const { mutateAsync: unStakeTokenMutateAsync } = useMutation({
         mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
             if (!stakedIotaId || !signer) {
                 throw new Error('Failed, missing required field.');
@@ -167,7 +159,7 @@ function StakingCard() {
             // 	name: 'stake',
             // });
             const transactionBlock = createUnstakeTransaction(stakedIotaId);
-            return await signer.signAndExecuteTransactionBlock({
+            return await signer.signAndExecuteTransaction({
                 transactionBlock,
                 requestType: effectsOnlySharedTransactions
                     ? 'WaitForEffectsCert'
@@ -203,13 +195,13 @@ function StakingCard() {
                     if (!stakeData || !stakeIotaIdParams || stakeData.status === 'Pending') {
                         return;
                     }
-                    response = await unStakeToken.mutateAsync({
+                    response = await unStakeTokenMutateAsync({
                         stakedIotaId: stakeIotaIdParams,
                     });
 
                     txDigest = response.digest;
                 } else {
-                    response = await stakeToken.mutateAsync({
+                    response = await stakeTokenMutateAsync({
                         amount: bigIntAmount,
                         tokenTypeArg: coinType,
                         validatorAddress: validatorAddress,
@@ -261,17 +253,17 @@ function StakingCard() {
             navigate,
             stakeData,
             stakeIotaIdParams,
-            unStakeToken,
-            stakeToken,
+            unStakeTokenMutateAsync,
+            stakeTokenMutateAsync,
         ],
     );
 
-    if (!coinType || !validatorAddress || (!validatorsisPending && !system)) {
+    if (!coinType || !validatorAddress || (!validatorsIsPending && !system)) {
         return <Navigate to="/" replace={true} />;
     }
     return (
         <div className="flex h-full w-full flex-grow flex-col flex-nowrap">
-            <Loading loading={isPending || validatorsisPending || loadingIotaBalances}>
+            <Loading loading={isPending || validatorsIsPending || loadingIotaBalances}>
                 <Formik
                     initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
@@ -281,19 +273,10 @@ function StakingCard() {
                     {({ isSubmitting, isValid, submitForm }) => (
                         <>
                             <div className="flex h-full flex-col gap-md overflow-auto">
-                                <Card type={CardType.Filled}>
-                                    <CardImage>
-                                        <ImageIcon
-                                            src={null}
-                                            label={validatorMeta?.name || ''}
-                                            fallback={validatorMeta?.name || ''}
-                                        />
-                                    </CardImage>
-                                    <CardBody
-                                        title={validatorMeta?.name || ''}
-                                        subtitle={formatAddress(validatorAddress)}
-                                    />
-                                </Card>
+                                <ValidatorLogo
+                                    validatorAddress={validatorAddress}
+                                    type={CardType.Filled}
+                                />
                                 <ValidatorFormDetail
                                     validatorAddress={validatorAddress}
                                     unstake={unstake}
@@ -324,6 +307,15 @@ function StakingCard() {
                                         !isValid || isSubmitting || (unstake && !delegationId)
                                     }
                                     text={unstake ? 'Unstake' : 'Stake'}
+                                    icon={
+                                        isSubmitting ? (
+                                            <Loader
+                                                className="animate-spin"
+                                                data-testid="loading-indicator"
+                                            />
+                                        ) : null
+                                    }
+                                    iconAfterText
                                 />
                             </div>
                         </>

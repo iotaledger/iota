@@ -1,20 +1,20 @@
-# Iota Explorer
+# IOTA Explorer
 
-[Iota Explorer](https://explorer.iota.io/) is a network explorer for the Iota network, similar in functionality to [Etherscan](https://etherscan.io/) or [Solana Explorer](https://explorer.solana.com/). Use Iota Explorer to see the latest transactions and objects.
+[IOTA Explorer](https://explorer.iota.org/) is a network explorer for the IOTA network, similar in functionality to [Etherscan](https://etherscan.io/) or [Solana Explorer](https://explorer.solana.com/). Use IOTA Explorer to see the latest transactions and objects.
 
 # Set Up
 
 **Requirements**: Node 18.0.0 or later.
 
-Dependencies are managed using [`pnpm`](https://pnpm.io/). You can start by installing dependencies in the root of the Iota repository:
+Dependencies are managed using [`pnpm`](https://pnpm.io/). You can start by installing dependencies in the root of the iota repository:
 
 ```
 $ pnpm install
 ```
 
-> All `pnpm` commands below are intended to be run in the root of the Iota repo.
+> All `pnpm` commands below are intended to be run in the root of the iota repo.
 
-## Developing the Iota Explorer
+## Developing the IOTA Explorer
 
 To start the explorer dev server, you can run the following command:
 
@@ -29,7 +29,7 @@ This will start the dev server on port 3000, which should be accessible on http:
 Start validators locally:
 
 ```bash
-cargo run --bin iota-test-validator
+cargo run --bin iota start --force-regenesis --with-faucet
 ```
 
 In a a separate terminal, you can now run the end-to-end tests:

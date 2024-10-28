@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro::TokenStream;
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::{
-    fold::{fold_expr, fold_item_macro, fold_stmt, Fold},
-    parse::Parser,
-    parse2, parse_macro_input,
-    punctuated::Punctuated,
-    spanned::Spanned,
     Attribute, BinOp, Data, DataEnum, DeriveInput, Expr, ExprBinary, ExprMacro, Item, ItemMacro,
     Stmt, StmtMacro, Token, UnOp,
+    fold::{Fold, fold_expr, fold_item_macro, fold_stmt},
+    parse::Parser,
+    parse_macro_input, parse2,
+    punctuated::Punctuated,
+    spanned::Spanned,
 };
 
 #[proc_macro_attribute]
@@ -58,13 +58,12 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                     use iota_simulator::move_package::package_hooks::register_package_hooks;
 
                     register_package_hooks(Box::new(IotaPackageHooks {}));
-                    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                    path.extend(["..", "..", "iota_programmability", "examples", "basics"]);
+                    let mut path = PathBuf::from(env!("SIMTEST_STATIC_INIT_MOVE"));
                     let mut build_config = BuildConfig::default();
 
                     build_config.config.install_dir = Some(TempDir::new().unwrap().into_path());
                     let _all_module_bytes = build_config
-                        .build(path)
+                        .build(&path)
                         .unwrap()
                         .get_package_bytes(/* with_unpublished_deps */ false);
                 }

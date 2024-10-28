@@ -14,24 +14,21 @@ use std::{
 
 use anyhow::anyhow;
 use clap::Parser;
-use fastcrypto::{
-    encoding::{Encoding, Hex},
-    traits::EncodeDecodeBase64,
-};
+use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
-    iota_config_dir, Config, NodeConfig, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME,
+    Config, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME, NodeConfig, iota_config_dir,
 };
 use iota_node::IotaNode;
 use iota_rosetta::{
+    IOTA, RosettaOfflineServer, RosettaOnlineServer,
     types::{CurveType, IotaEnv, PrefundedAccount},
-    RosettaOfflineServer, RosettaOnlineServer, IOTA,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{IotaKeyPair, KeypairTraits, ToFromBytes},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::{info, log::warn};
 
 #[derive(Parser)]
@@ -139,7 +136,7 @@ impl RosettaServerCommand {
             RosettaServerCommand::StartOfflineServer { env, addr } => {
                 info!("Starting Rosetta Offline Server.");
                 let server = RosettaOfflineServer::new(env);
-                server.serve(addr).await?.await??;
+                server.serve(addr).await;
             }
             RosettaServerCommand::StartOnlineRemoteServer {
                 env,
@@ -154,7 +151,7 @@ impl RosettaServerCommand {
                 let rosetta_path = data_path.join("rosetta_db");
                 info!("Rosetta db path : {rosetta_path:?}");
                 let rosetta = RosettaOnlineServer::new(env, iota_client);
-                rosetta.serve(addr).await?.await??;
+                rosetta.serve(addr).await;
             }
 
             RosettaServerCommand::StartOnlineServer {
@@ -187,7 +184,7 @@ impl RosettaServerCommand {
                 let rosetta_path = data_path.join("rosetta_db");
                 info!("Rosetta db path : {rosetta_path:?}");
                 let rosetta = RosettaOnlineServer::new(env, iota_client);
-                rosetta.serve(addr).await?.await??;
+                rosetta.serve(addr).await;
             }
         };
         Ok(())
@@ -221,7 +218,7 @@ fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::
     let keys = kp_strings
         .iter()
         .map(|kpstr| {
-            let key = IotaKeyPair::decode_base64(kpstr);
+            let key = IotaKeyPair::decode(kpstr);
             key.map(|k| (IotaAddress::from(&k.public()), k))
         })
         .collect::<Result<BTreeMap<_, _>, _>>()

@@ -20,7 +20,7 @@ use iota_package_resolver::{Package, PackageStore, Resolver, Result as ResolverR
 use iota_rest_api::{CheckpointData, Client};
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::ObjectID,
     committee::Committee,
     crypto::AuthorityQuorumSignInfo,
     digests::TransactionDigest,
@@ -44,27 +44,22 @@ struct Args {
 }
 
 struct RemotePackageStore {
-    client: Client,
     config: Config,
 }
 
 impl RemotePackageStore {
-    pub fn new(client: Client, config: Config) -> Self {
-        Self { client, config }
+    pub fn new(config: Config) -> Self {
+        Self { config }
     }
 }
 
 #[async_trait]
 impl PackageStore for RemotePackageStore {
-    /// Latest version of the object at `id`.
-    async fn version(&self, id: AccountAddress) -> ResolverResult<SequenceNumber> {
-        Ok(self.client.get_object(id.into()).await.unwrap().version())
-    }
     /// Read package contents. Fails if `id` is not an object, not a package, or
     /// is malformed in some way.
     async fn fetch(&self, id: AccountAddress) -> ResolverResult<Arc<Package>> {
         let object = get_verified_object(&self.config, id.into()).await.unwrap();
-        let package = Package::read(&object).unwrap();
+        let package = Package::read_from_object(&object).unwrap();
         Ok(Arc::new(package))
     }
 }
@@ -104,8 +99,8 @@ struct Config {
 }
 
 impl Config {
-    pub fn rest_url(&self) -> String {
-        format!("{}/rest", self.full_node_url)
+    pub fn rest_url(&self) -> &str {
+        &self.full_node_url
     }
 }
 
@@ -120,7 +115,7 @@ fn read_checkpoint_list(config: &Config) -> anyhow::Result<CheckpointsList> {
     let mut checkpoints_path = config.checkpoint_summary_dir.clone();
     checkpoints_path.push("checkpoints.yaml");
     // Read the resulting file and parse the yaml checkpoint list
-    let reader = fs::File::open(checkpoints_path.clone())?;
+    let reader = fs::File::open(&checkpoints_path)?;
     Ok(serde_yaml::from_reader(reader)?)
 }
 
@@ -141,7 +136,7 @@ fn read_checkpoint_general(
     if let Some(path) = path {
         checkpoint_path.push(path);
     }
-    checkpoint_path.push(format!("{}.yaml", seq));
+    checkpoint_path.push(format!("{}.chk", seq));
     let mut reader = fs::File::open(checkpoint_path.clone())?;
     let metadata = fs::metadata(&checkpoint_path)?;
     let mut buffer = vec![0; metadata.len() as usize];
@@ -166,11 +161,10 @@ fn write_checkpoint_general(
     if let Some(path) = path {
         checkpoint_path.push(path);
     }
-    checkpoint_path.push(format!("{}.yaml", summary.sequence_number));
-    let mut writer = fs::File::create(checkpoint_path.clone())?;
-    let bytes =
-        bcs::to_bytes(&summary).map_err(|_| anyhow!("Unable to serialize checkpoint summary"))?;
-    writer.write_all(&bytes)?;
+    checkpoint_path.push(format!("{}.json", summary.sequence_number));
+    let writer = fs::File::create(checkpoint_path.clone())?;
+    serde_json::to_writer(&writer, &summary)
+        .map_err(|_| anyhow!("Unable to serialize checkpoint summary"))?;
     Ok(())
 }
 
@@ -195,7 +189,7 @@ async fn download_checkpoint_summary(
 ) -> anyhow::Result<CertifiedCheckpointSummary> {
     // Download the checkpoint from the server
     let client = Client::new(config.rest_url());
-    client.get_checkpoint_summary(seq).await
+    Ok(client.get_checkpoint_summary(seq).await?)
 }
 
 /// Run binary search to for each end of epoch checkpoint that is missing
@@ -203,15 +197,15 @@ async fn download_checkpoint_summary(
 async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<()> {
     // Get the local checkpoint list
     let mut checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
-    let latest_in_list = checkpoints_list
-        .checkpoints
-        .last()
-        .ok_or(anyhow!("Empty checkpoint list"))?;
+    let mut last_epoch = 0;
+    let mut last_checkpoint_seq = 0;
 
-    // Download the latest in list checkpoint
-    let summary = download_checkpoint_summary(config, *latest_in_list).await?;
-    let mut last_epoch = summary.epoch();
-    let mut last_checkpoint_seq = summary.sequence_number;
+    if let Some(latest_in_list) = checkpoints_list.checkpoints.last() {
+        // Download the latest in list checkpoint
+        let summary = download_checkpoint_summary(config, *latest_in_list).await?;
+        last_epoch = summary.epoch();
+        last_checkpoint_seq = summary.sequence_number;
+    }
 
     // Download the very latest checkpoint
     let client = Client::new(config.rest_url());
@@ -287,7 +281,7 @@ async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
         // check if there is a file with this name ckp_id.yaml in the
         // checkpoint_summary_dir
         let mut checkpoint_path = config.checkpoint_summary_dir.clone();
-        checkpoint_path.push(format!("{}.yaml", ckp_id));
+        checkpoint_path.push(format!("{}.json", ckp_id));
 
         // If file exists read the file otherwise download it from the server
         let summary = if checkpoint_path.exists() {
@@ -295,7 +289,7 @@ async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
         } else {
             // Download the checkpoint from the server
             let summary = download_checkpoint_summary(config, *ckp_id).await?;
-            summary.clone().verify(&prev_committee)?;
+            summary.clone().try_into_verified(&prev_committee)?;
             // Write the checkpoint summary to a file
             write_checkpoint(config, &summary)?;
             summary
@@ -471,8 +465,7 @@ pub async fn main() {
         config.checkpoint_summary_dir.display()
     );
 
-    let client: Client = Client::new(config.rest_url());
-    let remote_package_store = RemotePackageStore::new(client, config.clone());
+    let remote_package_store = RemotePackageStore::new(config.clone());
     let resolver = Resolver::new(remote_package_store);
 
     match args.command {
@@ -557,11 +550,7 @@ mod tests {
     use super::*;
 
     async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
-        let mut reader = fs::File::open(checkpoint_path.clone())?;
-        let metadata = fs::metadata(checkpoint_path)?;
-        let mut buffer = vec![0; metadata.len() as usize];
-        reader.read_exact(&mut buffer)?;
-        bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint file"))
+        Ok(bcs::from_reader(fs::File::open(checkpoint_path)?)?)
     }
 
     // clippy ignore dead-code
@@ -570,24 +559,17 @@ mod tests {
         checkpoint_path: &Path,
         checkpoint: &CheckpointData,
     ) -> anyhow::Result<()> {
-        let mut writer = fs::File::create(checkpoint_path)?;
-        let bytes = bcs::to_bytes(&checkpoint)
-            .map_err(|_| anyhow!("Unable to serialize checkpoint summary"))?;
-        writer.write_all(&bytes)?;
+        bcs::serialize_into(&mut fs::File::create(checkpoint_path)?, &checkpoint)?;
         Ok(())
     }
 
     async fn read_data() -> (Committee, CheckpointData) {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/20873329.yaml");
+        d.push("example_config/528.json");
 
-        let mut reader = fs::File::open(d.clone()).unwrap();
-        let metadata = fs::metadata(&d).unwrap();
-        let mut buffer = vec![0; metadata.len() as usize];
-        reader.read_exact(&mut buffer).unwrap();
         let checkpoint: Envelope<CheckpointSummary, AuthorityQuorumSignInfo<true>> =
-            bcs::from_bytes(&buffer)
-                .map_err(|_| anyhow!("Unable to parse checkpoint file"))
+            serde_json::from_reader(&fs::File::open(&d).unwrap())
+                .map_err(|_| anyhow!("Unable to parse checkpoint summary file"))
                 .unwrap();
 
         let prev_committee = checkpoint
@@ -606,7 +588,7 @@ mod tests {
         let committee = Committee::new(checkpoint.epoch().checked_add(1).unwrap(), prev_committee);
 
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/20958462.bcs");
+        d.push("example_config/794.chk");
 
         let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
 
@@ -614,20 +596,18 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_all_good() {
         let (committee, full_checkpoint) = read_data().await;
 
         extract_verified_effects_and_events(
             &full_checkpoint,
             &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk").unwrap(),
+            TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi").unwrap(),
         )
         .unwrap();
     }
 
     #[tokio::test]
-    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_bad_committee() {
         let (mut committee, full_checkpoint) = read_data().await;
 
@@ -638,7 +618,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk")
+                TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi")
                     .unwrap(),
             )
             .is_err()
@@ -646,7 +626,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_no_transaction() {
         let (committee, full_checkpoint) = read_data().await;
 
@@ -654,7 +633,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                TransactionDigest::from_str("6ciKBJF3gZ2zNNKLqwRMBL4ftZRGL2kHPgKepWP2thbs")
                     .unwrap(),
             )
             .is_err()
@@ -662,7 +641,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_bad_contents() {
         let (committee, mut full_checkpoint) = read_data().await;
 
@@ -674,7 +652,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi")
                     .unwrap(),
             )
             .is_err()
@@ -682,11 +660,10 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_bad_events() {
         let (committee, mut full_checkpoint) = read_data().await;
 
-        let event = full_checkpoint.transactions[4]
+        let event = full_checkpoint.transactions[1]
             .events
             .as_ref()
             .unwrap()
@@ -703,7 +680,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                TransactionDigest::from_str("Hj7mZdET3fKqxbSnbdcVbx9N2pqvHtkoKbPy6MEeFsfB")
                     .unwrap(),
             )
             .is_err()

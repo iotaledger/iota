@@ -5,11 +5,12 @@
 import preset from '@iota/core/tailwind.config';
 import { type Config } from 'tailwindcss';
 import animatePlugin from 'tailwindcss-animate';
-import { uiKitStaticPreset } from '@iota/apps-ui-kit';
+// Note: exception for the tailwind preset import
+import uiKitStaticPreset from '../../apps/ui-kit/src/lib/tailwind/static.preset';
 
 export default {
     presets: [preset, uiKitStaticPreset],
-    content: ['./src/**/*.{js,jsx,ts,tsx}', './node_modules/@iota/apps-ui-kit/dist/**/*.js'],
+    content: ['./src/**/*.{js,jsx,ts,tsx}', './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}'],
     theme: {
         extend: {
             colors: {
@@ -62,11 +63,7 @@ export default {
                     '0px 10px 50px rgba(0, 0, 0, 0.15)',
                 ],
             },
-            fontFamily: {
-                frankfurter: ['Frankfurter Normal', 'sans-serif'],
-            },
             backgroundImage: {
-                google: 'url(_assets/images/google-background.png)',
                 'twitch-image': 'linear-gradient(165deg, #ECE5FA 5.6%, #C8BAE2 89.58%);',
             },
         },

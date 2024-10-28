@@ -5,9 +5,9 @@
 use std::str::FromStr;
 
 use diesel::{
+    QueryableByName,
     prelude::*,
     sql_types::{BigInt, Binary, Text},
-    QueryableByName,
 };
 use iota_json_rpc_types::MoveFunctionName;
 use iota_types::base_types::ObjectID;

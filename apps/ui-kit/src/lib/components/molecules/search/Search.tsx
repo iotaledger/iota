@@ -152,7 +152,7 @@ export function Search({
                     onFocus={() => setIsSuggestionsVisible(true)}
                     placeholder={placeholder}
                     className={cx(
-                        'flex-1 outline-none placeholder:text-neutral-40 placeholder:dark:text-neutral-60',
+                        'w-full flex-1 outline-none placeholder:text-neutral-40 placeholder:dark:text-neutral-60',
                         backgroundColorClass,
                     )}
                 />

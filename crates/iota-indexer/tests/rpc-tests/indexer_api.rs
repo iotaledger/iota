@@ -10,7 +10,7 @@ use iota_types::{
     digests::TransactionDigest,
 };
 
-use crate::common::{indexer_wait_for_checkpoint, rpc_call_error_msg_matches, ApiTestSetup};
+use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, rpc_call_error_msg_matches};
 
 #[test]
 fn query_events_no_events_descending() {

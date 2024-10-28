@@ -8,14 +8,8 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
-import {
-    createNftSendValidationSchema,
-    isIotaNSName,
-    useGetKioskContents,
-    useIotaNSEnabled,
-} from '@iota/core';
-import { useIotaClient } from '@iota/dapp-kit';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { createNftSendValidationSchema, useGetKioskContents } from '@iota/core';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
@@ -23,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useTransferKioskItem } from './useTransferKioskItem';
 import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
+import { Loader } from '@iota/ui-icons';
 
 interface TransferNFTFormProps {
     objectId: string;
@@ -31,14 +26,7 @@ interface TransferNFTFormProps {
 
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
-    const rpc = useIotaClient();
-    const iotaNSEnabled = useIotaNSEnabled();
-    const validationSchema = createNftSendValidationSchema(
-        activeAddress || '',
-        objectId,
-        rpc,
-        iotaNSEnabled,
-    );
+    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
@@ -59,20 +47,10 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                 return transferKioskItem.mutateAsync({ to });
             }
 
-            if (iotaNSEnabled && isIotaNSName(to)) {
-                const address = await rpc.resolveNameServiceAddress({
-                    name: to,
-                });
-                if (!address) {
-                    throw new Error('IotaNS name not found.');
-                }
-                to = address;
-            }
-
-            const tx = new TransactionBlock();
+            const tx = new Transaction();
             tx.transferObjects([tx.object(objectId)], to);
 
-            return signer.signAndExecuteTransactionBlock({
+            return signer.signAndExecuteTransaction({
                 transactionBlock: tx,
                 options: {
                     showInput: true,
@@ -111,11 +89,11 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             initialValues={{
                 to: '',
             }}
-            validateOnMount
+            validateOnChange
             validationSchema={validationSchema}
             onSubmit={({ to }) => transferNFT.mutateAsync(to)}
         >
-            {({ isValid }) => (
+            {({ isValid, dirty, isSubmitting }) => (
                 <Form autoComplete="off" className="h-full">
                     <div className="flex h-full flex-col justify-between">
                         <Field
@@ -125,7 +103,13 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                             placeholder="Enter Address"
                         />
 
-                        <Button htmlType={ButtonHtmlType.Submit} disabled={!isValid} text="Send" />
+                        <Button
+                            htmlType={ButtonHtmlType.Submit}
+                            disabled={!(isValid && dirty) || isSubmitting}
+                            text="Send"
+                            icon={isSubmitting ? <Loader className="animate-spin" /> : undefined}
+                            iconAfterText
+                        />
                     </div>
                 </Form>
             )}

@@ -23,20 +23,19 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use iota_config::{
-    local_ip_utils,
+    Config, NodeConfig, PersistedConfig, local_ip_utils,
     node::{AuthorityKeyPairWithPath, KeyPairWithPath},
-    Config, NodeConfig, PersistedConfig,
 };
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptions};
 use iota_keys::keypair_file::read_keypair_from_file;
-use iota_sdk::{rpc_types::IotaTransactionBlockEffectsAPI, IotaClient, IotaClientBuilder};
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
 use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
-    crypto::{generate_proof_of_possession, get_authority_key_pair, get_key_pair, IotaKeyPair},
+    crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},
-    transaction::{CallArg, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_GENERIC},
-    IOTA_SYSTEM_PACKAGE_ID,
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData},
 };
 use move_core_types::ident_str;
 use tracing::info;
@@ -144,21 +143,22 @@ async fn update_next_epoch_metadata(
 
     let mut new_config = config.clone();
 
-    // protocol key
-    let new_protocol_key_pair = get_authority_key_pair().1;
-    let new_protocol_key_pair_copy = new_protocol_key_pair.copy();
-    let pop = generate_proof_of_possession(&new_protocol_key_pair, iota_address);
-    new_config.protocol_key_pair = AuthorityKeyPairWithPath::new(new_protocol_key_pair);
+    // authority key
+    let new_authority_key_pair = get_authority_key_pair().1;
+    let new_authority_key_pair_copy = new_authority_key_pair.copy();
+    let pop = generate_proof_of_possession(&new_authority_key_pair, iota_address);
+    new_config.authority_key_pair = AuthorityKeyPairWithPath::new(new_authority_key_pair);
 
     // network key
     let new_network_key_pair: Ed25519KeyPair = get_key_pair().1;
     let new_network_key_pair_copy = new_network_key_pair.copy();
     new_config.network_key_pair = KeyPairWithPath::new(IotaKeyPair::Ed25519(new_network_key_pair));
 
-    // worker key
-    let new_worker_key_pair: Ed25519KeyPair = get_key_pair().1;
-    let new_worker_key_pair_copy = new_worker_key_pair.copy();
-    new_config.worker_key_pair = KeyPairWithPath::new(IotaKeyPair::Ed25519(new_worker_key_pair));
+    // protocol key
+    let new_protocol_key_pair: Ed25519KeyPair = get_key_pair().1;
+    let new_protocol_key_pair_copy = new_protocol_key_pair.copy();
+    new_config.protocol_key_pair =
+        KeyPairWithPath::new(IotaKeyPair::Ed25519(new_protocol_key_pair));
 
     let validators = iota_client
         .governance_api()
@@ -209,23 +209,6 @@ async fn update_next_epoch_metadata(
     new_primary_addresses.push(Protocol::Udp(new_port));
     info!("New primary address: {:?}", new_primary_addresses);
 
-    // worker address
-    let mut new_worker_addresses = Multiaddr::try_from(
-        validators
-            .iter()
-            .find(|v| v.iota_address == iota_address)
-            .unwrap()
-            .worker_address
-            .clone(),
-    )
-    .unwrap();
-    info!("Current worker address: {:?}", new_worker_addresses);
-    // pop out udp
-    new_worker_addresses.pop().unwrap();
-    let new_port = local_ip_utils::get_available_port(&localhost);
-    new_worker_addresses.push(Protocol::Udp(new_port));
-    info!("New worker address:: {:?}", new_worker_addresses);
-
     // Save new config
     let mut new_config_path = iota_node_config_path.to_path_buf();
     new_config_path.pop();
@@ -234,13 +217,13 @@ async fn update_next_epoch_metadata(
     );
     new_config.persisted(&new_config_path).save()?;
 
-    // update protocol pubkey on chain
+    // update protocol authority pubkey on chain
     update_metadata_on_chain(
         account_key,
-        "update_validator_next_epoch_protocol_pubkey",
+        "update_validator_next_epoch_authority_pubkey",
         vec![
             CallArg::Pure(
-                bcs::to_bytes(&new_protocol_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
+                bcs::to_bytes(&new_authority_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
             ),
             CallArg::Pure(bcs::to_bytes(&pop.as_bytes().to_vec()).unwrap()),
         ],
@@ -259,12 +242,12 @@ async fn update_next_epoch_metadata(
     )
     .await?;
 
-    // update worker pubkey on chain
+    // update protocol pubkey on chain
     update_metadata_on_chain(
         account_key,
-        "update_validator_next_epoch_worker_pubkey",
+        "update_validator_next_epoch_protocol_pubkey",
         vec![CallArg::Pure(
-            bcs::to_bytes(&new_worker_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
+            bcs::to_bytes(&new_protocol_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
         )],
         iota_client,
     )
@@ -295,15 +278,6 @@ async fn update_next_epoch_metadata(
         vec![CallArg::Pure(
             bcs::to_bytes(&new_primary_addresses).unwrap(),
         )],
-        iota_client,
-    )
-    .await?;
-
-    // update worker address
-    update_metadata_on_chain(
-        account_key,
-        "update_validator_next_epoch_worker_address",
-        vec![CallArg::Pure(bcs::to_bytes(&new_worker_addresses).unwrap())],
         iota_client,
     )
     .await?;

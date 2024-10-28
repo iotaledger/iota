@@ -13,22 +13,20 @@ module iota_system::iota_system_state_inner {
     use iota_system::validator::Validator;
     use iota_system::validator_wrapper::ValidatorWrapper;
 
-    friend iota_system::iota_system;
-
     const SYSTEM_STATE_VERSION_V1: u64 = 18446744073709551605;  // u64::MAX - 10
 
-    struct SystemParameters has store {
+    public struct SystemParameters has store {
         epoch_duration_ms: u64,
         extra_fields: Bag,
     }
 
-    struct ValidatorSet has store {
+    public struct ValidatorSet has store {
         active_validators: vector<Validator>,
         inactive_validators: Table<ID, ValidatorWrapper>,
         extra_fields: Bag,
     }
 
-    struct IotaSystemStateInner has store {
+    public struct IotaSystemStateInner has store {
         epoch: u64,
         protocol_version: u64,
         system_state_version: u64,
@@ -41,7 +39,7 @@ module iota_system::iota_system_state_inner {
         extra_fields: Bag,
     }
 
-    public(friend) fun create(
+    public(package) fun create(
         validators: vector<Validator>,
         storage_fund: Balance<IOTA>,
         protocol_version: u64,
@@ -71,7 +69,7 @@ module iota_system::iota_system_state_inner {
         system_state
     }
 
-    public(friend) fun advance_epoch(
+    public(package) fun advance_epoch(
         self: &mut IotaSystemStateInner,
         storage_charge: Balance<IOTA>,
         computation_reward: Balance<IOTA>,
@@ -83,7 +81,7 @@ module iota_system::iota_system_state_inner {
         storage_rebate
     }
 
-    public(friend) fun genesis_system_state_version(): u64 {
+    public(package) fun genesis_system_state_version(): u64 {
         SYSTEM_STATE_VERSION_V1
     }
 }

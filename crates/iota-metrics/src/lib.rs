@@ -11,34 +11,64 @@ use std::{
     time::Instant,
 };
 
-use axum::{extract::Extension, http::StatusCode, routing::get, Router};
+use axum::{
+    Router,
+    extract::{Extension, Request},
+    http::StatusCode,
+    middleware::Next,
+    response::Response,
+    routing::get,
+};
 use dashmap::DashMap;
 use once_cell::sync::OnceCell;
-use prometheus::{register_int_gauge_vec_with_registry, IntGaugeVec, Registry, TextEncoder};
+use parking_lot::Mutex;
+use prometheus::{
+    Histogram, IntGaugeVec, Registry, TextEncoder, register_histogram_with_registry,
+    register_int_gauge_vec_with_registry,
+};
 pub use scopeguard;
+use simple_server_timing_header::Timer;
 use tap::TapFallible;
-use tracing::warn;
+use tracing::{Span, warn};
 use uuid::Uuid;
 
 mod guards;
 pub mod histogram;
 pub mod metered_channel;
+pub mod monitored_mpsc;
+pub mod thread_stall_monitor;
 pub use guards::*;
 
 pub const TX_TYPE_SINGLE_WRITER_TX: &str = "single_writer";
 pub const TX_TYPE_SHARED_OBJ_TX: &str = "shared_object";
 
+pub const LATENCY_SEC_BUCKETS: &[f64] = &[
+    0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6,
+    0.7, 0.8, 0.9, 1., 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2., 2.5, 3., 3.5, 4., 4.5, 5.,
+    6., 7., 8., 9., 10., 15., 20., 25., 30., 60., 90.,
+];
+
 #[derive(Debug)]
 pub struct Metrics {
     pub tasks: IntGaugeVec,
     pub futures: IntGaugeVec,
-    pub channels: IntGaugeVec,
+    pub channel_inflight: IntGaugeVec,
+    pub channel_sent: IntGaugeVec,
+    pub channel_received: IntGaugeVec,
     pub scope_iterations: IntGaugeVec,
     pub scope_duration_ns: IntGaugeVec,
     pub scope_entrance: IntGaugeVec,
+    pub thread_stall_duration_sec: Histogram,
 }
 
 impl Metrics {
+    /// Creates a new instance of the monitoring metrics, registering various
+    /// gauges and histograms with the provided metrics `Registry`. The
+    /// gauges track metrics such as the number of running tasks, pending
+    /// futures, channel items, and scope activities, while the histogram
+    /// measures the duration of thread stalls. Each metric is registered
+    /// with descriptive labels to facilitate performance monitoring and
+    /// analysis.
     fn new(registry: &Registry) -> Self {
         Self {
             tasks: register_int_gauge_vec_with_registry!(
@@ -55,9 +85,23 @@ impl Metrics {
                 registry,
             )
             .unwrap(),
-            channels: register_int_gauge_vec_with_registry!(
-                "monitored_channels",
-                "Size of channels.",
+            channel_inflight: register_int_gauge_vec_with_registry!(
+                "monitored_channel_inflight",
+                "Inflight items in channels.",
+                &["name"],
+                registry,
+            )
+            .unwrap(),
+            channel_sent: register_int_gauge_vec_with_registry!(
+                "monitored_channel_sent",
+                "Sent items in channels.",
+                &["name"],
+                registry,
+            )
+            .unwrap(),
+            channel_received: register_int_gauge_vec_with_registry!(
+                "monitored_channel_received",
+                "Received items in channels.",
                 &["name"],
                 registry,
             )
@@ -83,12 +127,23 @@ impl Metrics {
                 registry,
             )
             .unwrap(),
+            thread_stall_duration_sec: register_histogram_with_registry!(
+                "thread_stall_duration_sec",
+                "Duration of thread stalls in seconds.",
+                registry,
+            )
+            .unwrap(),
         }
     }
 }
 
 static METRICS: OnceCell<Metrics> = OnceCell::new();
 
+/// Initializes the global `METRICS` instance by setting it to a new `Metrics`
+/// object registered with the provided `Registry`. If `METRICS` is already set,
+/// a warning is logged indicating that the metrics registry was overwritten.
+/// This function is intended to be called once during initialization to set up
+/// metrics collection.
 pub fn init_metrics(registry: &Registry) {
     let _ = METRICS
         .set(Metrics::new(registry))
@@ -96,8 +151,85 @@ pub fn init_metrics(registry: &Registry) {
         .tap_err(|_| warn!("init_metrics registry overwritten"));
 }
 
+/// Retrieves the global `METRICS` instance if it has been initialized.
 pub fn get_metrics() -> Option<&'static Metrics> {
     METRICS.get()
+}
+
+tokio::task_local! {
+    static SERVER_TIMING: Arc<Mutex<Timer>>;
+}
+
+/// Create a new task-local ServerTiming context and run the provided future
+/// within it. Should be used at the top-most level of a request handler. Can be
+/// added to an axum router as a layer by using
+/// iota_service::server_timing_middleware.
+pub async fn with_new_server_timing<T>(fut: impl Future<Output = T> + Send + 'static) -> T {
+    let timer = Arc::new(Mutex::new(Timer::new()));
+
+    let mut ret = None;
+    SERVER_TIMING
+        .scope(timer, async {
+            ret = Some(fut.await);
+        })
+        .await;
+
+    ret.unwrap()
+}
+
+pub async fn server_timing_middleware(request: Request, next: Next) -> Response {
+    with_new_server_timing(async move {
+        let mut response = next.run(request).await;
+        add_server_timing("finish_request");
+
+        if let Ok(header_value) = get_server_timing()
+            .expect("server timing not set")
+            .lock()
+            .header_value()
+            .try_into()
+        {
+            response
+                .headers_mut()
+                .insert(Timer::header_key(), header_value);
+        }
+        response
+    })
+    .await
+}
+
+/// Create a new task-local ServerTiming context and run the provided future
+/// within it. Only intended for use by macros within this module.
+pub async fn with_server_timing<T>(
+    timer: Arc<Mutex<Timer>>,
+    fut: impl Future<Output = T> + Send + 'static,
+) -> T {
+    let mut ret = None;
+    SERVER_TIMING
+        .scope(timer, async {
+            ret = Some(fut.await);
+        })
+        .await;
+
+    ret.unwrap()
+}
+
+/// Get the currently active ServerTiming context. Only intended for use by
+/// macros within this module.
+pub fn get_server_timing() -> Option<Arc<Mutex<Timer>>> {
+    SERVER_TIMING.try_with(|timer| timer.clone()).ok()
+}
+
+/// Add a new entry to the ServerTiming header.
+/// If the caller is not currently in a ServerTiming context (created with
+/// `with_new_server_timing`), an error is logged.
+pub fn add_server_timing(name: &str) {
+    let res = SERVER_TIMING.try_with(|timer| {
+        timer.lock().add(name);
+    });
+
+    if res.is_err() {
+        tracing::error!("Server timing context not found");
+    }
 }
 
 #[macro_export]
@@ -112,18 +244,18 @@ macro_rules! monitored_future {
         };
 
         async move {
-            let metrics = iota_metrics::get_metrics();
+            let metrics = $crate::get_metrics();
 
             let _metrics_guard = if let Some(m) = metrics {
                 m.$metric.with_label_values(&[location]).inc();
-                Some(iota_metrics::scopeguard::guard(m, |metrics| {
+                Some($crate::scopeguard::guard(m, |_| {
                     m.$metric.with_label_values(&[location]).dec();
                 }))
             } else {
                 None
             };
             let _logging_guard = if $logging_enabled {
-                Some(iota_metrics::scopeguard::guard((), |_| {
+                Some($crate::scopeguard::guard((), |_| {
                     tracing::event!(
                         tracing::Level::$logging_level,
                         "Future {} completed",
@@ -148,9 +280,20 @@ macro_rules! monitored_future {
 }
 
 #[macro_export]
+macro_rules! forward_server_timing_and_spawn {
+    ($fut: expr) => {
+        if let Some(timing) = $crate::get_server_timing() {
+            tokio::task::spawn(async move { $crate::with_server_timing(timing, $fut).await })
+        } else {
+            tokio::task::spawn($fut)
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! spawn_monitored_task {
     ($fut: expr) => {
-        tokio::task::spawn(iota_metrics::monitored_future!(
+        $crate::forward_server_timing_and_spawn!($crate::monitored_future!(
             tasks, $fut, "", INFO, false
         ))
     };
@@ -159,17 +302,19 @@ macro_rules! spawn_monitored_task {
 #[macro_export]
 macro_rules! spawn_logged_monitored_task {
     ($fut: expr) => {
-        tokio::task::spawn(iota_metrics::monitored_future!(tasks, $fut, "", INFO, true))
+        $crate::forward_server_timing_and_spawn!($crate::monitored_future!(
+            tasks, $fut, "", INFO, true
+        ))
     };
 
     ($fut: expr, $name: expr) => {
-        tokio::task::spawn(iota_metrics::monitored_future!(
+        $crate::forward_server_timing_and_spawn!($crate::monitored_future!(
             tasks, $fut, $name, INFO, true
         ))
     };
 
     ($fut: expr, $name: expr, $logging_level: ident) => {
-        tokio::task::spawn(iota_metrics::monitored_future!(
+        $crate::forward_server_timing_and_spawn!($crate::monitored_future!(
             tasks,
             $fut,
             $name,
@@ -223,7 +368,14 @@ pub fn monitored_scope(name: &'static str) -> Option<MonitoredScopeGuard> {
     }
 }
 
+/// A trait extension for `Future` to allow monitoring the execution of the
+/// future within a specific scope. Provides the `in_monitored_scope` method to
+/// wrap the future in a `MonitoredScopeFuture`, which tracks the future's
+/// execution using a `MonitoredScopeGuard` for monitoring purposes.
 pub trait MonitoredFutureExt: Future + Sized {
+    /// Wraps the current future in a `MonitoredScopeFuture` that is associated
+    /// with a specific monitored scope name. The scope helps track the
+    /// execution of the future for performance analysis and metrics collection.
     fn in_monitored_scope(self, name: &'static str) -> MonitoredScopeFuture<Self>;
 }
 
@@ -236,6 +388,10 @@ impl<F: Future> MonitoredFutureExt for F {
     }
 }
 
+/// A future that runs within a monitored scope. This struct wraps a pinned
+/// future and holds an optional `MonitoredScopeGuard` to measure and monitor
+/// the execution of the future. It forwards polling operations
+/// to the underlying future while maintaining the monitoring scope.
 pub struct MonitoredScopeFuture<F: Sized> {
     f: Pin<Box<F>>,
     _scope: Option<MonitoredScopeGuard>,
@@ -246,6 +402,86 @@ impl<F: Future> Future for MonitoredScopeFuture<F> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.f.as_mut().poll(cx)
+    }
+}
+
+/// A future that runs within a monitored scope. This struct wraps a pinned
+/// future and holds an optional `MonitoredScopeGuard` to measure and monitor
+/// the execution of the future. It forwards polling operations
+/// to the underlying future while maintaining the monitoring scope.
+pub struct CancelMonitor<F: Sized> {
+    finished: bool,
+    inner: Pin<Box<F>>,
+}
+
+impl<F> CancelMonitor<F>
+where
+    F: Future,
+{
+    /// Creates a new `CancelMonitor` that wraps the given future (`inner`). The
+    /// monitor tracks whether the future has completed.
+    pub fn new(inner: F) -> Self {
+        Self {
+            finished: false,
+            inner: Box::pin(inner),
+        }
+    }
+
+    /// Returns `true` if the future has completed; otherwise, `false`.
+    pub fn is_finished(&self) -> bool {
+        self.finished
+    }
+}
+
+impl<F> Future for CancelMonitor<F>
+where
+    F: Future,
+{
+    type Output = F::Output;
+
+    /// Polls the inner future to determine if it is ready or still pending. For
+    /// `CancelMonitor`, if the future completes (`Poll::Ready`), `finished`
+    /// is set to `true`. If it is still pending, the status remains
+    /// unchanged. This allows monitoring of the future's completion status.
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.inner.as_mut().poll(cx) {
+            Poll::Ready(output) => {
+                self.finished = true;
+                Poll::Ready(output)
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl<F: Sized> Drop for CancelMonitor<F> {
+    /// When the `CancelMonitor` is dropped, it checks whether the future has
+    /// finished executing. If the future was not completed (`finished` is
+    /// `false`), it records that the future was cancelled by logging the
+    /// cancellation status using the current span.
+    fn drop(&mut self) {
+        if !self.finished {
+            Span::current().record("cancelled", true);
+        }
+    }
+}
+
+/// MonitorCancellation records a cancelled = true span attribute if the future
+/// it is decorating is dropped before completion. The cancelled attribute must
+/// be added at span creation, as you cannot add new attributes after the span
+/// is created.
+pub trait MonitorCancellation {
+    fn monitor_cancellation(self) -> CancelMonitor<Self>
+    where
+        Self: Sized + Future;
+}
+
+impl<T> MonitorCancellation for T
+where
+    T: Future,
+{
+    fn monitor_cancellation(self) -> CancelMonitor<Self> {
+        CancelMonitor::new(self)
     }
 }
 
@@ -373,13 +609,22 @@ pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
         .layer(Extension(registry_service.clone()));
 
     tokio::spawn(async move {
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, app.into_make_service()).await
+        let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+        axum::serve(listener, app.into_make_service())
+            .await
+            .unwrap();
     });
 
     registry_service
 }
 
+/// Handles a request to retrieve metrics, using the provided `RegistryService`
+/// to gather all registered metric families. The metrics are then encoded to a
+/// text format for easy consumption by monitoring systems. If successful, it
+/// returns the metrics string with an `OK` status. If an error occurs during
+/// encoding, it returns an `INTERNAL_SERVER_ERROR` status along with an error
+/// message. Returns a tuple containing the status code and either the metrics
+/// data or an error description.
 pub async fn metrics(
     Extension(registry_service): Extension<RegistryService>,
 ) -> (StatusCode, String) {
@@ -414,7 +659,7 @@ mod tests {
         // AND add a metric to the default registry
 
         // AND a registry with one metric
-        let registry_1 = Registry::new_custom(Some("narwhal".to_string()), None).unwrap();
+        let registry_1 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
         registry_1
             .register(Box::new(
                 IntCounter::new("counter_1", "counter_1_desc").unwrap(),
@@ -434,8 +679,8 @@ mod tests {
         assert_eq!(metric_default.get_name(), "default_counter");
         assert_eq!(metric_default.get_help(), "counter_desc");
 
-        let metric_1 = metrics.remove(0);
-        assert_eq!(metric_1.get_name(), "narwhal_counter_1");
+        let metric_1: prometheus::proto::MetricFamily = metrics.remove(0);
+        assert_eq!(metric_1.get_name(), "iota_counter_1");
         assert_eq!(metric_1.get_help(), "counter_1_desc");
 
         // AND add a second registry with a metric
@@ -458,12 +703,12 @@ mod tests {
         assert_eq!(metric_default.get_help(), "counter_desc");
 
         let metric_1 = metrics.remove(0);
-        assert_eq!(metric_1.get_name(), "iota_counter_2");
-        assert_eq!(metric_1.get_help(), "counter_2_desc");
+        assert_eq!(metric_1.get_name(), "iota_counter_1");
+        assert_eq!(metric_1.get_help(), "counter_1_desc");
 
         let metric_2 = metrics.remove(0);
-        assert_eq!(metric_2.get_name(), "narwhal_counter_1");
-        assert_eq!(metric_2.get_help(), "counter_1_desc");
+        assert_eq!(metric_2.get_name(), "iota_counter_2");
+        assert_eq!(metric_2.get_help(), "counter_2_desc");
 
         // AND remove first registry
         assert!(registry_service.remove(registry_1_id));

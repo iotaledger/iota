@@ -11,11 +11,10 @@ use iota_types::{
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use typed_store::{
+    DBMapUtils, Map, TypedStoreError,
     rocks::DBMap,
     traits::{TableSummary, TypedStoreDebug},
-    Map, TypedStoreError,
 };
-use typed_store_derive::DBMapUtils;
 use uuid::Uuid;
 
 /// Persistent log of transactions paying out iota from the faucet, keyed by the
@@ -63,22 +62,19 @@ impl WriteAheadLog {
         if self.log.contains_key(&coin)? {
             // Don't permit multiple writes against the same coin
             // TODO: Use a better error type than `TypedStoreError`.
-            return Err(TypedStoreError::SerializationError(format!(
+            return Err(TypedStoreError::Serialization(format!(
                 "Duplicate WAL entry for coin {coin:?}",
             )));
         }
 
         let uuid = *uuid.as_bytes();
-        self.log.insert(
-            &coin,
-            &Entry {
-                uuid,
-                recipient,
-                tx,
-                retry_count: 0,
-                in_flight: true,
-            },
-        )
+        self.log.insert(&coin, &Entry {
+            uuid,
+            recipient,
+            tx,
+            retry_count: 0,
+            in_flight: true,
+        })
     }
 
     /// Check whether `coin` has a pending transaction in the WAL.  Returns
@@ -87,7 +83,7 @@ impl WriteAheadLog {
     pub(crate) fn reclaim(&self, coin: ObjectID) -> Result<Option<Entry>, TypedStoreError> {
         match self.log.get(&coin) {
             Ok(entry) => Ok(entry),
-            Err(TypedStoreError::SerializationError(_)) => {
+            Err(TypedStoreError::Serialization(_)) => {
                 // Remove bad log from the store, so we don't crash on start up, this can happen
                 // if we update the WAL Entry and have some leftover Entry from
                 // the WAL.
@@ -128,7 +124,7 @@ impl WriteAheadLog {
                 "Attempted to set inflight a coin that was not in the WAL."
             );
 
-            return Err(TypedStoreError::RocksDBError(format!(
+            return Err(TypedStoreError::RocksDB(format!(
                 "Coin object {coin:?} not found in WAL."
             )));
         }
@@ -139,7 +135,7 @@ impl WriteAheadLog {
 #[cfg(test)]
 mod tests {
     use iota_types::{
-        base_types::{random_object_ref, ObjectRef},
+        base_types::{ObjectRef, random_object_ref},
         transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     };
 
@@ -207,7 +203,7 @@ mod tests {
         // Second write fails because it tries to write to the same coin
         assert!(matches!(
             wal.reserve(uuid, coin.0, recv1, tx1),
-            Err(TypedStoreError::SerializationError(_)),
+            Err(TypedStoreError::Serialization(_)),
         ));
     }
 

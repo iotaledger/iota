@@ -1,7 +1,7 @@
 [package]
 name = "iota-util-mem"
 version = "0.11.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 publish = false
@@ -10,19 +10,21 @@ rust-version = "1.56.1"
 description = "Collection of memory related utilities"
 
 [dependencies]
+# external dependencies
 cfg-if.workspace = true
 ed25519-consensus.workspace = true
 fastcrypto = { workspace = true }
 fastcrypto-tbls.workspace = true
-hashbrown = { version = "0.14", optional = true }
-impl-trait-for-tuples = "0.2"
+hashbrown = { version = "0.12", optional = true }
+impl-trait-for-tuples = "0.2.0"
 indexmap.workspace = true
-iota-util-mem-derive.workspace = true
-lru = { workspace = true, optional = true }
 once_cell.workspace = true
 parking_lot = { workspace = true, optional = true }
 roaring.workspace = true
 smallvec = { workspace = true, optional = true }
+
+# internal dependencies
+iota-util-mem-derive.workspace = true
 
 [features]
 default = ["std", "hashbrown", "smallvec", "estimate-heapsize"]

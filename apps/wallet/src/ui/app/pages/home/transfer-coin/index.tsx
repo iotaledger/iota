@@ -19,7 +19,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-
 import { PreviewTransfer } from './PreviewTransfer';
 import { SendTokenForm, type SubmitProps } from './SendTokenForm';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -28,6 +27,7 @@ import { useActiveAddress, useCoinsReFetchingConfig } from '_src/ui/app/hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { CoinBalance } from '@iota/iota-sdk/client';
 import { ImageIconSize } from '_src/ui/app/shared/image-icon';
+import { Loader } from '@iota/ui-icons';
 
 function TransferCoinPage() {
     const [searchParams] = useSearchParams();
@@ -60,7 +60,7 @@ function TransferCoinPage() {
             // const sentryTransaction = Sentry.startTransaction({
             // 	name: 'send-tokens',
             // });
-            return signer.signAndExecuteTransactionBlock({
+            return signer.signAndExecuteTransaction({
                 transactionBlock: transaction,
                 options: {
                     showInput: true,
@@ -93,6 +93,9 @@ function TransferCoinPage() {
                         {getSignerOperationErrorMessage(error)}
                     </small>
                 </div>,
+                {
+                    duration: 10000,
+                },
             );
         },
     });
@@ -133,6 +136,12 @@ function TransferCoinPage() {
                             }}
                             text="Send Now"
                             disabled={coinType === null || executeTransfer.isPending}
+                            icon={
+                                executeTransfer.isPending ? (
+                                    <Loader className="animate-spin" />
+                                ) : undefined
+                            }
+                            iconAfterText
                         />
                     </div>
                 ) : (
@@ -208,21 +217,15 @@ function CoinSelector({
     );
 }
 
-function CoinSelectOption({
-    coin: { coinType, totalBalance },
-    size,
-}: {
-    coin: CoinBalance;
-    size?: ImageIconSize;
-}) {
+function CoinSelectOption({ coin: { coinType, totalBalance } }: { coin: CoinBalance }) {
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(totalBalance, coinType);
     const isIota = coinType === IOTA_TYPE_ARG;
 
     return (
         <div className="flex w-full flex-row items-center justify-between">
             <div className="flex flex-row items-center gap-x-md">
-                <div className={size}>
-                    <CoinIcon size={ImageIconSize.Small} coinType={coinType} />
+                <div className="flex h-6 w-6 items-center justify-center">
+                    <CoinIcon size={ImageIconSize.Small} coinType={coinType} rounded />
                 </div>
                 <span className="text-body-lg text-neutral-10">
                     {isIota ? (coinMeta?.name || '').toUpperCase() : coinMeta?.name || symbol}

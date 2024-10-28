@@ -9,7 +9,6 @@ interface CollapsibleProps {
     title?: string;
     defaultOpen?: boolean;
     children: ReactNode | ReactNode[];
-    shade?: 'lighter' | 'darker';
     isOpen?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     titleSize?: TitleSize;
@@ -24,7 +23,6 @@ export function Collapsible({
     defaultOpen,
     isOpen,
     onOpenChange,
-    shade = 'lighter',
     titleSize = TitleSize.Small,
     render,
     hideArrow,

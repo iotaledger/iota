@@ -19,7 +19,6 @@
 use std::collections::{hash_map, HashMap, HashSet};
 
 use move_binary_format::{
-    access::ModuleAccess,
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
     file_format::{
         Bytecode, CompiledModule, FunctionDefinition, FunctionDefinitionIndex, FunctionHandleIndex,
@@ -148,14 +147,14 @@ impl<'a> InstantiationLoopChecker<'a> {
 
         fn rec(type_params: &mut HashSet<TypeParameterIndex>, ty: &SignatureToken) {
             match ty {
-                Bool | Address | U8 | U16 | U32 | U64 | U128 | U256 | Signer | Struct(_) => (),
+                Bool | Address | U8 | U16 | U32 | U64 | U128 | U256 | Signer | Datatype(_) => {}
                 TypeParameter(idx) => {
                     type_params.insert(*idx);
                 }
                 Vector(ty) => rec(type_params, ty),
                 Reference(ty) | MutableReference(ty) => rec(type_params, ty),
-                StructInstantiation(struct_inst) => {
-                    let (_, tys) = &**struct_inst;
+                DatatypeInstantiation(inst) => {
+                    let (_, tys) = &**inst;
                     for ty in tys {
                         rec(type_params, ty);
                     }

@@ -2,6 +2,8 @@
 title: Regulated Coin and Deny List
 description: You can create regulated coins on IOTA, such as stablecoins. These coins are similar to other coins like IOTA, but include the ability to control access to the coin using a deny list.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/create-coin/regulated.json';
 
 The IOTA [Coin](../../standards/coin.mdx) standard provides a `create_regulated_currency` function to create coins. This function is different than `create_currency` in that it generates a coin that you can block certain addresses from being able to use those coins in transactions. This ability is a requirement for assets like stablecoins.
 
@@ -102,7 +104,7 @@ public fun remove_addr_from_deny_list(denylist: &mut DenyList, denycap: &mut Den
 To use these functions, you pass the `DenyList` object (`0x403`), your `DenyCap` object ID, and the address you want to either add or remove. Using the IOTA CLI, you could use `iota client call` with the required information:
 
 ```shell
-iota client call --function add_addr_from_deny_list --module regcoin --package <PACKAGE-ID> --args <DENY-LIST> <DENY-CAP> <ADDRESS-TO-DENY> --gas-budget <GAS-AMOUNT>
+iota client call --function add_addr_from_deny_list --module regcoin --package <PACKAGE-ID> --args <DENY-LIST> <DENY-CAP> <ADDRESS-TO-DENY>
 Transaction Digest: <DIGEST-HASH>
 ```
 
@@ -125,3 +127,5 @@ MutatedObjects:
 ```
 
 For all `Coin` functions available, see the IOTA framework [`coin` module documentation](/references/framework/iota-framework/coin.mdx).
+
+<Quiz questions={questions} />

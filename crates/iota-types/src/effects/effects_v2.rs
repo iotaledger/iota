@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
 #[cfg(debug_assertions)]
 use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
 use super::{
-    object_change::{ObjectIn, ObjectOut},
     EffectsObjectChange, IDOperation, ObjectChange,
+    object_change::{ObjectIn, ObjectOut},
 };
 #[cfg(debug_assertions)]
 use crate::is_system_package;
@@ -24,7 +24,7 @@ use crate::{
     execution::SharedInput,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
-    object::{Owner, OBJECT_START_VERSION},
+    object::{OBJECT_START_VERSION, Owner},
 };
 
 /// The response from processing a transaction or a certified transaction
@@ -48,7 +48,7 @@ pub struct TransactionEffectsV2 {
     dependencies: Vec<TransactionDigest>,
 
     /// The version number of all the written Move objects by this transaction.
-    lamport_version: SequenceNumber,
+    pub(crate) lamport_version: SequenceNumber,
     /// Objects whose state are changed in the object store.
     changed_objects: Vec<(ObjectID, EffectsObjectChange)>,
     /// Shared objects that are not mutated in this transaction. Unlike owned
@@ -116,19 +116,28 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
                 }
                 _ => None,
             })
-            .chain(self.unchanged_shared_objects.iter().map(
-                |(id, change_kind)| match change_kind {
-                    UnchangedSharedKind::ReadOnlyRoot((version, digest)) => {
-                        InputSharedObject::ReadOnly((*id, *version, *digest))
-                    }
-                    UnchangedSharedKind::MutateDeleted(seqno) => {
-                        InputSharedObject::MutateDeleted(*id, *seqno)
-                    }
-                    UnchangedSharedKind::ReadDeleted(seqno) => {
-                        InputSharedObject::ReadDeleted(*id, *seqno)
-                    }
-                },
-            ))
+            .chain(
+                self.unchanged_shared_objects
+                    .iter()
+                    .filter_map(|(id, change_kind)| match change_kind {
+                        UnchangedSharedKind::ReadOnlyRoot((version, digest)) => {
+                            Some(InputSharedObject::ReadOnly((*id, *version, *digest)))
+                        }
+                        UnchangedSharedKind::MutateDeleted(seqno) => {
+                            Some(InputSharedObject::MutateDeleted(*id, *seqno))
+                        }
+                        UnchangedSharedKind::ReadDeleted(seqno) => {
+                            Some(InputSharedObject::ReadDeleted(*id, *seqno))
+                        }
+                        UnchangedSharedKind::Cancelled(seqno) => {
+                            Some(InputSharedObject::Cancelled(*id, *seqno))
+                        }
+                        // We can not expose the per epoch config object as input shared object,
+                        // since it does not require sequencing, and hence shall not be considered
+                        // as a normal input shared object.
+                        UnchangedSharedKind::PerEpochConfig => None,
+                    }),
+            )
             .collect()
     }
 
@@ -317,6 +326,10 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
         &self.gas_used
     }
 
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)> {
+        self.unchanged_shared_objects.clone()
+    }
+
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
         &mut self.status
     }
@@ -335,24 +348,17 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
 
     fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject) {
         match kind {
-            InputSharedObject::Mutate(obj_ref) => self.changed_objects.push((
-                obj_ref.0,
-                EffectsObjectChange {
-                    input_state: ObjectIn::Exist((
-                        (obj_ref.1, obj_ref.2),
-                        Owner::Shared {
-                            initial_shared_version: OBJECT_START_VERSION,
-                        },
-                    )),
-                    output_state: ObjectOut::ObjectWrite((
-                        obj_ref.2,
-                        Owner::Shared {
-                            initial_shared_version: obj_ref.1,
-                        },
-                    )),
+            InputSharedObject::Mutate(obj_ref) => {
+                self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+                    input_state: ObjectIn::Exist(((obj_ref.1, obj_ref.2), Owner::Shared {
+                        initial_shared_version: OBJECT_START_VERSION,
+                    })),
+                    output_state: ObjectOut::ObjectWrite((obj_ref.2, Owner::Shared {
+                        initial_shared_version: obj_ref.1,
+                    })),
                     id_operation: IDOperation::None,
-                },
-            )),
+                }))
+            }
             InputSharedObject::ReadOnly(obj_ref) => self.unchanged_shared_objects.push((
                 obj_ref.0,
                 UnchangedSharedKind::ReadOnlyRoot((obj_ref.1, obj_ref.2)),
@@ -363,38 +369,35 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
             InputSharedObject::MutateDeleted(obj_id, seqno) => self
                 .unchanged_shared_objects
                 .push((obj_id, UnchangedSharedKind::MutateDeleted(seqno))),
+            InputSharedObject::Cancelled(obj_id, seqno) => self
+                .unchanged_shared_objects
+                .push((obj_id, UnchangedSharedKind::Cancelled(seqno))),
         }
     }
 
     fn unsafe_add_deleted_live_object_for_testing(&mut self, obj_ref: ObjectRef) {
-        self.changed_objects.push((
-            obj_ref.0,
-            EffectsObjectChange {
-                input_state: ObjectIn::Exist((
-                    (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                output_state: ObjectOut::ObjectWrite((
-                    obj_ref.2,
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                id_operation: IDOperation::None,
-            },
-        ))
+        self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+            input_state: ObjectIn::Exist((
+                (obj_ref.1, obj_ref.2),
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            output_state: ObjectOut::ObjectWrite((
+                obj_ref.2,
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            id_operation: IDOperation::None,
+        }))
     }
 
     fn unsafe_add_object_tombstone_for_testing(&mut self, obj_ref: ObjectRef) {
-        self.changed_objects.push((
-            obj_ref.0,
-            EffectsObjectChange {
-                input_state: ObjectIn::Exist((
-                    (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                output_state: ObjectOut::NotExist,
-                id_operation: IDOperation::Deleted,
-            },
-        ))
+        self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+            input_state: ObjectIn::Exist((
+                (obj_ref.1, obj_ref.2),
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            output_state: ObjectOut::NotExist,
+            id_operation: IDOperation::Deleted,
+        }))
     }
 }
 
@@ -404,6 +407,7 @@ impl TransactionEffectsV2 {
         executed_epoch: EpochId,
         gas_used: GasCostSummary,
         shared_objects: Vec<SharedInput>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
         transaction_digest: TransactionDigest,
         lamport_version: SequenceNumber,
         changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
@@ -429,7 +433,16 @@ impl TransactionEffectsV2 {
                         Some((id, UnchangedSharedKind::ReadDeleted(version)))
                     }
                 }
+                SharedInput::Cancelled((id, version)) => {
+                    debug_assert!(!changed_objects.contains_key(&id));
+                    Some((id, UnchangedSharedKind::Cancelled(version)))
+                }
             })
+            .chain(
+                loaded_per_epoch_config_objects
+                    .into_iter()
+                    .map(|id| (id, UnchangedSharedKind::PerEpochConfig)),
+            )
             .collect();
         let changed_objects: Vec<_> = changed_objects.into_iter().collect();
 
@@ -557,6 +570,10 @@ impl TransactionEffectsV2 {
             );
         }
     }
+
+    pub fn changed_objects(&self) -> &[(ObjectID, EffectsObjectChange)] {
+        &self.changed_objects
+    }
 }
 
 impl Default for TransactionEffectsV2 {
@@ -587,4 +604,10 @@ pub enum UnchangedSharedKind {
     MutateDeleted(SequenceNumber),
     /// Deleted shared objects that appear as read-only in the input.
     ReadDeleted(SequenceNumber),
+    /// Shared objects in cancelled transaction. The sequence number embed
+    /// cancellation reason.
+    Cancelled(SequenceNumber),
+    /// Read of a per-epoch config object that should remain the same during an
+    /// epoch.
+    PerEpochConfig,
 }

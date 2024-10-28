@@ -1,5 +1,6 @@
 processed 2 tasks
 
-task 1 'publish'. lines 6-28:
+task 1, lines 6-28:
+//# publish
 Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::M1. 'init' function must be private"), command: Some(0) } }

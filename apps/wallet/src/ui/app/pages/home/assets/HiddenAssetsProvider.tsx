@@ -2,40 +2,58 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_src/ui/app/shared/text';
-import { Check12 } from '@iota/icons';
 import { get, set } from 'idb-keyval';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { toast } from 'react-hot-toast';
-import { Link as InlineLink } from '../../../shared/Link';
+import { type Toast, toast } from 'react-hot-toast';
+import { ButtonUnstyled } from '@iota/apps-ui-kit';
 
 const HIDDEN_ASSET_IDS = 'hidden-asset-ids';
 
+type HiddenAssets =
+    | {
+          type: 'loading';
+      }
+    | {
+          type: 'loaded';
+          assetIds: string[];
+      };
+
 interface HiddenAssetContext {
-    hiddenAssetIds: string[];
+    hiddenAssets: HiddenAssets;
     setHiddenAssetIds: (hiddenAssetIds: string[]) => void;
     hideAsset: (assetId: string) => void;
     showAsset: (assetId: string) => void;
 }
 
 export const HiddenAssetsContext = createContext<HiddenAssetContext>({
-    hiddenAssetIds: [],
+    hiddenAssets: {
+        type: 'loading',
+    },
     setHiddenAssetIds: () => {},
     hideAsset: () => {},
     showAsset: () => {},
 });
 
 export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
-    const [hiddenAssetIds, setHiddenAssetIds] = useState<string[]>([]);
+    const [hiddenAssets, setHiddenAssets] = useState<HiddenAssets>({
+        type: 'loading',
+    });
+
+    const hiddenAssetIds = hiddenAssets.type === 'loaded' ? hiddenAssets.assetIds : [];
 
     useEffect(() => {
         (async () => {
-            const hiddenAssets = await get<string[]>(HIDDEN_ASSET_IDS);
-            if (hiddenAssets) {
-                setHiddenAssetIds(hiddenAssets);
-            }
+            const hiddenAssets = (await get<string[]>(HIDDEN_ASSET_IDS)) ?? [];
+            setHiddenAssetIds(hiddenAssets);
         })();
     }, []);
+
+    function setHiddenAssetIds(hiddenAssetIds: string[]) {
+        setHiddenAssets({
+            type: 'loaded',
+            assetIds: hiddenAssetIds,
+        });
+    }
 
     const hideAssetId = useCallback(
         async (newAssetId: string) => {
@@ -48,9 +66,13 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
             const undoHideAsset = async (assetId: string) => {
                 try {
                     let updatedHiddenAssetIds;
-                    setHiddenAssetIds((prevIds) => {
-                        updatedHiddenAssetIds = prevIds.filter((id) => id !== assetId);
-                        return updatedHiddenAssetIds;
+                    setHiddenAssets((previous) => {
+                        const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
+                        updatedHiddenAssetIds = previousIds.filter((id) => id !== assetId);
+                        return {
+                            type: 'loaded',
+                            assetIds: updatedHiddenAssetIds,
+                        };
                     });
                     await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
                 } catch (error) {
@@ -63,56 +85,19 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
             };
 
             const showAssetHiddenToast = async (objectId: string) => {
-                toast.custom(
+                toast.success(
                     (t) => (
-                        <div
-                            className="border-gray-45 flex w-full items-center justify-between gap-2 rounded-full border-solid bg-white px-3 py-2 shadow-notification"
-                            style={{
-                                animation: 'fade-in-up 200ms ease-in-out',
-                            }}
-                        >
-                            <div className="flex items-center gap-2">
-                                <Check12 className="text-gray-90" />
-                                <div
-                                    onClick={() => {
-                                        toast.dismiss(t.id);
-                                    }}
-                                >
-                                    <InlineLink
-                                        to="/nfts"
-                                        color="hero"
-                                        weight="medium"
-                                        before={
-                                            <Text variant="body" color="gray-80">
-                                                Moved to
-                                            </Text>
-                                        }
-                                        text="Hidden Assets"
-                                        onClick={() => toast.dismiss(t.id)}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="w-auto">
-                                <InlineLink
-                                    size="bodySmall"
-                                    onClick={() => {
-                                        undoHideAsset(objectId);
-                                        toast.dismiss(t.id);
-                                    }}
-                                    color="hero"
-                                    weight="medium"
-                                    text="UNDO"
-                                />
-                            </div>
-                        </div>
+                        <MovedAssetNotification
+                            t={t}
+                            destination="Hidden Assets"
+                            onUndo={() => undoHideAsset(objectId)}
+                        />
                     ),
                     {
                         duration: 4000,
                     },
                 );
             };
-
             showAssetHiddenToast(newAssetId);
         },
         [hiddenAssetIds],
@@ -136,56 +121,25 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
 
             const undoShowAsset = async (assetId: string) => {
                 let newHiddenAssetIds;
-                setHiddenAssetIds((prevIds) => {
-                    return (newHiddenAssetIds = [...prevIds, assetId]);
+                setHiddenAssets((previous) => {
+                    const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
+                    newHiddenAssetIds = [...previousIds, assetId];
+                    return {
+                        type: 'loaded',
+                        assetIds: newHiddenAssetIds,
+                    };
                 });
                 await set(HIDDEN_ASSET_IDS, newHiddenAssetIds);
             };
 
             const assetShownToast = async (objectId: string) => {
-                toast.custom(
+                toast.success(
                     (t) => (
-                        <div
-                            className="border-gray-45 flex w-full items-center justify-between gap-2 rounded-full border-solid bg-white px-3 py-2 shadow-notification"
-                            style={{
-                                animation: 'fade-in-up 200ms ease-in-out',
-                            }}
-                        >
-                            <div className="flex items-center gap-1">
-                                <Check12 className="text-gray-90" />
-                                <div
-                                    onClick={() => {
-                                        toast.dismiss(t.id);
-                                    }}
-                                >
-                                    <InlineLink
-                                        to="/nfts"
-                                        color="hero"
-                                        weight="medium"
-                                        before={
-                                            <Text variant="body" color="gray-80">
-                                                Moved to
-                                            </Text>
-                                        }
-                                        text="Visual Assets"
-                                        onClick={() => toast.dismiss(t.id)}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="w-auto">
-                                <InlineLink
-                                    size="bodySmall"
-                                    onClick={() => {
-                                        undoShowAsset(objectId);
-                                        toast.dismiss(t.id);
-                                    }}
-                                    color="hero"
-                                    weight="medium"
-                                    text="UNDO"
-                                />
-                            </div>
-                        </div>
+                        <MovedAssetNotification
+                            t={t}
+                            destination="Visual Assets"
+                            onUndo={() => undoShowAsset(objectId)}
+                        />
                     ),
                     {
                         duration: 4000,
@@ -205,7 +159,10 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
     return (
         <HiddenAssetsContext.Provider
             value={{
-                hiddenAssetIds: Array.from(new Set(hiddenAssetIds)),
+                hiddenAssets:
+                    hiddenAssets.type === 'loaded'
+                        ? { ...hiddenAssets, assetIds: Array.from(new Set(hiddenAssetIds)) }
+                        : { type: 'loading' },
                 setHiddenAssetIds,
                 hideAsset: hideAssetId,
                 showAsset,
@@ -219,3 +176,30 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
 export const useHiddenAssets = () => {
     return useContext(HiddenAssetsContext);
 };
+
+interface MovedAssetNotificationProps {
+    t: Toast;
+    destination: string;
+    onUndo: () => void;
+}
+function MovedAssetNotification({ t, destination, onUndo }: MovedAssetNotificationProps) {
+    return (
+        <div
+            className="flex w-full flex-row items-baseline gap-x-xxs"
+            onClick={() => toast.dismiss(t.id)}
+        >
+            <ButtonUnstyled className="text-body-sm text-neutral-12">
+                Moved to {destination}
+            </ButtonUnstyled>
+            <ButtonUnstyled
+                onClick={() => {
+                    onUndo();
+                    toast.dismiss(t.id);
+                }}
+                className="ml-auto mr-sm text-body-sm text-neutral-12"
+            >
+                UNDO
+            </ButtonUnstyled>
+        </div>
+    );
+}

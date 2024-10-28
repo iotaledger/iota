@@ -3,12 +3,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Result};
-use move_binary_format::{access::ModuleAccess, errors::PartialVMError};
+use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
+use move_binary_format::errors::PartialVMError;
 use move_bytecode_utils::Modules;
 use move_core_types::vm_status::StatusCode;
 
-use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
+use anyhow::{bail, Result};
 
 /// Run sanity checks on storage and build dirs. This is primarily intended for
 /// testing the CLI; doctor should never fail unless `publish --ignore-breaking

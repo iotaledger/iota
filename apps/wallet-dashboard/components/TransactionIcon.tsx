@@ -2,34 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TransactionAction, TransactionState } from '@/lib/interfaces';
-import { Account24, ArrowRight16, Iota, Unstaked, WalletActionStake24 } from '@iota/icons';
+import { ArrowRight, IotaLogoMark, Person, Stake, Unstake } from '@iota/ui-icons';
 
 const icons = {
     [TransactionAction.Send]: (
-        <ArrowRight16
-            fill="currentColor"
-            className="text-gradient-blue-start text-body -rotate-45"
-        />
+        <ArrowRight fill="currentColor" className="text-gradient-blue-start text-body -rotate-45" />
     ),
     [TransactionAction.Receive]: (
-        <ArrowRight16
-            fill="currentColor"
-            className="text-gradient-blue-start text-body rotate-135"
-        />
+        <ArrowRight fill="currentColor" className="text-gradient-blue-start text-body rotate-135" />
     ),
     [TransactionAction.Transaction]: (
-        <ArrowRight16
-            fill="currentColor"
-            className="text-gradient-blue-start text-body -rotate-45"
-        />
+        <ArrowRight fill="currentColor" className="text-gradient-blue-start text-body -rotate-45" />
     ),
     [TransactionAction.Staked]: (
-        <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />
+        <Stake className="text-gradient-blue-start text-heading2 bg-transparent" />
     ),
-    [TransactionAction.Unstaked]: <Unstaked className="text-gradient-blue-start text-heading3" />,
-    [TransactionAction.Rewards]: <Iota className="text-gradient-blue-start text-body" />,
+    [TransactionAction.Unstaked]: <Unstake className="text-gradient-blue-start text-heading3" />,
+    [TransactionAction.Rewards]: <IotaLogoMark className="text-gradient-blue-start text-body" />,
     [TransactionAction.PersonalMessage]: (
-        <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />
+        <Person fill="currentColor" className="text-gradient-blue-start text-body" />
     ),
 };
 

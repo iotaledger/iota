@@ -8,8 +8,8 @@ use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 use move_binary_format::{
-    access::ModuleAccess, binary_config::BinaryConfig, binary_views::BinaryIndexedView,
-    file_format::CompiledModule, normalized,
+    binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
+    normalized,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -22,16 +22,16 @@ use move_ir_types::location::Spanned;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::{serde_as, Bytes};
+use serde_with::{Bytes, serde_as};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, SequenceNumber},
     crypto::DefaultHash,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
     id::{ID, UID},
     object::OBJECT_START_VERSION,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 // TODO: robust MovePackage tests
@@ -68,7 +68,9 @@ pub type FnInfoMap = BTreeMap<FnInfoKey, FnInfo>;
 )]
 pub struct TypeOrigin {
     pub module_name: String,
-    pub struct_name: String,
+    // `struct_name` alias to support backwards compatibility with the old name
+    #[serde(alias = "struct_name")]
+    pub datatype_name: String,
     pub package: ObjectID,
 }
 
@@ -204,13 +206,12 @@ impl MovePackage {
         Ok(pkg)
     }
 
-    pub fn digest(&self, hash_modules: bool) -> [u8; 32] {
+    pub fn digest(&self) -> [u8; 32] {
         Self::compute_digest_for_modules_and_deps(
             self.module_map.values(),
             self.linkage_table
                 .values()
                 .map(|UpgradeInfo { upgraded_id, .. }| upgraded_id),
-            hash_modules,
         )
     }
 
@@ -220,25 +221,17 @@ impl MovePackage {
     pub fn compute_digest_for_modules_and_deps<'a>(
         modules: impl IntoIterator<Item = &'a Vec<u8>>,
         object_ids: impl IntoIterator<Item = &'a ObjectID>,
-        hash_modules: bool,
     ) -> [u8; 32] {
-        let mut module_digests: Vec<[u8; 32]>;
-        let mut components: Vec<&[u8]> = vec![];
-        if !hash_modules {
-            for module in modules {
-                components.push(module.as_ref())
-            }
-        } else {
-            module_digests = vec![];
-            for module in modules {
-                let mut digest = DefaultHash::default();
-                digest.update(module);
-                module_digests.push(digest.finalize().digest);
-            }
-            components.extend(module_digests.iter().map(|d| d.as_ref()))
-        }
+        let mut components = object_ids
+            .into_iter()
+            .map(|o| ***o)
+            .chain(
+                modules
+                    .into_iter()
+                    .map(|module| DefaultHash::digest(module).digest),
+            )
+            .collect::<Vec<_>>();
 
-        components.extend(object_ids.into_iter().map(|o| o.as_ref()));
         // NB: sorting so the order of the modules and the order of the dependencies
         // does not matter.
         components.sort();
@@ -255,6 +248,7 @@ impl MovePackage {
     pub fn new_initial<'p>(
         modules: &[CompiledModule],
         max_move_package_size: u64,
+        move_binary_format_version: u32,
         transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         let module = modules
@@ -269,6 +263,7 @@ impl MovePackage {
             OBJECT_START_VERSION,
             modules,
             max_move_package_size,
+            move_binary_format_version,
             type_origin_table,
             transitive_dependencies,
         )
@@ -287,8 +282,7 @@ impl MovePackage {
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
         let runtime_id = ObjectID::from(*module.address());
-        let type_origin_table =
-            build_upgraded_type_origin_table(self, modules, storage_id, protocol_config)?;
+        let type_origin_table = build_upgraded_type_origin_table(self, modules, storage_id)?;
         let mut new_version = self.version();
         new_version.increment();
         Self::from_module_iter_with_type_origin_table(
@@ -297,6 +291,7 @@ impl MovePackage {
             new_version,
             modules,
             protocol_config.max_move_package_size(),
+            protocol_config.move_binary_format_version(),
             type_origin_table,
             transitive_dependencies,
         )
@@ -336,7 +331,9 @@ impl MovePackage {
         let module_map = BTreeMap::from_iter(modules.iter().map(|module| {
             let name = module.name().to_string();
             let mut bytes = Vec::new();
-            module.serialize(&mut bytes).unwrap();
+            module
+                .serialize_with_version(module.version, &mut bytes)
+                .unwrap();
             (name, bytes)
         }));
 
@@ -357,6 +354,7 @@ impl MovePackage {
         version: SequenceNumber,
         modules: &[CompiledModule],
         max_move_package_size: u64,
+        move_binary_format_version: u32,
         type_origin_table: Vec<TypeOrigin>,
         transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
@@ -374,7 +372,12 @@ impl MovePackage {
             );
 
             let mut bytes = Vec::new();
-            module.serialize(&mut bytes).unwrap();
+            let version = if move_binary_format_version > VERSION_6 {
+                module.version
+            } else {
+                VERSION_6
+            };
+            module.serialize_with_version(version, &mut bytes).unwrap();
             module_map.insert(name, bytes);
         }
 
@@ -416,7 +419,7 @@ impl MovePackage {
             .map(
                 |TypeOrigin {
                      module_name,
-                     struct_name,
+                     datatype_name: struct_name,
                      ..
                  }| module_name.len() + struct_name.len() + ObjectID::LENGTH,
             )
@@ -467,7 +470,7 @@ impl MovePackage {
             .map(
                 |TypeOrigin {
                      module_name,
-                     struct_name,
+                     datatype_name: struct_name,
                      package,
                  }| { ((module_name.clone(), struct_name.clone()), *package) },
             )
@@ -597,12 +600,12 @@ where
                 error: error.to_string(),
             }
         })?;
-        let view = BinaryIndexedView::Module(&module);
-        let d = Disassembler::from_view(view, Spanned::unsafe_no_loc(()).loc).map_err(|e| {
-            IotaError::ObjectSerialization {
-                error: e.to_string(),
-            }
-        })?;
+        let d =
+            Disassembler::from_module(&module, Spanned::unsafe_no_loc(()).loc).map_err(|e| {
+                IotaError::ObjectSerialization {
+                    error: e.to_string(),
+                }
+            })?;
         let bytecode_str = d
             .disassemble()
             .map_err(|e| IotaError::ObjectSerialization {
@@ -665,13 +668,10 @@ fn build_linkage_table<'p>(
             dep_linkage_tables.push(&transitive_dep.linkage_table);
         }
 
-        linkage_table.insert(
-            original_id,
-            UpgradeInfo {
-                upgraded_id: transitive_dep.id,
-                upgraded_version: transitive_dep.version,
-            },
-        );
+        linkage_table.insert(original_id, UpgradeInfo {
+            upgraded_id: transitive_dep.id,
+            upgraded_version: transitive_dep.version,
+        });
     }
     // (1) Every dependency is represented in the transitive dependencies
     if !immediate_dependencies.is_empty() {
@@ -698,17 +698,30 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
     modules
         .iter()
         .flat_map(|m| {
-            m.struct_defs().iter().map(|struct_def| {
-                let struct_handle = m.struct_handle_at(struct_def.struct_handle);
-                let module_name = m.name().to_string();
-                let struct_name = m.identifier_at(struct_handle.name).to_string();
-                let package: ObjectID = (*m.self_id().address()).into();
-                TypeOrigin {
-                    module_name,
-                    struct_name,
-                    package,
-                }
-            })
+            m.struct_defs()
+                .iter()
+                .map(|struct_def| {
+                    let struct_handle = m.datatype_handle_at(struct_def.struct_handle);
+                    let module_name = m.name().to_string();
+                    let struct_name = m.identifier_at(struct_handle.name).to_string();
+                    let package: ObjectID = (*m.self_id().address()).into();
+                    TypeOrigin {
+                        module_name,
+                        datatype_name: struct_name,
+                        package,
+                    }
+                })
+                .chain(m.enum_defs().iter().map(|enum_def| {
+                    let enum_handle = m.datatype_handle_at(enum_def.enum_handle);
+                    let module_name = m.name().to_string();
+                    let enum_name = m.identifier_at(enum_handle.name).to_string();
+                    let package: ObjectID = (*m.self_id().address()).into();
+                    TypeOrigin {
+                        module_name,
+                        datatype_name: enum_name,
+                        package,
+                    }
+                }))
         })
         .collect()
 }
@@ -717,13 +730,12 @@ fn build_upgraded_type_origin_table(
     predecessor: &MovePackage,
     modules: &[CompiledModule],
     storage_id: ObjectID,
-    protocol_config: &ProtocolConfig,
 ) -> Result<Vec<TypeOrigin>, ExecutionError> {
     let mut new_table = vec![];
     let mut existing_table = predecessor.type_origin_map();
     for m in modules {
         for struct_def in m.struct_defs() {
-            let struct_handle = m.struct_handle_at(struct_def.struct_handle);
+            let struct_handle = m.datatype_handle_at(struct_def.struct_handle);
             let module_name = m.name().to_string();
             let struct_name = m.identifier_at(struct_handle.name).to_string();
             let mod_key = (module_name.clone(), struct_name.clone());
@@ -732,24 +744,33 @@ fn build_upgraded_type_origin_table(
             let package = existing_table.remove(&mod_key).unwrap_or(storage_id);
             new_table.push(TypeOrigin {
                 module_name,
-                struct_name,
+                datatype_name: struct_name,
+                package,
+            });
+        }
+
+        for enum_def in m.enum_defs() {
+            let enum_handle = m.datatype_handle_at(enum_def.enum_handle);
+            let module_name = m.name().to_string();
+            let enum_name = m.identifier_at(enum_handle.name).to_string();
+            let mod_key = (module_name.clone(), enum_name.clone());
+            // if id exists in the predecessor's table, use it, otherwise use the id of the
+            // upgraded module
+            let package = existing_table.remove(&mod_key).unwrap_or(storage_id);
+            new_table.push(TypeOrigin {
+                module_name,
+                datatype_name: enum_name,
                 package,
             });
         }
     }
 
     if !existing_table.is_empty() {
-        if protocol_config.missing_type_is_compatibility_error() {
-            Err(ExecutionError::from_kind(
-                ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                },
-            ))
-        } else {
-            Err(ExecutionError::invariant_violation(
-                "Package upgrade missing type from previous version.",
-            ))
-        }
+        Err(ExecutionError::from_kind(
+            ExecutionErrorKind::PackageUpgradeError {
+                upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+            },
+        ))
     } else {
         Ok(new_table)
     }

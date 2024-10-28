@@ -4,7 +4,7 @@
 
 // tests TransferObject should fail for a shared object with and without store
 
-//# init --accounts A B --addresses test=0x0 --shared-object-deletion true
+//# init --accounts A B --addresses test=0x0
 
 //# publish
 

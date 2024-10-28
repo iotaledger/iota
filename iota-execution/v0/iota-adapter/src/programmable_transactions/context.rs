@@ -13,37 +13,30 @@ mod checked {
     };
 
     use iota_move_natives::object_runtime::{
-        self, get_all_uids, max_event_error, LoadedRuntimeObject, ObjectRuntime, RuntimeResults,
+        self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         balance::Balance,
         base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
         coin::Coin,
-        error::{command_argument_error, ExecutionError, ExecutionErrorKind},
+        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
-        execution::{
-            CommandKind, ExecutionResults, ExecutionResultsV2, ExecutionState, InputObjectMetadata,
-            InputValue, ObjectContents, ObjectValue, RawValueType, ResultValue, TryFromValue,
-            UsageKind, Value,
-        },
-        execution_mode::ExecutionMode,
+        execution::{ExecutionResults, ExecutionResultsV2},
         execution_status::CommandArgumentError,
         metrics::LimitsMetrics,
         move_package::MovePackage,
         object::{Data, MoveObject, Object, ObjectInner, Owner},
-        storage::{BackingPackageStore, PackageObject},
+        storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{Argument, CallArg, ObjectArg},
-        type_resolver::TypeTagResolver,
     };
     use move_binary_format::{
+        CompiledModule,
         errors::{Location, PartialVMError, PartialVMResult, VMError, VMResult},
         file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
-        CompiledModule,
     };
     use move_core_types::{
         account_address::AccountAddress,
-        gas_algebra::NumBytes,
         identifier::IdentStr,
         language_storage::{ModuleId, StructTag, TypeTag},
         resolver::ModuleResolver,
@@ -54,14 +47,20 @@ mod checked {
         native_extensions::NativeContextExtensions,
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
-    use move_vm_types::{
-        data_store::DataStore, loaded_data::runtime_types::Type, values::GlobalValue,
-    };
+    use move_vm_types::{data_store::DataStore, loaded_data::runtime_types::Type};
     use tracing::instrument;
 
     use crate::{
-        adapter::new_native_extensions, error::convert_vm_error, gas_charger::GasCharger,
+        adapter::new_native_extensions,
+        error::convert_vm_error,
+        execution_mode::ExecutionMode,
+        execution_value::{
+            CommandKind, ExecutionState, InputObjectMetadata, InputValue, ObjectContents,
+            ObjectValue, RawValueType, ResultValue, TryFromValue, UsageKind, Value,
+        },
+        gas_charger::GasCharger,
         programmable_transactions::linkage_view::LinkageView,
+        type_resolver::TypeTagResolver,
     };
 
     /// Maintains all runtime state specific to programmable transactions
@@ -138,7 +137,6 @@ mod checked {
                 .into_iter()
                 .map(|call_arg| {
                     load_call_arg(
-                        protocol_config,
                         vm,
                         state_view,
                         &mut linkage_view,
@@ -150,7 +148,6 @@ mod checked {
                 .collect::<Result<_, ExecutionError>>()?;
             let gas = if let Some(gas_coin) = gas_charger.gas_coin() {
                 let mut gas = load_object(
-                    protocol_config,
                     vm,
                     state_view,
                     &mut linkage_view,
@@ -353,7 +350,6 @@ mod checked {
             command_kind: CommandKind<'_>,
             arg: Argument,
         ) -> Result<V, CommandArgumentError> {
-            let shared_obj_deletion_enabled = self.protocol_config.shared_object_deletion();
             let is_borrowed = self.arg_is_borrowed(&arg);
             let (input_metadata_opt, val_opt) = self.borrow_mut(arg, UsageKind::ByValue)?;
             let is_copyable = if let Some(val) = val_opt {
@@ -385,19 +381,6 @@ mod checked {
             ) {
                 return Err(CommandArgumentError::InvalidObjectByValue);
             }
-            if (
-                // this check can be removed after shared_object_deletion feature flag is removed
-                matches!(
-                    input_metadata_opt,
-                    Some(InputObjectMetadata::InputObject {
-                        owner: Owner::Shared { .. },
-                        ..
-                    })
-                ) && !shared_obj_deletion_enabled
-            ) {
-                return Err(CommandArgumentError::InvalidObjectByValue);
-            }
-
             // Any input object taken by value must be mutable
             if matches!(
                 input_metadata_opt,
@@ -553,6 +536,7 @@ mod checked {
             MovePackage::new_initial(
                 modules,
                 self.protocol_config.max_move_package_size(),
+                self.protocol_config.move_binary_format_version(),
                 dependencies,
             )
         }
@@ -617,6 +601,7 @@ mod checked {
                 inputs,
                 results,
                 user_events,
+                state_view,
                 ..
             } = self;
             let tx_digest = tx_context.digest();
@@ -639,13 +624,10 @@ mod checked {
                 else {
                     continue;
                 };
-                loaded_runtime_objects.insert(
-                    id,
-                    LoadedRuntimeObject {
-                        version,
-                        is_modified: true,
-                    },
-                );
+                loaded_runtime_objects.insert(id, LoadedRuntimeObject {
+                    version,
+                    is_modified: true,
+                });
                 if let Some(Value::Object(object_value)) = value {
                     add_additional_write(&mut additional_writes, owner, object_value)?;
                 } else if owner.is_shared() {
@@ -832,6 +814,13 @@ mod checked {
                 }
             }
 
+            let DenyListResult {
+                result,
+                num_non_gas_coin_owners,
+            } = state_view.check_coin_deny_list(&written_objects);
+            gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
+            result?;
+
             let user_events = user_events
                 .into_iter()
                 .map(|(module_id, tag, contents)| {
@@ -989,17 +978,14 @@ mod checked {
         pub(crate) fn make_object_value(
             &mut self,
             type_: MoveObjectType,
-            has_public_transfer: bool,
             used_in_non_entry_move_call: bool,
             contents: &[u8],
         ) -> Result<ObjectValue, ExecutionError> {
             make_object_value(
-                self.protocol_config,
                 self.vm,
                 &mut self.linkage_view,
                 &self.new_packages,
                 type_,
-                has_public_transfer,
                 used_in_non_entry_move_call,
                 contents,
             )
@@ -1087,7 +1073,7 @@ mod checked {
 
         let runtime_id = ModuleId::new(original_address, module.clone());
         let data_store = IotaDataStore::new(linkage_view, new_packages);
-        let res = vm.get_runtime().load_struct(&runtime_id, name, &data_store);
+        let res = vm.get_runtime().load_type(&runtime_id, name, &data_store);
         linkage_view.reset_linkage();
         let (idx, struct_type) = res?;
 
@@ -1098,7 +1084,7 @@ mod checked {
         }
 
         if type_params.is_empty() {
-            Ok(Type::Struct(idx))
+            Ok(Type::Datatype(idx))
         } else {
             let loaded_type_params = type_params
                 .iter()
@@ -1113,7 +1099,7 @@ mod checked {
                 }
             }
 
-            Ok(Type::StructInstantiation(Box::new((
+            Ok(Type::DatatypeInstantiation(Box::new((
                 idx,
                 loaded_type_params,
             ))))
@@ -1150,12 +1136,10 @@ mod checked {
     }
 
     pub(crate) fn make_object_value(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
         type_: MoveObjectType,
-        has_public_transfer: bool,
         used_in_non_entry_move_call: bool,
         contents: &[u8],
     ) -> Result<ObjectValue, ExecutionError> {
@@ -1171,15 +1155,11 @@ mod checked {
         let tag: StructTag = type_.into();
         let type_ = load_type_from_struct(vm, linkage_view, new_packages, &tag)
             .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
-        let has_public_transfer = if protocol_config.recompute_has_public_transfer_in_execution() {
-            let abilities = vm
-                .get_runtime()
-                .get_type_abilities(&type_)
-                .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
-            abilities.has_store()
-        } else {
-            has_public_transfer
-        };
+        let abilities = vm
+            .get_runtime()
+            .get_type_abilities(&type_)
+            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+        let has_public_transfer = abilities.has_store();
         Ok(ObjectValue {
             type_,
             has_public_transfer,
@@ -1189,7 +1169,6 @@ mod checked {
     }
 
     pub(crate) fn value_from_object(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
@@ -1205,12 +1184,10 @@ mod checked {
 
         let used_in_non_entry_move_call = false;
         make_object_value(
-            protocol_config,
             vm,
             linkage_view,
             new_packages,
             object.type_().clone(),
-            object.has_public_transfer(),
             used_in_non_entry_move_call,
             object.contents(),
         )
@@ -1218,7 +1195,6 @@ mod checked {
 
     /// Load an input object from the state_view
     fn load_object(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
@@ -1253,7 +1229,7 @@ mod checked {
             owner,
             version,
         };
-        let obj_value = value_from_object(protocol_config, vm, linkage_view, new_packages, obj)?;
+        let obj_value = value_from_object(vm, linkage_view, new_packages, obj)?;
         let contained_uids = {
             let fully_annotated_layout = vm
                 .get_runtime()
@@ -1281,7 +1257,6 @@ mod checked {
 
     /// Load an a CallArg, either an object or a raw set of BCS bytes
     fn load_call_arg(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
@@ -1292,7 +1267,6 @@ mod checked {
         Ok(match call_arg {
             CallArg::Pure(bytes) => InputValue::new_raw(RawValueType::Any, bytes),
             CallArg::Object(obj_arg) => load_object_arg(
-                protocol_config,
                 vm,
                 state_view,
                 linkage_view,
@@ -1306,7 +1280,6 @@ mod checked {
     /// Load an ObjectArg from state view, marking if it can be treated as
     /// mutable or not
     fn load_object_arg(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
@@ -1316,7 +1289,6 @@ mod checked {
     ) -> Result<InputValue, ExecutionError> {
         match obj_arg {
             ObjectArg::ImmOrOwnedObject((id, _, _)) => load_object(
-                protocol_config,
                 vm,
                 state_view,
                 linkage_view,
@@ -1327,7 +1299,6 @@ mod checked {
                 id,
             ),
             ObjectArg::SharedObject { id, mutable, .. } => load_object(
-                protocol_config,
                 vm,
                 state_view,
                 linkage_view,
@@ -1520,18 +1491,6 @@ mod checked {
                     )
                 }
             }
-        }
-
-        // TODO: later we will clean up the interface with the runtime and the functions
-        // below       will likely be exposed via extensions
-        //
-
-        fn load_resource(
-            &mut self,
-            _addr: AccountAddress,
-            _ty: &Type,
-        ) -> PartialVMResult<(&mut GlobalValue, Option<Option<NumBytes>>)> {
-            panic!("load_resource should never be called for LinkageView")
         }
 
         fn publish_module(&mut self, _module_id: &ModuleId, _blob: Vec<u8>) -> VMResult<()> {

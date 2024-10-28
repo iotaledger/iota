@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use iota_indexer::store::indexer_store::IndexerStore;
 use iota_json_rpc_api::{
     IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
@@ -24,22 +23,14 @@ use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_
 
 type TxBytes = Base64;
 type Signatures = Vec<Base64>;
-async fn prepare_and_sign_to_transfer_first_object(
+async fn prepare_and_sign_tx(
     sender: IotaAddress,
     receiver: IotaAddress,
     cluster: &TestCluster,
     client: &HttpClient,
-) -> (ObjectID, TxBytes, Signatures) {
-    let objects = cluster
-        .rpc_client()
-        .get_owned_objects(sender, None, None, None)
-        .await
-        .unwrap()
-        .data;
-
-    let obj_id = objects.first().unwrap().object().unwrap().object_id;
-    let gas = objects.last().unwrap().object().unwrap().object_id;
-
+    obj_id: ObjectID,
+    gas: ObjectID,
+) -> (TxBytes, Signatures) {
     let transaction_bytes = client
         .transfer_object(sender, obj_id, Some(gas), 10_000_000.into(), receiver)
         .await
@@ -50,7 +41,75 @@ async fn prepare_and_sign_to_transfer_first_object(
         .sign_transaction(&transaction_bytes.to_data().unwrap())
         .to_tx_bytes_and_signatures();
 
-    (obj_id, tx_bytes, signatures)
+    (tx_bytes, signatures)
+}
+
+async fn get_objects_to_mutate(
+    cluster: &TestCluster,
+    address: IotaAddress,
+) -> (Vec<ObjectID>, ObjectID) {
+    let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
+
+    let gas = owned_objects.last().unwrap().object_id().unwrap();
+
+    let object_ids = owned_objects
+        .iter()
+        .take(owned_objects.len() - 1)
+        .map(|obj| obj.object_id().unwrap())
+        .collect();
+
+    (object_ids, gas)
+}
+
+#[test]
+fn dry_run_transaction_block() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let sender = cluster.get_address_0();
+        let receiver = cluster.get_address_1();
+
+        let (objects, gas) = get_objects_to_mutate(cluster, sender).await;
+
+        let (tx_bytes, signatures) =
+            prepare_and_sign_tx(sender, receiver, cluster, client, objects[0], gas).await;
+
+        let dry_run_tx_block_resp = client
+            .dry_run_transaction_block(tx_bytes.clone())
+            .await
+            .unwrap();
+
+        let indexer_tx_response = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(
+                    IotaTransactionBlockResponseOptions::new()
+                        .with_effects()
+                        .with_object_changes(),
+                ),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            *indexer_tx_response.effects.as_ref().unwrap().status(),
+            IotaExecutionStatus::Success
+        );
+
+        assert_eq!(
+            indexer_tx_response.object_changes.unwrap(),
+            dry_run_tx_block_resp.object_changes
+        )
+    });
 }
 
 #[test]
@@ -99,13 +158,11 @@ fn dev_inspect_transaction_block() {
             IotaExecutionStatus::Success
         );
 
-        let (new_seq_num, owner) = indexer_devinspect_results
+        let owner = indexer_devinspect_results
             .effects
             .mutated()
             .iter()
-            .find_map(|obj| {
-                (obj.reference.object_id == obj_id).then_some((obj.reference.version, obj.owner))
-            })
+            .find_map(|obj| (obj.reference.object_id == obj_id).then_some(obj.owner))
             .unwrap();
 
         assert_eq!(owner, Owner::AddressOwner(receiver));
@@ -116,15 +173,6 @@ fn dev_inspect_transaction_block() {
             .unwrap();
 
         indexer_wait_for_checkpoint(store, latest_checkpoint_seq_number.into_inner() + 1).await;
-        assert!(
-            store
-                .get_object_read(obj_id, Some(new_seq_num))
-                .await
-                .unwrap()
-                .object()
-                .is_err(),
-            "The actual object should not have the sequence number incremented"
-        );
 
         let actual_object_info = client
             .get_object(obj_id, Some(IotaObjectDataOptions::new().with_owner()))
@@ -151,11 +199,16 @@ fn execute_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = cluster.get_address_0();
-        let receiver = cluster.get_address_1();
+        let addresses = cluster.get_addresses();
+        let sender = addresses[2];
+        let receiver = addresses[3];
 
-        let (obj_id, tx_bytes, signatures) =
-            prepare_and_sign_to_transfer_first_object(sender, receiver, cluster, client).await;
+        let (objects, gas) = get_objects_to_mutate(cluster, sender).await;
+
+        let obj_id = objects[0];
+
+        let (tx_bytes, signatures) =
+            prepare_and_sign_tx(sender, receiver, cluster, client, obj_id, gas).await;
 
         let indexer_tx_response = client
             .execute_transaction_block(
@@ -184,7 +237,7 @@ fn execute_transaction_block() {
 
         assert_eq!(owner, Owner::AddressOwner(receiver));
 
-        indexer_wait_for_object(store, obj_id, seq_num).await;
+        indexer_wait_for_object(client, obj_id, seq_num).await;
 
         let actual_object_info = client
             .get_object(obj_id, Some(IotaObjectDataOptions::new().with_owner()))
@@ -195,54 +248,5 @@ fn execute_transaction_block() {
             actual_object_info.data.unwrap().owner.unwrap(),
             Owner::AddressOwner(receiver)
         );
-    });
-}
-
-#[test]
-fn dry_run_transaction_block() {
-    let ApiTestSetup {
-        runtime,
-        cluster,
-        store,
-        client,
-    } = ApiTestSetup::get_or_init();
-
-    runtime.block_on(async {
-        indexer_wait_for_checkpoint(store, 1).await;
-
-        let sender = cluster.get_address_0();
-        let receiver = cluster.get_address_1();
-
-        let (_, tx_bytes, signatures) =
-            prepare_and_sign_to_transfer_first_object(sender, receiver, cluster, client).await;
-
-        let dry_run_tx_block_resp = client
-            .dry_run_transaction_block(tx_bytes.clone())
-            .await
-            .unwrap();
-
-        let indexer_tx_response = client
-            .execute_transaction_block(
-                tx_bytes,
-                signatures,
-                Some(
-                    IotaTransactionBlockResponseOptions::new()
-                        .with_effects()
-                        .with_object_changes(),
-                ),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(
-            *indexer_tx_response.effects.as_ref().unwrap().status(),
-            IotaExecutionStatus::Success
-        );
-
-        assert_eq!(
-            indexer_tx_response.object_changes.unwrap(),
-            dry_run_tx_block_resp.object_changes
-        )
     });
 }

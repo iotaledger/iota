@@ -4,28 +4,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     convert::AsRef,
+    net::SocketAddr,
     string::ToString,
     sync::Arc,
     time::Duration,
 };
 
-use fastcrypto::traits::ToFromBytes;
-use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
-use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult, ReduceOutput};
+use futures::{StreamExt, future::BoxFuture, stream::FuturesUnordered};
+use iota_authority_aggregation::{AsyncResult, ReduceOutput, quorum_map_then_reduce_with_timeout};
 use iota_config::genesis::Genesis;
-use iota_metrics::{histogram::Histogram, monitored_future, spawn_monitored_task, GaugeGuard};
+use iota_metrics::{
+    GaugeGuard, MonitorCancellation, histogram::Histogram, monitored_future, spawn_monitored_task,
+};
 use iota_network::{
-    default_iota_network_stack_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
+    DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
 use iota_swarm_config::network_config::NetworkConfig;
 use iota_types::{
     base_types::*,
-    committee::{
-        Committee, CommitteeTrait, CommitteeWithNetworkMetadata, ProtocolVersion, StakeUnit,
-    },
+    committee::{Committee, CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit},
     crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo},
     effects::{
         CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects,
@@ -33,32 +33,34 @@ use iota_types::{
     },
     error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
-    iota_system_state::{IotaSystemState, IotaSystemStateTrait},
+    iota_system_state::{
+        IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
+    },
     message_envelope::Message,
     messages_grpc::{
-        HandleCertificateResponseV2, LayoutGenerationOption, ObjectInfoRequest,
-        TransactionInfoRequest,
+        HandleCertificateRequestV3, HandleCertificateResponseV3, LayoutGenerationOption,
+        ObjectInfoRequest, TransactionInfoRequest,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     object::Object,
-    quorum_driver_types::GroupedErrors,
+    quorum_driver_types::{GroupedErrors, QuorumDriverResponse},
     transaction::*,
 };
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
+    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 use thiserror::Error;
 use tokio::time::{sleep, timeout};
-use tracing::{debug, error, info, trace, warn, Instrument};
+use tracing::{Instrument, debug, error, info, instrument, trace, trace_span, warn};
 
 use crate::{
     authority_client::{
-        make_authority_clients_with_timeout_config,
-        make_network_authority_clients_with_network_config, AuthorityAPI, NetworkAuthorityClient,
+        AuthorityAPI, NetworkAuthorityClient, make_authority_clients_with_timeout_config,
+        make_network_authority_clients_with_network_config,
     },
     epoch::committee_store::CommitteeStore,
-    execution_cache::ExecutionCacheRead,
     safe_client::{SafeClient, SafeClientMetrics, SafeClientMetricsBase},
     stake_aggregator::{InsertResult, MultiStakeAggregator, StakeAggregator},
 };
@@ -69,6 +71,7 @@ pub const DEFAULT_RETRIES: usize = 4;
 #[path = "unit_tests/authority_aggregator_tests.rs"]
 pub mod authority_aggregator_tests;
 
+/// Configuration for timeouts in the authority aggregator.
 #[derive(Clone)]
 pub struct TimeoutConfig {
     pub pre_quorum_timeout: Duration,
@@ -110,6 +113,7 @@ pub struct AuthAggMetrics {
 }
 
 impl AuthAggMetrics {
+    /// Create a new instance of `AuthAggMetrics` with a Prometheus registry.
     pub fn new(registry: &prometheus::Registry) -> Self {
         Self {
             total_tx_certificates_created: register_int_counter_with_registry!(
@@ -195,12 +199,14 @@ impl AuthAggMetrics {
         }
     }
 
+    /// Creates a new instance of `AuthAggMetrics` for testing.
     pub fn new_for_tests() -> Self {
         let registry = prometheus::Registry::new();
         Self::new(&registry)
     }
 }
 
+/// Errors that can occur when processing transactions in an aggregator.
 #[derive(Error, Debug, Eq, PartialEq)]
 pub enum AggregatorProcessTransactionError {
     #[error(
@@ -279,7 +285,9 @@ pub enum AggregatorProcessCertificateError {
     RetryableExecuteCertificate { retryable_errors: GroupedErrors },
 }
 
+/// Groups the errors by error type and stake.
 pub fn group_errors(errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>) -> GroupedErrors {
+    #[allow(clippy::mutable_key_type)]
     let mut grouped_errors = HashMap::new();
     for (error, names, stake) in errors {
         let entry = grouped_errors.entry(error).or_insert((0, vec![]));
@@ -297,6 +305,48 @@ pub fn group_errors(errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>) -> 
         .collect()
 }
 
+/// `RetryableOverloadInfo` stores information about the state of overloaded
+/// validators that request clients to retry operations.
+#[derive(Debug, Default)]
+pub struct RetryableOverloadInfo {
+    // Total stake of validators that are overloaded and request client to retry.
+    pub total_stake: StakeUnit,
+
+    // Records requested retry duration by stakes.
+    pub stake_requested_retry_after: BTreeMap<Duration, StakeUnit>,
+}
+
+impl RetryableOverloadInfo {
+    pub fn add_stake_retryable_overload(&mut self, stake: StakeUnit, retry_after: Duration) {
+        self.total_stake += stake;
+        self.stake_requested_retry_after
+            .entry(retry_after)
+            .and_modify(|s| *s += stake)
+            .or_insert(stake);
+    }
+
+    // Gets the duration of retry requested by a quorum of validators with smallest
+    // retry durations.
+    pub fn get_quorum_retry_after(
+        &self,
+        good_stake: StakeUnit,
+        quorum_threshold: StakeUnit,
+    ) -> Duration {
+        if self.stake_requested_retry_after.is_empty() {
+            return Duration::from_secs(0);
+        }
+
+        let mut quorum_stake = good_stake;
+        for (retry_after, stake) in self.stake_requested_retry_after.iter() {
+            quorum_stake += *stake;
+            if quorum_stake >= quorum_threshold {
+                return *retry_after;
+            }
+        }
+        *self.stake_requested_retry_after.last_key_value().unwrap().0
+    }
+}
+
 #[derive(Debug)]
 struct ProcessTransactionState {
     // The list of signatures gathered at any point
@@ -311,7 +361,7 @@ struct ProcessTransactionState {
     // Validators that are overloaded with txns pending execution.
     overloaded_stake: StakeUnit,
     // Validators that are overloaded and request client to retry.
-    retryable_overloaded_stake: StakeUnit,
+    retryable_overload_info: RetryableOverloadInfo,
     // If there are conflicting transactions, we note them down and may attempt to retry
     conflicting_tx_digests:
         BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
@@ -330,6 +380,8 @@ struct ProcessTransactionState {
 }
 
 impl ProcessTransactionState {
+    /// Returns the conflicting transaction digest and its validators with the
+    /// most stake.
     #[allow(clippy::type_complexity)]
     pub fn conflicting_tx_digest_with_most_stake(
         &self,
@@ -344,6 +396,8 @@ impl ProcessTransactionState {
             .map(|(digest, (validators, stake))| (*digest, validators, *stake))
     }
 
+    /// Records the conflicting transaction, returns `true` if there is any, and
+    /// returns `false` otherwise.
     pub fn record_conflicting_transaction_if_any(
         &mut self,
         validator_name: AuthorityName,
@@ -370,6 +424,7 @@ impl ProcessTransactionState {
         false
     }
 
+    /// Checks if the error indicates that the transaction is already finalized.
     pub fn check_if_error_indicates_tx_finalized_with_different_user_sig(
         &self,
         validity_threshold: StakeUnit,
@@ -399,6 +454,7 @@ impl ProcessTransactionState {
     }
 }
 
+/// State for processing a certificate.
 struct ProcessCertificateState {
     // Different authorities could return different effects.  We want at least one effect to come
     // from 2f+1 authorities, which meets quorum and can be considered the approved effect.
@@ -412,30 +468,52 @@ struct ProcessCertificateState {
     // 1) >= 2f+1 signatures
     // 2) >= f+1 non-retryable errors
     retryable: bool,
+
+    // collection of extended data returned from the validators.
+    // Not all validators will be asked to return this data so we need to hold onto it when one
+    // validator has provided it
+    events: Option<TransactionEvents>,
+    input_objects: Option<Vec<Object>>,
+    output_objects: Option<Vec<Object>>,
+    auxiliary_data: Option<Vec<u8>>,
 }
 
+/// The result of processing a transaction.
 #[derive(Debug)]
 pub enum ProcessTransactionResult {
-    Certified(CertifiedTransaction),
+    Certified {
+        certificate: CertifiedTransaction,
+        /// Whether this certificate is newly created by aggregating 2f+1
+        /// signatures. If a validator returned a cert directly, this
+        /// will be false. This is used to inform the quorum driver,
+        /// which could make better decisions on telemetry
+        /// such as settlement latency.
+        newly_formed: bool,
+    },
     Executed(VerifiedCertifiedTransactionEffects, TransactionEvents),
 }
 
 impl ProcessTransactionResult {
+    /// Returns the `CertifiedTransaction` if it is a `Certified` variant.
     pub fn into_cert_for_testing(self) -> CertifiedTransaction {
         match self {
-            Self::Certified(cert) => cert,
+            Self::Certified { certificate, .. } => certificate,
             Self::Executed(..) => panic!("Wrong type"),
         }
     }
 
+    /// Returns the `VerifiedCertifiedTransactionEffects` if it is an
+    /// `Executed` variant.
     pub fn into_effects_for_testing(self) -> VerifiedCertifiedTransactionEffects {
         match self {
-            Self::Certified(..) => panic!("Wrong type"),
+            Self::Certified { .. } => panic!("Wrong type"),
             Self::Executed(effects, ..) => effects,
         }
     }
 }
 
+/// The AuthorityAggregator is responsible for aggregating the responses from
+/// the validators and determining the final state of the transaction.
 #[derive(Clone)]
 pub struct AuthorityAggregator<A: Clone> {
     /// Our Iota committee.
@@ -457,54 +535,15 @@ pub struct AuthorityAggregator<A: Clone> {
 }
 
 impl<A: Clone> AuthorityAggregator<A> {
+    /// Create a new `AuthorityAggregator`.
     pub fn new(
-        committee: Committee,
-        committee_store: Arc<CommitteeStore>,
-        authority_clients: BTreeMap<AuthorityName, A>,
-        registry: &Registry,
-        validator_display_names: Arc<HashMap<AuthorityName, String>>,
-    ) -> Self {
-        Self::new_with_timeouts(
-            committee,
-            committee_store,
-            authority_clients,
-            registry,
-            validator_display_names,
-            Default::default(),
-        )
-    }
-
-    pub fn new_with_timeouts(
-        committee: Committee,
-        committee_store: Arc<CommitteeStore>,
-        authority_clients: BTreeMap<AuthorityName, A>,
-        registry: &Registry,
-        validator_display_names: Arc<HashMap<AuthorityName, String>>,
-        timeouts: TimeoutConfig,
-    ) -> Self {
-        let safe_client_metrics_base = SafeClientMetricsBase::new(registry);
-        Self {
-            committee: Arc::new(committee),
-            validator_display_names,
-            authority_clients: create_safe_clients(
-                authority_clients,
-                &committee_store,
-                &safe_client_metrics_base,
-            ),
-            metrics: Arc::new(AuthAggMetrics::new(registry)),
-            safe_client_metrics_base,
-            timeouts,
-            committee_store,
-        }
-    }
-
-    pub fn new_with_metrics(
         committee: Committee,
         committee_store: Arc<CommitteeStore>,
         authority_clients: BTreeMap<AuthorityName, A>,
         safe_client_metrics_base: SafeClientMetricsBase,
         auth_agg_metrics: Arc<AuthAggMetrics>,
         validator_display_names: Arc<HashMap<AuthorityName, String>>,
+        timeouts: TimeoutConfig,
     ) -> Self {
         Self {
             committee: Arc::new(committee),
@@ -515,7 +554,7 @@ impl<A: Clone> AuthorityAggregator<A> {
             ),
             metrics: auth_agg_metrics,
             safe_client_metrics_base,
-            timeouts: Default::default(),
+            timeouts,
             committee_store,
             validator_display_names,
         }
@@ -534,13 +573,7 @@ impl<A: Clone> AuthorityAggregator<A> {
         disallow_missing_intermediate_committees: bool,
     ) -> IotaResult<AuthorityAggregator<NetworkAuthorityClient>> {
         let network_clients =
-            make_network_authority_clients_with_network_config(&committee, network_config)
-                .map_err(|err| IotaError::GenericAuthority {
-                    error: format!(
-                        "Failed to make authority clients from committee {committee}, err: {:?}",
-                        err
-                    ),
-                })?;
+            make_network_authority_clients_with_network_config(&committee, network_config);
 
         let safe_clients = network_clients
             .into_iter()
@@ -560,7 +593,7 @@ impl<A: Clone> AuthorityAggregator<A> {
         // TODO: It's likely safer to do the following operations atomically, in case
         // this function gets called from different threads. It cannot happen
         // today, but worth the caution.
-        let new_committee = committee.committee;
+        let new_committee = committee.committee().clone();
         if disallow_missing_intermediate_committees {
             fp_ensure!(
                 self.committee.epoch + 1 == new_committee.epoch,
@@ -589,10 +622,12 @@ impl<A: Clone> AuthorityAggregator<A> {
         })
     }
 
+    /// Gets the authority client for the given name.
     pub fn get_client(&self, name: &AuthorityName) -> Option<&Arc<SafeClient<A>>> {
         self.authority_clients.get(name)
     }
 
+    /// Gets the cloned authority client for the given name.
     pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>>
     where
         A: Clone,
@@ -600,14 +635,17 @@ impl<A: Clone> AuthorityAggregator<A> {
         self.authority_clients[name].clone()
     }
 
+    /// Gets the cloned `CommitteeStore`.
     pub fn clone_committee_store(&self) -> Arc<CommitteeStore> {
         self.committee_store.clone()
     }
 
+    /// Gets the cloned `Committee`.
     pub fn clone_inner_committee_test_only(&self) -> Committee {
         (*self.committee).clone()
     }
 
+    /// Get the cloned authority clients.
     pub fn clone_inner_clients_test_only(&self) -> BTreeMap<AuthorityName, SafeClient<A>> {
         (*self.authority_clients)
             .clone()
@@ -617,6 +655,7 @@ impl<A: Clone> AuthorityAggregator<A> {
     }
 }
 
+/// Creates safe clients for each authority.
 fn create_safe_clients<A: Clone>(
     authority_clients: BTreeMap<AuthorityName, A>,
     committee_store: &Arc<CommitteeStore>,
@@ -642,41 +681,38 @@ fn create_safe_clients<A: Clone>(
 
 impl AuthorityAggregator<NetworkAuthorityClient> {
     /// Create a new network authority aggregator by reading the committee and
-    /// network address information from the system state object on-chain.
-    /// This function needs metrics parameters because registry will panic
-    /// if we attempt to register already-registered metrics again.
-    pub fn new_from_local_system_state(
-        store: &Arc<dyn ExecutionCacheRead>,
+    /// network addresses information from the given epoch start system
+    /// state.
+    pub fn new_from_epoch_start_state(
+        epoch_start_state: &EpochStartSystemState,
         committee_store: &Arc<CommitteeStore>,
         safe_client_metrics_base: SafeClientMetricsBase,
-        auth_agg_metrics: AuthAggMetrics,
-    ) -> anyhow::Result<Self> {
-        // TODO: We should get the committee from the epoch store instead to ensure
-        // consistency. Instead of this function use
-        // AuthorityEpochStore::epoch_start_configuration() to access this object
-        // everywhere besides when we are reading fields for the current epoch
-        let iota_system_state = store.get_iota_system_state_object_unsafe()?;
-        let committee = iota_system_state.get_current_epoch_committee();
-        let validator_display_names = iota_system_state
-            .into_iota_system_state_summary()
-            .active_validators
-            .into_iter()
-            .filter_map(|s| {
-                let authority_name =
-                    AuthorityPublicKeyBytes::from_bytes(s.protocol_pubkey_bytes.as_slice());
-                if authority_name.is_err() {
-                    return None;
-                }
-                let human_readable_name = s.name;
-                Some((authority_name.unwrap(), human_readable_name))
-            })
-            .collect();
+        auth_agg_metrics: Arc<AuthAggMetrics>,
+    ) -> Self {
+        let committee = epoch_start_state.get_iota_committee_with_network_metadata();
+        let validator_display_names = epoch_start_state.get_authority_names_to_hostnames();
         Self::new_from_committee(
             committee,
             committee_store,
             safe_client_metrics_base,
-            Arc::new(auth_agg_metrics),
+            auth_agg_metrics,
             Arc::new(validator_display_names),
+        )
+    }
+
+    /// Create a new AuthorityAggregator using information from the given epoch
+    /// start system state. This is typically used during reconfiguration to
+    /// create a new AuthorityAggregator with the new committee and network
+    /// addresses.
+    pub fn recreate_with_new_epoch_start_state(
+        &self,
+        epoch_start_state: &EpochStartSystemState,
+    ) -> Self {
+        Self::new_from_epoch_start_state(
+            epoch_start_state,
+            &self.committee_store,
+            self.safe_client_metrics_base.clone(),
+            self.metrics.clone(),
         )
     }
 
@@ -686,18 +722,19 @@ impl AuthorityAggregator<NetworkAuthorityClient> {
         safe_client_metrics_base: SafeClientMetricsBase,
         auth_agg_metrics: Arc<AuthAggMetrics>,
         validator_display_names: Arc<HashMap<AuthorityName, String>>,
-    ) -> anyhow::Result<Self> {
-        let net_config = default_iota_network_stack_config();
+    ) -> Self {
+        let net_config = default_iota_network_config();
         let authority_clients =
-            make_network_authority_clients_with_network_config(&committee, &net_config)?;
-        Ok(Self::new_with_metrics(
-            committee.committee,
+            make_network_authority_clients_with_network_config(&committee, &net_config);
+        Self::new(
+            committee.committee().clone(),
             committee_store.clone(),
             authority_clients,
             safe_client_metrics_base,
             auth_agg_metrics,
             validator_display_names,
-        ))
+            Default::default(),
+        )
     }
 }
 
@@ -895,7 +932,7 @@ where
         }
     }
 
-    /// Query the object with highest version number from the authorities.
+    /// Queries the object with highest version number from the authorities.
     /// We stop after receiving responses from 2f+1 validators.
     /// This function is untrusted because we simply assume each response is
     /// valid and there are no byzantine validators.
@@ -958,7 +995,7 @@ where
         Ok(result.0)
     }
 
-    /// Get the latest system state object from the authorities.
+    /// Gets the latest system state object from the authorities.
     /// This function assumes all validators are honest.
     /// It should only be used for testing or benchmarking.
     pub async fn get_latest_system_state_object_for_testing(
@@ -1020,9 +1057,11 @@ where
     }
 
     /// Submits the transaction to a quorum of validators to make a certificate.
+    #[instrument(level = "trace", skip_all)]
     pub async fn process_transaction(
         &self,
         transaction: Transaction,
+        client_addr: Option<SocketAddr>,
     ) -> Result<ProcessTransactionResult, AggregatorProcessTransactionError> {
         // Now broadcast the transaction to all authorities.
         let tx_digest = transaction.digest();
@@ -1042,7 +1081,7 @@ where
             object_or_package_not_found_stake: 0,
             non_retryable_stake: 0,
             overloaded_stake: 0,
-            retryable_overloaded_stake: 0,
+            retryable_overload_info: Default::default(),
             retryable: true,
             conflicting_tx_digests: Default::default(),
             conflicting_tx_total_stake: 0,
@@ -1058,11 +1097,15 @@ where
                 committee.clone(),
                 self.authority_clients.clone(),
                 state,
-                |_name, client| {
+                |name, client| {
                     Box::pin(
                         async move {
                             let _guard = GaugeGuard::acquire(&self.metrics.inflight_transaction_requests);
-                            client.handle_transaction(transaction_ref.clone()).await
+                            let concise_name = name.concise_owned();
+                            client.handle_transaction(transaction_ref.clone(), client_addr)
+                                .monitor_cancellation()
+                                .instrument(trace_span!("handle_transaction", cancelled = false, authority =? concise_name))
+                                .await
                         },
                     )
                 },
@@ -1115,7 +1158,7 @@ where
                                     //
                                     // TODO: currently retryable overload and above overload error look redundant. We want to have a unified
                                     // code path to handle both overload scenarios.
-                                    state.retryable_overloaded_stake += weight;
+                                    state.retryable_overload_info.add_stake_retryable_overload(weight, Duration::from_secs(err.retry_after_secs()));
                                 }
                                 else if !retryable && !state.record_conflicting_transaction_if_any(name, weight, &err) {
                                     // We don't count conflicting transactions as non-retryable errors here
@@ -1172,6 +1215,7 @@ where
         }
     }
 
+    /// Records the rpc error if it is.
     fn record_rpc_error_maybe(
         metrics: Arc<AuthAggMetrics>,
         display_name: &String,
@@ -1185,6 +1229,7 @@ where
         }
     }
 
+    /// Handles the transaction processing error.
     fn handle_process_transaction_error(
         &self,
         original_tx_digest: &TransactionDigest,
@@ -1260,15 +1305,19 @@ where
         // successful, it indicates that we have heard from *all* validators.
         // Check if any SystemOverloadRetryAfter error caused the txn
         // to fail. If so, return explicit SystemOverloadRetryAfter error for continuous
-        // retry (since objects) are locked in validators. If not, retry regular
+        // retry (since objects are locked in validators). If not, retry regular
         // RetryableTransaction error.
-        if state.tx_signatures.total_votes() + state.retryable_overloaded_stake >= quorum_threshold
+        if state.tx_signatures.total_votes() + state.retryable_overload_info.total_stake
+            >= quorum_threshold
         {
-            // TODO: make use of retry_after_secs, which is currently not used.
+            let retry_after_secs = state
+                .retryable_overload_info
+                .get_quorum_retry_after(state.tx_signatures.total_votes(), quorum_threshold)
+                .as_secs();
             return AggregatorProcessTransactionError::SystemOverloadRetryAfter {
-                overload_stake: state.retryable_overloaded_stake,
+                overload_stake: state.retryable_overload_info.total_stake,
                 errors: group_errors(state.errors),
-                retry_after_secs: 0,
+                retry_after_secs,
             };
         }
 
@@ -1279,6 +1328,7 @@ where
         }
     }
 
+    /// Debug logs the transaction processing metrics.
     fn record_process_transaction_metrics(
         &self,
         tx_digest: &TransactionDigest,
@@ -1300,6 +1350,7 @@ where
         }
     }
 
+    /// Handles the `PlainTransactionInfoResponse` variants.
     fn handle_process_transaction_response(
         &self,
         tx_digest: &TransactionDigest,
@@ -1325,6 +1376,8 @@ where
         }
     }
 
+    /// Handles the `SignedTransaction`. based on the transaction signature
+    /// insertion result.
     fn handle_transaction_response_with_signed(
         &self,
         state: &mut ProcessTransactionState,
@@ -1349,14 +1402,20 @@ where
             }
             InsertResult::Failed { error } => Err(error),
             InsertResult::QuorumReached(cert_sig) => {
-                let ct =
+                let certificate =
                     CertifiedTransaction::new_from_data_and_sig(plain_tx.into_data(), cert_sig);
-                ct.verify_committee_sigs_only(&self.committee)?;
-                Ok(Some(ProcessTransactionResult::Certified(ct)))
+                certificate.verify_committee_sigs_only(&self.committee)?;
+                Ok(Some(ProcessTransactionResult::Certified {
+                    certificate,
+                    newly_formed: true,
+                }))
             }
         }
     }
 
+    /// Handles `CertifiedTransaction`. Use the certificate if it's in the same
+    /// epoch. Or update the `ProcessTransactionState` by the
+    /// `SignedTransactionEffects` if there is no certificate yet.
     fn handle_transaction_response_with_executed(
         &self,
         state: &mut ProcessTransactionState,
@@ -1369,7 +1428,10 @@ where
                 // If we get a certificate in the same epoch, then we use it.
                 // A certificate in a past epoch does not guarantee finality
                 // and validators may reject to process it.
-                Ok(Some(ProcessTransactionResult::Certified(certificate)))
+                Ok(Some(ProcessTransactionResult::Certified {
+                    certificate,
+                    newly_formed: false,
+                }))
             }
             _ => {
                 // If we get 2f+1 effects, it's a proof that the transaction
@@ -1410,7 +1472,7 @@ where
         }
     }
 
-    /// Check if we have some signed TransactionEffects but not a quorum
+    /// Checks if we have some signed TransactionEffects but not a quorum.
     fn record_non_quorum_effects_maybe(
         &self,
         tx_digest: &TransactionDigest,
@@ -1469,6 +1531,7 @@ where
         state
     }
 
+    /// Gets the retryable stake for the transaction.
     fn get_retryable_stake(&self, state: &ProcessTransactionState) -> StakeUnit {
         self.committee.total_votes()
             - state.conflicting_tx_total_stake
@@ -1477,25 +1540,45 @@ where
             - state.tx_signatures.total_votes()
     }
 
+    /// Processes a given certificate by broadcasting it to authorities and
+    /// aggregating the results until reaching a quorum.
+    #[instrument(level = "trace", skip_all)]
     pub async fn process_certificate(
         &self,
-        certificate: CertifiedTransaction,
-    ) -> Result<
-        (VerifiedCertifiedTransactionEffects, TransactionEvents),
-        AggregatorProcessCertificateError,
-    > {
+        request: HandleCertificateRequestV3,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<QuorumDriverResponse, AggregatorProcessCertificateError> {
         let state = ProcessCertificateState {
             effects_map: MultiStakeAggregator::new(self.committee.clone()),
             non_retryable_stake: 0,
             non_retryable_errors: vec![],
             retryable_errors: vec![],
             retryable: true,
+            events: None,
+            input_objects: None,
+            output_objects: None,
+            auxiliary_data: None,
         };
 
-        let tx_digest = *certificate.digest();
+        // create a set of validators that we should sample to request input/output
+        // objects from
+        let validators_to_sample =
+            if request.include_input_objects || request.include_output_objects {
+                // Number of validators to request input/output objects from
+                const NUMBER_TO_SAMPLE: usize = 5;
+
+                self.committee
+                    .choose_multiple_weighted_iter(NUMBER_TO_SAMPLE)
+                    .cloned()
+                    .collect()
+            } else {
+                HashSet::new()
+            };
+
+        let tx_digest = *request.certificate.digest();
         let timeout_after_quorum = self.timeouts.post_quorum_timeout;
 
-        let cert_ref = certificate;
+        let request_ref = request;
         let threshold = self.committee.quorum_threshold();
         let validity = self.committee.validity_threshold();
 
@@ -1518,12 +1601,39 @@ where
             move |name, client| {
                 Box::pin(async move {
                     let _guard = GaugeGuard::acquire(&metrics_clone.inflight_certificate_requests);
-                    client
-                        .handle_certificate_v2(cert_ref)
-                        .instrument(
-                            tracing::trace_span!("handle_certificate", authority =? name.concise()),
-                        )
-                        .await
+                    let concise_name = name.concise_owned();
+                    if request_ref.include_input_objects || request_ref.include_output_objects {
+
+                        // adjust the request to validators we aren't planning on sampling
+                        let req = if validators_to_sample.contains(&name) {
+                            request_ref
+                        } else {
+                            HandleCertificateRequestV3 {
+                                include_events: false,
+                                include_input_objects: false,
+                                include_output_objects: false,
+                                include_auxiliary_data: false,
+                                ..request_ref
+                            }
+                        };
+
+                        client
+                            .handle_certificate_v3(req, client_addr)
+                            .instrument(trace_span!("handle_certificate_v3", authority =? concise_name))
+                            .await
+                    } else {
+                        client
+                            .handle_certificate_v2(request_ref.certificate, client_addr)
+                            .instrument(trace_span!("handle_certificate_v2", authority =? concise_name))
+                            .await
+                            .map(|response| HandleCertificateResponseV3 {
+                                effects: response.signed_effects,
+                                events: Some(response.events),
+                                input_objects: None,
+                                output_objects: None,
+                                auxiliary_data: None,
+                            })
+                    }
                 })
             },
             move |mut state, name, weight, response| {
@@ -1645,24 +1755,44 @@ where
         Ok(result)
     }
 
+    /// Handles the `HandleCertificateResponseV2` variants.
     fn handle_process_certificate_response(
         committee: Arc<Committee>,
         tx_digest: &TransactionDigest,
         state: &mut ProcessCertificateState,
-        response: IotaResult<HandleCertificateResponseV2>,
+        response: IotaResult<HandleCertificateResponseV3>,
         name: AuthorityName,
-    ) -> IotaResult<Option<(VerifiedCertifiedTransactionEffects, TransactionEvents)>> {
+    ) -> IotaResult<Option<QuorumDriverResponse>> {
         match response {
-            Ok(HandleCertificateResponseV2 {
-                signed_effects,
+            Ok(HandleCertificateResponseV3 {
+                effects: signed_effects,
                 events,
-                ..
+                input_objects,
+                output_objects,
+                auxiliary_data,
             }) => {
                 debug!(
                     ?tx_digest,
                     name = ?name.concise(),
                     "Validator handled certificate successfully",
                 );
+
+                if events.is_some() && state.events.is_none() {
+                    state.events = events;
+                }
+
+                if input_objects.is_some() && state.input_objects.is_none() {
+                    state.input_objects = input_objects;
+                }
+
+                if output_objects.is_some() && state.output_objects.is_none() {
+                    state.output_objects = output_objects;
+                }
+
+                if auxiliary_data.is_some() && state.auxiliary_data.is_none() {
+                    state.auxiliary_data = auxiliary_data;
+                }
+
                 let effects_digest = *signed_effects.digest();
                 // Note: here we aggregate votes by the hash of the effects structure
                 match state.effects_map.insert(
@@ -1693,7 +1823,13 @@ where
                         );
                         ct.verify(&committee).map(|ct| {
                             debug!(?tx_digest, "Got quorum for validators handle_certificate.");
-                            Some((ct, events))
+                            Some(QuorumDriverResponse {
+                                effects_cert: ct,
+                                events: state.events.take(),
+                                input_objects: state.input_objects.take(),
+                                output_objects: state.output_objects.take(),
+                                auxiliary_data: state.auxiliary_data.take(),
+                            })
                         })
                     }
                 }
@@ -1702,17 +1838,18 @@ where
         }
     }
 
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub async fn execute_transaction_block(
         &self,
         transaction: &Transaction,
+        client_addr: Option<SocketAddr>,
     ) -> Result<VerifiedCertifiedTransactionEffects, anyhow::Error> {
         let tx_guard = GaugeGuard::acquire(&self.metrics.inflight_transactions);
         let result = self
-            .process_transaction(transaction.clone())
-            .instrument(tracing::debug_span!("process_tx"))
+            .process_transaction(transaction.clone(), client_addr)
             .await?;
         let cert = match result {
-            ProcessTransactionResult::Certified(cert) => cert,
+            ProcessTransactionResult::Certified { certificate, .. } => certificate,
             ProcessTransactionResult::Executed(effects, _) => {
                 return Ok(effects);
             }
@@ -1722,15 +1859,24 @@ where
 
         let _cert_guard = GaugeGuard::acquire(&self.metrics.inflight_certificates);
         let response = self
-            .process_certificate(cert.clone())
-            .instrument(tracing::debug_span!("process_cert"))
+            .process_certificate(
+                HandleCertificateRequestV3 {
+                    certificate: cert.clone(),
+                    include_events: true,
+                    include_input_objects: false,
+                    include_output_objects: false,
+                    include_auxiliary_data: false,
+                },
+                client_addr,
+            )
             .await?;
 
-        Ok(response.0)
+        Ok(response.effects_cert)
     }
 
     /// This function tries to get SignedTransaction OR CertifiedTransaction
     /// from an given list of validators who are supposed to know about it.
+    #[instrument(level = "trace", skip_all, fields(?tx_digest))]
     pub async fn handle_transaction_info_request_from_some_validators(
         &self,
         tx_digest: &TransactionDigest,
@@ -1757,88 +1903,119 @@ where
         .await
     }
 }
+
+/// `AuthorityAggregatorBuilder` is used to build an `AuthorityAggregator` with
+/// customizable configurations for the Iota network.
+#[derive(Default)]
 pub struct AuthorityAggregatorBuilder<'a> {
     network_config: Option<&'a NetworkConfig>,
     genesis: Option<&'a Genesis>,
+    committee: Option<Committee>,
     committee_store: Option<Arc<CommitteeStore>>,
     registry: Option<&'a Registry>,
-    protocol_version: ProtocolVersion,
+    timeouts_config: Option<TimeoutConfig>,
 }
 
 impl<'a> AuthorityAggregatorBuilder<'a> {
+    /// Creates a new `AuthorityAggregatorBuilder` from a `NetworkConfig`.
     pub fn from_network_config(config: &'a NetworkConfig) -> Self {
         Self {
             network_config: Some(config),
-            genesis: None,
-            committee_store: None,
-            registry: None,
-            protocol_version: ProtocolVersion::MIN,
+            ..Default::default()
         }
     }
 
+    /// Creates a new `AuthorityAggregatorBuilder` from a `Genesis`.
     pub fn from_genesis(genesis: &'a Genesis) -> Self {
         Self {
-            network_config: None,
             genesis: Some(genesis),
-            committee_store: None,
-            registry: None,
-            protocol_version: ProtocolVersion::MIN,
+            ..Default::default()
         }
     }
 
-    pub fn with_protocol_version(mut self, new_version: ProtocolVersion) -> Self {
-        self.protocol_version = new_version;
-        self
+    /// Creates a new `AuthorityAggregatorBuilder` from a `Committee`.
+    pub fn from_committee(committee: Committee) -> Self {
+        Self {
+            committee: Some(committee),
+            ..Default::default()
+        }
     }
 
+    /// Sets the `CommitteeStore`.
     pub fn with_committee_store(mut self, committee_store: Arc<CommitteeStore>) -> Self {
         self.committee_store = Some(committee_store);
         self
     }
 
+    /// Sets the Prometheus registry.
     pub fn with_registry(mut self, registry: &'a Registry) -> Self {
         self.registry = Some(registry);
         self
     }
 
-    pub fn build(
-        self,
-    ) -> anyhow::Result<(
-        AuthorityAggregator<NetworkAuthorityClient>,
-        BTreeMap<AuthorityPublicKeyBytes, NetworkAuthorityClient>,
-    )> {
+    /// Sets the timeouts configuration.
+    pub fn with_timeouts_config(mut self, timeouts_config: TimeoutConfig) -> Self {
+        self.timeouts_config = Some(timeouts_config);
+        self
+    }
+
+    fn get_network_committee(&self) -> CommitteeWithNetworkMetadata {
         let genesis = if let Some(network_config) = self.network_config {
             &network_config.genesis
         } else if let Some(genesis) = self.genesis {
             genesis
         } else {
-            anyhow::bail!("need either NetworkConfig or Genesis.");
+            panic!("need either NetworkConfig or Genesis.");
         };
-        let committee = genesis.committee_with_network();
-        let mut registry = &prometheus::Registry::new();
-        if self.registry.is_some() {
-            registry = self.registry.unwrap();
-        }
+        genesis.committee_with_network()
+    }
 
+    fn get_committee(&self) -> Committee {
+        self.committee
+            .clone()
+            .unwrap_or_else(|| self.get_network_committee().committee().clone())
+    }
+
+    pub fn build_network_clients(
+        self,
+    ) -> (
+        AuthorityAggregator<NetworkAuthorityClient>,
+        BTreeMap<AuthorityPublicKeyBytes, NetworkAuthorityClient>,
+    ) {
+        let network_committee = self.get_network_committee();
         let auth_clients = make_authority_clients_with_timeout_config(
-            &committee,
+            &network_committee,
             DEFAULT_CONNECT_TIMEOUT_SEC,
             DEFAULT_REQUEST_TIMEOUT_SEC,
-        )?;
-        let committee_store = if let Some(committee_store) = self.committee_store {
-            committee_store
-        } else {
-            Arc::new(CommitteeStore::new_for_testing(&committee.committee))
-        };
-        Ok((
-            AuthorityAggregator::new(
-                committee.committee,
-                committee_store,
-                auth_clients.clone(),
-                registry,
-                Arc::new(HashMap::new()),
-            ),
-            auth_clients,
-        ))
+        );
+        let auth_agg = self.build_custom_clients(auth_clients.clone());
+        (auth_agg, auth_clients)
+    }
+
+    pub fn build_custom_clients<C: Clone>(
+        self,
+        authority_clients: BTreeMap<AuthorityName, C>,
+    ) -> AuthorityAggregator<C> {
+        let committee = self.get_committee();
+        let registry = Registry::new();
+        let registry = self.registry.unwrap_or(&registry);
+        let safe_client_metrics_base = SafeClientMetricsBase::new(registry);
+        let auth_agg_metrics = Arc::new(AuthAggMetrics::new(registry));
+
+        let committee_store = self
+            .committee_store
+            .unwrap_or_else(|| Arc::new(CommitteeStore::new_for_testing(&committee)));
+
+        let timeouts_config = self.timeouts_config.unwrap_or_default();
+
+        AuthorityAggregator::new(
+            committee,
+            committee_store,
+            authority_clients,
+            safe_client_metrics_base,
+            auth_agg_metrics,
+            Arc::new(HashMap::new()),
+            timeouts_config,
+        )
     }
 }

@@ -4,7 +4,7 @@
 
 import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
-import { createContext, useState, type ReactNode } from 'react';
+import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
 import DappStatus from '../dapp-status';
@@ -13,10 +13,9 @@ import { Toaster } from '../toaster';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Link } from 'react-router-dom';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { useResolveIotaNSName } from '@iota/core';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { formatAccountName } from '../../helpers';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -94,23 +93,23 @@ function LeftContent({
     isLedgerAccount: boolean | null;
     isLocked?: boolean;
 }) {
-    const { data: domainName } = useResolveIotaNSName(account?.address);
-    const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
+    const accountName = formatAccountName(account?.nickname, account?.address);
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
         <Link
             to="/accounts/manage"
             className="flex flex-row items-center gap-sm p-xs text-pink-200 no-underline"
+            data-testid="accounts-manage"
         >
             <div
                 className={cn(
-                    'rounded-full p-1 text-neutral-100 [&_svg]:h-5 [&_svg]:w-5',
+                    'flex h-8 w-8 items-center justify-center rounded-full bg-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
                     backgroundColor,
                 )}
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="text-title-sm text-neutral-10">{accountName}</span>
+            <span className="shrink-0 text-title-sm text-neutral-10">{accountName}</span>
         </Link>
     );
 }

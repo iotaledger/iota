@@ -12,14 +12,15 @@ use iota_json_rpc_types::{
     TransactionBlockBytes,
 };
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{IotaAddress, ObjectID},
     gas_coin::GAS,
     quorum_driver_types::ExecuteTransactionRequestType,
     storage::ReadStore,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use serial_test::serial;
 use simulacrum::Simulacrum;
+use tempfile::tempdir;
 use test_cluster::TestCluster;
 
 use crate::common::{
@@ -30,15 +31,17 @@ use crate::common::{
 #[tokio::test]
 #[serial]
 async fn get_epochs() {
+    let data_ingestion_path = tempdir().unwrap().into_path();
     let mut sim = Simulacrum::new();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     execute_simulacrum_transactions(&mut sim, 15);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 10);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 5);
     add_checkpoints(&mut sim, 300);
@@ -46,7 +49,7 @@ async fn get_epochs() {
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim)).await;
+        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
     indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
 
     let epochs = indexer_client.get_epochs(None, None, None).await.unwrap();
@@ -75,15 +78,17 @@ async fn get_epochs() {
 #[tokio::test]
 #[serial]
 async fn get_epochs_descending() {
+    let data_ingestion_path = tempdir().unwrap().into_path();
     let mut sim = Simulacrum::new();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     execute_simulacrum_transactions(&mut sim, 15);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 10);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 5);
     add_checkpoints(&mut sim, 300);
@@ -91,7 +96,7 @@ async fn get_epochs_descending() {
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim)).await;
+        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
     indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
 
     let epochs = indexer_client
@@ -113,15 +118,17 @@ async fn get_epochs_descending() {
 #[tokio::test]
 #[serial]
 async fn get_epochs_paging() {
+    let data_ingestion_path = tempdir().unwrap().into_path();
     let mut sim = Simulacrum::new();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     execute_simulacrum_transactions(&mut sim, 15);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 10);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 5);
     add_checkpoints(&mut sim, 300);
@@ -129,7 +136,7 @@ async fn get_epochs_paging() {
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim)).await;
+        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
     indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
 
     let epochs = indexer_client
@@ -166,15 +173,17 @@ async fn get_epochs_paging() {
 #[tokio::test]
 #[serial]
 async fn get_epoch_metrics() {
+    let data_ingestion_path = tempdir().unwrap().into_path();
     let mut sim = Simulacrum::new();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     execute_simulacrum_transactions(&mut sim, 15);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 10);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 5);
     add_checkpoints(&mut sim, 300);
@@ -182,7 +191,7 @@ async fn get_epoch_metrics() {
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim)).await;
+        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
     indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
 
     let epoch_metrics = indexer_client
@@ -214,15 +223,17 @@ async fn get_epoch_metrics() {
 #[tokio::test]
 #[serial]
 async fn get_epoch_metrics_descending() {
+    let data_ingestion_path = tempdir().unwrap().into_path();
     let mut sim = Simulacrum::new();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     execute_simulacrum_transactions(&mut sim, 15);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 10);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 5);
     add_checkpoints(&mut sim, 300);
@@ -230,7 +241,7 @@ async fn get_epoch_metrics_descending() {
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim)).await;
+        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
     indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
 
     let epochs = indexer_client
@@ -252,15 +263,17 @@ async fn get_epoch_metrics_descending() {
 #[tokio::test]
 #[serial]
 async fn get_epoch_metrics_paging() {
+    let data_ingestion_path = tempdir().unwrap().into_path();
     let mut sim = Simulacrum::new();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     execute_simulacrum_transactions(&mut sim, 15);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 10);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 5);
     add_checkpoints(&mut sim, 300);
@@ -268,7 +281,7 @@ async fn get_epoch_metrics_paging() {
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim)).await;
+        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
     indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
 
     let epochs = indexer_client
@@ -305,15 +318,17 @@ async fn get_epoch_metrics_paging() {
 #[tokio::test]
 #[serial]
 async fn get_current_epoch() {
+    let data_ingestion_path = tempdir().unwrap().into_path();
     let mut sim = Simulacrum::new();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     execute_simulacrum_transactions(&mut sim, 15);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 10);
     add_checkpoints(&mut sim, 300);
-    sim.advance_epoch(false);
+    sim.advance_epoch();
 
     execute_simulacrum_transactions(&mut sim, 5);
     add_checkpoints(&mut sim, 300);
@@ -321,7 +336,7 @@ async fn get_current_epoch() {
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim)).await;
+        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
     indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
 
     let current_epoch = indexer_client.get_current_epoch().await.unwrap();
@@ -413,14 +428,16 @@ async fn get_all_epoch_address_metrics() {
 #[tokio::test]
 #[serial]
 async fn get_total_transactions() {
+    let data_ingestion_path = tempdir().unwrap().into_path();
     let mut sim = Simulacrum::new();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
     execute_simulacrum_transactions(&mut sim, 5);
 
     let latest_checkpoint = sim.create_checkpoint();
     let total_transactions_count = latest_checkpoint.network_total_transactions;
 
     let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim)).await;
+        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
     indexer_wait_for_checkpoint(&pg_store, latest_checkpoint.sequence_number).await;
 
     let transactions_cnt = indexer_client.get_total_transactions().await.unwrap();

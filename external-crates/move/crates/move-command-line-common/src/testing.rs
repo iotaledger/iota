@@ -3,8 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use colored::Colorize;
-
 use crate::env::read_bool_env_var;
 
 /// Extension for raw output files
@@ -38,15 +36,31 @@ pub fn add_update_baseline_fix(s: impl AsRef<str>) -> String {
 }
 
 pub fn format_diff(expected: impl AsRef<str>, actual: impl AsRef<str>) -> String {
-    use similar::ChangeTag::*;
-    let diff = similar::TextDiff::from_lines(expected.as_ref(), actual.as_ref());
+    use difference::*;
 
-    diff.iter_all_changes()
-        .map(|change| match change.tag() {
-            Delete => format!("{}{}", "-".bold(), change.value()).red(),
-            Insert => format!("{}{}", "+".bold(), change.value()).green(),
-            Equal => change.value().dimmed(),
-        })
-        .map(|s| s.to_string())
-        .collect()
+    let changeset = Changeset::new(expected.as_ref(), actual.as_ref(), "\n");
+
+    let mut ret = String::new();
+
+    for seq in changeset.diffs {
+        match &seq {
+            Difference::Same(x) => {
+                ret.push_str(x);
+                ret.push('\n');
+            }
+            Difference::Add(x) => {
+                ret.push_str("\x1B[92m");
+                ret.push_str(x);
+                ret.push_str("\x1B[0m");
+                ret.push('\n');
+            }
+            Difference::Rem(x) => {
+                ret.push_str("\x1B[91m");
+                ret.push_str(x);
+                ret.push_str("\x1B[0m");
+                ret.push('\n');
+            }
+        }
+    }
+    ret
 }

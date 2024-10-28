@@ -24,6 +24,7 @@ query getLatestIotaSystemState {
         }
         systemStateVersion
         iotaTotalSupply
+        iotaTreasuryCapId
         systemParameters {
             minValidatorCount
             maxValidatorCount
@@ -53,11 +54,10 @@ query getLatestIotaSystemState {
             validatorCandidatesSize
             pendingRemovals
             totalStake
-
-            # inactivePoolsId
-            # validatorCandidatesId
-            # pendingActiveValidatorsId
-            # stakingPoolMappingsId
+            stakingPoolMappingsId
+            pendingActiveValidatorsId
+            validatorCandidatesId
+            inactivePoolsId
         }
     }
 }

@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use fastcrypto::traits::ToFromBytes;
 use iota_network_stack::Multiaddr;
 use once_cell::sync::OnceCell;
@@ -13,13 +11,13 @@ use crate::{
     balance::Balance,
     base_types::IotaAddress,
     collection_types::{Bag, Table},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
-    crypto::AuthorityPublicKeyBytes,
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
+    crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
     error::IotaError,
     iota_system_state::{
+        AdvanceEpochParams, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartValidatorInfoV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-        AdvanceEpochParams, IotaSystemStateTrait,
     },
     storage::ObjectStore,
 };
@@ -75,58 +73,52 @@ impl SimTestValidatorV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestValidatorMetadataV1 {
     pub iota_address: IotaAddress,
-    pub protocol_pubkey_bytes: Vec<u8>,
+    pub authority_pubkey_bytes: Vec<u8>,
     pub network_pubkey_bytes: Vec<u8>,
-    pub worker_pubkey_bytes: Vec<u8>,
+    pub protocol_pubkey_bytes: Vec<u8>,
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub worker_address: String,
     pub extra_fields: Bag,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct VerifiedSimTestValidatorMetadataV1 {
     pub iota_address: IotaAddress,
-    pub protocol_pubkey: narwhal_crypto::PublicKey,
-    pub network_pubkey: narwhal_crypto::NetworkPublicKey,
-    pub worker_pubkey: narwhal_crypto::NetworkPublicKey,
+    pub authority_pubkey: AuthorityPublicKey,
+    pub network_pubkey: NetworkPublicKey,
+    pub protocol_pubkey: NetworkPublicKey,
     pub net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
-    pub worker_address: Multiaddr,
 }
 
 impl SimTestValidatorMetadataV1 {
     pub fn verify(&self) -> VerifiedSimTestValidatorMetadataV1 {
-        let protocol_pubkey =
-            narwhal_crypto::PublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();
+        let authority_pubkey =
+            AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref()).unwrap();
         let network_pubkey =
-            narwhal_crypto::NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
-                .unwrap();
-        let worker_pubkey =
-            narwhal_crypto::NetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref())
-                .unwrap();
+            NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref()).unwrap();
+        let protocol_pubkey =
+            NetworkPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();
         let net_address = Multiaddr::try_from(self.net_address.clone()).unwrap();
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone()).unwrap();
         let primary_address = Multiaddr::try_from(self.primary_address.clone()).unwrap();
-        let worker_address = Multiaddr::try_from(self.worker_address.clone()).unwrap();
         VerifiedSimTestValidatorMetadataV1 {
             iota_address: self.iota_address,
-            protocol_pubkey,
+            authority_pubkey,
             network_pubkey,
-            worker_pubkey,
+            protocol_pubkey,
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
         }
     }
 }
 
 impl VerifiedSimTestValidatorMetadataV1 {
     pub fn iota_pubkey_bytes(&self) -> AuthorityPublicKeyBytes {
-        (&self.protocol_pubkey).into()
+        (&self.authority_pubkey).into()
     }
 }
 
@@ -167,24 +159,23 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.validators.active_validators {
-            let verified_metadata = validator.verified_metadata();
-            let name = verified_metadata.iota_pubkey_bytes();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: verified_metadata.net_address.clone(),
-                    narwhal_primary_address: verified_metadata.primary_address.clone(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let verified_metadata = validator.verified_metadata();
+                let name = verified_metadata.iota_pubkey_bytes();
+                (
+                    name,
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
+                    }),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
@@ -209,13 +200,12 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
+                        authority_pubkey: metadata.authority_pubkey.clone(),
+                        network_pubkey: metadata.network_pubkey.clone(),
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }
@@ -281,24 +271,23 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.validators.active_validators {
-            let verified_metadata = validator.verified_metadata();
-            let name = verified_metadata.iota_pubkey_bytes();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: verified_metadata.net_address.clone(),
-                    narwhal_primary_address: verified_metadata.primary_address.clone(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let verified_metadata = validator.verified_metadata();
+                let name = verified_metadata.iota_pubkey_bytes();
+                (
+                    name,
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
+                    }),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
@@ -323,13 +312,12 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
+                        authority_pubkey: metadata.authority_pubkey.clone(),
+                        network_pubkey: metadata.network_pubkey.clone(),
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }
@@ -424,24 +412,23 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.validators.active_validators {
-            let verified_metadata = validator.verified_metadata();
-            let name = verified_metadata.iota_pubkey_bytes();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: verified_metadata.net_address.clone(),
-                    narwhal_primary_address: verified_metadata.primary_address.clone(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let verified_metadata = validator.verified_metadata();
+                let name = verified_metadata.iota_pubkey_bytes();
+                (
+                    name,
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
+                    }),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
@@ -466,13 +453,12 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
+                        authority_pubkey: metadata.authority_pubkey.clone(),
+                        network_pubkey: metadata.network_pubkey.clone(),
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }

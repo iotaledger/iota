@@ -2,6 +2,9 @@
 title: Token Policy
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/closed-loop-token/token-policy.json';
+
 `TokenPolicy` is a shared object that you, as the token owner, can create using the `TreasuryCap`. Having a publicly available `TokenPolicy` enables on-chain discovery of allowed actions and their conditions. This is useful for wallets and other services that want to provide a better user experience for token holders.
 
 ## Create and share
@@ -92,3 +95,5 @@ public fun flush<T>(
 | confirm_request             | Confirm an `ActionRequest` with a `TokenPolicy`                          |
 | confirm_request_mut         | Similar to `confirm_request` but only works for `spend` action       |
 | flush                       | Flush the spent balance from the `TokenPolicy` (see [Spending](spending.mdx)) |
+
+<Quiz questions={questions} />
