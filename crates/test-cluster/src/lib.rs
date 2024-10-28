@@ -70,7 +70,7 @@ use iota_types::{
         get_bridge, get_bridge_obj_initial_shared_version,
     },
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{IotaKeyPair, KeypairTraits, ToFromBytes},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, ToFromBytes, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -87,6 +87,7 @@ use iota_types::{
         CertifiedTransaction, ObjectArg, Transaction, TransactionData, TransactionDataAPI,
         TransactionKind,
     },
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     core::RpcResult,
@@ -98,8 +99,6 @@ use tokio::{
     time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
-use iota_types::crypto::{AccountKeyPair, get_key_pair};
-use iota_types::utils::to_sender_signed_transaction;
 
 const NUM_VALIDATOR: usize = 4;
 
@@ -128,7 +127,7 @@ impl FullNodeHandle {
 
 struct Faucet {
     address: IotaAddress,
-    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>
+    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>,
 }
 
 pub struct TestCluster {
@@ -137,7 +136,7 @@ pub struct TestCluster {
     pub fullnode_handle: FullNodeHandle,
     pub bridge_authority_keys: Option<Vec<BridgeAuthorityKeyPair>>,
     pub bridge_server_ports: Option<Vec<u16>>,
-    faucet: Faucet
+    faucet: Faucet,
 }
 
 impl TestCluster {
@@ -806,13 +805,18 @@ impl TestCluster {
         amount: Option<u64>,
         funding_address: IotaAddress,
     ) -> ObjectRef {
-        let Faucet {
-            address, keypair
-        } = &self.faucet;
+        let Faucet { address, keypair } = &self.faucet;
 
         let keypair = &*keypair.lock().await;
 
-        let gas_ref = self.wallet.get_gas_objects_owned_by_address(*address, None).await.unwrap().first().unwrap().clone();
+        let gas_ref = self
+            .wallet
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .first()
+            .unwrap()
+            .clone();
 
         let tx_data = TestTransactionBuilder::new(*address, gas_ref, rgp)
             .transfer_iota(amount, funding_address)
@@ -820,7 +824,8 @@ impl TestCluster {
 
         let signed_transaction = to_sender_signed_transaction(tx_data, keypair);
 
-        let response = self.iota_client()
+        let response = self
+            .iota_client()
             .quorum_driver_api()
             .execute_transaction_block(
                 signed_transaction,
@@ -830,8 +835,14 @@ impl TestCluster {
             .await
             .unwrap();
 
-        response.effects.unwrap().created().first().unwrap().reference.to_object_ref()
-
+        response
+            .effects
+            .unwrap()
+            .created()
+            .first()
+            .unwrap()
+            .reference
+            .to_object_ref()
     }
 
     pub async fn transfer_iota_must_exceed(
@@ -1358,8 +1369,10 @@ impl TestClusterBuilder {
             bridge_server_ports: None,
             faucet: Faucet {
                 address: faucet_address,
-                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(faucet_keypair))),
-            }
+                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
+                    faucet_keypair,
+                ))),
+            },
         }
     }
 
