@@ -1,46 +1,46 @@
-processed 14 tasks
+processed 15 tasks
 
-task 1, lines 6-19:
+task 1, lines 7-20:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 21:
+task 2, lines 22-23:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, line 23:
+task 3, lines 25-26:
 //# run Test::M1::create --args 1 @A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4, line 25:
+task 4, lines 28-29:
 //# run Test::M1::create --args 2 @A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 5, line 27:
+task 5, lines 31-32:
 //# run Test::M1::create --args 3 @A
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 6, line 29:
+task 6, lines 34-35:
 //# run Test::M1::create --args 4 @A
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 7, line 31:
+task 7, line 37:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 8, lines 33-43:
+task 8, lines 39-49:
 //# run-graphql
 Response: {
   "data": {
@@ -48,19 +48,19 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IA0aEaJEDlKDSC1RffR0g05xlej/ngllhWVEzxP/GJRzAQAAAAAAAAA="
+            "cursor": "ICz5IIuKI6+mzOyxS7vkE/oGAnCaqEDXuBATCd5LC5QvAQAAAAAAAAA="
           },
           {
-            "cursor": "ICQBOGJKQBVnTSjPn8d4hczgW9e+v+DLOnn6QGDo6U7zAQAAAAAAAAA="
+            "cursor": "IE/xhbQKpM+NlTQZ438Fzeh/2sIYYDkqr2aI4OBK3c4xAQAAAAAAAAA="
           },
           {
-            "cursor": "ID3HvUbFPVmeQdDWVsKCpPr3nh9mRKSj7N245yafRVURAQAAAAAAAAA="
+            "cursor": "IGHtIXjzidfc4B0Zn7TKECtr9BEfkMb34vC1w8RZgbDxAQAAAAAAAAA="
           },
           {
-            "cursor": "ILwUdsEdxfOAmqkMcN3XldEVIQbAQF/kmEzvivjUOCMYAQAAAAAAAAA="
+            "cursor": "IGxlkgg1Xn7VdPx43tX0JtmWgR+IlR9iL4dsHRBli/wmAQAAAAAAAAA="
           },
           {
-            "cursor": "IOilIztfYgbUm3NYHLbi80gIwVDLSHfs90ZoTKUdnHk9AQAAAAAAAAA="
+            "cursor": "IKiO4X/plBakAGLB9F5txiGn/HSJGY5XSERR8R7x8jkTAQAAAAAAAAA="
           }
         ]
       }
@@ -68,7 +68,7 @@ Response: {
   }
 }
 
-task 9, lines 45-55:
+task 9, lines 51-61:
 //# run-graphql
 Response: {
   "data": {
@@ -76,10 +76,10 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IA0aEaJEDlKDSC1RffR0g05xlej/ngllhWVEzxP/GJRzAQAAAAAAAAA="
+            "cursor": "ICz5IIuKI6+mzOyxS7vkE/oGAnCaqEDXuBATCd5LC5QvAQAAAAAAAAA="
           },
           {
-            "cursor": "ICQBOGJKQBVnTSjPn8d4hczgW9e+v+DLOnn6QGDo6U7zAQAAAAAAAAA="
+            "cursor": "IE/xhbQKpM+NlTQZ438Fzeh/2sIYYDkqr2aI4OBK3c4xAQAAAAAAAAA="
           }
         ]
       }
@@ -87,8 +87,101 @@ Response: {
   }
 }
 
-task 10, lines 57-69:
+task 10, lines 63-92:
+//# run-graphql
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "cursor": "ICz5IIuKI6+mzOyxS7vkE/oGAnCaqEDXuBATCd5LC5QvAQAAAAAAAAA=",
+            "node": {
+              "address": "0x2cf9208b8a23afa6ccecb14bbbe413fa0602709aa840d7b8101309de4b0b942f"
+            }
+          },
+          {
+            "cursor": "IE/xhbQKpM+NlTQZ438Fzeh/2sIYYDkqr2aI4OBK3c4xAQAAAAAAAAA=",
+            "node": {
+              "address": "0x4ff185b40aa4cf8d953419e37f05cde87fdac21860392aaf6688e0e04addce31"
+            }
+          },
+          {
+            "cursor": "IGHtIXjzidfc4B0Zn7TKECtr9BEfkMb34vC1w8RZgbDxAQAAAAAAAAA=",
+            "node": {
+              "address": "0x61ed2178f389d7dce01d199fb4ca102b6bf4111f90c6f7e2f0b5c3c45981b0f1"
+            }
+          },
+          {
+            "cursor": "IGxlkgg1Xn7VdPx43tX0JtmWgR+IlR9iL4dsHRBli/wmAQAAAAAAAAA=",
+            "node": {
+              "address": "0x6c659208355e7ed574fc78ded5f426d996811f88951f622f876c1d10658bfc26"
+            }
+          },
+          {
+            "cursor": "IKiO4X/plBakAGLB9F5txiGn/HSJGY5XSERR8R7x8jkTAQAAAAAAAAA=",
+            "node": {
+              "address": "0xa88ee17fe99416a40062c1f45e6dc621a7fc7489198e57484451f11ef1f23913"
+            }
+          }
+        ]
+      }
+    },
+    "obj_3_0": {
+      "address": "0x2cf9208b8a23afa6ccecb14bbbe413fa0602709aa840d7b8101309de4b0b942f"
+    },
+    "obj_5_0": {
+      "address": "0x61ed2178f389d7dce01d199fb4ca102b6bf4111f90c6f7e2f0b5c3c45981b0f1"
+    },
+    "obj_6_0": {
+      "address": "0x4ff185b40aa4cf8d953419e37f05cde87fdac21860392aaf6688e0e04addce31"
+    },
+    "obj_4_0": {
+      "address": "0x6c659208355e7ed574fc78ded5f426d996811f88951f622f876c1d10658bfc26"
+    },
+    "obj_2_0": {
+      "address": "0xa88ee17fe99416a40062c1f45e6dc621a7fc7489198e57484451f11ef1f23913"
+    }
+  }
+}
+
+task 11, lines 94-106:
 //# run-graphql --cursors @{obj_5_0}
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "cursor": "IGxlkgg1Xn7VdPx43tX0JtmWgR+IlR9iL4dsHRBli/wmAQAAAAAAAAA="
+          },
+          {
+            "cursor": "IKiO4X/plBakAGLB9F5txiGn/HSJGY5XSERR8R7x8jkTAQAAAAAAAAA="
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 12, lines 108-118:
+//# run-graphql --cursors @{obj_4_0}
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "cursor": "IKiO4X/plBakAGLB9F5txiGn/HSJGY5XSERR8R7x8jkTAQAAAAAAAAA="
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 13, lines 120-130:
+//# run-graphql --cursors @{obj_3_0}
 Response: {
   "data": {
     "address": {
@@ -99,42 +192,7 @@ Response: {
   }
 }
 
-task 11, lines 71-81:
-//# run-graphql --cursors @{obj_4_0}
-Response: {
-  "data": {
-    "address": {
-      "objects": {
-        "edges": [
-          {
-            "cursor": "ICQBOGJKQBVnTSjPn8d4hczgW9e+v+DLOnn6QGDo6U7zAQAAAAAAAAA="
-          },
-          {
-            "cursor": "ID3HvUbFPVmeQdDWVsKCpPr3nh9mRKSj7N245yafRVURAQAAAAAAAAA="
-          }
-        ]
-      }
-    }
-  }
-}
-
-task 12, lines 83-93:
-//# run-graphql --cursors @{obj_3_0}
-Response: {
-  "data": {
-    "address": {
-      "objects": {
-        "edges": [
-          {
-            "cursor": "IA0aEaJEDlKDSC1RffR0g05xlej/ngllhWVEzxP/GJRzAQAAAAAAAAA="
-          }
-        ]
-      }
-    }
-  }
-}
-
-task 13, lines 95-104:
+task 14, lines 132-144:
 //# run-graphql
 Response: {
   "data": {
@@ -142,10 +200,16 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "ILwUdsEdxfOAmqkMcN3XldEVIQbAQF/kmEzvivjUOCMYAQAAAAAAAAA="
+            "cursor": "IGxlkgg1Xn7VdPx43tX0JtmWgR+IlR9iL4dsHRBli/wmAQAAAAAAAAA=",
+            "node": {
+              "address": "0x6c659208355e7ed574fc78ded5f426d996811f88951f622f876c1d10658bfc26"
+            }
           },
           {
-            "cursor": "IOilIztfYgbUm3NYHLbi80gIwVDLSHfs90ZoTKUdnHk9AQAAAAAAAAA="
+            "cursor": "IKiO4X/plBakAGLB9F5txiGn/HSJGY5XSERR8R7x8jkTAQAAAAAAAAA=",
+            "node": {
+              "address": "0xa88ee17fe99416a40062c1f45e6dc621a7fc7489198e57484451f11ef1f23913"
+            }
           }
         ]
       }

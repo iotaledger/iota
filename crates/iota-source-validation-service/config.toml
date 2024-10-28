@@ -6,7 +6,6 @@ network = "mainnet"
 [[packages.values.branches]]
 branch = "framework/mainnet"
 paths = [
-  { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
   { path = "crates/iota-framework/packages/iota-system", watch = "0x3" },
@@ -20,7 +19,6 @@ network = "testnet"
 [[packages.values.branches]]
 branch = "framework/testnet"
 paths = [
-  { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
   { path = "crates/iota-framework/packages/iota-system", watch = "0x3" },
@@ -34,7 +32,6 @@ network = "devnet"
 [[packages.values.branches]]
 branch = "framework/devnet"
 paths = [
-  { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
   { path = "crates/iota-framework/packages/iota-system", watch = "0x3" },

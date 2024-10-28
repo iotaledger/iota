@@ -34,7 +34,7 @@ use tracing::info;
 
 use crate::{
     Config, certificate_deny_config::CertificateDenyConfig, genesis,
-    object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
+    migration_tx_data::MigrationTxData, object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
     transaction_deny_config::TransactionDenyConfig,
 };
 
@@ -51,15 +51,20 @@ pub const DEFAULT_COMMISSION_RATE: u64 = 200;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct NodeConfig {
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign transactions.
     #[serde(default = "default_authority_key_pair")]
-    pub protocol_key_pair: AuthorityKeyPairWithPath,
+    pub authority_key_pair: AuthorityKeyPairWithPath,
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign consensus blocks.
     #[serde(default = "default_key_pair")]
-    pub worker_key_pair: KeyPairWithPath,
+    pub protocol_key_pair: KeyPairWithPath,
     #[serde(default = "default_key_pair")]
     pub account_key_pair: KeyPairWithPath,
+    /// The public key bytes corresponding to the private key that the validator
+    /// uses to establish TLS connections.
     #[serde(default = "default_key_pair")]
     pub network_key_pair: KeyPairWithPath,
-
     pub db_path: PathBuf,
 
     /// The network address for gRPC communication.
@@ -124,6 +129,9 @@ pub struct NodeConfig {
     /// for reading all genesis data to memory or `InFile`,
     /// and `OnceCell` pointer to a genesis struct.
     pub genesis: Genesis,
+
+    /// Contains the path where to find the migration blob.
+    pub migration_tx_data_path: Option<PathBuf>,
 
     /// Configuration for pruning of the authority store, to define when
     /// an old data is removed from the storage space.
@@ -233,14 +241,6 @@ pub struct NodeConfig {
 
     #[serde(default)]
     pub execution_cache: ExecutionCacheConfig,
-
-    // step 1 in removing the old state accumulator
-    #[serde(skip)]
-    #[serde(default = "bool_true")]
-    pub state_accumulator_v2: bool,
-
-    #[serde(default = "bool_true")]
-    pub enable_soft_bundle: bool,
 
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
@@ -368,15 +368,15 @@ fn is_true(value: &bool) -> bool {
 impl Config for NodeConfig {}
 
 impl NodeConfig {
-    pub fn protocol_key_pair(&self) -> &AuthorityKeyPair {
-        self.protocol_key_pair.authority_keypair()
+    pub fn authority_key_pair(&self) -> &AuthorityKeyPair {
+        self.authority_key_pair.authority_keypair()
     }
 
-    pub fn worker_key_pair(&self) -> &NetworkKeyPair {
-        match self.worker_key_pair.keypair() {
+    pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
+        match self.protocol_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
             other => panic!(
-                "Invalid keypair type: {:?}, only Ed25519 is allowed for worker key",
+                "invalid keypair type: {:?}, only Ed25519 is allowed for protocol key",
                 other
             ),
         }
@@ -386,14 +386,14 @@ impl NodeConfig {
         match self.network_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
             other => panic!(
-                "Invalid keypair type: {:?}, only Ed25519 is allowed for network key",
+                "invalid keypair type: {:?}, only Ed25519 is allowed for network key",
                 other
             ),
         }
     }
 
-    pub fn protocol_public_key(&self) -> AuthorityPublicKeyBytes {
-        self.protocol_key_pair().public().into()
+    pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
+        self.authority_key_pair().public().into()
     }
 
     pub fn db_path(&self) -> PathBuf {
@@ -422,6 +422,19 @@ impl NodeConfig {
 
     pub fn genesis(&self) -> Result<&genesis::Genesis> {
         self.genesis.genesis()
+    }
+
+    pub fn load_migration_tx_data(&self) -> Result<MigrationTxData> {
+        let Some(location) = &self.migration_tx_data_path else {
+            anyhow::bail!("no file location set");
+        };
+
+        // Load from file
+        let migration_tx_data = MigrationTxData::load(location)?;
+
+        // Validate migration content in order to avoid corrupted or malicious data
+        migration_tx_data.validate_from_genesis(self.genesis.genesis()?)?;
+        Ok(migration_tx_data)
     }
 
     pub fn iota_address(&self) -> IotaAddress {
@@ -491,16 +504,10 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    pub address: Multiaddr,
-
     pub parameters: Option<ConsensusParameters>,
 }
 
 impl ConsensusConfig {
-    pub fn address(&self) -> &Multiaddr {
-        &self.address
-    }
-
     pub fn db_path(&self) -> &Path {
         &self.db_path
     }
@@ -691,10 +698,6 @@ pub struct AuthorityStorePruningConfig {
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    /// disables object tombstone pruning. We don't serialize it if it is the
-    /// default value, false.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub killswitch_tombstone_pruning: bool,
     #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
     pub smooth: bool,
 }
@@ -730,7 +733,6 @@ impl Default for AuthorityStorePruningConfig {
             max_transactions_in_batch: default_max_transactions_in_batch(),
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            killswitch_tombstone_pruning: false,
             smooth: true,
         }
     }
@@ -752,10 +754,6 @@ impl AuthorityStorePruningConfig {
                     n
                 }
             })
-    }
-
-    pub fn set_killswitch_tombstone_pruning(&mut self, killswitch_tombstone_pruning: bool) {
-        self.killswitch_tombstone_pruning = killswitch_tombstone_pruning;
     }
 }
 
@@ -1019,7 +1017,7 @@ impl KeyPairWithPath {
         let arc_kp = Arc::new(kp);
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
-        cell.set(arc_kp.clone()).expect("Failed to set keypair");
+        cell.set(arc_kp.clone()).expect("failed to set keypair");
         Self {
             location: KeyPairLocation::InPlace { value: arc_kp },
             keypair: cell,
@@ -1031,9 +1029,9 @@ impl KeyPairWithPath {
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
-            |e| panic!("Invalid keypair file at path {:?}: {e}", &path),
+            |e| panic!("invalid keypair file at path {:?}: {e}", &path),
         )))
-        .expect("Failed to set keypair");
+        .expect("failed to set keypair");
         Self {
             location: KeyPairLocation::File { path },
             keypair: cell,
@@ -1049,7 +1047,7 @@ impl KeyPairWithPath {
                     // loaded.
                     Arc::new(
                         read_keypair_from_file(path).unwrap_or_else(|e| {
-                            panic!("Invalid keypair file at path {:?}: {e}", path)
+                            panic!("invalid keypair file at path {:?}: {e}", path)
                         }),
                     )
                 }
@@ -1084,7 +1082,7 @@ impl AuthorityKeyPairWithPath {
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(arc_kp.clone())
-            .expect("Failed to set authority keypair");
+            .expect("failed to set authority keypair");
         Self {
             location: AuthorityKeyPairLocation::InPlace { value: arc_kp },
             keypair: cell,
@@ -1097,9 +1095,9 @@ impl AuthorityKeyPairWithPath {
         // loaded.
         cell.set(Arc::new(
             read_authority_keypair_from_file(&path)
-                .unwrap_or_else(|_| panic!("Invalid authority keypair file at path {:?}", &path)),
+                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {:?}", &path)),
         ))
-        .expect("Failed to set authority keypair");
+        .expect("failed to set authority keypair");
         Self {
             location: AuthorityKeyPairLocation::File { path },
             keypair: cell,
@@ -1115,7 +1113,7 @@ impl AuthorityKeyPairWithPath {
                     // loaded.
                     Arc::new(
                         read_authority_keypair_from_file(path).unwrap_or_else(|_| {
-                            panic!("Invalid authority keypair file {:?}", &path)
+                            panic!("invalid authority keypair file {:?}", &path)
                         }),
                     )
                 }
@@ -1152,7 +1150,7 @@ mod tests {
         let g = Genesis::new_from_file("path/to/file");
 
         let s = serde_yaml::to_string(&g).unwrap();
-        assert_eq!("genesis-file-location: path/to/file\n", s);
+        assert_eq!("---\ngenesis-file-location: path/to/file\n", s);
         let loaded_genesis: Genesis = serde_yaml::from_str(&s).unwrap();
         assert_eq!(g, loaded_genesis);
     }
@@ -1166,17 +1164,18 @@ mod tests {
 
     #[test]
     fn load_key_pairs_to_node_config() {
-        let protocol_key_pair: AuthorityKeyPair =
+        let authority_key_pair: AuthorityKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let worker_key_pair: NetworkKeyPair =
+        let protocol_key_pair: NetworkKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
         let network_key_pair: NetworkKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
 
-        write_authority_keypair_to_file(&protocol_key_pair, PathBuf::from("protocol.key")).unwrap();
+        write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
+            .unwrap();
         write_keypair_to_file(
-            &IotaKeyPair::Ed25519(worker_key_pair.copy()),
-            PathBuf::from("worker.key"),
+            &IotaKeyPair::Ed25519(protocol_key_pair.copy()),
+            PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
@@ -1188,16 +1187,16 @@ mod tests {
         const TEMPLATE: &str = include_str!("../data/fullnode-template-with-path.yaml");
         let template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
         assert_eq!(
-            template.protocol_key_pair().public(),
-            protocol_key_pair.public()
+            template.authority_key_pair().public(),
+            authority_key_pair.public()
         );
         assert_eq!(
             template.network_key_pair().public(),
             network_key_pair.public()
         );
         assert_eq!(
-            template.worker_key_pair().public(),
-            worker_key_pair.public()
+            template.protocol_key_pair().public(),
+            protocol_key_pair.public()
         );
     }
 }

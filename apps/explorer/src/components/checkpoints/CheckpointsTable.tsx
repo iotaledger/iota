@@ -2,11 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Select } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { Warning } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import { DEFAULT_CHECKPOINTS_LIMIT, useGetCheckpoints } from '~/hooks/useGetCheckpoints';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 import { generateCheckpointsTableColumns } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';
 
@@ -50,9 +52,13 @@ export function CheckpointsTable({
     return (
         <div className="flex flex-col gap-md text-left xl:pr-10">
             {isError && (
-                <div className="pt-2 font-sans font-semibold text-issue-dark">
-                    Failed to load Checkpoints
-                </div>
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Checkpoints"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
             )}
             {isPending || isFetching || !data?.data ? (
                 <PlaceholderTable
@@ -76,26 +82,24 @@ export function CheckpointsTable({
                               }
                             : undefined
                     }
+                    pageSizeSelector={
+                        !disablePagination && (
+                            <Select
+                                value={limit.toString()}
+                                options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                    label: `${size} / page`,
+                                    id: size.toString(),
+                                }))}
+                                size={SelectSize.Small}
+                                onValueChange={(e) => {
+                                    setLimit(Number(e));
+                                    pagination.onFirst();
+                                }}
+                            />
+                        )
+                    }
                 />
             )}
-            <div className="flex justify-between">
-                <div className="flex items-center space-x-3">
-                    {!disablePagination && (
-                        <Select
-                            value={limit.toString()}
-                            options={[
-                                { id: '20', label: '20 Per Page' },
-                                { id: '40', label: '40 Per Page' },
-                                { id: '60', label: '60 Per Page' },
-                            ]}
-                            onValueChange={(e) => {
-                                setLimit(Number(e));
-                                pagination.onFirst();
-                            }}
-                        />
-                    )}
-                </div>
-            </div>
         </div>
     );
 }

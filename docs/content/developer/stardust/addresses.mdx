@@ -14,7 +14,7 @@ In IOTA Stardust, addresses were represented in either Bech32 address format (fo
 
 It's possible to convert a legacy Bech32 address back to hex format by doing the following:
 
-1. Take the part after `iota1` or `smr1`. Using the address from the above paragraph as an example, iota1**qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx**.
+1. Take the part after `iota1`. Using the address from the above paragraph as an example, iota1**qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx**.
 2. Base32 decode it. 
 3. Strip away the last 6 digits containing the checksum. 
 
@@ -28,7 +28,7 @@ The following key derivation path is used, for example, to fetch a first keypair
 
 `44'/4218'/0'/0'/0'`
 
-The `44` represents ed25519, and the `4218` represents the IOTA Coin Type (`4219` for SMR). The first `0'` is the account, the second is the change, and the last `0'` represents the address index starting at 0, for a new address you could increment the address index or the account. 
+The `44` represents ed25519, and the `4218` represents the IOTA Coin Type. The first `0'` is the account, the second is the change, and the last `0'` represents the address index starting at 0, for a new address you could increment the address index or the account. 
 
 You can derive a new key pair using the key derivation path with a 24-word BIP-39 mnemonic (the same as with Stardust). 
 

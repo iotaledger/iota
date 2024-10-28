@@ -21,11 +21,29 @@ jobs:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       - name: Install latest nightly
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
         run: cargo +nightly ci-fmt
+
+  cargo-sort:
+    if: (!cancelled() && inputs.isRust)
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - name: Check Cargo.toml format and sorting
+        run: |
+          pushd "scripts/cargo_sort"
+          ./run.sh --skip-dprint
+          popd
+      - name: Check Cargo.toml diffs after formatting
+        run: |
+          if git status --porcelain | grep -q "Cargo.toml"; then
+            echo "Cargo.toml files not formatted and/or sorted properly! Please run the 'scripts/cargo_sort/run.sh' script."
+            git diff  # Show the actual diffs
+            exit 1    # Fail the workflow
+          fi
 
   clippy:
     if: (!cancelled() && !failure() && inputs.isRust)
@@ -33,11 +51,11 @@ jobs:
       - rustfmt
     runs-on: [self-hosted]
     steps:
-      - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # pin@v3.0.0
+      - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # pin@v3
         # this avoids rate-limiting
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
       # TODO(bradh): debug and re-enable this; the caching is breaking the clippy build
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
       # 'librocksdb-sys' src directory which is managed by cargo

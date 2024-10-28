@@ -32,6 +32,7 @@ use iota_config::{
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
+use iota_genesis_builder::SnapshotSource;
 use iota_json_rpc_api::{
     BridgeReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
     error_object_from_rpc,
@@ -55,7 +56,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{
-        ProtocolVersionsConfig, StateAccumulatorV2EnabledCallback, StateAccumulatorV2EnabledConfig,
+        ProtocolVersionsConfig, StateAccumulatorEnabledCallback, StateAccumulatorV1EnabledConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
@@ -372,7 +373,7 @@ impl TestCluster {
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire
     /// network to reach the next epoch. This requires waiting for both the
     /// fullnode and all validators to reach the next epoch.
-    pub async fn trigger_reconfiguration(&self) {
+    pub async fn force_new_epoch(&self) {
         info!("Starting reconfiguration");
         let start = Instant::now();
 
@@ -552,7 +553,7 @@ impl TestCluster {
             return;
         }
         // wait for next epoch
-        self.trigger_reconfiguration().await;
+        self.force_new_epoch().await;
         bridge = get_bridge(self.fullnode_handle.iota_node.state().get_object_store()).unwrap();
         // Committee should be initiated
         assert!(bridge.committee().member_registrations.contents.is_empty());
@@ -611,7 +612,7 @@ impl TestCluster {
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
-                            TransactionKind::AuthenticatorStateUpdate(_) => break,
+                            TransactionKind::AuthenticatorStateUpdateV1(_) => break,
                             _ => panic!("{:?}", tx),
                         }
                     }
@@ -1038,7 +1039,7 @@ pub struct TestClusterBuilder {
 
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig,
+    validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
 }
 
 impl TestClusterBuilder {
@@ -1066,9 +1067,7 @@ impl TestClusterBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig::Global(
-                true,
-            ),
+            validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
         }
     }
 
@@ -1189,12 +1188,12 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_callback(
+    pub fn with_state_accumulator_callback(
         mut self,
-        func: StateAccumulatorV2EnabledCallback,
+        func: StateAccumulatorEnabledCallback,
     ) -> Self {
-        self.validator_state_accumulator_v2_enabled_config =
-            StateAccumulatorV2EnabledConfig::PerValidator(func);
+        self.validator_state_accumulator_config =
+            StateAccumulatorV1EnabledConfig::PerValidator(func);
         self
     }
 
@@ -1218,6 +1217,11 @@ impl TestClusterBuilder {
 
     pub fn with_accounts(mut self, accounts: Vec<AccountConfig>) -> Self {
         self.get_or_init_genesis_config().accounts = accounts;
+        self
+    }
+
+    pub fn with_migration_data(mut self, migration_sources: Vec<SnapshotSource>) -> Self {
+        self.get_or_init_genesis_config().migration_sources = migration_sources;
         self
     }
 
@@ -1513,9 +1517,7 @@ impl TestClusterBuilder {
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
-            .with_state_accumulator_v2_enabled_config(
-                self.validator_state_accumulator_v2_enabled_config.clone(),
-            )
+            .with_state_accumulator_config(self.validator_state_accumulator_config.clone())
             .with_fullnode_count(1)
             .with_fullnode_supported_protocol_versions_config(
                 self.fullnode_supported_protocol_versions_config

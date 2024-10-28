@@ -1,27 +1,31 @@
 [package]
 name = "narwhal-config"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
+fastcrypto.workspace = true
 match_opt = "0.1"
+rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+# internal dependencies
 crypto = { path = "../crypto", package = "narwhal-crypto" }
-fastcrypto.workspace = true
 iota-network-stack.workspace = true
 iota-util-mem.workspace = true
-rand.workspace = true
 
 [dev-dependencies]
+# external dependencies
 insta.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 
+# internal dependencies
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }

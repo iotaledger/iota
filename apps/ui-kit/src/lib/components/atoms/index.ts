@@ -18,3 +18,4 @@ export * from './info-box';
 export * from './snackbar';
 export * from './visual-asset-card';
 export * from './loading-indicator';
+export * from './placeholder';

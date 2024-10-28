@@ -4,6 +4,8 @@ description: Learn how to set up, configure, and manage an IOTA Validator node, 
 ---
 
 import StakingPoolReqs from "../_snippets/staking-pool-reqs.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/validator-config.json';
 
 Validators on the IOTA network run special nodes and have additional tasks and responsibilities beyond those of Full node operators.
 
@@ -100,3 +102,5 @@ iota client call --package <PACKAGE-ID> --module iota_system --function report_v
 ```
 
 The Tallying Rule should be implemented through a social equilibrium. The validator set should actively monitor itself and if one validator is clearly non-performant, then the other validators should score that validator with a 0 and slash its rewards. Community members can launch public dashboards tracking validator performance and that can be used as further signal into a validator's operations. There is no limit on the number of validators that can receive a 0 tallying score in an epoch.
+
+<Quiz questions={questions} />

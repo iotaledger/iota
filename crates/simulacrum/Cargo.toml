@@ -1,25 +1,25 @@
 [package]
 name = "simulacrum"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
-move-binary-format.workspace = true
-move-core-types.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
 tracing.workspace = true
 
+# internal dependencies
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-framework.workspace = true
@@ -30,7 +30,9 @@ iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
+move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
+move-core-types.workspace = true
 shared-crypto.workspace = true
 
 [dev-dependencies]

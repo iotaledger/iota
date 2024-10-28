@@ -277,7 +277,7 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Migrating from IOTA/Shimmer Stardust',
+        label: 'Migrating from IOTA Stardust',
         link: {
             type: 'doc',
             id: 'developer/stardust/stardust-migration',
@@ -323,7 +323,7 @@ const developer = [
                     },
                     {
                         type: 'doc',
-                        label: 'Self-sponsor Shimmer Claiming',
+                        label: 'Self-sponsor Iota Claiming',
                         id: 'developer/stardust/claiming/self-sponsor',
                     },
                 ],

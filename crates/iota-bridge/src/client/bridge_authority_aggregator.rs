@@ -252,7 +252,7 @@ async fn request_sign_bridge_action_into_certification(
             state.total_ok_stake,
             state.validity_threshold,
         );
-        BridgeError::AuthoritySignatureAggregationTooManyError(format!(
+        BridgeError::AuthoritySignatureAggregationTooManyErrors(format!(
             "Failed to get enough signatures, bad stake: {}, blocklisted stake: {}, good stake: {}, validity threshold: {}",
             state.total_bad_stake,
             state.committee.total_blocklisted_stake(),
@@ -397,7 +397,7 @@ mod tests {
         mock3.add_iota_event_response(
             iota_tx_digest,
             iota_tx_event_index,
-            Err(BridgeError::RestAPIError("".into())),
+            Err(BridgeError::RestAPI("".into())),
         );
         agg.request_committee_signatures(action.clone())
             .await
@@ -407,7 +407,7 @@ mod tests {
         mock2.add_iota_event_response(
             iota_tx_digest,
             iota_tx_event_index,
-            Err(BridgeError::RestAPIError("".into())),
+            Err(BridgeError::RestAPI("".into())),
         );
         agg.request_committee_signatures(action.clone())
             .await
@@ -417,7 +417,7 @@ mod tests {
         mock1.add_iota_event_response(
             iota_tx_digest,
             iota_tx_event_index,
-            Err(BridgeError::RestAPIError("".into())),
+            Err(BridgeError::RestAPI("".into())),
         );
         let err = agg
             .request_committee_signatures(action.clone())
@@ -425,7 +425,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             err,
-            BridgeError::AuthoritySignatureAggregationTooManyError(_)
+            BridgeError::AuthoritySignatureAggregationTooManyErrors(_)
         ));
     }
 
@@ -504,7 +504,7 @@ mod tests {
         mock3.add_iota_event_response(
             iota_tx_digest,
             iota_tx_event_index,
-            Err(BridgeError::RestAPIError("".into())),
+            Err(BridgeError::RestAPI("".into())),
         );
         let err = agg
             .request_committee_signatures(action.clone())
@@ -512,7 +512,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             err,
-            BridgeError::AuthoritySignatureAggregationTooManyError(_)
+            BridgeError::AuthoritySignatureAggregationTooManyErrors(_)
         ));
 
         // if mock 3 returns duplicated signature (by authority 2), `BridgeClient` will
@@ -528,7 +528,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             err,
-            BridgeError::AuthoritySignatureAggregationTooManyError(_)
+            BridgeError::AuthoritySignatureAggregationTooManyErrors(_)
         ));
     }
 

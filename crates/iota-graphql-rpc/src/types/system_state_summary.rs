@@ -6,8 +6,8 @@ use async_graphql::*;
 use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeSystemStateSummary;
 
 use crate::types::{
-    big_int::BigInt, gas::GasCostSummary, safe_mode::SafeMode, storage_fund::StorageFund,
-    system_parameters::SystemParameters, uint53::UInt53,
+    big_int::BigInt, gas::GasCostSummary, iota_address::IotaAddress, safe_mode::SafeMode,
+    storage_fund::StorageFund, system_parameters::SystemParameters, uint53::UInt53,
 };
 
 #[derive(Clone, Debug)]
@@ -57,6 +57,11 @@ impl SystemStateSummary {
     /// The total IOTA supply.
     async fn iota_total_supply(&self) -> Option<u64> {
         Some(self.native.iota_total_supply)
+    }
+
+    /// The treasury-cap id.
+    async fn iota_treasury_cap_id(&self) -> Option<IotaAddress> {
+        Some(self.native.iota_treasury_cap_id.into())
     }
 
     /// Details of the system that are decided during genesis.

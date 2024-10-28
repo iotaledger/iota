@@ -57,8 +57,7 @@ use iota_types::{
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
-    deny_list_v1::check_coin_deny_list_v1,
-    deny_list_v2::check_coin_deny_list_v2_during_signing,
+    deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::{
@@ -66,7 +65,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEvent},
+    event::{Event, EventID, SystemEpochInfoEventV1},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -155,7 +154,7 @@ use crate::{
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     rest_index::RestIndexStore,
     stake_aggregator::StakeAggregator,
-    state_accumulator::{AccumulatorStore, StateAccumulator, WrappedObject},
+    state_accumulator::{AccumulatorStore, StateAccumulator},
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
@@ -884,23 +883,12 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
             )?;
 
-        if epoch_store.coin_deny_list_v1_enabled() {
-            check_coin_deny_list_v1(
-                tx_data.sender(),
-                &checked_input_objects,
-                &receiving_objects,
-                &self.get_object_store(),
-            )?;
-        }
-
-        if epoch_store.protocol_config().enable_coin_deny_list_v2() {
-            check_coin_deny_list_v2_during_signing(
-                tx_data.sender(),
-                &checked_input_objects,
-                &receiving_objects,
-                &self.get_object_store(),
-            )?;
-        }
+        check_coin_deny_list_v1_during_signing(
+            tx_data.sender(),
+            &checked_input_objects,
+            &receiving_objects,
+            &self.get_object_store(),
+        )?;
 
         let owned_objects = checked_input_objects.inner().filter_owned_objects();
 
@@ -1407,7 +1395,7 @@ impl AuthorityState {
         )
         .await?;
 
-        if let TransactionKind::AuthenticatorStateUpdate(auth_state) =
+        if let TransactionKind::AuthenticatorStateUpdateV1(auth_state) =
             certificate.data().transaction_data().kind()
         {
             if let Some(err) = &execution_error_opt {
@@ -1471,25 +1459,6 @@ impl AuthorityState {
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // Only need to sign effects if we are a validator, and if the
-        // executed_in_epoch_table is not yet enabled. TODO: once
-        // executed_in_epoch_table is enabled everywhere, we can remove the code below
-        // entirely.
-        let should_sign_effects =
-            self.is_validator(epoch_store) && !epoch_store.executed_in_epoch_table_enabled();
-
-        let effects_sig = if should_sign_effects {
-            Some(AuthoritySignInfo::new(
-                epoch_store.epoch(),
-                effects,
-                Intent::iota_app(IntentScope::TransactionEffects),
-                self.name,
-                &*self.secret,
-            ))
-        } else {
-            None
-        };
-
         // index certificate
         let _ = self
             .post_process_one_tx(certificate, effects, &inner_temporary_store, epoch_store)
@@ -1502,12 +1471,7 @@ impl AuthorityState {
         // The insertion to epoch_store is not atomic with the insertion to the
         // perpetual store. This is OK because we insert to the epoch store
         // first. And during lookups we always look up in the perpetual store first.
-        epoch_store.insert_tx_key_and_effects_signature(
-            &tx_key,
-            tx_digest,
-            &effects.digest(),
-            effects_sig.as_ref(),
-        )?;
+        epoch_store.insert_tx_key_and_digest(&tx_key, tx_digest)?;
 
         // Allow testing what happens if we crash here.
         fail_point_async!("crash");
@@ -2132,12 +2096,6 @@ impl AuthorityState {
         indexes
             .index_tx(
                 cert.data().intent_message().value.sender(),
-                cert.data()
-                    .intent_message()
-                    .value
-                    .input_objects()?
-                    .iter()
-                    .map(|o| o.object_id()),
                 effects
                     .all_changed_objects()
                     .into_iter()
@@ -2966,12 +2924,6 @@ impl AuthorityState {
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
-        self.maybe_reaccumulate_state_hash(
-            cur_epoch_store,
-            epoch_start_configuration
-                .epoch_start_state()
-                .protocol_version(),
-        );
         self.get_reconfig_api()
             .set_epoch_start_configuration(&epoch_start_configuration)?;
         if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path {
@@ -3045,19 +2997,6 @@ impl AuthorityState {
         *execution_lock = new_epoch;
     }
 
-    /// This is a temporary method to be used when we enable
-    /// simplified_unwrap_then_delete. It re-accumulates state hash for the
-    /// new epoch if simplified_unwrap_then_delete is enabled.
-    #[instrument(level = "error", skip_all)]
-    fn maybe_reaccumulate_state_hash(
-        &self,
-        cur_epoch_store: &AuthorityPerEpochStore,
-        new_protocol_version: ProtocolVersion,
-    ) {
-        self.get_reconfig_api()
-            .maybe_reaccumulate_state_hash(cur_epoch_store, new_protocol_version);
-    }
-
     #[instrument(level = "error", skip_all)]
     fn check_system_consistency(
         &self,
@@ -3107,11 +3046,7 @@ impl AuthorityState {
         cur_epoch_store: &AuthorityPerEpochStore,
         panic: bool,
     ) {
-        let live_object_set_hash = accumulator.digest_live_object_set(
-            !cur_epoch_store
-                .protocol_config()
-                .simplified_unwrap_then_delete(),
-        );
+        let live_object_set_hash = accumulator.digest_live_object_set();
 
         let root_state_hash: ECMHLiveObjectSetDigest = self
             .get_accumulator_store()
@@ -4391,19 +4326,11 @@ impl AuthorityState {
     /// has voted to upgrade to. If the proposed protocol version is not
     /// supported, None is returned.
     fn is_protocol_version_supported_v1(
-        current_protocol_version: ProtocolVersion,
         proposed_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
     ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
-        if proposed_protocol_version > current_protocol_version + 1
-            && !protocol_config.advance_to_highest_supported_protocol_version()
-        {
-            return None;
-        }
-
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4479,19 +4406,11 @@ impl AuthorityState {
     }
 
     fn is_protocol_version_supported_v2(
-        current_protocol_version: ProtocolVersion,
         proposed_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV2>,
         mut buffer_stake_bps: u64,
     ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
-        if proposed_protocol_version > current_protocol_version + 1
-            && !protocol_config.advance_to_highest_supported_protocol_version()
-        {
-            return None;
-        }
-
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4573,7 +4492,6 @@ impl AuthorityState {
     /// returns the current protocol version and system packages.
     fn choose_protocol_version_and_system_packages_v1(
         current_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
@@ -4582,9 +4500,7 @@ impl AuthorityState {
         let mut system_packages = vec![];
 
         while let Some((version, packages)) = Self::is_protocol_version_supported_v1(
-            current_protocol_version,
             next_protocol_version + 1,
-            protocol_config,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
@@ -4598,7 +4514,6 @@ impl AuthorityState {
 
     fn choose_protocol_version_and_system_packages_v2(
         current_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV2>,
         buffer_stake_bps: u64,
@@ -4610,9 +4525,7 @@ impl AuthorityState {
         // incrementing the proposed protocol version by one until no further
         // upgrades are supported.
         while let Some((version, packages)) = Self::is_protocol_version_supported_v2(
-            current_protocol_version,
             next_protocol_version + 1,
-            protocol_config,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
@@ -4657,25 +4570,6 @@ impl AuthorityState {
             info!("Creating AuthenticatorStateCreate tx");
             tx
         };
-        Some(tx)
-    }
-
-    #[instrument(level = "debug", skip_all)]
-    fn create_randomness_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().random_beacon() {
-            info!("randomness state transactions not enabled");
-            return None;
-        }
-
-        if epoch_store.randomness_state_exists() {
-            return None;
-        }
-
-        let tx = EndOfEpochTransactionKind::new_randomness_state_create();
-        info!("Creating RandomnessStateCreate tx");
         Some(tx)
     }
 
@@ -4730,24 +4624,6 @@ impl AuthorityState {
         Some(tx)
     }
 
-    #[instrument(level = "debug", skip_all)]
-    fn create_deny_list_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().enable_coin_deny_list_v1() {
-            return None;
-        }
-
-        if epoch_store.coin_deny_list_state_exists() {
-            return None;
-        }
-
-        let tx = EndOfEpochTransactionKind::new_deny_list_state_create();
-        info!("Creating DenyListStateCreate tx");
-        Some(tx)
-    }
-
     /// Creates and execute the advance epoch transaction to effects without
     /// committing it to the database. The effects of the change epoch tx
     /// are only written to the database after a certified checkpoint has been
@@ -4767,22 +4643,16 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEvent, TransactionEffects)> {
+    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1, TransactionEffects)> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
-            txns.push(tx);
-        }
-        if let Some(tx) = self.create_randomness_state_tx(epoch_store) {
             txns.push(tx);
         }
         if let Some(tx) = self.create_bridge_tx(epoch_store) {
             txns.push(tx);
         }
         if let Some(tx) = self.init_bridge_committee_tx(epoch_store) {
-            txns.push(tx);
-        }
-        if let Some(tx) = self.create_deny_list_state_tx(epoch_store) {
             txns.push(tx);
         }
 
@@ -4794,7 +4664,6 @@ impl AuthorityState {
             if epoch_store.protocol_config().authority_capabilities_v2() {
                 Self::choose_protocol_version_and_system_packages_v2(
                     epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
                     epoch_store.committee(),
                     epoch_store
                         .get_capabilities_v2()
@@ -4804,7 +4673,6 @@ impl AuthorityState {
             } else {
                 Self::choose_protocol_version_and_system_packages_v1(
                     epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
                     epoch_store.committee(),
                     epoch_store
                         .get_capabilities_v1()
@@ -4841,34 +4709,18 @@ impl AuthorityState {
             ));
         };
 
-        let tx = if epoch_store
-            .protocol_config()
-            .end_of_epoch_transaction_supported()
-        {
-            txns.push(EndOfEpochTransactionKind::new_change_epoch(
-                next_epoch,
-                next_epoch_protocol_version,
-                gas_cost_summary.storage_cost,
-                gas_cost_summary.computation_cost,
-                gas_cost_summary.storage_rebate,
-                gas_cost_summary.non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-                next_epoch_system_package_bytes,
-            ));
+        txns.push(EndOfEpochTransactionKind::new_change_epoch(
+            next_epoch,
+            next_epoch_protocol_version,
+            gas_cost_summary.storage_cost,
+            gas_cost_summary.computation_cost,
+            gas_cost_summary.storage_rebate,
+            gas_cost_summary.non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            next_epoch_system_package_bytes,
+        ));
 
-            VerifiedTransaction::new_end_of_epoch_transaction(txns)
-        } else {
-            VerifiedTransaction::new_change_epoch(
-                next_epoch,
-                next_epoch_protocol_version,
-                gas_cost_summary.storage_cost,
-                gas_cost_summary.computation_cost,
-                gas_cost_summary.storage_rebate,
-                gas_cost_summary.non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-                next_epoch_system_package_bytes,
-            )
-        };
+        let tx = VerifiedTransaction::new_end_of_epoch_transaction(txns);
 
         let executable_tx = VerifiedExecutableTransaction::new_from_checkpoint(
             tx.clone(),
@@ -4926,14 +4778,14 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
-        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
+        // Find the SystemEpochInfoEventV1 emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
             .data
             .iter()
             .find(|event| event.is_system_epoch_info_event())
             .expect("end of epoch tx must emit system epoch info event");
-        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEvent>(
+        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEventV1>(
             &system_epoch_info_event.contents,
         )
         .expect("deserialization should succeed since we asserted that the event is of this type");
@@ -5036,12 +4888,7 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        let include_wrapped_object = !self
-            .epoch_store_for_testing()
-            .protocol_config()
-            .simplified_unwrap_then_delete();
-        self.get_accumulator_store()
-            .iter_live_object_set(include_wrapped_object)
+        self.get_accumulator_store().iter_live_object_set()
     }
 
     #[cfg(test)]
@@ -5116,8 +4963,7 @@ impl RandomnessRoundReceiver {
             bytes,
             epoch_store
                 .epoch_start_config()
-                .randomness_obj_initial_shared_version()
-                .expect("randomness state obj must exist"),
+                .randomness_obj_initial_shared_version(),
         );
         debug!(
             "created randomness state update transaction with digest: {:?}",

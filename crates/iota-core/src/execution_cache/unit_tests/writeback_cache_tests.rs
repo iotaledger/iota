@@ -380,7 +380,7 @@ impl Scenario {
         let reverse_id_map: BTreeMap<_, _> = self.id_map.iter().map(|(k, v)| (*v, *k)).collect();
         self.objects.clear();
 
-        self.store.iter_live_object_set(false).for_each(|o| {
+        self.store.iter_live_object_set().for_each(|o| {
             let LiveObject::Normal(o) = o else {
                 panic!("expected normal object")
             };

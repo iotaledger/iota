@@ -198,6 +198,11 @@ pub enum IotaCommand {
         )]
         with_faucet: Option<String>,
 
+        /// Set the amount of nanos that the faucet will put in an object.
+        /// Defaults to `200000000000`(200 IOTA).
+        #[clap(long)]
+        faucet_amount: Option<u64>,
+
         #[cfg(feature = "indexer")]
         #[clap(flatten)]
         indexer_feature_args: IndexerFeatureArgs,
@@ -223,7 +228,7 @@ pub enum IotaCommand {
         #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
         /// Remotely stored migration snapshots.
-        #[clap(long, name = "iota|smr|<full-url>")]
+        #[clap(long, name = "iota|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
@@ -267,7 +272,7 @@ pub enum IotaCommand {
         #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
         /// Remotely stored migration snapshots.
-        #[clap(long, name = "iota|smr|<full-url>")]
+        #[clap(long, name = "iota|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
@@ -370,6 +375,7 @@ impl IotaCommand {
                 config_dir,
                 force_regenesis,
                 with_faucet,
+                faucet_amount,
                 #[cfg(feature = "indexer")]
                 indexer_feature_args,
                 fullnode_rpc_port,
@@ -381,6 +387,7 @@ impl IotaCommand {
                 start(
                     config_dir.clone(),
                     with_faucet,
+                    faucet_amount,
                     #[cfg(feature = "indexer")]
                     indexer_feature_args,
                     force_regenesis,
@@ -594,6 +601,7 @@ impl IotaCommand {
 async fn start(
     config_dir: Option<PathBuf>,
     with_faucet: Option<String>,
+    faucet_amount: Option<u64>,
     #[cfg(feature = "indexer")] indexer_feature_args: IndexerFeatureArgs,
     force_regenesis: bool,
     epoch_duration_ms: Option<u64>,
@@ -808,7 +816,7 @@ async fn start(
             host_ip,
             port: faucet_address.port(),
             num_coins: DEFAULT_FAUCET_NUM_COINS,
-            amount: DEFAULT_FAUCET_NANOS_AMOUNT,
+            amount: faucet_amount.unwrap_or(DEFAULT_FAUCET_NANOS_AMOUNT),
             ..Default::default()
         };
 

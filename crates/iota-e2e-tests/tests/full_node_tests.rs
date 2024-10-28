@@ -33,7 +33,7 @@ use iota_types::{
     object::{Object, ObjectRead, Owner, PastObjectRead},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV3, QuorumDriverResponse,
+        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, QuorumDriverResponse,
     },
     storage::ObjectStore,
     transaction::{
@@ -749,7 +749,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let digest = *txn.digest();
     let res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV3::new_v2(txn),
+            ExecuteTransactionRequestV1::new(txn),
             ExecuteTransactionRequestType::WaitForLocalExecution,
             None,
         )
@@ -784,7 +784,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let digest = *txn.digest();
     let res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV3::new_v2(txn),
+            ExecuteTransactionRequestV1::new(txn),
             ExecuteTransactionRequestType::WaitForEffectsCert,
             None,
         )
@@ -1194,7 +1194,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     let digest = *tx.digest();
     let _res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV3::new_v2(tx),
+            ExecuteTransactionRequestV1::new(tx),
             ExecuteTransactionRequestType::WaitForLocalExecution,
             None,
         )
@@ -1229,7 +1229,7 @@ async fn test_access_old_object_pruned() {
         .effects
         .unwrap();
     let new_gas_version = effects.gas_object().reference.version;
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     // Construct a new transaction that uses the old gas object reference.
     let tx = test_cluster.sign_transaction(
         &test_cluster

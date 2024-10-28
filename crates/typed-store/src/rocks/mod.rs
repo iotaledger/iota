@@ -161,7 +161,7 @@ macro_rules! retry_transaction {
         loop {
             let status = $transaction;
             match status {
-                Err(TypedStoreError::RetryableTransactionError) => {
+                Err(TypedStoreError::RetryableTransaction) => {
                     retries += 1;
                     // Randomized delay to help racing transactions get out of each other's way.
                     let delay = {
@@ -409,7 +409,7 @@ impl RocksDB {
                     .map_err(typed_store_err_from_rocks_err)?;
                 Ok(())
             }
-            _ => Err(TypedStoreError::RocksDBError(
+            _ => Err(TypedStoreError::RocksDB(
                 "using invalid batch type for the database".to_string(),
             )),
         };
@@ -495,7 +495,7 @@ impl RocksDB {
     }
 
     pub fn flush(&self) -> Result<(), TypedStoreError> {
-        delegate_call!(self.flush()).map_err(|e| TypedStoreError::RocksDBError(e.into_string()))
+        delegate_call!(self.flush()).map_err(|e| TypedStoreError::RocksDB(e.into_string()))
     }
 
     pub fn snapshot(&self) -> RocksDBSnapshot<'_> {
@@ -518,7 +518,7 @@ impl RocksDB {
         };
         checkpoint
             .create_checkpoint(path)
-            .map_err(|e| TypedStoreError::RocksDBError(e.to_string()))?;
+            .map_err(|e| TypedStoreError::RocksDB(e.to_string()))?;
         Ok(())
     }
 
@@ -916,7 +916,7 @@ impl<K, V> DBMap<K, V> {
     pub fn flush(&self) -> Result<(), TypedStoreError> {
         self.rocksdb
             .flush_cf(&self.cf())
-            .map_err(|e| TypedStoreError::RocksDBError(e.into_string()))
+            .map_err(|e| TypedStoreError::RocksDB(e.into_string()))
     }
 
     pub fn set_options(&self, opts: &[(&str, &str)]) -> Result<(), rocksdb::Error> {
@@ -931,7 +931,7 @@ impl<K, V> DBMap<K, V> {
         match rocksdb.property_int_value_cf(cf, property_name) {
             Ok(Some(value)) => Ok(value.try_into().unwrap()),
             Ok(None) => Ok(0),
-            Err(e) => Err(TypedStoreError::RocksDBError(e.into_string())),
+            Err(e) => Err(TypedStoreError::RocksDB(e.into_string())),
         }
     }
 
@@ -969,7 +969,7 @@ impl<K, V> DBMap<K, V> {
                 &self.opts.readopts(),
             )
             .into_iter()
-            .map(|r| r.map_err(|e| TypedStoreError::RocksDBError(e.into_string())))
+            .map(|r| r.map_err(|e| TypedStoreError::RocksDB(e.into_string())))
             .collect();
         let entries = results?;
         let entry_size = entries
@@ -1682,7 +1682,7 @@ impl<'a> DBTransaction<'a> {
         let key_buf = be_fix_int_ser(key)?;
         self.transaction
             .get_cf_opt(&db.cf(), key_buf, &db.opts.readopts())
-            .map_err(|e| TypedStoreError::RocksDBError(e.to_string()))
+            .map_err(|e| TypedStoreError::RocksDB(e.to_string()))
             .map(|res| res.and_then(|bytes| bcs::from_bytes::<V>(&bytes).ok()))
     }
 
@@ -1765,7 +1765,7 @@ impl<'a> DBTransaction<'a> {
         self.transaction.commit().map_err(|e| match e.kind() {
             // empirically, this is what you get when there is a write conflict. it is not
             // documented whether this is the only time you can get this error.
-            ErrorKind::Busy | ErrorKind::TryAgain => TypedStoreError::RetryableTransactionError,
+            ErrorKind::Busy | ErrorKind::TryAgain => TypedStoreError::RetryableTransaction,
             _ => typed_store_err_from_rocks_err(e),
         })?;
         Ok(())

@@ -969,14 +969,14 @@ mod tests {
         // First, tests that same consensus commit digest will produce the same
         // checkpoint content.
         {
-            let t1 = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            let t1 = VerifiedTransaction::new_consensus_commit_prologue_v1(
                 1,
                 2,
                 100,
                 ConsensusCommitDigest::default(),
                 Vec::new(),
             );
-            let t2 = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            let t2 = VerifiedTransaction::new_consensus_commit_prologue_v1(
                 1,
                 2,
                 100,
@@ -991,14 +991,14 @@ mod tests {
         // Next, tests that different consensus commit digests will produce the
         // different checkpoint contents.
         {
-            let t1 = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            let t1 = VerifiedTransaction::new_consensus_commit_prologue_v1(
                 1,
                 2,
                 100,
                 ConsensusCommitDigest::default(),
                 Vec::new(),
             );
-            let t2 = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            let t2 = VerifiedTransaction::new_consensus_commit_prologue_v1(
                 1,
                 2,
                 100,

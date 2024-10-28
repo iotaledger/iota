@@ -3,57 +3,57 @@ processed 17 tasks
 init:
 A: object(0,0)
 
-task 1, lines 24-75:
+task 1, lines 25-76:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 8960400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 77:
+task 2, line 78:
 //# run Test::M1::parent --sender A --args @A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 79:
+task 3, line 80:
 //# run Test::M1::child --sender A --args @A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4, line 81:
+task 4, line 82:
 //# run Test::M1::child --sender A --args @A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 5, line 83:
+task 5, line 84:
 //# run Test::M1::add_child --sender A --args object(2,0) object(3,0) 42
 created: object(5,0)
 mutated: object(0,0), object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 6, line 85:
+task 6, line 86:
 //# run Test::M1::add_nested_child --sender A --args object(2,0) 42 object(4,0) 420
 created: object(6,0)
 mutated: object(0,0), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 7, line 87:
+task 7, line 88:
 //# run Test::M1::mutate_child_on_parent --sender A --args object(2,0) 42
 mutated: object(0,0), object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 8, line 89:
+task 8, line 90:
 //# run Test::M1::mutate_nested_child_on_parent --sender A --args object(2,0) 42 420
 mutated: object(0,0), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 9, line 91:
+task 9, line 92:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 10, lines 93-123:
+task 10, lines 94-124:
 //# run-graphql
 Response: {
   "data": {
@@ -62,11 +62,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x73f7e04f424045e449ed940a29a191045a40089fab972a4d83d7715d06c7ecf4",
+              "address": "0xb23e265ad3de2915b71beaed9646ac55bc5884e8280cfe0fca729a6ff86ce622",
               "version": 5,
               "contents": {
                 "json": {
-                  "id": "0x73f7e04f424045e449ed940a29a191045a40089fab972a4d83d7715d06c7ecf4",
+                  "id": "0xb23e265ad3de2915b71beaed9646ac55bc5884e8280cfe0fca729a6ff86ce622",
                   "count": "0"
                 }
               },
@@ -81,7 +81,7 @@ Response: {
   }
 }
 
-task 11, lines 125-155:
+task 11, lines 126-156:
 //# run-graphql
 Response: {
   "data": {
@@ -90,11 +90,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x73f7e04f424045e449ed940a29a191045a40089fab972a4d83d7715d06c7ecf4",
+              "address": "0xb23e265ad3de2915b71beaed9646ac55bc5884e8280cfe0fca729a6ff86ce622",
               "version": 5,
               "contents": {
                 "json": {
-                  "id": "0x73f7e04f424045e449ed940a29a191045a40089fab972a4d83d7715d06c7ecf4",
+                  "id": "0xb23e265ad3de2915b71beaed9646ac55bc5884e8280cfe0fca729a6ff86ce622",
                   "count": "0"
                 }
               },
@@ -102,11 +102,11 @@ Response: {
                 "nodes": [
                   {
                     "value": {
-                      "address": "0xc01dbc5bc85403c91054fc00aceffde453d176eecd91c216cace519337f3880b",
+                      "address": "0xb11df24f6316d9054942a64b67fdf27ad90f9ec870efc4ad7e81237730497300",
                       "version": 6,
                       "contents": {
                         "json": {
-                          "id": "0xc01dbc5bc85403c91054fc00aceffde453d176eecd91c216cace519337f3880b",
+                          "id": "0xb11df24f6316d9054942a64b67fdf27ad90f9ec870efc4ad7e81237730497300",
                           "count": "0"
                         }
                       }
@@ -122,7 +122,7 @@ Response: {
   }
 }
 
-task 12, lines 157-187:
+task 12, lines 158-188:
 //# run-graphql
 Response: {
   "data": {
@@ -131,11 +131,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x73f7e04f424045e449ed940a29a191045a40089fab972a4d83d7715d06c7ecf4",
+              "address": "0xb23e265ad3de2915b71beaed9646ac55bc5884e8280cfe0fca729a6ff86ce622",
               "version": 7,
               "contents": {
                 "json": {
-                  "id": "0x73f7e04f424045e449ed940a29a191045a40089fab972a4d83d7715d06c7ecf4",
+                  "id": "0xb23e265ad3de2915b71beaed9646ac55bc5884e8280cfe0fca729a6ff86ce622",
                   "count": "1"
                 }
               },
@@ -143,11 +143,11 @@ Response: {
                 "nodes": [
                   {
                     "value": {
-                      "address": "0xc01dbc5bc85403c91054fc00aceffde453d176eecd91c216cace519337f3880b",
+                      "address": "0xb11df24f6316d9054942a64b67fdf27ad90f9ec870efc4ad7e81237730497300",
                       "version": 6,
                       "contents": {
                         "json": {
-                          "id": "0xc01dbc5bc85403c91054fc00aceffde453d176eecd91c216cace519337f3880b",
+                          "id": "0xb11df24f6316d9054942a64b67fdf27ad90f9ec870efc4ad7e81237730497300",
                           "count": "0"
                         }
                       }
@@ -163,7 +163,7 @@ Response: {
   }
 }
 
-task 13, lines 189-219:
+task 13, lines 190-220:
 //# run-graphql
 Response: {
   "data": {
@@ -172,11 +172,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x73f7e04f424045e449ed940a29a191045a40089fab972a4d83d7715d06c7ecf4",
+              "address": "0xb23e265ad3de2915b71beaed9646ac55bc5884e8280cfe0fca729a6ff86ce622",
               "version": 7,
               "contents": {
                 "json": {
-                  "id": "0x73f7e04f424045e449ed940a29a191045a40089fab972a4d83d7715d06c7ecf4",
+                  "id": "0xb23e265ad3de2915b71beaed9646ac55bc5884e8280cfe0fca729a6ff86ce622",
                   "count": "1"
                 }
               },
@@ -184,11 +184,11 @@ Response: {
                 "nodes": [
                   {
                     "value": {
-                      "address": "0xc01dbc5bc85403c91054fc00aceffde453d176eecd91c216cace519337f3880b",
+                      "address": "0xb11df24f6316d9054942a64b67fdf27ad90f9ec870efc4ad7e81237730497300",
                       "version": 8,
                       "contents": {
                         "json": {
-                          "id": "0xc01dbc5bc85403c91054fc00aceffde453d176eecd91c216cace519337f3880b",
+                          "id": "0xb11df24f6316d9054942a64b67fdf27ad90f9ec870efc4ad7e81237730497300",
                           "count": "1"
                         }
                       }
@@ -204,7 +204,7 @@ Response: {
   }
 }
 
-task 14, lines 221-238:
+task 14, lines 222-239:
 //# run-graphql
 Response: {
   "data": {
@@ -216,7 +216,7 @@ Response: {
   }
 }
 
-task 15, lines 240-257:
+task 15, lines 241-258:
 //# run-graphql
 Response: {
   "data": {
@@ -224,7 +224,7 @@ Response: {
   }
 }
 
-task 16, lines 259-276:
+task 16, lines 260-277:
 //# run-graphql
 Response: {
   "data": {
@@ -233,11 +233,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0xc01dbc5bc85403c91054fc00aceffde453d176eecd91c216cace519337f3880b",
+              "address": "0xb11df24f6316d9054942a64b67fdf27ad90f9ec870efc4ad7e81237730497300",
               "version": 6,
               "contents": {
                 "json": {
-                  "id": "0xc01dbc5bc85403c91054fc00aceffde453d176eecd91c216cace519337f3880b",
+                  "id": "0xb11df24f6316d9054942a64b67fdf27ad90f9ec870efc4ad7e81237730497300",
                   "count": "0"
                 }
               }

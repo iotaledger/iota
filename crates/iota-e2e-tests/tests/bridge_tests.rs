@@ -13,6 +13,7 @@ use iota_types::{
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/3224"]
 async fn test_create_bridge_state_object() {
     let test_cluster = TestClusterBuilder::new()
         .with_protocol_version((BRIDGE_ENABLE_PROTOCOL_VERSION - 1).into())
@@ -55,6 +56,7 @@ async fn test_create_bridge_state_object() {
 }
 
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/3224"]
 async fn test_committee_registration() {
     telemetry_subscribers::init_for_testing();
     let mut bridge_keys = vec![];
@@ -89,13 +91,14 @@ async fn test_committee_registration() {
 }
 
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/3224"]
 async fn test_bridge_api_compatibility() {
     let test_cluster: test_cluster::TestCluster = TestClusterBuilder::new()
         .with_protocol_version(BRIDGE_ENABLE_PROTOCOL_VERSION.into())
         .build()
         .await;
 
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     let client = test_cluster.rpc_client();
     client.get_latest_bridge().await.unwrap();
     // TODO: assert fields in summary

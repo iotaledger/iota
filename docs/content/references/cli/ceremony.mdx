@@ -69,10 +69,10 @@ Each validator is added one at a time, and is persisted in the `committee` folde
 ```shell
 iota genesis-ceremony add-validator \
     --name validator0 \
-    --authority-key-file authority.key \
-    --protocol-key-file protocol.key \
-    --account-key-file account.key \
-    --network-key-file network.key \
+    --authority-key-file validator-authority.key \
+    --protocol-key-file validator-protocol.key \
+    --account-key-file validator-account.key \
+    --network-key-file validator-network.key \
     --network-address /ip4/127.0.0.1/tcp/38189/http \
     --p2p-address /ip4/127.0.0.1/udp/34523 \
     --primary-address /ip4/127.0.0.1/udp/38603 \

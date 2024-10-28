@@ -308,7 +308,7 @@ async fn test_api_route() -> anyhow::Result<()> {
         sources_list,
     }));
 
-    serve(app_state).await.expect("Cannot start service");
+    tokio::spawn(async move { serve(app_state).await.expect("Cannot start service.") });
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     let client = Client::new();
@@ -362,7 +362,7 @@ async fn test_api_route() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_metrics_route() -> anyhow::Result<()> {
     // Start metrics server
-    let metrics_listener = tokio::net::TcpListener::bind(METRICS_HOST_PORT).await?;
+    let metrics_listener = std::net::TcpListener::bind(METRICS_HOST_PORT)?;
     let registry_service = start_prometheus_server(metrics_listener);
     let prometheus_registry = registry_service.default_registry();
     SourceServiceMetrics::new(&prometheus_registry);
@@ -396,7 +396,6 @@ network = "mainnet"
 [[packages.values.branches]]
 branch = "framework/mainnet"
 paths = [
-  { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
   { path = "crates/iota-framework/packages/iota-system", watch = "0x3" }
@@ -425,12 +424,6 @@ paths = [
                             Branch {
                                 branch: "framework/mainnet",
                                 paths: [
-                                    Package {
-                                        path: "crates/iota-framework/packages/deepbook",
-                                        watch: Some(
-                                            0x000000000000000000000000000000000000000000000000000000000000dee9,
-                                        ),
-                                    },
                                     Package {
                                         path: "crates/iota-framework/packages/move-stdlib",
                                         watch: Some(

@@ -3,53 +3,53 @@ processed 17 tasks
 init:
 A: object(0,0)
 
-task 1, lines 20-68:
+task 1, lines 21-69:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 8770400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 70:
+task 2, line 71:
 //# run Test::M1::parent --sender A --args @A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 72:
+task 3, line 73:
 //# run Test::M1::child --sender A --args @A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4, line 74:
+task 4, line 75:
 //# run Test::M1::child --sender A --args @A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 5, line 76:
+task 5, line 77:
 //# run Test::M1::add_child --sender A --args object(2,0) object(3,0) 42
 created: object(5,0)
 mutated: object(0,0), object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 6, line 78:
+task 6, line 79:
 //# run Test::M1::add_nested_child --sender A --args object(2,0) 42 object(4,0) 420
 created: object(6,0)
 mutated: object(0,0), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 7, line 80:
+task 7, line 81:
 //# run Test::M1::reclaim_and_freeze_child --sender A --args object(2,0) 42
 mutated: object(0,0), object(2,0), object(3,0)
 deleted: object(5,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6004152, non_refundable_storage_fee: 60648
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
-task 8, line 82:
+task 8, line 83:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 9, lines 84-114:
+task 9, lines 85-115:
 //# run-graphql
 Response: {
   "data": {
@@ -58,11 +58,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x6b7e8ee3f855e9c484caf53b5fef5fe958d7266d8a3a12577f4a17830e213983",
+              "address": "0xaff6dda50b5130810c03f46780c788a2a7cd585ee4581f95987b935927d1fe1f",
               "version": 5,
               "contents": {
                 "json": {
-                  "id": "0x6b7e8ee3f855e9c484caf53b5fef5fe958d7266d8a3a12577f4a17830e213983",
+                  "id": "0xaff6dda50b5130810c03f46780c788a2a7cd585ee4581f95987b935927d1fe1f",
                   "count": "0"
                 }
               },
@@ -77,7 +77,7 @@ Response: {
   }
 }
 
-task 10, lines 116-146:
+task 10, lines 117-147:
 //# run-graphql
 Response: {
   "data": {
@@ -86,11 +86,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x6b7e8ee3f855e9c484caf53b5fef5fe958d7266d8a3a12577f4a17830e213983",
+              "address": "0xaff6dda50b5130810c03f46780c788a2a7cd585ee4581f95987b935927d1fe1f",
               "version": 5,
               "contents": {
                 "json": {
-                  "id": "0x6b7e8ee3f855e9c484caf53b5fef5fe958d7266d8a3a12577f4a17830e213983",
+                  "id": "0xaff6dda50b5130810c03f46780c788a2a7cd585ee4581f95987b935927d1fe1f",
                   "count": "0"
                 }
               },
@@ -98,11 +98,11 @@ Response: {
                 "nodes": [
                   {
                     "value": {
-                      "address": "0x4198a12c0cd01da21a6cd35cc5e986d855c532676233d004105dbaa77bdfda77",
+                      "address": "0xfaef186e54a8fa552021ab48bb81ceec2fd48da225c79daf74ecd2f3c8f5bc62",
                       "version": 6,
                       "contents": {
                         "json": {
-                          "id": "0x4198a12c0cd01da21a6cd35cc5e986d855c532676233d004105dbaa77bdfda77",
+                          "id": "0xfaef186e54a8fa552021ab48bb81ceec2fd48da225c79daf74ecd2f3c8f5bc62",
                           "count": "0"
                         }
                       }
@@ -118,7 +118,7 @@ Response: {
   }
 }
 
-task 11, lines 148-178:
+task 11, lines 149-179:
 //# run-graphql
 Response: {
   "data": {
@@ -130,7 +130,7 @@ Response: {
   }
 }
 
-task 12, lines 180-210:
+task 12, lines 181-211:
 //# run-graphql
 Response: {
   "data": {
@@ -138,14 +138,14 @@ Response: {
   }
 }
 
-task 13, lines 212-239:
+task 13, lines 213-240:
 //# run-graphql
 Response: {
   "data": {
     "object": {
       "owner": {
         "parent": {
-          "address": "0x14c69bfdef30d74f3cb7e305aead3f5d2558ca8d4a32c96b01936c7cfbb36af0"
+          "address": "0x1de03df5ffee42e90111e8d70c09bcb730067c0454de43126b4268a3d52ce49d"
         }
       },
       "dynamicFields": {
@@ -155,7 +155,7 @@ Response: {
   }
 }
 
-task 14, lines 241-258:
+task 14, lines 242-259:
 //# run-graphql
 Response: {
   "data": {
@@ -163,7 +163,7 @@ Response: {
   }
 }
 
-task 15, lines 260-287:
+task 15, lines 261-288:
 //# run-graphql
 Response: {
   "data": {
@@ -175,11 +175,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x4198a12c0cd01da21a6cd35cc5e986d855c532676233d004105dbaa77bdfda77",
+              "address": "0xfaef186e54a8fa552021ab48bb81ceec2fd48da225c79daf74ecd2f3c8f5bc62",
               "version": 6,
               "contents": {
                 "json": {
-                  "id": "0x4198a12c0cd01da21a6cd35cc5e986d855c532676233d004105dbaa77bdfda77",
+                  "id": "0xfaef186e54a8fa552021ab48bb81ceec2fd48da225c79daf74ecd2f3c8f5bc62",
                   "count": "0"
                 }
               }
@@ -191,7 +191,7 @@ Response: {
   }
 }
 
-task 16, lines 289-316:
+task 16, lines 290-317:
 //# run-graphql
 Response: {
   "data": {
@@ -203,11 +203,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x4198a12c0cd01da21a6cd35cc5e986d855c532676233d004105dbaa77bdfda77",
+              "address": "0xfaef186e54a8fa552021ab48bb81ceec2fd48da225c79daf74ecd2f3c8f5bc62",
               "version": 6,
               "contents": {
                 "json": {
-                  "id": "0x4198a12c0cd01da21a6cd35cc5e986d855c532676233d004105dbaa77bdfda77",
+                  "id": "0xfaef186e54a8fa552021ab48bb81ceec2fd48da225c79daf74ecd2f3c8f5bc62",
                   "count": "0"
                 }
               }

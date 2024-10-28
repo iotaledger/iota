@@ -4,6 +4,7 @@
 
 import { growthbook } from '_src/ui/app/experimentation/feature-gating';
 import * as Sentry from '@sentry/react';
+import { Feature } from '@iota/core';
 
 import { getSentryConfig } from '../../../shared/sentry-config';
 
@@ -12,7 +13,7 @@ export default function initSentry() {
         getSentryConfig({
             integrations: [new Sentry.BrowserTracing()],
             tracesSampler: () => {
-                return growthbook.getFeatureValue('wallet-sentry-tracing', 0);
+                return growthbook.getFeatureValue(Feature.WalletSentryTracing, 0);
             },
         }),
     );

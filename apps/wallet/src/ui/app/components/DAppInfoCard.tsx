@@ -57,6 +57,7 @@ export function DAppInfoCard({
                             {validDAppUrl?.toString() ?? url}
                         </Link>
                     }
+                    isTextTruncated
                 />
             </Card>
             {connectedAddress && account ? (

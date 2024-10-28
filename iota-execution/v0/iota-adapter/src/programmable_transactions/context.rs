@@ -137,7 +137,6 @@ mod checked {
                 .into_iter()
                 .map(|call_arg| {
                     load_call_arg(
-                        protocol_config,
                         vm,
                         state_view,
                         &mut linkage_view,
@@ -149,7 +148,6 @@ mod checked {
                 .collect::<Result<_, ExecutionError>>()?;
             let gas = if let Some(gas_coin) = gas_charger.gas_coin() {
                 let mut gas = load_object(
-                    protocol_config,
                     vm,
                     state_view,
                     &mut linkage_view,
@@ -352,7 +350,6 @@ mod checked {
             command_kind: CommandKind<'_>,
             arg: Argument,
         ) -> Result<V, CommandArgumentError> {
-            let shared_obj_deletion_enabled = self.protocol_config.shared_object_deletion();
             let is_borrowed = self.arg_is_borrowed(&arg);
             let (input_metadata_opt, val_opt) = self.borrow_mut(arg, UsageKind::ByValue)?;
             let is_copyable = if let Some(val) = val_opt {
@@ -384,19 +381,6 @@ mod checked {
             ) {
                 return Err(CommandArgumentError::InvalidObjectByValue);
             }
-            if (
-                // this check can be removed after shared_object_deletion feature flag is removed
-                matches!(
-                    input_metadata_opt,
-                    Some(InputObjectMetadata::InputObject {
-                        owner: Owner::Shared { .. },
-                        ..
-                    })
-                ) && !shared_obj_deletion_enabled
-            ) {
-                return Err(CommandArgumentError::InvalidObjectByValue);
-            }
-
             // Any input object taken by value must be mutable
             if matches!(
                 input_metadata_opt,
@@ -763,23 +747,15 @@ mod checked {
             }
 
             for (id, (recipient, ty, value)) in writes {
-                let abilities = vm.get_runtime().get_type_abilities(&ty).map_err(|e| {
-                    convert_vm_error(
-                        e,
-                        vm,
-                        &linkage_view,
-                        protocol_config.resolve_abort_locations_to_package_id(),
-                    )
-                })?;
+                let abilities = vm
+                    .get_runtime()
+                    .get_type_abilities(&ty)
+                    .map_err(|e| convert_vm_error(e, vm, &linkage_view))?;
                 let has_public_transfer = abilities.has_store();
-                let layout = vm.get_runtime().type_to_type_layout(&ty).map_err(|e| {
-                    convert_vm_error(
-                        e,
-                        vm,
-                        &linkage_view,
-                        protocol_config.resolve_abort_locations_to_package_id(),
-                    )
-                })?;
+                let layout = vm
+                    .get_runtime()
+                    .type_to_type_layout(&ty)
+                    .map_err(|e| convert_vm_error(e, vm, &linkage_view))?;
                 let Some(bytes) = value.simple_serialize(&layout) else {
                     invariant_violation!("Failed to deserialize already serialized Move value");
                 };
@@ -838,14 +814,12 @@ mod checked {
                 }
             }
 
-            if protocol_config.enable_coin_deny_list_v2() {
-                let DenyListResult {
-                    result,
-                    num_non_gas_coin_owners,
-                } = state_view.check_coin_deny_list(&written_objects);
-                gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
-                result?;
-            }
+            let DenyListResult {
+                result,
+                num_non_gas_coin_owners,
+            } = state_view.check_coin_deny_list(&written_objects);
+            gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
+            result?;
 
             let user_events = user_events
                 .into_iter()
@@ -874,12 +848,7 @@ mod checked {
 
         /// Convert a VM Error to an execution one
         pub fn convert_vm_error(&self, error: VMError) -> ExecutionError {
-            crate::error::convert_vm_error(
-                error,
-                self.vm,
-                &self.linkage_view,
-                self.protocol_config.resolve_abort_locations_to_package_id(),
-            )
+            crate::error::convert_vm_error(error, self.vm, &self.linkage_view)
         }
 
         /// Special case errors for type arguments to Move functions
@@ -1009,17 +978,14 @@ mod checked {
         pub(crate) fn make_object_value(
             &mut self,
             type_: MoveObjectType,
-            has_public_transfer: bool,
             used_in_non_entry_move_call: bool,
             contents: &[u8],
         ) -> Result<ObjectValue, ExecutionError> {
             make_object_value(
-                self.protocol_config,
                 self.vm,
                 &mut self.linkage_view,
                 &self.new_packages,
                 type_,
-                has_public_transfer,
                 used_in_non_entry_move_call,
                 contents,
             )
@@ -1170,12 +1136,10 @@ mod checked {
     }
 
     pub(crate) fn make_object_value(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
         type_: MoveObjectType,
-        has_public_transfer: bool,
         used_in_non_entry_move_call: bool,
         contents: &[u8],
     ) -> Result<ObjectValue, ExecutionError> {
@@ -1189,27 +1153,13 @@ mod checked {
         };
 
         let tag: StructTag = type_.into();
-        let type_ = load_type_from_struct(vm, linkage_view, new_packages, &tag).map_err(|e| {
-            crate::error::convert_vm_error(
-                e,
-                vm,
-                linkage_view,
-                protocol_config.resolve_abort_locations_to_package_id(),
-            )
-        })?;
-        let has_public_transfer = if protocol_config.recompute_has_public_transfer_in_execution() {
-            let abilities = vm.get_runtime().get_type_abilities(&type_).map_err(|e| {
-                crate::error::convert_vm_error(
-                    e,
-                    vm,
-                    linkage_view,
-                    protocol_config.resolve_abort_locations_to_package_id(),
-                )
-            })?;
-            abilities.has_store()
-        } else {
-            has_public_transfer
-        };
+        let type_ = load_type_from_struct(vm, linkage_view, new_packages, &tag)
+            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+        let abilities = vm
+            .get_runtime()
+            .get_type_abilities(&type_)
+            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+        let has_public_transfer = abilities.has_store();
         Ok(ObjectValue {
             type_,
             has_public_transfer,
@@ -1219,7 +1169,6 @@ mod checked {
     }
 
     pub(crate) fn value_from_object(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
@@ -1235,12 +1184,10 @@ mod checked {
 
         let used_in_non_entry_move_call = false;
         make_object_value(
-            protocol_config,
             vm,
             linkage_view,
             new_packages,
             object.type_().clone(),
-            object.has_public_transfer(),
             used_in_non_entry_move_call,
             object.contents(),
         )
@@ -1248,7 +1195,6 @@ mod checked {
 
     /// Load an input object from the state_view
     fn load_object(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
@@ -1283,19 +1229,12 @@ mod checked {
             owner,
             version,
         };
-        let obj_value = value_from_object(protocol_config, vm, linkage_view, new_packages, obj)?;
+        let obj_value = value_from_object(vm, linkage_view, new_packages, obj)?;
         let contained_uids = {
             let fully_annotated_layout = vm
                 .get_runtime()
                 .type_to_fully_annotated_layout(&obj_value.type_)
-                .map_err(|e| {
-                    convert_vm_error(
-                        e,
-                        vm,
-                        linkage_view,
-                        protocol_config.resolve_abort_locations_to_package_id(),
-                    )
-                })?;
+                .map_err(|e| convert_vm_error(e, vm, linkage_view))?;
             let mut bytes = vec![];
             obj_value.write_bcs_bytes(&mut bytes);
             match get_all_uids(&fully_annotated_layout, &bytes) {
@@ -1318,7 +1257,6 @@ mod checked {
 
     /// Load an a CallArg, either an object or a raw set of BCS bytes
     fn load_call_arg(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
@@ -1329,7 +1267,6 @@ mod checked {
         Ok(match call_arg {
             CallArg::Pure(bytes) => InputValue::new_raw(RawValueType::Any, bytes),
             CallArg::Object(obj_arg) => load_object_arg(
-                protocol_config,
                 vm,
                 state_view,
                 linkage_view,
@@ -1343,7 +1280,6 @@ mod checked {
     /// Load an ObjectArg from state view, marking if it can be treated as
     /// mutable or not
     fn load_object_arg(
-        protocol_config: &ProtocolConfig,
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
@@ -1353,7 +1289,6 @@ mod checked {
     ) -> Result<InputValue, ExecutionError> {
         match obj_arg {
             ObjectArg::ImmOrOwnedObject((id, _, _)) => load_object(
-                protocol_config,
                 vm,
                 state_view,
                 linkage_view,
@@ -1364,7 +1299,6 @@ mod checked {
                 id,
             ),
             ObjectArg::SharedObject { id, mutable, .. } => load_object(
-                protocol_config,
                 vm,
                 state_view,
                 linkage_view,
@@ -1458,14 +1392,10 @@ mod checked {
             .get(&id)
             .map(|obj: &LoadedRuntimeObject| obj.version);
 
-        let type_tag = vm.get_runtime().get_type_tag(&type_).map_err(|e| {
-            crate::error::convert_vm_error(
-                e,
-                vm,
-                linkage_view,
-                protocol_config.resolve_abort_locations_to_package_id(),
-            )
-        })?;
+        let type_tag = vm
+            .get_runtime()
+            .get_type_tag(&type_)
+            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
 
         let struct_tag = match type_tag {
             TypeTag::Struct(inner) => *inner,

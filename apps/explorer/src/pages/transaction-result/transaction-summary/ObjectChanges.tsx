@@ -179,7 +179,7 @@ function ObjectChangeEntries({
                 <ObjectDetailPanel
                     key={packageId}
                     panelContent={
-                        <div className="px-md-rs flex flex-col gap-2 py-sm--rs">
+                        <div className="flex flex-col gap-xs px-md--rs py-sm--rs pr-16 capitalize">
                             <Item label={ItemLabel.Package} packageId={packageId} />
                             {modules.map((moduleName, index) => (
                                 <Item
@@ -221,12 +221,7 @@ function ObjectChangeEntries({
             defaultItemsToShow={DEFAULT_ITEMS_TO_SHOW}
             itemsLabel="Objects"
         >
-            <div
-                className={clsx('flex gap-2 overflow-y-auto', {
-                    'flex-row': isDisplay,
-                    'flex-col': !isDisplay,
-                })}
-            >
+            <div className="flex flex-col gap-2 overflow-y-auto">
                 <ExpandableListItems />
             </div>
 

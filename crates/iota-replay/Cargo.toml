@@ -1,12 +1,13 @@
 [package]
 name = "iota-replay"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-recursion.workspace = true
 async-trait.workspace = true
@@ -19,25 +20,21 @@ lru.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 rand.workspace = true
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 shellexpand.workspace = true
 similar.workspace = true
+tabled.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
-
-move-binary-format.workspace = true
-move-bytecode-utils.workspace = true
-move-core-types.workspace = true
-move-vm-config.workspace = true
-regex.workspace = true
-tabled.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+tracing.workspace = true
 
+# internal dependencies
 iota-config.workspace = true
 iota-core.workspace = true
 iota-execution.workspace = true
@@ -49,4 +46,8 @@ iota-sdk.workspace = true
 iota-storage.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
+move-binary-format.workspace = true
+move-bytecode-utils.workspace = true
+move-core-types.workspace = true
+move-vm-config.workspace = true
 shared-crypto.workspace = true

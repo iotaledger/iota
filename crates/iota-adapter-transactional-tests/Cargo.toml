@@ -1,14 +1,17 @@
 [package]
 name = "iota-adapter-transactional-tests"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 description = "Transactional tests for Iota Adapter"
 
 [dev-dependencies]
+# external dependencies
 datatest-stable.workspace = true
+
+# internal dependencies
 iota-transactional-test-runner.workspace = true
 
 [[test]]
