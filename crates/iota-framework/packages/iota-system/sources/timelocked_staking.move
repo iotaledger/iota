@@ -83,7 +83,7 @@ module iota_system::timelocked_staking {
         let (timelocked_balance, reward) = request_withdraw_stake_non_entry(iota_system, timelocked_staked_iota, ctx);
 
         // Transfer the withdrawn time-locked balance to the sender.
-       timelocked_balance.transfer_to_sender(ctx);
+        timelocked_balance.transfer_to_sender(ctx);
 
         // Send coins only if the reward is not zero.
         if (reward.value() > 0) {
@@ -312,8 +312,8 @@ module iota_system::timelocked_staking {
     fun transfer_multiple(mut stakes: vector<TimelockedStakedIota>, receiver: address) {
         // Transfer all the time-locked stakes to the recipient.
         while (!stakes.is_empty()) {
-           let stake = stakes.pop_back();
-           transfer::transfer(stake, receiver);
+            let stake = stakes.pop_back();
+            transfer::transfer(stake, receiver);
         };
 
         // Destroy the empty vector.
