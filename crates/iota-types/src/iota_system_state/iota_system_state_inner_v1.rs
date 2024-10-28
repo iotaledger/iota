@@ -609,7 +609,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             parameters:
                 SystemParametersV1 {
                     epoch_duration_ms,
-                    min_validator_count, 
+                    min_validator_count,
                     max_validator_count,
                     min_validator_joining_stake,
                     validator_low_stake_threshold,
