@@ -153,12 +153,17 @@ export class KioskClient {
             | 'floorPriceRulePackageId',
     ) {
         const rules = this.packageIds || {};
+        const network = this.network;
+
+        const networkKiosk = getNetwork(network).kiosk;
+
+        const rulePackageId = rules[rule] || networkKiosk?.[rule];
 
         /// Check existence of rule throw an error if it's not found.
-        if (!rules[rule]) {
+        if (!rulePackageId) {
             throw new Error(`Missing packageId for rule ${rule}`);
         }
 
-        return rules[rule];
+        return rulePackageId;
     }
 }
