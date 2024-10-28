@@ -460,7 +460,7 @@ pub fn average_apy_from_exchange_rates<'er>(
         .zip(rates_next)
         .filter_map(|(er, er_next)| {
             let apy = calculate_apy(er, er_next);
-            (apy > 0.0).then_some(apy)
+            (apy > 0.0 && apy < 0.1).then_some(apy)
         })
         .take(30)
         .collect::<Vec<_>>();
