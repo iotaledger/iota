@@ -56,7 +56,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{
-        ProtocolVersionsConfig, StateAccumulatorV2EnabledCallback, StateAccumulatorV2EnabledConfig,
+        ProtocolVersionsConfig, StateAccumulatorEnabledCallback, StateAccumulatorV1EnabledConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
@@ -613,7 +613,7 @@ impl TestCluster {
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
-                            TransactionKind::AuthenticatorStateUpdate(_) => break,
+                            TransactionKind::AuthenticatorStateUpdateV1(_) => break,
                             _ => panic!("{:?}", tx),
                         }
                     }
@@ -1045,7 +1045,7 @@ pub struct TestClusterBuilder {
 
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig,
+    validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
 }
 
 impl TestClusterBuilder {
@@ -1073,9 +1073,7 @@ impl TestClusterBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig::Global(
-                true,
-            ),
+            validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
         }
     }
 
@@ -1196,12 +1194,12 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_callback(
+    pub fn with_state_accumulator_callback(
         mut self,
-        func: StateAccumulatorV2EnabledCallback,
+        func: StateAccumulatorEnabledCallback,
     ) -> Self {
-        self.validator_state_accumulator_v2_enabled_config =
-            StateAccumulatorV2EnabledConfig::PerValidator(func);
+        self.validator_state_accumulator_config =
+            StateAccumulatorV1EnabledConfig::PerValidator(func);
         self
     }
 
@@ -1525,9 +1523,7 @@ impl TestClusterBuilder {
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
-            .with_state_accumulator_v2_enabled_config(
-                self.validator_state_accumulator_v2_enabled_config.clone(),
-            )
+            .with_state_accumulator_config(self.validator_state_accumulator_config.clone())
             .with_fullnode_count(1)
             .with_fullnode_supported_protocol_versions_config(
                 self.fullnode_supported_protocol_versions_config

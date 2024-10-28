@@ -4975,9 +4975,8 @@ async fn test_consensus_message_processed() {
     );
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2793"]
-#[test]
-fn test_choose_next_system_packages() {
+#[sim_test]
+async fn test_choose_next_system_packages() {
     telemetry_subscribers::init_for_testing();
     let o1 = random_object_ref();
     let o2 = random_object_ref();
@@ -5023,7 +5022,6 @@ fn test_choose_next_system_packages() {
     let committee = Committee::new_simple_test_committee().0;
     let v = &committee.voting_rights;
     let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    protocol_config.set_advance_to_highest_supported_protocol_version_for_testing(false);
     protocol_config.set_buffer_stake_for_protocol_upgrade_bps_for_testing(7500);
 
     // all validators agree on new system packages, but without a new protocol
@@ -5039,7 +5037,6 @@ fn test_choose_next_system_packages() {
         (ver(1), vec![]),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5058,7 +5055,6 @@ fn test_choose_next_system_packages() {
         (ver(1), vec![]),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities.clone(),
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5072,7 +5068,6 @@ fn test_choose_next_system_packages() {
         (ver(2), sort(vec![o1, o2])),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5091,7 +5086,6 @@ fn test_choose_next_system_packages() {
         (ver(1), vec![]),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5110,7 +5104,6 @@ fn test_choose_next_system_packages() {
         (ver(2), sort(vec![o1, o2])),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5129,27 +5122,24 @@ fn test_choose_next_system_packages() {
         (ver(1), vec![]),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
         )
     );
 
-    // all validators support 3, but with this protocol config we cannot advance
-    // multiple versions at once.
+    // all validators support 3, so we advance by multiple versions at once.
     let capabilities = vec![
         make_capabilities!(3, v[0].0, vec![o1, o2]),
         make_capabilities!(3, v[1].0, vec![o1, o2]),
         make_capabilities!(3, v[2].0, vec![o1, o2]),
-        make_capabilities!(3, v[3].0, vec![o1, o2]),
+        make_capabilities!(3, v[3].0, vec![o1, o3]),
     ];
 
     assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
+        (ver(3), sort(vec![o1, o2])),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5168,28 +5158,6 @@ fn test_choose_next_system_packages() {
         (ver(1), vec![]),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
-    );
-
-    protocol_config.set_advance_to_highest_supported_protocol_version_for_testing(true);
-
-    // skip straight to version 3
-    let capabilities = vec![
-        make_capabilities!(3, v[0].0, vec![o1, o2]),
-        make_capabilities!(3, v[1].0, vec![o1, o2]),
-        make_capabilities!(3, v[2].0, vec![o1, o2]),
-        make_capabilities!(3, v[3].0, vec![o1, o3]),
-    ];
-
-    assert_eq!(
-        (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
-            ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5209,7 +5177,6 @@ fn test_choose_next_system_packages() {
         (ver(3), sort(vec![o1, o2])),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5231,7 +5198,6 @@ fn test_choose_next_system_packages() {
         (ver(1), sort(vec![])),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),
@@ -5253,7 +5219,6 @@ fn test_choose_next_system_packages() {
         (ver(1), sort(vec![])),
         AuthorityState::choose_protocol_version_and_system_packages_v2(
             ProtocolVersion::MIN,
-            &protocol_config,
             &committee,
             capabilities,
             protocol_config.buffer_stake_for_protocol_upgrade_bps(),

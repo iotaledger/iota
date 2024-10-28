@@ -11,6 +11,7 @@ import { useAccountByAddress } from '../../hooks/useAccountByAddress';
 import { useSigner } from '../../hooks/useSigner';
 import { respondToTransactionRequest } from '../../redux/slices/transaction-requests';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
+import { Panel } from '@iota/apps-ui-kit';
 
 export interface SignMessageRequestProps {
     request: SignMessageApprovalRequest;
@@ -47,14 +48,16 @@ export function SignMessageRequest({ request }: SignMessageRequestProps) {
             checkAccountLock
         >
             <PageMainLayoutTitle title="Sign Message" />
-            <div className="py-4">
+            <div className="py-md">
                 <span className="text-title-lg">Message You Are Signing</span>
             </div>
-            <div className="flex flex-col flex-nowrap items-stretch overflow-y-auto overflow-x-hidden rounded-15 border border-solid border-gray-50 bg-white shadow-card-soft">
-                <div className="break-words p-5">
-                    <span className="text-body-sm text-neutral-40">{message}</span>
+            <Panel hasBorder>
+                <div className="flex flex-col flex-nowrap items-stretch overflow-y-auto overflow-x-hidden shadow-md">
+                    <div className="break-words p-lg">
+                        <span className="text-body-sm text-neutral-40">{message}</span>
+                    </div>
                 </div>
-            </div>
+            </Panel>
         </UserApproveContainer>
     );
 }

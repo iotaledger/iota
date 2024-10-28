@@ -141,6 +141,12 @@ Running Move unit tests
 Test result: OK. Total tests: 1; passed: 1; failed: 0
 ```
 
+:::tip TIP
+
+Use a filter string to run only a matching subset of the unit tests. With a filter string provided, the `iota move test` checks the fully qualified (`<address>::<module_name>::<fn_name>`) name for a match.
+
+:::
+
 ### Run a Subset of Tests
 
 You can run a subset of the tests in your package that match a given string by adding said string at the end of the `iota move test` command:

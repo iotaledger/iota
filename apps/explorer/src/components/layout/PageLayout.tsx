@@ -29,7 +29,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
             request<{ degraded: boolean }>('monitor-network', {
                 project: 'EXPLORER',
             }),
-        // Keep cached for 2 minutes:
+        // Keep cached for 2 minutes
         staleTime: 2 * 60 * 1000,
         retry: false,
         enabled: network === Network.Mainnet,

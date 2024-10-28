@@ -12,7 +12,7 @@ module iota_system::validator_tests {
     use iota::test_utils;
     use iota::url;
     use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{Self, Validator};
+    use iota_system::validator::{Self, ValidatorV1};
 
     const VALID_NET_PUBKEY: vector<u8> = vector[171, 2, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
 
@@ -31,7 +31,7 @@ module iota_system::validator_tests {
     const TOO_LONG_257_BYTES: vector<u8> = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     #[test_only]
-    fun get_test_validator(ctx: &mut TxContext): Validator {
+    fun get_test_validator(ctx: &mut TxContext): ValidatorV1 {
         let init_stake = coin::mint_for_testing(10_000_000_000, ctx).into_balance();
         let mut validator = validator::new(
             VALID_ADDRESS,
@@ -582,7 +582,7 @@ module iota_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    fun set_up(): (address, test_scenario::Scenario, validator::Validator) {
+    fun set_up(): (address, test_scenario::Scenario, validator::ValidatorV1) {
         let sender = VALID_ADDRESS;
         let mut scenario_val = test_scenario::begin(sender);
         let ctx = scenario_val.ctx();
@@ -590,7 +590,7 @@ module iota_system::validator_tests {
         (sender, scenario_val, validator)
     }
 
-    fun tear_down(validator: validator::Validator, scenario: test_scenario::Scenario) {
+    fun tear_down(validator: validator::ValidatorV1, scenario: test_scenario::Scenario) {
         test_utils::destroy(validator);
         scenario.end();
     }

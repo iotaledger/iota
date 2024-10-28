@@ -23,7 +23,7 @@ use crate::{
     core::{Core, CoreSignals},
     core_thread::{ChannelCoreThreadDispatcher, CoreThreadHandle},
     dag_state::DagState,
-    leader_schedule::{LeaderSchedule, LeaderSwapTable},
+    leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
@@ -202,20 +202,10 @@ where
         let block_manager =
             BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
 
-        let leader_schedule = if context
-            .protocol_config
-            .mysticeti_leader_scoring_and_schedule()
-        {
-            Arc::new(LeaderSchedule::from_store(
-                context.clone(),
-                dag_state.clone(),
-            ))
-        } else {
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            ))
-        };
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
 
         let commit_consumer_monitor = commit_consumer.monitor();
         let commit_observer = CommitObserver::new(

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ImageIcon } from '_app/shared/image-icon';
+import { ImageIcon, ImageIconSize } from '_app/shared/image-icon';
 import {
     Badge,
     BadgeType,
@@ -82,9 +82,14 @@ export function ValidatorLogo({
         <>
             <Card type={type} onClick={onClick}>
                 <CardImage>
-                    <ImageIcon src={null} label={validatorName} fallback={validatorName} />
+                    <ImageIcon
+                        src={null}
+                        label={validatorName}
+                        fallback={validatorName}
+                        size={ImageIconSize.Large}
+                    />
                 </CardImage>
-                <CardBody title={validatorName} subtitle={subtitle} />
+                <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                 {showApy && (
                     <CardAction
                         type={CardActionType.SupportingText}
