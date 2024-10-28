@@ -60,13 +60,13 @@ See a concrete example for offline signing using CLI in the [Offline Signing](of
 
 The Authority on IOTA (collection of validators) holds three distinctive keypairs:
 
-1.  [Protocol key pair](#protocol-key-pair)
+1.  [Authority key pair](#authority-key-pair)
 1.  [Account key pair](#account-key-pair)
 1.  [Network key pair](#network-key-pair)
 
-### Protocol key pair
+### Authority key pair
 
-The protocol key pair provides authority signatures on user-signed transactions if they are verified. When a stake of the authorities that provide signatures on user transactions passes the required two-thirds threshold, IOTA executes the transaction. IOTA uses the BLS12381 scheme for its fast verification on aggregated signatures for a given number of authorities. In particular, IOTA uses the minSig BLS mode, where each individual public key is 96 bytes, while the signature is 48 bytes. The latter is important as typically validators register their keys once at the beginning of each epoch and then they continuously sign transactions; thus, we optimize on minimum signature size.
+The Authority key pair provides authority signatures on user-signed transactions if they are verified. When a stake of the authorities that provide signatures on user transactions passes the required two-thirds threshold, IOTA executes the transaction. IOTA uses the BLS12381 scheme for its fast verification on aggregated signatures for a given number of authorities. In particular, IOTA uses the minSig BLS mode, where each individual public key is 96 bytes, while the signature is 48 bytes. The latter is important as typically validators register their keys once at the beginning of each epoch and then they continuously sign transactions; thus, we optimize on minimum signature size.
 
 As with the BLS scheme, you can aggregate independent signatures resulting in a single BLS signature payload. IOTA also accompanies the aggregated signature with a bitmap to denote which of the validators signed. This effectively reduces the authorities' signature size from (2f + 1) × `BLS_sig` size to just one `BLS_sig` payload, which in turn has significant network cost benefits resulting in compressed transaction certificates independently on the validators set size.
 

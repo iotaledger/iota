@@ -53,7 +53,7 @@ impl TransactionBlockKind {
                     checkpoint_viewed_at,
                 })
             }
-            K::AuthenticatorStateUpdate(asu) => {
+            K::AuthenticatorStateUpdateV1(asu) => {
                 T::AuthenticatorState(AuthenticatorStateUpdateTransaction {
                     native: asu,
                     checkpoint_viewed_at,

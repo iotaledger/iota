@@ -232,12 +232,6 @@ export class IotaWallet implements Wallet {
     };
 
     #signTransaction: IotaSignTransactionMethod = async ({ transaction, account, ...input }) => {
-        if (!isTransaction(transaction)) {
-            throw new Error(
-                'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
-            );
-        }
-
         return mapToPromise(
             this.#send<SignTransactionRequest, SignTransactionResponse>({
                 type: 'sign-transaction-request',

@@ -67,7 +67,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
             .await
         {
             Ok(Some(epoch_info)) => Ok(epoch_info),
-            Ok(None) => Err(IndexerError::InvalidArgumentError(format!(
+            Ok(None) => Err(IndexerError::InvalidArgument(format!(
                 "Missing epoch {epoch:?}"
             ))),
             Err(e) => Err(e),
@@ -168,7 +168,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         for (pool_id, stakes) in pools {
             // Rate table and rate can be null when the pool is not active
             let rate_table = rates.get(&pool_id).ok_or_else(|| {
-                IndexerError::InvalidArgumentError(format!(
+                IndexerError::InvalidArgument(format!(
                     "Cannot find rates for staking pool {pool_id}"
                 ))
             })?;
@@ -226,7 +226,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         for (pool_id, stakes) in pools {
             // Rate table and rate can be null when the pool is not active
             let rate_table = rates.get(&pool_id).ok_or_else(|| {
-                IndexerError::InvalidArgumentError(format!(
+                IndexerError::InvalidArgument(format!(
                     "Cannot find rates for staking pool {pool_id}"
                 ))
             })?;
@@ -453,7 +453,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApiServer for GovernanceReadApi<
         let epoch = self.get_epoch_info(None).await?;
         Ok(BigInt::from(epoch.reference_gas_price.ok_or_else(
             || {
-                IndexerError::PersistentStorageDataCorruptionError(
+                IndexerError::PersistentStorageDataCorruption(
                     "missing latest reference gas price".to_owned(),
                 )
             },

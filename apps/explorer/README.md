@@ -1,6 +1,6 @@
 # IOTA Explorer
 
-[IOTA Explorer](https://explorer.iota.io/) is a network explorer for the IOTA network, similar in functionality to [Etherscan](https://etherscan.io/) or [Solana Explorer](https://explorer.solana.com/). Use IOTA Explorer to see the latest transactions and objects.
+[IOTA Explorer](https://explorer.iota.org/) is a network explorer for the IOTA network, similar in functionality to [Etherscan](https://etherscan.io/) or [Solana Explorer](https://explorer.solana.com/). Use IOTA Explorer to see the latest transactions and objects.
 
 # Set Up
 

@@ -4,10 +4,7 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use fastcrypto::{
-    bls12381::min_sig::BLS12381KeyPair,
-    traits::{KeyPair, ToFromBytes},
-};
+use fastcrypto::traits::KeyPair;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
     ExecutionCacheConfig,
@@ -142,7 +139,7 @@ impl<'a> TestAuthorityBuilder<'a> {
     pub fn with_network_config(self, config: &'a NetworkConfig, node_idx: usize) -> Self {
         self.with_genesis_and_keypair(
             &config.genesis,
-            config.validator_configs()[node_idx].protocol_key_pair(),
+            config.validator_configs()[node_idx].authority_key_pair(),
         )
     }
 
@@ -186,11 +183,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 local_network_config_builder.with_protocol_version(protocol_config.version);
         }
 
-        if let Some(keypair) = self.node_keypair {
-            let owned_keypair = BLS12381KeyPair::from_bytes(keypair.as_bytes()).unwrap(); // Hypothetical constructor method
-            local_network_config_builder =
-                local_network_config_builder.with_validator_authority_keys(vec![owned_keypair]);
-        }
         let local_network_config = local_network_config_builder.build();
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
         let genesis_committee = genesis.committee().unwrap();
@@ -222,7 +214,13 @@ impl<'a> TestAuthorityBuilder<'a> {
             config.execution_cache = cache_config;
         }
 
-        let secret = Arc::pin(config.protocol_key_pair().copy());
+        let keypair = if let Some(keypair) = self.node_keypair {
+            keypair.copy()
+        } else {
+            config.authority_key_pair().copy()
+        };
+
+        let secret = Arc::pin(keypair.copy());
         let name: AuthorityName = secret.public().into();
         let registry = Registry::new();
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
@@ -337,7 +335,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Arc::downgrade(&epoch_store),
             consensus_client,
             randomness::Handle::new_stub(),
-            config.protocol_key_pair(),
+            &keypair,
         )
         .await;
         if let Some(randomness_manager) = randomness_manager {

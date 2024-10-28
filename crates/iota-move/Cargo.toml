@@ -7,8 +7,9 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
-bin-version.workspace = true
+better_any = "0.1.1"
 clap.workspace = true
 colored.workspace = true
 const-str.workspace = true
@@ -17,9 +18,15 @@ once_cell = { workspace = true, optional = true }
 prometheus.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
+tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 
+# internal dependencies
+bin-version.workspace = true
+iota-move-build.workspace = true
 iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest", optional = true }
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 move-binary-format.workspace = true
 move-cli.workspace = true
 move-compiler.workspace = true
@@ -29,25 +36,20 @@ move-package.workspace = true
 move-unit-test.workspace = true
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
 telemetry-subscribers.workspace = true
-tokio = { workspace = true, features = ["full"] }
-
-better_any = "0.1.1"
-iota-move-build.workspace = true
-iota-protocol-config.workspace = true
-iota-types.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemalloc-ctl = "^0.5"
 
 [dev-dependencies]
+# external dependencies
 futures.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 
-move-package.workspace = true
-
+# internal dependencies
 iota-macros.workspace = true
 iota-metrics.workspace = true
+move-package.workspace = true
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["jemalloc-ctl"]

@@ -6,7 +6,6 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     future::Future,
     path::{Path, PathBuf},
-    str::FromStr,
     sync::Arc,
 };
 
@@ -15,7 +14,7 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::{dkg, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId, OIDCProvider},
+    zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
 };
 use futures::{
@@ -57,7 +56,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{BackingPackageStore, GetSharedLocks, InputKey, ObjectStore},
     transaction::{
-        AuthenticatorStateUpdate, CertifiedTransaction, InputObjectKind, SenderSignedData,
+        AuthenticatorStateUpdateV1, CertifiedTransaction, InputObjectKind, SenderSignedData,
         Transaction, TransactionDataAPI, TransactionKey, TransactionKind, VerifiedCertificate,
         VerifiedSignedTransaction, VerifiedTransaction,
     },
@@ -90,14 +89,14 @@ use super::{
 use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
-        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+        epoch_start_configuration::EpochStartConfiguration,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
-        PendingCheckpointInfo, PendingCheckpointV2, PendingCheckpointV2Contents,
+        PendingCheckpoint, PendingCheckpointContentsV1, PendingCheckpointInfo,
     },
     consensus_handler::{
         ConsensusCommitInfo, SequencedConsensusTransaction, SequencedConsensusTransactionKey,
@@ -380,8 +379,6 @@ pub struct AuthorityPerEpochStore {
     pub(crate) metrics: Arc<EpochMetrics>,
     epoch_start_configuration: Arc<EpochStartConfiguration>,
 
-    executed_in_epoch_table_enabled: once_cell::sync::OnceCell<bool>,
-
     /// Execution state that has to restart at each epoch change
     execution_component: ExecutionComponents,
 
@@ -482,10 +479,6 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "pending_consensus_transactions_table_default_config"]
     pending_consensus_transactions: DBMap<ConsensusTransactionKey, ConsensusTransaction>,
 
-    /// this table is not used
-    #[allow(dead_code)]
-    consensus_message_order: DBMap<ExecutionIndices, TransactionDigest>,
-
     /// The following table is used to store a single value (the corresponding
     /// key is a constant). The value represents the index of the latest
     /// consensus message this authority processed. This field is written by
@@ -501,20 +494,12 @@ pub struct AuthorityEpochTables {
     /// This field is written by a single process (consensus handler).
     last_consensus_stats: DBMap<u64, ExecutionIndicesWithStats>,
 
-    /// this table is not used
-    #[allow(dead_code)]
-    checkpoint_boundary: DBMap<u64, u64>,
-
     /// This table contains current reconfiguration state for validator for
     /// current epoch
     reconfig_state: DBMap<u64, ReconfigState>,
 
     /// Validators that have sent EndOfPublish message in this epoch
     end_of_publish: DBMap<AuthorityName, ()>,
-
-    // TODO: Unused. Remove when removal of DBMap tables is supported.
-    #[allow(dead_code)]
-    final_epoch_checkpoint: DBMap<u64, u64>,
 
     /// This table has information for the checkpoints for which we constructed
     /// all the data from consensus, but not yet constructed actual
@@ -528,7 +513,7 @@ pub struct AuthorityEpochTables {
     /// with empty content(see CheckpointBuilder::write_checkpoint),
     /// the sequence number of checkpoint does not match height here.
     #[default_options_override_fn = "pending_checkpoints_table_default_config"]
-    pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpointV2>,
+    pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpoint>,
 
     /// Checkpoint builder maintains internal list of transactions it included
     /// in checkpoints here
@@ -549,12 +534,9 @@ pub struct AuthorityEpochTables {
     /// checkpoint later.
     user_signatures_for_checkpoints: DBMap<TransactionDigest, Vec<GenericSignature>>,
 
-    /// This table is not used
-    #[allow(dead_code)]
-    builder_checkpoint_summary: DBMap<CheckpointSequenceNumber, CheckpointSummary>,
     /// Maps sequence number to checkpoint summary, used by CheckpointBuilder to
     /// build checkpoint within epoch
-    builder_checkpoint_summary_v2: DBMap<CheckpointSequenceNumber, BuilderCheckpointSummary>,
+    builder_checkpoint_summary: DBMap<CheckpointSequenceNumber, BuilderCheckpointSummary>,
 
     // Maps checkpoint sequence number to an accumulator with accumulated state
     // only for the checkpoint that the key references. Append-only, i.e.,
@@ -580,11 +562,6 @@ pub struct AuthorityEpochTables {
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, CheckpointSequenceNumber>,
 
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    oauth_provider_jwk: DBMap<JwkId, JWK>,
-
     /// JWKs that have been voted for by one or more authorities but are not yet
     /// active.
     pending_jwks: DBMap<(AuthorityName, JwkId, JWK), ()>,
@@ -598,51 +575,31 @@ pub struct AuthorityEpochTables {
     /// Transactions that are being deferred until some future time
     deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
 
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    randomness_rounds_written: DBMap<narwhal_types::RandomnessRound, ()>,
-
     /// Tables for recording state for RandomnessManager.
 
     /// Records messages processed from other nodes. Updated when receiving a
     /// new dkg::Message via consensus.
-    pub(crate) dkg_processed_messages_v2: DBMap<PartyId, VersionedProcessedMessage>,
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    #[deprecated]
-    pub(crate) dkg_processed_messages: DBMap<PartyId, Vec<u8>>,
+    pub(crate) dkg_processed_messages: DBMap<PartyId, VersionedProcessedMessage>,
 
     /// Records messages used to generate a DKG confirmation. Updated when
     /// enough DKG messages are received to progress to the next phase.
-    pub(crate) dkg_used_messages_v2: DBMap<u64, VersionedUsedProcessedMessages>,
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    #[deprecated]
-    pub(crate) dkg_used_messages: DBMap<u64, Vec<u8>>,
+    pub(crate) dkg_used_messages: DBMap<u64, VersionedUsedProcessedMessages>,
 
     /// Records confirmations received from other nodes. Updated when receiving
     /// a new dkg::Confirmation via consensus.
-    pub(crate) dkg_confirmations_v2: DBMap<PartyId, VersionedDkgConfirmation>,
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    #[deprecated]
-    pub(crate) dkg_confirmations: DBMap<PartyId, Vec<u8>>,
+    pub(crate) dkg_confirmations: DBMap<PartyId, VersionedDkgConfirmation>,
+
     /// Records the final output of DKG after completion, including the public
     /// VSS key and any local private shares.
     pub(crate) dkg_output: DBMap<u64, dkg::Output<PkG, EncG>>,
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    randomness_rounds_pending: DBMap<RandomnessRound, ()>,
+
     /// Holds the value of the next RandomnessRound to be generated.
     pub(crate) randomness_next_round: DBMap<u64, RandomnessRound>,
+
     /// Holds the value of the highest completed RandomnessRound (as reported to
     /// RandomnessReporter).
     pub(crate) randomness_highest_completed_round: DBMap<u64, RandomnessRound>,
+
     /// Holds the timestamp of the most recently generated round of randomness.
     pub(crate) randomness_last_round_timestamp: DBMap<u64, TimestampMs>,
 }
@@ -864,16 +821,9 @@ impl AuthorityPerEpochStore {
             _ => ZkLoginEnv::Test,
         };
 
-        let supported_providers = protocol_config
-            .zklogin_supported_providers()
-            .iter()
-            .map(|s| OIDCProvider::from_str(s).expect("Invalid provider string"))
-            .collect::<Vec<_>>();
-
         let signature_verifier = SignatureVerifier::new(
             committee.clone(),
             signature_verifier_metrics,
-            supported_providers,
             zklogin_env,
             protocol_config.accept_zklogin_in_multisig(),
             protocol_config.zklogin_max_epoch_upper_bound_delta(),
@@ -931,13 +881,13 @@ impl AuthorityPerEpochStore {
             epoch_close_time: Default::default(),
             metrics,
             epoch_start_configuration,
-            executed_in_epoch_table_enabled: once_cell::sync::OnceCell::new(),
             execution_component,
             chain_identifier,
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
         });
+
         s.update_buffer_stake_metric();
         s
     }
@@ -995,12 +945,6 @@ impl AuthorityPerEpochStore {
         result
     }
 
-    pub fn coin_deny_list_state_exists(&self) -> bool {
-        self.epoch_start_configuration
-            .coin_deny_list_obj_initial_shared_version()
-            .is_some()
-    }
-
     pub fn bridge_exists(&self) -> bool {
         self.epoch_start_configuration
             .bridge_obj_initial_shared_version()
@@ -1013,23 +957,6 @@ impl AuthorityPerEpochStore {
 
     pub fn get_parent_path(&self) -> PathBuf {
         self.parent_path.clone()
-    }
-
-    pub fn state_accumulator_v2_enabled(&self) -> bool {
-        let flag = match self.get_chain_identifier().chain() {
-            Chain::Unknown | Chain::Testnet => EpochFlag::StateAccumulatorV2EnabledTestnet,
-            Chain::Mainnet => EpochFlag::StateAccumulatorV2EnabledMainnet,
-        };
-
-        self.epoch_start_configuration.flags().contains(&flag)
-    }
-
-    pub fn executed_in_epoch_table_enabled(&self) -> bool {
-        *self.executed_in_epoch_table_enabled.get_or_init(|| {
-            self.epoch_start_configuration
-                .flags()
-                .contains(&EpochFlag::ExecutedInEpochTable)
-        })
     }
 
     /// Returns `&Arc<EpochStartConfiguration>`
@@ -1247,28 +1174,15 @@ impl AuthorityPerEpochStore {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn insert_tx_key_and_effects_signature(
+    pub fn insert_tx_key_and_digest(
         &self,
         tx_key: &TransactionKey,
         tx_digest: &TransactionDigest,
-        effects_digest: &TransactionEffectsDigest,
-        effects_signature: Option<&AuthoritySignInfo>,
     ) -> IotaResult {
         let tables = self.tables()?;
         let mut batch = self.tables()?.effects_signatures.batch();
 
-        if self.executed_in_epoch_table_enabled() {
-            batch.insert_batch(&tables.executed_in_epoch, [(tx_digest, ())])?;
-        }
-
-        if let Some(effects_signature) = effects_signature {
-            batch.insert_batch(&tables.effects_signatures, [(tx_digest, effects_signature)])?;
-
-            batch.insert_batch(&tables.signed_effects_digests, [(
-                tx_digest,
-                effects_digest,
-            )])?;
-        }
+        batch.insert_batch(&tables.executed_in_epoch, [(tx_digest, ())])?;
 
         if !matches!(tx_key, TransactionKey::Digest(_)) {
             batch.insert_batch(&tables.transaction_key_to_digest, [(tx_key, tx_digest)])?;
@@ -1312,11 +1226,7 @@ impl AuthorityPerEpochStore {
         digests: impl IntoIterator<Item = &'a TransactionDigest>,
     ) -> IotaResult<Vec<bool>> {
         let tables = self.tables()?;
-        if self.executed_in_epoch_table_enabled() {
-            Ok(tables.executed_in_epoch.multi_contains_keys(digests)?)
-        } else {
-            Ok(tables.effects_signatures.multi_contains_keys(digests)?)
-        }
+        Ok(tables.executed_in_epoch.multi_contains_keys(digests)?)
     }
 
     pub fn get_effects_signature(
@@ -1426,23 +1336,6 @@ impl AuthorityPerEpochStore {
             .safe_range_iter(from_checkpoint..=to_checkpoint)
             .collect::<Result<Vec<_>, _>>()
             .map_err(Into::into)
-    }
-
-    /// Returns future containing the state digest for the given epoch
-    /// once available.
-    /// TODO: remove once StateAccumulatorV1 is removed
-    pub async fn notify_read_checkpoint_state_digests(
-        &self,
-        checkpoints: Vec<CheckpointSequenceNumber>,
-    ) -> IotaResult<Vec<Accumulator>> {
-        self.checkpoint_state_notify_read
-            .read(&checkpoints, |checkpoints| -> IotaResult<_> {
-                Ok(self
-                    .tables()?
-                    .state_hash_by_checkpoint
-                    .multi_get(checkpoints)?)
-            })
-            .await
     }
 
     pub async fn notify_read_running_root(
@@ -2812,7 +2705,7 @@ impl AuthorityPerEpochStore {
                 checkpoint_roots.push(consensus_commit_prologue_root);
             }
             checkpoint_roots.extend(roots.into_iter());
-            let pending_checkpoint = PendingCheckpointV2::V2(PendingCheckpointV2Contents {
+            let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
                 roots: checkpoint_roots,
                 details: PendingCheckpointInfo {
                     timestamp_ms: consensus_commit_info.timestamp,
@@ -2835,7 +2728,7 @@ impl AuthorityPerEpochStore {
                 ));
             }
             if randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty()) {
-                let pending_checkpoint = PendingCheckpointV2::V2(PendingCheckpointV2Contents {
+                let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
                     roots: randomness_roots.into_iter().collect(),
                     details: PendingCheckpointInfo {
                         timestamp_ms: consensus_commit_info.timestamp,
@@ -3702,7 +3595,7 @@ impl AuthorityPerEpochStore {
     pub(crate) fn write_pending_checkpoint(
         &self,
         output: &mut ConsensusCommitOutput,
-        checkpoint: &PendingCheckpointV2,
+        checkpoint: &PendingCheckpoint,
     ) -> IotaResult {
         assert!(
             self.get_pending_checkpoint(&checkpoint.height())?.is_none(),
@@ -3729,7 +3622,7 @@ impl AuthorityPerEpochStore {
     pub fn get_pending_checkpoints(
         &self,
         last: Option<CheckpointHeight>,
-    ) -> IotaResult<Vec<(CheckpointHeight, PendingCheckpointV2)>> {
+    ) -> IotaResult<Vec<(CheckpointHeight, PendingCheckpoint)>> {
         let tables = self.tables()?;
         let mut iter = tables.pending_checkpoints.unbounded_iter();
         if let Some(last_processed_height) = last {
@@ -3741,7 +3634,7 @@ impl AuthorityPerEpochStore {
     pub fn get_pending_checkpoint(
         &self,
         index: &CheckpointHeight,
-    ) -> IotaResult<Option<PendingCheckpointV2>> {
+    ) -> IotaResult<Option<PendingCheckpoint>> {
         Ok(self.tables()?.pending_checkpoints.get(index)?)
     }
 
@@ -3762,7 +3655,7 @@ impl AuthorityPerEpochStore {
                 checkpoint_height: Some(commit_height),
                 position_in_commit,
             };
-            batch.insert_batch(&self.tables()?.builder_checkpoint_summary_v2, [(
+            batch.insert_batch(&self.tables()?.builder_checkpoint_summary, [(
                 &sequence_number,
                 summary,
             )])?;
@@ -3800,7 +3693,7 @@ impl AuthorityPerEpochStore {
             position_in_commit: 0,
         };
         self.tables()?
-            .builder_checkpoint_summary_v2
+            .builder_checkpoint_summary
             .insert(summary.sequence_number(), &builder_summary)?;
         Ok(())
     }
@@ -3810,7 +3703,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Option<BuilderCheckpointSummary>> {
         Ok(self
             .tables()?
-            .builder_checkpoint_summary_v2
+            .builder_checkpoint_summary
             .unbounded_iter()
             .skip_to_last()
             .next()
@@ -3822,7 +3715,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Option<(CheckpointSequenceNumber, CheckpointSummary)>> {
         Ok(self
             .tables()?
-            .builder_checkpoint_summary_v2
+            .builder_checkpoint_summary
             .unbounded_iter()
             .skip_to_last()
             .next()
@@ -3835,7 +3728,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Option<CheckpointSummary>> {
         Ok(self
             .tables()?
-            .builder_checkpoint_summary_v2
+            .builder_checkpoint_summary
             .get(&sequence)?
             .map(|s| s.summary))
     }
@@ -3950,7 +3843,7 @@ impl AuthorityPerEpochStore {
             .set(self.epoch_open_time.elapsed().as_millis() as i64);
     }
 
-    pub(crate) fn update_authenticator_state(&self, update: &AuthenticatorStateUpdate) {
+    pub(crate) fn update_authenticator_state(&self, update: &AuthenticatorStateUpdateV1) {
         info!("Updating authenticator state: {:?}", update);
         for active_jwk in &update.new_active_jwks {
             let ActiveJwk { jwk_id, jwk, .. } = active_jwk;
@@ -3963,12 +3856,6 @@ impl AuthorityPerEpochStore {
     }
 
     pub(crate) fn check_all_executed_transactions_in_checkpoint(&self) {
-        if !self.executed_in_epoch_table_enabled() {
-            error!(
-                "Cannot check executed transactions in checkpoint because executed_in_epoch table is not enabled"
-            );
-            return;
-        }
         let tables = self.tables().unwrap();
 
         info!("Verifying that all executed transactions are in a checkpoint");
@@ -4017,7 +3904,7 @@ pub(crate) struct ConsensusCommitOutput {
 
     // checkpoint state
     user_signatures_for_checkpoints: Vec<(TransactionDigest, Vec<GenericSignature>)>,
-    pending_checkpoints: Vec<PendingCheckpointV2>,
+    pending_checkpoints: Vec<PendingCheckpoint>,
 
     // random beacon state
     next_randomness_round: Option<(RandomnessRound, TimestampMs)>,
@@ -4091,7 +3978,7 @@ impl ConsensusCommitOutput {
             .extend(deferral_keys.iter().cloned());
     }
 
-    fn insert_pending_checkpoint(&mut self, checkpoint: PendingCheckpointV2) {
+    fn insert_pending_checkpoint(&mut self, checkpoint: PendingCheckpoint) {
         self.pending_checkpoints.push(checkpoint);
     }
 
@@ -4204,13 +4091,10 @@ impl ConsensusCommitOutput {
             )])?;
         }
 
-        batch.insert_batch(&tables.dkg_confirmations_v2, self.dkg_confirmations)?;
+        batch.insert_batch(&tables.dkg_confirmations, self.dkg_confirmations)?;
+        batch.insert_batch(&tables.dkg_processed_messages, self.dkg_processed_messages)?;
         batch.insert_batch(
-            &tables.dkg_processed_messages_v2,
-            self.dkg_processed_messages,
-        )?;
-        batch.insert_batch(
-            &tables.dkg_used_messages_v2,
+            &tables.dkg_used_messages,
             // using Option as iter
             self.dkg_used_message
                 .into_iter()
