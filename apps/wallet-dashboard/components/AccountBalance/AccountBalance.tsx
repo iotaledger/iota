@@ -68,7 +68,7 @@ export function AccountBalance() {
                             {formatted} {symbol}
                         </span>
                     </div>
-                    <div className="max-w-56 flex w-full gap-xs">
+                    <div className="flex w-full max-w-56 gap-xs">
                         <Button
                             onClick={() =>
                                 coinBalance &&

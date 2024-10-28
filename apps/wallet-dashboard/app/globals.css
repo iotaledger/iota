@@ -15,7 +15,6 @@ body {
     }
 }
 
-
 @layer components {
     .home-page-grid-container {
         @apply grid grid-cols-1 gap-lg;
