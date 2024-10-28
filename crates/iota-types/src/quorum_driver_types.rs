@@ -110,7 +110,7 @@ pub struct QuorumDriverResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionRequestV3 {
+pub struct ExecuteTransactionRequestV1 {
     pub transaction: Transaction,
 
     pub include_events: bool,
@@ -119,8 +119,8 @@ pub struct ExecuteTransactionRequestV3 {
     pub include_auxiliary_data: bool,
 }
 
-impl ExecuteTransactionRequestV3 {
-    pub fn new_v2<T: Into<Transaction>>(transaction: T) -> Self {
+impl ExecuteTransactionRequestV1 {
+    pub fn new<T: Into<Transaction>>(transaction: T) -> Self {
         Self {
             transaction: transaction.into(),
             include_events: true,
@@ -132,7 +132,7 @@ impl ExecuteTransactionRequestV3 {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionResponseV3 {
+pub struct ExecuteTransactionResponseV1 {
     pub effects: FinalizedEffects,
 
     pub events: Option<TransactionEvents>,

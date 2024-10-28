@@ -44,10 +44,10 @@ fn main() -> Result<()> {
         )
         .method(
             Method::builder()
-                .name("handle_soft_bundle_certificates_v3")
-                .route_name("SoftBundleCertifiedTransactionsV3")
-                .input_type("iota_types::messages_grpc::HandleSoftBundleCertificatesRequestV3")
-                .output_type("iota_types::messages_grpc::HandleSoftBundleCertificatesResponseV3")
+                .name("handle_soft_bundle_certificates_v1")
+                .route_name("SoftBundleCertifiedTransactionsV1")
+                .input_type("iota_types::messages_grpc::HandleSoftBundleCertificatesRequestV1")
+                .output_type("iota_types::messages_grpc::HandleSoftBundleCertificatesResponseV1")
                 .codec_path(codec_path)
                 .build(),
         )

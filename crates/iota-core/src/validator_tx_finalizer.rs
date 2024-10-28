@@ -294,7 +294,7 @@ mod tests {
         },
         messages_grpc::{
             HandleCertificateRequest, HandleCertificateResponse,
-            HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
+            HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
             HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
             TransactionInfoRequest, TransactionInfoResponse,
         },
@@ -371,11 +371,11 @@ mod tests {
             })
         }
 
-        async fn handle_soft_bundle_certificates_v3(
+        async fn handle_soft_bundle_certificates_v1(
             &self,
-            _request: HandleSoftBundleCertificatesRequestV3,
+            _request: HandleSoftBundleCertificatesRequestV1,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+        ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
             unimplemented!()
         }
 

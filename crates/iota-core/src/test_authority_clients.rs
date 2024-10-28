@@ -21,8 +21,8 @@ use iota_types::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV3,
-        HandleSoftBundleCertificatesResponseV3, HandleTransactionResponse, ObjectInfoRequest,
+        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV1,
+        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
         ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
     },
     transaction::{Transaction, VerifiedTransaction},
@@ -96,11 +96,11 @@ impl AuthorityAPI for LocalAuthorityClient {
             .unwrap()
     }
 
-    async fn handle_soft_bundle_certificates_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
+        _request: HandleSoftBundleCertificatesRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
         unimplemented!()
     }
 
@@ -277,11 +277,11 @@ impl AuthorityAPI for MockAuthorityApi {
         unimplemented!()
     }
 
-    async fn handle_soft_bundle_certificates_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
+        _request: HandleSoftBundleCertificatesRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
         unimplemented!()
     }
 
@@ -369,11 +369,11 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         self.cert_resp_to_return.clone()
     }
 
-    async fn handle_soft_bundle_certificates_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
+        _request: HandleSoftBundleCertificatesRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
         unimplemented!()
     }
 

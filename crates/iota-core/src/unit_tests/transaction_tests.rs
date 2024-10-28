@@ -22,7 +22,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     messages_consensus::ConsensusDeterminedVersionAssignments,
-    messages_grpc::HandleSoftBundleCertificatesRequestV3,
+    messages_grpc::HandleSoftBundleCertificatesRequestV1,
     multisig::{MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
@@ -449,8 +449,8 @@ async fn do_transaction_test_impl(
             if ct.contains_shared_object() {
                 epoch_store.clear_signature_cache();
                 let err = client
-                    .handle_soft_bundle_certificates_v3(
-                        HandleSoftBundleCertificatesRequestV3 {
+                    .handle_soft_bundle_certificates_v1(
+                        HandleSoftBundleCertificatesRequestV1 {
                             certificates: vec![ct.clone()],
                             wait_for_effects: true,
                             include_events: false,
@@ -1725,8 +1725,8 @@ async fn test_handle_soft_bundle_certificates() {
         certificates.push(cert.into());
     }
     let responses = client
-        .handle_soft_bundle_certificates_v3(
-            HandleSoftBundleCertificatesRequestV3 {
+        .handle_soft_bundle_certificates_v1(
+            HandleSoftBundleCertificatesRequestV1 {
                 certificates,
                 wait_for_effects: true,
                 include_events: false,
@@ -1852,8 +1852,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
     // Case 0: submit an empty soft bundle.
     {
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates: vec![],
                     wait_for_effects: true,
                     include_events: false,
@@ -1900,8 +1900,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
             certificates.push(signed_tx_into_certificate(signed).await.into());
         }
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates,
                     wait_for_effects: true,
                     include_events: false,
@@ -1943,8 +1943,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
         );
         let signed = to_sender_signed_transaction(data, &senders[5].1);
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates: vec![signed_tx_into_certificate(signed).await.into()],
                     wait_for_effects: true,
                     include_events: false,
@@ -2027,8 +2027,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
             signed_tx_into_certificate(signed).await
         };
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates: vec![cert0.into(), cert1.into()],
                     wait_for_effects: true,
                     include_events: false,
@@ -2113,8 +2113,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
         send_batch_consensus_no_execution(&authority, &vec![cert0.clone(), cert1.clone()], true)
             .await;
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates: vec![cert0.into(), cert1.into()],
                     wait_for_effects: true,
                     include_events: false,

@@ -28,8 +28,8 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV3,
-        HandleSoftBundleCertificatesResponseV3, HandleTransactionResponse, ObjectInfoRequest,
+        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV1,
+        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
         ObjectInfoResponse, SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
         TransactionInfoResponse,
     },
@@ -808,10 +808,10 @@ impl ValidatorService {
         Ok(())
     }
 
-    async fn handle_soft_bundle_certificates_v3_impl(
+    async fn handle_soft_bundle_certificates_impl(
         &self,
-        request: tonic::Request<HandleSoftBundleCertificatesRequestV3>,
-    ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV3> {
+        request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
+    ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let client_addr = if self.client_id_source.is_none() {
             self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
@@ -843,7 +843,7 @@ impl ValidatorService {
                 .collect::<Vec<_>>()
                 .join(", ")
         );
-        let span = error_span!("handle_soft_bundle_certificates_v3");
+        let span = error_span!("handle_soft_bundle_certificates_v1");
         self.handle_certificates(
             certificates,
             request.include_events,
@@ -857,7 +857,7 @@ impl ValidatorService {
         .await
         .map(|(resp, spam_weight)| {
             (
-                tonic::Response::new(HandleSoftBundleCertificatesResponseV3 {
+                tonic::Response::new(HandleSoftBundleCertificatesResponseV1 {
                     responses: resp.unwrap_or_default(),
                 }),
                 spam_weight,
@@ -1139,11 +1139,11 @@ impl Validator for ValidatorService {
         handle_with_decoration!(self, handle_certificate_impl, request)
     }
 
-    async fn handle_soft_bundle_certificates_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        request: tonic::Request<HandleSoftBundleCertificatesRequestV3>,
-    ) -> Result<tonic::Response<HandleSoftBundleCertificatesResponseV3>, tonic::Status> {
-        handle_with_decoration!(self, handle_soft_bundle_certificates_v3_impl, request)
+        request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
+    ) -> Result<tonic::Response<HandleSoftBundleCertificatesResponseV1>, tonic::Status> {
+        handle_with_decoration!(self, handle_soft_bundle_certificates_impl, request)
     }
 
     /// Handles an `ObjectInfoRequest` request.

@@ -22,8 +22,8 @@ use iota_types::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV3,
-        HandleSoftBundleCertificatesResponseV3, HandleTransactionResponse, ObjectInfoRequest,
+        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV1,
+        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
         ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
@@ -49,11 +49,11 @@ pub trait AuthorityAPI {
     ) -> Result<HandleCertificateResponse, IotaError>;
 
     /// Execute a Soft Bundle with multiple certificates.
-    async fn handle_soft_bundle_certificates_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        request: HandleSoftBundleCertificatesRequestV3,
+        request: HandleSoftBundleCertificatesRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError>;
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError>;
 
     /// Handle Object information requests for this account.
     async fn handle_object_info_request(
@@ -164,17 +164,17 @@ impl AuthorityAPI for NetworkAuthorityClient {
         response.map_err(Into::into)
     }
 
-    async fn handle_soft_bundle_certificates_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        request: HandleSoftBundleCertificatesRequestV3,
+        request: HandleSoftBundleCertificatesRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
         let mut request = request.into_request();
         insert_metadata(&mut request, client_addr);
 
         let response = self
             .client()?
-            .handle_soft_bundle_certificates_v3(request)
+            .handle_soft_bundle_certificates_v1(request)
             .await
             .map(tonic::Response::into_inner);
 

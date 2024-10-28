@@ -256,13 +256,13 @@ impl HandleCertificateRequest {
 ///
 /// Otherwise, `responses` will be empty.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleSoftBundleCertificatesResponseV3 {
+pub struct HandleSoftBundleCertificatesResponseV1 {
     pub responses: Vec<HandleCertificateResponse>,
 }
 
 /// Soft Bundle request.  See [SIP-19](https://github.com/sui-foundation/sips/blob/main/sips/sip-19.md).
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleSoftBundleCertificatesRequestV3 {
+pub struct HandleSoftBundleCertificatesRequestV1 {
     pub certificates: Vec<CertifiedTransaction>,
 
     pub wait_for_effects: bool,
