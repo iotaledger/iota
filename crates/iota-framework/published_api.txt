@@ -1933,9 +1933,6 @@ TreasuryCap
 DenyCapV1
 	public struct
 	0x2::coin
-CurrencyCreated
-	public struct
-	0x2::coin
 total_supply
 	public fun
 	0x2::coin
@@ -2051,9 +2048,6 @@ get_description
 	public fun
 	0x2::coin
 get_icon_url
-	public fun
-	0x2::coin
-supply
 	public fun
 	0x2::coin
 CoinManager
@@ -2611,13 +2605,7 @@ has_access
 uid_mut_as_owner
 	public fun
 	0x2::kiosk
-set_allow_extensions
-	public fun
-	0x2::kiosk
 uid
-	public fun
-	0x2::kiosk
-uid_mut
 	public fun
 	0x2::kiosk
 owner
@@ -2770,27 +2758,6 @@ destroy_empty
 drop
 	public fun
 	0x2::linked_table
-max
-	public fun
-	0x2::math
-min
-	public fun
-	0x2::math
-diff
-	public fun
-	0x2::math
-pow
-	public fun
-	0x2::math
-sqrt
-	public fun
-	0x2::math
-sqrt_u128
-	public fun
-	0x2::math
-divide_and_round_up
-	public fun
-	0x2::math
 ObjectBag
 	public struct
 	0x2::object_bag
@@ -2873,9 +2840,6 @@ split_and_transfer
 	public entry fun
 	0x2::pay
 divide_and_keep
-	public entry fun
-	0x2::pay
-join
 	public entry fun
 	0x2::pay
 join_vec
