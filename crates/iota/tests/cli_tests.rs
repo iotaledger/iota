@@ -4171,7 +4171,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test]
 async fn test_move_new() -> Result<(), anyhow::Error> {
     let current_dir = std::env::current_dir()?;
     let package_name = "test_move_new";
@@ -4197,6 +4197,10 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
     for name in ["sources", "tests", "Move.toml"] {
         assert!(files.contains(&name.to_string()));
     }
+    assert!(std::path::Path::new(&format!("{package_name}/sources/{package_name}.move")).exists());
+    assert!(
+        std::path::Path::new(&format!("{package_name}/tests/{package_name}_tests.move")).exists()
+    );
 
     // Test if the generated files are valid to build a package
     IotaCommand::Move {
