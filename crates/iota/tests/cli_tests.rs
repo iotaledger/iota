@@ -135,7 +135,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2983"]
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
@@ -167,7 +166,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let files = read_dir(working_dir)?
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
-    assert_eq!(12, files.len());
+    assert_eq!(13, files.len());
     assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
     assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
