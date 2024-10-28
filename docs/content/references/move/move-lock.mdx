@@ -17,7 +17,7 @@ If you are using source control for your package, make sure the `Move.lock` file
 
 When you build a package, the Move compiler resolves dependencies in `Move.toml`. After each resolution, the compiler writes the location of a dependency to the `Move.lock` file. If a dependency fails to resolve, the compiler stops writing to the `Move.lock` file and the build fails. If all dependencies resolve, the `Move.lock` file contains the locations (local and remote) of all your package's transitive dependencies. The `Move.lock` file stores the name and package details in an array similar to the following:
 
-```toml
+```.toml
 [[move.dependency]]
 name = “A”
 source = { git = “https://github.com/b/c.git”, subdir = “e/f”, rev = “a1b2c3” }
