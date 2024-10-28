@@ -30,7 +30,8 @@ impl CoinReadApi {
         Self { api }
     }
 
-    /// Gets coins for the given address filtered by coin type. Results are paginated.
+    /// Gets coins for the given address filtered by coin type. Results are
+    /// paginated.
     ///
     /// The coin type defaults to `0x2::iota::IOTA`.
     ///
@@ -67,7 +68,8 @@ impl CoinReadApi {
             .get_coins(owner, coin_type.into(), cursor.into(), limit.into())
             .await?)
     }
-    /// Gets all the coins for the given address regardless of coin type. Results are paginated.
+    /// Gets all the coins for the given address regardless of coin type.
+    /// Results are paginated.
     ///
     /// # Examples
     ///
@@ -101,8 +103,9 @@ impl CoinReadApi {
             .await?)
     }
 
-    /// Gets the coins for the given address filtered by coin type. Returns a stream.
-    /// 
+    /// Gets the coins for the given address filtered by coin type. Returns a
+    /// stream.
+    ///
     /// The coin type defaults to `0x2::iota::IOTA`.
     ///
     /// # Examples
@@ -161,11 +164,12 @@ impl CoinReadApi {
         )
     }
 
-    /// Gets a list of coins for the given address filtered by coin type with at least `amount` total value.
+    /// Gets a list of coins for the given address filtered by coin type with at
+    /// least `amount` total value.
     ///
-    /// If it is not possible to select enough coins, this function will return 
+    /// If it is not possible to select enough coins, this function will return
     /// an [`Error::InsufficientFunds`].
-    /// 
+    ///
     /// The coin type defaults to `0x2::iota::IOTA`.
     ///
     /// # Examples
@@ -241,7 +245,8 @@ impl CoinReadApi {
         Ok(self.api.http.get_balance(owner, coin_type.into()).await?)
     }
 
-    /// Gets a list of balances grouped by coin type and owned by the given address.
+    /// Gets a list of balances grouped by coin type and owned by the given
+    /// address.
     ///
     /// # Examples
     ///

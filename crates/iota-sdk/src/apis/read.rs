@@ -456,8 +456,9 @@ impl ReadApi {
         Ok(*self.api.http.get_total_transaction_blocks().await?)
     }
 
-    /// Return a transaction and its effects in an [IotaTransactionBlockResponse]
-    /// based on its [TransactionDigest], or an error upon failure.
+    /// Return a transaction and its effects in an
+    /// [IotaTransactionBlockResponse] based on its [TransactionDigest], or
+    /// an error upon failure.
     pub async fn get_transaction_with_options(
         &self,
         digest: TransactionDigest,

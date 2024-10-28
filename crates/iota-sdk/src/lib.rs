@@ -123,7 +123,7 @@ pub const IOTA_TESTNET_URL: &str = "https://fullnode.testnet.iota.io:443";
 
 /// Builder for creating an [IotaClient] for connecting to the Iota network.
 ///
-/// By default `maximum concurrent requests` is set to 256 and `request timeout` 
+/// By default `maximum concurrent requests` is set to 256 and `request timeout`
 /// is set to 60 seconds. These can be adjusted using
 /// [`Self::max_concurrent_requests()`], and the [`Self::request_timeout()`].
 /// If you use the WebSocket, consider setting `ws_ping_interval`
@@ -195,8 +195,8 @@ impl IotaClientBuilder {
         self
     }
 
-    /// Returns an [IotaClient] object connected to the Iota network accessable via
-    /// the provided URI.
+    /// Returns an [IotaClient] object connected to the Iota network accessable
+    /// via the provided URI.
     ///
     /// # Examples
     ///
@@ -399,7 +399,8 @@ impl IotaClientBuilder {
     }
 }
 
-/// Provides all the necessary abstractions for interacting with the Iota network.
+/// Provides all the necessary abstractions for interacting with the Iota
+/// network.
 ///
 /// # Usage
 ///
@@ -437,7 +438,7 @@ impl IotaClientBuilder {
 pub struct IotaClient {
     api: Arc<RpcClient>,
     transaction_builder: TransactionBuilder,
-    read_api: Arc<ReadApi>,
+    read_api: ReadApi,
     coin_read_api: CoinReadApi,
     event_api: EventApi,
     quorum_driver_api: QuorumDriverApi,
