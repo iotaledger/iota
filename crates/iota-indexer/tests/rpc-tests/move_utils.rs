@@ -4,7 +4,7 @@
 use iota_json_rpc_api::MoveUtilsClient;
 use iota_json_rpc_types::{MoveFunctionArgType, ObjectValueKind};
 
-use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, rpc_call_error_msg_matches};
+use crate::common::{indexer_wait_for_checkpoint, rpc_call_error_msg_matches, ApiTestSetup};
 
 #[test]
 fn get_move_function_arg_types_empty() {
@@ -82,7 +82,7 @@ fn get_move_function_arg_types_not_found() {
             )
             .await;
 
-		assert!(rpc_call_error_msg_matches(result,  r#"{"code":-32602,"message":"Package object does not exist with ID 0x0000000000000000000000000000000000000000000000000000000001823746"}"#));
+        assert!(matches!(result, Err(err) if err.to_string().contains("Package not found in DB: 0000000000000000000000000000000000000000000000000000000001823746")));
 
         let result = client
             .get_move_function_arg_types(
@@ -92,7 +92,10 @@ fn get_move_function_arg_types_not_found() {
             )
             .await;
 
-		assert!(rpc_call_error_msg_matches(result,  r#"{"code":-32602,"message":"No module was found with name wrong_module"}"#));
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32602,"message":"No module was found with name wrong_module"}"#
+        ));
 
         let result = client
             .get_move_function_arg_types(
@@ -102,7 +105,10 @@ fn get_move_function_arg_types_not_found() {
             )
             .await;
 
-		assert!(rpc_call_error_msg_matches(result, r#"{"code":-32602,"message":"No function was found with function name wrong_function"}"#));
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32602,"message":"No function was found with function name wrong_function"}"#
+        ));
     });
 }
 
@@ -151,7 +157,7 @@ fn get_normalized_move_modules_by_package_not_found() {
             .get_normalized_move_modules_by_package("0x1823746".parse().unwrap())
             .await;
 
-			assert!(rpc_call_error_msg_matches(result,  r#"{"code":-32602,"message":"Package object does not exist with ID 0x0000000000000000000000000000000000000000000000000000000001823746"}"#));
+        assert!(matches!(result, Err(err) if err.to_string().contains("Package not found in DB: 0000000000000000000000000000000000000000000000000000000001823746")));
     });
 }
 
