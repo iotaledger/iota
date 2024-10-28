@@ -260,7 +260,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             let authenticator_state_update_transaction =
                 self.authenticator_state_update_transaction(round, new_jwks);
             debug!(
-                "adding AuthenticatorStateUpdate({:?}) tx: {:?}",
+                "adding AuthenticatorStateUpdateV1({:?}) tx: {:?}",
                 authenticator_state_update_transaction.digest(),
                 authenticator_state_update_transaction,
             );

@@ -11,7 +11,7 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
-    iota_system_state_inner_v1::{IotaSystemStateInnerV1, ValidatorV1},
+    iota_system_state_inner_v1::{IotaSystemStateV1, ValidatorV1},
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use crate::{
@@ -21,10 +21,7 @@ use crate::{
     dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
     id::UID,
-    iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemState,
-        iota_system_state_inner_v2::IotaSystemStateInnerV2,
-    },
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     object::{MoveObject, Object},
     storage::ObjectStore,
     versioned::Versioned,
@@ -32,15 +29,14 @@ use crate::{
 
 pub mod epoch_start_iota_system_state;
 pub mod iota_system_state_inner_v1;
-pub mod iota_system_state_inner_v2;
 pub mod iota_system_state_summary;
 
 #[cfg(msim)]
 mod simtest_iota_system_state_inner;
 #[cfg(msim)]
 use self::simtest_iota_system_state_inner::{
-    SimTestIotaSystemStateInnerDeepV2, SimTestIotaSystemStateInnerShallowV2,
-    SimTestIotaSystemStateInnerV1, SimTestValidatorDeepV2, SimTestValidatorV1,
+    SimTestIotaSystemStateDeepV1, SimTestIotaSystemStateShallowV1, SimTestIotaSystemStateV1,
+    SimTestValidatorDeepV2, SimTestValidatorV1,
 };
 
 const IOTA_SYSTEM_STATE_WRAPPER_STRUCT_NAME: &IdentStr = ident_str!("IotaSystemState");
@@ -52,9 +48,9 @@ pub const ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME: &IdentStr = ident_str!("advance
 #[cfg(msim)]
 pub const IOTA_SYSTEM_STATE_SIM_TEST_V1: u64 = 18446744073709551605; // u64::MAX - 10
 #[cfg(msim)]
-pub const IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2: u64 = 18446744073709551606; // u64::MAX - 9
+pub const IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1: u64 = 18446744073709551606; // u64::MAX - 9
 #[cfg(msim)]
-pub const IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2: u64 = 18446744073709551607; // u64::MAX - 8
+pub const IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1: u64 = 18446744073709551607; // u64::MAX - 8
 
 /// Rust version of the Move iota::iota_system::IotaSystemState type
 /// This repreents the object with 0x5 ID.
@@ -100,14 +96,7 @@ impl IotaSystemStateWrapper {
             .expect("Dynamic field object must be a Move object");
         match self.version {
             1 => {
-                Self::advance_epoch_safe_mode_impl::<IotaSystemStateInnerV1>(
-                    move_object,
-                    params,
-                    protocol_config,
-                );
-            }
-            2 => {
-                Self::advance_epoch_safe_mode_impl::<IotaSystemStateInnerV2>(
+                Self::advance_epoch_safe_mode_impl::<IotaSystemStateV1>(
                     move_object,
                     params,
                     protocol_config,
@@ -115,23 +104,23 @@ impl IotaSystemStateWrapper {
             }
             #[cfg(msim)]
             IOTA_SYSTEM_STATE_SIM_TEST_V1 => {
-                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateInnerV1>(
+                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateV1>(
                     move_object,
                     params,
                     protocol_config,
                 );
             }
             #[cfg(msim)]
-            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2 => {
-                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateInnerShallowV2>(
+            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1 => {
+                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateShallowV1>(
                     move_object,
                     params,
                     protocol_config,
                 );
             }
             #[cfg(msim)]
-            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2 => {
-                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateInnerDeepV2>(
+            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1 => {
+                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateDeepV1>(
                     move_object,
                     params,
                     protocol_config,
@@ -200,18 +189,17 @@ pub trait IotaSystemStateTrait {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 #[enum_dispatch(IotaSystemStateTrait)]
 pub enum IotaSystemState {
-    V1(IotaSystemStateInnerV1),
-    V2(IotaSystemStateInnerV2),
+    V1(IotaSystemStateV1),
     #[cfg(msim)]
-    SimTestV1(SimTestIotaSystemStateInnerV1),
+    SimTestV1(SimTestIotaSystemStateV1),
     #[cfg(msim)]
-    SimTestShallowV2(SimTestIotaSystemStateInnerShallowV2),
+    SimTestShallowV2(SimTestIotaSystemStateShallowV1),
     #[cfg(msim)]
-    SimTestDeepV2(SimTestIotaSystemStateInnerDeepV2),
+    SimTestDeepV2(SimTestIotaSystemStateDeepV1),
 }
 
 /// This is the fixed type used by genesis.
-pub type IotaSystemStateInnerGenesis = IotaSystemStateInnerV1;
+pub type IotaSystemStateInnerGenesis = IotaSystemStateV1;
 pub type IotaValidatorGenesis = ValidatorV1;
 
 impl IotaSystemState {
@@ -223,7 +211,11 @@ impl IotaSystemState {
     pub fn into_genesis_version_for_tooling(self) -> IotaSystemStateInnerGenesis {
         match self {
             IotaSystemState::V1(inner) => inner,
-            _ => unreachable!(),
+            #[cfg(msim)]
+            _ => {
+                // Types other than V1 used in simtests should be unreachable
+                unreachable!()
+            }
         }
     }
 
@@ -256,7 +248,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
     let id = wrapper.id.id.bytes;
     match wrapper.version {
         1 => {
-            let result: IotaSystemStateInnerV1 =
+            let result: IotaSystemStateV1 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
                         IotaError::DynamicFieldRead(format!(
@@ -267,21 +259,9 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
                 )?;
             Ok(IotaSystemState::V1(result))
         }
-        2 => {
-            let result: IotaSystemStateInnerV2 =
-                get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
-                    |err| {
-                        IotaError::DynamicFieldRead(format!(
-                            "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
-                            id, wrapper.version, err
-                        ))
-                    },
-                )?;
-            Ok(IotaSystemState::V2(result))
-        }
         #[cfg(msim)]
         IOTA_SYSTEM_STATE_SIM_TEST_V1 => {
-            let result: SimTestIotaSystemStateInnerV1 =
+            let result: SimTestIotaSystemStateV1 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
                         IotaError::DynamicFieldRead(format!(
@@ -293,8 +273,8 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             Ok(IotaSystemState::SimTestV1(result))
         }
         #[cfg(msim)]
-        IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2 => {
-            let result: SimTestIotaSystemStateInnerShallowV2 =
+        IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1 => {
+            let result: SimTestIotaSystemStateShallowV1 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
                         IotaError::DynamicFieldRead(format!(
@@ -306,8 +286,8 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             Ok(IotaSystemState::SimTestShallowV2(result))
         }
         #[cfg(msim)]
-        IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2 => {
-            let result: SimTestIotaSystemStateInnerDeepV2 =
+        IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1 => {
+            let result: SimTestIotaSystemStateDeepV1 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
                         IotaError::DynamicFieldRead(format!(
@@ -328,7 +308,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
 /// Given a system state type version, and the ID of the table, along with a
 /// key, retrieve the dynamic field as a Validator type. We need the version to
 /// determine which inner type to use for the Validator type. This is assuming
-/// that the validator is stored in the table as ValidatorWrapper type.
+/// that the validator is stored in the table as Validator type.
 pub fn get_validator_from_table<K>(
     object_store: &dyn ObjectStore,
     table_id: ObjectID,
@@ -337,8 +317,8 @@ pub fn get_validator_from_table<K>(
 where
     K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
 {
-    let field: ValidatorWrapper = get_dynamic_field_from_store(object_store, table_id, key)
-        .map_err(|err| {
+    let field: Validator =
+        get_dynamic_field_from_store(object_store, table_id, key).map_err(|err| {
             IotaError::IotaSystemStateRead(format!(
                 "Failed to load validator wrapper from table: {:?}",
                 err
@@ -371,7 +351,7 @@ where
             Ok(validator.into_iota_validator_summary())
         }
         #[cfg(msim)]
-        IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2 => {
+        IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1 => {
             let validator: SimTestValidatorDeepV2 =
                 get_dynamic_field_from_store(object_store, versioned.id.id.bytes, &version)
                     .map_err(|err| {
@@ -430,7 +410,7 @@ impl PoolTokenExchangeRate {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct ValidatorWrapper {
+pub struct Validator {
     pub inner: Versioned,
 }
 

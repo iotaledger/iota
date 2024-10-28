@@ -493,16 +493,4 @@ module iota::coin {
         }
     }
 
-    // === Deprecated code ===
-
-    // oops, wanted treasury: &TreasuryCap<T>
-    public fun supply<T>(treasury: &mut TreasuryCap<T>): &Supply<T> {
-        &treasury.total_supply
-    }
-
-    // deprecated as we have CoinMetadata now
-    #[allow(unused_field)]
-    public struct CurrencyCreated<phantom T> has copy, drop {
-        decimals: u8
-    }
 }

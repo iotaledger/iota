@@ -191,7 +191,7 @@ type AuthenticatorStateExpireTransaction {
 	"""
 	minEpoch: Epoch
 	"""
-	The initial version that the AuthenticatorStateUpdate was shared at.
+	The initial version that the AuthenticatorStateUpdateV1 was shared at.
 	"""
 	authenticatorObjInitialSharedVersion: UInt53!
 }
@@ -4400,7 +4400,7 @@ type Validator {
 	"""
 	stakingPool: MoveObject @deprecated(reason: "The staking pool is a wrapped object. Access its fields directly on the `Validator` type.")
 	"""
-	The ID of this validator's `0x3::staking_pool::StakingPool`.
+	The ID of this validator's `0x3::staking_pool::StakingPoolV1`.
 	"""
 	stakingPoolId: IotaAddress!
 	"""

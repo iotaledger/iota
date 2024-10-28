@@ -8,7 +8,7 @@ use async_graphql::{
 };
 use iota_types::{
     authenticator_state::ActiveJwk as NativeActiveJwk,
-    transaction::AuthenticatorStateUpdate as NativeAuthenticatorStateUpdateTransaction,
+    transaction::AuthenticatorStateUpdateV1 as NativeAuthenticatorStateUpdateTransactionV1,
 };
 
 use crate::{
@@ -22,7 +22,7 @@ use crate::{
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct AuthenticatorStateUpdateTransaction {
-    pub native: NativeAuthenticatorStateUpdateTransaction,
+    pub native: NativeAuthenticatorStateUpdateTransactionV1,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }

@@ -1305,7 +1305,6 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
-                "mysticeti_leader_scoring_and_schedule": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "rethrow_serialization_type_layout_errors": true,
@@ -6592,7 +6591,7 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "protocolVersion": {
-            "description": "existing fields from `SystemEpochInfoEvent` (without epoch)",
+            "description": "existing fields from `SystemEpochInfoEventV1` (without epoch)",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -8311,6 +8310,7 @@
           "iotaTotalSupply",
           "iotaTreasuryCapId",
           "maxValidatorCount",
+          "minValidatorCount",
           "minValidatorJoiningStake",
           "pendingActiveValidatorsId",
           "pendingActiveValidatorsSize",
@@ -8418,6 +8418,14 @@
           },
           "maxValidatorCount": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "minValidatorCount": {
+            "description": "Minimum number of active validators at any moment. We do not allow the number of validators in any epoch to go under this.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -11294,7 +11302,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "AuthenticatorStateUpdate"
+                  "AuthenticatorStateUpdateV1"
                 ]
               },
               "new_active_jwks": {

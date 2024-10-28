@@ -17,7 +17,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     effects::TransactionEffectsAPI,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
+        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverError,
     },
     transaction::Transaction,
@@ -51,7 +51,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     orchestrator
         .quorum_driver()
         .submit_transaction_no_ticket(
-            ExecuteTransactionRequestV3::new_v2(txn),
+            ExecuteTransactionRequestV1::new(txn),
             Some(make_socket_addr()),
         )
         .await?;
@@ -256,7 +256,7 @@ async fn test_tx_across_epoch_boundaries() {
     tokio::task::spawn(async move {
         match to
             .execute_transaction_block(
-                ExecuteTransactionRequestV3::new_v2(tx.clone()),
+                ExecuteTransactionRequestV1::new(tx.clone()),
                 ExecuteTransactionRequestType::WaitForEffectsCert,
                 None,
             )
@@ -297,14 +297,14 @@ async fn execute_with_orchestrator(
     orchestrator: &TransactionOrchestrator<NetworkAuthorityClient>,
     txn: Transaction,
     request_type: ExecuteTransactionRequestType,
-) -> Result<(ExecuteTransactionResponseV3, IsTransactionExecutedLocally), QuorumDriverError> {
+) -> Result<(ExecuteTransactionResponseV1, IsTransactionExecutedLocally), QuorumDriverError> {
     orchestrator
-        .execute_transaction_block(ExecuteTransactionRequestV3::new_v2(txn), request_type, None)
+        .execute_transaction_block(ExecuteTransactionRequestV1::new(txn), request_type, None)
         .await
 }
 
 #[sim_test]
-async fn execute_transaction_v3() -> Result<(), anyhow::Error> {
+async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     let handle = &test_cluster.fullnode_handle.iota_node;
@@ -321,14 +321,14 @@ async fn execute_transaction_v3() -> Result<(), anyhow::Error> {
     // Quorum driver does not execute txn locally
     let txn = txns.swap_remove(0);
 
-    let request = ExecuteTransactionRequestV3 {
+    let request = ExecuteTransactionRequestV1 {
         transaction: txn,
         include_events: true,
         include_input_objects: true,
         include_output_objects: true,
         include_auxiliary_data: false,
     };
-    let response = orchestrator.execute_transaction_v3(request, None).await?;
+    let response = orchestrator.execute_transaction_v1(request, None).await?;
     let fx = &response.effects.effects;
 
     let mut expected_input_objects = fx.modified_at_versions();
@@ -362,7 +362,7 @@ async fn execute_transaction_v3() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn execute_transaction_v3_staking_transaction() -> Result<(), anyhow::Error> {
+async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     let handle = &test_cluster.fullnode_handle.iota_node;
@@ -380,14 +380,14 @@ async fn execute_transaction_v3_staking_transaction() -> Result<(), anyhow::Erro
         .iota_address;
     let transaction = make_staking_transaction(context, validator_address).await;
 
-    let request = ExecuteTransactionRequestV3 {
+    let request = ExecuteTransactionRequestV1 {
         transaction,
         include_events: true,
         include_input_objects: true,
         include_output_objects: true,
         include_auxiliary_data: false,
     };
-    let response = orchestrator.execute_transaction_v3(request, None).await?;
+    let response = orchestrator.execute_transaction_v1(request, None).await?;
     let fx = &response.effects.effects;
 
     let mut expected_input_objects = fx.modified_at_versions();

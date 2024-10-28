@@ -1,0 +1,32 @@
+{
+    "questions": [
+      {
+        "questionText": "What is a key difference between ERC-20 tokens in Solidity/EVM and tokens in IOTA Move?",
+        "answerOptions": [
+          { "answerText": "ERC-20 tokens are stored as owned objects in IOTA Move.", "isCorrect": false },
+          { "answerText": "Both native tokens and custom tokens in IOTA Move are Coin objects.", "isCorrect": true },
+          { "answerText": "Solidity uses TreasuryCap and Metadata objects for token management.", "isCorrect": false },
+          { "answerText": "IOTA Move tokens can only be created using the wIOTA standard.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What is the purpose of the TreasuryCap in IOTA Move's token management?",
+        "answerOptions": [
+          { "answerText": "It manages token ownership", "isCorrect": false },
+          { "answerText": "It enforces token transfers", "isCorrect": false },
+          { "answerText": "It allows minting and burning of tokens", "isCorrect": true },
+          { "answerText": "It defines the token's metadata", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What is the benefit of using the CoinManager in IOTA Move?",
+        "answerOptions": [
+          { "answerText": "It provides transparent and standardized token management.", "isCorrect": true },
+          { "answerText": "It allows tokens to bypass standard Coin functionality.", "isCorrect": false },
+          { "answerText": "It supports unlimited minting without restrictions.", "isCorrect": false },
+          { "answerText": "It disables the TreasuryCap object.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  
