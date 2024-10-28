@@ -7,7 +7,8 @@
     "alias-migration": "ts-node src/stardust/alias-migration.ts",
     "alias-output-claim": "ts-node src/stardust/alias-output-claim.ts",
     "basic-output-claim": "ts-node src/stardust/basic-output-claim.ts",
-    "check-basic-output-unlock-conditions": "ts-node src/stardust/check-basic-output-unlock-conditions.ts"
+    "check-basic-output-unlock-conditions": "ts-node src/stardust/check-basic-output-unlock-conditions.ts",
+    "foundry-output-claim": "ts-node src/stardust/foundry-output-claim.ts"
   },
   "keywords": [],
   "author": "",
