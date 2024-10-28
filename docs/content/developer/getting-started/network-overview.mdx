@@ -16,6 +16,10 @@ In general, all endpoints are load balanced but are also subject to rate limitin
 
 ## IOTA Mainnet
 
+:::note
+The mainnet is currently unavailable and has not yet gone live.
+:::
+
 <NetworkInfo.L1 
   baseToken="IOTA Token" 
   protocol="protocol placeholder" 
@@ -36,3 +40,17 @@ In general, all endpoints are load balanced but are also subject to rate limitin
     explorerUrl= 'https://explorer.iota.cafe/?network=alphanet'
 />
 
+## IOTA Localnet
+
+:::tip
+In order to use explorer locally you could use the IOTA [Explorer](https://github.com/iotaledger/iota/blob/develop/apps/explorer/README.md) app and run it separately in Localnet.
+:::
+
+<NetworkInfo.Move  
+    baseToken="IOTA Token" 
+    jsonRpcUrl= 'http://127.0.0.1:9000'
+    jsonRpcWebsocketUrl='ws://127.0.0.1:9000'
+    indexerRpc= 'http://127.0.0.1:9124'
+    graphqlRpc= 'http://127.0.0.1:8000'
+    faucetUrl= 'http://127.0.0.1:9123/gas'
+/>

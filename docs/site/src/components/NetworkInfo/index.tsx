@@ -171,12 +171,12 @@ function Move(props: MoveProps) {
           <th>Base Token</th>
           <td>{props.baseToken}</td>
         </tr>
-        <tr>
+       {props.explorerUrl && <tr>
           <th>Explorer URL</th>
           <td>
             <CodeBlock>{props.explorerUrl}</CodeBlock>
           </td>
-        </tr>
+        </tr>}
         <tr>
           <th>JSON RPC URL</th>
           <td>

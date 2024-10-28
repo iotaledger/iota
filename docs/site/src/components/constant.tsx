@@ -194,10 +194,10 @@ export interface NetworkProps {
 }
 
 export interface  MoveProps {
-  jsonRpcUrl: string;
-  jsonRpcWebsocketUrl: string;
-  indexerRpc: string;
-  graphqlRpc: string;
-  faucetUrl: string;
-  explorerUrl: string;
+  jsonRpcUrl?: string;
+  jsonRpcWebsocketUrl?: string;
+  indexerRpc?: string;
+  graphqlRpc?: string;
+  faucetUrl?: string;
+  explorerUrl?: string;
 };
