@@ -17,8 +17,13 @@ use iota_indexer::{
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{ReaderWriterConfig, start_test_indexer},
 };
+use iota_json_rpc_api::ReadApiClient;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_metrics::init_metrics;
-use iota_types::base_types::{ObjectID, SequenceNumber};
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber},
+    digests::TransactionDigest,
+};
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
     types::ErrorObject,
@@ -27,9 +32,6 @@ use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{runtime::Runtime, task::JoinHandle};
-use iota_types::digests::TransactionDigest;
-use iota_json_rpc_api::ReadApiClient;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 
 const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
@@ -157,7 +159,10 @@ pub async fn indexer_wait_for_transaction(
 ) {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
-            if let Ok(tx) = indexer_client.get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new())).await {
+            if let Ok(tx) = indexer_client
+                .get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new()))
+                .await
+            {
                 if let Some(checkpoint) = tx.checkpoint {
                     indexer_wait_for_checkpoint(pg_store, checkpoint).await;
                     break;
@@ -166,8 +171,8 @@ pub async fn indexer_wait_for_transaction(
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
     })
-        .await
-        .expect("Timeout waiting for indexer to catchup to given transaction");
+    .await
+    .expect("Timeout waiting for indexer to catchup to given transaction");
 }
 
 /// Start an Indexer instance in `Read` mode

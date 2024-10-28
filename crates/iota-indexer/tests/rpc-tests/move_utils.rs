@@ -4,7 +4,7 @@
 use iota_json_rpc_api::MoveUtilsClient;
 use iota_json_rpc_types::{MoveFunctionArgType, ObjectValueKind};
 
-use crate::common::{indexer_wait_for_checkpoint, rpc_call_error_msg_matches, ApiTestSetup};
+use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, rpc_call_error_msg_matches};
 
 #[test]
 fn get_move_function_arg_types_empty() {

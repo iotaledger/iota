@@ -3,32 +3,36 @@
 
 use std::{str::FromStr, time::SystemTime};
 
-use iota_json_rpc_api::IndexerApiClient;
-use iota_json_rpc_types::{EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage, TransactionFilter};
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    digests::TransactionDigest,
+use iota_json::{call_args, type_args};
+use iota_json_rpc_api::{IndexerApiClient, WriteApiClient};
+use iota_json_rpc_types::{
+    EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
+    IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, ObjectsPage, TransactionFilter,
 };
-use iota_types::transaction::CallArg;
-use iota_types::transaction::ObjectArg;
-use move_core_types::annotated_value::MoveValue;
-use iota_types::dynamic_field::DynamicFieldName;
-use move_core_types::language_storage::TypeTag;
-use move_core_types::language_storage::StructTag;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_json_rpc_api::WriteApiClient;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::transaction::TransactionData;
-use crate::common::{indexer_wait_for_checkpoint, rpc_call_error_msg_matches, ApiTestSetup, indexer_wait_for_object, indexer_wait_for_transaction};
-use iota_types::transaction::Command;
-use move_core_types::identifier::Identifier;
-use iota_types::IOTA_FRAMEWORK_ADDRESS;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_json::call_args;
-use iota_types::gas_coin::GAS;
-use iota_json::type_args;
-use iota_types::crypto::{AccountKeyPair, get_key_pair};
-use iota_types::utils::to_sender_signed_transaction;
+use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{IotaAddress, ObjectID},
+    crypto::{AccountKeyPair, get_key_pair},
+    digests::TransactionDigest,
+    dynamic_field::DynamicFieldName,
+    gas_coin::GAS,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{CallArg, Command, ObjectArg, TransactionData},
+    utils::to_sender_signed_transaction,
+};
+use move_core_types::{
+    annotated_value::MoveValue,
+    identifier::Identifier,
+    language_storage::{StructTag, TypeTag},
+};
+
+use crate::common::{
+    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object,
+    indexer_wait_for_transaction, rpc_call_error_msg_matches,
+};
 
 #[test]
 fn query_events_no_events_descending() {
@@ -187,7 +191,7 @@ fn test_get_owned_objects() -> Result<(), anyhow::Error> {
         runtime,
         store,
         client,
-        cluster
+        cluster,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -217,15 +221,27 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
         runtime,
         store,
         cluster,
-        client
+        client,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let gas_ref = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
         indexer_wait_for_object(&client, gas_ref.0, gas_ref.1).await;
-        let coin_to_split = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let coin_to_split = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
         indexer_wait_for_object(&client, coin_to_split.0, coin_to_split.1).await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
@@ -319,15 +335,33 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         runtime,
         store,
         cluster,
-        client
+        client,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
-        let coin_1 = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
-        let coin_2 = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
+        let coin_1 = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
+        let coin_2 = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
         indexer_wait_for_object(&client, gas.0, gas.1).await;
@@ -440,13 +474,19 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         runtime,
         store,
         cluster,
-        client
+        client,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000_000), address).await;
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
         indexer_wait_for_object(&client, gas.0, gas.1).await;
 
         // Create a bag object
@@ -479,7 +519,10 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let tx_data = tx_builder.programmable(pt).build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
 
-        let res = cluster.wallet.execute_transaction_must_succeed(signed_transaction).await;
+        let res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
 
         // Wait for the transaction to be executed
         indexer_wait_for_transaction(res.digest, &store, &client).await;
@@ -531,16 +574,28 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
         runtime,
         store,
         cluster,
-        client
+        client,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let gas = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000_000), address).await;
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
         indexer_wait_for_object(&client, gas.0, gas.1).await;
 
-        let child_object = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
+        let child_object = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
 
         // Create a object bag object
         let pt = {
@@ -582,7 +637,10 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
         let tx_data = tx_builder.programmable(pt).build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
 
-        let res = cluster.wallet.execute_transaction_must_succeed(signed_transaction).await;
+        let res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
 
         // Wait for the transaction to be executed
         indexer_wait_for_transaction(res.digest, &store, &client).await;
@@ -632,4 +690,3 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
         Ok(())
     })
 }
-
