@@ -13,7 +13,7 @@ use iota_types::{
 
 use crate::{RpcClient, error::IotaRpcResult};
 
-/// Governance API provides the staking functionality.
+/// Defines methods to get committee and staking info.
 #[derive(Debug, Clone)]
 pub struct GovernanceApi {
     api: Arc<RpcClient>,
@@ -24,17 +24,14 @@ impl GovernanceApi {
         Self { api }
     }
 
-    /// Return a list of [DelegatedStake] objects for the given address, or an
-    /// error upon failure.
+    /// Gets a list of delegated stakes for the given address.
     pub async fn get_stakes(&self, owner: IotaAddress) -> IotaRpcResult<Vec<DelegatedStake>> {
         Ok(self.api.http.get_stakes(owner).await?)
     }
 
-    /// Return the [IotaCommittee] information for the given `epoch`, or an
-    /// error upon failure.
+    /// Gets committee information for the given epoch.
     ///
-    /// The argument `epoch` is the known epoch id or `None` for the current
-    /// epoch.
+    /// The epoch defaults to the current epoch.
     ///
     /// # Examples
     ///
@@ -55,19 +52,16 @@ impl GovernanceApi {
         Ok(self.api.http.get_committee_info(epoch.into()).await?)
     }
 
-    /// Return the latest IOTA system state object on-chain, or an error upon
-    /// failure.
+    /// Gets the latest IOTA system state object on-chain.
     ///
-    /// Use this method to access system's information, such as the current
+    /// Use this method to access system information, such as the current
     /// epoch, the protocol version, the reference gas price, the total
-    /// stake, active validators, and much more. See the
-    /// [IotaSystemStateSummary] for all the available fields.
+    /// stake, active validators, and much more.
     pub async fn get_latest_iota_system_state(&self) -> IotaRpcResult<IotaSystemStateSummary> {
         Ok(self.api.http.get_latest_iota_system_state().await?)
     }
 
-    /// Return the reference gas price for the network, or an error upon
-    /// failure.
+    /// Gets the reference gas price for the network.
     pub async fn get_reference_gas_price(&self) -> IotaRpcResult<u64> {
         Ok(*self.api.http.get_reference_gas_price().await?)
     }
