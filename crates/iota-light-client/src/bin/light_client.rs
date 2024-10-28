@@ -4,7 +4,6 @@
 
 use std::{fs, path::PathBuf, str::FromStr};
 
-use anyhow::anyhow;
 use clap::Parser;
 use iota_json::IotaJsonValue;
 use iota_light_client::utils::{
@@ -124,6 +123,7 @@ pub async fn main() {
 mod tests {
     use std::path::{Path, PathBuf};
 
+    use anyhow::anyhow;
     use iota_light_client::utils::extract_verified_effects_and_events;
     use iota_rest_api::CheckpointData;
     use iota_types::{
