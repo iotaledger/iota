@@ -37,10 +37,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create one additional "fake" version in simulator builds so that we can
+    // We create 4 additional "fake" versions in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 1);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 4);
 
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -109,15 +109,14 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
+
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     disable_invariant_violation_check_in_swap_loc: bool,
-    // advance to highest supported protocol version at epoch change, instead of the next
-    // consecutive protocol version.
-    #[serde(skip_serializing_if = "is_false")]
-    advance_to_highest_supported_protocol_version: bool,
     // If true, checks no extra bytes in a compiled module
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     no_extraneous_module_bytes: bool,
 
     // Enable zklogin auth
@@ -139,16 +138,13 @@ struct FeatureFlags {
     accept_zklogin_in_multisig: bool,
 
     // If true, use the hardened OTW check
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     hardened_otw_check: bool,
 
     // Enable the poseidon hash function
     #[serde(skip_serializing_if = "is_false")]
     enable_poseidon: bool,
-
-    // Enable native functions for group operations.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_group_ops_native_functions: bool,
 
     // Enable native function for msm.
     #[serde(skip_serializing_if = "is_false")]
@@ -170,17 +166,9 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "Option::is_none")]
     zklogin_max_epoch_upper_bound_delta: Option<u64>,
 
-    // Controls leader scoring & schedule change in Mysticeti consensus.
-    #[serde(skip_serializing_if = "is_false")]
-    mysticeti_leader_scoring_and_schedule: bool,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
-
-    // Set number of leaders per round for Mysticeti commits.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mysticeti_num_leaders_per_round: Option<usize>,
 
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
@@ -191,8 +179,13 @@ struct FeatureFlags {
     authority_capabilities_v2: bool,
 
     // Rethrow type layout errors during serialization instead of trying to convert them.
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
+}
+
+fn is_true(b: &bool) -> bool {
+    *b
 }
 
 fn is_false(b: &bool) -> bool {
@@ -970,11 +963,6 @@ impl ProtocolConfig {
             .disable_invariant_violation_check_in_swap_loc
     }
 
-    pub fn advance_to_highest_supported_protocol_version(&self) -> bool {
-        self.feature_flags
-            .advance_to_highest_supported_protocol_version
-    }
-
     pub fn no_extraneous_module_bytes(&self) -> bool {
         self.feature_flags.no_extraneous_module_bytes
     }
@@ -1029,10 +1017,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_poseidon
     }
 
-    pub fn enable_group_ops_native_functions(&self) -> bool {
-        self.feature_flags.enable_group_ops_native_functions
-    }
-
     pub fn enable_group_ops_native_function_msm(&self) -> bool {
         self.feature_flags.enable_group_ops_native_function_msm
     }
@@ -1049,16 +1033,8 @@ impl ProtocolConfig {
         self.feature_flags.consensus_network
     }
 
-    pub fn mysticeti_leader_scoring_and_schedule(&self) -> bool {
-        self.feature_flags.mysticeti_leader_scoring_and_schedule
-    }
-
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
-    }
-
-    pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
-        self.feature_flags.mysticeti_num_leaders_per_round
     }
 
     pub fn passkey_auth(&self) -> bool {
@@ -1621,17 +1597,16 @@ impl ProtocolConfig {
             // new_constant: None,
         };
 
-        cfg.feature_flags
-            .disable_invariant_violation_check_in_swap_loc = true;
-        cfg.feature_flags.no_extraneous_module_bytes = true;
-        cfg.feature_flags
-            .advance_to_highest_supported_protocol_version = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
 
-        cfg.feature_flags.hardened_otw_check = true;
-
-        // Enable group ops and all networks (but not msm)
-        cfg.feature_flags.enable_group_ops_native_functions = true;
+        // MoveVM related flags
+        {
+            cfg.feature_flags
+                .disable_invariant_violation_check_in_swap_loc = true;
+            cfg.feature_flags.no_extraneous_module_bytes = true;
+            cfg.feature_flags.hardened_otw_check = true;
+            cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
+        }
 
         // zkLogin related flags
         {
@@ -1645,18 +1620,12 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
         // Use tonic networking for Mysticeti.
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
-        // Enable leader scoring & schedule change on mainnet for mysticeti.
-        cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
-
-        cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
 
         // Do not allow bridge committee to finalize on mainnet.
         cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
-
-        cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
 
         cfg.feature_flags.bridge = false;
 
@@ -1679,8 +1648,11 @@ impl ProtocolConfig {
             cfg.feature_flags.authority_capabilities_v2 = true;
         }
 
-        // TODO: remove the never_loop attribute when the version 2 is added.
+        // Ignore this check for the fake versions for
+        // `test_choose_next_system_packages`. TODO: remove the never_loop
+        // attribute when the version 2 is added.
         #[allow(clippy::never_loop)]
+        #[cfg(not(msim))]
         for cur in 2..=version.0 {
             match cur {
                 1 => unreachable!(),
@@ -1767,10 +1739,6 @@ impl ProtocolConfig {
 // `_for_testing`. Non-feature_flags should already have test setters defined
 // through macros.
 impl ProtocolConfig {
-    pub fn set_advance_to_highest_supported_protocol_version_for_testing(&mut self, val: bool) {
-        self.feature_flags
-            .advance_to_highest_supported_protocol_version = val
-    }
     pub fn set_zklogin_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.zklogin_auth = val
     }
@@ -1802,14 +1770,6 @@ impl ProtocolConfig {
     }
     pub fn set_disable_bridge_for_testing(&mut self) {
         self.feature_flags.bridge = false
-    }
-
-    pub fn set_mysticeti_leader_scoring_and_schedule_for_testing(&mut self, val: bool) {
-        self.feature_flags.mysticeti_leader_scoring_and_schedule = val;
-    }
-
-    pub fn set_mysticeti_num_leaders_per_round_for_testing(&mut self, val: Option<usize>) {
-        self.feature_flags.mysticeti_num_leaders_per_round = val;
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {

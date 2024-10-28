@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search } from '@iota/ui-icons';
-import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Button, ButtonType, ButtonSize, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -102,7 +102,7 @@ export function AccountsFinderView(): JSX.Element {
         if (searchPhase === SearchPhase.Ready) {
             return {
                 text: 'Search',
-                icon: <Search className="h-6 w-6" />,
+                icon: <Search className="h-4 w-4" />,
             };
         }
         if (searchPhase === SearchPhase.Ongoing) {
@@ -113,7 +113,7 @@ export function AccountsFinderView(): JSX.Element {
         }
         return {
             text: 'Search again',
-            icon: <Search className="h-6 w-6" />,
+            icon: <Search className="h-4 w-4" />,
         };
     })();
 
@@ -130,6 +130,7 @@ export function AccountsFinderView(): JSX.Element {
                 <div className="flex flex-col gap-2">
                     {isLedgerLocked ? (
                         <Button
+                            size={ButtonSize.Small}
                             type={ButtonType.Secondary}
                             text="Unlock Ledger"
                             onClick={unlockLedger}
@@ -138,6 +139,7 @@ export function AccountsFinderView(): JSX.Element {
                     ) : isLocked ? (
                         <Button
                             type={ButtonType.Secondary}
+                            size={ButtonSize.Small}
                             text="Verify password"
                             onClick={verifyPassword}
                             fullWidth
@@ -145,6 +147,7 @@ export function AccountsFinderView(): JSX.Element {
                     ) : (
                         <>
                             <Button
+                                size={ButtonSize.Small}
                                 type={ButtonType.Secondary}
                                 text={searchOptions.text}
                                 icon={searchOptions.icon}
@@ -156,12 +159,18 @@ export function AccountsFinderView(): JSX.Element {
 
                             <div className="flex flex-row gap-2">
                                 <Button
+                                    size={ButtonSize.Small}
                                     type={ButtonType.Secondary}
                                     text="Skip"
                                     disabled={isSearchOngoing}
                                     fullWidth
                                 />
-                                <Button text="Continue" disabled={isSearchOngoing} fullWidth />
+                                <Button
+                                    size={ButtonSize.Small}
+                                    text="Continue"
+                                    disabled={isSearchOngoing}
+                                    fullWidth
+                                />
                             </div>
                         </>
                     )}

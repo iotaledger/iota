@@ -1,0 +1,34 @@
+{
+    "questions": [
+      {
+        "questionText": "What are the core components of the IOTA economy?",
+        "answerOptions": [
+          { "answerText": "IOTA token, gas fees, staking rewards, and voting.", "isCorrect": true },
+          { "answerText": "Gas fees, smart contracts, token swaps, and oracles.", "isCorrect": false },
+          { "answerText": "Validators, users, delegators, and gas price mechanisms.", "isCorrect": false },
+          { "answerText": "Proof-of-work, storage fees, staking, and oracles.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "Who are the three main participants in the IOTA economy?",
+        "answerOptions": [
+          { "answerText": "Developers, stakers, and validators.", "isCorrect": false },
+          { "answerText": "Users, token holders, and validators.", "isCorrect": true },
+          { "answerText": "Smart contracts, users, and oracles.", "isCorrect": false },
+          { "answerText": "Delegators, validators, and miners.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What role do gas fees play in the IOTA tokenomics?",
+        "answerOptions": [
+          { "answerText": "Gas fees are used to provide staking rewards and prevent spam or denial-of-service attacks.", "isCorrect": true },
+          { "answerText": "Gas fees are charged to mint new IOTA tokens.", "isCorrect": false },
+          { "answerText": "Gas fees are distributed only to validators for transaction processing.", "isCorrect": false },
+          { "answerText": "Gas fees allow users to vote in on-chain governance decisions.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+
+  
+  
