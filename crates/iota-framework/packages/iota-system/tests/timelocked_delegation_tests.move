@@ -925,12 +925,12 @@ module iota_system::timelocked_stake_tests {
         // The computation reward is lower than the target reward, so 400 IOTA should be minted.
         // Each validator pool has 50% of the voting power and thus gets 50% of the reward (400 IOTA).
         assert_validator_total_stake_amounts(
-          validator_addrs(),
-          vector[
-            (200 + 400) * NANOS_PER_IOTA,
-            (200 + 400) * NANOS_PER_IOTA,
-          ],
-          scenario
+            validator_addrs(),
+            vector[
+                (200 + 400) * NANOS_PER_IOTA,
+                (200 + 400) * NANOS_PER_IOTA,
+            ],
+            scenario
         );
 
         unstake_timelocked(STAKER_ADDR_1, 0, scenario);
@@ -963,12 +963,12 @@ module iota_system::timelocked_stake_tests {
         // The computation reward is higher than the target reward, so 200 IOTA should be burned.
         // Each validator pool has 50% of the voting power and thus gets 50% of the reward (400 IOTA).
         assert_validator_total_stake_amounts(
-          validator_addrs(),
-          vector[
-            (200 + 400) * NANOS_PER_IOTA,
-            (250 + 400) * NANOS_PER_IOTA,
-          ],
-          scenario
+            validator_addrs(),
+            vector[
+                (200 + 400) * NANOS_PER_IOTA,
+                (250 + 400) * NANOS_PER_IOTA,
+            ],
+            scenario
         );
 
         unstake_timelocked(STAKER_ADDR_1, 0, scenario);
