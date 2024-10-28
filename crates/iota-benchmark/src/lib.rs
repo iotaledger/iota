@@ -355,7 +355,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             let ticket = self
                 .qd
                 .submit_transaction(
-                    iota_types::quorum_driver_types::ExecuteTransactionRequestV3 {
+                    iota_types::quorum_driver_types::ExecuteTransactionRequestV1 {
                         transaction: tx.clone(),
                         include_events: true,
                         include_input_objects: false,

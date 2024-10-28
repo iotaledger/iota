@@ -16,7 +16,7 @@ new_unverified_validator_operation_cap_and_transfer
 new_from_unverified
 	public(package) fun
 	0x3::validator_cap
-StakingPool
+StakingPoolV1
 	public struct
 	0x3::staking_pool
 PoolTokenExchangeRate
@@ -124,10 +124,10 @@ initial_exchange_rate
 check_balance_invariants
 	fun
 	0x3::staking_pool
-ValidatorMetadata
+ValidatorMetadataV1
 	public struct
 	0x3::validator
-Validator
+ValidatorV1
 	public struct
 	0x3::validator
 StakingRequestEvent
@@ -358,10 +358,7 @@ get_staking_pool_ref
 new_from_metadata
 	fun
 	0x3::validator
-VotingPowerInfo
-	public struct
-	0x3::voting_power
-VotingPowerInfoV2
+VotingPowerInfoV1
 	public struct
 	0x3::voting_power
 set_voting_power
@@ -391,7 +388,7 @@ total_voting_power
 quorum_threshold
 	public fun
 	0x3::voting_power
-ValidatorWrapper
+Validator
 	public struct
 	0x3::validator_wrapper
 create_v1
@@ -409,13 +406,10 @@ upgrade_to_latest
 version
 	fun
 	0x3::validator_wrapper
-ValidatorSet
+ValidatorSetV1
 	public struct
 	0x3::validator_set
-ValidatorEpochInfoEvent
-	public struct
-	0x3::validator_set
-ValidatorEpochInfoEventV2
+ValidatorEpochInfoEventV1
 	public struct
 	0x3::validator_set
 ValidatorJoinEvent
@@ -604,7 +598,7 @@ is_inactive_validator
 active_validator_addresses
 	public(package) fun
 	0x3::validator_set
-StorageFund
+StorageFundV1
 	public struct
 	0x3::storage_fund
 new
@@ -619,28 +613,19 @@ total_object_storage_rebates
 total_balance
 	public fun
 	0x3::storage_fund
-SystemParameters
+SystemParametersV1
 	public struct
 	0x3::iota_system_state_inner
-SystemParametersV2
+IotaSystemStateV1
 	public struct
 	0x3::iota_system_state_inner
-IotaSystemStateInner
-	public struct
-	0x3::iota_system_state_inner
-IotaSystemStateInnerV2
-	public struct
-	0x3::iota_system_state_inner
-SystemEpochInfoEvent
+SystemEpochInfoEventV1
 	public struct
 	0x3::iota_system_state_inner
 create
 	public(package) fun
 	0x3::iota_system_state_inner
 create_system_parameters
-	public(package) fun
-	0x3::iota_system_state_inner
-v1_to_v2
 	public(package) fun
 	0x3::iota_system_state_inner
 request_add_validator_candidate

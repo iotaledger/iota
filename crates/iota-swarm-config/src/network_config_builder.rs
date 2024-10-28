@@ -67,12 +67,12 @@ pub enum ProtocolVersionsConfig {
     PerValidator(SupportedProtocolVersionsCallback),
 }
 
-pub type StateAccumulatorV2EnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
+pub type StateAccumulatorEnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
 
 #[derive(Clone)]
-pub enum StateAccumulatorV2EnabledConfig {
+pub enum StateAccumulatorV1EnabledConfig {
     Global(bool),
-    PerValidator(StateAccumulatorV2EnabledCallback),
+    PerValidator(StateAccumulatorEnabledCallback),
 }
 
 pub struct ConfigBuilder<R = OsRng> {
@@ -91,7 +91,7 @@ pub struct ConfigBuilder<R = OsRng> {
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_v2_enabled_config: Option<StateAccumulatorV2EnabledConfig>,
+    state_accumulator_config: Option<StateAccumulatorV1EnabledConfig>,
     empty_validator_genesis: bool,
 }
 
@@ -113,7 +113,7 @@ impl ConfigBuilder {
             firewall_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_v2_enabled_config: None,
+            state_accumulator_config: Some(StateAccumulatorV1EnabledConfig::Global(true)),
             empty_validator_genesis: false,
         }
     }
@@ -232,26 +232,16 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled(mut self, enabled: bool) -> Self {
-        self.state_accumulator_v2_enabled_config =
-            Some(StateAccumulatorV2EnabledConfig::Global(enabled));
+    pub fn with_state_accumulator_callback(
+        mut self,
+        func: StateAccumulatorEnabledCallback,
+    ) -> Self {
+        self.state_accumulator_config = Some(StateAccumulatorV1EnabledConfig::PerValidator(func));
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_callback(
-        mut self,
-        func: StateAccumulatorV2EnabledCallback,
-    ) -> Self {
-        self.state_accumulator_v2_enabled_config =
-            Some(StateAccumulatorV2EnabledConfig::PerValidator(func));
-        self
-    }
-
-    pub fn with_state_accumulator_v2_enabled_config(
-        mut self,
-        c: StateAccumulatorV2EnabledConfig,
-    ) -> Self {
-        self.state_accumulator_v2_enabled_config = Some(c);
+    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
+        self.state_accumulator_config = Some(c);
         self
     }
 
@@ -300,7 +290,7 @@ impl<R> ConfigBuilder<R> {
             firewall_config: self.firewall_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
+            state_accumulator_config: self.state_accumulator_config,
             empty_validator_genesis: self.empty_validator_genesis,
         }
     }
@@ -508,14 +498,6 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         }
                     };
                     builder = builder.with_supported_protocol_versions(supported_versions);
-                }
-                if let Some(acc_v2_config) = &self.state_accumulator_v2_enabled_config {
-                    let state_accumulator_v2_enabled: bool = match acc_v2_config {
-                        StateAccumulatorV2EnabledConfig::Global(enabled) => *enabled,
-                        StateAccumulatorV2EnabledConfig::PerValidator(func) => func(idx),
-                    };
-                    builder =
-                        builder.with_state_accumulator_v2_enabled(state_accumulator_v2_enabled);
                 }
                 if let Some(num_unpruned_validators) = self.num_unpruned_validators {
                     if idx < num_unpruned_validators {

@@ -41,12 +41,26 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
+                "repr": "bool"
               },
               "data": {
-                "Number": "0"
+                "Bool": false
               },
-              "bcs": "AAAAAAAAAAA="
+              "bcs": "AA=="
+            },
+            "value": {
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "vector<u8>"
+              },
+              "data": {
+                "Vector": []
+              },
+              "bcs": "AA=="
             },
             "value": {
               "__typename": "MoveValue"
@@ -69,26 +83,12 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "vector<u8>"
+                "repr": "u64"
               },
               "data": {
-                "Vector": []
+                "Number": "0"
               },
-              "bcs": "AA=="
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "bool"
-              },
-              "data": {
-                "Bool": false
-              },
-              "bcs": "AA=="
+              "bcs": "AAAAAAAAAAA="
             },
             "value": {
               "__typename": "MoveValue"
@@ -121,12 +121,26 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
+                "repr": "bool"
               },
               "data": {
-                "Number": "0"
+                "Bool": false
               },
-              "bcs": "AAAAAAAAAAA="
+              "bcs": "AA=="
+            },
+            "value": {
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "vector<u8>"
+              },
+              "data": {
+                "Vector": []
+              },
+              "bcs": "AA=="
             },
             "value": {
               "__typename": "MoveValue"
@@ -149,26 +163,12 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "vector<u8>"
+                "repr": "u64"
               },
               "data": {
-                "Vector": []
+                "Number": "0"
               },
-              "bcs": "AA=="
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "bool"
-              },
-              "data": {
-                "Bool": false
-              },
-              "bcs": "AA=="
+              "bcs": "AAAAAAAAAAA="
             },
             "value": {
               "__typename": "MoveValue"
@@ -190,33 +190,19 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
+                "repr": "bool"
               },
               "data": {
-                "Number": "0"
+                "Bool": false
               },
-              "bcs": "AAAAAAAAAAA="
+              "bcs": "AA=="
             },
             "value": {
-              "bcs": "AAAAAAAAAAA=",
+              "bcs": "AgAAAAAAAAA=",
               "data": {
-                "Number": "0"
+                "Number": "2"
               },
               "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
-            },
-            "value": {
-              "__typename": "MoveObject"
             }
           },
           {
@@ -240,17 +226,31 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "bool"
+                "repr": "u64"
               },
               "data": {
-                "Bool": false
+                "Number": "0"
               },
-              "bcs": "AA=="
+              "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "bcs": "AgAAAAAAAAA=",
+              "__typename": "MoveObject"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
               "data": {
-                "Number": "2"
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
+              "bcs": "AAAAAAAAAAA=",
+              "data": {
+                "Number": "0"
               },
               "__typename": "MoveValue"
             }
