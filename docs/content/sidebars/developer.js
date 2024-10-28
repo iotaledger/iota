@@ -44,19 +44,8 @@ const developer = [
                     'developer/iota-101/move-overview/strings',
                     'developer/iota-101/move-overview/collections',
                     'developer/iota-101/move-overview/init',
-                    'developer/iota-101/move-overview/entry-functions',
-                    'developer/iota-101/move-overview/one-time-witness',
                     'developer/iota-101/move-overview/visibility',
-                    {
-                        type: 'category',
-                        label: 'Package Upgrades',
-                        items: [
-                            'developer/iota-101/move-overview/package-upgrades/introduction',
-                            'developer/iota-101/move-overview/package-upgrades/upgrade',
-                            'developer/iota-101/move-overview/package-upgrades/automated-address-management',
-                            'developer/iota-101/move-overview/package-upgrades/custom-policies',
-                        ],
-                    },
+                    'developer/iota-101/move-overview/entry-functions',
                     {
                         type: 'category',
                         label: 'Structs and Abilities',
@@ -66,6 +55,17 @@ const developer = [
                             'developer/iota-101/move-overview/structs-and-abilities/drop',
                             'developer/iota-101/move-overview/structs-and-abilities/key',
                             'developer/iota-101/move-overview/structs-and-abilities/store',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/one-time-witness',
+                    {
+                        type: 'category',
+                        label: 'Package Upgrades',
+                        items: [
+                            'developer/iota-101/move-overview/package-upgrades/introduction',
+                            'developer/iota-101/move-overview/package-upgrades/upgrade',
+                            'developer/iota-101/move-overview/package-upgrades/automated-address-management',
+                            'developer/iota-101/move-overview/package-upgrades/custom-policies',
                         ],
                     },
                     {
