@@ -45,7 +45,7 @@ pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.io"; // test
 // if you use the `iota start` subcommand and use the local network; if it does
 // not work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
 
-/// Return a iota client to interact with the APIs,
+/// Return an iota client to interact with the APIs,
 /// the active address of the local wallet, and another address that can be used
 /// as a recipient.
 ///
@@ -73,7 +73,7 @@ pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress),
     Ok((client, active_address, *recipient))
 }
 
-/// Return a iota client to interact with the APIs and an active address from
+/// Return an iota client to interact with the APIs and an active address from
 /// the local wallet.
 ///
 /// This function sets up a wallet in case there is no wallet locally,
@@ -251,7 +251,8 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
     let wallet_conf = iota_config_dir()?.join(IOTA_CLIENT_CONFIG);
     let keystore_path = iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME);
 
-    // check if a wallet exists and if not, create a wallet and a iota client config
+    // check if a wallet exists and if not, create a wallet and an iota client
+    // config
     if !keystore_path.exists() {
         let keystore = FileBasedKeystore::new(&keystore_path)?;
         keystore.save()?;

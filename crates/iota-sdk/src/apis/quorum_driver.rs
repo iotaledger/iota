@@ -31,12 +31,14 @@ impl QuorumDriverApi {
         Self { api }
     }
 
-    /// Executes a transaction with a FullNode client. 
-    /// 
-    /// The request type defaults to [`ExecuteTransactionRequestType::WaitForLocalExecution`].
-    /// 
-    /// When `WaitForLocalExecution` is used, but the returned `confirmed_local_execution` 
-    /// is false, the client will wait a duration defined by [WAIT_FOR_LOCAL_EXECUTION_INTERVAL] 
+    /// Executes a transaction with a FullNode client.
+    ///
+    /// The request type defaults to
+    /// [`ExecuteTransactionRequestType::WaitForLocalExecution`].
+    ///
+    /// When `WaitForLocalExecution` is used, but the returned
+    /// `confirmed_local_execution` is false, the client will wait a
+    /// duration defined by [WAIT_FOR_LOCAL_EXECUTION_INTERVAL]
     /// before returning [Error::FailToConfirmTransactionStatus].
     pub async fn execute_transaction_block(
         &self,

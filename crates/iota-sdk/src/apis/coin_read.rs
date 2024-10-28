@@ -30,7 +30,7 @@ impl CoinReadApi {
         Self { api }
     }
 
-    /// Gets coins for the given address filtered by coin type. Results are
+    /// Get coins for the given address filtered by coin type. Results are
     /// paginated.
     ///
     /// The coin type defaults to `0x2::iota::IOTA`.
@@ -68,7 +68,7 @@ impl CoinReadApi {
             .get_coins(owner, coin_type.into(), cursor.into(), limit.into())
             .await?)
     }
-    /// Gets all the coins for the given address regardless of coin type.
+    /// Get all the coins for the given address regardless of coin type.
     /// Results are paginated.
     ///
     /// # Examples
@@ -103,7 +103,7 @@ impl CoinReadApi {
             .await?)
     }
 
-    /// Gets the coins for the given address filtered by coin type. Returns a
+    /// Get the coins for the given address filtered by coin type. Returns a
     /// stream.
     ///
     /// The coin type defaults to `0x2::iota::IOTA`.
@@ -164,7 +164,7 @@ impl CoinReadApi {
         )
     }
 
-    /// Gets a list of coins for the given address filtered by coin type with at
+    /// Get a list of coins for the given address filtered by coin type with at
     /// least `amount` total value.
     ///
     /// If it is not possible to select enough coins, this function will return
@@ -217,7 +217,7 @@ impl CoinReadApi {
         Ok(coins)
     }
 
-    /// Gets the balance for the given address filtered by coin type.
+    /// Get the balance for the given address filtered by coin type.
     ///
     /// The coin type defaults to `0x2::iota::IOTA`.
     ///
@@ -245,7 +245,7 @@ impl CoinReadApi {
         Ok(self.api.http.get_balance(owner, coin_type.into()).await?)
     }
 
-    /// Gets a list of balances grouped by coin type and owned by the given
+    /// Get a list of balances grouped by coin type and owned by the given
     /// address.
     ///
     /// # Examples
@@ -268,7 +268,7 @@ impl CoinReadApi {
         Ok(self.api.http.get_all_balances(owner).await?)
     }
 
-    /// Gets the coin metadata (name, symbol, description, decimals, etc.) for
+    /// Get the coin metadata (name, symbol, description, decimals, etc.) for
     /// a given coin type.
     ///
     /// # Examples
@@ -292,7 +292,7 @@ impl CoinReadApi {
         Ok(self.api.http.get_coin_metadata(coin_type.into()).await?)
     }
 
-    /// Gets the total supply for a given coin type.
+    /// Get the total supply for a given coin type.
     ///
     /// # Examples
     ///

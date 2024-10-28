@@ -24,12 +24,12 @@ impl GovernanceApi {
         Self { api }
     }
 
-    /// Gets a list of delegated stakes for the given address.
+    /// Get a list of delegated stakes for the given address.
     pub async fn get_stakes(&self, owner: IotaAddress) -> IotaRpcResult<Vec<DelegatedStake>> {
         Ok(self.api.http.get_stakes(owner).await?)
     }
 
-    /// Gets committee information for the given epoch.
+    /// Get committee information for the given epoch.
     ///
     /// The epoch defaults to the current epoch.
     ///
@@ -52,7 +52,7 @@ impl GovernanceApi {
         Ok(self.api.http.get_committee_info(epoch.into()).await?)
     }
 
-    /// Gets the latest IOTA system state object on-chain.
+    /// Get the latest IOTA system state object on-chain.
     ///
     /// Use this method to access system information, such as the current
     /// epoch, the protocol version, the reference gas price, the total
@@ -61,7 +61,7 @@ impl GovernanceApi {
         Ok(self.api.http.get_latest_iota_system_state().await?)
     }
 
-    /// Gets the reference gas price for the network.
+    /// Get the reference gas price for the network.
     pub async fn get_reference_gas_price(&self) -> IotaRpcResult<u64> {
         Ok(*self.api.http.get_reference_gas_price().await?)
     }

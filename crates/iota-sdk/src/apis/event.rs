@@ -74,12 +74,12 @@ impl EventApi {
         }
     }
 
-    /// Gets a list of events for the given transaction digest.
+    /// Get a list of events for the given transaction digest.
     pub async fn get_events(&self, digest: TransactionDigest) -> IotaRpcResult<Vec<IotaEvent>> {
         Ok(self.api.http.get_events(digest).await?)
     }
 
-    /// Gets a list of filtered events. The response is paginated and can be
+    /// Get a list of filtered events. The response is paginated and can be
     /// ordered ascending or descending.
     ///
     /// For a list of possible event filters, see [EventFilter].
@@ -102,7 +102,8 @@ impl EventApi {
             .await?)
     }
 
-    /// Gets a stream of filtered events which can be ordered ascending or descending.
+    /// Get a stream of filtered events which can be ordered ascending or
+    /// descending.
     ///
     /// For a list of possible event filters, see [EventFilter].
     pub fn get_events_stream(
@@ -120,7 +121,12 @@ impl EventApi {
                     Some((item, (data, cursor, false, query)))
                 } else if (cursor.is_none() && first) || cursor.is_some() {
                     let page = self
-                        .query_events(query.clone(), cursor, Some(100), order.into().map(|o| o.is_descending()))
+                        .query_events(
+                            query.clone(),
+                            cursor,
+                            Some(100),
+                            order.into().map(|o| o.is_descending()),
+                        )
                         .await
                         .ok()?;
                     let mut data = page.data;
