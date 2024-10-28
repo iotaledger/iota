@@ -19,6 +19,7 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ArrowUp, RecognizedBadge } from '@iota/ui-icons';
+import { ImageIconSize } from '../ui';
 
 type OwnedCoinViewProps = {
     coin: CoinBalanceVerified;
@@ -45,8 +46,8 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
         >
             <Card onClick={() => setAreCoinDetailsOpen((prev) => !prev)}>
                 <CardImage type={ImageType.Placeholder}>
-                    <div className="rounded-full border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8">
-                        <CoinIcon coinType={coin.coinType} size="lg" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
+                        <CoinIcon coinType={coin.coinType} size={ImageIconSize.Small} />
                     </div>
                 </CardImage>
                 <CardBody {...CARD_BODY} isTextTruncated />

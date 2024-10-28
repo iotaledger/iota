@@ -12,31 +12,34 @@ workspace = true
 [dependencies]
 
 [dev-dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
+bip32.workspace = true
 clap.workspace = true
+coset.workspace = true
+fastcrypto.workspace = true
+fastcrypto-zkp.workspace = true
 fs_extra.workspace = true
 futures.workspace = true
 indexmap.workspace = true
 insta.workspace = true
 jsonrpsee.workspace = true
+p256.workspace = true
+passkey-authenticator.workspace = true
+passkey-client.workspace = true
+passkey-types.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
-test-cluster.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+url.workspace = true
 
-fastcrypto.workspace = true
-fastcrypto-zkp.workspace = true
-move-binary-format.workspace = true
-move-core-types.workspace = true
-move-package.workspace = true
-telemetry-subscribers.workspace = true
-
+# internal dependencies
 iota.workspace = true
 iota-bridge.workspace = true
 iota-config.workspace = true
@@ -62,12 +65,9 @@ iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-tool.workspace = true
 iota-types.workspace = true
+move-binary-format.workspace = true
+move-core-types.workspace = true
+move-package.workspace = true
 shared-crypto.workspace = true
-
-bip32.workspace = true
-coset.workspace = true
-p256.workspace = true
-passkey-authenticator.workspace = true
-passkey-client.workspace = true
-passkey-types.workspace = true
-url.workspace = true
+telemetry-subscribers.workspace = true
+test-cluster.workspace = true

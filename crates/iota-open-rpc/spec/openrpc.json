@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.3.1"
+    "version": "0.4.0"
   },
   "methods": [
     {
@@ -1297,22 +1297,17 @@
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
-                "advance_to_highest_supported_protocol_version": true,
                 "authority_capabilities_v2": true,
                 "bridge": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
-                "enable_coin_deny_list_v2": true,
                 "enable_group_ops_native_function_msm": true,
-                "enable_group_ops_native_functions": true,
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
-                "mysticeti_leader_scoring_and_schedule": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "rethrow_serialization_type_layout_errors": true,
-                "throughput_aware_consensus_submission": false,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -6596,7 +6591,7 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "protocolVersion": {
-            "description": "existing fields from `SystemEpochInfoEvent` (without epoch)",
+            "description": "existing fields from `SystemEpochInfoEventV1` (without epoch)",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -7640,8 +7635,7 @@
           {
             "type": "string",
             "enum": [
-              "AuthenticatorStateCreate",
-              "CoinDenyListStateCreate"
+              "AuthenticatorStateCreate"
             ]
           },
           {
@@ -8814,6 +8808,7 @@
         "description": "This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level fields so that they are decoupled from the internal definitions.",
         "type": "object",
         "required": [
+          "authorityPubkeyBytes",
           "commissionRate",
           "description",
           "exchangeRatesId",
@@ -8840,11 +8835,12 @@
           "rewardsPool",
           "stakingPoolId",
           "stakingPoolIotaBalance",
-          "votingPower",
-          "workerAddress",
-          "workerPubkeyBytes"
+          "votingPower"
         ],
         "properties": {
+          "authorityPubkeyBytes": {
+            "$ref": "#/components/schemas/Base64"
+          },
           "commissionRate": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
@@ -8884,6 +8880,17 @@
           },
           "networkPubkeyBytes": {
             "$ref": "#/components/schemas/Base64"
+          },
+          "nextEpochAuthorityPubkeyBytes": {
+            "default": null,
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base64"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "nextEpochCommissionRate": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -8944,23 +8951,6 @@
           },
           "nextEpochStake": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "nextEpochWorkerAddress": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "nextEpochWorkerPubkeyBytes": {
-            "default": null,
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Base64"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "operationCapId": {
             "$ref": "#/components/schemas/ObjectID"
@@ -9062,12 +9052,6 @@
           },
           "votingPower": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "workerAddress": {
-            "type": "string"
-          },
-          "workerPubkeyBytes": {
-            "$ref": "#/components/schemas/Base64"
           }
         }
       },
@@ -10079,7 +10063,7 @@
               "code": {
                 "type": "string",
                 "enum": [
-                  "displayError"
+                  "display"
                 ]
               },
               "error": {
@@ -11309,7 +11293,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "AuthenticatorStateUpdate"
+                  "AuthenticatorStateUpdateV1"
                 ]
               },
               "new_active_jwks": {

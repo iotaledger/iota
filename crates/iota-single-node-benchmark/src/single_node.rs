@@ -72,7 +72,6 @@ impl SingleValidator {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
-            epoch_store.protocol_config().clone(),
         ));
         // TODO: for validator benchmarking purposes, we should allow for traffic
         // control to be configurable and introduce traffic control benchmarks
@@ -287,7 +286,6 @@ impl SingleValidator {
             validator.clone(),
             Arc::new(StateAccumulator::new_for_tests(
                 validator.get_accumulator_store().clone(),
-                self.get_epoch_store(),
             )),
         );
         (checkpoint_executor, ckpt_sender)

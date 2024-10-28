@@ -144,11 +144,11 @@ async fn test_zklogin_expired_zklogin_sig() {
         .await;
 
     // trigger reconfiguration that advanced epoch to 1.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     // trigger reconfiguration that advanced epoch to 2.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     // trigger reconfiguration that advanced epoch to 3.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     // load one test vector, the zklogin inputs corresponds to max_epoch = 1
     let (kp, pk_zklogin, inputs) =
@@ -199,8 +199,8 @@ async fn test_zklogin_auth_state_creation() {
     // Wait until we are in an epoch that has zklogin enabled, but the auth state
     // object is not created yet.
     test_cluster.wait_for_protocol_version(24.into()).await;
-    // Now wait until the auth state object is created, ie. AuthenticatorStateUpdate
-    // transaction happened.
+    // Now wait until the auth state object is created, ie.
+    // AuthenticatorStateUpdateV1 transaction happened.
     test_cluster.wait_for_authenticator_state_update().await;
 }
 
@@ -289,7 +289,7 @@ async fn test_zklogin_conflicting_jwks() {
                     .unwrap();
                 match &tx.data().intent_message().value.kind() {
                     TransactionKind::EndOfEpochTransaction(_) => (),
-                    TransactionKind::AuthenticatorStateUpdate(update) => {
+                    TransactionKind::AuthenticatorStateUpdateV1(update) => {
                         let jwks = &mut *jwks_clone.lock().unwrap();
                         for jwk in &update.new_active_jwks {
                             jwks.push(jwk.clone());

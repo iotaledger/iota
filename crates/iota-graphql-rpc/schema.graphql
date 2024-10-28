@@ -191,7 +191,7 @@ type AuthenticatorStateExpireTransaction {
 	"""
 	minEpoch: Epoch
 	"""
-	The initial version that the AuthenticatorStateUpdate was shared at.
+	The initial version that the AuthenticatorStateUpdateV1 was shared at.
 	"""
 	authenticatorObjInitialSharedVersion: UInt53!
 }
@@ -663,13 +663,6 @@ type CoinConnection {
 	nodes: [Coin!]!
 }
 
-type CoinDenyListStateCreateTransaction {
-	"""
-	A workaround to define an empty variant of a GraphQL union.
-	"""
-	_: Boolean
-}
-
 """
 An edge in a connection.
 """
@@ -1050,7 +1043,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | CoinDenyListStateCreateTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
+union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
 
 type EndOfEpochTransactionKindConnection {
 	"""
@@ -1175,6 +1168,10 @@ type Epoch {
 	The total IOTA supply.
 	"""
 	iotaTotalSupply: Int
+	"""
+	The treasury-cap id.
+	"""
+	iotaTreasuryCapId: IotaAddress
 	"""
 	Details of the system that are decided during genesis.
 	"""
@@ -4403,7 +4400,7 @@ type Validator {
 	"""
 	stakingPool: MoveObject @deprecated(reason: "The staking pool is a wrapped object. Access its fields directly on the `Validator` type.")
 	"""
-	The ID of this validator's `0x3::staking_pool::StakingPool`.
+	The ID of this validator's `0x3::staking_pool::StakingPoolV1`.
 	"""
 	stakingPoolId: IotaAddress!
 	"""
@@ -4489,8 +4486,8 @@ type Validator {
 	"""
 	reportRecords(first: Int, before: String, last: Int, after: String): AddressConnection!
 	"""
-	The APY of this validator in basis points.
-	To get the APY in percentage, divide by 100.
+	The APY of this validator in basis points. To get the APY in
+	percentage, divide by 100.
 	"""
 	apy: Int
 }
@@ -4514,14 +4511,13 @@ type ValidatorConnection {
 The credentials related fields associated with a validator.
 """
 type ValidatorCredentials {
-	protocolPubKey: Base64
+	authorityPubKey: Base64
 	networkPubKey: Base64
-	workerPubKey: Base64
+	protocolPubKey: Base64
 	proofOfPossession: Base64
 	netAddress: String
 	p2PAddress: String
 	primaryAddress: String
-	workerAddress: String
 }
 
 """

@@ -35,7 +35,6 @@ mod checked {
         },
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
-        deny_list_v2::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
         digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
@@ -56,7 +55,7 @@ mod checked {
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
+            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
             ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
@@ -641,10 +640,6 @@ mod checked {
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
-                        EndOfEpochTransactionKind::DenyListStateCreate => {
-                            assert!(protocol_config.enable_coin_deny_list_v2());
-                            builder = setup_coin_deny_list_state_create(builder);
-                        }
                         EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
                             assert!(protocol_config.enable_bridge());
                             builder = setup_bridge_create(builder, chain_id)
@@ -660,7 +655,7 @@ mod checked {
                     "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
                 )
             }
-            TransactionKind::AuthenticatorStateUpdate(auth_state_update) => {
+            TransactionKind::AuthenticatorStateUpdateV1(auth_state_update) => {
                 setup_authenticator_state_update(
                     auth_state_update,
                     temporary_store,
@@ -1041,7 +1036,7 @@ mod checked {
     }
 
     fn setup_authenticator_state_update(
-        update: AuthenticatorStateUpdate,
+        update: AuthenticatorStateUpdateV1,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
@@ -1146,20 +1141,5 @@ mod checked {
             gas_charger,
             pt,
         )
-    }
-
-    fn setup_coin_deny_list_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                DENY_LIST_MODULE.to_owned(),
-                DENY_LIST_CREATE_FUNC.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate coin_deny_list_create transaction!");
-        builder
     }
 }

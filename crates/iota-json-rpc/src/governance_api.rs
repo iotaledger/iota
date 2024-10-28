@@ -320,7 +320,7 @@ impl GovernanceReadApi {
                         .find_object_lt_or_eq_version(&object_id, &version.one_before().unwrap())
                         .await?
                     else {
-                        Err(IotaRpcInputError::UserInputError(
+                        Err(IotaRpcInputError::UserInput(
                             UserInputError::ObjectNotFound {
                                 object_id,
                                 version: None,
@@ -329,7 +329,7 @@ impl GovernanceReadApi {
                     };
                     stakes.push((o, false));
                 }
-                ObjectRead::NotExists(id) => Err(IotaRpcInputError::UserInputError(
+                ObjectRead::NotExists(id) => Err(IotaRpcInputError::UserInput(
                     UserInputError::ObjectNotFound {
                         object_id: id,
                         version: None,
@@ -437,31 +437,9 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
     let mut apys = vec![];
 
     for rates in exchange_rate_table.into_iter().filter(|r| r.active) {
-        let exchange_rates_count = rates.rates.len();
-        let exchange_rates = rates.rates.into_iter().map(|(_, rate)| rate);
+        let exchange_rates = rates.rates.iter().map(|(_, rate)| rate);
 
-        // We need at least 2 data points to calculate apy.
-        let average_apy = if exchange_rates_count >= 2 {
-            // rates are sorted by epoch in descending order.
-            let er_e = exchange_rates.clone().dropping(1);
-            // rate e+1
-            let er_e_1 = exchange_rates.dropping_back(1);
-            let apys = er_e
-                .zip(er_e_1)
-                .map(calculate_apy)
-                .filter(|apy| *apy > 0.0 && *apy < 0.1)
-                .take(30)
-                .collect::<Vec<_>>();
-
-            if apys.is_empty() {
-                0.0
-            } else {
-                let apy_counts = apys.len() as f64;
-                apys.iter().sum::<f64>() / apy_counts
-            }
-        } else {
-            0.0
-        };
+        let average_apy = average_apy_from_exchange_rates(exchange_rates);
         apys.push(ValidatorApy {
             address: rates.address,
             apy: average_apy,
@@ -470,41 +448,38 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
     apys
 }
 
-#[test]
-fn test_apys_calculation_filter_outliers() {
-    // staking pool exchange rates extracted from mainnet
-    let file =
-        std::fs::File::open("src/unit_tests/data/validator_exchange_rate/rates.json").unwrap();
-    let rates: BTreeMap<String, Vec<(u64, PoolTokenExchangeRate)>> =
-        serde_json::from_reader(file).unwrap();
-
-    let mut address_map = BTreeMap::new();
-
-    let exchange_rates = rates
-        .into_iter()
-        .map(|(validator, rates)| {
-            let address = IotaAddress::random_for_testing_only();
-            address_map.insert(address, validator);
-            ValidatorExchangeRates {
-                address,
-                pool_id: ObjectID::random(),
-                active: true,
-                rates,
-            }
+/// Calculate an APY for a validator based on the exchange rates of the staking
+/// pool.
+pub fn average_apy_from_exchange_rates<'er>(
+    exchange_rates: impl DoubleEndedIterator<Item = &'er PoolTokenExchangeRate> + Clone,
+) -> f64 {
+    // rates are sorted by epoch in descending order.
+    let rates = exchange_rates.clone().dropping(1);
+    let rates_next = exchange_rates.dropping_back(1);
+    let apys = rates
+        .zip(rates_next)
+        .filter_map(|(er, er_next)| {
+            let apy = calculate_apy(er, er_next);
+            (apy > 0.0).then_some(apy)
         })
-        .collect();
+        .take(30)
+        .collect::<Vec<_>>();
 
-    let apys = calculate_apys(exchange_rates);
-
-    for apy in apys {
-        println!("{}: {}", address_map[&apy.address], apy.apy);
-        assert!(apy.apy < 0.07)
+    if apys.is_empty() {
+        // not enough data points
+        0.0
+    } else {
+        let apy_counts = apys.len() as f64;
+        apys.iter().sum::<f64>() / apy_counts
     }
 }
 
-// APY_e = (ER_e+1 / ER_e) ^ 365
-fn calculate_apy((rate_e, rate_e_1): (PoolTokenExchangeRate, PoolTokenExchangeRate)) -> f64 {
-    (rate_e.rate() / rate_e_1.rate()).powf(365.0) - 1.0
+/// Calculate the APY by the exchange rate of two consecutive epochs
+/// (`er`, `er_next`).
+///
+/// The formula used is `APY_e = (er / er_next) ^ 365`
+fn calculate_apy(er: &PoolTokenExchangeRate, er_next: &PoolTokenExchangeRate) -> f64 {
+    (er.rate() / er_next.rate()).powf(365.0) - 1.0
 }
 
 fn stake_status(

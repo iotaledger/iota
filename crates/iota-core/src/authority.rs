@@ -57,7 +57,7 @@ use iota_types::{
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
-    deny_list_v2::check_coin_deny_list_v2_during_signing,
+    deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::{
@@ -65,7 +65,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEvent},
+    event::{Event, EventID, SystemEpochInfoEventV1},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -883,14 +883,12 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
             )?;
 
-        if epoch_store.coin_deny_list_v2_enabled() {
-            check_coin_deny_list_v2_during_signing(
-                tx_data.sender(),
-                &checked_input_objects,
-                &receiving_objects,
-                &self.get_object_store(),
-            )?;
-        }
+        check_coin_deny_list_v1_during_signing(
+            tx_data.sender(),
+            &checked_input_objects,
+            &receiving_objects,
+            &self.get_object_store(),
+        )?;
 
         let owned_objects = checked_input_objects.inner().filter_owned_objects();
 
@@ -1397,7 +1395,7 @@ impl AuthorityState {
         )
         .await?;
 
-        if let TransactionKind::AuthenticatorStateUpdate(auth_state) =
+        if let TransactionKind::AuthenticatorStateUpdateV1(auth_state) =
             certificate.data().transaction_data().kind()
         {
             if let Some(err) = &execution_error_opt {
@@ -1461,25 +1459,6 @@ impl AuthorityState {
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // Only need to sign effects if we are a validator, and if the
-        // executed_in_epoch_table is not yet enabled. TODO: once
-        // executed_in_epoch_table is enabled everywhere, we can remove the code below
-        // entirely.
-        let should_sign_effects =
-            self.is_validator(epoch_store) && !epoch_store.executed_in_epoch_table_enabled();
-
-        let effects_sig = if should_sign_effects {
-            Some(AuthoritySignInfo::new(
-                epoch_store.epoch(),
-                effects,
-                Intent::iota_app(IntentScope::TransactionEffects),
-                self.name,
-                &*self.secret,
-            ))
-        } else {
-            None
-        };
-
         // index certificate
         let _ = self
             .post_process_one_tx(certificate, effects, &inner_temporary_store, epoch_store)
@@ -1492,12 +1471,7 @@ impl AuthorityState {
         // The insertion to epoch_store is not atomic with the insertion to the
         // perpetual store. This is OK because we insert to the epoch store
         // first. And during lookups we always look up in the perpetual store first.
-        epoch_store.insert_tx_key_and_effects_signature(
-            &tx_key,
-            tx_digest,
-            &effects.digest(),
-            effects_sig.as_ref(),
-        )?;
+        epoch_store.insert_tx_key_and_digest(&tx_key, tx_digest)?;
 
         // Allow testing what happens if we crash here.
         fail_point_async!("crash");
@@ -2122,12 +2096,6 @@ impl AuthorityState {
         indexes
             .index_tx(
                 cert.data().intent_message().value.sender(),
-                cert.data()
-                    .intent_message()
-                    .value
-                    .input_objects()?
-                    .iter()
-                    .map(|o| o.object_id()),
                 effects
                     .all_changed_objects()
                     .into_iter()
@@ -4358,19 +4326,11 @@ impl AuthorityState {
     /// has voted to upgrade to. If the proposed protocol version is not
     /// supported, None is returned.
     fn is_protocol_version_supported_v1(
-        current_protocol_version: ProtocolVersion,
         proposed_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
     ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
-        if proposed_protocol_version > current_protocol_version + 1
-            && !protocol_config.advance_to_highest_supported_protocol_version()
-        {
-            return None;
-        }
-
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4446,19 +4406,11 @@ impl AuthorityState {
     }
 
     fn is_protocol_version_supported_v2(
-        current_protocol_version: ProtocolVersion,
         proposed_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV2>,
         mut buffer_stake_bps: u64,
     ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
-        if proposed_protocol_version > current_protocol_version + 1
-            && !protocol_config.advance_to_highest_supported_protocol_version()
-        {
-            return None;
-        }
-
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4540,7 +4492,6 @@ impl AuthorityState {
     /// returns the current protocol version and system packages.
     fn choose_protocol_version_and_system_packages_v1(
         current_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
@@ -4549,9 +4500,7 @@ impl AuthorityState {
         let mut system_packages = vec![];
 
         while let Some((version, packages)) = Self::is_protocol_version_supported_v1(
-            current_protocol_version,
             next_protocol_version + 1,
-            protocol_config,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
@@ -4565,7 +4514,6 @@ impl AuthorityState {
 
     fn choose_protocol_version_and_system_packages_v2(
         current_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV2>,
         buffer_stake_bps: u64,
@@ -4577,9 +4525,7 @@ impl AuthorityState {
         // incrementing the proposed protocol version by one until no further
         // upgrades are supported.
         while let Some((version, packages)) = Self::is_protocol_version_supported_v2(
-            current_protocol_version,
             next_protocol_version + 1,
-            protocol_config,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
@@ -4678,24 +4624,6 @@ impl AuthorityState {
         Some(tx)
     }
 
-    #[instrument(level = "debug", skip_all)]
-    fn create_deny_list_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().enable_coin_deny_list_v2() {
-            return None;
-        }
-
-        if epoch_store.coin_deny_list_state_exists() {
-            return None;
-        }
-
-        let tx = EndOfEpochTransactionKind::new_deny_list_state_create();
-        info!("Creating DenyListStateCreate tx");
-        Some(tx)
-    }
-
     /// Creates and execute the advance epoch transaction to effects without
     /// committing it to the database. The effects of the change epoch tx
     /// are only written to the database after a certified checkpoint has been
@@ -4715,7 +4643,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEvent, TransactionEffects)> {
+    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1, TransactionEffects)> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
@@ -4727,9 +4655,6 @@ impl AuthorityState {
         if let Some(tx) = self.init_bridge_committee_tx(epoch_store) {
             txns.push(tx);
         }
-        if let Some(tx) = self.create_deny_list_state_tx(epoch_store) {
-            txns.push(tx);
-        }
 
         let next_epoch = epoch_store.epoch() + 1;
 
@@ -4739,7 +4664,6 @@ impl AuthorityState {
             if epoch_store.protocol_config().authority_capabilities_v2() {
                 Self::choose_protocol_version_and_system_packages_v2(
                     epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
                     epoch_store.committee(),
                     epoch_store
                         .get_capabilities_v2()
@@ -4749,7 +4673,6 @@ impl AuthorityState {
             } else {
                 Self::choose_protocol_version_and_system_packages_v1(
                     epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
                     epoch_store.committee(),
                     epoch_store
                         .get_capabilities_v1()
@@ -4855,14 +4778,14 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
-        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
+        // Find the SystemEpochInfoEventV1 emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
             .data
             .iter()
             .find(|event| event.is_system_epoch_info_event())
             .expect("end of epoch tx must emit system epoch info event");
-        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEvent>(
+        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEventV1>(
             &system_epoch_info_event.contents,
         )
         .expect("deserialization should succeed since we asserted that the event is of this type");
@@ -5040,8 +4963,7 @@ impl RandomnessRoundReceiver {
             bytes,
             epoch_store
                 .epoch_start_config()
-                .randomness_obj_initial_shared_version()
-                .expect("randomness state obj must exist"),
+                .randomness_obj_initial_shared_version(),
         );
         debug!(
             "created randomness state update transaction with digest: {:?}",

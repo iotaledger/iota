@@ -30,7 +30,6 @@ pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<Checkpo
     let epoch_store = state.epoch_store_for_testing();
     let accumulator = Arc::new(StateAccumulator::new_for_tests(
         state.get_accumulator_store().clone(),
-        &epoch_store,
     ));
     let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
 
@@ -60,7 +59,7 @@ async fn test_mysticeti_manager() {
 
     let consensus_config = config.consensus_config().unwrap();
     let registry_service = RegistryService::new(Registry::new());
-    let secret = Arc::pin(config.protocol_key_pair().copy());
+    let secret = Arc::pin(config.authority_key_pair().copy());
     let genesis = config.genesis().unwrap();
 
     let state = TestAuthorityBuilder::new()
@@ -73,7 +72,7 @@ async fn test_mysticeti_manager() {
     let client = Arc::new(LazyMysticetiClient::default());
 
     let manager = MysticetiManager::new(
-        config.worker_key_pair().copy(),
+        config.protocol_key_pair().copy(),
         config.network_key_pair().copy(),
         consensus_config.db_path().to_path_buf(),
         registry_service,

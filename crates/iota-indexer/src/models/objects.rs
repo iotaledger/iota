@@ -278,7 +278,7 @@ impl TryFrom<StoredObject> for Object {
 
     fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
         bcs::from_bytes(&o.serialized_object).map_err(|e| {
-            IndexerError::SerdeError(format!(
+            IndexerError::Serde(format!(
                 "Failed to deserialize object: {:?}, error: {}",
                 o.object_id, e
             ))
@@ -293,18 +293,16 @@ impl StoredObject {
     ) -> Result<ObjectRead, IndexerError> {
         let oref = self.get_object_ref()?;
         let object: iota_types::object::Object = self.try_into()?;
+
         let Some(move_object) = object.data.try_as_move().cloned() else {
-            return Err(IndexerError::PostgresReadError(format!(
-                "Object {:?} is not a Move object",
-                oref,
-            )));
+            return Ok(ObjectRead::Exists(oref, object, None));
         };
 
         let move_type_layout = package_resolver
             .type_layout(move_object.type_().clone().into())
             .await
             .map_err(|e| {
-                IndexerError::ResolveMoveStructError(format!(
+                IndexerError::ResolveMoveStruct(format!(
                     "Failed to convert into object read for obj {}:{}, type: {}. Error: {e}",
                     object.id(),
                     object.version(),
@@ -313,7 +311,7 @@ impl StoredObject {
             })?;
         let move_struct_layout = match move_type_layout {
             MoveTypeLayout::Struct(s) => Ok(s),
-            _ => Err(IndexerError::ResolveMoveStructError(
+            _ => Err(IndexerError::ResolveMoveStruct(
                 "MoveTypeLayout is not Struct".to_string(),
             )),
         }?;
@@ -332,7 +330,7 @@ impl StoredObject {
         {
             Some(Ok(info)) => Ok(info),
             Some(Err(e)) => Err(e),
-            None => Err(IndexerError::PersistentStorageDataCorruptionError(
+            None => Err(IndexerError::PersistentStorageDataCorruption(
                 "Dynamic field object has incompatible dynamic field type: empty df_kind".into(),
             )),
         }
@@ -349,26 +347,26 @@ impl StoredObject {
         // Past this point, if there is any unexpected field, it's a data corruption
         // error
         let object_id = ObjectID::from_bytes(&self.object_id).map_err(|_| {
-            IndexerError::PersistentStorageDataCorruptionError(format!(
+            IndexerError::PersistentStorageDataCorruption(format!(
                 "Can't convert {:?} to object_id",
                 self.object_id
             ))
         })?;
         let object_digest = ObjectDigest::try_from(self.object_digest.as_slice()).map_err(|e| {
-            IndexerError::PersistentStorageDataCorruptionError(format!(
+            IndexerError::PersistentStorageDataCorruption(format!(
                 "object {} has incompatible object digest. Error: {e}",
                 object_id
             ))
         })?;
         let df_object_id = if let Some(df_object_id) = self.df_object_id.clone() {
             ObjectID::from_bytes(df_object_id).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "object {} has incompatible dynamic field type: df_object_id. Error: {e}",
                     object_id
                 ))
             })
         } else {
-            return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
+            return Err(IndexerError::PersistentStorageDataCorruption(format!(
                 "object {} has incompatible dynamic field type: empty df_object_id",
                 object_id
             )));
@@ -377,7 +375,7 @@ impl StoredObject {
             Some(0) => DynamicFieldType::DynamicField,
             Some(1) => DynamicFieldType::DynamicObject,
             _ => {
-                return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
+                return Err(IndexerError::PersistentStorageDataCorruption(format!(
                     "object {} has incompatible dynamic field type: empty df_kind",
                     object_id
                 )));
@@ -385,14 +383,14 @@ impl StoredObject {
         };
         let name = if let Some(field_name) = self.df_name.clone() {
             let name: DynamicFieldName = bcs::from_bytes(&field_name).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "object {} has incompatible dynamic field type: df_name. Error: {e}",
                     object_id
                 ))
             })?;
             name
         } else {
-            return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
+            return Err(IndexerError::PersistentStorageDataCorruption(format!(
                 "object {} has incompatible dynamic field type: empty df_name",
                 object_id
             )));
@@ -401,13 +399,13 @@ impl StoredObject {
         let oref = self.get_object_ref()?;
         let object: iota_types::object::Object = self.clone().try_into()?;
         let Some(move_object) = object.data.try_as_move().cloned() else {
-            return Err(IndexerError::PostgresReadError(format!(
+            return Err(IndexerError::PostgresRead(format!(
                 "Object {:?} is not a Move object",
                 oref,
             )));
         };
         if !move_object.type_().is_dynamic_field() {
-            return Err(IndexerError::PostgresReadError(format!(
+            return Err(IndexerError::PostgresRead(format!(
                 "Object {:?} is not a dynamic field",
                 oref,
             )));
@@ -417,7 +415,7 @@ impl StoredObject {
             .type_layout(name.type_.clone())
             .await
             .map_err(|e| {
-                IndexerError::ResolveMoveStructError(format!(
+                IndexerError::ResolveMoveStruct(format!(
                     "Failed to create dynamic field info for obj {}:{}, type: {}. Error: {e}",
                     object.id(),
                     object.version(),
@@ -426,12 +424,13 @@ impl StoredObject {
             })?;
         let iota_json_value = iota_json::IotaJsonValue::new(name.value.clone())?;
         let bcs_name = iota_json_value.to_bcs_bytes(&layout)?;
-        let object_type = self.df_object_type.clone().ok_or(
-            IndexerError::PersistentStorageDataCorruptionError(format!(
-                "object {} has incompatible dynamic field type: empty df_object_type",
-                object_id
-            )),
-        )?;
+        let object_type =
+            self.df_object_type
+                .clone()
+                .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
+                    "object {} has incompatible dynamic field type: empty df_object_type",
+                    object_id
+                )))?;
         Ok(Some(DynamicFieldInfo {
             version: oref.1,
             digest: object_digest,
@@ -445,11 +444,11 @@ impl StoredObject {
 
     pub fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
         let object_id = ObjectID::from_bytes(self.object_id.clone()).map_err(|_| {
-            IndexerError::SerdeError(format!("Can't convert {:?} to object_id", self.object_id))
+            IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
         })?;
         let object_digest =
             ObjectDigest::try_from(self.object_digest.as_slice()).map_err(|_| {
-                IndexerError::SerdeError(format!(
+                IndexerError::Serde(format!(
                     "Can't convert {:?} to object_digest",
                     self.object_digest
                 ))
@@ -487,13 +486,13 @@ impl TryFrom<StoredObject> for IotaCoin {
         let (coin_object_id, version, digest) = o.get_object_ref()?;
         let coin_type_canonical =
             o.coin_type
-                .ok_or(IndexerError::PersistentStorageDataCorruptionError(format!(
+                .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
                     "Object {} is supposed to be a coin but has an empty coin_type column",
                     coin_object_id,
                 )))?;
         let coin_type = parse_to_struct_tag(coin_type_canonical.as_str())
             .map_err(|_| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "The type of object {} cannot be parsed as a struct tag",
                     coin_object_id,
                 ))
@@ -501,7 +500,7 @@ impl TryFrom<StoredObject> for IotaCoin {
             .to_string();
         let balance = o
             .coin_balance
-            .ok_or(IndexerError::PersistentStorageDataCorruptionError(format!(
+            .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
                 "Object {} is supposed to be a coin but has an empty coin_balance column",
                 coin_object_id,
             )))?;
@@ -532,7 +531,7 @@ impl TryFrom<CoinBalance> for Balance {
     fn try_from(c: CoinBalance) -> Result<Self, Self::Error> {
         let coin_type = parse_to_struct_tag(c.coin_type.as_str())
             .map_err(|_| {
-                IndexerError::PersistentStorageDataCorruptionError(
+                IndexerError::PersistentStorageDataCorruption(
                     "The type of coin balance cannot be parsed as a struct tag".to_string(),
                 )
             })?

@@ -45,7 +45,6 @@ pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpochTransaction),
     AuthenticatorStateCreate(AuthenticatorStateCreateTransaction),
     AuthenticatorStateExpire(AuthenticatorStateExpireTransaction),
-    CoinDenyListStateCreate(CoinDenyListStateCreateTransaction),
     BridgeStateCreate(BridgeStateCreateTransaction),
     BridgeCommitteeInit(BridgeCommitteeInitTransaction),
 }
@@ -70,13 +69,6 @@ pub(crate) struct AuthenticatorStateExpireTransaction {
     pub native: NativeAuthenticatorStateExpireTransaction,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
-}
-
-#[derive(SimpleObject, Clone, PartialEq, Eq)]
-pub(crate) struct CoinDenyListStateCreateTransaction {
-    /// A workaround to define an empty variant of a GraphQL union.
-    #[graphql(name = "_")]
-    dummy: Option<bool>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -243,7 +235,7 @@ impl AuthenticatorStateExpireTransaction {
             .extend()
     }
 
-    /// The initial version that the AuthenticatorStateUpdate was shared at.
+    /// The initial version that the AuthenticatorStateUpdateV1 was shared at.
     async fn authenticator_obj_initial_shared_version(&self) -> UInt53 {
         self.native
             .authenticator_obj_initial_shared_version
@@ -284,9 +276,6 @@ impl EndOfEpochTransactionKind {
                     native: ase,
                     checkpoint_viewed_at,
                 })
-            }
-            N::DenyListStateCreate => {
-                K::CoinDenyListStateCreate(CoinDenyListStateCreateTransaction { dummy: None })
             }
             N::BridgeStateCreate(chain_id) => K::BridgeStateCreate(BridgeStateCreateTransaction {
                 native: chain_id,

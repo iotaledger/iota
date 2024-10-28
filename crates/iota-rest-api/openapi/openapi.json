@@ -1965,20 +1965,6 @@
           {
             "type": "object",
             "required": [
-              "kind"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "deny_list_state_create"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
               "chain_id",
               "kind"
             ],
@@ -5062,11 +5048,6 @@
                   }
                 ]
               },
-              "legacy_bitmap": {
-                "description": "Legacy encoding for the bitmap.",
-                "type": "string",
-                "format": "base64"
-              },
               "scheme": {
                 "type": "string",
                 "enum": [
@@ -5209,6 +5190,7 @@
         "type": "object",
         "required": [
           "address",
+          "authority_public_key",
           "commission_rate",
           "description",
           "exchange_rates_id",
@@ -5234,13 +5216,14 @@
           "rewards_pool",
           "staking_pool_id",
           "staking_pool_iota_balance",
-          "voting_power",
-          "worker_address",
-          "worker_public_key"
+          "voting_power"
         ],
         "properties": {
           "address": {
             "$ref": "#/components/schemas/Address"
+          },
+          "authority_public_key": {
+            "$ref": "#/components/schemas/Bls12381PublicKey"
           },
           "commission_rate": {
             "description": "Radix-10 encoded 64-bit unsigned integer",
@@ -5280,6 +5263,9 @@
           "network_public_key": {
             "$ref": "#/components/schemas/Ed25519PublicKey"
           },
+          "next_epoch_authority_public_key": {
+            "$ref": "#/components/schemas/Bls12381PublicKey"
+          },
           "next_epoch_commission_rate": {
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
@@ -5307,18 +5293,12 @@
             "type": "string"
           },
           "next_epoch_protocol_public_key": {
-            "$ref": "#/components/schemas/Bls12381PublicKey"
+            "$ref": "#/components/schemas/Ed25519PublicKey"
           },
           "next_epoch_stake": {
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
             "format": "u64"
-          },
-          "next_epoch_worker_address": {
-            "type": "string"
-          },
-          "next_epoch_worker_public_key": {
-            "$ref": "#/components/schemas/Ed25519PublicKey"
           },
           "operation_cap_id": {
             "$ref": "#/components/schemas/ObjectId"
@@ -5356,7 +5336,7 @@
             "type": "string"
           },
           "protocol_public_key": {
-            "$ref": "#/components/schemas/Bls12381PublicKey"
+            "$ref": "#/components/schemas/Ed25519PublicKey"
           },
           "rewards_pool": {
             "description": "The epoch stake rewards will be added here at the end of each epoch.",
@@ -5392,12 +5372,6 @@
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
             "format": "u64"
-          },
-          "worker_address": {
-            "type": "string"
-          },
-          "worker_public_key": {
-            "$ref": "#/components/schemas/Ed25519PublicKey"
           }
         }
       },

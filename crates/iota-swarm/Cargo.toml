@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 futures.workspace = true
 prometheus.workspace = true
@@ -20,6 +21,7 @@ tokio = { workspace = true, features = ["full"] }
 tonic-health.workspace = true
 tracing.workspace = true
 
+# internal dependencies
 iota-config.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true

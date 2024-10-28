@@ -4,10 +4,9 @@
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { FieldItem } from './FieldItem';
-import { Banner } from '~/components/ui';
-
 import type { DynamicFieldName } from '@iota/iota-sdk/client';
-import { LoadingIndicator } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/ui-icons';
 
 interface UnderlyingObjectCardProps {
     parentId: string;
@@ -53,9 +52,13 @@ export function UnderlyingObjectCard({
             (!normalizedStruct && normalizedStructFetched))
     ) {
         return (
-            <Banner variant="error" spacing="lg" fullWidth>
-                Failed to get field data for {parentId}
-            </Banner>
+            <InfoBox
+                title="Error loading data"
+                supportingText={`Failed to get field data for ${parentId}`}
+                icon={<Warning />}
+                type={InfoBoxType.Error}
+                style={InfoBoxStyle.Elevated}
+            />
         );
     }
 
