@@ -61,7 +61,7 @@ macro_rules! assert_matches {
 use fastcrypto::traits::AggregateAuthenticator;
 use iota_types::{
     digests::ConsensusCommitDigest, messages_consensus::ConsensusCommitPrologueV1,
-    messages_grpc::HandleCertificateRequest,
+    messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 
@@ -433,13 +433,19 @@ async fn do_transaction_test_impl(
             let ct = CertifiedTransaction::new_from_data_and_sig(plain_tx.into_data(), cert_sig);
 
             let err = client
-                .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
+                .handle_certificate(
+                    HandleCertificateRequestV1::new(ct.clone()),
+                    Some(socket_addr),
+                )
                 .await
                 .unwrap_err();
             err_check(&err);
             epoch_store.clear_signature_cache();
             let err = client
-                .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
+                .handle_certificate(
+                    HandleCertificateRequestV1::new(ct.clone()),
+                    Some(socket_addr),
+                )
                 .await
                 .unwrap_err();
             err_check(&err);
@@ -1447,7 +1453,7 @@ async fn test_very_large_certificate() {
     );
 
     let res = client
-        .handle_certificate(HandleCertificateRequest::new(cert), Some(socket_addr))
+        .handle_certificate(HandleCertificateRequestV1::new(cert), Some(socket_addr))
         .await;
     assert!(res.is_err());
     let err = res.err().unwrap();
@@ -1518,7 +1524,10 @@ async fn test_handle_certificate_errors() {
     let socket_addr = make_socket_addr();
 
     let err = client
-        .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
+        .handle_certificate(
+            HandleCertificateRequestV1::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
     assert_matches!(err, IotaError::WrongEpoch {
@@ -1551,7 +1560,10 @@ async fn test_handle_certificate_errors() {
     .unwrap();
 
     let err = client
-        .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
+        .handle_certificate(
+            HandleCertificateRequestV1::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
 
@@ -1572,7 +1584,10 @@ async fn test_handle_certificate_errors() {
     )
     .unwrap();
     let err = client
-        .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
+        .handle_certificate(
+            HandleCertificateRequestV1::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
 
@@ -1594,7 +1609,10 @@ async fn test_handle_certificate_errors() {
     .unwrap();
 
     let err = client
-        .handle_certificate(HandleCertificateRequest::new(ct.clone()), Some(socket_addr))
+        .handle_certificate(
+            HandleCertificateRequestV1::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
 

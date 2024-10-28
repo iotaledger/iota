@@ -22,9 +22,10 @@ use iota_types::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV1,
-        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
-        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+        HandleCertificateRequestV1, HandleCertificateResponse,
+        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
     transaction::*,
@@ -44,7 +45,7 @@ pub trait AuthorityAPI {
     /// Execute a certificate.
     async fn handle_certificate(
         &self,
-        request: HandleCertificateRequest,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponse, IotaError>;
 
@@ -149,7 +150,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
 
     async fn handle_certificate(
         &self,
-        request: HandleCertificateRequest,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponse, IotaError> {
         let mut request = request.into_request();

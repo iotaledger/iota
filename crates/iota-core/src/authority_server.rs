@@ -28,9 +28,10 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV1,
-        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
-        ObjectInfoResponse, SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
+        HandleCertificateRequestV1, HandleCertificateResponse,
+        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
+        SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
         TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
@@ -362,7 +363,7 @@ impl ValidatorService {
         &self,
         cert: CertifiedTransaction,
     ) -> Result<tonic::Response<HandleCertificateResponse>, tonic::Status> {
-        let request = make_tonic_request_for_testing(HandleCertificateRequest::new(cert));
+        let request = make_tonic_request_for_testing(HandleCertificateRequestV1::new(cert));
         self.handle_certificate(request).await
     }
 
@@ -704,7 +705,7 @@ impl ValidatorService {
 
     async fn handle_certificate_impl(
         &self,
-        request: tonic::Request<HandleCertificateRequest>,
+        request: tonic::Request<HandleCertificateRequestV1>,
     ) -> WrappedServiceResponse<HandleCertificateResponse> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let request = request.into_inner();
@@ -1134,7 +1135,7 @@ impl Validator for ValidatorService {
 
     async fn handle_certificate(
         &self,
-        request: tonic::Request<HandleCertificateRequest>,
+        request: tonic::Request<HandleCertificateRequestV1>,
     ) -> Result<tonic::Response<HandleCertificateResponse>, tonic::Status> {
         handle_with_decoration!(self, handle_certificate_impl, request)
     }

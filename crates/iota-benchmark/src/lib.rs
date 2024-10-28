@@ -54,7 +54,7 @@ use iota_types::{
     gas_coin::GasCoin,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     message_envelope::Envelope,
-    messages_grpc::{HandleCertificateRequest, HandleCertificateResponse, TransactionStatus},
+    messages_grpc::{HandleCertificateResponseV1, TransactionStatus},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
@@ -524,7 +524,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             let name = *name;
             futures.push(async move {
                 client
-                    .handle_certificate(HandleCertificateRequest::new(certificate), None)
+                    .handle_certificate(HandleCertificateRequestV1::new(certificate), None)
                     .map(move |r| (r, name))
                     .await
             });
@@ -539,7 +539,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             auth_agg.metrics.inflight_certificate_requests.dec();
             match response {
                 // If all goes well, the validators reply with signed effects.
-                Ok(HandleCertificateResponse {
+                Ok(HandleCertificateResponseV1 {
                     effects,
                     events,
                     .. // unused field

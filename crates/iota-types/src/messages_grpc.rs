@@ -165,7 +165,7 @@ pub struct TransactionInfoResponse {
 pub struct SubmitCertificateResponse {
     /// If transaction is already executed, return same result as
     /// handle_certificate
-    pub executed: Option<HandleCertificateResponse>,
+    pub executed: Option<HandleCertificateResponseV1>,
 }
 
 #[derive(Clone, Debug)]
@@ -189,7 +189,7 @@ pub struct SystemStateRequest {
 /// executed locally on the validator and will not be returned for requests to
 /// previously executed transactions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCertificateResponse {
+pub struct HandleCertificateResponseV1 {
     pub effects: SignedTransactionEffects,
     pub events: Option<TransactionEvents>,
 
@@ -208,7 +208,7 @@ pub struct HandleCertificateResponse {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCertificateRequest {
+pub struct HandleCertificateRequestV1 {
     pub certificate: CertifiedTransaction,
 
     pub include_events: bool,
@@ -217,7 +217,7 @@ pub struct HandleCertificateRequest {
     pub include_auxiliary_data: bool,
 }
 
-impl HandleCertificateRequest {
+impl HandleCertificateRequestV1 {
     pub fn new(certificate: CertifiedTransaction) -> Self {
         Self {
             certificate,
@@ -257,7 +257,7 @@ impl HandleCertificateRequest {
 /// Otherwise, `responses` will be empty.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HandleSoftBundleCertificatesResponseV1 {
-    pub responses: Vec<HandleCertificateResponse>,
+    pub responses: Vec<HandleCertificateResponseV1>,
 }
 
 /// Soft Bundle request.  See [SIP-19](https://github.com/sui-foundation/sips/blob/main/sips/sip-19.md).

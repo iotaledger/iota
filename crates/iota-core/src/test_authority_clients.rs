@@ -21,9 +21,10 @@ use iota_types::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse, HandleSoftBundleCertificatesRequestV1,
-        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
-        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1,
+        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse,
     },
     transaction::{Transaction, VerifiedTransaction},
 };
@@ -86,7 +87,7 @@ impl AuthorityAPI for LocalAuthorityClient {
 
     async fn handle_certificate(
         &self,
-        request: HandleCertificateRequest,
+        request: HandleCertificateRequestV1,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponse, IotaError> {
         let state = self.state.clone();
@@ -172,7 +173,7 @@ impl LocalAuthorityClient {
     // transactions.
     async fn handle_certificate(
         state: Arc<AuthorityState>,
-        request: HandleCertificateRequest,
+        request: HandleCertificateRequestV1,
         fault_config: LocalAuthorityClientFaultConfig,
     ) -> Result<HandleCertificateResponse, IotaError> {
         if fault_config.fail_before_handle_confirmation {
@@ -271,7 +272,7 @@ impl AuthorityAPI for MockAuthorityApi {
 
     async fn handle_certificate(
         &self,
-        _request: HandleCertificateRequest,
+        _request: HandleCertificateRequestV1,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponse, IotaError> {
         unimplemented!()
@@ -360,7 +361,7 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
 
     async fn handle_certificate(
         &self,
-        _request: HandleCertificateRequest,
+        _request: HandleCertificateRequestV1,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponse, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {

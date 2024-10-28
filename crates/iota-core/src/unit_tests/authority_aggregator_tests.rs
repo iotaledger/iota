@@ -229,7 +229,7 @@ where
 {
     authority
         .handle_certificate(
-            HandleCertificateRequest::new(cert.clone()),
+            HandleCertificateRequestV1::new(cert.clone()),
             Some(make_socket_addr()),
         )
         .await
@@ -244,7 +244,7 @@ where
 {
     let result = authority
         .handle_certificate(
-            HandleCertificateRequest::new(cert.clone()),
+            HandleCertificateRequestV1::new(cert.clone()),
             Some(make_socket_addr()),
         )
         .await;
@@ -312,7 +312,7 @@ async fn execute_transaction_with_fault_configs(
         set_local_client_config(&mut authorities, *index, *config);
     }
 
-    let request = HandleCertificateRequest {
+    let request = HandleCertificateRequestV1 {
         certificate: cert.into_cert_for_testing(),
         include_events: true,
         include_input_objects: false,
@@ -385,7 +385,7 @@ async fn test_quorum_map_and_reduce_timeout() {
     // Send request with a very small timeout to trigger timeout error
     authorities.timeouts.pre_quorum_timeout = Duration::from_nanos(0);
     authorities.timeouts.post_quorum_timeout = Duration::from_nanos(0);
-    let request = HandleCertificateRequest {
+    let request = HandleCertificateRequestV1 {
         certificate: certificate.clone(),
         include_events: true,
         include_input_objects: false,
@@ -857,7 +857,7 @@ async fn test_handle_certificate_response() {
         .unwrap();
     agg.committee = Arc::new(committee_1);
 
-    let request = HandleCertificateRequest {
+    let request = HandleCertificateRequestV1 {
         certificate: cert_epoch_0.clone(),
         include_events: true,
         include_input_objects: false,

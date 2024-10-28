@@ -18,8 +18,9 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
     },
     messages_grpc::{
-        HandleCertificateRequest, HandleCertificateResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SystemStateRequest, TransactionInfoRequest, TransactionStatus, VerifiedObjectInfoResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
+        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionStatus,
+        VerifiedObjectInfoResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
@@ -330,14 +331,14 @@ where
     fn verify_certificate_response_v3(
         &self,
         digest: &TransactionDigest,
-        HandleCertificateResponse {
+        HandleCertificateResponseV1 {
             effects,
             events,
             input_objects,
             output_objects,
             auxiliary_data,
-        }: HandleCertificateResponse,
-    ) -> IotaResult<HandleCertificateResponse> {
+        }: HandleCertificateResponseV1,
+    ) -> IotaResult<HandleCertificateResponseV1> {
         let effects = self.check_signed_effects_plain(digest, effects, None)?;
 
         // Check Events
@@ -410,7 +411,7 @@ where
             }
         }
 
-        Ok(HandleCertificateResponse {
+        Ok(HandleCertificateResponseV1 {
             effects,
             events,
             input_objects,
@@ -422,9 +423,9 @@ where
     /// Execute a certificate.
     pub async fn handle_certificate(
         &self,
-        request: HandleCertificateRequest,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponse, IotaError> {
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
         let digest = *request.certificate.digest();
         let _timer = self.metrics.handle_certificate_latency.start_timer();
         let response = self

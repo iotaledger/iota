@@ -293,7 +293,7 @@ mod tests {
             CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
         },
         messages_grpc::{
-            HandleCertificateRequest, HandleCertificateResponse,
+            HandleCertificateRequestV1, HandleCertificateResponse,
             HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
             HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
             TransactionInfoRequest, TransactionInfoResponse,
@@ -340,7 +340,7 @@ mod tests {
 
         async fn handle_certificate(
             &self,
-            request: HandleCertificateRequest,
+            request: HandleCertificateRequestV1,
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleCertificateResponse, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
