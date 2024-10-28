@@ -809,14 +809,13 @@ impl TestCluster {
 
         let keypair = &*keypair.lock().await;
 
-        let gas_ref = self
+        let gas_ref = *self
             .wallet
             .get_gas_objects_owned_by_address(*address, None)
             .await
             .unwrap()
             .first()
-            .unwrap()
-            .clone();
+            .unwrap();
 
         let tx_data = TestTransactionBuilder::new(*address, gas_ref, rgp)
             .transfer_iota(amount, funding_address)
@@ -1301,7 +1300,7 @@ impl TestClusterBuilder {
         let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
         let accounts = &mut self.get_or_init_genesis_config().accounts;
         accounts.push(AccountConfig {
-            address: Some(faucet_address.clone()),
+            address: Some(faucet_address),
             gas_amounts: vec![DEFAULT_GAS_AMOUNT],
         });
 
