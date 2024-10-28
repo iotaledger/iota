@@ -34,7 +34,7 @@ and writing the fields of a struct in other modules is only possible if the modu
 struct provides public functions to access the fields.
 :::
 
-## Create and use an instance
+## Create and Use an Instance
 
 We described how struct _definition_ works. Now let's see how to initialize a struct and use it. A
 struct can be initialized using the `struct_name { field1: value1, field2: value2, ... }` syntax.
@@ -55,7 +55,7 @@ Only module defining the struct can access its fields (both mutably and immutabl
 code should be in the same module as the `Artist` struct.
 
 
-## Unpacking a struct
+## Unpacking a Struct
 
 Structs are non-discardable by default, meaning that the initiated struct value must be used: either
 stored or _unpacked_. Unpacking a struct means deconstructing it into its fields. This is done using
