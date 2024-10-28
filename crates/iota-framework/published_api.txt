@@ -565,9 +565,6 @@ calculate_total_stakes
 adjust_stake_and_gas_price
 	fun
 	0x3::validator_set
-compute_reward_adjustments
-	fun
-	0x3::validator_set
 compute_slashed_validators
 	fun
 	0x3::validator_set
