@@ -31,7 +31,7 @@ AuthenticatorStateExpire:
     - min_epoch: U64
     - authenticator_obj_initial_shared_version:
         TYPENAME: SequenceNumber
-AuthenticatorStateUpdate:
+AuthenticatorStateUpdateV1:
   STRUCT:
     - epoch: U64
     - round: U64
@@ -928,9 +928,9 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: ConsensusCommitPrologueV1
     3:
-      AuthenticatorStateUpdate:
+      AuthenticatorStateUpdateV1:
         NEWTYPE:
-          TYPENAME: AuthenticatorStateUpdate
+          TYPENAME: AuthenticatorStateUpdateV1
     4:
       EndOfEpochTransaction:
         NEWTYPE:

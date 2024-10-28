@@ -44,6 +44,9 @@ pub struct SystemParametersV1 {
     /// The duration of an epoch, in milliseconds.
     pub epoch_duration_ms: u64,
 
+    /// Minimum number of active validators at any moment.
+    pub min_validator_count: u64,
+
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
     pub max_validator_count: u64,
@@ -272,7 +275,7 @@ impl ValidatorMetadataV1 {
     }
 }
 
-/// Rust version of the Move iota::validator::Validator type
+/// Rust version of the Move iota::validator::ValidatorV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorV1 {
     metadata: ValidatorMetadataV1,
@@ -394,7 +397,7 @@ impl ValidatorV1 {
     }
 }
 
-/// Rust version of the Move iota_system::staking_pool::StakingPool type
+/// Rust version of the Move iota_system::staking_pool::StakingPoolV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakingPoolV1 {
     pub id: ObjectID,
@@ -410,7 +413,7 @@ pub struct StakingPoolV1 {
     pub extra_fields: Bag,
 }
 
-/// Rust version of the Move iota_system::validator_set::ValidatorSet type
+/// Rust version of the Move iota_system::validator_set::ValidatorSetV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorSetV1 {
     pub total_stake: u64,
@@ -424,16 +427,16 @@ pub struct ValidatorSetV1 {
     pub extra_fields: Bag,
 }
 
-/// Rust version of the Move iota_system::storage_fund::StorageFund type
+/// Rust version of the Move iota_system::storage_fund::StorageFundV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StorageFundV1 {
     pub total_object_storage_rebates: Balance,
     pub non_refundable_balance: Balance,
 }
 
-/// Rust version of the Move iota_system::iota_system::IotaSystemStateInner type
+/// Rust version of the Move iota_system::iota_system::IotaSystemStateV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct IotaSystemStateInnerV1 {
+pub struct IotaSystemStateV1 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
@@ -453,7 +456,7 @@ pub struct IotaSystemStateInnerV1 {
     // TODO: Use getters instead of all pub.
 }
 
-impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
+impl IotaSystemStateTrait for IotaSystemStateV1 {
     fn epoch(&self) -> u64 {
         self.epoch
     }
@@ -522,7 +525,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
         let table_id = self.validators.pending_active_validators.contents.id;
         let table_size = self.validators.pending_active_validators.contents.size;
         let validators: Vec<ValidatorV1> =
-            get_validators_from_table_vec(object_store, table_id, table_size)?;
+            get_validators_from_table_vec(&object_store, table_id, table_size)?;
         Ok(validators
             .into_iter()
             .map(|v| v.into_iota_validator_summary())
@@ -606,6 +609,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             parameters:
                 SystemParametersV1 {
                     epoch_duration_ms,
+                    min_validator_count: _, /* TODO: Add it to RPC layer in the future https://github.com/iotaledger/iota/issues/3232. */
                     max_validator_count,
                     min_validator_joining_stake,
                     validator_low_stake_threshold,
@@ -678,7 +682,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
 /// Rust version of the Move
 /// iota_system::validator_cap::UnverifiedValidatorOperationCap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct UnverifiedValidatorOperationCapV1 {
+pub struct UnverifiedValidatorOperationCap {
     pub id: ObjectID,
     pub authorizer_validator_address: IotaAddress,
 }

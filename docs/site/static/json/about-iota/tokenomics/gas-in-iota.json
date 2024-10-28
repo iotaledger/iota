@@ -1,0 +1,33 @@
+{
+    "questions": [
+      {
+        "questionText": "What components make up the total gas fees in an IOTA transaction?",
+        "answerOptions": [
+          { "answerText": "Computation units and transaction time.", "isCorrect": false },
+          { "answerText": "Computation units and gas price.", "isCorrect": false },
+          { "answerText": "Computation units and storage units.", "isCorrect": true },
+          { "answerText": "Storage units and network traffic.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What happens to storage fees when data is deleted in an IOTA transaction?",
+        "answerOptions": [
+          { "answerText": "The storage fee is partially rebated.", "isCorrect": false },
+          { "answerText": "The storage fee is fully rebated.", "isCorrect": true },
+          { "answerText": "The storage fee increases with every deletion.", "isCorrect": false },
+          { "answerText": "There is no rebate for storage fees", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "Why does IOTA use a bucketing approach for computation units?",
+        "answerOptions": [
+          { "answerText": "To discourage validators from optimizing smart contracts.", "isCorrect": false },
+          { "answerText": "To simplify gas cost calculations and avoid marginal gas cost optimizations.", "isCorrect": true },
+          { "answerText": "To reduce the computational load on validators.", "isCorrect": false },
+          { "answerText": "To increase the complexity of transactions.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+
+  

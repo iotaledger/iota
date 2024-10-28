@@ -4,17 +4,9 @@ expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
 version: 1
 feature_flags:
-  disable_invariant_violation_check_in_swap_loc: true
-  advance_to_highest_supported_protocol_version: true
-  no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
-  hardened_otw_check: true
-  enable_group_ops_native_functions: true
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
-  mysticeti_leader_scoring_and_schedule: true
-  mysticeti_num_leaders_per_round: 1
-  rethrow_serialization_type_layout_errors: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

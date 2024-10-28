@@ -10,7 +10,7 @@ module iota_system::genesis {
     use iota::iota::{Self, IotaTreasuryCap};
     use iota::timelock::SystemTimelockCap;
     use iota_system::iota_system;
-    use iota_system::validator::{Self, Validator};
+    use iota_system::validator::{Self, ValidatorV1};
     use iota_system::validator_set;
     use iota_system::iota_system_state_inner;
     use iota_system::timelocked_staking;
@@ -42,7 +42,7 @@ module iota_system::genesis {
         chain_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
 
-        // Validator committee parameters
+        // ValidatorV1 committee parameters
         max_validator_count: u64,
         min_validator_joining_stake: u64,
         validator_low_stake_threshold: u64,
@@ -100,7 +100,7 @@ module iota_system::genesis {
 
         let storage_fund = balance::zero();
 
-        // Create all the `Validator` structs
+        // Create all the `ValidatorV1` structs
         let mut validators = vector[];
         let count = genesis_validators.length();
         let mut i = 0;
@@ -166,7 +166,7 @@ module iota_system::genesis {
         let system_parameters = iota_system_state_inner::create_system_parameters(
             genesis_chain_parameters.epoch_duration_ms,
 
-            // Validator committee parameters
+            // ValidatorV1 committee parameters
             genesis_chain_parameters.max_validator_count,
             genesis_chain_parameters.min_validator_joining_stake,
             genesis_chain_parameters.validator_low_stake_threshold,
@@ -192,7 +192,7 @@ module iota_system::genesis {
     fun allocate_tokens(
         iota_treasury_cap: &mut IotaTreasuryCap,
         mut allocations: vector<TokenAllocation>,
-        validators: &mut vector<Validator>,
+        validators: &mut vector<ValidatorV1>,
         timelock_genesis_label: Option<String>,
         ctx: &mut TxContext,
     ) {
@@ -239,7 +239,7 @@ module iota_system::genesis {
         allocations.destroy_empty();
     }
 
-    fun activate_validators(validators: &mut vector<Validator>) {
+    fun activate_validators(validators: &mut vector<ValidatorV1>) {
         // Activate all genesis validators
         let count = validators.length();
         let mut i = 0;
