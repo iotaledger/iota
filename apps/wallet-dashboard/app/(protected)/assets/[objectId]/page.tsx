@@ -28,7 +28,7 @@ const VisualAssetDetailPage = () => {
 
     return (
         <div className="flex h-full w-full flex-col space-y-4 px-40">
-            <RouteLink path="/dashboard/assets/visual-assets" title="Back" />
+            <RouteLink path="/assets" title="Back" />
             {asset?.data ? (
                 <AssetCard key={asset.data.objectId} asset={asset.data} />
             ) : (
