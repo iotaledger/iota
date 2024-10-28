@@ -976,7 +976,7 @@ module iota_system::validator_set {
         staking_reward_amounts
     }
 
-    /// Use the reward adjustment info to compute the adjusted rewards each validator should get.
+    /// Computes the adjusted rewards each validator should get.
     /// Returns the staking rewards each validator gets.
     /// The staking rewards are shared with the stakers.
     fun compute_adjusted_reward_distribution(
