@@ -74,7 +74,7 @@ impl ApiTestSetup {
 pub struct SimulacrumTestSetup {
     pub runtime: Runtime,
     pub sim: Arc<Simulacrum>,
-    pub store: PgIndexerStore,
+    pub store: PgIndexerStore<PgConnection>,
     /// Indexer RPC Client
     pub client: HttpClient,
 }
@@ -82,16 +82,23 @@ pub struct SimulacrumTestSetup {
 impl SimulacrumTestSetup {
     pub fn get_or_init<'a>(
         unique_env_name: &str,
-        env_initializer: impl Fn() -> Simulacrum,
+        env_initializer: impl Fn(PathBuf) -> Simulacrum,
         initialized_env_container: &'a OnceLock<SimulacrumTestSetup>,
     ) -> &'a SimulacrumTestSetup {
         initialized_env_container.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            let sim = Arc::new(env_initializer());
+            let data_ingestion_path = tempdir().unwrap().into_path();
+
+            let sim = env_initializer(data_ingestion_path.clone());
+            let sim = Arc::new(sim);
+
             let db_name = format!("simulacrum_env_db_{}", unique_env_name);
-            let (_, store, _, client) = runtime.block_on(
-                start_simulacrum_rest_api_with_read_write_indexer(sim.clone(), Some(&db_name)),
-            );
+            let (_, store, _, client) =
+                runtime.block_on(start_simulacrum_rest_api_with_read_write_indexer(
+                    sim.clone(),
+                    data_ingestion_path,
+                    Some(&db_name),
+                ));
 
             SimulacrumTestSetup {
                 runtime,
@@ -236,11 +243,15 @@ pub async fn indexer_wait_for_transaction(
 }
 
 /// Start an Indexer instance in `Read` mode
-fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path: PathBuf, database_name: Option<&str>) -> u16 {
+fn start_indexer_reader(
+    fullnode_rpc_url: impl Into<String>,
+    data_ingestion_path: PathBuf,
+    database_name: Option<&str>,
+) -> u16 {
     let db_url = get_indexer_db_url(database_name);
     let port = get_available_port(DEFAULT_INDEXER_IP);
     let config = IndexerConfig {
-        db_url: Some(db_url.clone()),
+        db_url: Some(db_url.clone().into()),
         rpc_client_url: fullnode_rpc_url.into(),
         reset_db: true,
         rpc_server_worker: true,
@@ -253,9 +264,9 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path
     let registry = prometheus::Registry::default();
     init_metrics(&registry);
 
-    tokio::spawn(async move {
-        Indexer::start_reader::<PgConnection>(&config, &registry, db_url).await
-    });
+    tokio::spawn(
+        async move { Indexer::start_reader::<PgConnection>(&config, &registry, db_url).await },
+    );
     port
 }
 
@@ -318,15 +329,18 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     let simulacrum_server_url = new_local_tcp_socket_for_testing();
     let (server_handle, pg_store, pg_handle) = start_simulacrum_rest_api_with_write_indexer(
         sim,
-        data_ingestion_path.clone()
+        data_ingestion_path.clone(),
         Some(simulacrum_server_url),
         database_name,
     )
     .await;
 
     // start indexer in read mode
-    let indexer_port =
-        start_indexer_reader(format!("http://{}", simulacrum_server_url), data_ingestion_path, database_name);
+    let indexer_port = start_indexer_reader(
+        format!("http://{}", simulacrum_server_url),
+        data_ingestion_path,
+        database_name,
+    );
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()

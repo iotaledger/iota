@@ -54,9 +54,9 @@ mod ingestion_tests {
 
         let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
             Arc::new(sim),
-            data_ingestion_path
+            data_ingestion_path,
             None,
-            Some("indexer_ingestion_tests_db".to_string()),
+            Some("indexer_ingestion_tests_db"),
         )
         .await;
 
@@ -102,8 +102,13 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         let _ = sim.create_checkpoint();
 
-        let (_, pg_store, _) =
-            start_simulacrum_rest_api_with_write_indexer(Arc::new(sim), data_ingestion_path).await;
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+        )
+        .await;
 
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 

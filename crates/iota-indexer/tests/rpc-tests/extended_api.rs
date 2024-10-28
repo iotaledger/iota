@@ -28,20 +28,19 @@ static EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV: OnceLock<SimulacrumTestSe
     OnceLock::new();
 
 fn get_or_init_shared_extended_api_simulacrum_env() -> &'static SimulacrumTestSetup {
-    let data_ingestion_path = tempdir().unwrap().into_path();
     SimulacrumTestSetup::get_or_init(
         "extended_api",
-        || {
+        |data_ingestion_path| {
             let mut sim = Simulacrum::new();
-    sim.set_data_ingestion_path(data_ingestion_path.clone());
+            sim.set_data_ingestion_path(data_ingestion_path);
 
             execute_simulacrum_transactions(&mut sim, 15);
             add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+            sim.advance_epoch();
 
             execute_simulacrum_transactions(&mut sim, 10);
             add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+            sim.advance_epoch();
 
             execute_simulacrum_transactions(&mut sim, 5);
             add_checkpoints(&mut sim, 300);
