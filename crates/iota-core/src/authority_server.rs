@@ -703,7 +703,7 @@ impl ValidatorService {
         })
     }
 
-    async fn handle_certificate_impl(
+    async fn handle_certificate_v1_impl(
         &self,
         request: tonic::Request<HandleCertificateRequestV1>,
     ) -> WrappedServiceResponse<HandleCertificateResponseV1> {
@@ -713,7 +713,7 @@ impl ValidatorService {
             .certificate
             .validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
-        let span = error_span!("handle_certificate", tx_digest = ?request.certificate.digest());
+        let span = error_span!("handle_certificate_v1", tx_digest = ?request.certificate.digest());
         self.handle_certificates(
             nonempty![request.certificate],
             request.include_events,
@@ -809,7 +809,7 @@ impl ValidatorService {
         Ok(())
     }
 
-    async fn handle_soft_bundle_certificates_impl(
+    async fn handle_soft_bundle_certificates_v1_impl(
         &self,
         request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
     ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
@@ -1137,14 +1137,14 @@ impl Validator for ValidatorService {
         &self,
         request: tonic::Request<HandleCertificateRequestV1>,
     ) -> Result<tonic::Response<HandleCertificateResponseV1>, tonic::Status> {
-        handle_with_decoration!(self, handle_certificate_impl, request)
+        handle_with_decoration!(self, handle_certificate_v1_impl, request)
     }
 
     async fn handle_soft_bundle_certificates_v1(
         &self,
         request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
     ) -> Result<tonic::Response<HandleSoftBundleCertificatesResponseV1>, tonic::Status> {
-        handle_with_decoration!(self, handle_soft_bundle_certificates_impl, request)
+        handle_with_decoration!(self, handle_soft_bundle_certificates_v1_impl, request)
     }
 
     /// Handles an `ObjectInfoRequest` request.

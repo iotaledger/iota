@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         .method(
             Method::builder()
                 .name("handle_certificate_v1")
-                .route_name("CertifiedTransaction")
+                .route_name("CertifiedTransactionV1")
                 .input_type("iota_types::messages_grpc::HandleCertificateRequestV1")
                 .output_type("iota_types::messages_grpc::HandleCertificateResponseV1")
                 .codec_path(codec_path)
