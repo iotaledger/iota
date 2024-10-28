@@ -18,3 +18,4 @@ export * from './Popup';
 export * from './AppList';
 export * from './Cards';
 export * from './Buttons';
+export * from './ImageIcon';

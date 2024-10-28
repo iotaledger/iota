@@ -1,34 +1,60 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    CardType,
+    ImageType,
+} from '@iota/apps-ui-kit';
 import { useFormatCoin } from '@iota/core';
-import React from 'react';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { type ReactNode } from 'react';
+import { ImageIconSize } from '../ImageIcon';
+import { CoinIcon } from './CoinIcon';
 
 interface CoinItemProps {
     coinType: string;
     balance: bigint;
     onClick?: () => void;
+    icon?: ReactNode;
+    clickableAction?: ReactNode;
+    usd?: number;
 }
 
-function CoinItem({ coinType, balance, onClick }: CoinItemProps): React.JSX.Element {
-    const [formattedCoin, coinSymbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
+function CoinItem({
+    coinType,
+    balance,
+    onClick,
+    icon,
+    clickableAction,
+    usd,
+}: CoinItemProps): React.JSX.Element {
+    const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
+    const isIota = coinType === IOTA_TYPE_ARG;
 
     return (
-        <div
-            onClick={onClick}
-            className="flex w-full cursor-pointer items-center justify-between gap-4 rounded border px-6 py-3"
-        >
-            <div className="flex flex-1 items-center justify-between gap-1.5">
-                <div className="max-w-token-width">
-                    <span className="truncate uppercase">{coinMeta?.name}</span>
+        <Card type={CardType.Default} onClick={onClick}>
+            <CardImage type={ImageType.BgTransparent}>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
+                    <CoinIcon coinType={coinType} rounded size={ImageIconSize.Small} />
                 </div>
-                <div className="flex flex-row items-center justify-center">
-                    <span>
-                        {formattedCoin} {coinSymbol}
-                    </span>
-                </div>
-            </div>
-        </div>
+            </CardImage>
+            <CardBody
+                title={isIota ? (coinMeta?.name || '').toUpperCase() : coinMeta?.name || symbol}
+                subtitle={symbol}
+                clickableAction={clickableAction}
+                icon={icon}
+            />
+            <CardAction
+                type={CardActionType.SupportingText}
+                title={`${formatted} ${symbol}`}
+                subtitle={usd?.toLocaleString('en-US')}
+            />
+        </Card>
     );
 }
 
