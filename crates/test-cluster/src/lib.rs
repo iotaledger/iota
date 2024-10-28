@@ -758,7 +758,7 @@ impl TestCluster {
                     let cert = certificate.clone();
                     async move {
                         client
-                            .handle_certificate(HandleCertificateRequestV1::new(cert), None)
+                            .handle_certificate_v1(HandleCertificateRequestV1::new(cert), None)
                             .await
                     }
                 })

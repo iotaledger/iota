@@ -1618,12 +1618,12 @@ where
                         };
 
                         client
-                            .handle_certificate(req, client_addr)
+                            .handle_certificate_v1(req, client_addr)
                             .instrument(trace_span!("handle_certificate", authority =? concise_name))
                             .await
                     } else {
                         client
-                            .handle_certificate(HandleCertificateRequestV1::new(request_ref.certificate).with_events(), client_addr)
+                            .handle_certificate_v1(HandleCertificateRequestV1::new(request_ref.certificate).with_events(), client_addr)
                             .instrument(trace_span!("handle_certificate", authority =? concise_name))
                             .await
                             .map(|response| HandleCertificateResponseV1 {

@@ -22,7 +22,7 @@ use iota_types::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequestV1, HandleCertificateResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
@@ -43,11 +43,11 @@ pub trait AuthorityAPI {
     ) -> Result<HandleTransactionResponse, IotaError>;
 
     /// Execute a certificate.
-    async fn handle_certificate(
+    async fn handle_certificate_v1(
         &self,
         request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponse, IotaError>;
+    ) -> Result<HandleCertificateResponseV1, IotaError>;
 
     /// Execute a Soft Bundle with multiple certificates.
     async fn handle_soft_bundle_certificates_v1(
@@ -148,17 +148,17 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    async fn handle_certificate(
+    async fn handle_certificate_v1(
         &self,
         request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponse, IotaError> {
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
         let mut request = request.into_request();
         insert_metadata(&mut request, client_addr);
 
         let response = self
             .client()?
-            .handle_certificate(request)
+            .handle_certificate_v1(request)
             .await
             .map(tonic::Response::into_inner);
 

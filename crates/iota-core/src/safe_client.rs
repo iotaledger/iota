@@ -421,7 +421,7 @@ where
     }
 
     /// Execute a certificate.
-    pub async fn handle_certificate(
+    pub async fn handle_certificate_v1(
         &self,
         request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
@@ -430,7 +430,7 @@ where
         let _timer = self.metrics.handle_certificate_latency.start_timer();
         let response = self
             .authority_client
-            .handle_certificate(request, client_addr)
+            .handle_certificate_v1(request, client_addr)
             .await?;
 
         let verified = check_error!(

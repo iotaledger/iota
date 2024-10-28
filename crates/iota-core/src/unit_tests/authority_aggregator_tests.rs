@@ -228,7 +228,7 @@ where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
     authority
-        .handle_certificate(
+        .handle_certificate_v1(
             HandleCertificateRequestV1::new(cert.clone()),
             Some(make_socket_addr()),
         )
@@ -243,7 +243,7 @@ where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
     let result = authority
-        .handle_certificate(
+        .handle_certificate_v1(
             HandleCertificateRequestV1::new(cert.clone()),
             Some(make_socket_addr()),
         )

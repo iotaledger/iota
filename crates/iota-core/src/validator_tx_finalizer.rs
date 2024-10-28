@@ -293,7 +293,7 @@ mod tests {
             CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
         },
         messages_grpc::{
-            HandleCertificateRequestV1, HandleCertificateResponse,
+            HandleCertificateRequestV1, HandleCertificateResponseV1,
             HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
             HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
             TransactionInfoRequest, TransactionInfoResponse,
@@ -338,11 +338,11 @@ mod tests {
                 .await
         }
 
-        async fn handle_certificate(
+        async fn handle_certificate_v1(
             &self,
             request: HandleCertificateRequestV1,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleCertificateResponse, IotaError> {
+        ) -> Result<HandleCertificateResponseV1, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
             let (effects, _) = self
                 .authority
@@ -362,7 +362,7 @@ mod tests {
                 .authority
                 .sign_effects(effects, &epoch_store)?
                 .into_inner();
-            Ok(HandleCertificateResponse {
+            Ok(HandleCertificateResponseV1 {
                 effects: signed_effects,
                 events: Some(events),
                 input_objects: None,

@@ -183,7 +183,7 @@ async fn reconfig_with_revert_end_to_end_test() {
         .get_client(&authorities[reverting_authority_idx].with(|node| node.state().name))
         .unwrap();
     client
-        .handle_certificate(
+        .handle_certificate_v1(
             HandleCertificateRequestV1::new(cert.clone()).with_events(),
             None,
         )
