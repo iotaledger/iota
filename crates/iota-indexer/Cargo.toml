@@ -50,7 +50,6 @@ iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-sdk.workspace = true
-iota-test-transaction-builder.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
