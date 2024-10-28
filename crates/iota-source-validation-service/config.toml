@@ -4,7 +4,7 @@ source = "Repository"
 repository = "https://github.com/iotaledger/iota"
 network = "mainnet"
 [[packages.values.branches]]
-branch = "framework/mainnet"
+branch = "mainnet"
 paths = [
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
@@ -17,7 +17,7 @@ source = "Repository"
 repository = "https://github.com/iotaledger/iota"
 network = "testnet"
 [[packages.values.branches]]
-branch = "framework/testnet"
+branch = "testnet"
 paths = [
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
@@ -30,7 +30,7 @@ source = "Repository"
 repository = "https://github.com/iotaledger/iota"
 network = "devnet"
 [[packages.values.branches]]
-branch = "framework/devnet"
+branch = "devnet"
 paths = [
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },

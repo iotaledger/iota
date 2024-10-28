@@ -108,6 +108,7 @@ shlex = "1.3.0"
 iota-macros.workspace = true
 iota-simulator.workspace = true
 iota-test-transaction-builder.workspace = true
+move-cli.workspace = true
 test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]

@@ -29,7 +29,7 @@ A sample configuration entry is as follows:
 source = "Repository"
 [packages.values]
 repository = "https://github.com/iotaledger/iota"
-branch = "framework/mainnet"
+branch = "mainnet"
 network = "mainnet"
 packages = [
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
