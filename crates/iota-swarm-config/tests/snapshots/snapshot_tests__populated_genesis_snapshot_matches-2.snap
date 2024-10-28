@@ -8,7 +8,7 @@ system_state_version: 1
 iota_treasury_cap:
   inner:
     id:
-      id: "0xbcc56dc228d08d0d9324efb875272bdc9d3cd65c80c81b229549352212b1603a"
+      id: "0x7ba2382d99d4d34f39d55677d3cf8bace68ff9b414395e823f4b3b1f5b8779a9"
     total_supply:
       value: "751500000000000000"
 validators:
@@ -244,13 +244,13 @@ validators:
         next_epoch_primary_address: ~
         extra_fields:
           id:
-            id: "0x6e1a6eab42d57998689e98043933df58e0cc685a595e02eb98c31e8747e2075f"
+            id: "0x97c484626382f82340e8e1c6989a57d5ffd3471dadcb3d5405453f93f43cc9b0"
           size: 0
       voting_power: 10000
-      operation_cap_id: "0xa8a7a177bc4241ba371708657809a230f36b5438bb47de2c194340bbf9be5a4c"
+      operation_cap_id: "0x12c601377e08b9b1a4fc1eabbbd20e34f665b8a8d123c4ae0006afbdff96933b"
       gas_price: 1000
       staking_pool:
-        id: "0xd6303962a98fb58ec8161738bfe41b57b75ff1cd98eea0f5bf20f7950bfa89bc"
+        id: "0x4aaac511139597b1acd68475f3cf9a40a261d026db793d9bb9213228a6bc3a24"
         activation_epoch: 0
         deactivation_epoch: ~
         iota_balance: 1500000000000000
@@ -258,14 +258,14 @@ validators:
           value: 0
         pool_token_balance: 1500000000000000
         exchange_rates:
-          id: "0x92be067395b6a056a83502dd1dc7f11ea5d5a895af950bb9a601ab2f04564307"
+          id: "0x358794a785d7ea4e4b953814e677ad1d3d580e480d99ee32fe7133f1aad50d8b"
           size: 1
         pending_stake: 0
         pending_total_iota_withdraw: 0
         pending_pool_token_withdraw: 0
         extra_fields:
           id:
-            id: "0x4cb9e52c1bde4fb125bc645a7e10f84a933f9a5a2bb033150818c3a3c0a715f4"
+            id: "0x215369ce1b8cd5ae13d92e7466d6448898f63362e92c22db9ed671bee1fd6e37"
           size: 0
       commission_rate: 200
       next_epoch_stake: 1500000000000000
@@ -273,27 +273,27 @@ validators:
       next_epoch_commission_rate: 200
       extra_fields:
         id:
-          id: "0xb71bf2d65890434770555a17b390f685fe1a3156788c87ed9103dda374a56d23"
+          id: "0xb124b29bc0bb01f4ba0833d2c52c860614def31cbe0cb6bb2500d20a2ef518aa"
         size: 0
   pending_active_validators:
     contents:
-      id: "0x863b489d464eeba819e5e7b89105699a996e2012951cf81cc407b97f33667f0f"
+      id: "0x894ec4c364d05c6d7b8c65d791261efe8c07a1c38ba843a3a37df40536cc2c6f"
       size: 0
   pending_removals: []
   staking_pool_mappings:
-    id: "0xa2c1ea03cd0de682cb3becef4243df26fdfb71d76947e21a10d82121b75dad6a"
+    id: "0x81109e3abf78a50ba7f74a043049c5a3df88c848e929913da5c287e5f0e1de86"
     size: 1
   inactive_validators:
-    id: "0x4319c9e20eb938ab6bacc279a4d0f846d306df456557ea5a62abf366aeee47bb"
+    id: "0xed8eaac07f4ccec9088a814ec9169a8ec87586f15797ff6d4b80d089a95c724c"
     size: 0
   validator_candidates:
-    id: "0xc0ef087d4b78a311a59f919930baecdd9ce6ae9f143f20c70d86d2f6a3cb24f4"
+    id: "0x9c0ce6b24517363f21e543c12a51ed36ff4a252d9446ec6aaffc9074faed79ff"
     size: 0
   at_risk_validators:
     contents: []
   extra_fields:
     id:
-      id: "0xbcedd10b11e3cb1337e0a1e0cd51e0932756ccbd28b2452721031587be408298"
+      id: "0xf8f51ed1b0cc6fbe3a803637728dd8e21f07f90eb3a5acde5ae2f9df3a0f222e"
     size: 0
 storage_fund:
   total_object_storage_rebates:
@@ -302,6 +302,7 @@ storage_fund:
     value: 0
 parameters:
   epoch_duration_ms: 86400000
+  min_validator_count: 4
   max_validator_count: 150
   min_validator_joining_stake: 2000000000000000
   validator_low_stake_threshold: 1500000000000000
@@ -309,7 +310,7 @@ parameters:
   validator_low_stake_grace_period: 7
   extra_fields:
     id:
-      id: "0x58471edf0cdb26470191f3e31730ed38bf6c691a29d281f6ee936d2d4bdfb179"
+      id: "0x552e25d51ce8d5164c92471ac952a46a93645fa8337f00abe6cec8a87e89423c"
     size: 0
 reference_gas_price: 1000
 validator_report_records:
@@ -324,5 +325,5 @@ safe_mode_non_refundable_storage_fee: 0
 epoch_start_timestamp_ms: 10
 extra_fields:
   id:
-    id: "0xd836d6b9f016d4aafda8fa979b639a76bdeca422b665981c7894ab49f0e42a8f"
+    id: "0xfc995fb81559a3d5e8e8e186bb6fc16a906e2b789ecb032e977003f3498f49b7"
   size: 0

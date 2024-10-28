@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_app/shared/text';
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
 import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
@@ -196,19 +195,15 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                         <UnlockAccountButton account={activeAccount} />
                     ) : (
                         <div className="flex w-full flex-col gap-md">
-                            <div className="flex w-full flex-col items-center gap-3 rounded-2xl">
+                            <div className="flex w-full flex-col items-center gap-sm rounded-2xl">
                                 {!accountHasIota ? (
-                                    <div className="flex flex-col gap-5">
-                                        <div className="flex flex-col flex-nowrap items-center justify-center px-2.5 text-center">
-                                            <Text
-                                                variant="pBodySmall"
-                                                color="gray-80"
-                                                weight="normal"
-                                            >
+                                    <div className="flex flex-col gap-md">
+                                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
+                                            <span className="text-body-sm text-neutral-40">
                                                 {isMainnet
                                                     ? 'Start by buying IOTA'
                                                     : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
-                                            </Text>
+                                            </span>
                                         </div>
                                         {!isMainnet && <FaucetRequestButton />}
                                     </div>

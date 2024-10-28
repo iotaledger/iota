@@ -160,32 +160,11 @@ pub struct IndexStoreTables {
     #[default_options_override_fn = "transactions_to_addr_table_default_config"]
     transactions_to_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
 
-    /// Index from object id to transactions that used that object id as input.
-    #[deprecated]
-    transactions_by_input_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
-
-    /// Index from object id to transactions that modified/created that object
-    /// id.
-    #[deprecated]
-    transactions_by_mutated_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
-
     /// Index from package id, module and function identifier to transactions
     /// that used that moce function call as input.
     #[default_options_override_fn = "transactions_by_move_function_table_default_config"]
     transactions_by_move_function:
         DBMap<(ObjectID, String, String, TxSequenceNumber), TransactionDigest>,
-
-    /// This is a map between the transaction digest and its timestamp (UTC
-    /// timestamp in **milliseconds** since epoch 1/1/1970). A transaction
-    /// digest is subjectively time stamped on a node according to the local
-    /// machine time, so it varies across nodes. The timestamping happens
-    /// when the node sees a txn certificate for the first time.
-    ///
-    /// DEPRECATED. DO NOT USE
-    #[allow(dead_code)]
-    #[default_options_override_fn = "timestamps_table_default_config"]
-    #[deprecated]
-    timestamps: DBMap<TransactionDigest, u64>,
 
     /// Ordering of all indexed transactions.
     #[default_options_override_fn = "transactions_order_table_default_config"]
@@ -214,20 +193,21 @@ pub struct IndexStoreTables {
     #[default_options_override_fn = "dynamic_field_index_table_default_config"]
     dynamic_field_index: DBMap<DynamicFieldKey, DynamicFieldInfo>,
 
-    /// This is an index of all the versions of loaded child objects
-    #[deprecated]
-    loaded_child_object_versions: DBMap<TransactionDigest, Vec<(ObjectID, SequenceNumber)>>,
-
     #[default_options_override_fn = "index_table_default_config"]
     event_order: DBMap<EventId, EventIndex>,
+
     #[default_options_override_fn = "index_table_default_config"]
     event_by_move_module: DBMap<(ModuleId, EventId), EventIndex>,
+
     #[default_options_override_fn = "index_table_default_config"]
     event_by_move_event: DBMap<(StructTag, EventId), EventIndex>,
+
     #[default_options_override_fn = "index_table_default_config"]
     event_by_event_module: DBMap<(ModuleId, EventId), EventIndex>,
+
     #[default_options_override_fn = "index_table_default_config"]
     event_by_sender: DBMap<(IotaAddress, EventId), EventIndex>,
+
     #[default_options_override_fn = "index_table_default_config"]
     event_by_time: DBMap<(u64, EventId), EventIndex>,
 }
@@ -269,11 +249,6 @@ fn transactions_to_addr_table_default_config() -> DBOptions {
 }
 fn transactions_by_move_function_table_default_config() -> DBOptions {
     default_db_options().disable_write_throttling()
-}
-fn timestamps_table_default_config() -> DBOptions {
-    default_db_options()
-        .optimize_for_point_lookup(64)
-        .disable_write_throttling()
 }
 fn owner_index_table_default_config() -> DBOptions {
     default_db_options().disable_write_throttling()
@@ -483,7 +458,6 @@ impl IndexStore {
     pub async fn index_tx(
         &self,
         sender: IotaAddress,
-        active_inputs: impl Iterator<Item = ObjectID>,
         mutated_objects: impl Iterator<Item = (ObjectRef, Owner)> + Clone,
         move_functions: impl Iterator<Item = (ObjectID, Identifier, Identifier)> + Clone,
         events: &TransactionEvents,
@@ -509,21 +483,6 @@ impl IndexStore {
             &self.tables.transactions_from_addr,
             std::iter::once(((sender, sequence), *digest)),
         )?;
-
-        #[allow(deprecated)]
-        if !self.remove_deprecated_tables {
-            batch.insert_batch(
-                &self.tables.transactions_by_input_object_id,
-                active_inputs.map(|id| ((id, sequence), *digest)),
-            )?;
-
-            batch.insert_batch(
-                &self.tables.transactions_by_mutated_object_id,
-                mutated_objects
-                    .clone()
-                    .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
-            )?;
-        }
 
         batch.insert_batch(
             &self.tables.transactions_by_move_function,
@@ -698,12 +657,6 @@ impl IndexStore {
             }) => Ok(self.get_transactions_by_move_function(
                 package, module, function, cursor, limit, reverse,
             )?),
-            Some(TransactionFilter::InputObject(object_id)) => {
-                Ok(self.get_transactions_by_input_object(object_id, cursor, limit, reverse)?)
-            }
-            Some(TransactionFilter::ChangedObject(object_id)) => {
-                Ok(self.get_transactions_by_mutated_object(object_id, cursor, limit, reverse)?)
-            }
             Some(TransactionFilter::FromAddress(address)) => {
                 Ok(self.get_transactions_from_addr(address, cursor, limit, reverse)?)
             }
@@ -779,46 +732,6 @@ impl IndexStore {
                 iter.collect()
             }
         })
-    }
-
-    pub fn get_transactions_by_input_object(
-        &self,
-        input_object: ObjectID,
-        cursor: Option<TxSequenceNumber>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        if self.remove_deprecated_tables {
-            return Ok(vec![]);
-        }
-        #[allow(deprecated)]
-        Self::get_transactions_from_index(
-            &self.tables.transactions_by_input_object_id,
-            input_object,
-            cursor,
-            limit,
-            reverse,
-        )
-    }
-
-    pub fn get_transactions_by_mutated_object(
-        &self,
-        mutated_object: ObjectID,
-        cursor: Option<TxSequenceNumber>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        if self.remove_deprecated_tables {
-            return Ok(vec![]);
-        }
-        #[allow(deprecated)]
-        Self::get_transactions_from_index(
-            &self.tables.transactions_by_mutated_object_id,
-            mutated_object,
-            cursor,
-            limit,
-            reverse,
-        )
     }
 
     pub fn get_transactions_from_addr(
@@ -1655,7 +1568,6 @@ mod tests {
                 address,
                 vec![].into_iter(),
                 vec![].into_iter(),
-                vec![].into_iter(),
                 &TransactionEvents { data: vec![] },
                 object_index_changes,
                 &TransactionDigest::random(),
@@ -1697,7 +1609,6 @@ mod tests {
         index_store
             .index_tx(
                 address,
-                vec![].into_iter(),
                 vec![].into_iter(),
                 vec![].into_iter(),
                 &TransactionEvents { data: vec![] },

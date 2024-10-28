@@ -3,6 +3,9 @@ title: Gas in IOTA
 description: An IOTA transaction must both pay for the computational cost of execution and pay a deposit for storing the objects a transaction creates or mutates.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import {questions} from '../../../site/static/json/about-iota/tokenomics/gas-in-iota.json';
+
 An IOTA transaction must both pay for the computational cost of execution and pay a deposit for storing the objects a transaction creates or mutates. Specifically, [IOTA Gas Pricing](gas-pricing.mdx) is such that any transaction pays the following gas fees:
 
 `total_gas_fees = computation_units * reference_gas_price + storage_units * storage_price`
@@ -75,3 +78,6 @@ These examples showcase the importance of the gas budget. The minimum gas budget
 | Simple transaction storing 10 bytes and deleting data   | 500 NANOS            | 1,000             | 75 NANOS       | 1,000         | 100,000 NANOS   | 500,000 NANOS       | 475,000 NANOS   |
 | Complex transaction storing 120 bytes                   | 1,000 NANOS          | 5,000             | 200 NANOS      | 12,000        | 0 NANOS         | 7,400,000 NANOS     | 7,400,000 NANOS |
 | Complex transaction storing 120 bytes and deleting data | 500 NANOS            | 5,000             | 200 NANOS      | 12,000        | 5,000,000 NANOS | 2,500,000 NANOS     | -100,000 NANOS  |
+
+## Quizzes
+<Quiz questions={questions} />

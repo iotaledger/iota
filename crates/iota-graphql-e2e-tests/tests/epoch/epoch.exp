@@ -21,11 +21,11 @@ gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 
 
 task 4, lines 17-19:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [233, 207, 22, 117, 92, 142, 77, 109, 192, 159, 55, 48, 51, 243, 196, 130, 69, 227, 174, 117, 15, 72, 135, 76, 78, 53, 195, 204, 77, 84, 130, 131, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [135, 213, 224, 32, 91, 207, 0, 187, 34, 183, 14, 41, 167, 78, 77, 75, 138, 89, 173, 167, 170, 11, 38, 100, 45, 178, 245, 162, 113, 72, 177, 240, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(4,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 14561600,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 14523600,  storage_rebate: 1976000, non_refundable_storage_fee: 0
 
 task 5, line 20:
 //# create-checkpoint
@@ -67,11 +67,11 @@ Response: {
           ]
         },
         "validatorCandidatesSize": 0,
-        "inactivePoolsId": "0xccb58847e6337f3f9b05773365f62f7187e0b805ece63f932e8270e51188a9e0"
+        "inactivePoolsId": "0x847b4f25419bcc012e269b2586a54b663d563de25024075481eb96e3ee8c3e0d"
       },
       "totalGasFees": "1000000",
       "totalStakeRewards": "767000000000000",
-      "fundSize": "14561600",
+      "fundSize": "14523600",
       "fundInflow": "1976000",
       "fundOutflow": "988000",
       "netInflow": "988000",
@@ -81,7 +81,7 @@ Response: {
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             },
-            "digest": "o5rxrq6e35THRZTrCB1LM3nVC7r4sM4vaeSBzDzhE6R"
+            "digest": "93Nc7AV6A8XVKLh2r9VPCjAQwoVbuiEGSqUwGBCAKee5"
           },
           {
             "kind": {

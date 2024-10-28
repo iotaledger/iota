@@ -5,9 +5,7 @@
 import { useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { z } from 'zod';
-
 import { CheckboxField } from '../../shared/forms/CheckboxField';
-import FormField from '../../shared/forms/FormField';
 import { SelectField } from '../../shared/forms/SelectField';
 import { Input, InputType, type SelectOption } from '@iota/apps-ui-kit';
 
@@ -59,24 +57,23 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
                 label="Auto-lock after I'm inactive for"
                 disabled={disabled}
             />
-            <FormField name="autoLock.timer">
-                <div className="flex items-start justify-between gap-xs">
-                    <div className="w-2/3">
-                        <Input
-                            disabled={disabled || !timerEnabled}
-                            type={InputType.Number}
-                            {...register('autoLock.timer')}
-                        />
-                    </div>
-                    <div className="w-1/3">
-                        <SelectField
-                            disabled={disabled || !timerEnabled}
-                            name="autoLock.interval"
-                            options={Number(timer) === 1 ? LOCK_INTERVALS : LOCK_INTERVALS_PLURAL}
-                        />
-                    </div>
+            <div className="flex items-start justify-between gap-xs">
+                <div className="w-2/3">
+                    <Input
+                        disabled={disabled || !timerEnabled}
+                        type={InputType.Number}
+                        {...register('autoLock.timer')}
+                        name="autoLock.timer"
+                    />
                 </div>
-            </FormField>
+                <div className="w-1/3">
+                    <SelectField
+                        disabled={disabled || !timerEnabled}
+                        name="autoLock.interval"
+                        options={Number(timer) === 1 ? LOCK_INTERVALS : LOCK_INTERVALS_PLURAL}
+                    />
+                </div>
+            </div>
         </div>
     );
 }

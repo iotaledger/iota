@@ -13,7 +13,7 @@ mod tests {
         test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster},
     };
     use iota_types::{
-        DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS,
         digests::ChainIdentifier,
         gas_coin::GAS,
         transaction::{CallArg, ObjectArg, TransactionDataAPI},
@@ -177,7 +177,7 @@ mod tests {
         let (_, cluster) = prep_executor_cluster().await;
 
         let query = r#"{obj1: object(address: $framework_addr) {address}
-            obj2: object(address: $deepbook_addr) {address}}"#;
+            obj2: object(address: $stardust_addr) {address}}"#;
         let variables = vec![
             GraphqlQueryVariable {
                 name: "framework_addr".to_string(),
@@ -185,9 +185,9 @@ mod tests {
                 value: json!("0x2"),
             },
             GraphqlQueryVariable {
-                name: "deepbook_addr".to_string(),
+                name: "stardust_addr".to_string(),
                 ty: "IotaAddress!".to_string(),
-                value: json!("0xdee9"),
+                value: json!("0x107a"),
             },
         ];
         let res = cluster
@@ -215,7 +215,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            DEEPBOOK_ADDRESS.to_canonical_string(true)
+            STARDUST_ADDRESS.to_canonical_string(true)
         );
 
         let bad_variables = vec![
@@ -225,14 +225,14 @@ mod tests {
                 value: json!("0x2"),
             },
             GraphqlQueryVariable {
-                name: "deepbook_addr".to_string(),
+                name: "stardust_addr".to_string(),
                 ty: "IotaAddress!".to_string(),
-                value: json!("0xdee9"),
+                value: json!("0x107a"),
             },
             GraphqlQueryVariable {
-                name: "deepbook_addr".to_string(),
+                name: "stardust_addr".to_string(),
                 ty: "IotaAddress!".to_string(),
-                value: json!("0xdee96666666"),
+                value: json!("0x0x107aaaaaaaa"),
             },
         ];
         let res = cluster
@@ -249,14 +249,14 @@ mod tests {
                 value: json!("0x2"),
             },
             GraphqlQueryVariable {
-                name: "deepbook_addr".to_string(),
+                name: "stardust_addr".to_string(),
                 ty: "IotaAddress!".to_string(),
-                value: json!("0xdee9"),
+                value: json!("0x107a"),
             },
             GraphqlQueryVariable {
-                name: "deepbook_addr".to_string(),
+                name: "stardust_addr".to_string(),
                 ty: "IotaAddressP!".to_string(),
-                value: json!("0xdee9"),
+                value: json!("0x107a"),
             },
         ];
         let res = cluster
@@ -273,24 +273,24 @@ mod tests {
                 value: json!("0x2"),
             },
             GraphqlQueryVariable {
-                name: " deepbook_addr".to_string(),
+                name: " stardust_addr".to_string(),
                 ty: "IotaAddress!".to_string(),
-                value: json!("0xdee9"),
+                value: json!("0x107a"),
             },
             GraphqlQueryVariable {
-                name: "4deepbook_addr".to_string(),
+                name: "4stardust_addr".to_string(),
                 ty: "IotaAddressP!".to_string(),
-                value: json!("0xdee9"),
+                value: json!("0x107a"),
             },
             GraphqlQueryVariable {
                 name: "".to_string(),
                 ty: "IotaAddress!".to_string(),
-                value: json!("0xdee9"),
+                value: json!("0x107a"),
             },
             GraphqlQueryVariable {
                 name: " ".to_string(),
                 ty: "IotaAddress!".to_string(),
-                value: json!("0xdee9"),
+                value: json!("0x107a"),
             },
         ];
 
@@ -800,10 +800,7 @@ mod tests {
             iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
                 .await;
 
-        cluster
-            .validator_fullnode_handle
-            .trigger_reconfiguration()
-            .await;
+        cluster.validator_fullnode_handle.force_new_epoch().await;
 
         // Wait for the epoch to be indexed
         sleep(Duration::from_secs(10)).await;

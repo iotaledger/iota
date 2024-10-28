@@ -4511,14 +4511,13 @@ type ValidatorConnection {
 The credentials related fields associated with a validator.
 """
 type ValidatorCredentials {
-	protocolPubKey: Base64
+	authorityPubKey: Base64
 	networkPubKey: Base64
-	workerPubKey: Base64
+	protocolPubKey: Base64
 	proofOfPossession: Base64
 	netAddress: String
 	p2PAddress: String
 	primaryAddress: String
-	workerAddress: String
 }
 
 """

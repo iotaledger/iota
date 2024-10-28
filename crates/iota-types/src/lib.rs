@@ -122,7 +122,6 @@ built_in_pkgs! {
     IOTA_FRAMEWORK_ADDRESS / IOTA_FRAMEWORK_PACKAGE_ID = 0x2;
     IOTA_SYSTEM_ADDRESS / IOTA_SYSTEM_PACKAGE_ID = 0x3;
     BRIDGE_ADDRESS / BRIDGE_PACKAGE_ID = 0xb;
-    DEEPBOOK_ADDRESS / DEEPBOOK_PACKAGE_ID = 0xdee9;
     STARDUST_ADDRESS / STARDUST_PACKAGE_ID = 0x107a;
 }
 
@@ -156,7 +155,7 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 /// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x"
 ///   prefix.
 /// - One of a number of pre-defined named addresses: std, iota, iota_system,
-///   deepbook.
+///   stardust.
 ///
 /// Parsing succeeds if and only if `s` matches one of these formats exactly,
 /// with no remaining suffix. This function is intended for use within the
@@ -209,7 +208,6 @@ pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
 /// Resolve well-known named addresses into numeric addresses.
 pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
     match addr {
-        "deepbook" => Some(DEEPBOOK_ADDRESS),
         "std" => Some(MOVE_STDLIB_ADDRESS),
         "iota" => Some(IOTA_FRAMEWORK_ADDRESS),
         "iota_system" => Some(IOTA_SYSTEM_ADDRESS),
@@ -474,17 +472,16 @@ mod tests {
     #[test]
     fn test_dynamic_field_short_addr() {
         let result = parse_iota_struct_tag(
-            "0x2::dynamic_field::Field<address, 0xdee9::custodian_v2::Account<0x234::coin::COIN>>",
+            "0x2::dynamic_field::Field<address, 0x2::balance::Balance<0x234::coin::COIN>>",
         )
         .expect("should not error");
 
-        let expected = expect![
-            "0x2::dynamic_field::Field<address, 0xdee9::custodian_v2::Account<0x234::coin::COIN>>"
-        ];
+        let expected =
+            expect!["0x2::dynamic_field::Field<address, 0x2::balance::Balance<0x234::coin::COIN>>"];
         expected.assert_eq(&result.to_string());
 
         let expected = expect![
-            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x000000000000000000000000000000000000000000000000000000000000dee9::custodian_v2::Account<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
+            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
         ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
@@ -492,17 +489,16 @@ mod tests {
     #[test]
     fn test_dynamic_field_long_addr() {
         let result = parse_iota_struct_tag(
-            "0x2::dynamic_field::Field<address, 0xdee9::custodian_v2::Account<0x234::coin::COIN>>",
+            "0x2::dynamic_field::Field<address, 0x2::balance::Balance<0x234::coin::COIN>>",
         )
         .expect("should not error");
 
-        let expected = expect![
-            "0x2::dynamic_field::Field<address, 0xdee9::custodian_v2::Account<0x234::coin::COIN>>"
-        ];
+        let expected =
+            expect!["0x2::dynamic_field::Field<address, 0x2::balance::Balance<0x234::coin::COIN>>"];
         expected.assert_eq(&result.to_string());
 
         let expected = expect![
-            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x000000000000000000000000000000000000000000000000000000000000dee9::custodian_v2::Account<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
+            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
         ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }

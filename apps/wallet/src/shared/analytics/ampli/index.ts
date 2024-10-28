@@ -122,7 +122,7 @@ export interface AddedAccountsProperties {
     numberOfAccounts: number;
 }
 
-export interface ClickedBullsharkQuestsCtaProperties {
+export interface ClickedAppsBannerProperties {
     /**
      * The flow the user came from.
      */
@@ -392,10 +392,10 @@ export class AddedAccounts implements BaseEvent {
     }
 }
 
-export class ClickedBullsharkQuestsCta implements BaseEvent {
-    event_type = 'clicked bullshark quests cta';
+export class ClickedAppsBannerCta implements BaseEvent {
+    event_type = 'clicked apps banner cta';
 
-    constructor(public event_properties: ClickedBullsharkQuestsCtaProperties) {
+    constructor(public event_properties: ClickedAppsBannerProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -753,20 +753,18 @@ export class Ampli {
   }
 
   /**
-   * clicked bullshark quests cta
-   *
    * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20bullshark%20quests%20cta)
    *
-   * When users click the call-to-action for the Bullshark Quests interstitial/banner.
+   * When users click the call-to-action for banner.
    *
    * @param properties The event's properties (e.g. sourceFlow)
    * @param options Amplitude event options.
    */
-  clickedBullsharkQuestsCta(
-    properties: ClickedBullsharkQuestsCtaProperties,
+  clickedAppsBannerCta(
+    properties: ClickedAppsBannerProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ClickedBullsharkQuestsCta(properties), options);
+    return this.track(new ClickedAppsBannerCta(properties), options);
   }
 
   /**
