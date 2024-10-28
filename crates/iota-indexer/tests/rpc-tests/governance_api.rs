@@ -13,7 +13,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
     balance::Balance,
-    base_types::{ObjectID},
+    base_types::ObjectID,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -23,6 +23,7 @@ use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
+    indexer_wait_for_transaction,
 };
 
 #[test]
@@ -302,7 +303,8 @@ fn test_timelocked_staking() {
         let tx_builder = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price);
         let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
 
-        let _ = context.execute_transaction_must_succeed(txn).await;
+        let res = context.execute_transaction_must_succeed(txn).await;
+        indexer_wait_for_transaction(res.digest, store, client).await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, &cluster).await;
@@ -389,8 +391,9 @@ fn test_timelocked_unstaking() {
         let tx_builder = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price);
         let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
 
-        let _ = context.execute_transaction_must_succeed(txn).await;
+        let res = context.execute_transaction_must_succeed(txn).await;
 
+        indexer_wait_for_transaction(res.digest, store, client).await;
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, &cluster).await;
 
@@ -399,13 +402,19 @@ fn test_timelocked_unstaking() {
         assert_eq!(response.len(), 1);
 
         let timelocked_stake_id = response[0].stakes[0].timelocked_staked_iota_id;
-        let timelocked_stake_id_ref = cluster.wallet.get_object_ref(timelocked_stake_id).await.unwrap();
+        let timelocked_stake_id_ref = cluster
+            .wallet
+            .get_object_ref(timelocked_stake_id)
+            .await
+            .unwrap();
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let timelocked_stake_id_argument = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(timelocked_stake_id_ref)))
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    timelocked_stake_id_ref,
+                )))
                 .expect("valid obj");
 
             let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
@@ -425,8 +434,9 @@ fn test_timelocked_unstaking() {
 
         let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
 
-        let _ = context.execute_transaction_must_succeed(txn).await;
+        let res = context.execute_transaction_must_succeed(txn).await;
 
+        indexer_wait_for_transaction(res.digest, store, client).await;
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, &cluster).await;
 
@@ -441,10 +451,7 @@ fn test_timelocked_unstaking() {
 
         assert_eq!(res.len(), 1);
 
-        assert!(matches!(
-            res[0].stakes[0].status,
-            StakeStatus::Unstaked
-        ));
+        assert!(matches!(res[0].stakes[0].status, StakeStatus::Unstaked));
 
         let res = client
             .get_timelocked_stakes_by_ids(vec![timelocked_stake_id])
@@ -454,7 +461,6 @@ fn test_timelocked_unstaking() {
         assert_eq!(res.len(), 0);
     });
 }
-
 
 #[test]
 fn get_latest_iota_system_state() {

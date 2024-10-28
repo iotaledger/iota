@@ -130,7 +130,10 @@ pub async fn indexer_wait_for_checkpoint(
 /// Wait for the indexer to catch up to the given checkpoint sequence number
 ///
 /// Indexer starts storing data after checkpoint 0
-pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, cluster: &TestCluster) {
+pub async fn indexer_wait_for_latest_checkpoint(
+    pg_store: &PgIndexerStore<PgConnection>,
+    cluster: &TestCluster,
+) {
     let latest_checkpoint = cluster
         .iota_client()
         .read_api()
