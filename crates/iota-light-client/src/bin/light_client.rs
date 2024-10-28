@@ -12,6 +12,7 @@ use iota_light_client::utils::{
 };
 use iota_package_resolver::Resolver;
 use iota_types::{base_types::ObjectID, digests::TransactionDigest, object::Data};
+use anyhow::anyhow;
 
 /// A light client for the Iota blockchain
 #[derive(Parser, Debug)]
@@ -123,7 +124,9 @@ pub async fn main() {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use iota_types::messages_checkpoint::FullCheckpointContents;
+    use iota_light_client::utils::extract_verified_effects_and_events;
+    use iota_rest_api::CheckpointData;
+    use iota_types::{committee::Committee, crypto::AuthorityQuorumSignInfo, message_envelope::Envelope, messages_checkpoint::{CheckpointSummary, FullCheckpointContents}};
 
     use super::*;
 
