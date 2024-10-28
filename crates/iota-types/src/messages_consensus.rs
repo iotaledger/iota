@@ -125,7 +125,7 @@ impl Debug for ConsensusTransactionKey {
 /// Used to advertise capabilities of each authority via consensus. This allows
 /// validators to negotiate the creation of the ChangeEpoch transaction.
 #[derive(Serialize, Deserialize, Clone, Hash)]
-pub struct AuthorityCapabilitiesV2 {
+pub struct AuthorityCapabilitiesV1 {
     /// Originating authority - must match transaction source authority from
     /// consensus.
     pub authority: AuthorityName,
@@ -137,7 +137,8 @@ pub struct AuthorityCapabilitiesV2 {
     /// the epoch, but this should not be interpreted as a timestamp.)
     pub generation: u64,
 
-    /// ProtocolVersions that the authority supports.
+    /// ProtocolVersions that the authority supports, including the hash of the
+    /// serialized ProtocolConfig of that authority per version.
     pub supported_protocol_versions: SupportedProtocolVersionsWithHashes,
 
     /// The ObjectRefs of all versions of system packages that the validator
@@ -146,7 +147,7 @@ pub struct AuthorityCapabilitiesV2 {
     pub available_system_packages: Vec<ObjectRef>,
 }
 
-impl Debug for AuthorityCapabilitiesV2 {
+impl Debug for AuthorityCapabilitiesV1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AuthorityCapabilities")
             .field("authority", &self.authority.concise())
@@ -160,7 +161,7 @@ impl Debug for AuthorityCapabilitiesV2 {
     }
 }
 
-impl AuthorityCapabilitiesV2 {
+impl AuthorityCapabilitiesV1 {
     pub fn new(
         authority: AuthorityName,
         chain: Chain,
@@ -192,7 +193,7 @@ pub enum ConsensusTransactionKind {
     CheckpointSignature(Box<CheckpointSignatureMessage>),
     EndOfPublish(AuthorityName),
 
-    CapabilityNotificationV2(AuthorityCapabilitiesV2),
+    CapabilityNotificationV1(AuthorityCapabilitiesV1),
 
     NewJWKFetched(AuthorityName, JwkId, JWK),
     RandomnessStateUpdate(u64, Vec<u8>), // deprecated
@@ -340,13 +341,13 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_capability_notification_v2(capabilities: AuthorityCapabilitiesV2) -> Self {
+    pub fn new_capability_notification_v1(capabilities: AuthorityCapabilitiesV1) -> Self {
         let mut hasher = DefaultHasher::new();
         capabilities.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::CapabilityNotificationV2(capabilities),
+            kind: ConsensusTransactionKind::CapabilityNotificationV1(capabilities),
         }
     }
 
@@ -426,7 +427,7 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::EndOfPublish(authority) => {
                 ConsensusTransactionKey::EndOfPublish(*authority)
             }
-            ConsensusTransactionKind::CapabilityNotificationV2(cap) => {
+            ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
             }
             ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {

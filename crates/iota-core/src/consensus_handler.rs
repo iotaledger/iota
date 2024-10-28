@@ -539,7 +539,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
-        ConsensusTransactionKind::CapabilityNotificationV2(_) => "capability_notification_v2",
+        ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessStateUpdate(_, _) => "randomness_state_update",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
@@ -810,9 +810,13 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
         committee::Committee,
-        messages_consensus::{AuthorityCapabilitiesV2, ConsensusTransaction, ConsensusTransactionKind},
+        messages_consensus::{
+            AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
+        },
         object::Object,
-        supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
+        supported_protocol_versions::{
+            SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+        },
         transaction::{
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
@@ -958,7 +962,12 @@ mod tests {
     #[test]
     fn test_order_by_gas_price() {
         let chain = Chain::Unknown;
-        let mut v = vec![cap_txn(10, chain), user_txn(42), user_txn(100), cap_txn(1, chain)];
+        let mut v = vec![
+            cap_txn(10, chain),
+            user_txn(42),
+            user_txn(100),
+            cap_txn(1, chain),
+        ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
         assert_eq!(extract(v), vec![
             "cap(10)".to_string(),
@@ -1017,7 +1026,7 @@ mod tests {
                 ConsensusTransactionKind::EndOfPublish(authority) => {
                     format!("eop({})", authority.0[0])
                 }
-                ConsensusTransactionKind::CapabilityNotificationV2(cap) => {
+                ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                     format!("cap({})", cap.generation)
                 }
                 ConsensusTransactionKind::UserTransaction(txn) => {
@@ -1036,15 +1045,16 @@ mod tests {
     }
 
     fn cap_txn(generation: u64, chain: Chain) -> VerifiedSequencedConsensusTransaction {
-        txn(ConsensusTransactionKind::CapabilityNotificationV2(
+        txn(ConsensusTransactionKind::CapabilityNotificationV1(
             // we don't use the "new" constructor because we need to set the generation
-            AuthorityCapabilitiesV2 {
+            AuthorityCapabilitiesV1 {
                 authority: Default::default(),
                 generation,
-                supported_protocol_versions: SupportedProtocolVersionsWithHashes::from_supported_versions(
-                    SupportedProtocolVersions::SYSTEM_DEFAULT,
-                    chain,
-                ),
+                supported_protocol_versions:
+                    SupportedProtocolVersionsWithHashes::from_supported_versions(
+                        SupportedProtocolVersions::SYSTEM_DEFAULT,
+                        chain,
+                    ),
                 available_system_packages: vec![],
             },
         ))

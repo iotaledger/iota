@@ -89,7 +89,7 @@ use iota_types::{
         CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
         VerifiedCheckpoint,
     },
-    messages_consensus::AuthorityCapabilitiesV2,
+    messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
         HandleTransactionResponse, LayoutGenerationOption, ObjectInfoRequest,
         ObjectInfoRequestKind, ObjectInfoResponse, TransactionInfoRequest, TransactionInfoResponse,
@@ -4321,10 +4321,13 @@ impl AuthorityState {
         Some(res)
     }
 
-    fn is_protocol_version_supported_v2(
+    /// Returns the new protocol version and system packages that the network
+    /// has voted to upgrade to. If the proposed protocol version is not
+    /// supported, None is returned.
+    fn is_protocol_version_supported_v1(
         proposed_protocol_version: ProtocolVersion,
         committee: &Committee,
-        capabilities: Vec<AuthorityCapabilitiesV2>,
+        capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
     ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
         if buffer_stake_bps > 10000 {
@@ -4402,10 +4405,13 @@ impl AuthorityState {
             })
     }
 
-    fn choose_protocol_version_and_system_packages_v2(
+    /// Selects the highest supported protocol version and system packages that
+    /// the network has voted to upgrade to. If no upgrade is supported,
+    /// returns the current protocol version and system packages.
+    fn choose_protocol_version_and_system_packages_v1(
         current_protocol_version: ProtocolVersion,
         committee: &Committee,
-        capabilities: Vec<AuthorityCapabilitiesV2>,
+        capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
     ) -> (ProtocolVersion, Vec<ObjectRef>) {
         let mut next_protocol_version = current_protocol_version;
@@ -4414,7 +4420,7 @@ impl AuthorityState {
         // Finds the highest supported protocol version and system packages by
         // incrementing the proposed protocol version by one until no further
         // upgrades are supported.
-        while let Some((version, packages)) = Self::is_protocol_version_supported_v2(
+        while let Some((version, packages)) = Self::is_protocol_version_supported_v1(
             next_protocol_version + 1,
             committee,
             capabilities.clone(),
@@ -4551,11 +4557,11 @@ impl AuthorityState {
         let buffer_stake_bps = epoch_store.get_effective_buffer_stake_bps();
 
         let (next_epoch_protocol_version, next_epoch_system_packages) =
-            Self::choose_protocol_version_and_system_packages_v2(
+            Self::choose_protocol_version_and_system_packages_v1(
                 epoch_store.protocol_version(),
                 epoch_store.committee(),
                 epoch_store
-                    .get_capabilities_v2()
+                    .get_capabilities_v1()
                     .expect("read capabilities from db cannot fail"),
                 buffer_stake_bps,
             );

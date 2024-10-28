@@ -104,7 +104,7 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
-    messages_consensus::{AuthorityCapabilitiesV2, ConsensusTransaction, check_total_jwk_size},
+    messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, check_total_jwk_size},
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::Transaction,
@@ -1538,8 +1538,8 @@ impl IotaNode {
 
                 let config = cur_epoch_store.protocol_config();
                 let binary_config = to_binary_config(config);
-                let transaction = ConsensusTransaction::new_capability_notification_v2(
-                    AuthorityCapabilitiesV2::new(
+                let transaction = ConsensusTransaction::new_capability_notification_v1(
+                    AuthorityCapabilitiesV1::new(
                         self.state.name,
                         cur_epoch_store.get_chain_identifier().chain(),
                         self.config

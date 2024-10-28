@@ -244,7 +244,7 @@ async fn capabilities(State(state): State<Arc<AppState>>) -> (StatusCode, String
     let epoch_store = state.node.state().load_epoch_store_one_call_per_task();
 
     let mut output = String::new();
-    let capabilities = epoch_store.get_capabilities_v2();
+    let capabilities = epoch_store.get_capabilities_v1();
     for capability in capabilities.unwrap_or_default() {
         output.push_str(&format!("{:?}\n", capability));
     }
