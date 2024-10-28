@@ -561,6 +561,6 @@ fn get_validators_apy() {
 
         assert_eq!(epoch, 0);
         assert_eq!(apys.len(), 4);
-        assert_eq!(apys.iter().find(|apy| apy.apy == 0.0).is_some(), true);
+        assert!(apys.iter().find(|apy| apy.apy == 0.0).is_some());
     });
 }
