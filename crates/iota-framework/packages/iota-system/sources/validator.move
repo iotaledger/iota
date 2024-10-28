@@ -557,7 +557,7 @@ module iota_system::validator {
 
     // MUSTFIX: We need to check this when updating metadata as well.
     public fun is_duplicate(self: &ValidatorV1, other: &ValidatorV1): bool {
-         self.metadata.iota_address == other.metadata.iota_address
+        self.metadata.iota_address == other.metadata.iota_address
             || self.metadata.name == other.metadata.name
             || self.metadata.net_address == other.metadata.net_address
             || self.metadata.p2p_address == other.metadata.p2p_address
