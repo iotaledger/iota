@@ -150,7 +150,7 @@ impl<A> TransactionOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
-    #[instrument(name = "tx_orchestrator_execute_transaction", level = "debug", skip_all,
+    #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "debug", skip_all,
     fields(
         tx_digest = ?request.transaction.digest(),
         tx_type = ?request_type,
@@ -213,7 +213,7 @@ where
 
     // Utilize the handle_certificate validator api to request input/output
     // objects
-    #[instrument(name = "tx_orchestrator_execute_transaction_v3", level = "trace", skip_all,
+    #[instrument(name = "tx_orchestrator_execute_transaction", level = "trace", skip_all,
                  fields(tx_digest = ?request.transaction.digest()))]
     pub async fn execute_transaction_v3(
         &self,
