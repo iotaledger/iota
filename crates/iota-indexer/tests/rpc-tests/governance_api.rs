@@ -97,7 +97,7 @@ fn test_staking() {
             .unwrap();
 
         cluster.force_new_epoch().await;
-        indexer_wait_for_latest_checkpoint(store, &cluster).await;
+        indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         // Check DelegatedStake object after epoch transition
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(address).await.unwrap();
@@ -174,7 +174,7 @@ fn test_unstaking() {
             .unwrap();
 
         cluster.force_new_epoch().await;
-        indexer_wait_for_latest_checkpoint(store, &cluster).await;
+        indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         // Check DelegatedStake object
         let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(address).await.unwrap();
@@ -203,7 +203,7 @@ fn test_unstaking() {
         let _ = cluster.wallet.execute_transaction_must_succeed(tx).await;
 
         cluster.force_new_epoch().await;
-        indexer_wait_for_latest_checkpoint(store, &cluster).await;
+        indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         let node_response = cluster
             .rpc_client()
@@ -307,7 +307,7 @@ fn test_timelocked_staking() {
         indexer_wait_for_transaction(res.digest, store, client).await;
 
         cluster.force_new_epoch().await;
-        indexer_wait_for_latest_checkpoint(store, &cluster).await;
+        indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         let response = client.get_timelocked_stakes(sender).await.unwrap();
 
@@ -395,7 +395,7 @@ fn test_timelocked_unstaking() {
 
         indexer_wait_for_transaction(res.digest, store, client).await;
         cluster.force_new_epoch().await;
-        indexer_wait_for_latest_checkpoint(store, &cluster).await;
+        indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         let response = client.get_timelocked_stakes(sender).await.unwrap();
 
@@ -438,7 +438,7 @@ fn test_timelocked_unstaking() {
 
         indexer_wait_for_transaction(res.digest, store, client).await;
         cluster.force_new_epoch().await;
-        indexer_wait_for_latest_checkpoint(store, &cluster).await;
+        indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         let res = client.get_timelocked_stakes(sender).await.unwrap();
         assert_eq!(res.len(), 0);
