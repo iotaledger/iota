@@ -12,6 +12,9 @@ mod extended_api;
 mod indexer_api;
 
 #[cfg(feature = "shared_test_runtime")]
+mod move_utils;
+
+#[cfg(feature = "shared_test_runtime")]
 mod read_api;
 
 #[cfg(feature = "shared_test_runtime")]
