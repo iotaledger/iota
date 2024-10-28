@@ -4,11 +4,11 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { ExternalLink } from '_components';
-import { X32 } from '@iota/icons';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Portal } from '../../../shared/Portal';
+import { Close } from '@iota/ui-icons';
 
 export type InterstitialConfig = {
     enabled: boolean;
@@ -50,7 +50,7 @@ function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: Int
                     <ExternalLink
                         href={bannerUrl}
                         onClick={() => {
-                            ampli.clickedBullsharkQuestsCta({ sourceFlow: 'Interstitial' });
+                            ampli.clickedAppsBannerCta({ sourceFlow: 'Interstitial' });
                             closeInterstitial();
                         }}
                         className="h-full w-full"
@@ -59,11 +59,10 @@ function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: Int
                     </ExternalLink>
                 )}
                 <button
-                    data-testid="bullshark-dismiss"
                     className="absolute bottom-0 w-full cursor-pointer appearance-none border-none bg-transparent pb-5"
                     onClick={() => closeInterstitial(dismissKey)}
                 >
-                    <X32 className="h-8 w-8 text-black" />
+                    <Close className="h-8 w-8 text-black" />
                 </button>
             </div>
         </Portal>

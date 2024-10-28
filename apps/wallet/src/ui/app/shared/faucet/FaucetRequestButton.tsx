@@ -29,7 +29,6 @@ function FaucetRequestButton(): JSX.Element | null {
 
     return mutation.enabled ? (
         <Button
-            data-testid="faucet-request-button"
             type={ButtonType.Secondary}
             disabled={isRateLimited}
             onClick={() => {

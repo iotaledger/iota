@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::file_format_common::VERSION_MAX;
+use crate::file_format_common::{VERSION_1, VERSION_MAX};
 
 /// Configuration for the binary format related to table size.
 /// Maps to all tables in the binary format.
 #[derive(Clone, Debug)]
 pub struct TableConfig {
     pub module_handles: u16,
-    pub struct_handles: u16,
+    pub datatype_handles: u16,
     pub function_handles: u16,
     pub function_instantiations: u16,
     pub signatures: u16,
@@ -22,6 +22,10 @@ pub struct TableConfig {
     pub field_handles: u16,
     pub field_instantiations: u16,
     pub friend_decls: u16,
+    pub enum_defs: u16,
+    pub enum_def_instantiations: u16,
+    pub variant_handles: u16,
+    pub variant_instantiation_handles: u16,
 }
 
 impl TableConfig {
@@ -31,7 +35,7 @@ impl TableConfig {
     pub fn legacy() -> Self {
         TableConfig {
             module_handles: u16::MAX,
-            struct_handles: u16::MAX,
+            datatype_handles: u16::MAX,
             function_handles: u16::MAX,
             function_instantiations: u16::MAX,
             signatures: u16::MAX,
@@ -44,6 +48,11 @@ impl TableConfig {
             field_handles: u16::MAX,
             field_instantiations: u16::MAX,
             friend_decls: u16::MAX,
+            // These can be any number
+            enum_defs: u16::MAX,
+            enum_def_instantiations: u16::MAX,
+            variant_handles: 1024,
+            variant_instantiation_handles: 1024,
         }
     }
 }
@@ -53,6 +62,7 @@ impl TableConfig {
 #[derive(Clone, Debug)]
 pub struct BinaryConfig {
     pub max_binary_format_version: u32,
+    pub min_binary_format_version: u32,
     pub check_no_extraneous_bytes: bool,
     pub table_config: TableConfig,
 }
@@ -60,11 +70,13 @@ pub struct BinaryConfig {
 impl BinaryConfig {
     pub fn new(
         max_binary_format_version: u32,
+        min_binary_format_version: u32,
         check_no_extraneous_bytes: bool,
         table_config: TableConfig,
     ) -> Self {
         Self {
             max_binary_format_version,
+            min_binary_format_version,
             check_no_extraneous_bytes,
             table_config,
         }
@@ -72,9 +84,14 @@ impl BinaryConfig {
 
     // We want to make this disappear from the public API in favor of a "true"
     // config
-    pub fn legacy(max_binary_format_version: u32, check_no_extraneous_bytes: bool) -> Self {
+    pub fn legacy(
+        max_binary_format_version: u32,
+        min_binary_format_version: u32,
+        check_no_extraneous_bytes: bool,
+    ) -> Self {
         Self {
             max_binary_format_version,
+            min_binary_format_version,
             check_no_extraneous_bytes,
             table_config: TableConfig::legacy(),
         }
@@ -85,6 +102,7 @@ impl BinaryConfig {
     pub fn with_extraneous_bytes_check(check_no_extraneous_bytes: bool) -> Self {
         Self {
             max_binary_format_version: VERSION_MAX,
+            min_binary_format_version: VERSION_1,
             check_no_extraneous_bytes,
             table_config: TableConfig::legacy(),
         }
@@ -95,6 +113,7 @@ impl BinaryConfig {
     pub fn standard() -> Self {
         Self {
             max_binary_format_version: VERSION_MAX,
+            min_binary_format_version: VERSION_1,
             check_no_extraneous_bytes: true,
             table_config: TableConfig::legacy(),
         }

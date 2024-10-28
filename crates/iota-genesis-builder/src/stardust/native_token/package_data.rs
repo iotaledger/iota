@@ -14,7 +14,7 @@ use iota_types::stardust::error::StardustError;
 use move_compiler::parser::keywords;
 use rand::distributions::{Alphanumeric, DistString};
 use rand_pcg::Pcg64;
-use rand_seeder::{rand_core::RngCore, Seeder, SipRng};
+use rand_seeder::{Seeder, SipRng, rand_core::RngCore};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -250,15 +250,15 @@ mod tests {
     use std::ops::{Add, Sub};
 
     use iota_sdk::{
+        U256, Url,
         types::block::{
             address::AliasAddress,
             output::{
+                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
                 feature::{Irc30Metadata, MetadataFeature},
                 unlock_condition::ImmutableAliasAddressUnlockCondition,
-                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
             },
         },
-        Url, U256,
     };
 
     use super::*;

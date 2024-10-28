@@ -11,13 +11,13 @@
 use std::time::SystemTime;
 
 use iota_sdk::{
-    client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
+    client::secret::{SecretManage, mnemonic::MnemonicSecretManager},
     types::block::output::Output,
 };
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::{new_vested_output, MERGE_TIMESTAMP_SECS},
+    test_outputs::{MERGE_TIMESTAMP_SECS, new_vested_output},
     types::output_header::OutputHeader,
 };
 

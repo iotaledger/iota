@@ -3,6 +3,9 @@ title: Signatures
 description: IOTA supports multiple cryptography algorithms and primitives and can switch between them rapidly.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/cryptography/signature.json';
+
 When a user submits a signed transaction, a serialized signature and a serialized transaction data is submitted. The serialized transaction data is the BCS serialized bytes of the struct `TransactionData` and the serialized signature is defined as a concatenation of bytes of `flag || sig || pk`.
 
 The `flag` is a 1-byte representation corresponding to the signature scheme that the signer chooses. The following table lists each signing scheme and its corresponding flag:
@@ -32,7 +35,7 @@ The `pk` bytes are the bytes representation of the public key corresponding to t
 | ECDSA Secp256r1 | Compressed, 33 bytes                                      |
 | multisig        | BCS serialized all participating public keys, size varies |
 
-## Signature requirements {#signature-requirements}
+## Signature requirements
 
 The signature must commit to the hash of the intent message of the transaction data, which you can construct by appending the 3-byte intent before the BCS serialized transaction data. To learn more on what an intent is and how to construct an intent message, see [IOTA Intent Signing](intent-signing.mdx).
 
@@ -57,13 +60,13 @@ See a concrete example for offline signing using CLI in the [Offline Signing](of
 
 The Authority on IOTA (collection of validators) holds three distinctive keypairs:
 
-1.  [Protocol key pair](#protocol-key-pair)
+1.  [Authority key pair](#authority-key-pair)
 1.  [Account key pair](#account-key-pair)
 1.  [Network key pair](#network-key-pair)
 
-### Protocol key pair
+### Authority key pair
 
-The protocol key pair provides authority signatures on user-signed transactions if they are verified. When a stake of the authorities that provide signatures on user transactions passes the required two-thirds threshold, IOTA executes the transaction. IOTA uses the BLS12381 scheme for its fast verification on aggregated signatures for a given number of authorities. In particular, IOTA uses the minSig BLS mode, where each individual public key is 96 bytes, while the signature is 48 bytes. The latter is important as typically validators register their keys once at the beginning of each epoch and then they continuously sign transactions; thus, we optimize on minimum signature size.
+The Authority key pair provides authority signatures on user-signed transactions if they are verified. When a stake of the authorities that provide signatures on user transactions passes the required two-thirds threshold, IOTA executes the transaction. IOTA uses the BLS12381 scheme for its fast verification on aggregated signatures for a given number of authorities. In particular, IOTA uses the minSig BLS mode, where each individual public key is 96 bytes, while the signature is 48 bytes. The latter is important as typically validators register their keys once at the beginning of each epoch and then they continuously sign transactions; thus, we optimize on minimum signature size.
 
 As with the BLS scheme, you can aggregate independent signatures resulting in a single BLS signature payload. IOTA also accompanies the aggregated signature with a bitmap to denote which of the validators signed. This effectively reduces the authorities' signature size from (2f + 1) × `BLS_sig` size to just one `BLS_sig` payload, which in turn has significant network cost benefits resulting in compressed transaction certificates independently on the validators set size.
 
@@ -78,3 +81,5 @@ The account that the authority uses to receive payments on staking rewards is se
 The private key is used to perform the TLS handshake required by QUIC for Narwhal primary and its worker network interface. The public key is used for validator peer ID. Pure Ed25519 is used as the signing scheme.
 
 See more authority key toolings in [Validator Tool](https://github.com/iotaledger/iota/blob/f8b5ad9aaecc3c4b30a060ec5e00bdad9ba75a93/nre/validator_tool.md).
+
+<Quiz questions={questions} />

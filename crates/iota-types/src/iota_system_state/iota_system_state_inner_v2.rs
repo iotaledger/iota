@@ -2,21 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use serde::{Deserialize, Serialize};
 
 use super::{
+    AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     iota_system_state_inner_v1::ValidatorV1,
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-    AdvanceEpochParams, IotaSystemStateTrait,
 };
 use crate::{
     balance::Balance,
     base_types::IotaAddress,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     iota_system_state::{
@@ -126,24 +124,23 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.validators.active_validators {
-            let verified_metadata = validator.verified_metadata();
-            let name = verified_metadata.iota_pubkey_bytes();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: verified_metadata.net_address.clone(),
-                    narwhal_primary_address: verified_metadata.primary_address.clone(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let verified_metadata = validator.verified_metadata();
+                let name = verified_metadata.iota_pubkey_bytes();
+                (
+                    name,
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
+                    }),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
@@ -175,13 +172,12 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
+                        authority_pubkey: metadata.authority_pubkey.clone(),
+                        network_pubkey: metadata.network_pubkey.clone(),
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        narwhal_network_pubkey: metadata.network_pubkey.clone(),
-                        narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: metadata.name.clone(),
                     }
@@ -264,6 +260,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             protocol_version,
             system_state_version,
             iota_total_supply: iota_treasury_cap.total_supply().value,
+            iota_treasury_cap_id: iota_treasury_cap.id().to_owned(),
             storage_fund_total_object_storage_rebates: storage_fund
                 .total_object_storage_rebates
                 .value(),

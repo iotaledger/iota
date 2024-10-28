@@ -13,7 +13,7 @@ module iota_system::genesis {
     use iota_system::iota_system;
     use iota_system::validator;
 
-    struct GenesisValidatorMetadata has drop, copy {
+    public struct GenesisValidatorMetadata has drop, copy {
         name: vector<u8>,
         description: vector<u8>,
         image_url: vector<u8>,
@@ -24,19 +24,18 @@ module iota_system::genesis {
         gas_price: u64,
         commission_rate: u64,
 
-        protocol_public_key: vector<u8>,
+        authority_public_key: vector<u8>,
         proof_of_possession: vector<u8>,
 
         network_public_key: vector<u8>,
-        worker_public_key: vector<u8>,
+        protocol_public_key: vector<u8>,
 
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
     }
 
-    struct GenesisChainParameters has drop, copy {
+    public struct GenesisChainParameters has drop, copy {
         protocol_version: u64,
         chain_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
@@ -47,13 +46,13 @@ module iota_system::genesis {
         validator_very_low_stake_threshold: u64,
         validator_low_stake_grace_period: u64,
     }
-
-    struct TokenDistributionSchedule has drop {
+      
+    public struct TokenDistributionSchedule has drop {
         pre_minted_supply: u64,
         allocations: vector<TokenAllocation>,
     }
 
-    struct TokenAllocation has drop {
+    public struct TokenAllocation has drop {
         recipient_address: address,
         amount_nanos: u64,
         staked_with_validator: Option<address>,
@@ -61,7 +60,7 @@ module iota_system::genesis {
 
     fun create(
         iota_system_state_id: UID,
-        iota_supply: Balance<IOTA>,
+        mut iota_supply: Balance<IOTA>,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         _token_distribution_schedule: TokenDistributionSchedule,
@@ -69,9 +68,9 @@ module iota_system::genesis {
     ) {
         assert!(tx_context::epoch(ctx) == 0, 0);
 
-        let validators = vector::empty();
+        let mut validators = vector::empty();
         let count = vector::length(&genesis_validators);
-        let i = 0;
+        let mut i = 0;
         while (i < count) {
             let GenesisValidatorMetadata {
                 name: _,
@@ -81,25 +80,23 @@ module iota_system::genesis {
                 iota_address,
                 gas_price: _,
                 commission_rate: _,
-                protocol_public_key,
+                authority_public_key,
                 proof_of_possession: _,
                 network_public_key,
-                worker_public_key,
+                protocol_public_key,
                 network_address,
                 p2p_address,
                 primary_address,
-                worker_address,
             } = *vector::borrow(&genesis_validators, i);
 
             let validator = validator::new(
                 iota_address,
-                protocol_public_key,
+                authority_public_key,
                 network_public_key,
-                worker_public_key,
+                protocol_public_key,
                 network_address,
                 p2p_address,
                 primary_address,
-                worker_address,
                 balance::split(&mut iota_supply, 2500),
                 ctx
             );

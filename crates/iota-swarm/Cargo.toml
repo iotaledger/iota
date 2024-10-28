@@ -1,12 +1,16 @@
 [package]
 name = "iota-swarm"
 version = "0.0.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 futures.workspace = true
 prometheus.workspace = true
@@ -17,6 +21,7 @@ tokio = { workspace = true, features = ["full"] }
 tonic-health.workspace = true
 tracing.workspace = true
 
+# internal dependencies
 iota-config.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true

@@ -4,13 +4,13 @@
 
 use std::{fs, str::FromStr};
 
-use fastcrypto::{hash::HashFunction, traits::EncodeDecodeBase64};
+use fastcrypto::hash::HashFunction;
 use iota_keys::{
     key_derive::generate_new_key,
     keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore},
 };
 use iota_types::{
-    base_types::{IotaAddress, IOTA_ADDRESS_LENGTH},
+    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
     crypto::{DefaultHash, Ed25519IotaSignature, IotaSignatureInner, SignatureScheme},
 };
 use tempfile::TempDir;
@@ -110,7 +110,7 @@ fn keystore_no_aliases() {
     let temp_dir = TempDir::new().unwrap();
     let mut keystore_path = temp_dir.path().join("iota.keystore");
     let (_, keypair, _, _) = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
-    let private_keys = vec![keypair.encode_base64()];
+    let private_keys = vec![keypair.encode().unwrap()];
     let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
     fs::write(&keystore_path, keystore_data).unwrap();
 

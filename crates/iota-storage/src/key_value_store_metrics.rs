@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use prometheus::{
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry, HistogramVec,
-    IntCounterVec, Registry,
+    HistogramVec, IntCounterVec, Registry, register_histogram_vec_with_registry,
+    register_int_counter_vec_with_registry,
 };
 
 pub struct KeyValueStoreMetrics {

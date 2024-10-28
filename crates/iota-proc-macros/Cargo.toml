@@ -1,10 +1,13 @@
 [package]
 name = "iota-proc-macros"
 version = "0.7.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+
+[lints]
+workspace = true
 
 [lib]
 proc-macro = true

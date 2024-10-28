@@ -1,53 +1,85 @@
-processed 25 tasks
+processed 26 tasks
 
 init:
 validator_0: object(0,0)
 
-task 1 'publish'. lines 7-26:
+task 1, lines 7-26:
+//# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 5570800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 28-28:
+task 2, line 28:
+//# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(2,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 30-30:
+task 3, line 30:
+//# run Test::M1::create --args 0 @validator_0
 created: object(3,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4 'view-object'. lines 32-32:
+task 4, line 32:
+//# view-object 0,0
 Owner: Account Address ( validator_0 )
 Version: 1
-Contents: iota_system::validator_cap::UnverifiedValidatorOperationCap {id: iota::object::UID {id: iota::object::ID {bytes: fake(0,0)}}, authorizer_validator_address: validator_0}
+Contents: iota_system::validator_cap::UnverifiedValidatorOperationCap {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(0,0),
+        },
+    },
+    authorizer_validator_address: validator_0,
+}
 
-task 5 'view-object'. lines 34-34:
+task 5, line 34:
+//# view-object 2,0
 Owner: Account Address ( A )
 Version: 3
-Contents: Test::M1::Object {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, value: 0u64}
+Contents: Test::M1::Object {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    value: 0u64,
+}
 
-task 6 'view-object'. lines 36-36:
+task 6, line 36:
+//# view-object 3,0
 Owner: Account Address ( validator_0 )
 Version: 4
-Contents: Test::M1::Object {id: iota::object::UID {id: iota::object::ID {bytes: fake(3,0)}}, value: 0u64}
+Contents: Test::M1::Object {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(3,0),
+        },
+    },
+    value: 0u64,
+}
 
-task 7 'create-checkpoint'. lines 38-38:
+task 7, line 38:
+//# create-checkpoint 4
 Checkpoint created: 4
 
-task 8 'view-checkpoint'. lines 40-40:
+task 8, line 40:
+//# view-checkpoint
 CheckpointSummary { epoch: 0, seq: 4, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 3000000, storage_cost: 10176400, storage_rebate: 1976000, non_refundable_storage_fee: 0 }}
 
-task 9 'advance-epoch'. lines 42-42:
+task 9, line 42:
+//# advance-epoch 6
 Epoch advanced: 5
 
-task 10 'view-checkpoint'. lines 44-44:
-CheckpointSummary { epoch: 5, seq: 10, content_digest: 2AN33czkRwsne85tU4HzJ53oq1VcmRnjpMx5LZ3Mi8VV,
+task 10, line 44:
+//# view-checkpoint
+CheckpointSummary { epoch: 5, seq: 10, content_digest: 9X2eEhaTREKQbXGbHrnnmvTm4TZfhhY5H6rUcecft8bX,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
 
-task 11 'run-graphql'. lines 46-51:
+task 11, lines 46-51:
+//# run-graphql
 Response: {
   "data": {
     "checkpoint": {
@@ -56,14 +88,17 @@ Response: {
   }
 }
 
-task 12 'create-checkpoint'. lines 53-53:
+task 12, line 53:
+//# create-checkpoint
 Checkpoint created: 11
 
-task 13 'view-checkpoint'. lines 55-55:
+task 13, line 55:
+//# view-checkpoint
 CheckpointSummary { epoch: 6, seq: 11, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
 
-task 14 'run-graphql'. lines 57-62:
+task 14, lines 57-62:
+//# run-graphql
 Response: {
   "data": {
     "checkpoint": {
@@ -72,15 +107,16 @@ Response: {
   }
 }
 
-task 15 'run-graphql'. lines 64-69:
+task 15, lines 64-69:
+//# run-graphql --show-usage --show-headers --show-service-version
 Headers: {
     "content-type": "application/json",
     "content-length": "157",
-    "x-iota-rpc-version": "2024.2.0-testing-no-sha",
+    "x-iota-rpc-version": "2024.7.0-testing-no-sha",
     "vary": "origin, access-control-request-method, access-control-request-headers",
     "access-control-allow-origin": "*",
 }
-Service version: 2024.2.0-testing-no-sha
+Service version: 2024.7.0-testing-no-sha
 Response: {
   "data": {
     "checkpoint": {
@@ -99,14 +135,17 @@ Response: {
   }
 }
 
-task 16 'view-checkpoint'. lines 71-71:
+task 16, line 71:
+//# view-checkpoint
 CheckpointSummary { epoch: 6, seq: 11, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
 
-task 17 'advance-epoch'. lines 73-76:
+task 17, lines 73-76:
+//# advance-epoch
 Epoch advanced: 6
 
-task 18 'run-graphql'. lines 78-93:
+task 18, lines 78-93:
+//# run-graphql
 Response: {
   "data": {
     "address": {
@@ -114,8 +153,8 @@ Response: {
         "edges": [
           {
             "node": {
-              "address": "0x25031f4b375274eb581e82bda6dbda8544f020e0d32bb2b0045561749e8a4606",
-              "digest": "ASCTZSpJB8Uqs9Zu84pGHDDai12TLpugJTGv7atFkguQ",
+              "address": "0x6273faa79d73a191d238a3bdcc2b3c11eb976980b296d22d410f95c0f61d2fde",
+              "digest": "121p5YAKxtozkekSFdYPAoFpViqUnAztxspya851dx9M",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -127,7 +166,8 @@ Response: {
   }
 }
 
-task 19 'run-graphql'. lines 95-150:
+task 19, lines 95-150:
+//# run-graphql
 Response: {
   "data": {
     "address": {
@@ -140,8 +180,8 @@ Response: {
         "edges": [
           {
             "node": {
-              "address": "0x25031f4b375274eb581e82bda6dbda8544f020e0d32bb2b0045561749e8a4606",
-              "digest": "ASCTZSpJB8Uqs9Zu84pGHDDai12TLpugJTGv7atFkguQ",
+              "address": "0x6273faa79d73a191d238a3bdcc2b3c11eb976980b296d22d410f95c0f61d2fde",
+              "digest": "121p5YAKxtozkekSFdYPAoFpViqUnAztxspya851dx9M",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -155,8 +195,8 @@ Response: {
         "edges": [
           {
             "node": {
-              "address": "0x21f295b9bb94db811614a123b74f91c30dab67ec6e6a8d2ebd7b66ddcca1d7a5",
-              "digest": "FXRFqpgrLZn9bmhaR9EHioe6xcit1j7Jup53sSBPtrqZ",
+              "address": "0x0aa69d72003801ab057e567938016c0f832f1516937fc84a8b5c11ba06c06815",
+              "digest": "8NvJsVTkKKDJgavep2F65Aff6gJmdWpxJJ7Hpe1dTZ7e",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -164,8 +204,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0x316bb88e2d6c1622e05dfb85e2b6d907651c04968c1b6f6a13a6e16488102e04",
-              "digest": "EJTBqf94PCmsGB9ZLjQyhDrrHyUA2sgAC4ztS9AXpdno",
+              "address": "0x26bf0f03edd09bb3f862e13cec014d17c26dd739d2563d9c704aa8d206301df2",
+              "digest": "qm9zxqHuMpn3adTZR7Hw4kx2E5cAApBrNZcCYMTj4q4",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -173,8 +213,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0x34cf8d6d02620ba9aaf03759cfcaa6b6cd21d6171fc27ab43b22411bc4d328e4",
-              "digest": "FQefTJzgYGN3XH7UEx4KuTerqCw5NQ5DDdn3BtrbHFgp",
+              "address": "0x31e3256cfe19704fd29c7e8a8d0030b2d6101b8c04668ead7bf7d38257d9e002",
+              "digest": "FXQKdY2oYvWnDGs3L2EuPYSYupHC8yhcsWBTtGP12DBr",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -182,8 +222,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0x59d7624542e430d27166c1d1c6099f10a4431b3a9ef4326d2f508a16073b8e6d",
-              "digest": "J7nXBXPrjkrPZAZ4u75uNibzrm75EP5VbmFa8ZUgQPqh",
+              "address": "0x3442446f02377d1025b211e51564e4f1c9a46845ccad733beeb06180d3f66c31",
+              "digest": "GuVwJJNsKJwzmufHJCmPMW27fYZf2JNS2SNT3gi1XSgj",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -191,8 +231,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0x67a59c0801262ea92d2e08f6b177d9b5e9c782a5a6ab33b82a70763c6da0f6c4",
-              "digest": "5KhjVRZQWyNMUosjK6sdrSpR8XY9TZJVi5vMnyNo47n5",
+              "address": "0x3c88cad5799a8da0467b8456a7429a97e7c141cfcf25f02faf51aa8cb4840461",
+              "digest": "abMq2H3FqVggiupt3CknW1YNEKFZdYGTZNu7XpU7YsX",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -200,8 +240,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0x7e51f863b68ed3b1b8d00cccf80f43c83e81b99dc333a39bfff0cb0f4bf6f12e",
-              "digest": "DtFNN3egBwTiPsQ6qhM5zR5VWvTLzFiKRV5u72rCHFBz",
+              "address": "0x847c914d647e7387d7cea4db5ad8fefeffe66773635804a991dfd4385fab6a97",
+              "digest": "HpzDcE6Fz6Nbk1KNhY1c1qU5QxCAaHXzFA1hfYfhFMHz",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -209,8 +249,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0x8226333c5477960855ef9550b2a0d0bd24ff12405d478ce738cad44ac1585f51",
-              "digest": "4GJY1nq9AeRtyegHfY59X2WhBKjo6X6CddYBJGtUmNL9",
+              "address": "0x892836945e37c3a48c0dde074d3a079a50dfc47c1fbde03d7409064340b1f743",
+              "digest": "6saYWQXDNUMksgPTxBkir1ZHoh6L6A1sXJ14CTTTPLkx",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -218,8 +258,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0xa50fd5b4d1534467dc37a7bbd2cca06e0ca2bef4b5289234e044989b646fd8a8",
-              "digest": "DVHoRJou9vnU5RV3EA1QszCfVXNKvTYwCLwJs2cN7W9a",
+              "address": "0xa79cc544021a721176cdc4497728ec35a5311b8ff0aa293a5d29c0d32cb56056",
+              "digest": "844BRJc3iC63fki2xFCUuVwTJead6GqviJHFvgGmxyj5",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -227,8 +267,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0xa937e8e0e5c1f6ee01e2c6a37c678072c37ebed470b194e03689f170872fcfbc",
-              "digest": "GbpA3LRhE4VkQRwjLcrZ5Kr1WRG1cBftVHnvV4hFRJ3t",
+              "address": "0xab2415a43bf8f72193ec765f63af9cf7705bb3a312b0a14f1332be3f74d81c58",
+              "digest": "6p1wpzeYh47gcC9FC22Po8N1wCHMEyaZJwB4QzLRdcFo",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -236,8 +276,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0xd11fea7255cb66e5bcc85828b266abedc6c674b2702aa228864127aebaf4154c",
-              "digest": "EvsLP6HJih29yGNVJYiFe2kroxZhbMbeEHpXt24LweDC",
+              "address": "0xac9c2e11aebecd35b4cb15802ca6ad5e64d320204149187ba646a16d07a4934d",
+              "digest": "35hWuW17ahJAyBFSWHZH2f8LNNDTF4mVT362X7FSyhJ6",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -245,8 +285,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0xd6a57dc0c4710f78dc7e73a28fea6119294ea1a29ca22e6497862a5796c77217",
-              "digest": "23ZhWHmzdbCv2XHjuAdiNv71u3oSsdfmVi46pz95Rnsr",
+              "address": "0xb21c0b03871456040643740e238d03bde38de240d7b17055f4670777a19f07b8",
+              "digest": "HRC6wHwgsx4WmFhWVAJSDAMMAFoVZtGKSWrv78QDrzxn",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -254,8 +294,8 @@ Response: {
           },
           {
             "node": {
-              "address": "0xd90e06bfb3fb5f86727d517e00fc0e4e0f83eb8afe392fd233d87c1269c0458a",
-              "digest": "p9HeeuE4d8urfKZ4gGhAindcky9et27aK6sTGUSAYDR",
+              "address": "0xfb29acaee47f4cf6dfd7d21773f74fb65f842e9483b194b06bf83f91c0460bf3",
+              "digest": "CsCUE4uQeGjvUMAAFkh1sh2rfLfLdBXJHy7aBv1TfuPo",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -276,7 +316,8 @@ Response: {
   }
 }
 
-task 20 'run-graphql'. lines 152-168:
+task 20, lines 152-168:
+//# run-graphql
 Response: {
   "data": {
     "epoch": {
@@ -298,7 +339,8 @@ Response: {
   }
 }
 
-task 21 'run-graphql'. lines 170-176:
+task 21, lines 170-176:
+//# run-graphql
 Response: {
   "data": {
     "epoch": {
@@ -307,17 +349,32 @@ Response: {
   }
 }
 
-task 22 'run'. lines 178-178:
+task 22, line 178:
+//# run Test::M1::create --args 0 @A --gas-price 999
 created: object(22,0)
 mutated: object(0,1)
 gas summary: computation_cost: 999000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 23 'run'. lines 180-180:
+task 23, line 180:
+//# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(23,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 24 'run'. lines 182-182:
+task 24, line 182:
+//# run Test::M1::create --args 0 @A --gas-price 235
 created: object(24,0)
 mutated: object(0,1)
 gas summary: computation_cost: 235000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 25, lines 184-189:
+//# run-graphql
+Response: {
+  "data": {
+    "serviceConfig": {
+      "availableVersions": [
+        "2024.7"
+      ]
+    }
+  }
+}

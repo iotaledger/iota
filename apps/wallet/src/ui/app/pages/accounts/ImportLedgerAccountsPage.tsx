@@ -9,15 +9,14 @@ import {
     AccountsFormType,
     useAccountsFormContext,
     LedgerAccountList,
-    type SelectableLedgerAccount,
     useDeriveLedgerAccounts,
     type DerivedLedgerAccount,
     Overlay,
 } from '_components';
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '../../hooks/useAccounts';
-import { Button } from '@iota/apps-ui-kit';
-import { CheckmarkFilled, Loader } from '@iota/ui-icons';
+import { Button, LoadingIndicator } from '@iota/apps-ui-kit';
+import { CheckmarkFilled } from '@iota/ui-icons';
 
 const NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT = 10;
 
@@ -26,9 +25,7 @@ export function ImportLedgerAccountsPage() {
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
     const { data: existingAccounts } = useAccounts();
-    const [selectedLedgerAccounts, setSelectedLedgerAccounts] = useState<DerivedLedgerAccount[]>(
-        [],
-    );
+    const [selectedLedgerAccounts, setSelectedLedgerAccounts] = useState<Set<string>>(new Set());
     const {
         data: ledgerAccounts,
         error: ledgerError,
@@ -51,21 +48,21 @@ export function ImportLedgerAccountsPage() {
     }, [ledgerError, navigate]);
 
     const onAccountClick = useCallback(
-        (targetAccount: SelectableLedgerAccount) => {
-            if (targetAccount.isSelected) {
-                setSelectedLedgerAccounts((prevState) =>
-                    prevState.filter((ledgerAccount) => {
-                        return ledgerAccount.address !== targetAccount.address;
-                    }),
-                );
-            } else {
-                setSelectedLedgerAccounts((prevState) => [...prevState, targetAccount]);
-            }
+        (targetAccount: DerivedLedgerAccount, checked: boolean) => {
+            setSelectedLedgerAccounts((accounts) => {
+                if (checked) {
+                    accounts.add(targetAccount.address);
+                } else {
+                    accounts.delete(targetAccount.address);
+                }
+
+                return new Set(accounts);
+            });
         },
         [setSelectedLedgerAccounts],
     );
     const numImportableAccounts = ledgerAccounts?.length;
-    const numSelectedAccounts = selectedLedgerAccounts.length;
+    const numSelectedAccounts = selectedLedgerAccounts.size;
     const areAllAccountsImported = numImportableAccounts === 0;
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
     const [, setAccountsFormValues] = useAccountsFormContext();
@@ -76,14 +73,11 @@ export function ImportLedgerAccountsPage() {
     } else if (areAllAccountsImported) {
         importLedgerAccountsBody = <LedgerViewAllAccountsImported />;
     } else if (!encounteredDerviceAccountsError) {
-        const selectedLedgerAddresses = selectedLedgerAccounts.map(({ address }) => address);
         importLedgerAccountsBody = (
             <div className="max-h-[530px] w-full overflow-auto">
                 <LedgerAccountList
-                    accounts={ledgerAccounts.map((ledgerAccount) => ({
-                        ...ledgerAccount,
-                        isSelected: selectedLedgerAddresses.includes(ledgerAccount.address),
-                    }))}
+                    accounts={ledgerAccounts}
+                    selectedAccounts={selectedLedgerAccounts}
                     onAccountClick={onAccountClick}
                     selectAll={selectAllAccounts}
                 />
@@ -93,18 +87,21 @@ export function ImportLedgerAccountsPage() {
 
     function selectAllAccounts() {
         if (ledgerAccounts) {
-            setSelectedLedgerAccounts(ledgerAccounts);
+            setSelectedLedgerAccounts(new Set(ledgerAccounts.map((acc) => acc.address)));
         }
     }
 
     function handleNextClick() {
         setAccountsFormValues({
             type: AccountsFormType.ImportLedger,
-            accounts: selectedLedgerAccounts.map(({ address, derivationPath, publicKey }) => ({
-                address,
-                derivationPath,
-                publicKey: publicKey!,
-            })),
+            accounts:
+                ledgerAccounts
+                    ?.filter((acc) => selectedLedgerAccounts.has(acc.address))
+                    .map(({ address, derivationPath, publicKey }) => ({
+                        address,
+                        derivationPath,
+                        publicKey: publicKey!,
+                    })) ?? [],
         });
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
@@ -141,7 +138,7 @@ export function ImportLedgerAccountsPage() {
 function LedgerViewLoading() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm">
-            <Loader className="h-5 w-5 animate-spin text-primary-30" />
+            <LoadingIndicator />
             <span className="text-title-lg text-neutral-10">Looking for Accounts...</span>
         </div>
     );

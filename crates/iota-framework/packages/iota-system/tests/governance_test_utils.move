@@ -36,7 +36,6 @@ module iota_system::governance_test_utils {
             b"/ip4/127.0.0.1/tcp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             option::some(balance::create_for_testing<IOTA>(init_stake_amount_in_iota * NANOS_PER_IOTA)),
             1,
             0,
@@ -120,7 +119,7 @@ module iota_system::governance_test_utils {
     }
 
     public fun advance_epoch_with_reward_amounts_return_rebate(
-      validator_target_reward: u64, storage_charge: u64, computation_charge: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
+        validator_target_reward: u64, storage_charge: u64, computation_charge: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
     ): Balance<IOTA> {
         scenario.next_tx(@0x0);
         let new_epoch = scenario.ctx().epoch() + 1;
@@ -214,7 +213,6 @@ module iota_system::governance_test_utils {
             net_addr,
             net_addr,
             net_addr,
-            net_addr,
             1,
             0,
             ctx
@@ -238,7 +236,6 @@ module iota_system::governance_test_utils {
             b"description",
             b"image_url",
             b"project_url",
-            net_addr,
             net_addr,
             net_addr,
             net_addr,

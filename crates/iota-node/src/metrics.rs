@@ -7,8 +7,8 @@ use std::time::Duration;
 use iota_network::tonic::Code;
 use iota_network_stack::metrics::MetricsCallbackProvider;
 use prometheus::{
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
+    HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
 
 pub struct IotaNodeMetrics {

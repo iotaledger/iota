@@ -11,15 +11,15 @@ mod checked {
     use move_core_types::vm_status::StatusCode;
 
     use crate::{
+        ObjectID,
         error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
         gas::{self, GasCostSummary, IotaGasStatusAPI},
         gas_model::{
-            gas_predicates::{cost_table_for_version, txn_base_cost_as_multiplier},
+            gas_predicates::cost_table_for_version,
             tables::{GasStatus, ZERO_COST_SCHEDULE},
             units_types::CostTable,
         },
         transaction::ObjectReadResult,
-        ObjectID,
     };
 
     /// A bucket defines a range of units that will be priced the same.
@@ -122,11 +122,7 @@ mod checked {
         pub(crate) fn new(c: &ProtocolConfig, gas_price: u64) -> Self {
             // gas_price here is the Reference Gas Price, however we may decide
             // to change it to be the price passed in the transaction
-            let min_transaction_cost = if txn_base_cost_as_multiplier(c) {
-                c.base_tx_cost_fixed() * gas_price
-            } else {
-                c.base_tx_cost_fixed()
-            };
+            let min_transaction_cost = c.base_tx_cost_fixed() * gas_price;
             Self {
                 min_transaction_cost,
                 max_gas_budget: c.max_tx_gas(),
@@ -487,14 +483,11 @@ mod checked {
                 new_size * self.cost_table.storage_per_byte_cost * self.storage_gas_price;
             // track rebate
 
-            self.per_object_storage.push((
-                object_id,
-                PerObjectStorage {
-                    storage_cost,
-                    storage_rebate,
-                    new_size,
-                },
-            ));
+            self.per_object_storage.push((object_id, PerObjectStorage {
+                storage_cost,
+                storage_rebate,
+                new_size,
+            }));
             // return the new object rebate (object storage cost)
             storage_cost
         }

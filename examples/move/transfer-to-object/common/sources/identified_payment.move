@@ -19,21 +19,21 @@ module common::identified_payment {
     ///     function. Without this `IdentifiedPayment` could be `key` only and
     ///     custom transfer and receiving rules can be written for it.
     public struct IdentifiedPayment has key, store {
-        id: UID, 
+        id: UID,
         payment_id: u64,
         coin: Coin<IOTA>,
     }
 
     /// An `EarmarkedPayment` payment is an `IdentifiedPayment` that is
-    /// earmarked for a specific address. E.g., in the restuarant example, you
+    /// earmarked for a specific address. E.g., in the restaurant example, you
     /// may tip your serverd with an `EarmarkedPayment` which will ensure that only
     /// server that you specified in your tip can receive it.
     /// Since this object is `key` only it can only be transferred and
     /// received by functions defined in this module.
     public struct EarmarkedPayment has key {
-        id: UID, 
+        id: UID,
         payment: IdentifiedPayment,
-        for_address: address,
+        `for`: address,
     }
 
     /// Event emitted when a payment is made. This contains the `payment_id`
@@ -101,9 +101,9 @@ module common::identified_payment {
         (payment_id, coin)
     }
 
-    //--------------------------------------------------------------------------- 
+    //---------------------------------------------------------------------------
     // Functions for `EarmarkedPayment`s
-    //--------------------------------------------------------------------------- 
+    //---------------------------------------------------------------------------
 
     /// Custom transfer rule for `EarmarkedPayment` payments -- anyone can transfer them.
     public fun transfer(earmarked: EarmarkedPayment, to: address) {
@@ -114,13 +114,13 @@ module common::identified_payment {
     /// to custom transfer rules: if the object is `key` only , the
     /// `iota::transfer::receive` function can only be called on the object from
     /// within the same module that defined that object.
-    /// 
+    ///
     /// In this case `EarmarkedPayment` is defined with `key` only, so this is
     /// defining a custom receive rule that specifies that only `for` can receive
     /// the payment no matter what object it was sent to.
     public fun receive(parent: &mut UID, ticket: Receiving<EarmarkedPayment>, ctx: &TxContext): IdentifiedPayment {
-        let EarmarkedPayment { id, payment, for_address } = transfer::receive(parent, ticket);
-        assert!(tx_context::sender(ctx) == for_address, ENotEarmarkedForSender);
+        let EarmarkedPayment { id, payment, `for` } = transfer::receive(parent, ticket);
+        assert!(tx_context::sender(ctx) == `for`, ENotEarmarkedForSender);
         object::delete(id);
         payment
     }

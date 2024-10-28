@@ -28,8 +28,20 @@ export const iotaFeatures: IotaFeatures = {
         version: '1.0.0',
         signTransactionBlock: vi.fn(),
     },
+    'iota:signTransaction': {
+        version: '2.0.0',
+        signTransaction: vi.fn(),
+    },
     'iota:signAndExecuteTransactionBlock': {
         version: '1.0.0',
         signAndExecuteTransactionBlock: vi.fn(),
+    },
+    'iota:signAndExecuteTransaction': {
+        version: '2.0.0',
+        signAndExecuteTransaction: vi.fn(),
+    },
+    'iota:reportTransactionEffects': {
+        version: '1.0.0',
+        reportTransactionEffects: vi.fn(),
     },
 };

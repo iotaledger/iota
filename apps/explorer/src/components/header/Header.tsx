@@ -15,11 +15,11 @@ function Header(): JSX.Element {
                 <LinkWithQuery
                     data-testid="nav-logo-button"
                     to="/"
-                    className="flex flex-nowrap items-center gap-1 text-hero-darkest"
+                    className="flex flex-nowrap items-center gap-1 text-neutral-10"
                 >
                     <IotaLogoWeb width={137} height={36} />
                 </LinkWithQuery>
-                <div className="flex w-[360-px] justify-center">
+                <div className="flex w-[360px] justify-center">
                     <Search />
                 </div>
                 <NetworkSelector />

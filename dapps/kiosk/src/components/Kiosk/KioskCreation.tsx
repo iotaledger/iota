@@ -18,18 +18,18 @@ export function KioskCreation({ onCreate }: { onCreate: () => void }) {
     return (
         <div className="min-h-[70vh] container py-24 gap-4 mt-6">
             <div className="lg:w-7/12 mx-auto">
-                <h2 className="font-bold text-3xl mb-6">Create a Iota Kiosk</h2>
+                <h2 className="font-bold text-3xl mb-6">Create a IOTA Kiosk</h2>
                 <p className="pb-3">
                     <strong>There’s no kiosk for your address yet.</strong> Create a kiosk to store
-                    your digital assets and list them for sale on the Iota network. Anyone can view
+                    your digital assets and list them for sale on the IOTA network. Anyone can view
                     your kiosk and the assets you place in it.
                 </p>
                 <p className="pb-3">
-                    The demo app works only on <strong>Iota Testnet.</strong> Make sure that your
+                    The demo app works only on <strong>IOTA Testnet.</strong> Make sure that your
                     wallet connects to Testnet and that you have at least 1 IOTA to cover gas fees.
                     You can get test IOTA tokens using{' '}
                     <a
-                        href="https://docs.iota.io/build/faucet"
+                        href="https://wiki.iota.org/build/faucet"
                         target="_blank"
                         rel="noreferrer"
                         className="underline"

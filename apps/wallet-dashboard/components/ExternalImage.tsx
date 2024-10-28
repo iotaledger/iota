@@ -4,5 +4,6 @@
 export default function ExternalImage({
     ...imageProps
 }: React.ImgHTMLAttributes<HTMLImageElement>): JSX.Element {
-    return <img {...imageProps} />;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img {...imageProps} alt={imageProps.alt} />;
 }

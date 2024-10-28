@@ -2,6 +2,9 @@
 title: Intent Signing
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/cryptography/intent-signing.json';
+
 In IOTA, an intent is a compact struct that serves as the domain separator for a message that a signature commits to. The data that the signature commits to is an intent message. All signatures in IOTA must commit to an intent message, instead of the message itself.
 
 ## Motivation
@@ -59,11 +62,8 @@ let signature = Signature::new_secure(&intent_msg, signer);
 Here is an example in TypeScript:
 
 ```typescript
-const intentMessage = messageWithIntent(
-  IntentScope.TransactionData,
-  transactionBytes,
-);
-const signature = await this.signData(intentMessage);
+const intentMessage = messageWithIntent('TransactionData', transactionBytes);
+const signature = await this.sign(intentMessage);
 ```
 
 Under the hood, the `new_secure` method in Rust and the `signData` method in TypesScript does the following: 
@@ -73,13 +73,13 @@ Under the hood, the `new_secure` method in Rust and the `signData` method in Typ
 
 ## Authority Signature
 
-The authority signature is created using the protocol key. The data that it commits to is also an intent message `intent || message`. See all available intent scopes [in the source code](https://github.com/iotaledger/iota/blob/cb515773e83495bff09569764bef70120c21474f/crates/shared-crypto/src/intent.rs#L62)
+The authority signature is created using the authority key. The data that it commits to is also an intent message `intent || message`. See all available intent scopes [in the source code](https://github.com/iotaledger/iota/blob/cb515773e83495bff09569764bef70120c21474f/crates/shared-crypto/src/intent.rs#L62)
 
 ### How to Generate Proof of Possession for an Authority
 
-When an authority request to join the network, the protocol public key and its proof of possession (PoP) are required to be submitted. PoP is required to prevent [rogue key attack](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html).
+When an authority request to join the network, the authority public key and its proof of possession (PoP) are required to be submitted. PoP is required to prevent [rogue key attack](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html).
 
-The proof of possession is a BLS signature created using the authority's protocol private key, committed over the following message: `intent || pubkey || address || epoch`. Here `intent` is serialized to `[5, 0, 0]` representing an intent with scope as "Proof of Possession", version as "V0" and app_id as "IOTA". `pubkey` is the serialized public key bytes of the authority's BLS protocol key. `address` is the account address associated with the authority's account key. `epoch` is serialized to `[0, 0, 0, 0, 0, 0, 0, 0]`. 
+The proof of possession is a BLS signature created using the authority's private key, committed over the following message: `intent || pubkey || address || epoch`. Here `intent` is serialized to `[5, 0, 0]` representing an intent with scope as "Proof of Possession", version as "V0" and app_id as "IOTA". `pubkey` is the serialized public key bytes of the authority's BLS authority key. `address` is the account address associated with the authority's account key. `epoch` is serialized to `[0, 0, 0, 0, 0, 0, 0, 0]`.
 
 To generate a proof of possession in Rust, see implementation at `fn generate_proof_of_possession`. For test vectors, see `fn test_proof_of_possession`. 
 
@@ -87,3 +87,5 @@ To generate a proof of possession in Rust, see implementation at `fn generate_pr
 
 1. [Struct and enum definitions](https://github.com/iotaledger/iota/blob/develop/crates/shared-crypto/src/intent.rs)
 2. [Test](https://github.com/iotaledger/iota/blob/develop/crates/iota-types/src/unit_tests/intent_tests.rs)
+
+<Quiz questions={questions} />

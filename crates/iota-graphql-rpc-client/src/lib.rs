@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::Value;
-use hyper::header::ToStrError;
+use reqwest::header::ToStrError;
 use serde_json::Number;
 
 pub mod response;
@@ -47,5 +47,5 @@ pub enum ClientError {
         var_val_curr: serde_json::Value,
     },
     #[error(transparent)]
-    InnerClientError(#[from] reqwest::Error),
+    InnerClient(#[from] reqwest::Error),
 }

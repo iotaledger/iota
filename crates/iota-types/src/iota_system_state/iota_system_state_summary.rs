@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -12,7 +10,7 @@ use serde_with::serde_as;
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
     base_types::{AuthorityName, IotaAddress, ObjectID},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
     id::ID,
@@ -46,6 +44,8 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub iota_total_supply: u64,
+    /// The `TreasuryCap<IOTA>` object ID.
+    pub iota_treasury_cap_id: ObjectID,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "BigInt<u64>")]
@@ -179,24 +179,23 @@ pub struct IotaSystemStateSummary {
 
 impl IotaSystemStateSummary {
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.active_validators {
-            let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: Multiaddr::try_from(validator.net_address.clone()).unwrap(),
-                    narwhal_primary_address: Multiaddr::try_from(validator.primary_address.clone())
-                        .unwrap(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes).unwrap();
+                (
+                    name,
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: Multiaddr::try_from(validator.net_address.clone())
+                            .unwrap(),
+                        primary_address: Multiaddr::try_from(validator.primary_address.clone())
+                            .unwrap(),
+                    }),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 }
 
@@ -211,13 +210,13 @@ pub struct IotaValidatorSummary {
     pub iota_address: IotaAddress,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub protocol_pubkey_bytes: Vec<u8>,
+    pub authority_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
     pub network_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub worker_pubkey_bytes: Vec<u8>,
+    pub protocol_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
     pub proof_of_possession_bytes: Vec<u8>,
@@ -228,10 +227,9 @@ pub struct IotaValidatorSummary {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub worker_address: String,
     #[schemars(with = "Option<Base64>")]
     #[serde_as(as = "Option<Base64>")]
-    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_authority_pubkey_bytes: Option<Vec<u8>>,
     #[schemars(with = "Option<Base64>")]
     #[serde_as(as = "Option<Base64>")]
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
@@ -240,11 +238,10 @@ pub struct IotaValidatorSummary {
     pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
     #[schemars(with = "Option<Base64>")]
     #[serde_as(as = "Option<Base64>")]
-    pub next_epoch_worker_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,
     pub next_epoch_primary_address: Option<String>,
-    pub next_epoch_worker_address: Option<String>,
 
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -319,6 +316,7 @@ impl Default for IotaSystemStateSummary {
             protocol_version: 1,
             system_state_version: 1,
             iota_total_supply: 0,
+            iota_treasury_cap_id: ObjectID::ZERO,
             storage_fund_total_object_storage_rebates: 0,
             storage_fund_non_refundable_balance: 0,
             reference_gas_price: 1,
@@ -355,9 +353,9 @@ impl Default for IotaValidatorSummary {
     fn default() -> Self {
         Self {
             iota_address: IotaAddress::default(),
-            protocol_pubkey_bytes: vec![],
+            authority_pubkey_bytes: vec![],
             network_pubkey_bytes: vec![],
-            worker_pubkey_bytes: vec![],
+            protocol_pubkey_bytes: vec![],
             proof_of_possession_bytes: vec![],
             name: String::new(),
             description: String::new(),
@@ -366,15 +364,13 @@ impl Default for IotaValidatorSummary {
             net_address: String::new(),
             p2p_address: String::new(),
             primary_address: String::new(),
-            worker_address: String::new(),
-            next_epoch_protocol_pubkey_bytes: None,
+            next_epoch_authority_pubkey_bytes: None,
             next_epoch_proof_of_possession: None,
             next_epoch_network_pubkey_bytes: None,
-            next_epoch_worker_pubkey_bytes: None,
+            next_epoch_protocol_pubkey_bytes: None,
             next_epoch_net_address: None,
             next_epoch_p2p_address: None,
             next_epoch_primary_address: None,
-            next_epoch_worker_address: None,
             voting_power: 0,
             operation_cap_id: ObjectID::ZERO,
             gas_price: 0,

@@ -6,8 +6,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use futures::future::join_all;
 use iota_types::{
-    base_types::{dbg_addr, IotaAddress, ObjectID, ObjectRef},
-    crypto::{get_key_pair, AccountKeyPair},
+    base_types::{IotaAddress, ObjectID, ObjectRef, dbg_addr},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
@@ -19,9 +19,9 @@ use iota_types::{
 };
 
 use crate::authority::{
+    AuthorityState,
     authority_tests::{init_state_with_committee, send_and_confirm_transaction},
     test_authority_builder::TestAuthorityBuilder,
-    AuthorityState,
 };
 
 #[tokio::test]
@@ -444,7 +444,7 @@ async fn execute_pay_all_iota(
         )
         .build();
     let genesis = network_config.genesis;
-    let keypair = network_config.validator_configs[0].protocol_key_pair();
+    let keypair = network_config.validator_configs[0].authority_key_pair();
 
     let authority_state = init_state_with_committee(&genesis, keypair).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();

@@ -5,6 +5,8 @@ tags: [ typescript, sdk, getting-started, install]
 
 import InfoPnpmRequired from "../../_snippets/info-pnpm-required.mdx";
 import AlphaNet from "../../_snippets/alphanet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/client-tssdk.json';
 
 # Client App with IOTA TypeScript SDK
 
@@ -255,3 +257,5 @@ function OwnedObjects({ address }: { address: string }) {
 
 Now you have a dApp connected to wallets that can query data from RPC nodes.
 
+
+<Quiz questions={questions} />

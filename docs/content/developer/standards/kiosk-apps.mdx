@@ -3,12 +3,15 @@ title: Kiosk Apps
 description: Kiosk apps are a way to extend the functionality of IOTA Kiosk while keeping the core functionality intact. You can develop apps to add new features to a kiosk without having to modify the core code or move the assets elsewhere. 
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/kiosk-apps.json';
+
 Kiosk apps are a way to extend the functionality of IOTA Kiosk while keeping the core functionality intact. You can develop apps to add new features to a kiosk without having to modify the core code or move the assets elsewhere.
 
 There are two types of apps:
 
 - [Basic apps](#basic-apps)
-- [Permissioned apps](#permissioned-apps)
+- [Permissioned apps](#permissioned-apps-using-the-kiosk-apps-api)
 
 ## Basic apps
 
@@ -22,7 +25,9 @@ Kiosk has an `id: UID` field like all objects on IOTA, which allows this object 
 
 A Kiosk can carry additional dynamic fields and dynamic object fields. The `uid_mut_as_owner` function allows the Kiosk owner to mutably access the `UID` of the Kiosk object and use it to add or remove custom fields.
 
-Its function signature is: `kiosk::uid_mut_as_owner(self: &mut Kiosk, cap: &KioskOwnerCap): &mut UID`
+Function signature:
+
+`kiosk::uid_mut_as_owner(self: &mut Kiosk, cap: &KioskOwnerCap): &mut UID`
 
 ### The public UID getter
 
@@ -58,7 +63,7 @@ module examples::kiosk_name_ext {
 }
 ```
 
-## Permissioned apps using the Kiosk Apps API {#permissioned-apps}
+## Permissioned apps using the Kiosk Apps API
 
 Permissioned apps use the Kiosk Apps API to perform actions in the kiosk. They usually imply interaction with a third party and provide guarantees for the storage access (preventing malicious actions from the seller).
 
@@ -249,3 +254,10 @@ txb.moveCall({
     typeArguments: [ '<letter_box_package>::letterbox_ext::Extension' ]
 });
 ```
+
+
+## Related links
+
+- [NFT Rental](../iota-101/nft/rent-nft.mdx): An example implementation of the Kiosk Apps standard that enables renting NFTs.
+
+<Quiz questions={questions} />

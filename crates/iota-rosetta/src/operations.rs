@@ -14,13 +14,14 @@ use iota_sdk::rpc_types::{
     IotaTransactionBlockKind, IotaTransactionBlockResponse,
 };
 use iota_types::{
+    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
-    gas_coin::{GasCoin, GAS},
+    digests::TransactionDigest,
+    gas_coin::{GAS, GasCoin},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     object::Owner,
     transaction::TransactionData,
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
 };
 use move_core_types::{
     ident_str,
@@ -30,11 +31,11 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    Error,
     types::{
         AccountIdentifier, Amount, CoinAction, CoinChange, CoinID, CoinIdentifier,
         InternalOperation, OperationIdentifier, OperationStatus, OperationType,
     },
-    Error,
 };
 
 #[cfg(test)]
@@ -145,7 +146,7 @@ impl Operations {
             .filter(|op| op.type_ == OperationType::Stake)
             .collect::<Vec<_>>();
         if ops.len() != 1 {
-            return Err(Error::MalformedOperationError(
+            return Err(Error::MalformedOperation(
                 "Delegation should only have one operation.".into(),
             ));
         }
@@ -162,7 +163,7 @@ impl Operations {
         // Total issued IOTA is less than u64, safe to cast.
         let amount = if let Some(amount) = op.amount {
             if amount.value.is_positive() {
-                return Err(Error::MalformedOperationError(
+                return Err(Error::MalformedOperation(
                     "Stake amount should be negative.".into(),
                 ));
             }
@@ -191,7 +192,7 @@ impl Operations {
             .filter(|op| op.type_ == OperationType::WithdrawStake)
             .collect::<Vec<_>>();
         if ops.len() != 1 {
-            return Err(Error::MalformedOperationError(
+            return Err(Error::MalformedOperation(
                 "Delegation should only have one operation.".into(),
             ));
         }
@@ -227,6 +228,24 @@ impl Operations {
             }
             _ => vec![Operation::generic_op(status, sender, tx)],
         })
+    }
+
+    pub fn from_transaction_data(
+        data: TransactionData,
+        digest: impl Into<Option<TransactionDigest>>,
+    ) -> Result<Self, Error> {
+        struct NoOpsModuleResolver;
+        impl ModuleResolver for NoOpsModuleResolver {
+            type Error = Error;
+            fn get_module(&self, _id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
+                Ok(None)
+            }
+        }
+
+        let digest = digest.into().unwrap_or_default();
+
+        // Rosetta don't need the call args to be parsed into readable format
+        IotaTransactionBlockData::try_from(data, &&mut NoOpsModuleResolver, digest)?.try_into()
     }
 
     fn parse_programmable_transaction(
@@ -292,9 +311,7 @@ impl Operations {
                 IotaArgument::Input(i) => inputs[i as usize].pure()?.to_iota_address().ok()?,
                 IotaArgument::GasCoin
                 | IotaArgument::Result(_)
-                | IotaArgument::NestedResult(_, _) => {
-                    return None;
-                }
+                | IotaArgument::NestedResult(_, _) => return None,
             };
             for obj in objs {
                 let value = match *obj {
@@ -622,21 +639,6 @@ fn is_unstake_event(tag: &StructTag) -> bool {
     tag.address == IOTA_SYSTEM_ADDRESS
         && tag.module.as_ident_str() == ident_str!("validator")
         && tag.name.as_ident_str() == ident_str!("UnstakingRequestEvent")
-}
-
-impl TryFrom<TransactionData> for Operations {
-    type Error = Error;
-    fn try_from(data: TransactionData) -> Result<Self, Self::Error> {
-        struct NoOpsModuleResolver;
-        impl ModuleResolver for NoOpsModuleResolver {
-            type Error = Error;
-            fn get_module(&self, _id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
-                Ok(None)
-            }
-        }
-        // Rosetta don't need the call args to be parsed into readable format
-        IotaTransactionBlockData::try_from(data, &&mut NoOpsModuleResolver)?.try_into()
-    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]

@@ -26,10 +26,11 @@ export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
                                 type={ExplorerLinkType.Object}
                                 key={item.objectId}
                             >
-                                <Card type={CardType.Default}>
+                                <Card type={CardType.Default} isHoverable>
                                     <CardBody
                                         title={formatAddress(item.objectId!)}
                                         subtitle={`${formatAddress(address)}::${module}::${name}`}
+                                        isTextTruncated
                                     />
                                     <CardAction
                                         type={CardActionType.Link}

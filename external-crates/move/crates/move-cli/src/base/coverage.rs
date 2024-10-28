@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-
+use super::reroot_path;
 use clap::*;
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_coverage::{
@@ -12,8 +11,7 @@ use move_coverage::{
 };
 use move_disassembler::disassembler::Disassembler;
 use move_package::BuildConfig;
-
-use super::reroot_path;
+use std::path::Path;
 
 #[derive(Parser)]
 pub enum CoverageSummaryOptions {
@@ -52,7 +50,7 @@ pub struct Coverage {
 }
 
 impl Coverage {
-    pub fn execute(self, path: Option<PathBuf>, config: BuildConfig) -> anyhow::Result<()> {
+    pub fn execute(self, path: Option<&Path>, config: BuildConfig) -> anyhow::Result<()> {
         let path = reroot_path(path)?;
         let coverage_map = CoverageMap::from_binary_file(path.join(".coverage_map.mvcov"))?;
         let package = config.compile_package(&path, &mut Vec::new())?;

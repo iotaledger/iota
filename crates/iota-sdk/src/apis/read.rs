@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use fastcrypto::encoding::Base64;
-use futures::{stream, StreamExt};
+use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::{
     GovernanceReadApiClient, IndexerApiClient, MoveUtilsClient, ReadApiClient, WriteApiClient,
@@ -13,9 +13,9 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaCommittee, IotaData,
-    IotaGetPastObjectRequest, IotaLoadedChildObjectsResponse, IotaMoveNormalizedModule,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
-    IotaTransactionBlockEffects, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaGetPastObjectRequest, IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockEffects,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, ObjectsPage, ProtocolConfigResponse, TransactionBlocksPage,
     TransactionFilter,
 };
@@ -29,8 +29,8 @@ use iota_types::{
 use jsonrpsee::core::client::Subscription;
 
 use crate::{
-    error::{Error, IotaRpcResult},
     RpcClient,
+    error::{Error, IotaRpcResult},
 };
 
 /// The main read API structure with functions for retrieving data about
@@ -44,7 +44,6 @@ impl ReadApi {
     pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
-
     /// Return a paginated response with the objects owned by the given address,
     /// or an error upon failure.
     ///
@@ -74,14 +73,14 @@ impl ReadApi {
     pub async fn get_owned_objects(
         &self,
         address: IotaAddress,
-        query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
+        query: impl Into<Option<IotaObjectResponseQuery>>,
+        cursor: impl Into<Option<ObjectID>>,
+        limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<ObjectsPage> {
         Ok(self
             .api
             .http
-            .get_owned_objects(address, query, cursor, limit)
+            .get_owned_objects(address, query.into(), cursor.into(), limit.into())
             .await?)
     }
 
@@ -132,13 +131,13 @@ impl ReadApi {
     pub async fn get_dynamic_fields(
         &self,
         object_id: ObjectID,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<ObjectID>>,
+        limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<DynamicFieldPage> {
         Ok(self
             .api
             .http
-            .get_dynamic_fields(object_id, cursor, limit)
+            .get_dynamic_fields(object_id, cursor.into(), limit.into())
             .await?)
     }
 
@@ -193,19 +192,15 @@ impl ReadApi {
     ///     let version = object_data.version;
     ///     let past_object = iota
     ///         .read_api()
-    ///         .try_get_parsed_past_object(
-    ///             object_id,
-    ///             version,
-    ///             IotaObjectDataOptions {
-    ///                 show_type: true,
-    ///                 show_owner: true,
-    ///                 show_previous_transaction: true,
-    ///                 show_display: true,
-    ///                 show_content: true,
-    ///                 show_bcs: true,
-    ///                 show_storage_rebate: true,
-    ///             },
-    ///         )
+    ///         .try_get_parsed_past_object(object_id, version, IotaObjectDataOptions {
+    ///             show_type: true,
+    ///             show_owner: true,
+    ///             show_previous_transaction: true,
+    ///             show_display: true,
+    ///             show_content: true,
+    ///             show_bcs: true,
+    ///             show_storage_rebate: true,
+    ///         })
     ///         .await?;
     ///     Ok(())
     /// }
@@ -259,19 +254,15 @@ impl ReadApi {
     ///     let version = object_data.version;
     ///     let past_object = iota
     ///         .read_api()
-    ///         .try_get_parsed_past_object(
-    ///             object_id,
-    ///             version,
-    ///             IotaObjectDataOptions {
-    ///                 show_type: true,
-    ///                 show_owner: true,
-    ///                 show_previous_transaction: true,
-    ///                 show_display: true,
-    ///                 show_content: true,
-    ///                 show_bcs: true,
-    ///                 show_storage_rebate: true,
-    ///             },
-    ///         )
+    ///         .try_get_parsed_past_object(object_id, version, IotaObjectDataOptions {
+    ///             show_type: true,
+    ///             show_owner: true,
+    ///             show_previous_transaction: true,
+    ///             show_display: true,
+    ///             show_content: true,
+    ///             show_bcs: true,
+    ///             show_storage_rebate: true,
+    ///         })
     ///         .await?;
     ///     let past_object = past_object.into_object()?;
     ///     let multi_past_object = iota
@@ -345,18 +336,15 @@ impl ReadApi {
     ///     let object_id = object_data.object_id;
     ///     let object = iota
     ///         .read_api()
-    ///         .get_object_with_options(
-    ///             object_id,
-    ///             IotaObjectDataOptions {
-    ///                 show_type: true,
-    ///                 show_owner: true,
-    ///                 show_previous_transaction: true,
-    ///                 show_display: true,
-    ///                 show_content: true,
-    ///                 show_bcs: true,
-    ///                 show_storage_rebate: true,
-    ///             },
-    ///         )
+    ///         .get_object_with_options(object_id, IotaObjectDataOptions {
+    ///             show_type: true,
+    ///             show_owner: true,
+    ///             show_previous_transaction: true,
+    ///             show_display: true,
+    ///             show_content: true,
+    ///             show_bcs: true,
+    ///             show_storage_rebate: true,
+    ///         })
     ///         .await?;
     ///     Ok(())
     /// }
@@ -405,18 +393,15 @@ impl ReadApi {
     ///     let object_ids = vec![object_id]; // and other object ids
     ///     let object = iota
     ///         .read_api()
-    ///         .multi_get_object_with_options(
-    ///             object_ids,
-    ///             IotaObjectDataOptions {
-    ///                 show_type: true,
-    ///                 show_owner: true,
-    ///                 show_previous_transaction: true,
-    ///                 show_display: true,
-    ///                 show_content: true,
-    ///                 show_bcs: true,
-    ///                 show_storage_rebate: true,
-    ///             },
-    ///         )
+    ///         .multi_get_object_with_options(object_ids, IotaObjectDataOptions {
+    ///             show_type: true,
+    ///             show_owner: true,
+    ///             show_previous_transaction: true,
+    ///             show_display: true,
+    ///             show_content: true,
+    ///             show_bcs: true,
+    ///             show_storage_rebate: true,
+    ///         })
     ///         .await?;
     ///     Ok(())
     /// }
@@ -525,9 +510,9 @@ impl ReadApi {
     /// ```
     pub async fn get_committee_info(
         &self,
-        epoch: Option<BigInt<u64>>,
+        epoch: impl Into<Option<BigInt<u64>>>,
     ) -> IotaRpcResult<IotaCommittee> {
-        Ok(self.api.http.get_committee_info(epoch).await?)
+        Ok(self.api.http.get_committee_info(epoch.into()).await?)
     }
 
     /// Return a paginated response with all transaction blocks information, or
@@ -535,14 +520,14 @@ impl ReadApi {
     pub async fn query_transaction_blocks(
         &self,
         query: IotaTransactionBlockResponseQuery,
-        cursor: Option<TransactionDigest>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<TransactionDigest>>,
+        limit: impl Into<Option<usize>>,
         descending_order: bool,
     ) -> IotaRpcResult<TransactionBlocksPage> {
         Ok(self
             .api
             .http
-            .query_transaction_blocks(query, cursor, limit, Some(descending_order))
+            .query_transaction_blocks(query, cursor.into(), limit.into(), Some(descending_order))
             .await?)
     }
 
@@ -563,14 +548,14 @@ impl ReadApi {
     /// Return a paginated list of checkpoints, or an error upon failure.
     pub async fn get_checkpoints(
         &self,
-        cursor: Option<BigInt<u64>>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<BigInt<u64>>>,
+        limit: impl Into<Option<usize>>,
         descending_order: bool,
     ) -> IotaRpcResult<CheckpointPage> {
         Ok(self
             .api
             .http
-            .get_checkpoints(cursor, limit, descending_order)
+            .get_checkpoints(cursor.into(), limit.into(), descending_order)
             .await?)
     }
 
@@ -591,9 +576,11 @@ impl ReadApi {
     pub fn get_transactions_stream(
         &self,
         query: IotaTransactionBlockResponseQuery,
-        cursor: Option<TransactionDigest>,
+        cursor: impl Into<Option<TransactionDigest>>,
         descending_order: bool,
     ) -> impl Stream<Item = IotaTransactionBlockResponse> + '_ {
+        let cursor = cursor.into();
+
         stream::unfold(
             (vec![], cursor, true, query),
             move |(mut data, cursor, first, query)| async move {
@@ -705,9 +692,9 @@ impl ReadApi {
         &self,
         sender_address: IotaAddress,
         tx: TransactionKind,
-        gas_price: Option<BigInt<u64>>,
-        epoch: Option<BigInt<u64>>,
-        additional_args: Option<DevInspectArgs>,
+        gas_price: impl Into<Option<BigInt<u64>>>,
+        epoch: impl Into<Option<BigInt<u64>>>,
+        additional_args: impl Into<Option<DevInspectArgs>>,
     ) -> IotaRpcResult<DevInspectResults> {
         Ok(self
             .api
@@ -715,32 +702,30 @@ impl ReadApi {
             .dev_inspect_transaction_block(
                 sender_address,
                 Base64::from_bytes(&bcs::to_bytes(&tx)?),
-                gas_price,
-                epoch,
-                additional_args,
+                gas_price.into(),
+                epoch.into(),
+                additional_args.into(),
             )
             .await?)
-    }
-
-    /// Return the loaded child objects response for the provided digest, or an
-    /// error upon failure.
-    ///
-    /// Loaded child objects
-    /// ([IotaLoadedChildObject](iota_json_rpc_types::IotaLoadedChildObject))
-    /// are the non-input objects that the transaction at the digest loaded
-    /// in response to dynamic field accesses.
-    pub async fn get_loaded_child_objects(
-        &self,
-        digest: TransactionDigest,
-    ) -> IotaRpcResult<IotaLoadedChildObjectsResponse> {
-        Ok(self.api.http.get_loaded_child_objects(digest).await?)
     }
 
     /// Return the protocol config, or an error upon failure.
     pub async fn get_protocol_config(
         &self,
-        version: Option<BigInt<u64>>,
+        version: impl Into<Option<BigInt<u64>>>,
     ) -> IotaRpcResult<ProtocolConfigResponse> {
-        Ok(self.api.http.get_protocol_config(version).await?)
+        Ok(self.api.http.get_protocol_config(version.into()).await?)
+    }
+
+    pub async fn try_get_object_before_version(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+    ) -> IotaRpcResult<IotaPastObjectResponse> {
+        Ok(self
+            .api
+            .http
+            .try_get_object_before_version(object_id, version)
+            .await?)
     }
 }

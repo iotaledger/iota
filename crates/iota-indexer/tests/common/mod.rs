@@ -3,10 +3,12 @@
 
 use std::{
     net::SocketAddr,
+    path::PathBuf,
     sync::{Arc, OnceLock},
     time::Duration,
 };
 
+use diesel::PgConnection;
 use iota_config::node::RunWithRange;
 use iota_indexer::{
     IndexerConfig,
@@ -15,16 +17,15 @@ use iota_indexer::{
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{ReaderWriterConfig, start_test_indexer},
 };
+use iota_json_rpc_api::ReadApiClient;
 use iota_metrics::init_metrics;
-use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    storage::ReadStore,
-};
+use iota_types::base_types::{ObjectID, SequenceNumber};
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
     types::ErrorObject,
 };
 use simulacrum::Simulacrum;
+use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{runtime::Runtime, task::JoinHandle};
 
@@ -38,7 +39,7 @@ static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
 pub struct ApiTestSetup {
     pub runtime: Runtime,
     pub cluster: TestCluster,
-    pub store: PgIndexerStore,
+    pub store: PgIndexerStore<PgConnection>,
     /// Indexer RPC Client
     pub client: HttpClient,
 }
@@ -65,8 +66,9 @@ impl ApiTestSetup {
 /// `Write` indexer
 pub async fn start_test_cluster_with_read_write_indexer(
     stop_cluster_after_checkpoint_seq: Option<u64>,
-) -> (TestCluster, PgIndexerStore, HttpClient) {
-    let mut builder = TestClusterBuilder::new();
+) -> (TestCluster, PgIndexerStore<PgConnection>, HttpClient) {
+    let temp = tempdir().unwrap().into_path();
+    let mut builder = TestClusterBuilder::new().with_data_ingestion_dir(temp.clone());
 
     // run the cluster until the declared checkpoint sequence number
     if let Some(stop_cluster_after_checkpoint_seq) = stop_cluster_after_checkpoint_seq {
@@ -82,11 +84,12 @@ pub async fn start_test_cluster_with_read_write_indexer(
         Some(DEFAULT_DB_URL.to_owned()),
         cluster.rpc_url().to_string(),
         ReaderWriterConfig::writer_mode(None),
+        temp.clone(),
     )
     .await;
 
     // start indexer in read mode
-    start_indexer_reader(cluster.rpc_url().to_owned());
+    start_indexer_reader(cluster.rpc_url().to_owned(), temp);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
@@ -102,13 +105,13 @@ pub async fn start_test_cluster_with_read_write_indexer(
 ///
 /// Indexer starts storing data after checkpoint 0
 pub async fn indexer_wait_for_checkpoint(
-    pg_store: &PgIndexerStore,
+    pg_store: &PgIndexerStore<PgConnection>,
     checkpoint_sequence_number: u64,
 ) {
     tokio::time::timeout(Duration::from_secs(30), async {
         while {
             let cp_opt = pg_store
-                .get_latest_tx_checkpoint_sequence_number()
+                .get_latest_checkpoint_sequence_number()
                 .await
                 .unwrap();
             cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
@@ -122,18 +125,19 @@ pub async fn indexer_wait_for_checkpoint(
 
 /// Wait for the indexer to catch up to the given object sequence number
 pub async fn indexer_wait_for_object(
-    pg_store: &PgIndexerStore,
+    client: &HttpClient,
     object_id: ObjectID,
     sequence_number: SequenceNumber,
 ) {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
-            if pg_store
-                .get_object_read(object_id, Some(sequence_number))
+            if client
+                .get_object(object_id, None)
                 .await
                 .unwrap()
-                .object()
-                .is_ok()
+                .data
+                .map(|obj| obj.version == sequence_number)
+                .unwrap_or_default()
             {
                 break;
             }
@@ -145,14 +149,15 @@ pub async fn indexer_wait_for_object(
 }
 
 /// Start an Indexer instance in `Read` mode
-fn start_indexer_reader(fullnode_rpc_url: impl Into<String>) {
+fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path: PathBuf) {
     let config = IndexerConfig {
-        db_url: Some(DEFAULT_DB_URL.to_owned()),
+        db_url: Some(DEFAULT_DB_URL.to_owned().into()),
         rpc_client_url: fullnode_rpc_url.into(),
         reset_db: true,
         rpc_server_worker: true,
         rpc_server_url: DEFAULT_INDEXER_IP.to_owned(),
         rpc_server_port: DEFAULT_INDEXER_PORT,
+        data_ingestion_path: Some(data_ingestion_path),
         ..Default::default()
     };
 
@@ -160,7 +165,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>) {
     init_metrics(&registry);
 
     tokio::spawn(async move {
-        Indexer::start_reader(&config, &registry, DEFAULT_DB_URL.to_owned()).await
+        Indexer::start_reader::<PgConnection>(&config, &registry, DEFAULT_DB_URL.to_owned()).await
     });
 }
 
@@ -190,23 +195,17 @@ pub fn get_default_fullnode_rpc_api_addr() -> SocketAddr {
 /// Simulacrum.
 pub async fn start_simulacrum_rest_api_with_write_indexer(
     sim: Arc<Simulacrum>,
+    data_ingestion_path: PathBuf,
 ) -> (
     JoinHandle<()>,
-    PgIndexerStore,
+    PgIndexerStore<PgConnection>,
     JoinHandle<Result<(), IndexerError>>,
 ) {
     let server_url = get_default_fullnode_rpc_api_addr();
 
     let server_handle = tokio::spawn(async move {
-        let chain_id = (*sim
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
-            .unwrap()
-            .digest())
-        .into();
-
-        iota_rest_api::RestService::new_without_version(sim, chain_id)
-            .start_service(server_url, Some("/rest".to_owned()))
+        iota_rest_api::RestService::new_without_version(sim)
+            .start_service(server_url)
             .await;
     });
     // Starts indexer
@@ -214,6 +213,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
         Some(DEFAULT_DB_URL.to_owned()),
         format!("http://{}", server_url),
         ReaderWriterConfig::writer_mode(None),
+        data_ingestion_path,
     )
     .await;
     (server_handle, pg_store, pg_handle)
@@ -221,18 +221,19 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
 
 pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     sim: Arc<Simulacrum>,
+    data_ingestion_path: PathBuf,
 ) -> (
     JoinHandle<()>,
-    PgIndexerStore,
+    PgIndexerStore<PgConnection>,
     JoinHandle<Result<(), IndexerError>>,
     HttpClient,
 ) {
     let server_url = get_default_fullnode_rpc_api_addr();
     let (server_handle, pg_store, pg_handle) =
-        start_simulacrum_rest_api_with_write_indexer(sim).await;
+        start_simulacrum_rest_api_with_write_indexer(sim, data_ingestion_path.clone()).await;
 
     // start indexer in read mode
-    start_indexer_reader(format!("http://{}", server_url));
+    start_indexer_reader(format!("http://{}", server_url), data_ingestion_path);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()

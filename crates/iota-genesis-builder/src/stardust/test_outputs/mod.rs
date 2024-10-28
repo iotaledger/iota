@@ -27,21 +27,16 @@ use iota_types::{
     timelock::timelock::{self},
 };
 use packable::{
-    packer::{IoPacker, Packer},
     Packable,
+    packer::{IoPacker, Packer},
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::stardust::{parse::HornetSnapshotParser, types::output_header::OutputHeader};
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 const IOTA_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
     "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
-
-pub const SHIMMER_COIN_TYPE: u32 = 4219;
-pub const STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO: u64 = 1_813_620_509_061_365;
-const SHIMMER_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
-    "0x4c337ea67697cb8dd0267cced8d9b51c479eb61dea04842138dcef31218d63810000";
 
 pub const MERGE_MILESTONE_INDEX: u32 = 7669900;
 pub const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
@@ -83,7 +78,6 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
 
     let address_derivation_coin_type = match coin_type {
         CoinType::Iota => IOTA_COIN_TYPE,
-        CoinType::Shimmer => SHIMMER_COIN_TYPE,
     };
 
     let mut rng = StdRng::seed_from_u64(randomness_seed);
@@ -149,7 +143,6 @@ fn add_all_previous_outputs_and_test_outputs<R: Read>(
 
     let target_output = match coin_type {
         CoinType::Iota => IOTA_OUTPUT_TO_DECREASE_AMOUNT_FROM,
-        CoinType::Shimmer => SHIMMER_OUTPUT_TO_DECREASE_AMOUNT_FROM,
     };
 
     // Writes previous outputs.
@@ -200,7 +193,6 @@ fn add_only_test_outputs<R: Read>(
     let zero_address = Ed25519Address::new([0; 32]);
     let network_total_supply = match coin_type {
         CoinType::Iota => to_nanos(STARDUST_TOTAL_SUPPLY_IOTA),
-        CoinType::Shimmer => STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO,
     };
     let remainder = network_total_supply
         .checked_sub(new_temp_amount + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>())

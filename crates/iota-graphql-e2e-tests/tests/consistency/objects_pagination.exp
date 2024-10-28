@@ -3,25 +3,30 @@ processed 24 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1 'publish'. lines 16-29:
+task 1, lines 16-29:
+//# publish
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 31-31:
+task 2, line 31:
+//# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 33-33:
+task 3, line 33:
+//# run Test::M1::create --args 1 @A
 created: object(3,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4 'create-checkpoint'. lines 35-35:
+task 4, line 35:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 5 'run-graphql'. lines 37-65:
+task 5, lines 37-65:
+//# run-graphql --cursors @{obj_2_0} @{obj_3_0}
 Response: {
   "data": {
     "one_of_these_will_yield_an_object": {
@@ -31,10 +36,10 @@ Response: {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
+                "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
                 "value": "1"
               }
             }
@@ -48,20 +53,24 @@ Response: {
   }
 }
 
-task 6 'run'. lines 67-67:
+task 6, line 67:
+//# run Test::M1::create --args 2 @A
 created: object(6,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 7 'run'. lines 69-69:
+task 7, line 69:
+//# run Test::M1::create --args 3 @A
 created: object(7,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 8 'create-checkpoint'. lines 71-71:
+task 8, line 71:
+//# create-checkpoint
 Checkpoint created: 2
 
-task 9 'run-graphql'. lines 73-101:
+task 9, lines 73-101:
+//# run-graphql --cursors @{obj_2_0,1} @{obj_3_0,1}
 Response: {
   "data": {
     "paginating_on_checkpoint_1": {
@@ -71,10 +80,10 @@ Response: {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
+                "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
                 "value": "1"
               }
             }
@@ -88,21 +97,22 @@ Response: {
   }
 }
 
-task 10 'run-graphql'. lines 103-118:
+task 10, lines 103-118:
+//# run-graphql
 Response: {
   "data": {
     "four_objects": {
       "objects": {
         "nodes": [
           {
-            "version": 5,
+            "version": 6,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x1199c7487c8d1dd7f8b1f66c19369f03f533c3f02daabc43e1f98b9ff38cefe1",
-                "value": "2"
+                "id": "0x0276236f1293f0797f2a9d85f4385dc166206d14963eb528a8f0cb82171e4a1c",
+                "value": "3"
               }
             }
           },
@@ -110,23 +120,23 @@ Response: {
             "version": 3,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x1d813173f7bbf5e4bfdbf93e4813fd853987711cc4ee54453bb469c89efa492c",
+                "id": "0x239663104e1d8db2011e6eb4df325556361bbf73414d25d4545491d30b351666",
                 "value": "0"
               }
             }
           },
           {
-            "version": 6,
+            "version": 5,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x5e775cf683cf7ce13860c895725266d4984cc7425cbd6c9508225e000576991b",
-                "value": "3"
+                "id": "0x36f05b1d8a31406630118071eb1742dfc0c6283062b254d8e8e64d24320fd382",
+                "value": "2"
               }
             }
           },
@@ -134,10 +144,10 @@ Response: {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
+                "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
                 "value": "1"
               }
             }
@@ -148,21 +158,22 @@ Response: {
   }
 }
 
-task 11 'run-graphql'. lines 120-145:
+task 11, lines 120-145:
+//# run-graphql
 Response: {
   "data": {
     "objects_at_version": {
       "objects": {
         "nodes": [
           {
-            "version": 5,
+            "version": 6,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x1199c7487c8d1dd7f8b1f66c19369f03f533c3f02daabc43e1f98b9ff38cefe1",
-                "value": "2"
+                "id": "0x0276236f1293f0797f2a9d85f4385dc166206d14963eb528a8f0cb82171e4a1c",
+                "value": "3"
               }
             }
           },
@@ -170,23 +181,23 @@ Response: {
             "version": 3,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x1d813173f7bbf5e4bfdbf93e4813fd853987711cc4ee54453bb469c89efa492c",
+                "id": "0x239663104e1d8db2011e6eb4df325556361bbf73414d25d4545491d30b351666",
                 "value": "0"
               }
             }
           },
           {
-            "version": 6,
+            "version": 5,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x5e775cf683cf7ce13860c895725266d4984cc7425cbd6c9508225e000576991b",
-                "value": "3"
+                "id": "0x36f05b1d8a31406630118071eb1742dfc0c6283062b254d8e8e64d24320fd382",
+                "value": "2"
               }
             }
           },
@@ -194,10 +205,10 @@ Response: {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
+                "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
                 "value": "1"
               }
             }
@@ -208,191 +219,31 @@ Response: {
   }
 }
 
-task 12 'programmable'. lines 147-148:
+task 12, lines 147-148:
+//# programmable --sender A --inputs object(2,0) object(3,0) object(6,0) object(7,0) @B
+//> TransferObjects([Input(0), Input(1), Input(2), Input(3)], Input(4))
 mutated: object(0,0), object(2,0), object(3,0), object(6,0), object(7,0)
 gas summary: computation_cost: 1000000, storage_cost: 6247200,  storage_rebate: 5259200, non_refundable_storage_fee: 0
 
-task 13 'create-checkpoint'. lines 150-150:
+task 13, line 150:
+//# create-checkpoint
 Checkpoint created: 3
 
-task 14 'run-graphql'. lines 152-214:
+task 14, lines 152-214:
+//# run-graphql --cursors @{obj_6_0,2}
 Response: {
   "data": {
     "after_obj_6_0_at_checkpoint_2": {
       "objects": {
         "nodes": [
           {
-            "version": 3,
-            "contents": {
-              "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-              },
-              "json": {
-                "id": "0x1d813173f7bbf5e4bfdbf93e4813fd853987711cc4ee54453bb469c89efa492c",
-                "value": "0"
-              }
-            },
-            "owner_at_latest_state_has_iota_only": {
-              "owner": {
-                "objects": {
-                  "nodes": [
-                    {
-                      "version": 5,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0x1199c7487c8d1dd7f8b1f66c19369f03f533c3f02daabc43e1f98b9ff38cefe1",
-                          "value": "2"
-                        }
-                      }
-                    },
-                    {
-                      "version": 3,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0x1d813173f7bbf5e4bfdbf93e4813fd853987711cc4ee54453bb469c89efa492c",
-                          "value": "0"
-                        }
-                      }
-                    },
-                    {
-                      "version": 6,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0x5e775cf683cf7ce13860c895725266d4984cc7425cbd6c9508225e000576991b",
-                          "value": "3"
-                        }
-                      }
-                    },
-                    {
-                      "version": 1,
-                      "contents": {
-                        "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-                        },
-                        "json": {
-                          "id": "0x7814cc2030a03bb79177c97b1de118665ccd363ac5a29e6342bde96335100530",
-                          "balance": {
-                            "value": "300000000000000"
-                          }
-                        }
-                      }
-                    },
-                    {
-                      "version": 4,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
-                          "value": "1"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          {
-            "version": 6,
-            "contents": {
-              "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-              },
-              "json": {
-                "id": "0x5e775cf683cf7ce13860c895725266d4984cc7425cbd6c9508225e000576991b",
-                "value": "3"
-              }
-            },
-            "owner_at_latest_state_has_iota_only": {
-              "owner": {
-                "objects": {
-                  "nodes": [
-                    {
-                      "version": 5,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0x1199c7487c8d1dd7f8b1f66c19369f03f533c3f02daabc43e1f98b9ff38cefe1",
-                          "value": "2"
-                        }
-                      }
-                    },
-                    {
-                      "version": 3,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0x1d813173f7bbf5e4bfdbf93e4813fd853987711cc4ee54453bb469c89efa492c",
-                          "value": "0"
-                        }
-                      }
-                    },
-                    {
-                      "version": 6,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0x5e775cf683cf7ce13860c895725266d4984cc7425cbd6c9508225e000576991b",
-                          "value": "3"
-                        }
-                      }
-                    },
-                    {
-                      "version": 1,
-                      "contents": {
-                        "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-                        },
-                        "json": {
-                          "id": "0x7814cc2030a03bb79177c97b1de118665ccd363ac5a29e6342bde96335100530",
-                          "balance": {
-                            "value": "300000000000000"
-                          }
-                        }
-                      }
-                    },
-                    {
-                      "version": 4,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
-                          "value": "1"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
+                "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
                 "value": "1"
               }
             },
@@ -401,14 +252,14 @@ Response: {
                 "objects": {
                   "nodes": [
                     {
-                      "version": 5,
+                      "version": 6,
                       "contents": {
                         "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
                         },
                         "json": {
-                          "id": "0x1199c7487c8d1dd7f8b1f66c19369f03f533c3f02daabc43e1f98b9ff38cefe1",
-                          "value": "2"
+                          "id": "0x0276236f1293f0797f2a9d85f4385dc166206d14963eb528a8f0cb82171e4a1c",
+                          "value": "3"
                         }
                       }
                     },
@@ -416,23 +267,35 @@ Response: {
                       "version": 3,
                       "contents": {
                         "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
                         },
                         "json": {
-                          "id": "0x1d813173f7bbf5e4bfdbf93e4813fd853987711cc4ee54453bb469c89efa492c",
+                          "id": "0x239663104e1d8db2011e6eb4df325556361bbf73414d25d4545491d30b351666",
                           "value": "0"
                         }
                       }
                     },
                     {
-                      "version": 6,
+                      "version": 5,
                       "contents": {
                         "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
                         },
                         "json": {
-                          "id": "0x5e775cf683cf7ce13860c895725266d4984cc7425cbd6c9508225e000576991b",
-                          "value": "3"
+                          "id": "0x36f05b1d8a31406630118071eb1742dfc0c6283062b254d8e8e64d24320fd382",
+                          "value": "2"
+                        }
+                      }
+                    },
+                    {
+                      "version": 4,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
+                          "value": "1"
                         }
                       }
                     },
@@ -443,22 +306,10 @@ Response: {
                           "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         },
                         "json": {
-                          "id": "0x7814cc2030a03bb79177c97b1de118665ccd363ac5a29e6342bde96335100530",
+                          "id": "0x875b7011e8f9650ccf26b682b6aeeb36050f9665157d47407e2925700e69143b",
                           "balance": {
                             "value": "300000000000000"
                           }
-                        }
-                      }
-                    },
-                    {
-                      "version": 4,
-                      "contents": {
-                        "type": {
-                          "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-                        },
-                        "json": {
-                          "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
-                          "value": "1"
                         }
                       }
                     }
@@ -471,24 +322,198 @@ Response: {
       }
     },
     "before_obj_6_0_at_checkpoint_2": {
-      "nodes": []
+      "nodes": [
+        {
+          "version": 6,
+          "asMoveObject": {
+            "contents": {
+              "type": {
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+              },
+              "json": {
+                "id": "0x0276236f1293f0797f2a9d85f4385dc166206d14963eb528a8f0cb82171e4a1c",
+                "value": "3"
+              }
+            },
+            "note_that_owner_result_should_reflect_latest_state": {
+              "owner": {
+                "objects": {
+                  "nodes": [
+                    {
+                      "version": 6,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x0276236f1293f0797f2a9d85f4385dc166206d14963eb528a8f0cb82171e4a1c",
+                          "value": "3"
+                        }
+                      }
+                    },
+                    {
+                      "version": 3,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x239663104e1d8db2011e6eb4df325556361bbf73414d25d4545491d30b351666",
+                          "value": "0"
+                        }
+                      }
+                    },
+                    {
+                      "version": 5,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x36f05b1d8a31406630118071eb1742dfc0c6283062b254d8e8e64d24320fd382",
+                          "value": "2"
+                        }
+                      }
+                    },
+                    {
+                      "version": 4,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
+                          "value": "1"
+                        }
+                      }
+                    },
+                    {
+                      "version": 1,
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                        },
+                        "json": {
+                          "id": "0x875b7011e8f9650ccf26b682b6aeeb36050f9665157d47407e2925700e69143b",
+                          "balance": {
+                            "value": "300000000000000"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "version": 3,
+          "asMoveObject": {
+            "contents": {
+              "type": {
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+              },
+              "json": {
+                "id": "0x239663104e1d8db2011e6eb4df325556361bbf73414d25d4545491d30b351666",
+                "value": "0"
+              }
+            },
+            "note_that_owner_result_should_reflect_latest_state": {
+              "owner": {
+                "objects": {
+                  "nodes": [
+                    {
+                      "version": 6,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x0276236f1293f0797f2a9d85f4385dc166206d14963eb528a8f0cb82171e4a1c",
+                          "value": "3"
+                        }
+                      }
+                    },
+                    {
+                      "version": 3,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x239663104e1d8db2011e6eb4df325556361bbf73414d25d4545491d30b351666",
+                          "value": "0"
+                        }
+                      }
+                    },
+                    {
+                      "version": 5,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x36f05b1d8a31406630118071eb1742dfc0c6283062b254d8e8e64d24320fd382",
+                          "value": "2"
+                        }
+                      }
+                    },
+                    {
+                      "version": 4,
+                      "contents": {
+                        "type": {
+                          "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
+                          "value": "1"
+                        }
+                      }
+                    },
+                    {
+                      "version": 1,
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                        },
+                        "json": {
+                          "id": "0x875b7011e8f9650ccf26b682b6aeeb36050f9665157d47407e2925700e69143b",
+                          "balance": {
+                            "value": "300000000000000"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }
 
-task 16 'create-checkpoint'. lines 218-218:
+task 16, line 218:
+//# create-checkpoint
 Checkpoint created: 4
 
-task 18 'create-checkpoint'. lines 222-222:
+task 18, line 222:
+//# create-checkpoint
 Checkpoint created: 5
 
-task 19 'force-object-snapshot-catchup'. lines 224-224:
+task 19, line 224:
+//# force-object-snapshot-catchup --start-cp 0 --end-cp 4
 Objects snapshot updated to [0 to 4)
 
-task 20 'create-checkpoint'. lines 226-226:
+task 20, line 226:
+//# create-checkpoint
 Checkpoint created: 6
 
-task 21 'run-graphql'. lines 228-243:
+task 21, lines 228-243:
+//# run-graphql --cursors @{obj_6_0,2}
 Response: {
   "data": null,
   "errors": [
@@ -510,7 +535,8 @@ Response: {
   ]
 }
 
-task 22 'run-graphql'. lines 245-261:
+task 22, lines 245-261:
+//# run-graphql
 Response: {
   "data": {
     "owned_by_address_b_latest": {
@@ -520,34 +546,10 @@ Response: {
             "version": 7,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x1199c7487c8d1dd7f8b1f66c19369f03f533c3f02daabc43e1f98b9ff38cefe1",
-                "value": "2"
-              }
-            }
-          },
-          {
-            "version": 7,
-            "contents": {
-              "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-              },
-              "json": {
-                "id": "0x1d813173f7bbf5e4bfdbf93e4813fd853987711cc4ee54453bb469c89efa492c",
-                "value": "0"
-              }
-            }
-          },
-          {
-            "version": 7,
-            "contents": {
-              "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
-              },
-              "json": {
-                "id": "0x5e775cf683cf7ce13860c895725266d4984cc7425cbd6c9508225e000576991b",
+                "id": "0x0276236f1293f0797f2a9d85f4385dc166206d14963eb528a8f0cb82171e4a1c",
                 "value": "3"
               }
             }
@@ -556,10 +558,34 @@ Response: {
             "version": 7,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
+                "id": "0x239663104e1d8db2011e6eb4df325556361bbf73414d25d4545491d30b351666",
+                "value": "0"
+              }
+            }
+          },
+          {
+            "version": 7,
+            "contents": {
+              "type": {
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+              },
+              "json": {
+                "id": "0x36f05b1d8a31406630118071eb1742dfc0c6283062b254d8e8e64d24320fd382",
+                "value": "2"
+              }
+            }
+          },
+          {
+            "version": 7,
+            "contents": {
+              "type": {
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
+              },
+              "json": {
+                "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
                 "value": "1"
               }
             }
@@ -570,21 +596,22 @@ Response: {
   }
 }
 
-task 23 'run-graphql'. lines 263-289:
+task 23, lines 263-289:
+//# run-graphql
 Response: {
   "data": {
     "objects_at_version": {
       "objects": {
         "nodes": [
           {
-            "version": 5,
+            "version": 6,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x1199c7487c8d1dd7f8b1f66c19369f03f533c3f02daabc43e1f98b9ff38cefe1",
-                "value": "2"
+                "id": "0x0276236f1293f0797f2a9d85f4385dc166206d14963eb528a8f0cb82171e4a1c",
+                "value": "3"
               }
             }
           },
@@ -592,23 +619,23 @@ Response: {
             "version": 3,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x1d813173f7bbf5e4bfdbf93e4813fd853987711cc4ee54453bb469c89efa492c",
+                "id": "0x239663104e1d8db2011e6eb4df325556361bbf73414d25d4545491d30b351666",
                 "value": "0"
               }
             }
           },
           {
-            "version": 6,
+            "version": 5,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0x5e775cf683cf7ce13860c895725266d4984cc7425cbd6c9508225e000576991b",
-                "value": "3"
+                "id": "0x36f05b1d8a31406630118071eb1742dfc0c6283062b254d8e8e64d24320fd382",
+                "value": "2"
               }
             }
           },
@@ -616,10 +643,10 @@ Response: {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x14d0dbdf9710d7eb879c85d0a5965e30c8466580d05a199bcd95f28f0083a354::M1::Object"
+                "repr": "0xa9cbee3dea1fbcfbc892ff3689f58dc1620558f5f31f6cd3e2b75010e2df732c::M1::Object"
               },
               "json": {
-                "id": "0xac76fca854d9a3040d79e151083dc2a16a26bf68367e9b9059a9025320a5b54a",
+                "id": "0x4c94d3aa104e529fdf2ce54b0813332b0b587d5b36d04ec87a9776db93ae093a",
                 "value": "1"
               }
             }

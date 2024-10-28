@@ -139,24 +139,24 @@ module iota::kiosk_extensions_tests {
 
         ext::add(Extension {}, &mut kiosk, &owner_cap, 3, ctx);
 
-        assert!(ext::is_installed<Extension>(&kiosk), 0);
-        assert!(ext::is_enabled<Extension>(&kiosk), 0);
-        assert!(ext::can_place<Extension>(&kiosk), 0);
-        assert!(ext::can_lock<Extension>(&kiosk), 0);
+        assert!(ext::is_installed<Extension>(&kiosk));
+        assert!(ext::is_enabled<Extension>(&kiosk));
+        assert!(ext::can_place<Extension>(&kiosk));
+        assert!(ext::can_lock<Extension>(&kiosk));
 
         ext::disable<Extension>(&mut kiosk, &owner_cap);
 
-        assert!(ext::is_installed<Extension>(&kiosk), 0);
-        assert!(!ext::is_enabled<Extension>(&kiosk), 0);
-        assert!(!ext::can_place<Extension>(&kiosk), 0);
-        assert!(!ext::can_lock<Extension>(&kiosk), 0);
+        assert!(ext::is_installed<Extension>(&kiosk));
+        assert!(!ext::is_enabled<Extension>(&kiosk));
+        assert!(!ext::can_place<Extension>(&kiosk));
+        assert!(!ext::can_lock<Extension>(&kiosk));
 
         ext::enable<Extension>(&mut kiosk, &owner_cap);
 
-        assert!(ext::is_installed<Extension>(&kiosk), 0);
-        assert!(ext::is_enabled<Extension>(&kiosk), 0);
-        assert!(ext::can_place<Extension>(&kiosk), 0);
-        assert!(ext::can_lock<Extension>(&kiosk), 0);
+        assert!(ext::is_installed<Extension>(&kiosk));
+        assert!(ext::is_enabled<Extension>(&kiosk));
+        assert!(ext::can_place<Extension>(&kiosk));
+        assert!(ext::can_lock<Extension>(&kiosk));
 
         test::return_kiosk(kiosk, owner_cap, ctx);
     }

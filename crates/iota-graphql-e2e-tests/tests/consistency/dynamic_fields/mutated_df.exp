@@ -3,44 +3,74 @@ processed 17 tasks
 init:
 A: object(0,0)
 
-task 1 'publish'. lines 15-46:
+task 1, lines 15-46:
+//# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 7828000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 48-48:
+task 2, line 48:
+//# run Test::M1::parent --sender A --args @A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'view-object'. lines 50-50:
+task 3, line 50:
+//# view-object 2,0
 Owner: Account Address ( A )
 Version: 2
-Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 0u64}
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 0u64,
+}
 
-task 4 'run'. lines 52-52:
+task 4, line 52:
+//# run Test::M1::add_df --sender A --args object(2,0)
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 8664000,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 5 'view-object'. lines 54-54:
+task 5, line 54:
+//# view-object 2,0
 Owner: Account Address ( A )
 Version: 3
-Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 0u64}
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 0u64,
+}
 
-task 6 'run'. lines 56-56:
+task 6, line 56:
+//# run Test::M1::mutate_parent --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 7 'view-object'. lines 58-58:
+task 7, line 58:
+//# view-object 2,0
 Owner: Account Address ( A )
 Version: 4
-Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 42u64}
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 42u64,
+}
 
-task 8 'create-checkpoint'. lines 60-60:
+task 8, line 60:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 9 'run-graphql'. lines 62-110:
+task 9, lines 62-110:
+//# run-graphql
 Response: {
   "data": {
     "latest": {
@@ -48,7 +78,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBBnOALXni3wmZGioU+56Cf5hUAXE9QKWZJF/T0p7XfKAQAAAAAAAAA=",
+            "cursor": "ICL7pJfAQLj6WYX7JFqe8xzFC/CvS5IAKLUxLQMjEDPMAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMw=="
@@ -59,7 +89,7 @@ Response: {
             }
           },
           {
-            "cursor": "IFFSCjSjvml+qUV5/Oexb5HazA/ABpvcITcLy7vpRYuiAQAAAAAAAAA=",
+            "cursor": "IDDmzOHqC1rNbC7svj9ulnV/RJFyPyAyQ1aRX/whHumNAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
@@ -70,7 +100,7 @@ Response: {
             }
           },
           {
-            "cursor": "IKVP7M2Yu0Z4m5+oge2nBItMiJ8ZocGX6stEp0xdCx7GAQAAAAAAAAA=",
+            "cursor": "IIVQTTVQjMUkDYOy1/VGNfpBmQxaJo6M0SMfHyrWrbGAAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMQ=="
@@ -109,33 +139,61 @@ Response: {
   }
 }
 
-task 10 'view-object'. lines 112-112:
+task 10, line 112:
+//# view-object 2,0
 Owner: Account Address ( A )
 Version: 4
-Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 42u64}
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 42u64,
+}
 
-task 11 'run'. lines 114-114:
+task 11, line 114:
+//# run Test::M1::mutate_df1 --sender A --args object(2,0)
 mutated: object(0,0), object(2,0), object(4,2)
 gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4423200, non_refundable_storage_fee: 0
 
-task 12 'view-object'. lines 116-116:
+task 12, line 116:
+//# view-object 2,0
 Owner: Account Address ( A )
 Version: 5
-Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 42u64}
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 42u64,
+}
 
-task 13 'run'. lines 118-118:
+task 13, line 118:
+//# run Test::M1::mutate_parent --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 14 'view-object'. lines 120-120:
+task 14, line 120:
+//# view-object 2,0
 Owner: Account Address ( A )
 Version: 6
-Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 84u64}
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 84u64,
+}
 
-task 15 'create-checkpoint'. lines 122-122:
+task 15, line 122:
+//# create-checkpoint
 Checkpoint created: 2
 
-task 16 'run-graphql'. lines 124-172:
+task 16, lines 124-172:
+//# run-graphql
 Response: {
   "data": {
     "latest": {
@@ -143,7 +201,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBBnOALXni3wmZGioU+56Cf5hUAXE9QKWZJF/T0p7XfKAgAAAAAAAAA=",
+            "cursor": "ICL7pJfAQLj6WYX7JFqe8xzFC/CvS5IAKLUxLQMjEDPMAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMw=="
@@ -154,7 +212,7 @@ Response: {
             }
           },
           {
-            "cursor": "IFFSCjSjvml+qUV5/Oexb5HazA/ABpvcITcLy7vpRYuiAgAAAAAAAAA=",
+            "cursor": "IDDmzOHqC1rNbC7svj9ulnV/RJFyPyAyQ1aRX/whHumNAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
@@ -165,7 +223,7 @@ Response: {
             }
           },
           {
-            "cursor": "IKVP7M2Yu0Z4m5+oge2nBItMiJ8ZocGX6stEp0xdCx7GAgAAAAAAAAA=",
+            "cursor": "IIVQTTVQjMUkDYOy1/VGNfpBmQxaJo6M0SMfHyrWrbGAAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMQ=="
