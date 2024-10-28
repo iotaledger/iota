@@ -44,7 +44,7 @@ use iota_types::{
         generate_proof_of_possession, get_authority_key_pair,
     },
     iota_system_state::{
-        iota_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
+        iota_system_state_inner_v1::{UnverifiedValidatorOperationCap, ValidatorV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     multiaddr::Multiaddr,
@@ -865,7 +865,7 @@ async fn get_validator_summary_from_cap_id(
             operation_cap_id
         )
     })?;
-    let cap = bcs::from_bytes::<UnverifiedValidatorOperationCapV1>(bcs).map_err(|e| {
+    let cap = bcs::from_bytes::<UnverifiedValidatorOperationCap>(bcs).map_err(|e| {
         anyhow::anyhow!(
             "Can't convert bcs bytes of object {} to UnverifiedValidatorOperationCapV1: {}",
             operation_cap_id,

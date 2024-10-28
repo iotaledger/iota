@@ -65,7 +65,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEvent},
+    event::{Event, EventID, SystemEpochInfoEventV1},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -1395,7 +1395,7 @@ impl AuthorityState {
         )
         .await?;
 
-        if let TransactionKind::AuthenticatorStateUpdate(auth_state) =
+        if let TransactionKind::AuthenticatorStateUpdateV1(auth_state) =
             certificate.data().transaction_data().kind()
         {
             if let Some(err) = &execution_error_opt {
@@ -1459,25 +1459,6 @@ impl AuthorityState {
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // Only need to sign effects if we are a validator, and if the
-        // executed_in_epoch_table is not yet enabled. TODO: once
-        // executed_in_epoch_table is enabled everywhere, we can remove the code below
-        // entirely.
-        let should_sign_effects =
-            self.is_validator(epoch_store) && !epoch_store.executed_in_epoch_table_enabled();
-
-        let effects_sig = if should_sign_effects {
-            Some(AuthoritySignInfo::new(
-                epoch_store.epoch(),
-                effects,
-                Intent::iota_app(IntentScope::TransactionEffects),
-                self.name,
-                &*self.secret,
-            ))
-        } else {
-            None
-        };
-
         // index certificate
         let _ = self
             .post_process_one_tx(certificate, effects, &inner_temporary_store, epoch_store)
@@ -1490,12 +1471,7 @@ impl AuthorityState {
         // The insertion to epoch_store is not atomic with the insertion to the
         // perpetual store. This is OK because we insert to the epoch store
         // first. And during lookups we always look up in the perpetual store first.
-        epoch_store.insert_tx_key_and_effects_signature(
-            &tx_key,
-            tx_digest,
-            &effects.digest(),
-            effects_sig.as_ref(),
-        )?;
+        epoch_store.insert_tx_key_and_digest(&tx_key, tx_digest)?;
 
         // Allow testing what happens if we crash here.
         fail_point_async!("crash");
@@ -2120,12 +2096,6 @@ impl AuthorityState {
         indexes
             .index_tx(
                 cert.data().intent_message().value.sender(),
-                cert.data()
-                    .intent_message()
-                    .value
-                    .input_objects()?
-                    .iter()
-                    .map(|o| o.object_id()),
                 effects
                     .all_changed_objects()
                     .into_iter()
@@ -4673,7 +4643,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEvent, TransactionEffects)> {
+    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1, TransactionEffects)> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
@@ -4808,14 +4778,14 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
-        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
+        // Find the SystemEpochInfoEventV1 emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
             .data
             .iter()
             .find(|event| event.is_system_epoch_info_event())
             .expect("end of epoch tx must emit system epoch info event");
-        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEvent>(
+        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEventV1>(
             &system_epoch_info_event.contents,
         )
         .expect("deserialization should succeed since we asserted that the event is of this type");
