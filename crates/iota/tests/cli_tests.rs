@@ -4170,3 +4170,33 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
+
+#[sim_test]
+async fn test_move_new() -> Result<(), anyhow::Error> {
+    let package_name = "test_move_new";
+    IotaCommand::Move {
+        package_path: None,
+        config: None,
+        build_config: move_package::BuildConfig::default(),
+        cmd: iota_move::Command::New(iota_move::new::New {
+            new: move_cli::base::new::New {
+                name: package_name.to_string(),
+            },
+        }),
+    }
+    .execute()
+    .await?;
+
+    // Get all the new file names
+    let files = read_dir(package_name)?
+        .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(3, files.len());
+    for name in ["sources", "tests", "Move.toml"] {
+        assert!(files.contains(&name.to_string()));
+    }
+
+    std::fs::remove_dir_all(package_name)?;
+    Ok(())
+}
