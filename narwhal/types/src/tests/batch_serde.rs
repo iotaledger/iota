@@ -5,13 +5,13 @@
 use serde_test::{Token, assert_tokens};
 
 use crate::{
-    Batch, BatchV2, MetadataV1, VersionedMetadata, serde::batch_serde::Token::NewtypeVariant,
+    Batch, BatchV1, MetadataV1, VersionedMetadata, serde::batch_serde::Token::NewtypeVariant,
 };
 #[test]
 fn test_serde_batch() {
     let tx = || vec![1; 5];
 
-    let batch = Batch::V2(BatchV2 {
+    let batch = Batch::V1(BatchV1 {
         transactions: (0..2).map(|_| tx()).collect(),
         versioned_metadata: VersionedMetadata::V1(MetadataV1 {
             created_at: 1666205365890,
@@ -22,10 +22,10 @@ fn test_serde_batch() {
     assert_tokens(&batch, &[
         NewtypeVariant {
             name: "Batch",
-            variant: "V2",
+            variant: "V1",
         },
         Token::Struct {
-            name: "BatchV2",
+            name: "BatchV1",
             len: 2,
         },
         Token::Str("transactions"),

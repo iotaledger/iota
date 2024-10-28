@@ -87,13 +87,11 @@ pub async fn execute_certificate_with_execution_error(
     ),
     IotaError,
 > {
-    let epoch_store = authority.load_epoch_store_one_call_per_task();
     // We also check the incremental effects of the transaction on the live object
     // set against StateAccumulator for testing and regression detection.
     // We must do this before sending to consensus, otherwise consensus may already
     // lead to transaction execution and state change.
-    let state_acc =
-        StateAccumulator::new_for_tests(authority.get_accumulator_store().clone(), &epoch_store);
+    let state_acc = StateAccumulator::new_for_tests(authority.get_accumulator_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
 
     if with_shared {
@@ -225,7 +223,7 @@ pub async fn init_state_with_objects<I: IntoIterator<Item = Object>>(
         iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir).build();
     let genesis = network_config.genesis;
     let keypair = network_config.validator_configs[0]
-        .protocol_key_pair()
+        .authority_key_pair()
         .copy();
     init_state_with_objects_and_committee(objects, &genesis, &keypair).await
 }

@@ -409,10 +409,8 @@ async fn init_executor_test(
 
     let (checkpoint_sender, _): (Sender<VerifiedCheckpoint>, Receiver<VerifiedCheckpoint>) =
         broadcast::channel(buffer_size);
-    let epoch_store = state.epoch_store_for_testing();
 
-    let accumulator =
-        StateAccumulator::new_for_tests(state.get_accumulator_store().clone(), &epoch_store);
+    let accumulator = StateAccumulator::new_for_tests(state.get_accumulator_store().clone());
     let accumulator = Arc::new(accumulator);
 
     let executor = CheckpointExecutor::new_for_tests(
@@ -468,7 +466,7 @@ async fn sync_end_of_epoch_checkpoint(
             epoch_commitments: vec![ECMHLiveObjectSetDigest::default().into()],
             // Do not simulate supply changes in tests.
             // We would need to build this checkpoint after the below execution of advance_epoch to
-            // obtain this number from the SystemEpochInfoEvent.
+            // obtain this number from the SystemEpochInfoEventV1.
             epoch_supply_change: 0,
         }),
     );

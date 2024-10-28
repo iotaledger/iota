@@ -7,8 +7,6 @@ export * from './image';
 export * from './modal';
 
 export * from './ButtonOrLink';
-export * from './Card';
-export * from './Divider';
 export * from './ExpandableList';
 export * from './FilterList';
 export * from './ImageIcon';
@@ -25,5 +23,4 @@ export * from './ProgressCircle';
 export * from './RingChart';
 export * from './SplitPanes';
 export * from './TableCard';
-export * from './Tooltip';
 export * from './VerticalList';

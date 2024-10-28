@@ -7,16 +7,12 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 backoff.workspace = true
 bcs.workspace = true
 futures.workspace = true
-iota-metrics.workspace = true
-iota-protocol-config.workspace = true
-iota-rest-api.workspace = true
-iota-storage.workspace = true
-iota-types.workspace = true
 notify.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
@@ -28,6 +24,16 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 url.workspace = true
 
+# internal dependencies
+iota-metrics.workspace = true
+iota-protocol-config.workspace = true
+iota-rest-api.workspace = true
+iota-storage.workspace = true
+iota-types.workspace = true
+
 [dev-dependencies]
-iota-types = { workspace = true, features = ["test-utils"] }
+# external dependencies
 rand.workspace = true
+
+# internal dependencies
+iota-types = { workspace = true, features = ["test-utils"] }

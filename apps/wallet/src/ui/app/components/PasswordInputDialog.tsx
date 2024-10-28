@@ -3,15 +3,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import { Text } from '_src/ui/app/shared/text';
 import classNames from 'clsx';
 import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
-import { ArrowLeft, ArrowRight } from '@iota/ui-icons';
-import { Header, InputType } from '@iota/apps-ui-kit';
+import { ArrowLeft, ArrowRight, Loader } from '@iota/ui-icons';
+import {
+    Button,
+    ButtonHtmlType,
+    ButtonType,
+    ButtonSize,
+    Header,
+    InputType,
+} from '@iota/apps-ui-kit';
 import { PasswordInputField } from '../shared/input/password';
 
 const validation = object({
@@ -76,20 +81,19 @@ export function PasswordInputDialog({
                             errorMessage={errors.password}
                         />
                         <div className="mt-4 text-center">
-                            <Text variant="pBodySmall" color="steel-dark" weight="normal">
+                            <span className="text-body-md text-neutral-40">
                                 This is the password you currently use to lock and unlock your IOTA
                                 wallet.
-                            </Text>
+                            </span>
                         </div>
                     </div>
                     <div className="flex flex-nowrap gap-3.75 self-stretch">
                         {showBackButton ? (
                             <Button
+                                size={ButtonSize.Small}
                                 text="Back"
-                                color="heroDark"
-                                size="tall"
-                                variant="outline"
-                                before={<ArrowLeft className="h-4 w-4" />}
+                                type={ButtonType.Secondary}
+                                icon={<ArrowLeft className="h-4 w-4" />}
                                 onClick={() => {
                                     if (typeof onBackClicked === 'function') {
                                         onBackClicked();
@@ -98,16 +102,24 @@ export function PasswordInputDialog({
                                     }
                                 }}
                                 disabled={isSubmitting}
+                                fullWidth
                             />
                         ) : null}
                         <Button
-                            type="submit"
-                            variant="primary"
-                            size="tall"
+                            size={ButtonSize.Small}
+                            htmlType={ButtonHtmlType.Submit}
+                            type={ButtonType.Primary}
                             text={continueLabel}
-                            loading={isSubmitting}
-                            disabled={!isValid}
-                            after={showArrowIcon ? <ArrowRight className="h-4 w-4" /> : null}
+                            disabled={isSubmitting || !isValid}
+                            icon={
+                                isSubmitting ? (
+                                    <Loader className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <ArrowRight className="h-4 w-4" />
+                                )
+                            }
+                            iconAfterText
+                            fullWidth
                         />
                     </div>
                 </Form>

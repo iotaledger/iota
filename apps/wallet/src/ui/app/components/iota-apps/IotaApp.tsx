@@ -6,9 +6,8 @@ import { ImageIcon, ImageIconSize } from '_app/shared/image-icon';
 import { ExternalLink } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getDAppUrl } from '_src/shared/utils';
-import { Text } from '_src/ui/app/shared/text';
 import { useState } from 'react';
-import { Card, CardImage, CardBody, ImageShape } from '@iota/apps-ui-kit';
+import { Card, CardImage, CardBody, ImageShape, Badge, BadgeType } from '@iota/apps-ui-kit';
 
 import DisconnectApp from './DisconnectApp';
 
@@ -55,26 +54,15 @@ interface ListViewProps {
 
 function ListView({ name, icon, description, tags }: ListViewProps) {
     return (
-        <div className="item-center hover:bg-iota/10 box-border flex gap-3 rounded bg-white px-1.25 py-3.5">
+        <div className="item-center box-border flex gap-sm rounded-2xl bg-neutral-100 p-sm hover:bg-shader-primary-dark-12">
             <ImageIcon src={icon || null} label={name} fallback={name} />
-            <div className="flex flex-col justify-center gap-1">
-                <Text variant="body" weight="semibold" color="iota-dark">
-                    {name}
-                </Text>
-                <Text variant="pSubtitle" weight="normal" color="steel-darker">
-                    {description}
-                </Text>
+            <div className="flex flex-col justify-center gap-sm">
+                <span className="text-label-md text-neutral-10">{name}</span>
+                <span className="text-body-sm text-neutral-40">{description}</span>
                 {tags?.length && (
-                    <div className="mt-0.5 flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-xxs">
                         {tags?.map((tag) => (
-                            <div
-                                className="item-center border-steel flex justify-center rounded border border-solid px-1.5 py-0.5"
-                                key={tag}
-                            >
-                                <Text variant="captionSmall" weight="medium" color="steel-dark">
-                                    {tag}
-                                </Text>
-                            </div>
+                            <Badge key={tag} label={tag} type={BadgeType.Neutral} />
                         ))}
                     </div>
                 )}

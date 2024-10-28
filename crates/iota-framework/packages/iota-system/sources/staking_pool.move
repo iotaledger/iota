@@ -34,7 +34,7 @@ module iota_system::staking_pool {
     const EStakedIotaBelowThreshold: u64 = 18;
 
     /// A staking pool embedded in each validator struct in the system state object.
-    public struct StakingPool has key, store {
+    public struct StakingPoolV1 has key, store {
         id: UID,
         /// The epoch at which this pool became active.
         /// The value is `None` if the pool is pre-active and `Some(<epoch_number>)` if active or inactive.
@@ -84,9 +84,9 @@ module iota_system::staking_pool {
     // ==== initializer ====
 
     /// Create a new, empty staking pool.
-    public(package) fun new(ctx: &mut TxContext) : StakingPool {
+    public(package) fun new(ctx: &mut TxContext) : StakingPoolV1 {
         let exchange_rates = table::new(ctx);
-        StakingPool {
+        StakingPoolV1 {
             id: object::new(ctx),
             activation_epoch: option::none(),
             deactivation_epoch: option::none(),
@@ -105,7 +105,7 @@ module iota_system::staking_pool {
 
     /// Request to stake to a staking pool. The stake starts counting at the beginning of the next epoch,
     public(package) fun request_add_stake(
-        pool: &mut StakingPool,
+        pool: &mut StakingPoolV1,
         stake: Balance<IOTA>,
         stake_activation_epoch: u64,
         ctx: &mut TxContext
@@ -127,7 +127,7 @@ module iota_system::staking_pool {
     /// Both the principal and corresponding rewards in IOTA are withdrawn.
     /// A proportional amount of pool token withdraw is recorded and processed at epoch change time.
     public(package) fun request_withdraw_stake(
-        pool: &mut StakingPool,
+        pool: &mut StakingPoolV1,
         staked_iota: StakedIota,
         ctx: &TxContext
     ) : Balance<IOTA> {
@@ -163,7 +163,7 @@ module iota_system::staking_pool {
     /// tokens using exchange rate at staking epoch.
     /// Returns values are amount of pool tokens withdrawn and withdrawn principal portion of IOTA.
     public(package) fun withdraw_from_principal(
-        pool: &StakingPool,
+        pool: &StakingPoolV1,
         staked_iota: StakedIota,
     ) : (u64, Balance<IOTA>) {
 
@@ -200,12 +200,12 @@ module iota_system::staking_pool {
     // ==== functions called at epoch boundaries ===
 
     /// Called at epoch advancement times to add rewards (in IOTA) to the staking pool.
-    public(package) fun deposit_rewards(pool: &mut StakingPool, rewards: Balance<IOTA>) {
+    public(package) fun deposit_rewards(pool: &mut StakingPoolV1, rewards: Balance<IOTA>) {
         pool.iota_balance = pool.iota_balance + rewards.value();
         pool.rewards_pool.join(rewards);
     }
 
-    public(package) fun process_pending_stakes_and_withdraws(pool: &mut StakingPool, ctx: &TxContext) {
+    public(package) fun process_pending_stakes_and_withdraws(pool: &mut StakingPoolV1, ctx: &TxContext) {
         let new_epoch = ctx.epoch() + 1;
         process_pending_stake_withdraw(pool);
         process_pending_stake(pool);
@@ -218,7 +218,7 @@ module iota_system::staking_pool {
 
     /// Called at epoch boundaries to process pending stake withdraws requested during the epoch.
     /// Also called immediately upon withdrawal if the pool is inactive.
-    fun process_pending_stake_withdraw(pool: &mut StakingPool) {
+    fun process_pending_stake_withdraw(pool: &mut StakingPoolV1) {
         pool.iota_balance = pool.iota_balance - pool.pending_total_iota_withdraw;
         pool.pool_token_balance = pool.pool_token_balance - pool.pending_pool_token_withdraw;
         pool.pending_total_iota_withdraw = 0;
@@ -226,7 +226,7 @@ module iota_system::staking_pool {
     }
 
     /// Called at epoch boundaries to process the pending stake.
-    public(package) fun process_pending_stake(pool: &mut StakingPool) {
+    public(package) fun process_pending_stake(pool: &mut StakingPoolV1) {
         // Use the most up to date exchange rate with the rewards deposited and withdraws effectuated.
         let latest_exchange_rate =
             PoolTokenExchangeRate { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance };
@@ -243,7 +243,7 @@ module iota_system::staking_pool {
     ///     3. Withdraws the rewards portion from the rewards pool at the current exchange rate. We only withdraw the rewards
     ///        portion because the principal portion was already taken out of the staker's self custodied StakedIota.
     fun withdraw_rewards(
-        pool: &mut StakingPool,
+        pool: &mut StakingPoolV1,
         principal_withdraw_amount: u64,
         pool_token_withdraw_amount: u64,
         epoch: u64,
@@ -264,7 +264,7 @@ module iota_system::staking_pool {
     // ==== preactive pool related ====
 
     /// Called by `validator` module to activate a staking pool.
-    public(package) fun activate_staking_pool(pool: &mut StakingPool, activation_epoch: u64) {
+    public(package) fun activate_staking_pool(pool: &mut StakingPoolV1, activation_epoch: u64) {
         // Add the initial exchange rate to the table.
         pool.exchange_rates.add(
             activation_epoch,
@@ -282,7 +282,7 @@ module iota_system::staking_pool {
     /// Deactivate a staking pool by setting the `deactivation_epoch`. After
     /// this pool deactivation, the pool stops earning rewards. Only stake
     /// withdraws can be made to the pool.
-    public(package) fun deactivate_staking_pool(pool: &mut StakingPool, deactivation_epoch: u64) {
+    public(package) fun deactivate_staking_pool(pool: &mut StakingPoolV1, deactivation_epoch: u64) {
         // We can't deactivate an already deactivated pool.
         assert!(!is_inactive(pool), EDeactivationOfInactivePool);
         pool.deactivation_epoch = option::some(deactivation_epoch);
@@ -290,7 +290,7 @@ module iota_system::staking_pool {
 
     // ==== getters and misc utility functions ====
 
-    public fun iota_balance(pool: &StakingPool): u64 { pool.iota_balance }
+    public fun iota_balance(pool: &StakingPoolV1): u64 { pool.iota_balance }
 
     public fun pool_id(staked_iota: &StakedIota): ID { staked_iota.pool_id }
 
@@ -304,12 +304,12 @@ module iota_system::staking_pool {
     }
 
     /// Returns true if the input staking pool is preactive.
-    public fun is_preactive(pool: &StakingPool): bool{
+    public fun is_preactive(pool: &StakingPoolV1): bool{
         pool.activation_epoch.is_none()
     }
 
     /// Returns true if the input staking pool is inactive.
-    public fun is_inactive(pool: &StakingPool): bool {
+    public fun is_inactive(pool: &StakingPoolV1): bool {
         pool.deactivation_epoch.is_some()
     }
 
@@ -364,7 +364,7 @@ module iota_system::staking_pool {
         (self.stake_activation_epoch == other.stake_activation_epoch)
     }
 
-    public fun pool_token_exchange_rate_at_epoch(pool: &StakingPool, epoch: u64): PoolTokenExchangeRate {
+    public fun pool_token_exchange_rate_at_epoch(pool: &StakingPoolV1, epoch: u64): PoolTokenExchangeRate {
         // If the pool is preactive then the exchange rate is always 1:1.
         if (is_preactive_at_epoch(pool, epoch)) {
             return initial_exchange_rate()
@@ -385,16 +385,16 @@ module iota_system::staking_pool {
     }
 
     /// Returns the total value of the pending staking requests for this staking pool.
-    public fun pending_stake_amount(staking_pool: &StakingPool): u64 {
+    public fun pending_stake_amount(staking_pool: &StakingPoolV1): u64 {
         staking_pool.pending_stake
     }
 
     /// Returns the total withdrawal from the staking pool this epoch.
-    public fun pending_stake_withdraw_amount(staking_pool: &StakingPool): u64 {
+    public fun pending_stake_withdraw_amount(staking_pool: &StakingPoolV1): u64 {
         staking_pool.pending_total_iota_withdraw
     }
 
-    public(package) fun exchange_rates(pool: &StakingPool): &Table<u64, PoolTokenExchangeRate> {
+    public(package) fun exchange_rates(pool: &StakingPoolV1): &Table<u64, PoolTokenExchangeRate> {
         &pool.exchange_rates
     }
 
@@ -407,7 +407,7 @@ module iota_system::staking_pool {
     }
 
     /// Returns true if the provided staking pool is preactive at the provided epoch.
-    fun is_preactive_at_epoch(pool: &StakingPool, epoch: u64): bool{
+    fun is_preactive_at_epoch(pool: &StakingPoolV1, epoch: u64): bool{
         // Either the pool is currently preactive or the pool's starting epoch is later than the provided epoch.
         is_preactive(pool) || (*pool.activation_epoch.borrow() > epoch)
     }
@@ -440,7 +440,7 @@ module iota_system::staking_pool {
         PoolTokenExchangeRate { iota_amount: 0, pool_token_amount: 0 }
     }
 
-    fun check_balance_invariants(pool: &StakingPool, epoch: u64) {
+    fun check_balance_invariants(pool: &StakingPoolV1, epoch: u64) {
         let exchange_rate = pool_token_exchange_rate_at_epoch(pool, epoch);
         // check that the pool token balance and iota balance ratio matches the exchange rate stored.
         let expected = get_token_amount(&exchange_rate, pool.iota_balance);
@@ -453,7 +453,7 @@ module iota_system::staking_pool {
     // Given the `staked_iota` receipt calculate the current rewards (in terms of IOTA) for it.
     #[test_only]
     public fun calculate_rewards(
-        pool: &StakingPool,
+        pool: &StakingPoolV1,
         staked_iota: &StakedIota,
         current_epoch: u64,
     ): u64 {

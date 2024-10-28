@@ -26,7 +26,7 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
-        AuthenticatorStateUpdate, GenesisTransaction, TransactionDataAPI, TransactionKind,
+        AuthenticatorStateUpdateV1, GenesisTransaction, TransactionDataAPI, TransactionKind,
     },
     utils::{get_one_zklogin_inputs, load_test_vectors, to_sender_signed_transaction},
     zk_login_authenticator::ZkLoginAuthenticator,
@@ -976,7 +976,7 @@ async fn setup_zklogin_network(
     let gas_object_id = gas_object_ids[0];
     let jwks = parse_jwks(DEFAULT_JWK_BYTES, &OIDCProvider::Twitch)?;
     let epoch_store = authority_state.epoch_store_for_testing();
-    epoch_store.update_authenticator_state(&AuthenticatorStateUpdate {
+    epoch_store.update_authenticator_state(&AuthenticatorStateUpdateV1 {
         epoch: 0,
         round: 0,
         new_active_jwks: jwks
@@ -1153,7 +1153,7 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
     // Initialize an authenticator state with a Google JWK.
     let jwks = parse_jwks(DEFAULT_JWK_BYTES, &OIDCProvider::Google).unwrap();
     let epoch_store = authority_state.epoch_store_for_testing();
-    epoch_store.update_authenticator_state(&AuthenticatorStateUpdate {
+    epoch_store.update_authenticator_state(&AuthenticatorStateUpdateV1 {
         epoch: 0,
         round: 0,
         new_active_jwks: jwks
@@ -1185,7 +1185,7 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
     // Initialize an authenticator state with Twitch's kid as "nosuckkey".
     pub const BAD_JWK_BYTES: &[u8] = r#"{"keys":[{"alg":"RS256","e":"AQAB","kid":"nosuchkey","kty":"RSA","n":"6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw","use":"sig"}]}"#.as_bytes();
     let jwks = parse_jwks(BAD_JWK_BYTES, &OIDCProvider::Twitch).unwrap();
-    epoch_store.update_authenticator_state(&AuthenticatorStateUpdate {
+    epoch_store.update_authenticator_state(&AuthenticatorStateUpdateV1 {
         epoch: 0,
         round: 0,
         new_active_jwks: jwks
@@ -1230,7 +1230,7 @@ async fn test_zklogin_multisig() {
 
     let jwks = parse_jwks(DEFAULT_JWK_BYTES, &OIDCProvider::Twitch).unwrap();
     let epoch_store = authority_state.epoch_store_for_testing();
-    epoch_store.update_authenticator_state(&AuthenticatorStateUpdate {
+    epoch_store.update_authenticator_state(&AuthenticatorStateUpdateV1 {
         epoch: 0,
         round: 0,
         new_active_jwks: jwks
@@ -1864,7 +1864,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::NoCertificateProvidedError { .. }
+            IotaError::NoCertificateProvided { .. }
         );
     }
 
@@ -1954,7 +1954,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::NoSharedObjectError { .. },
+            error: UserInputError::NoSharedObject { .. },
         });
     }
 
@@ -2038,7 +2038,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::GasPriceMismatchError { .. },
+            error: UserInputError::GasPriceMismatch { .. },
         });
     }
 
@@ -2124,7 +2124,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::CeritificateAlreadyProcessed { .. },
+            error: UserInputError::CertificateAlreadyProcessed { .. },
         });
     }
 }

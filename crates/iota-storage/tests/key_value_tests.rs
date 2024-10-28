@@ -427,7 +427,6 @@ async fn test_get_tx_from_fallback() {
 #[cfg(msim)]
 mod simtests {
     use std::{
-        net::SocketAddr,
         sync::Mutex,
         time::{Duration, Instant},
     };
@@ -441,26 +440,11 @@ mod simtests {
     use iota_macros::sim_test;
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
+    use rustls::crypto::{CryptoProvider, ring};
+    use tokio::net::TcpListener;
     use tracing::info;
 
     use super::*;
-
-    async fn svc(
-        State(state): State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
-        request: Request<Body>,
-    ) -> Response {
-        let path = request.uri().path().to_string();
-        let key = path.trim_start_matches('/');
-        let value = state.lock().unwrap().get(key).cloned();
-        info!("Got request for key: {:?}, value: {:?}", key, value);
-        match value {
-            Some(v) => Response::new(Body::from(v)),
-            None => Response::builder()
-                .status(hyper::StatusCode::NOT_FOUND)
-                .body(Body::empty())
-                .unwrap(),
-        }
-    }
 
     async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
         let handle = iota_simulator::runtime::Handle::current();
