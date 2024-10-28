@@ -17,7 +17,7 @@ module iota::tx_context {
     const ENoIDsCreated: u64 = 1;
 
     /// Information about the transaction currently being executed.
-    /// This cannot be constructed by a transaction--it is a privileged object created by
+    /// This cannot be constructed by a transaction. It is a privileged object created by
     /// the VM and passed in to the entrypoint of the transaction as `&mut TxContext`.
     public struct TxContext has drop {
         /// The address of the user that signed the current transaction
@@ -52,7 +52,7 @@ module iota::tx_context {
 
     /// Return the epoch start time as a unix timestamp in milliseconds.
     public fun epoch_timestamp_ms(self: &TxContext): u64 {
-       self.epoch_timestamp_ms
+        self.epoch_timestamp_ms
     }
 
     /// Create an `address` that has not been used. As it is an object address, it will never
