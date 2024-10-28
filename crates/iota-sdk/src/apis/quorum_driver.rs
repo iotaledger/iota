@@ -20,8 +20,7 @@ const WAIT_FOR_LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(60);
 const WAIT_FOR_LOCAL_EXECUTION_DELAY: Duration = Duration::from_millis(200);
 const WAIT_FOR_LOCAL_EXECUTION_INTERVAL: Duration = Duration::from_secs(2);
 
-/// Quorum API that provides functionality to execute a transaction block and
-/// submit it to the fullnode(s).
+/// Defines methods to execute transaction blocks and submit them to fullnodes.
 #[derive(Clone)]
 pub struct QuorumDriverApi {
     api: Arc<RpcClient>,
@@ -32,12 +31,13 @@ impl QuorumDriverApi {
         Self { api }
     }
 
-    /// Execute a transaction with a FullNode client. `request_type`
-    /// defaults to `ExecuteTransactionRequestType::WaitForLocalExecution`.
-    /// When `ExecuteTransactionRequestType::WaitForLocalExecution` is used,
-    /// but returned `confirmed_local_execution` is false, the client will
-    /// keep retry for WAIT_FOR_LOCAL_EXECUTION_RETRY_COUNT times. If it
-    /// still fails, it will return an error.
+    /// Executes a transaction with a FullNode client. 
+    /// 
+    /// The request type defaults to [`ExecuteTransactionRequestType::WaitForLocalExecution`].
+    /// 
+    /// When `WaitForLocalExecution` is used, but the returned `confirmed_local_execution` 
+    /// is false, the client will wait a duration defined by [WAIT_FOR_LOCAL_EXECUTION_INTERVAL] 
+    /// before returning [Error::FailToConfirmTransactionStatus].
     pub async fn execute_transaction_block(
         &self,
         tx: Transaction,
