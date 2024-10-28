@@ -9,7 +9,7 @@ import { AssetCard, VirtualList } from '@/components/index';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
 import { useRouter } from 'next/navigation';
-import { ASSETS_ROUTE } from '@/lib/constants';
+import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
 
 function VisualAssetsPage(): JSX.Element {
     const account = useCurrentAccount();

@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import { useCreateSendAssetTransaction } from '@/hooks';
-import { ASSETS_ROUTE } from '@/lib/constants';
+import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
 
 interface SendAssetPopupProps {
     asset: IotaObjectData;

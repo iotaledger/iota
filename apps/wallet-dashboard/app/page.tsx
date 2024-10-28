@@ -7,7 +7,7 @@ import { ConnectButton, useCurrentAccount, useCurrentWallet } from '@iota/dapp-k
 import { useEffect } from 'react';
 import { redirect } from 'next/navigation';
 import { IotaLogoWeb } from '@iota/ui-icons';
-import { HOMEPAGE_ROUTE } from '@/lib/constants';
+import { HOMEPAGE_ROUTE } from '@/lib/constants/routes.constants';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
