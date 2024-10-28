@@ -9,6 +9,7 @@ import { AssetCard, Button, RouteLink, SendAssetPopup } from '@/components';
 import { isAssetTransferable, useGetObject } from '@iota/core';
 import { usePopups } from '@/hooks';
 import { useCurrentAccount } from '@iota/dapp-kit';
+import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
 
 const VisualAssetDetailPage = () => {
     const params = useParams();
@@ -28,7 +29,7 @@ const VisualAssetDetailPage = () => {
 
     return (
         <div className="flex h-full w-full flex-col space-y-4 px-40">
-            <RouteLink path="/assets" title="Back" />
+            <RouteLink path={ASSETS_ROUTE.path} title="Back" />
             {asset?.data ? (
                 <AssetCard key={asset.data.objectId} asset={asset.data} />
             ) : (
