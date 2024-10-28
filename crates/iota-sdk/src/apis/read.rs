@@ -298,7 +298,7 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return a [IotaObjectResponse] based on the provided [ObjectID] and
+    /// Return an [IotaObjectResponse] based on the provided [ObjectID] and
     /// [IotaObjectDataOptions], or an error upon failure.
     ///
     /// The [IotaObjectResponse] contains two fields:
@@ -456,7 +456,7 @@ impl ReadApi {
         Ok(*self.api.http.get_total_transaction_blocks().await?)
     }
 
-    /// Return a transaction and its effects in a [IotaTransactionBlockResponse]
+    /// Return a transaction and its effects in an [IotaTransactionBlockResponse]
     /// based on its [TransactionDigest], or an error upon failure.
     pub async fn get_transaction_with_options(
         &self,
