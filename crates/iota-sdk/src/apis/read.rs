@@ -664,7 +664,7 @@ impl ReadApi {
     }
 
     /// Get the protocol config by version.
-    /// 
+    ///
     /// The version defaults to the current version.
     pub async fn get_protocol_config(
         &self,
