@@ -17,7 +17,6 @@ use iota_indexer::{
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{ReaderWriterConfig, start_test_indexer},
 };
-use iota_json_rpc_api::ReadApiClient;
 use iota_metrics::init_metrics;
 use iota_types::base_types::{ObjectID, SequenceNumber};
 use jsonrpsee::{
@@ -153,7 +152,7 @@ pub async fn indexer_wait_for_object(
 
 pub async fn indexer_wait_for_transaction(
     tx_digest: TransactionDigest,
-    pg_store: &PgIndexerStore,
+    pg_store: &PgIndexerStore<PgConnection>,
     indexer_client: &HttpClient,
 ) {
     tokio::time::timeout(Duration::from_secs(30), async {

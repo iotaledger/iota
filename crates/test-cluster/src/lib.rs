@@ -99,7 +99,6 @@ use tokio::{
 };
 use tracing::{error, info};
 use iota_types::crypto::{AccountKeyPair, get_key_pair};
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use iota_types::utils::to_sender_signed_transaction;
 
 const NUM_VALIDATOR: usize = 4;
@@ -138,7 +137,7 @@ pub struct TestCluster {
     pub fullnode_handle: FullNodeHandle,
     pub bridge_authority_keys: Option<Vec<BridgeAuthorityKeyPair>>,
     pub bridge_server_ports: Option<Vec<u16>>,
-    faucet: FaucetContext
+    faucet: Faucet
 }
 
 impl TestCluster {

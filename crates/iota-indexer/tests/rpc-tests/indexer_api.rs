@@ -224,9 +224,9 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
         let gas_ref = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
-        indexer_wait_for_object(&store, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(&client, gas_ref.0, gas_ref.1).await;
         let coin_to_split = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
-        indexer_wait_for_object(&store, coin_to_split.0, coin_to_split.1).await;
+        indexer_wait_for_object(&client, coin_to_split.0, coin_to_split.1).await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
         let mut tx_responses = vec![];
@@ -330,9 +330,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         let coin_2 = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
-        indexer_wait_for_object(&store, gas.0, gas.1).await;
-        indexer_wait_for_object(&store, coin_1.0, coin_1.1).await;
-        indexer_wait_for_object(&store, coin_2.0, coin_2.1).await;
+        indexer_wait_for_object(&client, gas.0, gas.1).await;
+        indexer_wait_for_object(&client, coin_1.0, coin_1.1).await;
+        indexer_wait_for_object(&client, coin_2.0, coin_2.1).await;
 
         let objects = client
             .get_owned_objects(
@@ -447,7 +447,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
         let gas = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000_000), address).await;
-        indexer_wait_for_object(&store, gas.0, gas.1).await;
+        indexer_wait_for_object(&client, gas.0, gas.1).await;
 
         // Create a bag object
         let pt = {
@@ -538,7 +538,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
 
         let gas = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000_000), address).await;
-        indexer_wait_for_object(&store, gas.0, gas.1).await;
+        indexer_wait_for_object(&client, gas.0, gas.1).await;
 
         let child_object = cluster.fund_address_and_return_gas(cluster.get_reference_gas_price().await, Some(500_000_000), address).await;
 
