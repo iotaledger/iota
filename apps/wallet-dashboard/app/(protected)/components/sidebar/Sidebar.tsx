@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PROTECTED_ROUTES } from '@/lib/constants';
+import { PROTECTED_ROUTES } from '@/lib/constants/routes.constants';
 import { IotaLogoMark } from '@iota/ui-icons';
 import { SidebarItem } from './SidebarItem';
 

@@ -1,40 +1,40 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ProtectedAppRoute } from '@/lib/enums';
+import type { ProtectedRoute } from '../interfaces';
+import { ProtectedRouteTitle } from '../enums';
 import { Activity, Assets, Calendar, Home, Migration, Tokens } from '@iota/ui-icons';
-import { AppRoute } from '@/lib/interfaces';
 
-export const HOMEPAGE_ROUTE: AppRoute = {
-    title: ProtectedAppRoute.Home,
+export const HOMEPAGE_ROUTE: ProtectedRoute = {
+    title: ProtectedRouteTitle.Home,
     path: '/home',
     icon: Home,
 };
 
-export const ASSETS_ROUTE: AppRoute = {
-    title: ProtectedAppRoute.Assets,
+export const ASSETS_ROUTE: ProtectedRoute = {
+    title: ProtectedRouteTitle.Assets,
     path: '/assets',
     icon: Assets,
 };
 
-export const STAKING_ROUTE: AppRoute = {
-    title: ProtectedAppRoute.Staking,
+export const STAKING_ROUTE: ProtectedRoute = {
+    title: ProtectedRouteTitle.Staking,
     path: '/staking',
     icon: Activity,
 };
 
-export const ACTIVITY_ROUTE: AppRoute = {
-    title: ProtectedAppRoute.Activity,
+export const ACTIVITY_ROUTE: ProtectedRoute = {
+    title: ProtectedRouteTitle.Activity,
     path: '/activity',
     icon: Tokens,
 };
-export const MIGRATIONS_ROUTE: AppRoute = {
-    title: ProtectedAppRoute.Migrations,
+export const MIGRATIONS_ROUTE: ProtectedRoute = {
+    title: ProtectedRouteTitle.Migrations,
     path: '/migrations',
     icon: Calendar,
 };
-export const VESTING_ROUTE: AppRoute = {
-    title: ProtectedAppRoute.Vesting,
+export const VESTING_ROUTE: ProtectedRoute = {
+    title: ProtectedRouteTitle.Vesting,
     path: '/vesting',
     icon: Migration,
 };
@@ -46,4 +46,4 @@ export const PROTECTED_ROUTES = [
     ACTIVITY_ROUTE,
     MIGRATIONS_ROUTE,
     VESTING_ROUTE,
-] as const satisfies AppRoute[];
+] as const satisfies ProtectedRoute[];

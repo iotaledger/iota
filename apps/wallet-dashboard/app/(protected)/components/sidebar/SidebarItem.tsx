@@ -3,12 +3,12 @@
 
 'use client';
 
-import { AppRoute } from '@/lib/interfaces';
+import type { ProtectedRoute } from '@/lib/interfaces';
 import { NavbarItem } from '@iota/apps-ui-kit';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
-export function SidebarItem({ icon, path }: AppRoute) {
+export function SidebarItem({ icon, path }: ProtectedRoute) {
     const pathname = usePathname();
     const RouteIcon = icon;
     const isActive = pathname === path;
