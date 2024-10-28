@@ -1,6 +1,7 @@
 To generate checkpoint snapshots, follow these steps:
-1. ```cargo run --release --bin iota start --force-regenesis --with-faucet```
-2. Clear checkpoints.yaml file - make ```checkpoints: []```
+
+1. `cargo run --release --bin iota start --force-regenesis --with-faucet`
+2. Clear checkpoints.yaml file - make `checkpoints: []`
 3. Move genesis.blob to example_config
-4. Run ```cargo run --bin generate_chk_snapshots```
+4. Run `cargo run --bin generate_chk_snapshots`
 5. Replace data in tests according to generated checkpoints.
