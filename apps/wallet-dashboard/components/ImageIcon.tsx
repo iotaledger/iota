@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
+import Image from 'next/image';
 import cn from 'clsx';
 
 export enum ImageIconSize {
@@ -44,7 +45,7 @@ function FallBackAvatar({
     return (
         <div
             className={cn(
-                'flex h-full w-full items-center justify-center bg-neutral-96 bg-gradient-to-r capitalize text-neutral-10 dark:bg-neutral-92 dark:text-primary-100',
+                'flex h-full w-full items-center justify-center bg-neutral-96 bg-gradient-to-r capitalize dark:bg-neutral-20',
                 { 'rounded-full': rounded },
                 generateTextSize(size),
             )}
@@ -61,12 +62,13 @@ export function ImageIcon({ src, label, alt = label, fallback, rounded, size }: 
             {error || !src ? (
                 <FallBackAvatar rounded={rounded} str={fallback} size={size} />
             ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                     src={src}
                     alt={alt}
                     className="flex h-full w-full items-center justify-center rounded-full object-cover"
                     onError={() => setError(true)}
+                    layout="fill"
+                    objectFit="cover"
                 />
             )}
         </div>

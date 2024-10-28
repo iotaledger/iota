@@ -39,7 +39,7 @@ function CoinItem({
     return (
         <Card type={CardType.Default} onClick={onClick}>
             <CardImage type={ImageType.BgTransparent}>
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full ">
                     <CoinIcon coinType={coinType} rounded size={ImageIconSize.Small} />
                 </div>
             </CardImage>
