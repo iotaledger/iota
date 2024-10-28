@@ -6834,6 +6834,7 @@ dependencies = [
  "iota-rest-api",
  "iota-sdk 0.4.0",
  "iota-swarm-config",
+ "iota-test-transaction-builder",
  "iota-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
