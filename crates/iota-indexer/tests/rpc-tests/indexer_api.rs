@@ -234,7 +234,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(&client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
         let coin_to_split = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -242,7 +242,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(&client, coin_to_split.0, coin_to_split.1).await;
+        indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
         let mut tx_responses = vec![];
@@ -270,7 +270,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
 
         let tx_res = tx_responses.pop().unwrap();
 
-        indexer_wait_for_transaction(tx_res.digest, &store, &client).await;
+        indexer_wait_for_transaction(tx_res.digest, store, client).await;
 
         let objects = client
             .get_owned_objects(
@@ -364,9 +364,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
-        indexer_wait_for_object(&client, gas.0, gas.1).await;
-        indexer_wait_for_object(&client, coin_1.0, coin_1.1).await;
-        indexer_wait_for_object(&client, coin_2.0, coin_2.1).await;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, coin_1.0, coin_1.1).await;
+        indexer_wait_for_object(client, coin_2.0, coin_2.1).await;
 
         let objects = client
             .get_owned_objects(
@@ -451,7 +451,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        indexer_wait_for_transaction(response.digest, &store, &client).await;
+        indexer_wait_for_transaction(response.digest, store, client).await;
 
         // match with None function, the DB should have 2 records, but both points to
         // the same tx
@@ -487,7 +487,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(&client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
 
         // Create a bag object
         let pt = {
@@ -525,7 +525,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             .await;
 
         // Wait for the transaction to be executed
-        indexer_wait_for_transaction(res.digest, &store, &client).await;
+        indexer_wait_for_transaction(res.digest, store, client).await;
 
         // Find the bag object
         let objects: ObjectsPage = client
@@ -587,7 +587,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(&client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
 
         let child_object = cluster
             .fund_address_and_return_gas(
@@ -643,7 +643,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
             .await;
 
         // Wait for the transaction to be executed
-        indexer_wait_for_transaction(res.digest, &store, &client).await;
+        indexer_wait_for_transaction(res.digest, store, client).await;
 
         // Find the bag object
         let objects: ObjectsPage = client
