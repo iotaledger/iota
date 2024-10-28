@@ -84,21 +84,21 @@ expected output :
 ```shell
 ╭────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ╭─────────────────┬──────────────────────────────────────────────────────────────────────╮ │
-│ │ iotaAddress      │  <IOTA-ADDRESS>                                                       │ │
+│ │ iotaAddress      │  <IOTA-ADDRESS>                                                     │ │
 │ │ publicBase64Key │  <PUBLIC-KEY>                                                        │ │
 │ │ keyScheme       │  ed25519                                                             │ │
 │ │ flag            │  0                                                                   │ │
 │ │ peerId          │  <PEER-ID>                                                           │ │
 │ ╰─────────────────┴──────────────────────────────────────────────────────────────────────╯ │
 │ ╭─────────────────┬──────────────────────────────────────────────────────────────────────╮ │
-│ │ iotaAddress      │  <IOTA-ADDRESS>                                                       │ │
+│ │ iotaAddress      │  <IOTA-ADDRESS>                                                     │ │
 │ │ publicBase64Key │  <PUBLIC-KEY>                                                        │ │
 │ │ keyScheme       │  secp256k1                                                           │ │
 │ │ flag            │  0                                                                   │ │
 │ │ peerId          │  <PEER-ID>                                                           │ │
 │ ╰─────────────────┴──────────────────────────────────────────────────────────────────────╯ │
 │ ╭─────────────────┬──────────────────────────────────────────────────────────────────────╮ │
-│ │ iotaAddress      │  <IOTA-ADDRESS>                                                       │ │
+│ │ iotaAddress      │  <IOTA-ADDRESS>                                                     │ │
 │ │ publicBase64Key │  <PUBLIC-KEY>                                                        │ │
 │ │ keyScheme       │  secp256r1                                                           │ │
 │ │ flag            │  0                                                                   │ │
@@ -121,17 +121,17 @@ expected output :
 │ multisigAddress │  <MULTISIG-ADDRESS>                                                                │
 │ multisig        │ ╭────────────────────────────────────────────────────────────────────────────────╮ │
 │                 │ │ ╭─────────────────┬──────────────────────────────────────────────────────────╮ │ │
-│                 │ │ │ address         │  <IOTA-ADDRESS>                                           │ │ │
+│                 │ │ │ address         │  <IOTA-ADDRESS>                                          │ │ │
 │                 │ │ │ publicBase64Key │  <PUBLIC-KEY>                                            │ │ │
 │                 │ │ │ weight          │  1                                                       │ │ │
 │                 │ │ ╰─────────────────┴──────────────────────────────────────────────────────────╯ │ │
 │                 │ │ ╭─────────────────┬──────────────────────────────────────────────────────────╮ │ │
-│                 │ │ │ address         │  <IOTA-ADDRESS>                                           │ │ │
+│                 │ │ │ address         │  <IOTA-ADDRESS>                                          │ │ │
 │                 │ │ │ publicBase64Key │  <PUBLIC-KEY>                                            │ │ │
 │                 │ │ │ weight          │  2                                                       │ │ │
 │                 │ │ ╰─────────────────┴──────────────────────────────────────────────────────────╯ │ │
 │                 │ │ ╭─────────────────┬──────────────────────────────────────────────────────────╮ │ │
-│                 │ │ │ address         │  <IOTA-ADDRESS>                                           │ │ │
+│                 │ │ │ address         │  <IOTA-ADDRESS>                                          │ │ │
 │                 │ │ │ publicBase64Key │  <PUBLIC-KEY>                                            │ │ │
 │                 │ │ │ weight          │  3                                                       │ │ │
 │                 │ │ ╰─────────────────┴──────────────────────────────────────────────────────────╯ │ │
@@ -144,8 +144,14 @@ To remove a review, moderators must sign a transaction using the multisig setup.
 Serialize the transaction to be signed by the multisig account:
 
 ```shell
-iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --serialize-unsigned-transaction
+iota client call --package <PACKAGE HERE> --module <MODULE HERE> --function "delete_review" --args <FUNCTION ARGUEMENTS>  --gas-budget 10000000 --serialize-unsigned-transaction
 ```
+
+**Arguments:**
+- `--package`: The package ID containing the contract.
+- `--module`: The module where the `delete_review` function is defined.
+- `--function`: The function i.e `delete_review`.
+- `--args`: Arguments required by the function.
 
 ### 5. Sign the Transaction
 Each moderator signs the serialized transaction:
@@ -154,18 +160,35 @@ Each moderator signs the serialized transaction:
 iota keytool sign --address <IOTA-ADDRESS> --data <TX_BYTES>
 ```
 
+**Arguments:**
+- `-address`: The IOTA address of the moderator signing the transaction.
+- `--data`: The serialized transaction bytes that need to be signed.
+
 ### 6. Combine Signatures
 Once two moderators have signed, combine their signatures into a single multisig signature:
 
 ```shell
 iota keytool multi-sig-combine-partial-sig --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> --weights 1 1 1 --threshold 2 --sigs <SIGNATURE-1> <SIGNATURE-2>
 ```
+
+**Arguments:**
+- `--pks`: Public keys of the moderators who have signed the transaction.
+- `--weights`: Weights assigned to each public key.
+- `--threshold`: Minimum number of signatures required to execute the transaction.
+- `--sigs`: Signatures from the moderators that are being combined.
+
+
 ### 7. Execute the Multisig Transaction
 Finally, execute the multisig transaction using the combined signatures:
 
 ```shell
 iota client execute-signed-tx --tx-bytes <TX_BYTES> --signatures <SERIALIZED-MULTISIG>
 ```
+
+**Arguments:**
+- `--tx-bytes`: Transaction bytes.
+- `--signatures`: Serialized multisig signature.
+
 The transaction will now be processed, and the review will be removed from the platform.
 This multisig setup ensures that no single moderator can act unilaterally, thus maintaining fairness and accountability on the platform.
 
@@ -371,7 +394,7 @@ To learn more about the capabilities pattern, see [The Move Book](https://move-b
 
 ## Deployment
 
-Navigate to the [`publish.sh`](https://github.com/iotaledger/iota/blob/devx/tutorial-for-review-rating-with-multisig/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps to deploy the contract. 
+The deployment of the contract is done through a [multi-sig]((../cryptography/transaction-auth/multisig.mdx)) address. Navigate to the [`publish.sh`](https://github.com/iotaledger/iota/blob/devx/tutorial-for-review-rating-with-multisig/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps to deploy the contract. 
 
 ### 1. Create the `.env` File
 You need to create a `.env` file that contains important environment variables required for the deployment. Here's an example of what the .env file should look like:
