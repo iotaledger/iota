@@ -41,6 +41,7 @@ use test_cluster::TestClusterBuilder;
 /// calculate APY from epoch 1 and 2. Since we need epoch 0 to start staking
 /// anyway, and only have the stake of the pool at the expected number (a
 /// quarter of 3.5B IOTAs) starting from epoch 1, this is totally fine.
+#[ignore = "https://github.com/iotaledger/iota/issues/3552"]
 #[sim_test]
 async fn test_apy() {
     // We need a large stake for low enough APY values such that they are not

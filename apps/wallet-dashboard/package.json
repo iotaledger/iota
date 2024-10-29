@@ -22,6 +22,7 @@
         "@iota/ui-icons": "workspace:*",
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-virtual": "^3.5.0",
+        "clsx": "^2.1.1",
         "next": "14.2.10",
         "react": "^18.3.1",
         "zustand": "^4.4.1"
