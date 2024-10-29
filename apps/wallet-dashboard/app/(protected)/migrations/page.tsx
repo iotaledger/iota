@@ -9,13 +9,13 @@ import { useEffect } from 'react';
 
 function MigrationDashboardPage(): JSX.Element {
     const router = useRouter();
-    const migrationDisabled = useFeature<boolean>(Feature.WalletDashboardMigration).value;
+    const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
 
     useEffect(() => {
-        if (migrationDisabled) {
+        if (stardustMigrationEnabled) {
             router.push('/');
         }
-    }, [migrationDisabled, router]);
+    }, [stardustMigrationEnabled, router]);
 
     return (
         <div className="flex items-center justify-center pt-12">

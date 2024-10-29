@@ -9,8 +9,8 @@ import { useFeature } from '@growthbook/growthbook-react';
 
 export function Sidebar() {
     const featureFlags = {
-        Migrations: useFeature<boolean>(Feature.WalletDashboardMigration).value,
-        Vesting: useFeature<boolean>(Feature.WalletDashboardSupplyIncreaseVesting).value,
+        Migrations: useFeature<boolean>(Feature.StardustMigration).value,
+        Vesting: useFeature<boolean>(Feature.SupplyIncreaseVesting).value,
     };
 
     const filteredRoutes = PROTECTED_ROUTES.filter(({ title }) => {

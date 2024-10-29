@@ -44,9 +44,7 @@ function VestingDashboardPage(): JSX.Element {
     const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
-    const supplyIncreaseVestingDisabled = useFeature<boolean>(
-        Feature.WalletDashboardSupplyIncreaseVesting,
-    ).value;
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
@@ -144,10 +142,10 @@ function VestingDashboardPage(): JSX.Element {
     }
 
     useEffect(() => {
-        if (supplyIncreaseVestingDisabled) {
+        if (supplyIncreaseVestingEnabled) {
             router.push('/');
         }
-    }, [router, supplyIncreaseVestingDisabled]);
+    }, [router, supplyIncreaseVestingEnabled]);
 
     return (
         <div className="flex flex-row">
