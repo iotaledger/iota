@@ -30,7 +30,7 @@ use crate::common::{ApiTestSetup, indexer_wait_for_object};
 static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, String)> =
     OnceCell::const_new();
 
-async fn once_prepare_addr_with_iota_and_custom_coins(
+async fn get_or_init_addr_and_custom_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
 ) -> &'static (IotaAddress, String) {
@@ -74,10 +74,10 @@ fn get_coins_basic_scenario() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_coins_fullnode_indexer(cluster, client, *owner, None, None, None).await;
+            get_coins_fullnode_indexer(cluster, client, *owner, None, None, None).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -93,7 +93,7 @@ fn get_coins_with_cursor() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
         let all_coins = cluster
             .rpc_client()
             .get_coins(*owner, None, None, None)
@@ -102,8 +102,7 @@ fn get_coins_with_cursor() {
         let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
 
         let (result_fullnode, result_indexer) =
-            call_get_coins_fullnode_indexer(cluster, client, *owner, None, Some(cursor), None)
-                .await;
+            get_coins_fullnode_indexer(cluster, client, *owner, None, Some(cursor), None).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -119,10 +118,10 @@ fn get_coins_with_limit() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_coins_fullnode_indexer(cluster, client, *owner, None, None, Some(2)).await;
+            get_coins_fullnode_indexer(cluster, client, *owner, None, None, Some(2)).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -138,10 +137,9 @@ fn get_coins_custom_coin() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, coin_name) =
-            once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) = call_get_coins_fullnode_indexer(
+        let (result_fullnode, result_indexer) = get_coins_fullnode_indexer(
             cluster,
             client,
             *owner,
@@ -165,10 +163,10 @@ fn get_all_coins_basic_scenario() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
+            get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -185,7 +183,7 @@ fn get_all_coins_with_cursor() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let all_coins = cluster
             .rpc_client()
@@ -195,10 +193,10 @@ fn get_all_coins_with_cursor() {
         let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
 
         let (result_fullnode_all, result_indexer_all) =
-            call_get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
+            get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_all_coins_fullnode_indexer(cluster, client, *owner, Some(cursor), None).await;
+            get_all_coins_fullnode_indexer(cluster, client, *owner, Some(cursor), None).await;
 
         println!("Fullnode all: {:#?}", result_fullnode_all);
         println!("Indexer all: {:#?}", result_indexer_all);
@@ -220,10 +218,10 @@ fn get_all_coins_with_limit() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_all_coins_fullnode_indexer(cluster, client, *owner, None, Some(2)).await;
+            get_all_coins_fullnode_indexer(cluster, client, *owner, None, Some(2)).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -239,10 +237,10 @@ fn get_balance_iota_coin() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_balance_fullnode_indexer(cluster, client, *owner, None).await;
+            get_balance_fullnode_indexer(cluster, client, *owner, None).await;
 
         assert_eq!(result_fullnode, result_indexer);
     });
@@ -257,11 +255,10 @@ fn get_balance_custom_coin() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, coin_name) =
-            once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_balance_fullnode_indexer(cluster, client, *owner, Some(coin_name.to_string()))
+            get_balance_fullnode_indexer(cluster, client, *owner, Some(coin_name.to_string()))
                 .await;
 
         assert_eq!(result_fullnode, result_indexer);
@@ -277,10 +274,10 @@ fn get_all_balances() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (mut result_fullnode, mut result_indexer) =
-            call_get_all_balances_fullnode_indexer(cluster, client, *owner).await;
+            get_all_balances_fullnode_indexer(cluster, client, *owner).await;
 
         result_fullnode.sort_by_key(|balance: &Balance| balance.coin_type.clone());
         result_indexer.sort_by_key(|balance: &Balance| balance.coin_type.clone());
@@ -298,10 +295,10 @@ fn get_coin_metadata() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (_, coin_name) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (_, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+            get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
 
         assert!(result_indexer.is_some());
         assert_eq!(result_fullnode, result_indexer);
@@ -317,16 +314,16 @@ fn get_total_supply() {
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (_, coin_name) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
+        let (_, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
 
         assert_eq!(result_fullnode, result_indexer);
     });
 }
 
-async fn call_get_coins_fullnode_indexer(
+async fn get_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     owner: IotaAddress,
@@ -346,7 +343,7 @@ async fn call_get_coins_fullnode_indexer(
     (result_fullnode, result_indexer)
 }
 
-async fn call_get_all_coins_fullnode_indexer(
+async fn get_all_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     owner: IotaAddress,
@@ -362,7 +359,7 @@ async fn call_get_all_coins_fullnode_indexer(
     (result_fullnode, result_indexer)
 }
 
-async fn call_get_balance_fullnode_indexer(
+async fn get_balance_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     owner: IotaAddress,
@@ -377,7 +374,7 @@ async fn call_get_balance_fullnode_indexer(
     (result_fullnode, result_indexer)
 }
 
-async fn call_get_all_balances_fullnode_indexer(
+async fn get_all_balances_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     owner: IotaAddress,
@@ -387,7 +384,7 @@ async fn call_get_all_balances_fullnode_indexer(
     (result_fullnode, result_indexer)
 }
 
-async fn call_get_coin_metadata_fullnode_indexer(
+async fn get_coin_metadata_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     coin_type: String,
@@ -401,7 +398,7 @@ async fn call_get_coin_metadata_fullnode_indexer(
     (result_fullnode, result_indexer)
 }
 
-async fn call_get_total_supply_fullnode_indexer(
+async fn get_total_supply_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     coin_type: String,
