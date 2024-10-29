@@ -1273,7 +1273,7 @@ mod tests {
             iota_system_state::{
                 IotaSystemState,
                 iota_system_state_inner_v1::{
-                    IotaSystemStateInnerV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
+                    IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
                 },
             },
         };
@@ -1400,8 +1400,8 @@ mod tests {
             expected.assert_eq(error_result.message());
         }
 
-        fn default_system_state() -> IotaSystemStateInnerV1 {
-            IotaSystemStateInnerV1 {
+        fn default_system_state() -> IotaSystemStateV1 {
+            IotaSystemStateV1 {
                 epoch: Default::default(),
                 protocol_version: Default::default(),
                 system_state_version: Default::default(),
@@ -1434,6 +1434,7 @@ mod tests {
                 },
                 parameters: SystemParametersV1 {
                     epoch_duration_ms: Default::default(),
+                    min_validator_count: Default::default(),
                     max_validator_count: Default::default(),
                     min_validator_joining_stake: Default::default(),
                     validator_low_stake_threshold: Default::default(),

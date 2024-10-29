@@ -43,7 +43,7 @@ jobs:
 
   explorer-prod:
     name: Vercel Explorer Production
-    if: inputs.isDevelop && inputs.isExplorer
+    if: inputs.isDevelop
     uses: ./.github/workflows/apps-explorer.deploy.yml
     secrets: inherit
     with:
@@ -59,7 +59,7 @@ jobs:
 
   ui-kit-prod:
     name: Vercel UI Kit Preview
-    if: inputs.isDevelop && inputs.isAppsUiKit
+    if: inputs.isDevelop
     uses: ./.github/workflows/apps-ui-kit.deploy.yml
     secrets: inherit
     with:
@@ -75,7 +75,7 @@ jobs:
 
   wallet-dashboard-prod:
     name: Vercel Wallet Dashboard Production
-    if: inputs.isDevelop && inputs.isWalletDashboard
+    if: inputs.isDevelop
     uses: ./.github/workflows/apps-wallet-dashboard.deploy.yml
     secrets: inherit
     with:
@@ -91,7 +91,7 @@ jobs:
 
   apps-backend-prod:
     name: Vercel apps-backend Production
-    if: inputs.isDevelop && inputs.isAppsBackend
+    if: inputs.isDevelop
     uses: ./.github/workflows/apps-backend.deploy.yml
     secrets: inherit
     with:
