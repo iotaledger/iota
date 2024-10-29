@@ -7,6 +7,7 @@ import cx from 'classnames';
 import * as React from 'react';
 import { Close } from '@iota/ui-icons';
 import { useEffect, useState } from 'react';
+import { DialogPosition } from './dialog.enums';
 
 const Dialog = RadixDialog.Root;
 const DialogTrigger = RadixDialog.Trigger;
@@ -35,34 +36,55 @@ const DialogContent = React.forwardRef<
     React.ComponentPropsWithoutRef<typeof RadixDialog.Content> & {
         containerId?: string;
         showCloseOnOverlay?: boolean;
+        position?: DialogPosition;
     }
->(({ className, containerId, showCloseOnOverlay, children, ...props }, ref) => {
-    const [containerElement, setContainerElement] = useState<HTMLElement | undefined>(undefined);
+>(
+    (
+        {
+            className,
+            containerId,
+            showCloseOnOverlay,
+            children,
+            position = DialogPosition.Center,
+            ...props
+        },
+        ref,
+    ) => {
+        const [containerElement, setContainerElement] = useState<HTMLElement | undefined>(
+            undefined,
+        );
 
-    useEffect(() => {
-        // This ensures document.getElementById is called in the client-side environment only.
-        // note. containerElement cant be null
-        const element = containerId ? document.getElementById(containerId) : undefined;
-        setContainerElement(element ?? undefined);
-    }, [containerId]);
-
-    return (
-        <RadixDialog.Portal container={containerElement}>
-            <DialogOverlay showCloseIcon={showCloseOnOverlay} />
-            <RadixDialog.Content
-                ref={ref}
-                className="absolute left-1/2 top-1/2 z-[99999] flex max-h-[60vh] w-80 max-w-[85vw] -translate-x-1/2 -translate-y-1/2 flex-col justify-center overflow-hidden rounded-xl bg-primary-100 dark:bg-neutral-6 md:w-96"
-                {...props}
-            >
-                <VisuallyHidden.Root>
-                    <RadixDialog.Title />
-                    <RadixDialog.Description />
-                </VisuallyHidden.Root>
-                {children}
-            </RadixDialog.Content>
-        </RadixDialog.Portal>
-    );
-});
+        useEffect(() => {
+            // This ensures document.getElementById is called in the client-side environment only.
+            // note. containerElement cant be null
+            const element = containerId ? document.getElementById(containerId) : undefined;
+            setContainerElement(element ?? undefined);
+        }, [containerId]);
+        const positionClass =
+            position === DialogPosition.Right
+                ? 'right-0 h-screen top-0 w-full max-w-[500px]'
+                : 'max-h-[60vh] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl w-80 max-w-[85vw]';
+        return (
+            <RadixDialog.Portal container={containerElement}>
+                <DialogOverlay showCloseIcon={showCloseOnOverlay} />
+                <RadixDialog.Content
+                    ref={ref}
+                    className={cx(
+                        'absolute z-[99999] flex flex-col justify-center overflow-hidden bg-primary-100 dark:bg-neutral-6 md:w-96',
+                        positionClass,
+                    )}
+                    {...props}
+                >
+                    <VisuallyHidden.Root>
+                        <RadixDialog.Title />
+                        <RadixDialog.Description />
+                    </VisuallyHidden.Root>
+                    {children}
+                </RadixDialog.Content>
+            </RadixDialog.Portal>
+        );
+    },
+);
 DialogContent.displayName = RadixDialog.Content.displayName;
 
 const DialogTitle = React.forwardRef<

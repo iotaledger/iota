@@ -216,7 +216,7 @@ impl Validator {
         Ok(None)
     }
 
-    /// The ID of this validator's `0x3::staking_pool::StakingPool`.
+    /// The ID of this validator's `0x3::staking_pool::StakingPoolV1`.
     async fn staking_pool_id(&self) -> IotaAddress {
         self.validator_summary.staking_pool_id.into()
     }

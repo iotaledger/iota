@@ -154,19 +154,7 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x37256da94764212f98d6ad0e8127abfa76f1f162ef41d95418647d57e8eaca7a",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x7ab276e07bc81d3c00ac3f5234cce7214b5e69f5cbfa07535f14b05eeca5597c",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce",
+                    "address": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031",
                     "asMovePackage": {
                       "module": {
                         "struct": {
@@ -191,6 +179,18 @@ Response: {
                         }
                       }
                     }
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x5588b330d8a2eab25791479a48c72fc568996bf8cdf4fd3de352c6901c0a31fb",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x8607c0c5eed96e3779f0946da7b802a3ceaa1c91b0f4f1ab6b2cce69c2c01a3c",
+                    "asMovePackage": null
                   }
                 }
               ]
@@ -224,13 +224,25 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x10be345598e39acb2359e836c0b9abc86e1d7f952964f32e94bc7df976af1639",
+                    "address": "0x5588b330d8a2eab25791479a48c72fc568996bf8cdf4fd3de352c6901c0a31fb",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x8607c0c5eed96e3779f0946da7b802a3ceaa1c91b0f4f1ab6b2cce69c2c01a3c",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0xfd3b093e8412e789e3eec6e372a7ba0a77f529970288961bfe2e8469430f656b",
                     "asMovePackage": {
                       "module": {
                         "s": {
                           "module": {
                             "package": {
-                              "address": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce"
+                              "address": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031"
                             }
                           },
                           "name": "S",
@@ -255,7 +267,7 @@ Response: {
                         "t": {
                           "module": {
                             "package": {
-                              "address": "0x10be345598e39acb2359e836c0b9abc86e1d7f952964f32e94bc7df976af1639"
+                              "address": "0xfd3b093e8412e789e3eec6e372a7ba0a77f529970288961bfe2e8469430f656b"
                             }
                           },
                           "name": "T",
@@ -282,12 +294,12 @@ Response: {
                             {
                               "name": "s",
                               "type": {
-                                "repr": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce::m::S",
+                                "repr": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031::m::S",
                                 "signature": {
                                   "ref": null,
                                   "body": {
                                     "datatype": {
-                                      "package": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce",
+                                      "package": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031",
                                       "module": "m",
                                       "type": "S",
                                       "typeParameters": []
@@ -316,25 +328,13 @@ Response: {
                             {
                               "name": "t",
                               "type": {
-                                "repr": "0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce::m::T<0x9f6e2de5e33a325a9cdb4202adeef86f2f8b503595fcbf291a8c697e2ff8e8ce::m::S>"
+                                "repr": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031::m::T<0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031::m::S>"
                               }
                             }
                           ]
                         }
                       }
                     }
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x37256da94764212f98d6ad0e8127abfa76f1f162ef41d95418647d57e8eaca7a",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x7ab276e07bc81d3c00ac3f5234cce7214b5e69f5cbfa07535f14b05eeca5597c",
-                    "asMovePackage": null
                   }
                 }
               ]
@@ -358,6 +358,16 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
                     "asMovePackage": {
                       "module": {
                         "s": {
@@ -374,16 +384,6 @@ Response: {
                         }
                       }
                     }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMovePackage": null
                   }
                 }
               ]
@@ -463,17 +463,6 @@ Response: {
                 ]
               },
               {
-                "name": "CurrencyCreated",
-                "fields": [
-                  {
-                    "name": "decimals",
-                    "type": {
-                      "repr": "u8"
-                    }
-                  }
-                ]
-              },
-              {
                 "name": "DenyCapV1",
                 "fields": [
                   {
@@ -545,12 +534,6 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
-                "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
                 "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
                   "name": "DenyCapV1"
@@ -586,12 +569,6 @@ Response: {
                 "cursor": "eyJuIjoiQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
                 "node": {
                   "name": "CoinMetadata"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
-                "node": {
-                  "name": "CurrencyCreated"
                 }
               },
               {
@@ -634,9 +611,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
+                  "name": "DenyCapV1"
                 }
               }
             ],
@@ -654,15 +631,15 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
-                "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
                 "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
                   "name": "DenyCapV1"
+                }
+              },
+              {
+                "cursor": "eyJuIjoiUmVndWxhdGVkQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
+                "node": {
+                  "name": "RegulatedCoinMetadata"
                 }
               }
             ],
@@ -677,12 +654,6 @@ Response: {
                 "cursor": "eyJuIjoiQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
                 "node": {
                   "name": "CoinMetadata"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
-                "node": {
-                  "name": "CurrencyCreated"
                 }
               },
               {
@@ -732,9 +703,9 @@ Response: {
           "suffixAll": {
             "edges": [
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
+                  "name": "CoinMetadata"
                 }
               },
               {
@@ -767,12 +738,6 @@ Response: {
                 "cursor": "eyJuIjoiQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
                 "node": {
                   "name": "CoinMetadata"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
-                "node": {
-                  "name": "CurrencyCreated"
                 }
               },
               {

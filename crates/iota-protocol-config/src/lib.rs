@@ -109,16 +109,21 @@ pub struct Error(pub String);
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
+
     // Disables unnecessary invariant check in the Move VM when swapping the value out of a local
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     disable_invariant_violation_check_in_swap_loc: bool,
+
     // If true, checks no extra bytes in a compiled module
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     no_extraneous_module_bytes: bool,
 
     // Enable zklogin auth
     #[serde(skip_serializing_if = "is_false")]
     zklogin_auth: bool,
+
     // How we order transactions coming out of consensus before sending to execution.
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
@@ -135,16 +140,13 @@ struct FeatureFlags {
     accept_zklogin_in_multisig: bool,
 
     // If true, use the hardened OTW check
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     hardened_otw_check: bool,
 
     // Enable the poseidon hash function
     #[serde(skip_serializing_if = "is_false")]
     enable_poseidon: bool,
-
-    // Enable native functions for group operations.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_group_ops_native_functions: bool,
 
     // Enable native function for msm.
     #[serde(skip_serializing_if = "is_false")]
@@ -166,29 +168,22 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "Option::is_none")]
     zklogin_max_epoch_upper_bound_delta: Option<u64>,
 
-    // Controls leader scoring & schedule change in Mysticeti consensus.
-    #[serde(skip_serializing_if = "is_false")]
-    mysticeti_leader_scoring_and_schedule: bool,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
-
-    // Set number of leaders per round for Mysticeti commits.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mysticeti_num_leaders_per_round: Option<usize>,
 
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
     passkey_auth: bool,
 
-    // Use AuthorityCapabilitiesV2
-    #[serde(skip_serializing_if = "is_false")]
-    authority_capabilities_v2: bool,
-
     // Rethrow type layout errors during serialization instead of trying to convert them.
-    #[serde(skip_serializing_if = "is_false")]
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
+}
+
+fn is_true(b: &bool) -> bool {
+    *b
 }
 
 fn is_false(b: &bool) -> bool {
@@ -1020,10 +1015,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_poseidon
     }
 
-    pub fn enable_group_ops_native_functions(&self) -> bool {
-        self.feature_flags.enable_group_ops_native_functions
-    }
-
     pub fn enable_group_ops_native_function_msm(&self) -> bool {
         self.feature_flags.enable_group_ops_native_function_msm
     }
@@ -1040,24 +1031,12 @@ impl ProtocolConfig {
         self.feature_flags.consensus_network
     }
 
-    pub fn mysticeti_leader_scoring_and_schedule(&self) -> bool {
-        self.feature_flags.mysticeti_leader_scoring_and_schedule
-    }
-
     pub fn enable_vdf(&self) -> bool {
         self.feature_flags.enable_vdf
     }
 
-    pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
-        self.feature_flags.mysticeti_num_leaders_per_round
-    }
-
     pub fn passkey_auth(&self) -> bool {
         self.feature_flags.passkey_auth
-    }
-
-    pub fn authority_capabilities_v2(&self) -> bool {
-        self.feature_flags.authority_capabilities_v2
     }
 
     pub fn max_transaction_size_bytes(&self) -> u64 {
@@ -1612,15 +1591,16 @@ impl ProtocolConfig {
             // new_constant: None,
         };
 
-        cfg.feature_flags
-            .disable_invariant_violation_check_in_swap_loc = true;
-        cfg.feature_flags.no_extraneous_module_bytes = true;
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
 
-        cfg.feature_flags.hardened_otw_check = true;
-
-        // Enable group ops and all networks (but not msm)
-        cfg.feature_flags.enable_group_ops_native_functions = true;
+        // MoveVM related flags
+        {
+            cfg.feature_flags
+                .disable_invariant_violation_check_in_swap_loc = true;
+            cfg.feature_flags.no_extraneous_module_bytes = true;
+            cfg.feature_flags.hardened_otw_check = true;
+            cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
+        }
 
         // zkLogin related flags
         {
@@ -1634,18 +1614,12 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
         // Use tonic networking for Mysticeti.
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
-        // Enable leader scoring & schedule change on mainnet for mysticeti.
-        cfg.feature_flags.mysticeti_leader_scoring_and_schedule = true;
-
-        cfg.feature_flags.mysticeti_num_leaders_per_round = Some(1);
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
 
         // Do not allow bridge committee to finalize on mainnet.
         cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
-
-        cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
 
         cfg.feature_flags.bridge = false;
 
@@ -1664,8 +1638,6 @@ impl ProtocolConfig {
             cfg.vdf_hash_to_input_cost = Some(100);
 
             cfg.feature_flags.passkey_auth = true;
-
-            cfg.feature_flags.authority_capabilities_v2 = true;
         }
 
         // Ignore this check for the fake versions for
@@ -1790,14 +1762,6 @@ impl ProtocolConfig {
     }
     pub fn set_disable_bridge_for_testing(&mut self) {
         self.feature_flags.bridge = false
-    }
-
-    pub fn set_mysticeti_leader_scoring_and_schedule_for_testing(&mut self, val: bool) {
-        self.feature_flags.mysticeti_leader_scoring_and_schedule = val;
-    }
-
-    pub fn set_mysticeti_num_leaders_per_round_for_testing(&mut self, val: Option<usize>) {
-        self.feature_flags.mysticeti_num_leaders_per_round = val;
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
