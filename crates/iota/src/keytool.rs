@@ -4,8 +4,7 @@
 
 use std::{
     fmt::{Debug, Display, Formatter},
-    fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -214,11 +213,6 @@ pub enum KeyToolCommand {
         #[clap(long)]
         base64pk: String,
     },
-    /// This takes a bech32 encoded [enum IotaKeyPair]. It outputs the keypair
-    /// into a file at the current directory where the address is the
-    /// filename, and prints out its Iota address, Base64 encoded public
-    /// key, the key scheme, and the key scheme flag.
-    Unpack { keypair: String },
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // /// Given the max_epoch, generate an OAuth url, ask user to paste the
     // /// redirect with id_token, call salt server, then call the prover server,
@@ -800,16 +794,7 @@ impl KeyToolCommand {
                     serialized_sig_base64: serialized_sig,
                 })
             }
-            KeyToolCommand::Unpack { keypair } => {
-                let key = Key::from(
-                    &IotaKeyPair::decode(&keypair)
-                        .map_err(|_| anyhow!("Invalid Bech32 encoded keypair"))?,
-                );
-                let path_str = format!("{}.key", key.iota_address).to_lowercase();
-                let path = Path::new(&path_str);
-                fs::write(path, keypair)?;
-                CommandOutput::Show(key)
-            } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
+            /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
                *     let msg = PersonalMessage {
                *         message: data.as_bytes().to_vec(),
