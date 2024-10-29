@@ -37,10 +37,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 4 additional "fake" versions in simulator builds so that we can
+    // We create 1 additional "fake" versions in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 4);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 1);
 
     pub fn new(v: u64) -> Self {
         Self(v)
