@@ -77,7 +77,7 @@ Epoch advanced: 5
 
 task 10, line 44:
 //# view-checkpoint
-CheckpointSummary { epoch: 5, seq: 10, content_digest: Eju9TRhUamcNqTaaEhENsRpfV6qpU6bttXAi5sfGKvh2,
+CheckpointSummary { epoch: 5, seq: 10, content_digest: DLVxgygkX7Vs9bHQPoKm6AM9aHFEQPubZMHrFedvWEZM,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
 
 task 11, lines 46-51:
