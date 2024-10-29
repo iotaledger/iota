@@ -17,9 +17,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
-    },
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
         HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
         HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
@@ -153,15 +151,6 @@ impl AuthorityAPI for LocalAuthorityClient {
         let state = self.state.clone();
 
         state.handle_checkpoint_request(&request)
-    }
-
-    async fn handle_checkpoint_v2(
-        &self,
-        request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, IotaError> {
-        let state = self.state.clone();
-
-        state.handle_checkpoint_request_v2(&request)
     }
 
     async fn handle_system_state_object(
@@ -355,13 +344,6 @@ impl AuthorityAPI for MockAuthorityApi {
         unimplemented!();
     }
 
-    async fn handle_checkpoint_v2(
-        &self,
-        _request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, IotaError> {
-        unimplemented!();
-    }
-
     async fn handle_system_state_object(
         &self,
         _request: SystemStateRequest,
@@ -437,13 +419,6 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         &self,
         _request: CheckpointRequest,
     ) -> Result<CheckpointResponse, IotaError> {
-        unimplemented!()
-    }
-
-    async fn handle_checkpoint_v2(
-        &self,
-        _request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, IotaError> {
         unimplemented!()
     }
 
