@@ -18,9 +18,7 @@ use iota_types::{
     committee::CommitteeWithNetworkMetadata,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
-    },
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
         HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
         HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
@@ -80,12 +78,6 @@ pub trait AuthorityAPI {
         &self,
         request: CheckpointRequest,
     ) -> Result<CheckpointResponse, IotaError>;
-
-    /// Handles a `CheckpointRequestV2` for this account.
-    async fn handle_checkpoint_v2(
-        &self,
-        request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, IotaError>;
 
     // This API is exclusively used by the benchmark code.
     // Hence it's OK to return a fixed system state type.
@@ -238,18 +230,6 @@ impl AuthorityAPI for NetworkAuthorityClient {
     ) -> Result<CheckpointResponse, IotaError> {
         self.client()?
             .checkpoint(request)
-            .await
-            .map(tonic::Response::into_inner)
-            .map_err(Into::into)
-    }
-
-    /// Handles a `CheckpointRequestV2` for this account.
-    async fn handle_checkpoint_v2(
-        &self,
-        request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, IotaError> {
-        self.client()?
-            .checkpoint_v2(request)
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)
