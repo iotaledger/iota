@@ -33,6 +33,7 @@ export default function RootLayout({
                 <QueryClientProvider client={queryClient}>
                     <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
                         <WalletProvider
+                            autoConnect={true}
                             theme={[
                                 {
                                     variables: lightTheme,
