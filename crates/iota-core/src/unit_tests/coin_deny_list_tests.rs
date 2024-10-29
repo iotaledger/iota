@@ -9,9 +9,9 @@ use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, dbg_addr},
     crypto::{AccountKeyPair, get_account_key_pair},
-    deny_list_v2::{
-        DenyCapV2, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
-        get_per_type_coin_deny_list_v2,
+    deny_list_v1::{
+        DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
+        get_per_type_coin_deny_list_v1,
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::Object,
@@ -28,12 +28,12 @@ use crate::authority::{
     test_authority_builder::TestAuthorityBuilder,
 };
 
-// Test that a v2 regulated coin can be created and all the necessary objects
+// Test that a v1 regulated coin can be created and all the necessary objects
 // are created with the right types. Also test that we could create the deny
 // list config for the coin and all types can be loaded in Rust.
 #[tokio::test]
-async fn test_regulated_coin_v2_types() {
-    let env = new_authority_and_publish("coin_deny_list_v2").await;
+async fn test_regulated_coin_v1_types() {
+    let env = new_authority_and_publish("coin_deny_list_v1").await;
 
     // Step 1: Publish the regulated coin and check basic types.
     let mut deny_cap_object = None;
@@ -47,7 +47,7 @@ async fn test_regulated_coin_v2_types() {
             continue;
         }
         let t = object.type_().unwrap();
-        if t.is_coin_deny_cap_v2() {
+        if t.is_coin_deny_cap_v1() {
             assert!(deny_cap_object.is_none());
             deny_cap_object = Some(object);
         } else if t.is_regulated_coin_metadata() {
@@ -64,7 +64,7 @@ async fn test_regulated_coin_v2_types() {
     // Check that all their fields are consistent.
     let metadata_object = metadata_object.unwrap();
     let deny_cap_object = deny_cap_object.unwrap();
-    let deny_cap: DenyCapV2 = deny_cap_object.to_rust().unwrap();
+    let deny_cap: DenyCapV1 = deny_cap_object.to_rust().unwrap();
     assert_eq!(deny_cap.id.id.bytes, deny_cap_object.id());
     assert!(deny_cap.allow_global_pause);
 
@@ -98,7 +98,7 @@ async fn test_regulated_coin_v2_types() {
         env.get_latest_object_ref(&env.gas_object_id).await,
         env.authority.reference_gas_price_for_testing().unwrap(),
     )
-    .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "coin", "deny_list_v2_add", vec![
+    .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "coin", "deny_list_v1_add", vec![
         CallArg::Object(ObjectArg::SharedObject {
             id: IOTA_DENY_LIST_OBJECT_ID,
             initial_shared_version: deny_list_object_init_version,
@@ -117,7 +117,7 @@ async fn test_regulated_coin_v2_types() {
     if effects.status().is_err() {
         panic!("Failed to add address to deny list: {:?}", effects.status());
     }
-    let coin_deny_config = get_per_type_coin_deny_list_v2(
+    let coin_deny_config = get_per_type_coin_deny_list_v1(
         &regulated_coin_type.to_canonical_string(false),
         &env.authority.get_object_store(),
     )
@@ -172,7 +172,7 @@ async fn test_regulated_coin_v2_types() {
     .move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
         "coin",
-        "deny_list_v2_enable_global_pause",
+        "deny_list_v1_enable_global_pause",
         vec![
             CallArg::Object(ObjectArg::SharedObject {
                 id: IOTA_DENY_LIST_OBJECT_ID,

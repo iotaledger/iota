@@ -1,6 +1,5 @@
 [workspace]
 resolver = "2"
-
 exclude = [
   "external-crates/move/crates/bytecode-interpreter-crypto",
   "external-crates/move/crates/bytecode-verifier-libfuzzer",
@@ -61,7 +60,6 @@ exclude = [
   "external-crates/move/move-execution/v0/crates/move-vm-runtime",
   "sdk/move-bytecode-template",
 ]
-
 members = [
   "consensus/config",
   "consensus/core",
@@ -173,17 +171,17 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "0.3.1"
+version = "0.4.0"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
 debug = 1
+# Exit process with SIGABRT when any thread panics
+panic = 'abort'
 # Write debug info into a separate file.
 split-debuginfo = 'packed'
 # Without stripping, iota binary size would be > 1GB.
 strip = 'debuginfo'
-# Exit process with SIGABRT when any thread panics
-panic = 'abort'
 
 # Same as release, but build binary with debug symbols (binary size will be ~ 1GB).
 [profile.release-dbgsym]
@@ -202,18 +200,23 @@ strip = 'none'
 opt-level = 2
 
 [profile.simulator]
-inherits = "test"
 debug = true
 debug-assertions = true
-overflow-checks = true
+inherits = "test"
 # opt-level 1 gives >5x speedup for simulator tests without slowing down build times very much.
 opt-level = 1
+overflow-checks = true
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'] }
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
+# external dependencies
+# anemo dependencies
+anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
+anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
+anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
 anyhow = "1.0.71"
 arc-swap = { version = "1.5.1", features = ["serde"] }
 async-graphql = "=7.0.1"
@@ -239,6 +242,7 @@ clap = { version = "4.4", features = ["derive", "wrap_help"] }
 colored = "2.0.0"
 comfy-table = "6.1.3"
 const-str = "0.5.3"
+coset = "0.3"
 criterion = { version = "0.5.0", features = ["async", "async_tokio", "html_reports"] }
 crossterm = "0.25.0"
 csv = "1.2.1"
@@ -252,6 +256,10 @@ either = "1.8.0"
 enum_dispatch = "^0.3"
 expect-test = "1.4.0"
 eyre = "0.6.8"
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597" }
+fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597" }
+fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", features = ["experimental"] }
+fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", package = "fastcrypto-zkp" }
 fdlimit = "0.2.1"
 flate2 = "1.0.28"
 fs_extra = "1.3.0"
@@ -284,7 +292,11 @@ num_cpus = "1.15.0"
 num_enum = "0.7"
 object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
+p256 = { version = "0.13.2", features = ["ecdsa"] }
 parking_lot = "0.12.1"
+passkey-authenticator = { version = "0.2.0" }
+passkey-client = { version = "0.2.0" }
+passkey-types = { version = "0.2.0" }
 pretty_assertions = "1.3.0"
 proc-macro2 = "1.0.47"
 prometheus = "0.13.3"
@@ -344,50 +356,11 @@ unescape = "0.1.0"
 url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
-move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
-move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
-move-analyzer = { path = "external-crates/move/crates/move-analyzer" }
-move-binary-format = { path = "external-crates/move/crates/move-binary-format" }
-move-bytecode-source-map = { path = "external-crates/move/crates/move-bytecode-source-map" }
-move-bytecode-utils = { path = "external-crates/move/crates/move-bytecode-utils" }
-move-bytecode-verifier-meter = { path = "external-crates/move/crates/move-bytecode-verifier-meter" }
-move-cli = { path = "external-crates/move/crates/move-cli" }
-move-command-line-common = { path = "external-crates/move/crates/move-command-line-common" }
-move-compiler = { path = "external-crates/move/crates/move-compiler" }
-move-core-types = { path = "external-crates/move/crates/move-core-types" }
-move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
-move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
-move-package = { path = "external-crates/move/crates/move-package" }
-move-prover = { path = "external-crates/move/crates/move-prover" }
-move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
-move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
-move-transactional-test-runner = { path = "external-crates/move/crates/move-transactional-test-runner" }
-move-unit-test = { path = "external-crates/move/crates/move-unit-test" }
-move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
-move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
-move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
-move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
-
-coset = "0.3"
-fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597" }
-fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597" }
-fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", features = ["experimental"] }
-fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", package = "fastcrypto-zkp" }
-p256 = { version = "0.13.2", features = ["ecdsa"] }
-passkey-authenticator = { version = "0.2.0" }
-passkey-client = { version = "0.2.0" }
-passkey-types = { version = "0.2.0" }
-
-# anemo dependencies
-anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
-anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
-anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
-
-# core-types with json format for REST api
-iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "46d46d64237e001e8e23f322caecb3211c9a8c97", features = ["hash", "serde", "schemars"] }
-
+# internal dependencies
 ### Workspace Members ###
 bin-version = { path = "crates/bin-version" }
+consensus-config = { path = "consensus/config" }
+consensus-core = { path = "consensus/core" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
@@ -405,6 +378,7 @@ iota-data-ingestion = { path = "crates/iota-data-ingestion" }
 iota-data-ingestion-core = { path = "crates/iota-data-ingestion-core" }
 iota-e2e-tests = { path = "crates/iota-e2e-tests" }
 iota-enum-compat-util = { path = "crates/iota-enum-compat-util" }
+iota-execution = { path = "iota-execution" }
 iota-faucet = { path = "crates/iota-faucet" }
 iota-framework = { path = "crates/iota-framework" }
 iota-framework-snapshot = { path = "crates/iota-framework-snapshot" }
@@ -444,6 +418,8 @@ iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
+# core-types with json format for REST api
+iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "46d46d64237e001e8e23f322caecb3211c9a8c97", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -463,6 +439,31 @@ iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-c
 iota-util-mem = { path = "crates/iota-util-mem" }
 iota-util-mem-derive = { path = "crates/iota-util-mem-derive" }
 iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
+move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
+move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
+move-analyzer = { path = "external-crates/move/crates/move-analyzer" }
+move-binary-format = { path = "external-crates/move/crates/move-binary-format" }
+move-bytecode-source-map = { path = "external-crates/move/crates/move-bytecode-source-map" }
+move-bytecode-utils = { path = "external-crates/move/crates/move-bytecode-utils" }
+move-bytecode-verifier-meter = { path = "external-crates/move/crates/move-bytecode-verifier-meter" }
+move-cli = { path = "external-crates/move/crates/move-cli" }
+move-command-line-common = { path = "external-crates/move/crates/move-command-line-common" }
+move-compiler = { path = "external-crates/move/crates/move-compiler" }
+move-core-types = { path = "external-crates/move/crates/move-core-types" }
+move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
+move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
+move-package = { path = "external-crates/move/crates/move-package" }
+move-prover = { path = "external-crates/move/crates/move-prover" }
+move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
+move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
+move-transactional-test-runner = { path = "external-crates/move/crates/move-transactional-test-runner" }
+move-unit-test = { path = "external-crates/move/crates/move-unit-test" }
+move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
+move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
+move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
+move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
+narwhal-network = { path = "narwhal/network" }
+narwhal-types = { path = "narwhal/types" }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }
@@ -472,13 +473,5 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
 typed-store = { path = "crates/typed-store" }
 typed-store-derive = { path = "crates/typed-store-derive" }
 typed-store-error = { path = "crates/typed-store-error" }
-
-consensus-config = { path = "consensus/config" }
-consensus-core = { path = "consensus/core" }
-
-narwhal-network = { path = "narwhal/network" }
-narwhal-types = { path = "narwhal/types" }
-
-iota-execution = { path = "iota-execution" }
 
 [patch.crates-io]

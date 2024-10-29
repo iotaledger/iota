@@ -7,13 +7,17 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
+anyhow.workspace = true
 base64.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 derive_builder = "0.12.0"
 enum_dispatch.workspace = true
+fastcrypto.workspace = true
 futures.workspace = true
 indexmap.workspace = true
+once_cell.workspace = true
 proptest.workspace = true
 proptest-derive.workspace = true
 prost.workspace = true
@@ -26,21 +30,21 @@ tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tonic.workspace = true
 tracing.workspace = true
 
-anyhow.workspace = true
+# internal dependencies
 config = { path = "../config", package = "narwhal-config" }
 crypto = { path = "../crypto", package = "narwhal-crypto" }
-fastcrypto.workspace = true
-once_cell.workspace = true
-
 iota-common.workspace = true
 iota-network-stack.workspace = true
 iota-util-mem.workspace = true
 
 [dev-dependencies]
+# external dependencies
 criterion.workspace = true
-iota-metrics.workspace = true
 prometheus.workspace = true
 serde_test = "1.0.147"
+
+# internal dependencies
+iota-metrics.workspace = true
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
 
 [build-dependencies]

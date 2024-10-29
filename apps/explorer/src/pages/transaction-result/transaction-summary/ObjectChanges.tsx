@@ -221,12 +221,7 @@ function ObjectChangeEntries({
             defaultItemsToShow={DEFAULT_ITEMS_TO_SHOW}
             itemsLabel="Objects"
         >
-            <div
-                className={clsx('flex gap-2 overflow-y-auto', {
-                    'flex-row': isDisplay,
-                    'flex-col': !isDisplay,
-                })}
-            >
+            <div className="flex flex-col gap-2 overflow-y-auto">
                 <ExpandableListItems />
             </div>
 

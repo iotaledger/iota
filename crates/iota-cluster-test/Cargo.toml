@@ -7,6 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow = { workspace = true, features = ["backtrace"] }
 async-trait.workspace = true
 clap.workspace = true
@@ -19,12 +20,12 @@ prometheus.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
-shared-crypto.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 uuid.workspace = true
 
+# internal dependencies
 iota-config.workspace = true
 iota-core.workspace = true
 iota-faucet.workspace = true
@@ -39,9 +40,9 @@ iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types.workspace = true
-telemetry-subscribers.workspace = true
-
 move-core-types.workspace = true
+shared-crypto.workspace = true
+telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 
 [features]

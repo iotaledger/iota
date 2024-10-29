@@ -8,12 +8,14 @@ publish = false
 description = "Tool to create a bytecode snapshot of the current iota-framework"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 bcs.workspace = true
-bin-version.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+# internal dependencies
+bin-version.workspace = true
 iota-framework.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true

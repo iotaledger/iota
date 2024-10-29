@@ -86,10 +86,9 @@ You can update the following on-chain metadata:
 5. network address
 6. p2p address
 7. primary address
-8. worker address
-9. protocol public key
-10. network public key
-11. worker public key
+8. authority public key
+9. network public key
+10. protocol public key
 
 Notably, only the first 4 metadata listed above take effect immediately.
 
@@ -105,7 +104,7 @@ $IOTA_BINARY validator update-metadata --help
 
 Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](./validator-operation/validator-tasks#operation-cap).
 
-The Operation Cap holder (either the valdiator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
+The Operation Cap holder (either the validator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
 
 #### Update Gas Price
 
@@ -264,4 +263,30 @@ iota client call --package 0x3 --module iota_system --function request_add_stake
 
 ```bash
 iota validator join-committee
+```
+
+#### Combined
+
+First terminal:
+
+```bash
+iota start --force-regenesis --with-faucet --faucet-amount 2600000000000000
+```
+
+Second terminal after the faucet is up:
+
+```bash
+iota client switch --env localnet
+iota client faucet --url http://127.0.0.1:9123/gas
+sleep 2 
+iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
+iota validator become-candidate validator.info
+sleep 2
+coinObjectId=$(iota client gas --json | jq '.[0].gasCoinId')
+validatorAddress=$(iota client active-address)
+iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
+sleep 2
+iota validator join-committee
+sleep 2
+iota validator display-metadata
 ```

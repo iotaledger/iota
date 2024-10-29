@@ -182,7 +182,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                     self.read_api
                         .multi_get_objects(object_ids, Some(options))
                         .await
-                        .map_err(|e| Error::InternalError(anyhow!(e)))?
+                        .map_err(|e| Error::Internal(anyhow!(e)))?
                 }
                 false => objects
                     .into_iter()
@@ -252,7 +252,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 self.read_api
                     .multi_get_transaction_blocks(digests, Some(opts))
                     .await
-                    .map_err(|e| Error::InternalError(anyhow!(e)))?
+                    .map_err(|e| Error::Internal(anyhow!(e)))?
             };
 
             self.metrics
@@ -399,7 +399,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 self.read_api
                     .get_object(id, Some(IotaObjectDataOptions::full_content()))
                     .await
-                    .map_err(|e| Error::InternalError(anyhow!(e)))
+                    .map_err(|e| Error::Internal(anyhow!(e)))
             } else {
                 Ok(IotaObjectResponse::new_with_error(
                     IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },

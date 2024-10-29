@@ -57,7 +57,7 @@ use iota_types::{
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
-    deny_list_v2::check_coin_deny_list_v2_during_signing,
+    deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::{
@@ -65,7 +65,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEvent},
+    event::{Event, EventID, SystemEpochInfoEventV1},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -89,7 +89,7 @@ use iota_types::{
         CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
         VerifiedCheckpoint,
     },
-    messages_consensus::{AuthorityCapabilitiesV1, AuthorityCapabilitiesV2},
+    messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
         HandleTransactionResponse, LayoutGenerationOption, ObjectInfoRequest,
         ObjectInfoRequestKind, ObjectInfoResponse, TransactionInfoRequest, TransactionInfoResponse,
@@ -883,7 +883,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
             )?;
 
-        check_coin_deny_list_v2_during_signing(
+        check_coin_deny_list_v1_during_signing(
             tx_data.sender(),
             &checked_input_objects,
             &receiving_objects,
@@ -1395,7 +1395,7 @@ impl AuthorityState {
         )
         .await?;
 
-        if let TransactionKind::AuthenticatorStateUpdate(auth_state) =
+        if let TransactionKind::AuthenticatorStateUpdateV1(auth_state) =
             certificate.data().transaction_data().kind()
         {
             if let Some(err) = &execution_error_opt {
@@ -1459,25 +1459,6 @@ impl AuthorityState {
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // Only need to sign effects if we are a validator, and if the
-        // executed_in_epoch_table is not yet enabled. TODO: once
-        // executed_in_epoch_table is enabled everywhere, we can remove the code below
-        // entirely.
-        let should_sign_effects =
-            self.is_validator(epoch_store) && !epoch_store.executed_in_epoch_table_enabled();
-
-        let effects_sig = if should_sign_effects {
-            Some(AuthoritySignInfo::new(
-                epoch_store.epoch(),
-                effects,
-                Intent::iota_app(IntentScope::TransactionEffects),
-                self.name,
-                &*self.secret,
-            ))
-        } else {
-            None
-        };
-
         // index certificate
         let _ = self
             .post_process_one_tx(certificate, effects, &inner_temporary_store, epoch_store)
@@ -1490,12 +1471,7 @@ impl AuthorityState {
         // The insertion to epoch_store is not atomic with the insertion to the
         // perpetual store. This is OK because we insert to the epoch store
         // first. And during lookups we always look up in the perpetual store first.
-        epoch_store.insert_tx_key_and_effects_signature(
-            &tx_key,
-            tx_digest,
-            &effects.digest(),
-            effects_sig.as_ref(),
-        )?;
+        epoch_store.insert_tx_key_and_digest(&tx_key, tx_digest)?;
 
         // Allow testing what happens if we crash here.
         fail_point_async!("crash");
@@ -2120,12 +2096,6 @@ impl AuthorityState {
         indexes
             .index_tx(
                 cert.data().intent_message().value.sender(),
-                cert.data()
-                    .intent_message()
-                    .value
-                    .input_objects()?
-                    .iter()
-                    .map(|o| o.object_id()),
                 effects
                     .all_changed_objects()
                     .into_iter()
@@ -4351,112 +4321,15 @@ impl AuthorityState {
         Some(res)
     }
 
-    // TODO: delete once authority_capabilities_v2 is deployed everywhere
     /// Returns the new protocol version and system packages that the network
     /// has voted to upgrade to. If the proposed protocol version is not
     /// supported, None is returned.
     fn is_protocol_version_supported_v1(
-        current_protocol_version: ProtocolVersion,
         proposed_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
     ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
-        if proposed_protocol_version > current_protocol_version + 1
-            && !protocol_config.advance_to_highest_supported_protocol_version()
-        {
-            return None;
-        }
-
-        if buffer_stake_bps > 10000 {
-            warn!("clamping buffer_stake_bps to 10000");
-            buffer_stake_bps = 10000;
-        }
-
-        // For each validator, gather the protocol version and system packages that it
-        // would like to upgrade to in the next epoch.
-        let mut desired_upgrades: Vec<_> = capabilities
-            .into_iter()
-            .filter_map(|mut cap| {
-                // A validator that lists no packages is voting against any change at all.
-                if cap.available_system_packages.is_empty() {
-                    return None;
-                }
-
-                cap.available_system_packages.sort();
-
-                info!(
-                    "validator {:?} supports {:?} with system packages: {:?}",
-                    cap.authority.concise(),
-                    cap.supported_protocol_versions,
-                    cap.available_system_packages,
-                );
-
-                // A validator that only supports the current protocol version is also voting
-                // against any change, because framework upgrades always require a protocol
-                // version bump.
-                cap.supported_protocol_versions
-                    .is_version_supported(proposed_protocol_version)
-                    .then_some((cap.available_system_packages, cap.authority))
-            })
-            .collect();
-
-        // There can only be one set of votes that have a majority, find one if it
-        // exists.
-        desired_upgrades.sort();
-        desired_upgrades
-            .into_iter()
-            .chunk_by(|(packages, _authority)| packages.clone())
-            .into_iter()
-            .find_map(|(packages, group)| {
-                // should have been filtered out earlier.
-                assert!(!packages.is_empty());
-
-                let mut stake_aggregator: StakeAggregator<(), true> =
-                    StakeAggregator::new(Arc::new(committee.clone()));
-
-                for (_, authority) in group {
-                    stake_aggregator.insert_generic(authority, ());
-                }
-
-                let total_votes = stake_aggregator.total_votes();
-                let quorum_threshold = committee.quorum_threshold();
-                let f = committee.total_votes() - committee.quorum_threshold();
-
-                // multiple by buffer_stake_bps / 10000, rounded up.
-                let buffer_stake = (f * buffer_stake_bps + 9999) / 10000;
-                let effective_threshold = quorum_threshold + buffer_stake;
-
-                info!(
-                    ?total_votes,
-                    ?quorum_threshold,
-                    ?buffer_stake_bps,
-                    ?effective_threshold,
-                    ?proposed_protocol_version,
-                    ?packages,
-                    "support for upgrade"
-                );
-
-                let has_support = total_votes >= effective_threshold;
-                has_support.then_some((proposed_protocol_version, packages))
-            })
-    }
-
-    fn is_protocol_version_supported_v2(
-        current_protocol_version: ProtocolVersion,
-        proposed_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
-        committee: &Committee,
-        capabilities: Vec<AuthorityCapabilitiesV2>,
-        mut buffer_stake_bps: u64,
-    ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
-        if proposed_protocol_version > current_protocol_version + 1
-            && !protocol_config.advance_to_highest_supported_protocol_version()
-        {
-            return None;
-        }
-
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4532,40 +4405,13 @@ impl AuthorityState {
             })
     }
 
-    // TODO: delete once authority_capabilities_v2 is deployed everywhere
     /// Selects the highest supported protocol version and system packages that
     /// the network has voted to upgrade to. If no upgrade is supported,
     /// returns the current protocol version and system packages.
     fn choose_protocol_version_and_system_packages_v1(
         current_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
-        buffer_stake_bps: u64,
-    ) -> (ProtocolVersion, Vec<ObjectRef>) {
-        let mut next_protocol_version = current_protocol_version;
-        let mut system_packages = vec![];
-
-        while let Some((version, packages)) = Self::is_protocol_version_supported_v1(
-            current_protocol_version,
-            next_protocol_version + 1,
-            protocol_config,
-            committee,
-            capabilities.clone(),
-            buffer_stake_bps,
-        ) {
-            next_protocol_version = version;
-            system_packages = packages;
-        }
-
-        (next_protocol_version, system_packages)
-    }
-
-    fn choose_protocol_version_and_system_packages_v2(
-        current_protocol_version: ProtocolVersion,
-        protocol_config: &ProtocolConfig,
-        committee: &Committee,
-        capabilities: Vec<AuthorityCapabilitiesV2>,
         buffer_stake_bps: u64,
     ) -> (ProtocolVersion, Vec<ObjectRef>) {
         let mut next_protocol_version = current_protocol_version;
@@ -4574,10 +4420,8 @@ impl AuthorityState {
         // Finds the highest supported protocol version and system packages by
         // incrementing the proposed protocol version by one until no further
         // upgrades are supported.
-        while let Some((version, packages)) = Self::is_protocol_version_supported_v2(
-            current_protocol_version,
+        while let Some((version, packages)) = Self::is_protocol_version_supported_v1(
             next_protocol_version + 1,
-            protocol_config,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
@@ -4695,7 +4539,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEvent, TransactionEffects)> {
+    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1, TransactionEffects)> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
@@ -4713,27 +4557,14 @@ impl AuthorityState {
         let buffer_stake_bps = epoch_store.get_effective_buffer_stake_bps();
 
         let (next_epoch_protocol_version, next_epoch_system_packages) =
-            if epoch_store.protocol_config().authority_capabilities_v2() {
-                Self::choose_protocol_version_and_system_packages_v2(
-                    epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
-                    epoch_store.committee(),
-                    epoch_store
-                        .get_capabilities_v2()
-                        .expect("read capabilities from db cannot fail"),
-                    buffer_stake_bps,
-                )
-            } else {
-                Self::choose_protocol_version_and_system_packages_v1(
-                    epoch_store.protocol_version(),
-                    epoch_store.protocol_config(),
-                    epoch_store.committee(),
-                    epoch_store
-                        .get_capabilities_v1()
-                        .expect("read capabilities from db cannot fail"),
-                    buffer_stake_bps,
-                )
-            };
+            Self::choose_protocol_version_and_system_packages_v1(
+                epoch_store.protocol_version(),
+                epoch_store.committee(),
+                epoch_store
+                    .get_capabilities_v1()
+                    .expect("read capabilities from db cannot fail"),
+                buffer_stake_bps,
+            );
 
         // since system packages are created during the current epoch, they should abide
         // by the rules of the current epoch, including the current epoch's max
@@ -4832,14 +4663,14 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
-        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
+        // Find the SystemEpochInfoEventV1 emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
             .data
             .iter()
             .find(|event| event.is_system_epoch_info_event())
             .expect("end of epoch tx must emit system epoch info event");
-        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEvent>(
+        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEventV1>(
             &system_epoch_info_event.contents,
         )
         .expect("deserialization should succeed since we asserted that the event is of this type");
@@ -5017,8 +4848,7 @@ impl RandomnessRoundReceiver {
             bytes,
             epoch_store
                 .epoch_start_config()
-                .randomness_obj_initial_shared_version()
-                .expect("randomness state obj must exist"),
+                .randomness_obj_initial_shared_version(),
         );
         debug!(
             "created randomness state update transaction with digest: {:?}",

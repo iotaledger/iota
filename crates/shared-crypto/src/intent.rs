@@ -66,7 +66,7 @@ pub enum IntentScope {
     PersonalMessage = 3,         // Used for a user signature on a personal message.
     SenderSignedTransaction = 4, // Used for an authority signature on a user signed transaction.
     ProofOfPossession = 5,       /* Used as a signature representing an authority's proof of
-                                  * possession of its authority protocol key. */
+                                  * possession of its authority key. */
     HeaderDigest = 6,      // Used for narwhal authority signature on header digest.
     BridgeEventUnused = 7, // for bridge purposes but it's currently not included in messages.
     ConsensusBlock = 8,    // Used for consensus authority signature on block's digest

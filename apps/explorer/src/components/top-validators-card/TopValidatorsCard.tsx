@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-
-import { Banner, PlaceholderTable, TableCard } from '~/components/ui';
+import { PlaceholderTable, TableCard } from '~/components/ui';
 import { generateValidatorsTableColumns } from '~/lib/ui';
-import { Panel, Title } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Panel, Title } from '@iota/apps-ui-kit';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
+import { Warning } from '@iota/ui-icons';
 
 const NUMBER_OF_VALIDATORS = 10;
 
@@ -30,9 +30,13 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
     if (isError || (!isPending && !data.activeValidators.length)) {
         return (
-            <Banner variant="error" fullWidth>
-                Validator data could not be loaded
-            </Banner>
+            <InfoBox
+                title="Failed loading data"
+                supportingText="Validator data could not be loaded"
+                icon={<Warning />}
+                type={InfoBoxType.Error}
+                style={InfoBoxStyle.Elevated}
+            />
         );
     }
 

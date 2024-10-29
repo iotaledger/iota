@@ -37,7 +37,6 @@ use crate::{
         epoch_start_configuration::EpochStartConfigTrait,
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
-    consensus_throughput_calculator::ConsensusThroughputCalculator,
     consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
     execution_cache::ObjectCacheRead,
     scoring_decision::update_low_scoring_authorities,
@@ -49,7 +48,6 @@ pub struct ConsensusHandlerInitializer {
     checkpoint_service: Arc<CheckpointService>,
     epoch_store: Arc<AuthorityPerEpochStore>,
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-    throughput_calculator: Arc<ConsensusThroughputCalculator>,
 }
 
 impl ConsensusHandlerInitializer {
@@ -58,14 +56,12 @@ impl ConsensusHandlerInitializer {
         checkpoint_service: Arc<CheckpointService>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-        throughput_calculator: Arc<ConsensusThroughputCalculator>,
     ) -> Self {
         Self {
             state,
             checkpoint_service,
             epoch_store,
             low_scoring_authorities,
-            throughput_calculator,
         }
     }
 
@@ -78,10 +74,6 @@ impl ConsensusHandlerInitializer {
             checkpoint_service,
             epoch_store: state.epoch_store_for_testing().clone(),
             low_scoring_authorities: Arc::new(Default::default()),
-            throughput_calculator: Arc::new(ConsensusThroughputCalculator::new(
-                None,
-                state.metrics.clone(),
-            )),
         }
     }
 
@@ -97,7 +89,6 @@ impl ConsensusHandlerInitializer {
             self.low_scoring_authorities.clone(),
             consensus_committee,
             self.state.metrics.clone(),
-            self.throughput_calculator.clone(),
         )
     }
 }
@@ -128,9 +119,6 @@ pub struct ConsensusHandler<C> {
     /// Lru cache to quickly discard transactions processed by consensus
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
-    /// Using the throughput calculator to record the current consensus
-    /// throughput
-    throughput_calculator: Arc<ConsensusThroughputCalculator>,
 }
 
 const PROCESSED_CACHE_CAP: usize = 1024 * 1024;
@@ -144,7 +132,6 @@ impl<C> ConsensusHandler<C> {
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
         committee: ConsensusCommittee,
         metrics: Arc<AuthorityMetrics>,
-        throughput_calculator: Arc<ConsensusThroughputCalculator>,
     ) -> Self {
         // Recover last_consensus_stats so it is consistent across validators.
         let mut last_consensus_stats = epoch_store
@@ -166,7 +153,6 @@ impl<C> ConsensusHandler<C> {
             metrics,
             processed_cache: LruCache::new(NonZeroUsize::new(PROCESSED_CACHE_CAP).unwrap()),
             transaction_scheduler,
-            throughput_calculator,
         }
     }
 
@@ -233,22 +219,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         // (serialized, transaction, output_cert)
         let mut transactions = vec![];
-        let timestamp = consensus_output.commit_timestamp_ms();
         let leader_author = consensus_output.leader_author_index();
         let commit_sub_dag_index = consensus_output.commit_sub_dag_index();
-
-        let epoch_start = self
-            .epoch_store
-            .epoch_start_config()
-            .epoch_start_timestamp_ms();
-        let timestamp = if timestamp < epoch_start {
-            error!(
-                "Unexpected commit timestamp {timestamp} less then epoch start time {epoch_start}, author {leader_author}, round {round}",
-            );
-            epoch_start
-        } else {
-            timestamp
-        };
 
         debug!(
             %consensus_output,
@@ -288,7 +260,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             let authenticator_state_update_transaction =
                 self.authenticator_state_update_transaction(round, new_jwks);
             debug!(
-                "adding AuthenticatorStateUpdate({:?}) tx: {:?}",
+                "adding AuthenticatorStateUpdateV1({:?}) tx: {:?}",
                 authenticator_state_update_transaction.digest(),
                 authenticator_state_update_transaction,
             );
@@ -438,10 +410,6 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .await
             .expect("Unrecoverable error in consensus handler");
 
-        // update the calculated throughput
-        self.throughput_calculator
-            .add_transactions(timestamp, transactions_to_schedule.len() as u64);
-
         fail_point_if!("correlated-crash-after-consensus-commit-boundary", || {
             let key = [commit_sub_dag_index, self.epoch_store.epoch()];
             if iota_simulator::random::deterministic_probability(&key, 0.01) {
@@ -571,8 +539,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
-        ConsensusTransactionKind::CapabilityNotification(_) => "capability_notification",
-        ConsensusTransactionKind::CapabilityNotificationV2(_) => "capability_notification_v2",
+        ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessStateUpdate(_, _) => "randomness_state_update",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
@@ -839,7 +806,7 @@ mod tests {
     use consensus_core::{
         BlockAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlock, Transaction, VerifiedBlock,
     };
-    use iota_protocol_config::ConsensusTransactionOrdering;
+    use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
         committee::Committee,
@@ -847,7 +814,9 @@ mod tests {
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
         object::Object,
-        supported_protocol_versions::SupportedProtocolVersions,
+        supported_protocol_versions::{
+            SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+        },
         transaction::{
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
@@ -888,8 +857,6 @@ mod tests {
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
-        let throughput_calculator = ConsensusThroughputCalculator::new(None, metrics.clone());
-
         let mut consensus_handler = ConsensusHandler::new(
             epoch_store,
             Arc::new(CheckpointServiceNoop {}),
@@ -898,7 +865,6 @@ mod tests {
             Arc::new(ArcSwap::default()),
             consensus_committee.clone(),
             metrics,
-            Arc::new(throughput_calculator),
         );
 
         // AND
@@ -995,7 +961,13 @@ mod tests {
 
     #[test]
     fn test_order_by_gas_price() {
-        let mut v = vec![cap_txn(10), user_txn(42), user_txn(100), cap_txn(1)];
+        let chain = Chain::Unknown;
+        let mut v = vec![
+            cap_txn(10, chain),
+            user_txn(42),
+            user_txn(100),
+            cap_txn(1, chain),
+        ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
         assert_eq!(extract(v), vec![
             "cap(10)".to_string(),
@@ -1006,12 +978,12 @@ mod tests {
 
         let mut v = vec![
             user_txn(1200),
-            cap_txn(10),
+            cap_txn(10, chain),
             user_txn(12),
             user_txn(1000),
             user_txn(42),
             user_txn(100),
-            cap_txn(1),
+            cap_txn(1, chain),
             user_txn(1000),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
@@ -1028,10 +1000,10 @@ mod tests {
 
         // If there are no user transactions, the order should be preserved.
         let mut v = vec![
-            cap_txn(10),
+            cap_txn(10, chain),
             eop_txn(12),
             eop_txn(10),
-            cap_txn(1),
+            cap_txn(1, chain),
             eop_txn(11),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
@@ -1054,7 +1026,7 @@ mod tests {
                 ConsensusTransactionKind::EndOfPublish(authority) => {
                     format!("eop({})", authority.0[0])
                 }
-                ConsensusTransactionKind::CapabilityNotification(cap) => {
+                ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                     format!("cap({})", cap.generation)
                 }
                 ConsensusTransactionKind::UserTransaction(txn) => {
@@ -1072,12 +1044,17 @@ mod tests {
         txn(ConsensusTransactionKind::EndOfPublish(authority))
     }
 
-    fn cap_txn(generation: u64) -> VerifiedSequencedConsensusTransaction {
-        txn(ConsensusTransactionKind::CapabilityNotification(
+    fn cap_txn(generation: u64, chain: Chain) -> VerifiedSequencedConsensusTransaction {
+        txn(ConsensusTransactionKind::CapabilityNotificationV1(
+            // we don't use the "new" constructor because we need to set the generation
             AuthorityCapabilitiesV1 {
                 authority: Default::default(),
                 generation,
-                supported_protocol_versions: SupportedProtocolVersions::SYSTEM_DEFAULT,
+                supported_protocol_versions:
+                    SupportedProtocolVersionsWithHashes::from_supported_versions(
+                        SupportedProtocolVersions::SYSTEM_DEFAULT,
+                        chain,
+                    ),
                 available_system_packages: vec![],
             },
         ))

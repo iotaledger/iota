@@ -57,7 +57,7 @@ export function initSentry() {
             /<anonymous>/,
         ],
         allowUrls: [
-            /.*\.iota\.io/i,
+            /.*\.iota\.org/i,
             /.*-iota-foundation\.vercel\.app/i,
             'explorer-topaz.vercel.app',
         ],

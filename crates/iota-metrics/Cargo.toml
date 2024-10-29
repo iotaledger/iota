@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 async-trait.workspace = true
 axum.workspace = true
 dashmap.workspace = true
@@ -17,10 +18,12 @@ futures.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
-prometheus-closure-metric.workspace = true
 scopeguard.workspace = true
 simple-server-timing-header = "0.1.1"
 tap.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+
+# internal dependencies
+prometheus-closure-metric.workspace = true

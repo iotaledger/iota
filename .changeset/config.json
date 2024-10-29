@@ -12,7 +12,6 @@
 		"iota-wallet",
 		"iota-explorer",
 		"wallet-dashboard",
-		"@iota/apps-ui-kit",
 		"apps-backend",
 		"@iota/core",
 		"@iota/apps-ui-kit",

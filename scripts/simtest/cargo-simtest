@@ -102,8 +102,9 @@ export TMPDIR=$(mktemp -d)
 root_dir=$(git rev-parse --show-toplevel)
 export SIMTEST_STATIC_INIT_MOVE=$root_dir"/examples/move/basics"
 
+# we need to use "target.'cfg(all())'.rustflags" instead of "build.rustflags" because the latter are ignored if any "target" flags are set
 cargo ${CARGO_COMMAND[@]} \
-  --config "build.rustflags = [$RUST_FLAGS]" \
+  --config "target.'cfg(all())'.rustflags = [$RUST_FLAGS]" \
   "${cargo_patch_args[@]}" \
   "$@"
 

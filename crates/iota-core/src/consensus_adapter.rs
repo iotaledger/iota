@@ -13,7 +13,7 @@ use std::{
     time::Instant,
 };
 
-use arc_swap::{ArcSwap, ArcSwapOption};
+use arc_swap::ArcSwap;
 use bytes::Bytes;
 use dashmap::{DashMap, try_result::TryResult};
 use futures::{
@@ -22,7 +22,6 @@ use futures::{
     pin_mut,
 };
 use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, spawn_monitored_task};
-use iota_protocol_config::ProtocolConfig;
 use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
@@ -51,7 +50,6 @@ use tracing::{debug, info, warn};
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     consensus_handler::{SequencedConsensusTransactionKey, classify},
-    consensus_throughput_calculator::{ConsensusThroughputProfiler, Level},
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
     metrics::LatencyObserver,
 };
@@ -241,15 +239,11 @@ pub struct ConsensusAdapter {
     connection_monitor_status: Arc<dyn CheckConnection>,
     /// A structure to check the reputation scores populated by Consensus
     low_scoring_authorities: ArcSwap<Arc<ArcSwap<HashMap<AuthorityName, u64>>>>,
-    /// The throughput profiler to be used when making decisions to submit to
-    /// consensus
-    consensus_throughput_profiler: ArcSwapOption<ConsensusThroughputProfiler>,
     /// A structure to register metrics
     metrics: ConsensusAdapterMetrics,
     /// Semaphore limiting parallel submissions to narwhal
     submit_semaphore: Semaphore,
     latency_observer: LatencyObserver,
-    protocol_config: ProtocolConfig,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -281,7 +275,6 @@ impl ConsensusAdapter {
         max_submit_position: Option<usize>,
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
-        protocol_config: ProtocolConfig,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -298,8 +291,6 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
-            consensus_throughput_profiler: ArcSwapOption::empty(),
-            protocol_config,
         }
     }
 
@@ -308,10 +299,6 @@ impl ConsensusAdapter {
         new_low_scoring: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
     ) {
         self.low_scoring_authorities.swap(Arc::new(new_low_scoring));
-    }
-
-    pub fn swap_throughput_profiler(&self, profiler: Arc<ConsensusThroughputProfiler>) {
-        self.consensus_throughput_profiler.store(Some(profiler))
     }
 
     // todo - this probably need to hold some kind of lock to make sure epoch does
@@ -404,7 +391,6 @@ impl ConsensusAdapter {
         let latency = std::cmp::max(latency, MIN_LATENCY);
         let latency = std::cmp::min(latency, MAX_LATENCY);
         let latency = latency * 2;
-        let latency = self.override_by_throughput_profiler(position, latency);
         let (delay_step, position) =
             self.override_by_max_submit_position_settings(latency, position);
 
@@ -418,42 +404,6 @@ impl ConsensusAdapter {
             positions_moved,
             preceding_disconnected,
         )
-    }
-
-    // According to the throughput profile we want to either allow some transaction
-    // duplication or not) When throughput profile is Low and the validator is
-    // in position = 1, then it will submit to consensus with much lower latency.
-    // When throughput profile is High then we go back to default operation and
-    // no-one co-submits.
-    fn override_by_throughput_profiler(&self, position: usize, latency: Duration) -> Duration {
-        const LOW_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS: u64 = 0;
-        const MEDIUM_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS: u64 = 2_500;
-        const HIGH_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS: u64 = 3_500;
-
-        let p = self.consensus_throughput_profiler.load();
-
-        if let Some(profiler) = p.as_ref() {
-            let (level, _) = profiler.throughput_level();
-
-            // we only run this for the position = 1 validator to co-submit with the
-            // validator of position = 0. We also enable this only when the
-            // feature is enabled on the protocol config.
-            if self.protocol_config.throughput_aware_consensus_submission() && position == 1 {
-                return match level {
-                    Level::Low => Duration::from_millis(LOW_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS),
-                    Level::Medium => {
-                        Duration::from_millis(MEDIUM_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS)
-                    }
-                    Level::High => {
-                        let l = Duration::from_millis(HIGH_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS);
-
-                        // back off according to recorded latency if it's significantly higher
-                        if latency >= 2 * l { latency } else { l }
-                    }
-                };
-            }
-        }
-        latency
     }
 
     /// Overrides the latency and the position if there are defined settings for
@@ -739,8 +689,7 @@ impl ConsensusAdapter {
             && matches!(
                 transactions[0].kind,
                 ConsensusTransactionKind::EndOfPublish(_)
-                    | ConsensusTransactionKind::CapabilityNotification(_)
-                    | ConsensusTransactionKind::CapabilityNotificationV2(_)
+                    | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
             ) {
@@ -1179,7 +1128,6 @@ mod adapter_tests {
             Some(1),
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
         );
 
         // transaction to submit
@@ -1209,7 +1157,6 @@ mod adapter_tests {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
         );
 
         let (delay_step, position, positions_moved, _) =
