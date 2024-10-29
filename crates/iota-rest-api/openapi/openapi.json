@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Iota Node Api",
-    "description": "REST Api for interacting with the Iota Blockchain",
+    "title": "IOTA Node API",
+    "description": "REST API for interacting with the IOTA Blockchain",
     "contact": {
       "name": "IOTA Foundation",
       "url": "https://github.com/iotaledger/iota"
@@ -15,7 +15,7 @@
   },
   "servers": [
     {
-      "url": "/v2"
+      "url": "/api/v1"
     }
   ],
   "paths": {
@@ -3013,23 +3013,6 @@
           }
         }
       },
-      "ModifiedAtVersion": {
-        "type": "object",
-        "required": [
-          "object_id",
-          "version"
-        ],
-        "properties": {
-          "object_id": {
-            "$ref": "#/components/schemas/ObjectId"
-          },
-          "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
-          }
-        }
-      },
       "MoveLocation": {
         "type": "object",
         "required": [
@@ -3516,21 +3499,6 @@
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
             "format": "u64"
-          }
-        }
-      },
-      "ObjectReferenceWithOwner": {
-        "type": "object",
-        "required": [
-          "owner",
-          "reference"
-        ],
-        "properties": {
-          "owner": {
-            "$ref": "#/components/schemas/Owner"
-          },
-          "reference": {
-            "$ref": "#/components/schemas/ObjectReference"
           }
         }
       },
@@ -4231,136 +4199,6 @@
             "description": "The response from processing a transaction or a certified transaction",
             "type": "object",
             "required": [
-              "created",
-              "deleted",
-              "dependencies",
-              "epoch",
-              "gas_object",
-              "gas_used",
-              "modified_at_versions",
-              "mutated",
-              "shared_objects",
-              "success",
-              "transaction_digest",
-              "unwrapped",
-              "unwrapped_then_deleted",
-              "version",
-              "wrapped"
-            ],
-            "properties": {
-              "created": {
-                "description": "ObjectReference and owner of new objects created.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectReferenceWithOwner"
-                }
-              },
-              "deleted": {
-                "description": "Object Refs of objects now deleted (the new refs).",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectReference"
-                }
-              },
-              "dependencies": {
-                "description": "The set of transaction digests this transaction depends on.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/TransactionDigest"
-                }
-              },
-              "epoch": {
-                "description": "The epoch when this transaction was executed.",
-                "type": "string",
-                "format": "u64"
-              },
-              "events_digest": {
-                "description": "The digest of the events emitted during execution, can be None if the transaction does not emit any event.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/TransactionEventsDigest"
-                  }
-                ]
-              },
-              "gas_object": {
-                "description": "The updated gas object reference. Have a dedicated field for convenient access. It's also included in mutated.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/ObjectReferenceWithOwner"
-                  }
-                ]
-              },
-              "gas_used": {
-                "$ref": "#/components/schemas/GasCostSummary"
-              },
-              "modified_at_versions": {
-                "description": "The version that every modified (mutated or deleted) object had before it was modified by this transaction.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ModifiedAtVersion"
-                }
-              },
-              "mutated": {
-                "description": "ObjectReference and owner of mutated objects, including gas object.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectReferenceWithOwner"
-                }
-              },
-              "shared_objects": {
-                "description": "The object references of the shared objects used in this transaction. Empty if no shared objects were used.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectReference"
-                }
-              },
-              "status": {
-                "$ref": "#/components/schemas/FailureStatus"
-              },
-              "success": {
-                "type": "boolean"
-              },
-              "transaction_digest": {
-                "description": "The transaction digest",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/TransactionDigest"
-                  }
-                ]
-              },
-              "unwrapped": {
-                "description": "ObjectReference and owner of objects that are unwrapped in this transaction. Unwrapped objects are objects that were wrapped into other objects in the past, and just got extracted out.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectReferenceWithOwner"
-                }
-              },
-              "unwrapped_then_deleted": {
-                "description": "Object refs of objects previously wrapped in other objects but now deleted.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectReference"
-                }
-              },
-              "version": {
-                "type": "string",
-                "enum": [
-                  "1"
-                ]
-              },
-              "wrapped": {
-                "description": "Object refs of objects now wrapped in other objects.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectReference"
-                }
-              }
-            }
-          },
-          {
-            "description": "The response from processing a transaction or a certified transaction",
-            "type": "object",
-            "required": [
               "changed_objects",
               "dependencies",
               "epoch",
@@ -4445,7 +4283,7 @@
               "version": {
                 "type": "string",
                 "enum": [
-                  "2"
+                  "1"
                 ]
               }
             }
@@ -4652,7 +4490,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "authenticator_state_update"
+                  "authenticator_state_update_v1"
                 ]
               },
               "new_active_jwks": {

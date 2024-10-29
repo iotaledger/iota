@@ -25,7 +25,7 @@ use iota_types::{
     base_types::{AuthorityName, ObjectRef, TransactionDigest},
     committee::{Committee, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
-    messages_grpc::HandleCertificateRequestV3,
+    messages_grpc::HandleCertificateRequestV1,
     messages_safe_client::PlainTransactionInfoResponse,
     quorum_driver_types::{
         ExecuteTransactionRequestV1, QuorumDriverEffectsQueueResult, QuorumDriverError,
@@ -492,7 +492,7 @@ where
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.certificate.digest()))]
     pub(crate) async fn process_certificate(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<QuorumDriverResponse, Option<QuorumDriverError>> {
         let auth_agg = self.validators.load();
@@ -568,7 +568,7 @@ where
                     .validators
                     .load()
                     .process_certificate(
-                        HandleCertificateRequestV3 {
+                        HandleCertificateRequestV1 {
                             certificate: cert,
                             include_events: true,
                             include_input_objects: false,
@@ -834,7 +834,7 @@ where
 
         let response = match quorum_driver
             .process_certificate(
-                HandleCertificateRequestV3 {
+                HandleCertificateRequestV1 {
                     certificate: tx_cert.clone(),
                     include_events: request.include_events,
                     include_input_objects: request.include_input_objects,

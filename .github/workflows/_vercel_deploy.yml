@@ -58,7 +58,7 @@ jobs:
       isProd: false
 
   ui-kit-prod:
-    name: Vercel UI Kit Preview
+    name: Vercel UI Kit Production
     if: inputs.isDevelop
     uses: ./.github/workflows/apps_ui_kit_deploy.yml
     secrets: inherit
