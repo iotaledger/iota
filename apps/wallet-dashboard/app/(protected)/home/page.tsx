@@ -16,16 +16,34 @@ function HomeDashboardPage(): JSX.Element {
     };
 
     return (
-        <main className="flex flex-1 flex-col items-center space-y-8 p-24">
-            <p>Connection status: {connectionStatus}</p>
+        <main className="flex flex-1 flex-col items-center space-y-8 py-md">
             {connectionStatus === 'connected' && account && (
-                <div className="flex flex-col items-center justify-center space-y-2">
-                    <h1>Welcome</h1>
-                    <div>Address: {account.address}</div>
-                    <AccountBalance />
-                    <MyCoins />
+                <>
+                    <div className="home-page-grid-container h-full w-full">
+                        <div style={{ gridArea: 'balance' }} className="flex grow overflow-hidden">
+                            <AccountBalance />
+                        </div>
+                        <div style={{ gridArea: 'staking' }} className="flex grow overflow-hidden">
+                            Staking
+                        </div>
+                        <div
+                            style={{ gridArea: 'migration' }}
+                            className="flex grow overflow-hidden"
+                        >
+                            Migration
+                        </div>
+                        <div style={{ gridArea: 'coins' }}>
+                            <MyCoins />
+                        </div>
+                        <div style={{ gridArea: 'vesting' }} className="flex grow overflow-hidden">
+                            Vesting
+                        </div>
+                        <div style={{ gridArea: 'activity' }} className="flex grow overflow-hidden">
+                            Activity
+                        </div>
+                    </div>
                     <Button onClick={addNewStake}>New Stake</Button>
-                </div>
+                </>
             )}
         </main>
     );

@@ -10,10 +10,10 @@ import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota
 import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
-
 import '@iota/dapp-kit/dist/index.css';
 import { Popup, PopupProvider } from '@/components/Popup';
 import { growthbook } from '@/lib/utils';
+import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'] });
 growthbook.init();
@@ -48,6 +48,7 @@ export default function RootLayout({
                             >
                                 <PopupProvider>
                                     {children}
+                                    <Toaster />
                                     <Popup />
                                 </PopupProvider>
                             </WalletProvider>

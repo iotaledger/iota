@@ -16,7 +16,7 @@ Checkpoint created: 1
 
 task 3, line 135:
 //# view-checkpoint
-CheckpointSummary { epoch: 0, seq: 1, content_digest: 5nziQdp2tLxVAj5j7iXTyrYz7Hstn5Zh5iqLAd7TaxLt,
+CheckpointSummary { epoch: 0, seq: 1, content_digest: FhAfAxUsueMJ5c9W7TuVepGTE9SnFCrRcGAWfehU4hWU,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 1000000, storage_cost: 21470000, storage_rebate: 0, non_refundable_storage_fee: 0 }}
 
 task 4, line 137:
@@ -37,7 +37,7 @@ Checkpoint created: 2
 
 task 7, line 143:
 //# view-checkpoint
-CheckpointSummary { epoch: 0, seq: 2, content_digest: DVQKDwtJsrqwugyr2EP4UCAKw1RRVVapnPADhXTs5vaX,
+CheckpointSummary { epoch: 0, seq: 2, content_digest: C5KjqUQRvmi5veZahh1neoafEn1z2fhgxaFy3BbzVJUK,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 3000000, storage_cost: 27968000, storage_rebate: 3640400, non_refundable_storage_fee: 0 }}
 
 task 8, lines 145-158:
@@ -84,7 +84,7 @@ Checkpoint created: 3
 
 task 11, line 164:
 //# view-checkpoint
-CheckpointSummary { epoch: 0, seq: 3, content_digest: C7sxx5GSvnuc5RNaYkToaPRVoBxctRgY3ZNGkyZWGYSe,
+CheckpointSummary { epoch: 0, seq: 3, content_digest: 9Xz4yzhPS4BPCmWwP5TqdY8dCPQvJML3e6LXZMZvuzo2,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 4000000, storage_cost: 31000400, storage_rebate: 6581600, non_refundable_storage_fee: 0 }}
 
 task 12, lines 166-179:
@@ -136,7 +136,7 @@ Checkpoint created: 4
 
 task 15, line 185:
 //# view-checkpoint
-CheckpointSummary { epoch: 0, seq: 4, content_digest: 9CyEjTU1BKFkS61qtauKTbtPRYTZ2AtWaBNYq2unhxhU,
+CheckpointSummary { epoch: 0, seq: 4, content_digest: FGyM6sYiLCoNXUHPwQKCnS7FnbvsWBY9uvH3K21UNnhL,
             epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 5000000, storage_cost: 36236800, storage_rebate: 9614000, non_refundable_storage_fee: 0 }}
 
 task 16, lines 187-200:

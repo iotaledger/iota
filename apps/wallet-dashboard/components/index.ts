@@ -12,7 +12,7 @@ export { default as ExternalImage } from './ExternalImage';
 export { default as TransactionIcon } from './TransactionIcon';
 export { default as Dropdown } from './Dropdown';
 
-export * from './AccountBalance/AccountBalance';
+export * from './account-balance/AccountBalance';
 export * from './Coins';
 export * from './Popup';
 export * from './AppList';
