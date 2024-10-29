@@ -142,6 +142,12 @@ pub struct SystemStateSummary {
     #[schemars(with = "crate::_schemars::U64")]
     pub epoch_duration_ms: u64,
 
+    /// Minimum number of active validators at any moment.
+    /// We do not allow the number of validators in any epoch to go under this.
+    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
+    #[schemars(with = "crate::_schemars::U64")]
+    pub min_validator_count: u64,
+
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
@@ -442,6 +448,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
+            min_validator_count,
             max_validator_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,
@@ -478,6 +485,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
+            min_validator_count,
             max_validator_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,

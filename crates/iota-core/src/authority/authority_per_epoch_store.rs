@@ -49,9 +49,8 @@ use iota_types::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
-        AuthorityCapabilitiesV1, AuthorityCapabilitiesV2, ConsensusTransaction,
-        ConsensusTransactionKey, ConsensusTransactionKind, VersionedDkgConfirmation,
-        check_total_jwk_size,
+        AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind, VersionedDkgConfirmation, check_total_jwk_size,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, GetSharedLocks, InputKey, ObjectStore},
@@ -550,8 +549,7 @@ pub struct AuthorityEpochTables {
     pub running_root_accumulators: DBMap<CheckpointSequenceNumber, Accumulator>,
 
     /// Record of the capabilities advertised by each authority.
-    authority_capabilities: DBMap<AuthorityName, AuthorityCapabilitiesV1>,
-    authority_capabilities_v2: DBMap<AuthorityName, AuthorityCapabilitiesV2>,
+    authority_capabilities_v1: DBMap<AuthorityName, AuthorityCapabilitiesV1>,
 
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
@@ -2057,37 +2055,14 @@ impl AuthorityPerEpochStore {
     }
 
     /// Record most recently advertised capabilities of all authorities
-    pub fn record_capabilities(&self, capabilities: &AuthorityCapabilitiesV1) -> IotaResult {
-        info!("received capabilities {:?}", capabilities);
-        let authority = &capabilities.authority;
-        let tables = self.tables()?;
-
-        // Read-compare-write pattern assumes we are only called from the consensus
-        // handler task.
-        if let Some(cap) = tables.authority_capabilities.get(authority)? {
-            if cap.generation >= capabilities.generation {
-                debug!(
-                    "ignoring new capabilities {:?} in favor of previous capabilities {:?}",
-                    capabilities, cap
-                );
-                return Ok(());
-            }
-        }
-        tables
-            .authority_capabilities
-            .insert(authority, capabilities)?;
-        Ok(())
-    }
-
-    /// Record most recently advertised capabilities of all authorities
-    pub fn record_capabilities_v2(&self, capabilities: &AuthorityCapabilitiesV2) -> IotaResult {
+    pub fn record_capabilities_v1(&self, capabilities: &AuthorityCapabilitiesV1) -> IotaResult {
         info!("received capabilities v2 {:?}", capabilities);
         let authority = &capabilities.authority;
         let tables = self.tables()?;
 
         // Read-compare-write pattern assumes we are only called from the consensus
         // handler task.
-        if let Some(cap) = tables.authority_capabilities_v2.get(authority)? {
+        if let Some(cap) = tables.authority_capabilities_v1.get(authority)? {
             if cap.generation >= capabilities.generation {
                 debug!(
                     "ignoring new capabilities {:?} in favor of previous capabilities {:?}",
@@ -2097,27 +2072,15 @@ impl AuthorityPerEpochStore {
             }
         }
         tables
-            .authority_capabilities_v2
+            .authority_capabilities_v1
             .insert(authority, capabilities)?;
         Ok(())
     }
 
     pub fn get_capabilities_v1(&self) -> IotaResult<Vec<AuthorityCapabilitiesV1>> {
-        assert!(!self.protocol_config.authority_capabilities_v2());
         let result: Result<Vec<AuthorityCapabilitiesV1>, TypedStoreError> = self
             .tables()?
-            .authority_capabilities
-            .values()
-            .map_into()
-            .collect();
-        Ok(result?)
-    }
-
-    pub fn get_capabilities_v2(&self) -> IotaResult<Vec<AuthorityCapabilitiesV2>> {
-        assert!(self.protocol_config.authority_capabilities_v2());
-        let result: Result<Vec<AuthorityCapabilitiesV2>, TypedStoreError> = self
-            .tables()?
-            .authority_capabilities_v2
+            .authority_capabilities_v1
             .values()
             .map_into()
             .collect();
@@ -2387,15 +2350,7 @@ impl AuthorityPerEpochStore {
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind:
-                    ConsensusTransactionKind::CapabilityNotification(AuthorityCapabilitiesV1 {
-                        authority,
-                        ..
-                    }),
-                ..
-            })
-            | SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind:
-                    ConsensusTransactionKind::CapabilityNotificationV2(AuthorityCapabilitiesV2 {
+                    ConsensusTransactionKind::CapabilityNotificationV1(AuthorityCapabilitiesV1 {
                         authority,
                         ..
                     }),
@@ -2403,7 +2358,7 @@ impl AuthorityPerEpochStore {
             }) => {
                 if transaction.sender_authority() != *authority {
                     warn!(
-                        "CapabilityNotification authority {} does not match its author from consensus {}",
+                        "CapabilityNotificationV1 authority {} does not match its author from consensus {}",
                         authority, transaction.certificate_author_index
                     );
                     return None;
@@ -3427,7 +3382,7 @@ impl AuthorityPerEpochStore {
                 panic!("process_consensus_transaction called with end-of-publish transaction");
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CapabilityNotification(capabilities),
+                kind: ConsensusTransactionKind::CapabilityNotificationV1(capabilities),
                 ..
             }) => {
                 // Records capabilities for the authority.
@@ -3437,35 +3392,13 @@ impl AuthorityPerEpochStore {
                     .should_accept_consensus_certs()
                 {
                     debug!(
-                        "Received CapabilityNotification from {:?}",
+                        "Received CapabilityNotificationV1 from {:?}",
                         authority.concise()
                     );
-                    self.record_capabilities(capabilities)?;
+                    self.record_capabilities_v1(capabilities)?;
                 } else {
                     debug!(
-                        "Ignoring CapabilityNotification from {:?} because of end of epoch",
-                        authority.concise()
-                    );
-                }
-                Ok(ConsensusCertificateResult::ConsensusMessage)
-            }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CapabilityNotificationV2(capabilities),
-                ..
-            }) => {
-                let authority = capabilities.authority;
-                if self
-                    .get_reconfig_state_read_lock_guard()
-                    .should_accept_consensus_certs()
-                {
-                    debug!(
-                        "Received CapabilityNotificationV2 from {:?}",
-                        authority.concise()
-                    );
-                    self.record_capabilities_v2(capabilities)?;
-                } else {
-                    debug!(
-                        "Ignoring CapabilityNotificationV2 from {:?} because of end of epoch",
+                        "Ignoring CapabilityNotificationV1 from {:?} because of end of epoch",
                         authority.concise()
                     );
                 }
