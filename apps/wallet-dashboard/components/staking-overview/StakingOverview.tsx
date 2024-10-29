@@ -18,5 +18,5 @@ export function StakingOverview() {
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
 
-    return delegatedStakeData ? <StakingData /> : <StartStaking />;
+    return (delegatedStakeData?.length ?? 0) > 0 ? <StakingData /> : <StartStaking />;
 }
