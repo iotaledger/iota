@@ -306,7 +306,7 @@ fn test_timelocked_staking() {
         let context = &cluster.wallet;
         let gas_price = context.get_reference_gas_price().await.unwrap();
 
-        let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price * 2);
+        let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
         let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 
         let res = context.execute_transaction_must_succeed(txn).await;
