@@ -228,7 +228,7 @@ export interface EndOfEpochInfo {
     epochEndTimestamp: string;
     lastCheckpointId: string;
     mintedTokensAmount: string;
-    /** existing fields from `SystemEpochInfoEventV1` (without epoch) */
+    /** existing fields from `SystemEpochInfoEvent` (without epoch) */
     protocolVersion: string;
     referenceGasPrice: string;
     storageCharge: string;
@@ -1479,7 +1479,7 @@ export type IotaTransactionBlockKind =
       } /** A transaction which updates global authenticator state */
     | {
           epoch: string;
-          kind: 'AuthenticatorStateUpdateV1';
+          kind: 'AuthenticatorStateUpdate';
           new_active_jwks: IotaActiveJwk[];
           round: string;
       } /** A transaction which updates global randomness state */

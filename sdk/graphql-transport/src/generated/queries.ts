@@ -342,7 +342,7 @@ export type AuthenticatorStateCreateTransaction = {
 
 export type AuthenticatorStateExpireTransaction = {
   __typename?: 'AuthenticatorStateExpireTransaction';
-  /** The initial version that the AuthenticatorStateUpdateV1 was shared at. */
+  /** The initial version that the AuthenticatorStateUpdate was shared at. */
   authenticatorObjInitialSharedVersion: Scalars['UInt53']['output'];
   /** Expire JWKs that have a lower epoch than this. */
   minEpoch?: Maybe<Epoch>;
@@ -5018,7 +5018,7 @@ export type Validator = {
   stakingPool?: Maybe<MoveObject>;
   /** The epoch at which this pool became active. */
   stakingPoolActivationEpoch?: Maybe<Scalars['UInt53']['output']>;
-  /** The ID of this validator's `0x3::staking_pool::StakingPoolV1`. */
+  /** The ID of this validator's `0x3::staking_pool::StakingPool`. */
   stakingPoolId: Scalars['IotaAddress']['output'];
   /** The total number of IOTA tokens in this pool. */
   stakingPoolIotaBalance?: Maybe<Scalars['BigInt']['output']>;
