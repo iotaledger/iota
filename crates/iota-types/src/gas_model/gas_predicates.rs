@@ -8,11 +8,6 @@
 
 use crate::gas_model::{tables::initial_cost_schedule_v1, units_types::CostTable};
 
-/// If true, do not charge the entire budget on storage OOG
-pub fn dont_charge_budget_on_storage_oog(gas_model_version: u64) -> bool {
-    gas_model_version >= 4
-}
-
 /// If true, enable the check for gas price too high
 pub fn gas_price_too_high(gas_model_version: u64) -> bool {
     gas_model_version >= 4

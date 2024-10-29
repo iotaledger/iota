@@ -15,10 +15,7 @@ pub mod checked {
         digests::TransactionDigest,
         error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
-        gas_model::{
-            gas_predicates::{charge_upgrades, dont_charge_budget_on_storage_oog},
-            tables::GasStatus,
-        },
+        gas_model::{gas_predicates::charge_upgrades, tables::GasStatus},
         is_system_package,
         object::Data,
     };
@@ -325,11 +322,7 @@ pub mod checked {
             // charge for storage, however they track storage values to check
             // for conservation rules
             if let Some(gas_object_id) = self.smashed_gas_coin {
-                if dont_charge_budget_on_storage_oog(self.gas_model_version) {
-                    self.handle_storage_and_rebate_v2(temporary_store, execution_result)
-                } else {
-                    self.handle_storage_and_rebate_v1(temporary_store, execution_result)
-                }
+                self.handle_storage_and_rebate(temporary_store, execution_result);
 
                 let cost_summary = self.gas_status.summary();
                 let gas_used = cost_summary.net_gas_usage();
@@ -346,23 +339,7 @@ pub mod checked {
             }
         }
 
-        fn handle_storage_and_rebate_v1<T>(
-            &mut self,
-            temporary_store: &mut TemporaryStore<'_>,
-            execution_result: &mut Result<T, ExecutionError>,
-        ) {
-            if let Err(err) = self.gas_status.charge_storage_and_rebate() {
-                self.reset(temporary_store);
-                self.gas_status.adjust_computation_on_out_of_gas();
-                temporary_store.ensure_active_inputs_mutated();
-                temporary_store.collect_rebate(self);
-                if execution_result.is_ok() {
-                    *execution_result = Err(err);
-                }
-            }
-        }
-
-        fn handle_storage_and_rebate_v2<T>(
+        fn handle_storage_and_rebate<T>(
             &mut self,
             temporary_store: &mut TemporaryStore<'_>,
             execution_result: &mut Result<T, ExecutionError>,
