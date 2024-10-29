@@ -18,7 +18,7 @@ use move_vm_types::{
 };
 use once_cell::sync::Lazy;
 
-use super::gas_predicates::{charge_input_as_memory, use_legacy_abstract_size};
+use super::gas_predicates::use_legacy_abstract_size;
 use crate::gas_model::units_types::{CostTable, Gas, GasCost};
 
 /// VM flat fee
@@ -322,12 +322,7 @@ impl GasStatus {
     // As more bytes are read throughout the computation the cost per bytes is
     // increased.
     pub fn charge_bytes(&mut self, size: usize, cost_per_byte: u64) -> PartialVMResult<()> {
-        let computation_cost = if charge_input_as_memory(self.gas_model_version) {
-            self.increase_stack_size(size as u64)?;
-            self.stack_size_current_tier_mult * size as u64 * cost_per_byte
-        } else {
-            size as u64 * cost_per_byte
-        };
+        let computation_cost = size as u64 * cost_per_byte;
         self.deduct_units(computation_cost)
     }
 
