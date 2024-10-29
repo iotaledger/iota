@@ -104,7 +104,7 @@ The crate provides following tests currently:
 # run tests requiring only postgres integration
 cargo test --features pg_integration -- --test-threads 1
 # run rpc tests with shared runtime
-cargo test --features shared_test_runtime
+cargo test --features shared_test_runtime -- --test-threads 1
 ```
 
 For a better testing experience is possible to use [nextest](https://nexte.st/)
