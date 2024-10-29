@@ -3,7 +3,7 @@
 
 import { BalanceChange } from '@iota/core';
 import { useMemo } from 'react';
-import { BalanceChangeEntry } from './';
+import { BalanceChangeEntry } from '.';
 import { getRecognizedUnRecognizedTokenChanges } from '@iota/core';
 
 interface BalanceChangeEntriesProps {

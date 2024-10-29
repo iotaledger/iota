@@ -13,7 +13,7 @@ import {
     StakeTransactionCard,
     TransactionSummary,
     UnstakeTransactionCard,
-} from '@/components/Transaction';
+} from '@/components/transactions';
 
 interface TransactionDetailsPopupProps {
     transaction: ExtendedTransaction;

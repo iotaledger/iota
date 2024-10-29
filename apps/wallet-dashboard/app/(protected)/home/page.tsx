@@ -2,18 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AccountBalance, MyCoins, Button, NewStakePopup } from '@/components';
-import { usePopups } from '@/hooks';
+import { AccountBalance, MyCoins, TransactionsOverview } from '@/components';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
-    const { openPopup, closePopup } = usePopups();
-
-    const addNewStake = () => {
-        openPopup(<NewStakePopup onClose={closePopup} />);
-    };
 
     return (
         <main className="flex flex-1 flex-col items-center space-y-8 py-md">
@@ -39,10 +33,9 @@ function HomeDashboardPage(): JSX.Element {
                             Vesting
                         </div>
                         <div style={{ gridArea: 'activity' }} className="flex grow overflow-hidden">
-                            Activity
+                            <TransactionsOverview />
                         </div>
                     </div>
-                    <Button onClick={addNewStake}>New Stake</Button>
                 </>
             )}
         </main>
