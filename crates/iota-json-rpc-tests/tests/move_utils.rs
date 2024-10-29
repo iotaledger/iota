@@ -132,7 +132,6 @@ async fn get_normalized_move_module() -> Result<(), anyhow::Error> {
         [
             "Coin",
             "CoinMetadata",
-            "CurrencyCreated",
             "DenyCapV1",
             "RegulatedCoinMetadata",
             "TreasuryCap",
