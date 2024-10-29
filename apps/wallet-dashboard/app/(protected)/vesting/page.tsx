@@ -142,7 +142,7 @@ function VestingDashboardPage(): JSX.Element {
     }
 
     useEffect(() => {
-        if (supplyIncreaseVestingEnabled) {
+        if (!supplyIncreaseVestingEnabled) {
             router.push('/');
         }
     }, [router, supplyIncreaseVestingEnabled]);

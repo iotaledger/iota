@@ -12,7 +12,7 @@ function MigrationDashboardPage(): JSX.Element {
     const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
 
     useEffect(() => {
-        if (stardustMigrationEnabled) {
+        if (!stardustMigrationEnabled) {
             router.push('/');
         }
     }, [stardustMigrationEnabled, router]);
