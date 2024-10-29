@@ -289,9 +289,7 @@ mod tests {
         error::IotaError,
         executable_transaction::VerifiedExecutableTransaction,
         iota_system_state::IotaSystemState,
-        messages_checkpoint::{
-            CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
-        },
+        messages_checkpoint::{CheckpointRequest, CheckpointResponse},
         messages_grpc::{
             HandleCertificateRequestV1, HandleCertificateResponseV1,
             HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
@@ -397,13 +395,6 @@ mod tests {
             &self,
             _request: CheckpointRequest,
         ) -> Result<CheckpointResponse, IotaError> {
-            unimplemented!()
-        }
-
-        async fn handle_checkpoint_v2(
-            &self,
-            _request: CheckpointRequestV2,
-        ) -> Result<CheckpointResponseV2, IotaError> {
             unimplemented!()
         }
 

@@ -23,9 +23,7 @@ use iota_types::{
     error::*,
     fp_ensure,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
-    },
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
         HandleCertificateRequestV1, HandleCertificateResponseV1,
@@ -893,15 +891,6 @@ impl ValidatorService {
         Ok((tonic::Response::new(response), Weight::one()))
     }
 
-    async fn checkpoint_v2_impl(
-        &self,
-        request: tonic::Request<CheckpointRequestV2>,
-    ) -> WrappedServiceResponse<CheckpointResponseV2> {
-        let request = request.into_inner();
-        let response = self.state.handle_checkpoint_request_v2(&request)?;
-        Ok((tonic::Response::new(response), Weight::one()))
-    }
-
     async fn get_system_state_object_impl(
         &self,
         _request: tonic::Request<SystemStateRequest>,
@@ -1169,14 +1158,6 @@ impl Validator for ValidatorService {
         request: tonic::Request<CheckpointRequest>,
     ) -> Result<tonic::Response<CheckpointResponse>, tonic::Status> {
         handle_with_decoration!(self, checkpoint_impl, request)
-    }
-
-    /// Handles a `CheckpointRequestV2` request.
-    async fn checkpoint_v2(
-        &self,
-        request: tonic::Request<CheckpointRequestV2>,
-    ) -> Result<tonic::Response<CheckpointResponseV2>, tonic::Status> {
-        handle_with_decoration!(self, checkpoint_v2_impl, request)
     }
 
     /// Gets the `IotaSystemState` response.

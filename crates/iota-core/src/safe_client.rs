@@ -14,9 +14,6 @@ use iota_types::{
     error::{IotaError, IotaResult},
     fp_ensure,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-    },
     messages_grpc::{
         HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
         ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionStatus,
@@ -491,79 +488,6 @@ where
             .total_ok_responses_handle_transaction_info_request
             .inc();
         Ok(transaction_info)
-    }
-
-    fn verify_checkpoint_sequence(
-        &self,
-        expected_seq: Option<CheckpointSequenceNumber>,
-        checkpoint: &Option<CertifiedCheckpointSummary>,
-    ) -> IotaResult {
-        let observed_seq = checkpoint.as_ref().map(|c| c.sequence_number);
-
-        if let (Some(e), Some(o)) = (expected_seq, observed_seq) {
-            fp_ensure!(
-                e == o,
-                IotaError::from("Expected checkpoint number doesn't match with returned")
-            );
-        }
-        Ok(())
-    }
-
-    fn verify_contents_exist<T, O>(
-        &self,
-        request_content: bool,
-        checkpoint: &Option<T>,
-        contents: &Option<O>,
-    ) -> IotaResult {
-        match (request_content, checkpoint, contents) {
-            // If content is requested, checkpoint is not None, but we are not getting any content,
-            // it's an error.
-            // If content is not requested, or checkpoint is None, yet we are still getting content,
-            // it's an error.
-            (true, Some(_), None) | (false, _, Some(_)) | (_, None, Some(_)) => Err(
-                IotaError::from("Checkpoint contents inconsistent with request"),
-            ),
-            _ => Ok(()),
-        }
-    }
-
-    fn verify_checkpoint_response(
-        &self,
-        request: &CheckpointRequest,
-        response: &CheckpointResponse,
-    ) -> IotaResult {
-        // Verify response data was correct for request
-        let CheckpointResponse {
-            checkpoint,
-            contents,
-        } = &response;
-        // Checks that the sequence number is correct.
-        self.verify_checkpoint_sequence(request.sequence_number, checkpoint)?;
-        self.verify_contents_exist(request.request_content, checkpoint, contents)?;
-        // Verify signature.
-        match checkpoint {
-            Some(c) => {
-                let epoch_id = c.epoch;
-                c.verify_with_contents(&*self.get_committee(&epoch_id)?, contents.as_ref())
-            }
-            None => Ok(()),
-        }
-    }
-
-    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
-    pub async fn handle_checkpoint(
-        &self,
-        request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, IotaError> {
-        let resp = self
-            .authority_client
-            .handle_checkpoint(request.clone())
-            .await?;
-        self.verify_checkpoint_response(&request, &resp)
-            .tap_err(|err| {
-                error!(?err, authority=?self.address, "Client error in handle_checkpoint");
-            })?;
-        Ok(resp)
     }
 
     #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
