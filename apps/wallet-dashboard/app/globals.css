@@ -27,18 +27,23 @@ body {
             'vesting'
             'activity';
 
-        & > *:where([style*="grid-area: balance"], [style*="grid-area: staking"], [style*="grid-area: migration"]) {
+        &
+            > *:where(
+                [style*='grid-area: balance'],
+                [style*='grid-area: staking'],
+                [style*='grid-area: migration']
+            ) {
             height: 200px;
         }
     }
     .home-page-grid-container.with-migration {
         grid-template-areas:
-        'balance'
-        'staking'
-        'migration'
-        'coins'
-        'vesting'
-        'activity';
+            'balance'
+            'staking'
+            'migration'
+            'coins'
+            'vesting'
+            'activity';
     }
 
     @screen sm {
