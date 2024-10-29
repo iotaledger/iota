@@ -13,6 +13,7 @@ import React from 'react';
 
 import '@iota/dapp-kit/dist/index.css';
 import { Popup, PopupProvider } from '@/components/Popup';
+import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -46,6 +47,7 @@ export default function RootLayout({
                         >
                             <PopupProvider>
                                 {children}
+                                <Toaster />
                                 <Popup />
                             </PopupProvider>
                         </WalletProvider>
