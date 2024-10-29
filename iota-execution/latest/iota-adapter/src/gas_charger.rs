@@ -66,7 +66,7 @@ pub mod checked {
         pub fn new_unmetered(tx_digest: TransactionDigest) -> Self {
             Self {
                 tx_digest,
-                gas_model_version: 6, // pick any of the latest, it should not matter
+                gas_model_version: 8, // pick any of the latest, it should not matter
                 gas_coins: vec![],
                 smashed_gas_coin: None,
                 gas_status: IotaGasStatus::new_unmetered(),

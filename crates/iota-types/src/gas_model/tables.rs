@@ -125,7 +125,7 @@ impl GasStatus {
     /// system code that does not have to charge the user.
     pub fn new_unmetered() -> Self {
         Self {
-            gas_model_version: 4,
+            gas_model_version: 8,
             gas_left: InternalGas::new(0),
             gas_price: 1,
             initial_budget: InternalGas::new(0),
@@ -719,186 +719,6 @@ pub fn unit_cost_schedule() -> CostTable {
 pub fn initial_cost_schedule_v1() -> CostTable {
     let instruction_tiers: BTreeMap<u64, u64> = vec![
         (0, 1),
-        (3000, 2),
-        (6000, 3),
-        (8000, 5),
-        (9000, 9),
-        (9500, 16),
-        (10000, 29),
-        (10500, 50),
-    ]
-    .into_iter()
-    .collect();
-
-    let stack_height_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (400, 2),
-        (800, 3),
-        (1200, 5),
-        (1500, 9),
-        (1800, 16),
-        (2000, 29),
-        (2200, 50),
-    ]
-    .into_iter()
-    .collect();
-
-    let stack_size_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (2000, 2),
-        (5000, 3),
-        (8000, 5),
-        (10000, 9),
-        (11000, 16),
-        (11500, 29),
-        (11500, 50),
-    ]
-    .into_iter()
-    .collect();
-
-    CostTable {
-        instruction_tiers,
-        stack_size_tiers,
-        stack_height_tiers,
-    }
-}
-
-pub fn initial_cost_schedule_v2() -> CostTable {
-    let instruction_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (3000, 2),
-        (6000, 3),
-        (8000, 5),
-        (9000, 9),
-        (9500, 16),
-        (10000, 29),
-        (10500, 50),
-        (12000, 150),
-        (15000, 250),
-    ]
-    .into_iter()
-    .collect();
-
-    let stack_height_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (400, 2),
-        (800, 3),
-        (1200, 5),
-        (1500, 9),
-        (1800, 16),
-        (2000, 29),
-        (2200, 50),
-        (3000, 150),
-        (5000, 250),
-    ]
-    .into_iter()
-    .collect();
-
-    let stack_size_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (2000, 2),
-        (5000, 3),
-        (8000, 5),
-        (10000, 9),
-        (11000, 16),
-        (11500, 29),
-        (11500, 50),
-        (15000, 150),
-        (20000, 250),
-    ]
-    .into_iter()
-    .collect();
-
-    CostTable {
-        instruction_tiers,
-        stack_size_tiers,
-        stack_height_tiers,
-    }
-}
-
-pub fn initial_cost_schedule_v3() -> CostTable {
-    let instruction_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (3000, 2),
-        (6000, 3),
-        (8000, 5),
-        (9000, 9),
-        (9500, 16),
-        (10000, 29),
-        (10500, 50),
-        (15000, 100),
-    ]
-    .into_iter()
-    .collect();
-
-    let stack_height_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (400, 2),
-        (800, 3),
-        (1200, 5),
-        (1500, 9),
-        (1800, 16),
-        (2000, 29),
-        (2200, 50),
-        (5000, 100),
-    ]
-    .into_iter()
-    .collect();
-
-    let stack_size_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (2000, 2),
-        (5000, 3),
-        (8000, 5),
-        (10000, 9),
-        (11000, 16),
-        (11500, 29),
-        (11500, 50),
-        (20000, 100),
-    ]
-    .into_iter()
-    .collect();
-
-    CostTable {
-        instruction_tiers,
-        stack_size_tiers,
-        stack_height_tiers,
-    }
-}
-
-pub fn initial_cost_schedule_v4() -> CostTable {
-    let instruction_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (20_000, 2),
-        (50_000, 10),
-        (100_000, 50),
-        (200_000, 100),
-    ]
-    .into_iter()
-    .collect();
-
-    let stack_height_tiers: BTreeMap<u64, u64> =
-        vec![(0, 1), (1_000, 2), (10_000, 10)].into_iter().collect();
-
-    let stack_size_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
-        (100_000, 2),     // ~100K
-        (500_000, 5),     // ~500K
-        (1_000_000, 100), // ~1M
-    ]
-    .into_iter()
-    .collect();
-
-    CostTable {
-        instruction_tiers,
-        stack_size_tiers,
-        stack_height_tiers,
-    }
-}
-
-pub fn initial_cost_schedule_v5() -> CostTable {
-    let instruction_tiers: BTreeMap<u64, u64> = vec![
-        (0, 1),
         (20_000, 2),
         (50_000, 10),
         (100_000, 50),
@@ -934,7 +754,7 @@ pub fn initial_cost_schedule_v5() -> CostTable {
 // instead we perform this translation from our gas units and cost schedule to
 // the one expected by the Move unit tests.
 pub fn initial_cost_schedule_for_unit_tests() -> move_vm_test_utils::gas_schedule::CostTable {
-    let table = initial_cost_schedule_v5();
+    let table = initial_cost_schedule_v1();
     move_vm_test_utils::gas_schedule::CostTable {
         instruction_tiers: table.instruction_tiers.into_iter().collect(),
         stack_height_tiers: table.stack_height_tiers.into_iter().collect(),
