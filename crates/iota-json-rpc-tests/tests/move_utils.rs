@@ -140,6 +140,7 @@ async fn get_normalized_move_module() -> Result<(), anyhow::Error> {
         .map(|s| s.to_string())
         .collect::<HashSet<String>>(),
     );
+
     assert_eq!(
         move_module
             .exposed_functions
@@ -175,7 +176,6 @@ async fn get_normalized_move_module() -> Result<(), anyhow::Error> {
             "mint_balance",
             "put",
             "split",
-            "supply",
             "supply_immut",
             "supply_mut",
             "take",
