@@ -50,7 +50,7 @@ impl Client {
             )));
         }
 
-        url.set_path("/v2/");
+        url.set_path("/api/v1/");
 
         let inner = reqwest::ClientBuilder::new()
             .user_agent(USER_AGENT)

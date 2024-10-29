@@ -35,28 +35,19 @@ fn main() -> Result<()> {
         )
         .method(
             Method::builder()
-                .name("handle_certificate_v2")
-                .route_name("CertifiedTransactionV2")
-                .input_type("iota_types::transaction::CertifiedTransaction")
-                .output_type("iota_types::messages_grpc::HandleCertificateResponseV2")
+                .name("handle_certificate_v1")
+                .route_name("CertifiedTransactionV1")
+                .input_type("iota_types::messages_grpc::HandleCertificateRequestV1")
+                .output_type("iota_types::messages_grpc::HandleCertificateResponseV1")
                 .codec_path(codec_path)
                 .build(),
         )
         .method(
             Method::builder()
-                .name("handle_certificate_v3")
-                .route_name("CertifiedTransactionV3")
-                .input_type("iota_types::messages_grpc::HandleCertificateRequestV3")
-                .output_type("iota_types::messages_grpc::HandleCertificateResponseV3")
-                .codec_path(codec_path)
-                .build(),
-        )
-        .method(
-            Method::builder()
-                .name("handle_soft_bundle_certificates_v3")
-                .route_name("SoftBundleCertifiedTransactionsV3")
-                .input_type("iota_types::messages_grpc::HandleSoftBundleCertificatesRequestV3")
-                .output_type("iota_types::messages_grpc::HandleSoftBundleCertificatesResponseV3")
+                .name("handle_soft_bundle_certificates_v1")
+                .route_name("SoftBundleCertifiedTransactionsV1")
+                .input_type("iota_types::messages_grpc::HandleSoftBundleCertificatesRequestV1")
+                .output_type("iota_types::messages_grpc::HandleSoftBundleCertificatesResponseV1")
                 .codec_path(codec_path)
                 .build(),
         )
