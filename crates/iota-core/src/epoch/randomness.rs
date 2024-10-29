@@ -57,25 +57,19 @@ pub const SINGLETON_KEY: u64 = 0;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum VersionedProcessedMessage {
-    V0(), // deprecated
     V1(dkg_v1::ProcessedMessage<PkG, EncG>),
 }
 
 impl VersionedProcessedMessage {
     pub fn sender(&self) -> PartyId {
         match self {
-            VersionedProcessedMessage::V0() => {
-                panic!("BUG: invalid VersionedProcessedMessage version V0")
-            }
             VersionedProcessedMessage::V1(msg) => msg.message.sender,
         }
     }
 
     pub fn unwrap_v1(self) -> dkg_v1::ProcessedMessage<PkG, EncG> {
-        if let VersionedProcessedMessage::V1(msg) = self {
-            msg
-        } else {
-            panic!("BUG: expected message version is 1")
+        match self {
+            VersionedProcessedMessage::V1(msg) => msg,
         }
     }
 
@@ -110,7 +104,6 @@ impl VersionedProcessedMessage {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionedUsedProcessedMessages {
-    V0(), // deprecated
     V1(dkg_v1::UsedProcessedMessages<PkG, EncG>),
 }
 
@@ -123,9 +116,7 @@ impl VersionedUsedProcessedMessages {
         // All inputs are verified in add_confirmation, so we can assume they are of the
         // correct version.
         let rng = &mut StdRng::from_rng(OsRng).expect("RNG construction should not fail");
-        let VersionedUsedProcessedMessages::V1(msg) = self else {
-            panic!("BUG: invalid VersionedUsedProcessedMessages version")
-        };
+        let VersionedUsedProcessedMessages::V1(msg) = self;
         party.complete_v1(
             msg,
             &confirmations
