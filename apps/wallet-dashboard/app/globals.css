@@ -14,3 +14,7 @@ body {
         text-wrap: balance;
     }
 }
+
+.grid-template-visual-assets {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}

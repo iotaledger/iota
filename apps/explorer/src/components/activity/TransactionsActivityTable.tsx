@@ -5,7 +5,8 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
+import { PlaceholderTable, TableCard } from '~/components/ui';
+import { useCursorPagination } from '@iota/core';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,

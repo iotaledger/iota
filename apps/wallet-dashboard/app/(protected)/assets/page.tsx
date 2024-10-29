@@ -3,15 +3,18 @@
 
 'use client';
 
-import { AssetCard, VirtualList } from '@/components';
+import { AssetCard, PageSizeSelector, PaginationOptions } from '@/components';
 import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
-import { Panel, Title, Chip } from '@iota/apps-ui-kit';
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { Panel, Title, Chip, TitleSize, DropdownPosition } from '@iota/apps-ui-kit';
+import { hasDisplayData, useCursorPagination, useGetOwnedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useMemo, useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
-import Link from 'next/link';
+import { VisibilityOff } from '@iota/ui-icons';
+import { useRouter } from 'next/navigation';
+
+const PAGINATION_RANGE = [20, 40, 60];
 
 const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
     {
@@ -30,22 +33,22 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 
 export default function AssetsDashboardPage(): React.JSX.Element {
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
+    const [limit, setLimit] = useState<number>(PAGINATION_RANGE[1]);
+    const router = useRouter();
 
     const account = useCurrentAccount();
-    const {
-        data: ownedObjects,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
-    } = useGetOwnedObjects(account?.address);
+    const ownedObjectsQuery = useGetOwnedObjects(account?.address, undefined, limit);
+
+    const { data, pagination } = useCursorPagination(ownedObjectsQuery);
+
+    const { data: ownedObjects } = data || {};
 
     const [visual, nonVisual] = useMemo(() => {
         const visual: IotaObjectData[] = [];
         const nonVisual: IotaObjectData[] = [];
 
-        ownedObjects?.pages
-            .flatMap((page) => page.data)
-            .filter((asset) => asset.data && asset.data.objectId)
+        ownedObjects
+            ?.filter((asset) => asset.data && asset.data.objectId)
             .forEach((asset) => {
                 if (asset.data) {
                     if (hasDisplayData(asset)) {
@@ -69,7 +72,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
 
     return (
         <Panel>
-            <Title title="Assets" />
+            <Title title="Assets" size={TitleSize.Medium} />
             <div className="px-lg">
                 <div className="flex flex-row items-center justify-start gap-xs py-xs">
                     {ASSET_CATEGORIES.map((tab) => (
@@ -82,18 +85,31 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     ))}
                 </div>
 
-                <div className="max-h-[600px] overflow-auto py-sm">
-                    <VirtualList
-                        items={assetList}
-                        hasNextPage={hasNextPage}
-                        isFetchingNextPage={isFetchingNextPage}
-                        fetchNextPage={fetchNextPage}
-                        estimateSize={() => 180}
-                        render={(asset) => (
-                            <Link href={ASSETS_ROUTE.path + `/${asset.objectId}`}>
-                                <AssetCard asset={asset} />
-                            </Link>
-                        )}
+                <div className="grid-template-visual-assets grid max-h-[600px] gap-md overflow-auto py-sm">
+                    {assetList.map((asset) => (
+                        <div key={asset.digest}>
+                            <AssetCard
+                                asset={asset}
+                                icon={<VisibilityOff />}
+                                onClick={() =>
+                                    router.push(ASSETS_ROUTE.path + `/${asset.objectId}`)
+                                }
+                            />
+                        </div>
+                    ))}
+                </div>
+                <div className="flex flex-row items-center justify-end py-xs">
+                    <PaginationOptions
+                        pagination={pagination}
+                        action={
+                            <PageSizeSelector
+                                pagination={pagination}
+                                range={PAGINATION_RANGE}
+                                dropdownPosition={DropdownPosition.Top}
+                                setLimit={(e) => setLimit(e)}
+                                limit={limit.toString()}
+                            />
+                        }
                     />
                 </div>
             </div>
