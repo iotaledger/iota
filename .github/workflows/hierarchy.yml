@@ -134,7 +134,7 @@ jobs:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
-    if: (!cancelled() && !failure() && (!github.event.pull_request.draft || github.ref_name == 'develop'))
+    if: (!cancelled() && !failure() && (github.event.pull_request.draft || github.ref_name == 'develop'))
     needs:
       - diff
       - dprint-format
@@ -147,6 +147,7 @@ jobs:
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
+      isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isDevelop: ${{ github.ref_name == 'develop' }}
 
   vercel-deploy:
