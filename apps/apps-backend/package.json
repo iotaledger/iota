@@ -7,8 +7,7 @@
         "dev": "nest start --watch",
         "debug": "nest start --debug --watch",
         "preview": "pnpm run build && node dist/main",
-        "lint": "eslint --max-warnings=0 \"{src,apps,libs,test}/**/*.ts\"",
-        "start": "node dist/main"
+        "lint": "eslint --max-warnings=0 \"{src,apps,libs,test}/**/*.ts\""
     },
     "dependencies": {
         "@iota/core": "workspace:*",

@@ -70,9 +70,9 @@ jobs:
         if: inputs.isTypescriptSDK || inputs.isRust || inputs.isDevelop
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/iota-sdk test:e2e'
 
-      # - name: Run RPC/GraphQL compatibility e2e tests
-      #   if: inputs.isGraphQlTransport || inputs.isRust || inputs.isDevelop
-      #   run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
+      - name: Run RPC/GraphQL compatibility e2e tests
+        if: inputs.isGraphQlTransport || inputs.isRust || inputs.isDevelop
+        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
 
       - name: Build explorer
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || inputs.isDevelop
@@ -95,12 +95,9 @@ jobs:
         if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK || inputs.isDevelop
         run: pnpm wallet build
 
-      - name: Build Apps Backend
-        run: pnpm --filter apps-backend build
-
       - name: Run Wallet e2e tests
         if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK || inputs.isDevelop
-        run: pnpm --filter apps-backend start & xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
 
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         if: always()
