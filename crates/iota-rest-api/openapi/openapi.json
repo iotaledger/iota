@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Iota Node Api",
-    "description": "REST Api for interacting with the Iota Blockchain",
+    "title": "IOTA Node API",
+    "description": "REST API for interacting with the IOTA Blockchain",
     "contact": {
       "name": "IOTA Foundation",
       "url": "https://github.com/iotaledger/iota"
@@ -15,7 +15,7 @@
   },
   "servers": [
     {
-      "url": "/v2"
+      "url": "/api/v1"
     }
   ],
   "paths": {
