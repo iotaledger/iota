@@ -799,6 +799,7 @@ export const RPC_METHODS: {
             iotaTotalSupply: String(systemState.iotaTotalSupply),
             iotaTreasuryCapId: String(systemState.iotaTreasuryCapId),
             maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
+            minValidatorCount: String(systemState.systemParameters?.minValidatorCount),
             minValidatorJoiningStake: String(
                 systemState.systemParameters?.minValidatorJoiningStake,
             ),
