@@ -96,6 +96,12 @@ pub struct IotaSystemStateSummary {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub epoch_duration_ms: u64,
 
+    /// Minimum number of active validators at any moment.
+    /// We do not allow the number of validators in any epoch to go under this.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub min_validator_count: u64,
+
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
     #[schemars(with = "BigInt<u64>")]
@@ -327,6 +333,7 @@ impl Default for IotaSystemStateSummary {
             safe_mode_non_refundable_storage_fee: 0,
             epoch_start_timestamp_ms: 0,
             epoch_duration_ms: 0,
+            min_validator_count: 0,
             max_validator_count: 0,
             min_validator_joining_stake: 0,
             validator_low_stake_threshold: 0,
