@@ -328,7 +328,7 @@ where
         Ok(response)
     }
 
-    fn verify_certificate_response_v3(
+    fn verify_certificate_response_v1(
         &self,
         digest: &TransactionDigest,
         HandleCertificateResponseV1 {
@@ -435,7 +435,7 @@ where
 
         let verified = check_error!(
             self.address,
-            self.verify_certificate_response_v3(&digest, response),
+            self.verify_certificate_response_v1(&digest, response),
             "Client error in handle_certificate"
         )?;
         Ok(verified)
