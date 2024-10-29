@@ -121,7 +121,7 @@ function StakingCard() {
             // });
             try {
                 const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                return await signer.signAndExecuteTransaction({
+                const tx = await signer.signAndExecuteTransaction({
                     transactionBlock,
                     options: {
                         showInput: true,
@@ -129,6 +129,10 @@ function StakingCard() {
                         showEvents: true,
                     },
                 });
+                await signer.client.waitForTransaction({
+                    digest: tx.digest
+                })
+                return tx
             } finally {
                 // sentryTransaction.finish();
             }
@@ -151,7 +155,7 @@ function StakingCard() {
             // 	name: 'stake',
             // });
             const transactionBlock = createUnstakeTransaction(stakedIotaId);
-            return await signer.signAndExecuteTransaction({
+            const tx = await signer.signAndExecuteTransaction({
                 transactionBlock,
                 options: {
                     showInput: true,
@@ -159,6 +163,10 @@ function StakingCard() {
                     showEvents: true,
                 },
             });
+            await signer.client.waitForTransaction({
+                digest: tx.digest
+            })
+            return tx
             // finally {
             // 	sentryTransaction.finish();
             // }
