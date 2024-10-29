@@ -15,7 +15,7 @@ pub mod checked {
         digests::TransactionDigest,
         error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
-        gas_model::{gas_predicates::charge_upgrades, tables::GasStatus},
+        gas_model::tables::GasStatus,
         is_system_package,
         object::Data,
     };
@@ -220,11 +220,7 @@ pub mod checked {
         }
 
         pub fn charge_upgrade_package(&mut self, size: usize) -> Result<(), ExecutionError> {
-            if charge_upgrades(self.gas_model_version) {
-                self.gas_status.charge_publish_package(size)
-            } else {
-                Ok(())
-            }
+            self.gas_status.charge_publish_package(size)
         }
 
         pub fn charge_input_objects(
