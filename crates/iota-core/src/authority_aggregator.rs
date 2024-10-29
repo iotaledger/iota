@@ -1619,12 +1619,12 @@ where
 
                         client
                             .handle_certificate_v1(req, client_addr)
-                            .instrument(trace_span!("handle_certificate", authority =? concise_name))
+                            .instrument(trace_span!("handle_certificate_v1", authority =? concise_name))
                             .await
                     } else {
                         client
                             .handle_certificate_v1(HandleCertificateRequestV1::new(request_ref.certificate).with_events(), client_addr)
-                            .instrument(trace_span!("handle_certificate", authority =? concise_name))
+                            .instrument(trace_span!("handle_certificate_v1", authority =? concise_name))
                             .await
                             .map(|response| HandleCertificateResponseV1 {
                                 effects: response.effects,
@@ -1755,7 +1755,7 @@ where
         Ok(result)
     }
 
-    /// Handles the `HandleCertificateResponse` variants.
+    /// Handles the `HandleCertificateResponseV1` variants.
     fn handle_process_certificate_response(
         committee: Arc<Committee>,
         tx_digest: &TransactionDigest,
