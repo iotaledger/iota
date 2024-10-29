@@ -18,7 +18,6 @@ use move_vm_types::{
 };
 use once_cell::sync::Lazy;
 
-use super::gas_predicates::use_legacy_abstract_size;
 use crate::gas_model::units_types::{CostTable, Gas, GasCost};
 
 /// VM flat fee
@@ -327,11 +326,7 @@ impl GasStatus {
     }
 
     fn abstract_memory_size(&self, val: impl ValueView) -> AbstractMemorySize {
-        if use_legacy_abstract_size(self.gas_model_version) {
-            val.legacy_abstract_memory_size()
-        } else {
-            val.abstract_memory_size()
-        }
+        val.abstract_memory_size()
     }
 
     pub fn gas_price(&self) -> u64 {
