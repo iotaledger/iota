@@ -26,30 +26,36 @@ body {
             'coins'
             'vesting'
             'activity';
+
+        & > *:where([style*="grid-area: balance"], [style*="grid-area: staking"], [style*="grid-area: migration"]) {
+            height: 200px;
+        }
     }
     .home-page-grid-container.with-migration {
         grid-template-areas:
-            'balance'
-            'staking'
-            'migration'
-            'coins'
-            'vesting'
-            'activity';
+        'balance'
+        'staking'
+        'migration'
+        'coins'
+        'vesting'
+        'activity';
     }
 
     @screen sm {
         .home-page-grid-container {
             @apply grid-cols-2;
             grid-template-areas:
-                'balance coins'
+                'balance balance'
                 'staking staking'
+                'coins coins'
                 'vesting vesting'
                 'activity activity';
         }
         .home-page-grid-container.with-migration {
             grid-template-areas:
-                'balance coins'
+                'balance balance'
                 'staking migration'
+                'coins coins'
                 'vesting vesting'
                 'activity activity';
         }
