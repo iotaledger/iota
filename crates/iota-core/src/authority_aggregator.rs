@@ -1765,7 +1765,7 @@ where
     ) -> IotaResult<Option<QuorumDriverResponse>> {
         match response {
             Ok(HandleCertificateResponseV1 {
-                signed_effects: signed_effects,
+                signed_effects,
                 events,
                 input_objects,
                 output_objects,
