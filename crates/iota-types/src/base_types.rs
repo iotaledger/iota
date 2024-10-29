@@ -612,6 +612,10 @@ pub struct IotaAddress(
 impl IotaAddress {
     pub const ZERO: Self = Self([0u8; IOTA_ADDRESS_LENGTH]);
 
+    pub fn new(bytes: [u8; IOTA_ADDRESS_LENGTH]) -> Self {
+        Self(bytes)
+    }
+
     /// Convert the address to a byte buffer.
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
