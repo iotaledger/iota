@@ -539,8 +539,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
-        ConsensusTransactionKind::CapabilityNotification(_) => "capability_notification",
-        ConsensusTransactionKind::CapabilityNotificationV2(_) => "capability_notification_v2",
+        ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessStateUpdate(_, _) => "randomness_state_update",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
@@ -807,7 +806,7 @@ mod tests {
     use consensus_core::{
         BlockAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlock, Transaction, VerifiedBlock,
     };
-    use iota_protocol_config::ConsensusTransactionOrdering;
+    use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
         committee::Committee,
@@ -815,7 +814,9 @@ mod tests {
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
         object::Object,
-        supported_protocol_versions::SupportedProtocolVersions,
+        supported_protocol_versions::{
+            SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+        },
         transaction::{
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
@@ -960,7 +961,13 @@ mod tests {
 
     #[test]
     fn test_order_by_gas_price() {
-        let mut v = vec![cap_txn(10), user_txn(42), user_txn(100), cap_txn(1)];
+        let chain = Chain::Unknown;
+        let mut v = vec![
+            cap_txn(10, chain),
+            user_txn(42),
+            user_txn(100),
+            cap_txn(1, chain),
+        ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
         assert_eq!(extract(v), vec![
             "cap(10)".to_string(),
@@ -971,12 +978,12 @@ mod tests {
 
         let mut v = vec![
             user_txn(1200),
-            cap_txn(10),
+            cap_txn(10, chain),
             user_txn(12),
             user_txn(1000),
             user_txn(42),
             user_txn(100),
-            cap_txn(1),
+            cap_txn(1, chain),
             user_txn(1000),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
@@ -993,10 +1000,10 @@ mod tests {
 
         // If there are no user transactions, the order should be preserved.
         let mut v = vec![
-            cap_txn(10),
+            cap_txn(10, chain),
             eop_txn(12),
             eop_txn(10),
-            cap_txn(1),
+            cap_txn(1, chain),
             eop_txn(11),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
@@ -1019,7 +1026,7 @@ mod tests {
                 ConsensusTransactionKind::EndOfPublish(authority) => {
                     format!("eop({})", authority.0[0])
                 }
-                ConsensusTransactionKind::CapabilityNotification(cap) => {
+                ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                     format!("cap({})", cap.generation)
                 }
                 ConsensusTransactionKind::UserTransaction(txn) => {
@@ -1037,12 +1044,17 @@ mod tests {
         txn(ConsensusTransactionKind::EndOfPublish(authority))
     }
 
-    fn cap_txn(generation: u64) -> VerifiedSequencedConsensusTransaction {
-        txn(ConsensusTransactionKind::CapabilityNotification(
+    fn cap_txn(generation: u64, chain: Chain) -> VerifiedSequencedConsensusTransaction {
+        txn(ConsensusTransactionKind::CapabilityNotificationV1(
+            // we don't use the "new" constructor because we need to set the generation
             AuthorityCapabilitiesV1 {
                 authority: Default::default(),
                 generation,
-                supported_protocol_versions: SupportedProtocolVersions::SYSTEM_DEFAULT,
+                supported_protocol_versions:
+                    SupportedProtocolVersionsWithHashes::from_supported_versions(
+                        SupportedProtocolVersions::SYSTEM_DEFAULT,
+                        chain,
+                    ),
                 available_system_packages: vec![],
             },
         ))

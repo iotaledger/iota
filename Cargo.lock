@@ -5743,6 +5743,7 @@ dependencies = [
  "move-analyzer",
  "move-binary-format",
  "move-bytecode-verifier-meter",
+ "move-cli",
  "move-command-line-common",
  "move-core-types",
  "move-package",
@@ -7625,7 +7626,7 @@ dependencies = [
 [[package]]
 name = "iota-rust-sdk"
 version = "0.0.0"
-source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=46d46d64237e001e8e23f322caecb3211c9a8c97#46d46d64237e001e8e23f322caecb3211c9a8c97"
+source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=ed6173d434c77604ddc93aaa1550168fdbe97b09#ed6173d434c77604ddc93aaa1550168fdbe97b09"
 dependencies = [
  "base64ct",
  "bcs",
