@@ -758,7 +758,10 @@ impl TestCluster {
                     let cert = certificate.clone();
                     async move {
                         client
-                            .handle_certificate_v1(HandleCertificateRequestV1::new(cert), None)
+                            .handle_certificate_v1(
+                                HandleCertificateRequestV1::new(cert).with_events(),
+                                None,
+                            )
                             .await
                     }
                 })
@@ -783,10 +786,9 @@ impl TestCluster {
         let mut all_events = HashMap::new();
         for reply in replies {
             let effects = reply.effects.into_data();
-            let events = reply.events.unwrap();
+            let events = reply.events.unwrap_or_default();
             all_effects.insert(effects.digest(), effects);
             all_events.insert(events.digest(), events);
-            // reply.fastpath_input_objects is unused.
         }
         assert_eq!(all_effects.len(), 1);
         assert_eq!(all_events.len(), 1);
