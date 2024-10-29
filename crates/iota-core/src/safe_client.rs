@@ -329,17 +329,17 @@ where
         &self,
         digest: &TransactionDigest,
         HandleCertificateResponseV1 {
-            effects,
+            signed_effects,
             events,
             input_objects,
             output_objects,
             auxiliary_data,
         }: HandleCertificateResponseV1,
     ) -> IotaResult<HandleCertificateResponseV1> {
-        let effects = self.check_signed_effects_plain(digest, effects, None)?;
+        let signed_effects = self.check_signed_effects_plain(digest, signed_effects, None)?;
 
         // Check Events
-        match (&events, effects.events_digest()) {
+        match (&events, signed_effects.events_digest()) {
             (None, None) | (None, Some(_)) => {}
             (Some(events), None) => {
                 if !events.data.is_empty() {
@@ -364,7 +364,7 @@ where
 
         // Check Input Objects
         if let Some(input_objects) = &input_objects {
-            let expected: HashMap<_, _> = effects
+            let expected: HashMap<_, _> = signed_effects
                 .old_object_metadata()
                 .into_iter()
                 .map(|(object_ref, _owner)| (object_ref.0, object_ref))
@@ -387,7 +387,7 @@ where
 
         // Check Output Objects
         if let Some(output_objects) = &output_objects {
-            let expected: HashMap<_, _> = effects
+            let expected: HashMap<_, _> = signed_effects
                 .all_changed_objects()
                 .into_iter()
                 .map(|(object_ref, _, _)| (object_ref.0, object_ref))
@@ -409,7 +409,7 @@ where
         }
 
         Ok(HandleCertificateResponseV1 {
-            effects,
+            signed_effects,
             events,
             input_objects,
             output_objects,

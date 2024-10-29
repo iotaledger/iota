@@ -1627,7 +1627,7 @@ where
                             .instrument(trace_span!("handle_certificate_v1", authority =? concise_name))
                             .await
                             .map(|response| HandleCertificateResponseV1 {
-                                effects: response.effects,
+                                signed_effects: response.signed_effects,
                                 events: response.events,
                                 input_objects: None,
                                 output_objects: None,
@@ -1765,7 +1765,7 @@ where
     ) -> IotaResult<Option<QuorumDriverResponse>> {
         match response {
             Ok(HandleCertificateResponseV1 {
-                effects: signed_effects,
+                signed_effects: signed_effects,
                 events,
                 input_objects,
                 output_objects,

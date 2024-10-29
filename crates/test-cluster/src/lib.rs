@@ -785,7 +785,7 @@ impl TestCluster {
         let mut all_effects = HashMap::new();
         let mut all_events = HashMap::new();
         for reply in replies {
-            let effects = reply.effects.into_data();
+            let effects = reply.signed_effects.into_data();
             let events = reply.events.unwrap_or_default();
             all_effects.insert(effects.digest(), effects);
             all_events.insert(events.digest(), events);

@@ -361,7 +361,7 @@ mod tests {
                 .sign_effects(effects, &epoch_store)?
                 .into_inner();
             Ok(HandleCertificateResponseV1 {
-                effects: signed_effects,
+                signed_effects,
                 events: Some(events),
                 input_objects: None,
                 output_objects: None,

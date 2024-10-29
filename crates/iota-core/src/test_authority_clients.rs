@@ -218,7 +218,7 @@ impl LocalAuthorityClient {
             .and_then(Result::ok);
 
         Ok(HandleCertificateResponseV1 {
-            effects: signed_effects,
+            signed_effects,
             events,
             input_objects,
             output_objects,

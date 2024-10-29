@@ -180,9 +180,9 @@ pub struct SystemStateRequest {
     pub _unused: bool,
 }
 
-/// Response type for version 3 of the handle certifacte validator API.
+/// Response type for version 1 of the handle certificate validator API.
 ///
-/// The coorisponding version 3 request type allows for a client to request
+/// The corresponding version 1 request type allows for a client to request
 /// events as well as input/output objects from a transaction's execution. Given
 /// Validators operate with very aggressive object pruning, the return of
 /// input/output objects is only done immediately after the transaction has been
@@ -190,17 +190,17 @@ pub struct SystemStateRequest {
 /// previously executed transactions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HandleCertificateResponseV1 {
-    pub effects: SignedTransactionEffects,
+    pub signed_effects: SignedTransactionEffects,
     pub events: Option<TransactionEvents>,
 
-    /// If requested, will included all initial versions of objects modified in
+    /// If requested, will include all initial versions of objects modified in
     /// this transaction. This includes owned objects included as input into
     /// the transaction as well as the assigned versions of shared objects.
     // TODO: In the future we may want to include shared objects or child objects which were read
-    // but not modified during exectuion.
+    //  but not modified during execution.
     pub input_objects: Option<Vec<Object>>,
 
-    /// If requested, will included all changed objects, including mutated,
+    /// If requested, will include all changed objects, including mutated,
     /// created and unwrapped objects. In other words, all objects that
     /// still exist in the object state after this transaction.
     pub output_objects: Option<Vec<Object>>,

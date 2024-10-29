@@ -184,7 +184,7 @@ impl SingleValidator {
                     .await
                     .unwrap()
                     .into_inner();
-                response.effects.into_data()
+                response.signed_effects.into_data()
             }
             Component::TxnSigning | Component::CheckpointExecutor | Component::ExecutionOnly => {
                 unreachable!()

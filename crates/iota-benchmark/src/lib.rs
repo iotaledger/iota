@@ -540,12 +540,12 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             match response {
                 // If all goes well, the validators reply with signed effects.
                 Ok(HandleCertificateResponseV1 {
-                    effects,
+                       signed_effects,
                     events,
                     .. // unused field
                 }) => {
-                    let author = effects.auth_sig().authority;
-                    transaction_effects = Some(effects.data().clone());
+                    let author = signed_effects.auth_sig().authority;
+                    transaction_effects = Some(signed_effects.data().clone());
                     transaction_events = events;
                     total_stake += self.committee.weight(&author);
                 }

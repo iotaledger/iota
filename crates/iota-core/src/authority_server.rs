@@ -520,7 +520,7 @@ impl ValidatorService {
 
                 return Ok((
                     Some(vec![HandleCertificateResponseV1 {
-                        effects: signed_effects.into_inner(),
+                        signed_effects: signed_effects.into_inner(),
                         events,
                         input_objects: None,
                         output_objects: None,
@@ -647,7 +647,7 @@ impl ValidatorService {
                 epoch_store.insert_tx_cert_sig(certificate.digest(), certificate.auth_sig())?;
 
                 Ok::<_, IotaError>(HandleCertificateResponseV1 {
-                    effects: signed_effects.into_inner(),
+                    signed_effects: signed_effects.into_inner(),
                     events,
                     input_objects,
                     output_objects,

@@ -234,7 +234,7 @@ where
         )
         .await
         .unwrap()
-        .effects
+        .signed_effects
         .into_data()
 }
 
@@ -2511,7 +2511,7 @@ fn set_cert_response_with_certified_tx(
     let effects = effects_with_tx(*cert.digest());
     for (name, secret) in authority_keys {
         let resp = HandleCertificateResponseV1 {
-            effects: sign_tx_effects(effects.clone(), epoch, *name, secret),
+            signed_effects: sign_tx_effects(effects.clone(), epoch, *name, secret),
             events: Some(TransactionEvents::default()),
             input_objects: None,
             output_objects: None,
