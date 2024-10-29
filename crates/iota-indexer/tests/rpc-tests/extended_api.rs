@@ -19,7 +19,6 @@ use iota_types::{
     storage::ReadStore,
 };
 use simulacrum::Simulacrum;
-use tempfile::tempdir;
 use test_cluster::TestCluster;
 
 use crate::common::{ApiTestSetup, SimulacrumTestSetup, indexer_wait_for_checkpoint};
