@@ -54,7 +54,6 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "kiosk_extension",
             "labeler",
             "linked_table",
-            "math",
             "object",
             "object_bag",
             "object_table",
