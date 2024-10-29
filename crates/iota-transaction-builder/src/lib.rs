@@ -889,8 +889,8 @@ impl TransactionBuilder {
         let coin: Object = coin.try_into()?;
         let type_arguments = vec![coin.get_move_template_type()?];
         let package = IOTA_FRAMEWORK_PACKAGE_ID;
-        let module = coin::PAY_MODULE_NAME.to_owned();
-        let function = coin::PAY_JOIN_FUNC_NAME.to_owned();
+        let module = coin::COIN_MODULE_NAME.to_owned();
+        let function = coin::COIN_JOIN_FUNC_NAME.to_owned();
         let arguments = vec![
             CallArg::Object(ObjectArg::ImmOrOwnedObject(primary_coin_ref)),
             CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_to_merge_ref)),
@@ -936,8 +936,8 @@ impl TransactionBuilder {
         TransactionData::new_move_call(
             signer,
             IOTA_FRAMEWORK_PACKAGE_ID,
-            coin::PAY_MODULE_NAME.to_owned(),
-            coin::PAY_JOIN_FUNC_NAME.to_owned(),
+            coin::COIN_MODULE_NAME.to_owned(),
+            coin::COIN_JOIN_FUNC_NAME.to_owned(),
             type_args,
             gas,
             vec![

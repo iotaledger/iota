@@ -103,17 +103,6 @@ pub enum EffectsFinalityInfo {
 /// is confirmed to be executed on this node before the response returns.
 pub type IsTransactionExecutedLocally = bool;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum ExecuteTransactionResponse {
-    EffectsCert(
-        Box<(
-            FinalizedEffects,
-            TransactionEvents,
-            IsTransactionExecutedLocally,
-        )>,
-    ),
-}
-
 #[derive(Clone, Debug)]
 pub struct QuorumDriverRequest {
     pub transaction: VerifiedTransaction,
@@ -132,23 +121,7 @@ pub struct QuorumDriverResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionRequest {
-    pub transaction: Transaction,
-    pub request_type: ExecuteTransactionRequestType,
-}
-
-impl ExecuteTransactionRequest {
-    pub fn transaction_type(&self) -> TransactionType {
-        if self.transaction.contains_shared_object() {
-            TransactionType::SharedObject
-        } else {
-            TransactionType::SingleWriter
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionRequestV3 {
+pub struct ExecuteTransactionRequestV1 {
     pub transaction: Transaction,
 
     pub include_events: bool,
@@ -157,19 +130,8 @@ pub struct ExecuteTransactionRequestV3 {
     pub include_auxiliary_data: bool,
 }
 
-#[derive(Clone, Debug)]
-pub struct VerifiedExecuteTransactionResponseV3 {
-    pub effects: VerifiedCertifiedTransactionEffects,
-    pub events: Option<TransactionEvents>,
-    // Input objects will only be populated in the happy path
-    pub input_objects: Option<Vec<Object>>,
-    // Output objects will only be populated in the happy path
-    pub output_objects: Option<Vec<Object>>,
-    pub auxiliary_data: Option<Vec<u8>>,
-}
-
-impl ExecuteTransactionRequestV3 {
-    pub fn new_v2<T: Into<Transaction>>(transaction: T) -> Self {
+impl ExecuteTransactionRequestV1 {
+    pub fn new<T: Into<Transaction>>(transaction: T) -> Self {
         Self {
             transaction: transaction.into(),
             include_events: true,
@@ -181,7 +143,7 @@ impl ExecuteTransactionRequestV3 {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionResponseV3 {
+pub struct ExecuteTransactionResponseV1 {
     pub effects: FinalizedEffects,
 
     pub events: Option<TransactionEvents>,

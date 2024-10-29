@@ -23,7 +23,7 @@ use crate::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SimTestIotaSystemStateInnerV1 {
+pub struct SimTestIotaSystemStateV1 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
@@ -122,7 +122,7 @@ impl VerifiedSimTestValidatorMetadataV1 {
     }
 }
 
-impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
+impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
     fn epoch(&self) -> u64 {
         self.epoch
     }
@@ -220,7 +220,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SimTestIotaSystemStateInnerShallowV2 {
+pub struct SimTestIotaSystemStateShallowV1 {
     pub new_dummy_field: u64,
     pub epoch: u64,
     pub protocol_version: u64,
@@ -234,7 +234,7 @@ pub struct SimTestIotaSystemStateInnerShallowV2 {
     pub extra_fields: Bag,
 }
 
-impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
+impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
     fn epoch(&self) -> u64 {
         self.epoch
     }
@@ -361,7 +361,7 @@ impl SimTestValidatorDeepV2 {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SimTestIotaSystemStateInnerDeepV2 {
+pub struct SimTestIotaSystemStateDeepV1 {
     pub new_dummy_field: u64,
     pub epoch: u64,
     pub protocol_version: u64,
@@ -375,7 +375,7 @@ pub struct SimTestIotaSystemStateInnerDeepV2 {
     pub extra_fields: Bag,
 }
 
-impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
+impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
     fn epoch(&self) -> u64 {
         self.epoch
     }

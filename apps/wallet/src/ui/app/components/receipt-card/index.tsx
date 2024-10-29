@@ -23,7 +23,6 @@ import {
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { ArrowTopRight, CheckmarkFilled } from '@iota/ui-icons';
-import cl from 'clsx';
 import { GasFees } from '../../pages/approval-request/transaction-request/GasFees';
 import ExplorerLink, { ExplorerLinkType } from '../explorer-link';
 
@@ -40,11 +39,7 @@ function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
             style={InfoBoxStyle.Elevated}
             title={success ? 'Successfully sent' : 'Transaction Failed'}
             supportingText={timestamp ? txnDate : ''}
-            icon={
-                <CheckmarkFilled
-                    className={cl('h-5 w-5', success ? 'text-primary-30' : 'text-neutral-10')}
-                />
-            }
+            icon={<CheckmarkFilled />}
         ></InfoBox>
     );
 }

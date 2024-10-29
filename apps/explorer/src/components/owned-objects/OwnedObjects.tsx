@@ -28,8 +28,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ListView, SmallThumbnailsView, ThumbnailsView } from '~/components';
 import { ObjectViewMode } from '~/lib/enums';
 import { Pagination, useCursorPagination } from '~/components/ui';
+import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
 
-const PAGE_SIZES = [10, 20, 30, 40, 50];
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
 const OWNED_OBJECTS_LOCAL_STORAGE_FILTER = 'owned-objects/filter';
@@ -128,7 +128,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         () =>
             getItemsRangeFromCurrentPage(
                 pagination.currentPage,
-                filteredData?.length || PAGE_SIZES[0],
+                filteredData?.length || PAGE_SIZES_RANGE_10_50[0],
             ),
         [filteredData?.length, pagination.currentPage],
     );
@@ -276,7 +276,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                 <Select
                                     dropdownPosition={DropdownPosition.Top}
                                     value={limit.toString()}
-                                    options={PAGE_SIZES.map((size) => ({
+                                    options={PAGE_SIZES_RANGE_10_50.map((size) => ({
                                         label: `${size} / page`,
                                         id: size.toString(),
                                     }))}

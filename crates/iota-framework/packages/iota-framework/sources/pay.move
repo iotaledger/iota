@@ -59,12 +59,6 @@ module iota::pay {
         vec.destroy_empty();
     }
 
-    /// Join `coin` into `self`. Re-exports `coin::join` function.
-    /// Deprecated: you should call `coin.join(other)` directly.
-    public entry fun join<T>(self: &mut Coin<T>, coin: Coin<T>) {
-        self.join(coin)
-    }
-
     /// Join everything in `coins` with `self`
     public entry fun join_vec<T>(self: &mut Coin<T>, mut coins: vector<Coin<T>>) {
         let (mut i, len) = (0, coins.length());

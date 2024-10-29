@@ -111,7 +111,7 @@ mod test {
                 ..Default::default()
             })
             .with_submit_delay_step_override_millis(3000)
-            .with_state_accumulator_v2_enabled_callback(Arc::new(|idx| idx % 2 == 0))
+            .with_state_accumulator_callback(Arc::new(|idx| idx % 2 == 0))
             .build()
             .await
             .into();
@@ -668,7 +668,8 @@ mod test {
     }
 
     async fn test_protocol_upgrade_compatibility_impl() {
-        let max_ver = ProtocolVersion::MAX.as_u64();
+        // TODO: Remove the `+ 1` after we have Protocol version 2
+        let max_ver = ProtocolVersion::MAX.as_u64() + 1;
         let manifest = iota_framework_snapshot::load_bytecode_snapshot_manifest();
 
         let Some((&starting_version, _)) = manifest.range(..max_ver).last() else {
