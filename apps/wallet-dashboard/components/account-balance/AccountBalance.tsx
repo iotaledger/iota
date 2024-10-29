@@ -14,6 +14,7 @@ import { Address, Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-ki
 import { CoinBalance, getNetwork } from '@iota/iota-sdk/client';
 import { SendCoinPopup } from '../Popup';
 import { usePopups } from '@/hooks';
+import toast from 'react-hot-toast';
 
 export function AccountBalance() {
     const account = useCurrentAccount();
@@ -49,6 +50,10 @@ export function AccountBalance() {
         }
     }
 
+    function handleOnCopySuccess() {
+        toast.success('Address copied');
+    }
+
     return (
         <Panel>
             {isPending && <p>Loading...</p>}
@@ -62,6 +67,7 @@ export function AccountBalance() {
                                 copyText={address}
                                 isExternal
                                 externalLink={explorerLink}
+                                onCopySuccess={handleOnCopySuccess}
                             />
                         )}
                         <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">

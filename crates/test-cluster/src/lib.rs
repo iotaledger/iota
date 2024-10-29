@@ -79,6 +79,7 @@ use iota_types::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     message_envelope::Message,
+    messages_grpc::HandleCertificateRequestV1,
     object::Object,
     quorum_driver_types::ExecuteTransactionRequestType,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -755,7 +756,14 @@ impl TestCluster {
                 })
                 .map(|client| {
                     let cert = certificate.clone();
-                    async move { client.handle_certificate_v2(cert, None).await }
+                    async move {
+                        client
+                            .handle_certificate_v1(
+                                HandleCertificateRequestV1::new(cert).with_events(),
+                                None,
+                            )
+                            .await
+                    }
                 })
                 .collect();
 
@@ -778,9 +786,9 @@ impl TestCluster {
         let mut all_events = HashMap::new();
         for reply in replies {
             let effects = reply.signed_effects.into_data();
+            let events = reply.events.unwrap_or_default();
             all_effects.insert(effects.digest(), effects);
-            all_events.insert(reply.events.digest(), reply.events);
-            // reply.fastpath_input_objects is unused.
+            all_events.insert(events.digest(), events);
         }
         assert_eq!(all_effects.len(), 1);
         assert_eq!(all_events.len(), 1);
