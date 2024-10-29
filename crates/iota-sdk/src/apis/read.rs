@@ -12,12 +12,11 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
-    DryRunTransactionBlockResponse, DynamicFieldPage, IotaCommittee, IotaData,
-    IotaGetPastObjectRequest, IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockEffects,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    IotaTransactionBlockResponseQuery, ObjectsPage, ProtocolConfigResponse, TransactionBlocksPage,
-    TransactionFilter,
+    DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
+    IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage,
+    ProtocolConfigResponse, TransactionBlocksPage, TransactionFilter,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
@@ -30,7 +29,6 @@ use jsonrpsee::core::client::Subscription;
 
 use crate::{
     RpcClient,
-    apis::Order,
     error::{Error, IotaRpcResult},
 };
 
@@ -476,17 +474,12 @@ impl ReadApi {
         query: IotaTransactionBlockResponseQuery,
         cursor: impl Into<Option<TransactionDigest>>,
         limit: impl Into<Option<usize>>,
-        order: impl Into<Option<Order>>,
+        descending_order: bool,
     ) -> IotaRpcResult<TransactionBlocksPage> {
         Ok(self
             .api
             .http
-            .query_transaction_blocks(
-                query,
-                cursor.into(),
-                limit.into(),
-                order.into().map(|o| o.is_descending()),
-            )
+            .query_transaction_blocks(query, cursor.into(), limit.into(), Some(descending_order))
             .await?)
     }
 
@@ -506,16 +499,12 @@ impl ReadApi {
         &self,
         cursor: impl Into<Option<BigInt<u64>>>,
         limit: impl Into<Option<usize>>,
-        order: impl Into<Option<Order>>,
+        descending_order: bool,
     ) -> IotaRpcResult<CheckpointPage> {
         Ok(self
             .api
             .http
-            .get_checkpoints(
-                cursor.into(),
-                limit.into(),
-                order.into().map(|o| o.is_descending()),
-            )
+            .get_checkpoints(cursor.into(), limit.into(), descending_order)
             .await?)
     }
 
@@ -536,7 +525,7 @@ impl ReadApi {
         &self,
         query: IotaTransactionBlockResponseQuery,
         cursor: impl Into<Option<TransactionDigest>>,
-        order: impl Into<Option<Order>>,
+        descending_order: bool,
     ) -> impl Stream<Item = IotaTransactionBlockResponse> + '_ {
         let cursor = cursor.into();
 
@@ -551,7 +540,7 @@ impl ReadApi {
                             query.clone(),
                             cursor,
                             Some(100),
-                            order.into().map(|o| o.is_descending()),
+                            descending_order,
                         )
                         .await
                         .ok()?;

@@ -645,7 +645,10 @@ impl FullNodeProxy {
             .build(http_url)
             .await?;
 
-        let resp = iota_client.read_api().get_committee_info(None).await?;
+        let resp = iota_client
+            .governance_api()
+            .get_committee_info(None)
+            .await?;
         let epoch = resp.epoch;
         let committee_vec = resp.validators;
         let committee_map = BTreeMap::from_iter(committee_vec.into_iter());

@@ -13,7 +13,6 @@ use jsonrpsee::core::client::Subscription;
 
 use crate::{
     RpcClient,
-    apis::Order,
     error::{Error, IotaRpcResult},
 };
 
@@ -88,17 +87,12 @@ impl EventApi {
         query: EventFilter,
         cursor: impl Into<Option<EventID>>,
         limit: impl Into<Option<usize>>,
-        order: impl Into<Option<Order>>,
+        descending_order: bool,
     ) -> IotaRpcResult<EventPage> {
         Ok(self
             .api
             .http
-            .query_events(
-                query,
-                cursor.into(),
-                limit.into(),
-                order.into().map(|o| o.is_descending()),
-            )
+            .query_events(query, cursor.into(), limit.into(), Some(descending_order))
             .await?)
     }
 
@@ -110,7 +104,7 @@ impl EventApi {
         &self,
         query: EventFilter,
         cursor: impl Into<Option<EventID>>,
-        order: impl Into<Option<Order>>,
+        descending_order: bool,
     ) -> impl Stream<Item = IotaEvent> + '_ {
         let cursor = cursor.into();
 
@@ -121,12 +115,7 @@ impl EventApi {
                     Some((item, (data, cursor, false, query)))
                 } else if (cursor.is_none() && first) || cursor.is_some() {
                     let page = self
-                        .query_events(
-                            query.clone(),
-                            cursor,
-                            Some(100),
-                            order.into().map(|o| o.is_descending()),
-                        )
+                        .query_events(query.clone(), cursor, Some(100), descending_order)
                         .await
                         .ok()?;
                     let mut data = page.data;

@@ -438,7 +438,7 @@ impl IotaClientBuilder {
 pub struct IotaClient {
     api: Arc<RpcClient>,
     transaction_builder: TransactionBuilder,
-    read_api: ReadApi,
+    read_api: Arc<ReadApi>,
     coin_read_api: CoinReadApi,
     event_api: EventApi,
     quorum_driver_api: QuorumDriverApi,
