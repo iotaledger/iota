@@ -12,25 +12,13 @@ export enum ImageIconSize {
     Full = 'w-full h-full',
 }
 
-export interface ImageIconProps {
-    src: string | null | undefined;
-    label: string;
-    fallback: string;
-    alt?: string;
+interface FallBackAvatarProps {
+    text: string;
     rounded?: boolean;
     size?: ImageIconSize;
 }
-
-function FallBackAvatar({
-    str,
-    rounded,
-    size = ImageIconSize.Large,
-}: {
-    str: string;
-    rounded?: boolean;
-    size?: ImageIconSize;
-}) {
-    function generateTextSize(size: ImageIconSize) {
+function FallBackAvatar({ text, rounded, size = ImageIconSize.Large }: FallBackAvatarProps) {
+    const textSize = (() => {
         switch (size) {
             case ImageIconSize.Small:
                 return 'text-label-sm';
@@ -41,26 +29,42 @@ function FallBackAvatar({
             case ImageIconSize.Full:
                 return 'text-title-lg';
         }
-    }
+    })();
+
     return (
         <div
             className={cn(
                 'flex h-full w-full items-center justify-center bg-neutral-96 bg-gradient-to-r capitalize dark:bg-neutral-20',
                 { 'rounded-full': rounded },
-                generateTextSize(size),
+                textSize,
             )}
         >
-            {str?.slice(0, 2)}
+            {text.slice(0, 2)}
         </div>
     );
 }
+export interface ImageIconProps {
+    src: string | null | undefined;
+    label: string;
+    fallbackText: string;
+    alt?: string;
+    rounded?: boolean;
+    size?: ImageIconSize;
+}
 
-export function ImageIcon({ src, label, alt = label, fallback, rounded, size }: ImageIconProps) {
+export function ImageIcon({
+    src,
+    label,
+    alt = label,
+    fallbackText,
+    rounded,
+    size,
+}: ImageIconProps) {
     const [error, setError] = useState(false);
     return (
         <div role="img" aria-label={label} className={size}>
             {error || !src ? (
-                <FallBackAvatar rounded={rounded} str={fallback} size={size} />
+                <FallBackAvatar rounded={rounded} text={fallbackText} size={size} />
             ) : (
                 <Image
                     src={src}
