@@ -103,7 +103,7 @@ for the dependencies.
 
 ```move
 [dependencies]
-iota = { override = true, git = "", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+iota = { override = true, git = "", subdir = "crates/iota-framework/packages/iota-framework", rev = "testnet" }
 MyPackage = { local = "../my-package" }
 ```
 
@@ -114,7 +114,7 @@ MyPackage = { local = "../my-package" }
 override = true
 git = "https://github.com/iotaledger/iota.git"
 subdir = "crates/iota-framework/packages/iota-framework"
-rev = "framework/testnet"
+rev = "testnet"
 
 [dependencies.MyPackage]
 local = "../my-package"
