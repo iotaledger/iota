@@ -446,23 +446,6 @@ mod simtests {
 
     use super::*;
 
-    async fn svc(
-        State(state): State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
-        request: Request<Body>,
-    ) -> Response {
-        let path = request.uri().path().to_string();
-        let key = path.trim_start_matches('/');
-        let value = state.lock().unwrap().get(key).cloned();
-        info!("Got request for key: {:?}, value: {:?}", key, value);
-        match value {
-            Some(v) => Response::new(Body::from(v)),
-            None => Response::builder()
-                .status(hyper::StatusCode::NOT_FOUND)
-                .body(Body::empty())
-                .unwrap(),
-        }
-    }
-
     async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
         let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();

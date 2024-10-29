@@ -38,7 +38,7 @@ mod checked {
         digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::{ExecutionResults, ExecutionResultsV2, is_certificate_denied},
+        execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
         execution_config_utils::to_binary_config,
         execution_status::{CongestedObjects, ExecutionStatus},
         gas::{GasCostSummary, IotaGasStatus},
@@ -55,7 +55,7 @@ mod checked {
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
+            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
             ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
@@ -624,8 +624,8 @@ mod checked {
                     }
                 }
 
-                temporary_store.record_execution_results(ExecutionResults::V2(
-                    ExecutionResultsV2 {
+                temporary_store.record_execution_results(ExecutionResults::V1(
+                    ExecutionResultsV1 {
                         user_events: events,
                         ..Default::default()
                     },
@@ -702,7 +702,7 @@ mod checked {
                     "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
                 )
             }
-            TransactionKind::AuthenticatorStateUpdate(auth_state_update) => {
+            TransactionKind::AuthenticatorStateUpdateV1(auth_state_update) => {
                 setup_authenticator_state_update(
                     auth_state_update,
                     temporary_store,
@@ -1117,7 +1117,7 @@ mod checked {
     /// arguments. It then executes the transaction using the system
     /// execution mode.
     fn setup_authenticator_state_update(
-        update: AuthenticatorStateUpdate,
+        update: AuthenticatorStateUpdateV1,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,

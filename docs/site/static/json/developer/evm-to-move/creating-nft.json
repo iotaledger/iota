@@ -1,0 +1,32 @@
+{
+    "questions": [
+      {
+        "questionText": "What is one key advantage of NFTs in IOTA Move compared to Solidity/EVM NFTs?",
+        "answerOptions": [
+          { "answerText": "Every object is an NFT by default.", "isCorrect": true },
+          { "answerText": "NFTs can only be found if you have the smart contract address.", "isCorrect": false },
+          { "answerText": "Token logic must be abstracted in external libraries.", "isCorrect": false },
+          { "answerText": "Metadata is always hosted off-chain.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "In the ERC-721 standard, what does the `tokenURI` typically point to?",
+        "answerOptions": [
+          { "answerText": "An on-chain metadata file.", "isCorrect": false },
+          { "answerText": "A JSON file containing metadata.", "isCorrect": true },
+          { "answerText": "The owner's wallet address.", "isCorrect": false },
+          { "answerText": "The NFT's image data.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What is a disadvantage of using ERC-721 NFTs with off-chain metadata?",
+        "answerOptions": [
+          { "answerText": "Metadata cannot be accessed by other contracts.", "isCorrect": false },
+          { "answerText": "There is no enforcement of standard NFT behavior.", "isCorrect": false },
+          { "answerText": "If the off-chain data is lost, the metadata is also lost.", "isCorrect": true },
+          { "answerText": "The NFTs cannot be transferred between owners.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  
