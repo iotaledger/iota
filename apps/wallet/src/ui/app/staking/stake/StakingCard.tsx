@@ -130,9 +130,9 @@ function StakingCard() {
                     },
                 });
                 await signer.client.waitForTransaction({
-                    digest: tx.digest
-                })
-                return tx
+                    digest: tx.digest,
+                });
+                return tx;
             } finally {
                 // sentryTransaction.finish();
             }
@@ -164,9 +164,9 @@ function StakingCard() {
                 },
             });
             await signer.client.waitForTransaction({
-                digest: tx.digest
-            })
-            return tx
+                digest: tx.digest,
+            });
+            return tx;
             // finally {
             // 	sentryTransaction.finish();
             // }
