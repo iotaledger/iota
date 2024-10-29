@@ -19,10 +19,7 @@ pub mod checked {
         ObjectID,
         effects::{TransactionEffects, TransactionEffectsAPI},
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{
-            gas_predicates::gas_price_too_high, gas_v1::IotaGasStatus as IotaGasStatusV1,
-            tables::GasStatus,
-        },
+        gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         iota_serde::{BigInt, Readable},
         object::Object,
         transaction::ObjectReadResult,
@@ -78,8 +75,7 @@ pub mod checked {
                 }
                 .into());
             }
-            if gas_price_too_high(config.gas_model_version()) && gas_price >= config.max_gas_price()
-            {
+            if gas_price >= config.max_gas_price() {
                 return Err(UserInputError::GasPriceTooHigh {
                     max_gas_price: config.max_gas_price(),
                 }

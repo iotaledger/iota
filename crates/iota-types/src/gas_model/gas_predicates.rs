@@ -8,11 +8,6 @@
 
 use crate::gas_model::{tables::initial_cost_schedule_v1, units_types::CostTable};
 
-/// If true, enable the check for gas price too high
-pub fn gas_price_too_high(gas_model_version: u64) -> bool {
-    gas_model_version >= 4
-}
-
 /// If true, input object bytes are treated as memory allocated in Move and
 /// charged according to the bucket they end up in.
 pub fn charge_input_as_memory(gas_model_version: u64) -> bool {
