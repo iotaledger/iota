@@ -1,95 +1,40 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCurrentAccount, useIotaClientContext, useIotaClientQuery } from '@iota/dapp-kit';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import {
-    COINS_QUERY_REFETCH_INTERVAL,
-    COINS_QUERY_STALE_TIME,
-    filterAndSortTokenBalances,
-    useBalance,
-    useFormatCoin,
-} from '@iota/core';
-import { Address, Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
-import { CoinBalance, getNetwork } from '@iota/iota-sdk/client';
-import { SendCoinPopup } from '../Popup';
+import { Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
+
 import { usePopups } from '@/hooks';
+import { NewStakePopup } from '../Popup';
 
 export function StartStaking() {
-    const account = useCurrentAccount();
-    const address = account?.address;
     const { openPopup, closePopup } = usePopups();
-    const { network } = useIotaClientContext();
-    const { explorer } = getNetwork(network);
-    const { data: coinBalance, isPending } = useBalance(address!);
-    const formattedAddress = formatAddress(address!);
-    const [formatted, symbol] = useFormatCoin(coinBalance?.totalBalance, IOTA_TYPE_ARG);
-    const { data: coinBalances } = useIotaClientQuery(
-        'getAllBalances',
-        { owner: address! },
-        {
-            enabled: !!address,
-            staleTime: COINS_QUERY_STALE_TIME,
-            refetchInterval: COINS_QUERY_REFETCH_INTERVAL,
-            select: filterAndSortTokenBalances,
-        },
-    );
-    const explorerLink = `${explorer}/address/${address}`;
 
-    function openSendTokenPopup(coin: CoinBalance, address: string): void {
-        if (coinBalances) {
-            openPopup(
-                <SendCoinPopup
-                    coin={coin}
-                    senderAddress={address}
-                    onClose={closePopup}
-                    coins={coinBalances}
-                />,
-            );
-        }
+    function addNewStake() {
+        openPopup(<NewStakePopup onClose={closePopup} />);
     }
 
     return (
         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
-            {isPending && <p>Loading...</p>}
-            {!isPending && (
-                <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
-                    <div className="flex h-full flex-col items-center justify-center gap-y-xs">
-                        {address && (
-                            <Address
-                                text={formattedAddress}
-                                isCopyable
-                                copyText={address}
-                                isExternal
-                                externalLink={explorerLink}
-                            />
-                        )}
-                        <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
-                            {formatted} {symbol}
+            <div className="h-full w-full">
+                <div className="flex h-full flex-col justify-between p-lg">
+                    <div className="flex flex-col gap-xxs">
+                        <span className="text-headline-sm text-neutral-10 dark:text-neutral-92">
+                            Start Staking
+                        </span>
+                        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                            Earn Rewards
                         </span>
                     </div>
-                    <div className="flex w-full max-w-56 gap-xs">
+                    <div>
                         <Button
-                            onClick={() =>
-                                coinBalance &&
-                                openSendTokenPopup(coinBalance, account?.address ?? '')
-                            }
-                            text="Send"
+                            onClick={addNewStake}
                             size={ButtonSize.Small}
-                            disabled={!address}
-                            testId="send-coin-button"
-                            fullWidth
-                        />
-                        <Button
-                            onClick={() => {}}
-                            type={ButtonType.Secondary}
-                            text="Receive"
-                            size={ButtonSize.Small}
-                            fullWidth
+                            type={ButtonType.Outlined}
+                            text="Stake"
                         />
                     </div>
                 </div>
-            )}
+            </div>
         </Panel>
     );
 }
