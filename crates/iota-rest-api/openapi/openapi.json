@@ -3940,6 +3940,7 @@
           "iota_total_supply",
           "iota_treasury_cap_id",
           "max_validator_count",
+          "min_validator_count",
           "min_validator_joining_stake",
           "pending_active_validators_id",
           "pending_active_validators_size",
@@ -4034,6 +4035,11 @@
           },
           "max_validator_count": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
+            "type": "string",
+            "format": "u64"
+          },
+          "min_validator_count": {
+            "description": "Minimum number of active validators at any moment. We do not allow the number of validators in any epoch to go under this.",
             "type": "string",
             "format": "u64"
           },

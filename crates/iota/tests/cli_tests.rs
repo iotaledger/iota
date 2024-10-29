@@ -135,7 +135,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2983"]
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
@@ -167,7 +166,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let files = read_dir(working_dir)?
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
-    assert_eq!(12, files.len());
+    assert_eq!(13, files.len());
     assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
     assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
@@ -4168,5 +4167,35 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
         unreachable!("Invalid response");
     };
 
+    Ok(())
+}
+
+#[sim_test]
+async fn test_move_new() -> Result<(), anyhow::Error> {
+    let package_name = "test_move_new";
+    IotaCommand::Move {
+        package_path: None,
+        config: None,
+        build_config: move_package::BuildConfig::default(),
+        cmd: iota_move::Command::New(iota_move::new::New {
+            new: move_cli::base::new::New {
+                name: package_name.to_string(),
+            },
+        }),
+    }
+    .execute()
+    .await?;
+
+    // Get all the new file names
+    let files = read_dir(package_name)?
+        .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(3, files.len());
+    for name in ["sources", "tests", "Move.toml"] {
+        assert!(files.contains(&name.to_string()));
+    }
+
+    std::fs::remove_dir_all(package_name)?;
     Ok(())
 }
