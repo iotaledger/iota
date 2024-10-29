@@ -5,21 +5,21 @@
 
 import { ConnectButton, useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { IotaLogoWeb } from '@iota/ui-icons';
+import { HOMEPAGE_ROUTE } from '@/lib/constants/routes.constants';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
-    const router = useRouter();
 
     const CURRENT_YEAR = new Date().getFullYear();
 
     useEffect(() => {
         if (connectionStatus === 'connected' && account) {
-            router.push('/dashboard/home');
+            redirect(HOMEPAGE_ROUTE.path);
         }
-    }, [connectionStatus, account, router]);
+    }, [connectionStatus, account]);
 
     return (
         <main className="flex h-screen">

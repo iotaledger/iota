@@ -180,7 +180,7 @@ module iota_system::validator_set {
     /// Called by `iota_system` to remove a validator candidate, and move them to `inactive_validators`.
     public(package) fun request_remove_validator_candidate(self: &mut ValidatorSetV1, ctx: &mut TxContext) {
         let validator_address = ctx.sender();
-         assert!(
+        assert!(
             self.validator_candidates.contains(validator_address),
             ENotValidatorCandidate
         );
@@ -424,7 +424,7 @@ module iota_system::validator_set {
             if (stake >= low_stake_threshold) {
                 // The validator is safe. We remove their entry from the at_risk map if there exists one.
                 if (self.at_risk_validators.contains(&validator_address)) {
-                   self.at_risk_validators.remove(&validator_address);
+                    self.at_risk_validators.remove(&validator_address);
                 }
             } else if (stake >= very_low_stake_threshold) {
                 // The stake is a bit below the threshold so we increment the entry of the validator in the map.
@@ -548,7 +548,7 @@ module iota_system::validator_set {
         self: &ValidatorSetV1,
         validator_address: address,
     ): bool {
-       find_validator(&self.active_validators, validator_address).is_some()
+        find_validator(&self.active_validators, validator_address).is_some()
     }
 
     // ==== private helpers ====
