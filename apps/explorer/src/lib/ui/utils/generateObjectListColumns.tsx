@@ -56,7 +56,7 @@ export function generateObjectListColumns(): ColumnDef<IotaObjectResponse>[] {
             cell({ row: { original: object } }) {
                 const objectId = object?.data?.objectId;
                 if (!objectId) return null;
-                const type = trimStdLibPrefix(formatType(parseObjectType(object)));
+                const type = formatType(trimStdLibPrefix(parseObjectType(object)));
                 return (
                     <TableCellBase>
                         <ObjectLink objectId={objectId} label={type}>
