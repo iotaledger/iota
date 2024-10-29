@@ -3,12 +3,13 @@
 'use client';
 
 import { RouteLink } from '@/components/index';
+import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
 import React, { type PropsWithChildren } from 'react';
 
 function AssetsLayout({ children }: PropsWithChildren): JSX.Element {
     const routes = [
-        { title: 'Visual Assets', path: '/dashboard/assets/visual-assets' },
-        { title: 'Everything Else', path: '/dashboard/assets/everything-else' },
+        { title: 'Visual Assets', path: ASSETS_ROUTE.path + '/visual-assets' },
+        { title: 'Everything Else', path: ASSETS_ROUTE.path + '/everything-else' },
     ];
 
     return (
