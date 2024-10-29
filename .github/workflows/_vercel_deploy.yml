@@ -36,7 +36,7 @@ jobs:
   explorer-preview:
     name: Vercel Explorer Preview
     if: inputs.shouldDeployPreview && inputs.isExplorer
-    uses: ./.github/workflows/apps-explorer.deploy.yml
+    uses: ./.github/workflows/apps_explorer_deploy.yml
     secrets: inherit
     with:
       isProd: false
@@ -44,7 +44,7 @@ jobs:
   explorer-prod:
     name: Vercel Explorer Production
     if: inputs.isDevelop
-    uses: ./.github/workflows/apps-explorer.deploy.yml
+    uses: ./.github/workflows/apps_explorer_deploy.yml
     secrets: inherit
     with:
       isProd: true
@@ -52,7 +52,7 @@ jobs:
   ui-kit-preview:
     name: Vercel UI Kit Preview
     if: inputs.shouldDeployPreview && inputs.isAppsUiKit
-    uses: ./.github/workflows/apps-ui-kit.deploy.yml
+    uses: ./.github/workflows/apps_ui_kit_deploy.yml
     secrets: inherit
     with:
       isProd: false
@@ -60,7 +60,7 @@ jobs:
   ui-kit-prod:
     name: Vercel UI Kit Preview
     if: inputs.isDevelop
-    uses: ./.github/workflows/apps-ui-kit.deploy.yml
+    uses: ./.github/workflows/apps_ui_kit_deploy.yml
     secrets: inherit
     with:
       isProd: true
@@ -68,7 +68,7 @@ jobs:
   wallet-dashboard-preview:
     name: Vercel Wallet Dashboard Preview
     if: inputs.shouldDeployPreview && inputs.isWalletDashboard
-    uses: ./.github/workflows/apps-wallet-dashboard.deploy.yml
+    uses: ./.github/workflows/apps_wallet_dashboard_deploy.yml
     secrets: inherit
     with:
       isProd: false
@@ -76,7 +76,7 @@ jobs:
   wallet-dashboard-prod:
     name: Vercel Wallet Dashboard Production
     if: inputs.isDevelop
-    uses: ./.github/workflows/apps-wallet-dashboard.deploy.yml
+    uses: ./.github/workflows/apps_wallet_dashboard_deploy.yml
     secrets: inherit
     with:
       isProd: true
@@ -84,7 +84,7 @@ jobs:
   apps-backend-preview:
     name: Vercel apps-backend Preview
     if: inputs.shouldDeployPreview && inputs.isAppsBackend
-    uses: ./.github/workflows/apps-backend.deploy.yml
+    uses: ./.github/workflows/apps_backend_deploy.yml
     secrets: inherit
     with:
       isProd: false
@@ -92,7 +92,7 @@ jobs:
   apps-backend-prod:
     name: Vercel apps-backend Production
     if: inputs.isDevelop
-    uses: ./.github/workflows/apps-backend.deploy.yml
+    uses: ./.github/workflows/apps_backend_deploy.yml
     secrets: inherit
     with:
       isProd: true
