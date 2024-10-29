@@ -33,7 +33,7 @@ static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, String)>
 async fn once_prepare_addr_with_iota_and_custom_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
-) -> (IotaAddress, String) {
+) -> &'static (IotaAddress, String) {
     COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME
         .get_or_init(|| async {
             let (address, keypair): (_, AccountKeyPair) = get_key_pair();
@@ -63,7 +63,6 @@ async fn once_prepare_addr_with_iota_and_custom_coins(
             (address, coin_name)
         })
         .await
-        .clone()
 }
 
 #[test]
@@ -78,7 +77,7 @@ fn get_coins_basic_scenario() {
         let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_coins_fullnode_indexer(cluster, client, owner, None, None, None).await;
+            call_get_coins_fullnode_indexer(cluster, client, *owner, None, None, None).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -97,13 +96,14 @@ fn get_coins_with_cursor() {
         let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
         let all_coins = cluster
             .rpc_client()
-            .get_coins(owner, None, None, None)
+            .get_coins(*owner, None, None, None)
             .await
             .unwrap();
         let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
 
         let (result_fullnode, result_indexer) =
-            call_get_coins_fullnode_indexer(cluster, client, owner, None, Some(cursor), None).await;
+            call_get_coins_fullnode_indexer(cluster, client, *owner, None, Some(cursor), None)
+                .await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -122,7 +122,7 @@ fn get_coins_with_limit() {
         let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_coins_fullnode_indexer(cluster, client, owner, None, None, Some(2)).await;
+            call_get_coins_fullnode_indexer(cluster, client, *owner, None, None, Some(2)).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -141,9 +141,15 @@ fn get_coins_custom_coin() {
         let (owner, coin_name) =
             once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            call_get_coins_fullnode_indexer(cluster, client, owner, Some(coin_name), None, None)
-                .await;
+        let (result_fullnode, result_indexer) = call_get_coins_fullnode_indexer(
+            cluster,
+            client,
+            *owner,
+            Some(coin_name.clone()),
+            None,
+            None,
+        )
+        .await;
 
         assert_eq!(result_indexer.data.len(), 1);
         assert_eq!(result_fullnode, result_indexer);
@@ -162,7 +168,7 @@ fn get_all_coins_basic_scenario() {
         let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_all_coins_fullnode_indexer(cluster, client, owner, None, None).await;
+            call_get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -183,16 +189,16 @@ fn get_all_coins_with_cursor() {
 
         let all_coins = cluster
             .rpc_client()
-            .get_coins(owner, None, None, None)
+            .get_coins(*owner, None, None, None)
             .await
             .unwrap();
         let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
 
         let (result_fullnode_all, result_indexer_all) =
-            call_get_all_coins_fullnode_indexer(cluster, client, owner, None, None).await;
+            call_get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_all_coins_fullnode_indexer(cluster, client, owner, Some(cursor), None).await;
+            call_get_all_coins_fullnode_indexer(cluster, client, *owner, Some(cursor), None).await;
 
         println!("Fullnode all: {:#?}", result_fullnode_all);
         println!("Indexer all: {:#?}", result_indexer_all);
@@ -217,7 +223,7 @@ fn get_all_coins_with_limit() {
         let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_all_coins_fullnode_indexer(cluster, client, owner, None, Some(2)).await;
+            call_get_all_coins_fullnode_indexer(cluster, client, *owner, None, Some(2)).await;
 
         assert!(result_indexer.data.len() > 0);
         assert_eq!(result_fullnode, result_indexer);
@@ -236,7 +242,7 @@ fn get_balance_iota_coin() {
         let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_balance_fullnode_indexer(cluster, client, owner, None).await;
+            call_get_balance_fullnode_indexer(cluster, client, *owner, None).await;
 
         assert_eq!(result_fullnode, result_indexer);
     });
@@ -255,7 +261,7 @@ fn get_balance_custom_coin() {
             once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
 
         let (result_fullnode, result_indexer) =
-            call_get_balance_fullnode_indexer(cluster, client, owner, Some(coin_name.to_string()))
+            call_get_balance_fullnode_indexer(cluster, client, *owner, Some(coin_name.to_string()))
                 .await;
 
         assert_eq!(result_fullnode, result_indexer);
@@ -274,7 +280,7 @@ fn get_all_balances() {
         let (owner, _) = once_prepare_addr_with_iota_and_custom_coins(cluster, client).await;
 
         let (mut result_fullnode, mut result_indexer) =
-            call_get_all_balances_fullnode_indexer(cluster, client, owner).await;
+            call_get_all_balances_fullnode_indexer(cluster, client, *owner).await;
 
         result_fullnode.sort_by_key(|balance: &Balance| balance.coin_type.clone());
         result_indexer.sort_by_key(|balance: &Balance| balance.coin_type.clone());
