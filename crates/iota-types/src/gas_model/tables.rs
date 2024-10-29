@@ -124,7 +124,7 @@ impl GasStatus {
     /// system code that does not have to charge the user.
     pub fn new_unmetered() -> Self {
         Self {
-            gas_model_version: 8,
+            gas_model_version: 1,
             gas_left: InternalGas::new(0),
             gas_price: 1,
             initial_budget: InternalGas::new(0),

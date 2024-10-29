@@ -32,6 +32,7 @@ pub mod checked {
     /// version. 2- Isolate all gas accounting into a single implementation.
     /// Gas objects are not    passed around, and they are retrieved from
     /// this instance.
+    #[allow(dead_code)]
     #[derive(Debug)]
     pub struct GasCharger {
         tx_digest: TransactionDigest,
@@ -63,7 +64,7 @@ pub mod checked {
         pub fn new_unmetered(tx_digest: TransactionDigest) -> Self {
             Self {
                 tx_digest,
-                gas_model_version: 8, // pick any of the latest, it should not matter
+                gas_model_version: 1, // pick any of the latest, it should not matter
                 gas_coins: vec![],
                 smashed_gas_coin: None,
                 gas_status: IotaGasStatus::new_unmetered(),
