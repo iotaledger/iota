@@ -134,7 +134,7 @@ jobs:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
-    if: (!cancelled() && !failure() && (github.event.pull_request.draft || github.ref_name == 'develop'))
+    if: (!cancelled() && !failure() && (!github.event.pull_request.draft || github.ref_name == 'develop'))
     needs:
       - diff
       - dprint-format
@@ -147,7 +147,6 @@ jobs:
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
-      isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isDevelop: ${{ github.ref_name == 'develop' }}
 
   vercel-deploy:
@@ -160,7 +159,7 @@ jobs:
     uses: ./.github/workflows/_vercel_deploy.yml
     secrets: inherit
     with:
-      shouldDeployPreview: ${{github.event_name == 'pull_request' && github.event.pull_request.draft == false}}
+      shouldDeployPreview: ${{github.event_name == 'pull_request' && github.event.pull_request.draft == true}}
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}

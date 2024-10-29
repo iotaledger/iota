@@ -22,7 +22,13 @@ describe('Health Check (e2e)', () => {
         await app.close();
     });
 
-    it('/health (GET)', () => {
-        return request(app.getHttpServer()).get('/health').expect(200).expect({ status: 'ok' });
+    it('/health (GET)', async () => {
+        const DEPLOYED_URL = process.env.DEPLOYED_URL || null;
+
+        if (DEPLOYED_URL) {
+            await request(DEPLOYED_URL).get('/health').expect(200).expect({ status: 'ok' });
+        } else {
+            await request(app.getHttpServer()).get('/health').expect(200).expect({ status: 'ok' });
+        }
     });
 });
