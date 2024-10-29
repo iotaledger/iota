@@ -21,6 +21,14 @@ body {
         grid-template-areas:
             'balance'
             'staking'
+            'coins'
+            'vesting'
+            'activity';
+    }
+    .home-page-grid-container.with-migration {
+        grid-template-areas:
+            'balance'
+            'staking'
             'migration'
             'coins'
             'vesting'
@@ -32,6 +40,13 @@ body {
             @apply grid-cols-2;
             grid-template-areas:
                 'balance coins'
+                'staking staking'
+                'vesting vesting'
+                'activity activity';
+        }
+        .home-page-grid-container.with-migration {
+            grid-template-areas:
+                'balance coins'
                 'staking migration'
                 'vesting vesting'
                 'activity activity';
@@ -41,6 +56,12 @@ body {
     @screen md {
         .home-page-grid-container {
             @apply grid-cols-3;
+            grid-template-areas:
+                'balance staking staking'
+                'coins vesting vesting'
+                'coins activity activity';
+        }
+        .home-page-grid-container.with-migration {
             grid-template-areas:
                 'balance staking migration'
                 'coins vesting vesting'
