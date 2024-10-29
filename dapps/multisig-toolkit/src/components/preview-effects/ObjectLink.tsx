@@ -7,7 +7,7 @@ import { CheckIcon, CopyIcon } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { formatAddress } from './utils';
+import { formatAddress, formatType } from './utils';
 
 type OwnerDisplay = string | { address: string } | { object: string };
 
@@ -43,7 +43,7 @@ export function ObjectLink({
     if (ownerDisplay) {
         if (typeof ownerDisplay !== 'string') {
             objectId = 'address' in ownerDisplay ? ownerDisplay.address : ownerDisplay.object;
-            display = formatAddress(objectId);
+            display = formatType(objectId);
         } else {
             display = ownerDisplay;
         }
@@ -55,18 +55,18 @@ export function ObjectLink({
 
     if (inputObject) {
         objectId = inputObject;
-        display = formatAddress(inputObject);
+        display = formatType(inputObject);
     }
 
     if (object) {
         if ('objectId' in object) {
             objectId = object.objectId;
-            display = formatAddress(objectId);
+            display = formatType(objectId);
         }
 
         if ('packageId' in object) {
             objectId = object.packageId;
-            display = formatAddress(objectId);
+            display = formatType(objectId);
         }
     }
 

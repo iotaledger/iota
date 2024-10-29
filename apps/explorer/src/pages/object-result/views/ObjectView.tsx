@@ -113,12 +113,11 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
     };
 
     const normalizedStructTag = normalizeStructTag(structTag);
-
     return (
         <DisplayStats
             label="Type"
             value={
-                <ObjectLink objectId={`${address}?module=${module}`}>
+                <ObjectLink objectId={`${address}?module=${module}`} label={normalizedStructTag}>
                     {normalizedStructTag}
                 </ObjectLink>
             }

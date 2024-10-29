@@ -4,11 +4,11 @@
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 
-import { parseObjectType, trimStdLibPrefix } from '~/lib';
-import { ObjectVideoImage, ObjectLink } from '~/components';
 import type { IotaObjectResponse } from '@iota/iota-sdk/client';
+import { formatAddress, formatType } from '@iota/iota-sdk/utils';
+import { ObjectLink, ObjectVideoImage } from '~/components';
 import { useResolveVideo } from '~/hooks';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { parseObjectType, trimStdLibPrefix } from '~/lib';
 
 function Asset({ object }: { object: IotaObjectResponse }) {
     const video = useResolveVideo(object);
@@ -56,7 +56,7 @@ export function generateObjectListColumns(): ColumnDef<IotaObjectResponse>[] {
             cell({ row: { original: object } }) {
                 const objectId = object?.data?.objectId;
                 if (!objectId) return null;
-                const type = trimStdLibPrefix(parseObjectType(object));
+                const type = trimStdLibPrefix(formatType(parseObjectType(object)));
                 return (
                     <TableCellBase>
                         <ObjectLink objectId={objectId} label={type}>
