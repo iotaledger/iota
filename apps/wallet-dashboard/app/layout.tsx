@@ -47,7 +47,11 @@ export default function RootLayout({
                         >
                             <PopupProvider>
                                 {children}
-                                <Toaster />
+                                <Toaster
+                                    containerStyle={{
+                                        zIndex: 99999,
+                                    }}
+                                />
                                 <Popup />
                             </PopupProvider>
                         </WalletProvider>
