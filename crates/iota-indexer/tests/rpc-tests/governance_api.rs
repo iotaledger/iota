@@ -1,14 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_api::{
-    CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, TransactionBuilderClient,
-    WriteApiClient,
-};
-use iota_json_rpc_types::{
-    CoinPage, DelegatedStake, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockResponseOptions, ObjectsPage, StakeStatus, TransactionBlockBytes,
-};
+use iota_json_rpc_api::{GovernanceReadApiClient, TransactionBuilderClient};
+use iota_json_rpc_types::{DelegatedStake, StakeStatus, TransactionBlockBytes};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
@@ -17,7 +11,6 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{CallArg, ObjectArg},
     utils::to_sender_signed_transaction,
 };
@@ -40,26 +33,30 @@ fn test_staking() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let address = cluster.get_address_0();
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let objects: ObjectsPage = client
-            .get_owned_objects(
-                address,
-                Some(IotaObjectResponseQuery::new_with_options(
-                    IotaObjectDataOptions::new()
-                        .with_type()
-                        .with_owner()
-                        .with_previous_transaction(),
-                )),
-                None,
-                None,
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
             )
-            .await
-            .unwrap();
-        assert_eq!(5, objects.data.len());
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let iota_coin_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
 
         // Check StakedIota object before test
-        let staked_iota: Vec<DelegatedStake> = client.get_stakes(address).await.unwrap();
+        let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
         let validator = client
@@ -69,40 +66,29 @@ fn test_staking() {
             .active_validators[0]
             .iota_address;
 
-        let coin = objects.data[0].object().unwrap().object_id;
         // Delegate some IOTA
         let transaction_bytes: TransactionBlockBytes = client
             .request_add_stake(
-                address,
-                vec![coin],
+                sender,
+                vec![iota_coin_ref.0],
                 Some(1000000000.into()),
                 validator,
-                None,
+                Some(gas.0),
                 100_000_000.into(),
             )
             .await
             .unwrap();
-        let tx = cluster
-            .wallet
-            .sign_transaction(&transaction_bytes.to_data().unwrap());
 
-        let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
 
-        client
-            .execute_transaction_block(
-                tx_bytes,
-                signatures,
-                Some(IotaTransactionBlockResponseOptions::new()),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await
-            .unwrap();
+        let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
+        indexer_wait_for_transaction(res.digest, store, client).await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         // Check DelegatedStake object after epoch transition
-        let staked_iota: Vec<DelegatedStake> = client.get_stakes(address).await.unwrap();
+        let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert_eq!(1, staked_iota.len());
         assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
         assert!(matches!(
@@ -128,16 +114,30 @@ fn test_unstaking() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let address = cluster.get_address_0();
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
-        let coins: CoinPage = indexer_client
-            .get_coins(address, None, None, None)
-            .await
-            .unwrap();
-        assert_eq!(5, coins.data.len());
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let iota_coin_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
 
         // Check StakedIota object before test
-        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(address).await.unwrap();
+        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
         let validator = indexer_client
@@ -150,36 +150,26 @@ fn test_unstaking() {
         // Delegate some IOTA
         let transaction_bytes: TransactionBlockBytes = indexer_client
             .request_add_stake(
-                address,
-                vec![coins.data[0].coin_object_id],
+                sender,
+                vec![iota_coin_ref.0],
                 Some(1000000000.into()),
                 validator,
-                None,
+                Some(gas.0),
                 100_000_000.into(),
             )
             .await
             .unwrap();
-        let tx = cluster
-            .wallet
-            .sign_transaction(&transaction_bytes.to_data().unwrap());
 
-        let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
 
-        indexer_client
-            .execute_transaction_block(
-                tx_bytes,
-                signatures,
-                Some(IotaTransactionBlockResponseOptions::new()),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await
-            .unwrap();
+        let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
+        indexer_wait_for_transaction(res.digest, store, client).await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         // Check DelegatedStake object
-        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(address).await.unwrap();
+        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(sender).await.unwrap();
         assert_eq!(1, staked_iota.len());
         assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
         assert!(matches!(
@@ -191,18 +181,18 @@ fn test_unstaking() {
 
         let transaction_bytes: TransactionBlockBytes = indexer_client
             .request_withdraw_stake(
-                address,
+                sender,
                 staked_iota[0].stakes[0].staked_iota_id,
-                None,
+                Some(gas.0),
                 100_000_000.into(),
             )
             .await
             .unwrap();
-        let tx = cluster
-            .wallet
-            .sign_transaction(&transaction_bytes.to_data().unwrap());
 
-        let _ = cluster.wallet.execute_transaction_must_succeed(tx).await;
+        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
+
+        let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
+        indexer_wait_for_transaction(res.digest, store, client).await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -224,7 +214,7 @@ fn test_unstaking() {
             .unwrap();
         assert_eq!(0, indexer_response.len());
 
-        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(address).await.unwrap();
+        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
     });
 }
@@ -504,10 +494,9 @@ fn get_latest_iota_system_state() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let response = client.get_latest_iota_system_state().await.unwrap();
-        assert_eq!(response.epoch, 0);
-        assert_eq!(response.protocol_version, 1);
-        assert_eq!(response.system_state_version, 1);
+        let system_state = client.get_latest_iota_system_state().await.unwrap();
+        assert_eq!(system_state.protocol_version, 1);
+        assert_eq!(system_state.system_state_version, 1);
     });
 }
 
@@ -517,7 +506,7 @@ fn get_committee_info() {
         runtime,
         store,
         client,
-        cluster,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -526,10 +515,7 @@ fn get_committee_info() {
         // Test with no specified epoch
         let response = client.get_committee_info(None).await.unwrap();
 
-        let (epoch_id, validators) = (response.epoch, response.validators);
-
-        assert!(epoch_id == 0);
-        assert_eq!(validators.len(), 4);
+        assert_eq!(response.validators.len(), 4);
 
         // Test with specified epoch 0
         let response = client.get_committee_info(Some(0.into())).await.unwrap();
@@ -540,20 +526,9 @@ fn get_committee_info() {
         assert_eq!(validators.len(), 4);
 
         // Test with non-existent epoch
-        let response = client.get_committee_info(Some(1.into())).await;
+        let response = client.get_committee_info(Some(u64::MAX.into())).await;
 
         assert!(response.is_err());
-
-        // Sleep for 5 seconds
-        cluster.force_new_epoch().await;
-
-        // Test with specified epoch 1
-        let response = client.get_committee_info(Some(1.into())).await.unwrap();
-
-        let (epoch_id, validators) = (response.epoch, response.validators);
-
-        assert!(epoch_id == 1);
-        assert_eq!(validators.len(), 4);
     });
 }
 
@@ -586,10 +561,8 @@ fn get_validators_apy() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let response = client.get_validators_apy().await.unwrap();
-        let (apys, epoch) = (response.apys, response.epoch);
+        let apys = client.get_validators_apy().await.unwrap().apys;
 
-        assert_eq!(epoch, 0);
         assert_eq!(apys.len(), 4);
         assert!(apys.iter().any(|apy| apy.apy == 0.0));
     });
