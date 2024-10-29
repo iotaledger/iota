@@ -3017,19 +3017,17 @@ fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptio
             .with_events()
             .with_object_changes()
             .with_balance_changes();
+    } else {
+        IotaTransactionBlockResponseOptions {
+            show_input: opts.contains(&EmitOption::Input),
+            show_events: opts.contains(&EmitOption::Events),
+            show_object_changes: opts.contains(&EmitOption::ObjectChanges),
+            show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
+            show_effects: opts.contains(&EmitOption::Effects),
+            show_raw_effects: false,
+            show_raw_input: false,
+         }
     }
-
-    let mut options = IotaTransactionBlockResponseOptions::new();
-    for opt in opts {
-        match opt {
-            EmitOption::Input => options.show_input = true,
-            EmitOption::Events => options.show_events = true,
-            EmitOption::ObjectChanges => options.show_object_changes = true,
-            EmitOption::BalanceChanges => options.show_balance_changes = true,
-            EmitOption::Effects => options.show_effects = true,
-        }
-    }
-    options
 }
 
 fn parse_emit_option(s: &str) -> Result<EmitOption, String> {
