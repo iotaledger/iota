@@ -579,9 +579,7 @@ impl IotaNode {
             None
         };
 
-        let rest_index = if is_full_node
-            && config.enable_rest_api
-            && config.enable_index_processing
+        let rest_index = if is_full_node && config.enable_rest_api && config.enable_index_processing
         {
             Some(Arc::new(RestIndexStore::new(
                 config.db_path().join("rest_index"),
