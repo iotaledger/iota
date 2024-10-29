@@ -42,8 +42,8 @@ use iota_types::{
     },
     message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequestV2,
-        CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSignatureMessage,
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
+        CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
         CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData,
         FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint,
         VerifiedCheckpointContents,
@@ -2083,12 +2083,12 @@ async fn diagnose_split_brain(
             let client = network_clients
                 .get(&validator)
                 .expect("Failed to get network client");
-            let request = CheckpointRequestV2 {
+            let request = CheckpointRequest {
                 sequence_number: Some(local_summary.sequence_number),
                 request_content: true,
                 certified: false,
             };
-            client.handle_checkpoint_v2(request)
+            client.handle_checkpoint(request)
         })
         .collect::<Vec<_>>();
 
@@ -2099,17 +2099,17 @@ async fn diagnose_split_brain(
         .zip(digest_name_pair)
         .filter_map(|(response, (digest, name))| match response {
             Ok(response) => match response {
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: Some(CheckpointSummaryResponse::Pending(summary)),
                     contents: Some(contents),
                 } => Some((*name, *digest, summary, contents)),
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: Some(CheckpointSummaryResponse::Certified(_)),
                     contents: _,
                 } => {
                     panic!("Expected pending checkpoint, but got certified checkpoint");
                 }
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: None,
                     contents: _,
                 } => {
@@ -2119,7 +2119,7 @@ async fn diagnose_split_brain(
                     );
                     None
                 }
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: _,
                     contents: None,
                 } => {

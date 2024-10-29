@@ -72,8 +72,7 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
-    # Temporarily disabled until the nightly build bug is resolved
-    if: (!cancelled() && false)
+    if: (!cancelled())
     strategy:
       matrix:
         flags: ["--all-features", "--no-default-features"]
