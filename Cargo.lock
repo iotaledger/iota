@@ -3431,37 +3431,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_builder"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d67778784b508018359cbc8696edb3db78160bab2c2a28ba7f56ef6932997f8"
-dependencies = [
- "derive_builder_macro",
-]
-
-[[package]]
-name = "derive_builder_core"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c11bdc11a0c47bc7d37d582b5285da6849c96681023680b906673c5707af7b0f"
-dependencies = [
- "darling 0.14.4",
- "proc-macro2 1.0.86",
- "quote 1.0.37",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_builder_macro"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebcda35c7a396850a55ffeac740804b40ffec779b98fffbb1738f4033f0ee79e"
-dependencies = [
- "derive_builder_core",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "derive_more"
 version = "0.99.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5725,6 +5694,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-macros",
+ "iota-metrics",
  "iota-move",
  "iota-move-build",
  "iota-package-management",
@@ -6268,7 +6238,6 @@ dependencies = [
  "move-core-types",
  "move-package",
  "move-symbol-pool",
- "narwhal-types",
  "nonempty",
  "num-bigint 0.4.6",
  "num_cpus",
@@ -6278,6 +6247,7 @@ dependencies = [
  "pprof",
  "pretty_assertions",
  "prometheus",
+ "quinn-proto",
  "rand 0.8.5",
  "rayon",
  "reqwest 0.12.7",
@@ -6300,6 +6270,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
+ "tower 0.4.13",
  "tracing",
  "twox-hash",
  "typed-store",
@@ -6984,6 +6955,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-macros",
+ "iota-metrics",
  "iota-move-build",
  "iota-open-rpc",
  "iota-open-rpc-macros",
@@ -7112,8 +7084,11 @@ dependencies = [
 name = "iota-metrics"
 version = "0.7.0"
 dependencies = [
+ "anemo",
+ "anemo-tower",
  "async-trait",
  "axum",
+ "bytes",
  "dashmap",
  "futures",
  "once_cell",
@@ -7340,7 +7315,6 @@ dependencies = [
  "iota-tls",
  "iota-types",
  "move-vm-profiler",
- "narwhal-network",
  "prometheus",
  "reqwest 0.12.7",
  "serde",
@@ -7734,7 +7708,6 @@ dependencies = [
  "lru 0.12.4",
  "move-package",
  "msim",
- "narwhal-network",
  "rand 0.8.5",
  "serde",
  "telemetry-subscribers",
@@ -7755,6 +7728,7 @@ dependencies = [
  "iota-config",
  "iota-core",
  "iota-macros",
+ "iota-metrics",
  "iota-move-build",
  "iota-protocol-config",
  "iota-simulator",
@@ -7942,6 +7916,7 @@ dependencies = [
  "iota-core",
  "iota-json-rpc-types",
  "iota-macros",
+ "iota-metrics",
  "iota-move-build",
  "iota-protocol-config",
  "iota-simulator",
@@ -9126,12 +9101,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
-name = "match_opt"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "405ba1524a1e6ae755334d6966380c60ec40157e0155f9032dd3c294b6384da9"
-
-[[package]]
 name = "matchers"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10193,122 +10162,6 @@ dependencies = [
  "thiserror",
  "widestring",
  "winapi",
-]
-
-[[package]]
-name = "narwhal-config"
-version = "0.1.0"
-dependencies = [
- "fastcrypto",
- "insta",
- "iota-network-stack",
- "iota-util-mem",
- "match_opt",
- "narwhal-crypto",
- "narwhal-test-utils",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "narwhal-crypto"
-version = "0.1.0"
-dependencies = [
- "bcs",
- "bincode",
- "fastcrypto",
- "serde",
- "serde_json",
- "shared-crypto",
-]
-
-[[package]]
-name = "narwhal-network"
-version = "0.1.0"
-dependencies = [
- "anemo",
- "anemo-tower",
- "anyhow",
- "async-trait",
- "axum",
- "bincode",
- "bytes",
- "dashmap",
- "futures",
- "iota-common",
- "iota-metrics",
- "narwhal-crypto",
- "narwhal-types",
- "parking_lot 0.12.3",
- "prometheus",
- "quinn-proto",
- "rand 0.8.5",
- "tokio",
- "tower 0.4.13",
- "tracing",
-]
-
-[[package]]
-name = "narwhal-test-utils"
-version = "0.1.0"
-dependencies = [
- "anemo",
- "fastcrypto",
- "fdlimit",
- "indexmap 2.5.0",
- "iota-network-stack",
- "iota-protocol-config",
- "narwhal-config",
- "narwhal-crypto",
- "narwhal-types",
- "once_cell",
- "rand 0.8.5",
- "tempfile",
- "tokio",
- "tonic",
- "tracing",
-]
-
-[[package]]
-name = "narwhal-types"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "bcs",
- "bytes",
- "criterion",
- "derive_builder",
- "enum_dispatch",
- "fastcrypto",
- "futures",
- "indexmap 2.5.0",
- "iota-common",
- "iota-metrics",
- "iota-network-stack",
- "iota-util-mem",
- "narwhal-config",
- "narwhal-crypto",
- "narwhal-test-utils",
- "once_cell",
- "prometheus",
- "proptest",
- "proptest-derive",
- "prost",
- "rand 0.8.5",
- "roaring",
- "serde",
- "serde_test",
- "serde_with",
- "thiserror",
- "tokio",
- "tonic",
- "tonic-build",
- "tracing",
 ]
 
 [[package]]
@@ -13540,15 +13393,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_test"
-version = "1.0.177"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f901ee573cab6b3060453d2d5f0bae4e6d628c23c0a962ff9b5f1d7c8d4f1ed"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14636,6 +14480,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-macros",
+ "iota-metrics",
  "iota-node",
  "iota-protocol-config",
  "iota-sdk 0.4.0",

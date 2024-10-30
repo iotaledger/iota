@@ -18,4 +18,6 @@ export enum Feature {
     NetworkOutageOverride = 'network-outage-override',
     ModuleSourceVerification = 'module-source-verification',
     WalletEffectsOnlySharedTransaction = 'wallet-effects-only-shared-transaction',
+    StardustMigration = 'migration',
+    SupplyIncreaseVesting = 'supply-increase-vesting',
 }

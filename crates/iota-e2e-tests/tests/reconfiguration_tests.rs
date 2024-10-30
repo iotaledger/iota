@@ -756,6 +756,10 @@ async fn test_epoch_flag_upgrade() {
     use iota_macros::register_fail_point_arg;
 
     let initial_flags_nodes = Arc::new(Mutex::new(HashSet::new()));
+    // Register a fail_point_arg, for which the handler is also placed in the
+    // authority_store's open() function. When we start the first epoch, the
+    // following code will inject the new flags to the selected nodes once, so
+    // that we can later assert that the flags have changed.
     register_fail_point_arg("initial_epoch_flags", move || {
         // only alter flags on each node once
         let current_node = iota_simulator::current_simnode_id();
@@ -765,43 +769,44 @@ async fn test_epoch_flag_upgrade() {
         if initial_flags_nodes.len() >= 2 || !initial_flags_nodes.insert(current_node) {
             return None;
         }
-
-        // start with no flags set
-        Some(Vec::<EpochFlag>::new())
+        // Apply a modified flag set for the first epoch after cluster is started.
+        Some(vec![EpochFlag::WritebackCacheEnabled])
     });
 
+    // Start the cluster with 2 nodes with non-empty FlagSet and the rest with
+    // empty.
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(30000)
         .build()
         .await;
+    let any_not_empty = test_cluster.all_node_handles().iter().any(|node| {
+        node.with(|node| {
+            !node
+                .state()
+                .epoch_store_for_testing()
+                .epoch_start_config()
+                .flags()
+                .is_empty()
+        })
+    });
+    assert!(any_not_empty);
 
-    let mut any_empty = false;
-    for node in test_cluster.all_node_handles() {
-        any_empty = any_empty
-            || node.with(|node| {
-                node.state()
-                    .epoch_store_for_testing()
-                    .epoch_start_config()
-                    .flags()
-                    .is_empty()
-            });
-    }
-    assert!(any_empty);
+    // When the epoch changes, flags on some nodes should be re-initialized to be
+    // empty.
 
     test_cluster.wait_for_epoch_all_nodes(1).await;
 
-    let mut any_empty = false;
-    for node in test_cluster.all_node_handles() {
-        any_empty = any_empty
-            || node.with(|node| {
-                node.state()
-                    .epoch_store_for_testing()
-                    .epoch_start_config()
-                    .flags()
-                    .is_empty()
-            });
-    }
-    assert!(!any_empty);
+    // Make sure that all nodes have empty flags.
+    let all_empty = test_cluster.all_node_handles().iter().all(|node| {
+        node.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .epoch_start_config()
+                .flags()
+                .is_empty()
+        })
+    });
+    assert!(all_empty);
 
     sleep(Duration::from_secs(15)).await;
 
