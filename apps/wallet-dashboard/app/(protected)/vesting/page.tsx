@@ -3,7 +3,7 @@
 
 'use client';
 
-import { Button, NewStakePopup, TimelockedUnstakePopup } from '@/components';
+import { Button, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
@@ -135,12 +135,6 @@ function VestingDashboardPage(): JSX.Element {
         );
     }
 
-    function handleStake(): void {
-        openPopup(
-            <NewStakePopup onClose={closePopup} onSuccess={handleOnSuccess} isTimelockedStaking />,
-        );
-    }
-
     useEffect(() => {
         if (!supplyIncreaseVestingEnabled) {
             router.push('/');
@@ -217,9 +211,6 @@ function VestingDashboardPage(): JSX.Element {
                     <div className="flex flex-row space-x-4">
                         {vestingSchedule.availableClaiming ? (
                             <Button onClick={handleCollect}>Collect</Button>
-                        ) : null}
-                        {vestingSchedule.availableStaking ? (
-                            <Button onClick={handleStake}>Stake</Button>
                         ) : null}
                     </div>
                 )}
