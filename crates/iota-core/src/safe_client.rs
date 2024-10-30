@@ -15,9 +15,9 @@ use iota_types::{
     fp_ensure,
     iota_system_state::IotaSystemState,
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-        ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest,
-        TransactionStatus, VerifiedObjectInfoResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
+        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionStatus,
+        VerifiedObjectInfoResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
@@ -325,57 +325,21 @@ where
         Ok(response)
     }
 
-    fn verify_certificate_response_v2(
+    fn verify_certificate_response_v1(
         &self,
         digest: &TransactionDigest,
-        response: HandleCertificateResponseV2,
-    ) -> IotaResult<HandleCertificateResponseV2> {
-        let signed_effects =
-            self.check_signed_effects_plain(digest, response.signed_effects, None)?;
-
-        Ok(HandleCertificateResponseV2 {
+        HandleCertificateResponseV1 {
             signed_effects,
-            events: response.events,
-            fastpath_input_objects: vec![], // unused field
-        })
-    }
-
-    /// Execute a certificate.
-    pub async fn handle_certificate_v2(
-        &self,
-        certificate: CertifiedTransaction,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        let digest = *certificate.digest();
-        let _timer = self.metrics.handle_certificate_latency.start_timer();
-        let response = self
-            .authority_client
-            .handle_certificate_v2(certificate, client_addr)
-            .await?;
-
-        let verified = check_error!(
-            self.address,
-            self.verify_certificate_response_v2(&digest, response),
-            "Client error in handle_certificate"
-        )?;
-        Ok(verified)
-    }
-
-    fn verify_certificate_response_v3(
-        &self,
-        digest: &TransactionDigest,
-        HandleCertificateResponseV3 {
-            effects,
             events,
             input_objects,
             output_objects,
             auxiliary_data,
-        }: HandleCertificateResponseV3,
-    ) -> IotaResult<HandleCertificateResponseV3> {
-        let effects = self.check_signed_effects_plain(digest, effects, None)?;
+        }: HandleCertificateResponseV1,
+    ) -> IotaResult<HandleCertificateResponseV1> {
+        let signed_effects = self.check_signed_effects_plain(digest, signed_effects, None)?;
 
         // Check Events
-        match (&events, effects.events_digest()) {
+        match (&events, signed_effects.events_digest()) {
             (None, None) | (None, Some(_)) => {}
             (Some(events), None) => {
                 if !events.data.is_empty() {
@@ -400,7 +364,7 @@ where
 
         // Check Input Objects
         if let Some(input_objects) = &input_objects {
-            let expected: HashMap<_, _> = effects
+            let expected: HashMap<_, _> = signed_effects
                 .old_object_metadata()
                 .into_iter()
                 .map(|(object_ref, _owner)| (object_ref.0, object_ref))
@@ -423,7 +387,7 @@ where
 
         // Check Output Objects
         if let Some(output_objects) = &output_objects {
-            let expected: HashMap<_, _> = effects
+            let expected: HashMap<_, _> = signed_effects
                 .all_changed_objects()
                 .into_iter()
                 .map(|(object_ref, _, _)| (object_ref.0, object_ref))
@@ -444,8 +408,8 @@ where
             }
         }
 
-        Ok(HandleCertificateResponseV3 {
-            effects,
+        Ok(HandleCertificateResponseV1 {
+            signed_effects,
             events,
             input_objects,
             output_objects,
@@ -454,21 +418,21 @@ where
     }
 
     /// Execute a certificate.
-    pub async fn handle_certificate_v3(
+    pub async fn handle_certificate_v1(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
         let digest = *request.certificate.digest();
         let _timer = self.metrics.handle_certificate_latency.start_timer();
         let response = self
             .authority_client
-            .handle_certificate_v3(request, client_addr)
+            .handle_certificate_v1(request, client_addr)
             .await?;
 
         let verified = check_error!(
             self.address,
-            self.verify_certificate_response_v3(&digest, response),
+            self.verify_certificate_response_v1(&digest, response),
             "Client error in handle_certificate"
         )?;
         Ok(verified)

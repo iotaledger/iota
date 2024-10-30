@@ -20,8 +20,8 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-        HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
+        HandleCertificateRequestV1, HandleCertificateResponseV1,
+        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
     },
@@ -40,26 +40,19 @@ pub trait AuthorityAPI {
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError>;
 
-    /// Handles a `CertifiedTransaction` for this account.
-    async fn handle_certificate_v2(
-        &self,
-        certificate: CertifiedTransaction,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError>;
-
     /// Execute a certificate.
-    async fn handle_certificate_v3(
+    async fn handle_certificate_v1(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError>;
+    ) -> Result<HandleCertificateResponseV1, IotaError>;
 
     /// Execute a Soft Bundle with multiple certificates.
-    async fn handle_soft_bundle_certificates_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        request: HandleSoftBundleCertificatesRequestV3,
+        request: HandleSoftBundleCertificatesRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError>;
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError>;
 
     /// Handle Object information requests for this account.
     async fn handle_object_info_request(
@@ -147,52 +140,34 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Handles a `CertifiedTransaction` for this account.
-    async fn handle_certificate_v2(
+    async fn handle_certificate_v1(
         &self,
-        certificate: CertifiedTransaction,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        let mut request = certificate.into_request();
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
+        let mut request = request.into_request();
         insert_metadata(&mut request, client_addr);
 
         let response = self
             .client()?
-            .handle_certificate_v2(request)
+            .handle_certificate_v1(request)
             .await
             .map(tonic::Response::into_inner);
 
         response.map_err(Into::into)
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleSoftBundleCertificatesRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
         let mut request = request.into_request();
         insert_metadata(&mut request, client_addr);
 
         let response = self
             .client()?
-            .handle_certificate_v3(request)
-            .await
-            .map(tonic::Response::into_inner);
-
-        response.map_err(Into::into)
-    }
-
-    async fn handle_soft_bundle_certificates_v3(
-        &self,
-        request: HandleSoftBundleCertificatesRequestV3,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
-        let mut request = request.into_request();
-        insert_metadata(&mut request, client_addr);
-
-        let response = self
-            .client()?
-            .handle_soft_bundle_certificates_v3(request)
+            .handle_soft_bundle_certificates_v1(request)
             .await
             .map(tonic::Response::into_inner);
 

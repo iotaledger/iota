@@ -109,7 +109,7 @@ function DappStatus() {
                         ref={refs.setFloating}
                     >
                         <div className="flex flex-col items-center gap-xs">
-                            <div className="flex flex-row items-start gap-xs">
+                            <div className="flex w-full flex-row items-start gap-xs">
                                 {activeOriginFavIcon ? (
                                     <div className="h-7 w-7 shrink-0 rounded-full border border-shader-neutral-light-8 p-xxs">
                                         <img
@@ -129,13 +129,13 @@ function DappStatus() {
                                 </div>
                             </div>
                             <Loading loading={disconnecting}>
-                                <div className="self-end">
+                                <div className="self-center">
                                     <Button
                                         onClick={handleDisconnect}
                                         disabled={disconnecting}
                                         size={ButtonSize.Small}
                                         text="Disconnect App"
-                                        type={ButtonType.Ghost}
+                                        type={ButtonType.Destructive}
                                     />
                                 </div>
                             </Loading>

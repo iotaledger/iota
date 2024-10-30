@@ -64,7 +64,7 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
 
 #[tokio::test]
 async fn check_can_read_test_data() {
-    let (_committee, full_checkpoint) = read_data(534, 800).await;
+    let (_committee, full_checkpoint) = read_data(532, 801).await;
     assert!(
         full_checkpoint
             .checkpoint_summary
@@ -75,7 +75,7 @@ async fn check_can_read_test_data() {
 
 #[tokio::test]
 async fn test_new_committee() {
-    let (committee, full_checkpoint) = read_data(534, 800).await;
+    let (committee, full_checkpoint) = read_data(532, 801).await;
 
     let new_committee_data = full_checkpoint
         .checkpoint_summary
@@ -110,7 +110,7 @@ async fn test_new_committee() {
 // Fail if the new committee does not match the target of the proof
 #[tokio::test]
 async fn test_incorrect_new_committee() {
-    let (committee, full_checkpoint) = read_data(534, 800).await;
+    let (committee, full_checkpoint) = read_data(532, 801).await;
 
     let committee_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
@@ -124,7 +124,7 @@ async fn test_incorrect_new_committee() {
 // Fail if the certificate is incorrect even if no proof targets are given
 #[tokio::test]
 async fn test_fail_incorrect_cert() {
-    let (_committee, full_checkpoint) = read_data(534, 800).await;
+    let (_committee, full_checkpoint) = read_data(532, 801).await;
 
     let new_committee_data = full_checkpoint
         .checkpoint_summary
@@ -164,7 +164,7 @@ async fn test_fail_incorrect_cert() {
 
 #[tokio::test]
 async fn test_object_target_fail_no_data() {
-    let (committee, full_checkpoint) = read_data(534, 800).await;
+    let (committee, full_checkpoint) = read_data(532, 801).await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let sample_ref = sample_object.compute_object_reference();
@@ -180,7 +180,7 @@ async fn test_object_target_fail_no_data() {
 
 #[tokio::test]
 async fn test_object_target_success() {
-    let (committee, full_checkpoint) = read_data(534, 800).await;
+    let (committee, full_checkpoint) = read_data(532, 801).await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let sample_ref = sample_object.compute_object_reference();
@@ -193,7 +193,7 @@ async fn test_object_target_success() {
 
 #[tokio::test]
 async fn test_object_target_fail_wrong_object() {
-    let (committee, full_checkpoint) = read_data(534, 800).await;
+    let (committee, full_checkpoint) = read_data(532, 801).await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let wrong_object: Object = full_checkpoint.transactions[1].output_objects[1].clone();
@@ -214,7 +214,7 @@ async fn test_object_target_fail_wrong_object() {
 
 #[tokio::test]
 async fn test_event_target_fail_no_data() {
-    let (committee, full_checkpoint) = read_data(534, 800).await;
+    let (committee, full_checkpoint) = read_data(532, 801).await;
 
     let sample_event: Event = full_checkpoint.transactions[1]
         .events
@@ -238,7 +238,7 @@ async fn test_event_target_fail_no_data() {
 
 #[tokio::test]
 async fn test_event_target_success() {
-    let (committee, full_checkpoint) = read_data(534, 800).await;
+    let (committee, full_checkpoint) = read_data(532, 801).await;
 
     let sample_event: Event = full_checkpoint.transactions[1]
         .events
@@ -259,7 +259,7 @@ async fn test_event_target_success() {
 
 #[tokio::test]
 async fn test_event_target_fail_bad_event() {
-    let (committee, full_checkpoint) = read_data(534, 800).await;
+    let (committee, full_checkpoint) = read_data(532, 801).await;
 
     let sample_event: Event = full_checkpoint.transactions[1]
         .events
