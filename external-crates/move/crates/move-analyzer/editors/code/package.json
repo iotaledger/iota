@@ -1,6 +1,6 @@
 {
   "name": "iota-move",
-  "displayName": "Iota Move",
+  "displayName": "IOTA Move",
   "description": "A Move language integrated development environment for Iota.",
   "publisher": "iota-foundation",
   "icon": "images/move.png",
