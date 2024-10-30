@@ -44,15 +44,15 @@ do
 done
 
 # these will have to change if we want a different network/version
-NETWORK="testnet"
-VERSION="1.0.0"
+NETWORK="alphanet"
+VERSION="0.4.0"
 
 # a map from os version identifiers in Iota's binary distribution to os version identifiers
 # representing VSCode's target platforms used for creating platform-specific plugin distributions
 declare -A SUPPORTED_OS
 SUPPORTED_OS[macos-arm64]=darwin-arm64
 #SUPPORTED_OS[macos-x86_64]=darwin-x64
-#SUPPORTED_OS[ubuntu-x86_64]=linux-x64
+SUPPORTED_OS[linux-x86_64]=linux-x64
 #SUPPORTED_OS[windows-x86_64]=win32-x64
 
 TMP_DIR=$( mktemp -d -t vscode-create )
@@ -72,14 +72,13 @@ for DIST_OS VSCODE_OS in "${(@kv)SUPPORTED_OS}"; do
     IOTA_ARCHIVE_PATH=$TMP_DIR"/"$IOTA_ARCHIVE
 
     # download Iota archive file to a given location and uncompress it
-    #curl https://github.com/iotaledger/iota/releases/download/"$IOTA_DISTRO"/"$IOTA_ARCHIVE" -L -o $IOTA_ARCHIVE_PATH
-    #tar -xf $IOTA_ARCHIVE_PATH --directory $TMP_DIR
+    curl https://github.com/iotaledger/iota/releases/download/"$IOTA_DISTRO"/"$IOTA_ARCHIVE" -L -o $IOTA_ARCHIVE_PATH
+    tar -xf $IOTA_ARCHIVE_PATH --directory $TMP_DIR
 
     # names of the move-analyzer binary, both the one becoming part of the extension ($SERVER_BIN)
     # and the one in the Iota archive ($ARCHIVE_SERVER_BIN)
     SERVER_BIN="move-analyzer"
-    #ARCHIVE_SERVER_BIN=$SERVER_BIN"-"$DIST_OS
-    ARCHIVE_SERVER_BIN=$SERVER_BIN
+    ARCHIVE_SERVER_BIN=$SERVER_BIN"-"$DIST_OS
     if [[ "$DIST_OS" == *"windows"* ]]; then
         SERVER_BIN="$SERVER_BIN".exe
         ARCHIVE_SERVER_BIN="$ARCHIVE_SERVER_BIN".exe
@@ -87,8 +86,7 @@ for DIST_OS VSCODE_OS in "${(@kv)SUPPORTED_OS}"; do
 
     # copy move-analyzer binary to the appropriate location where it's picked up when bundling the
     # extension
-    #SRC_SERVER_BIN_LOC=$TMP_DIR"/external-crates/move/target/release/"$ARCHIVE_SERVER_BIN
-    SRC_SERVER_BIN_LOC=$PWD"/../../../../../../target/debug/"$ARCHIVE_SERVER_BIN
+    SRC_SERVER_BIN_LOC=$TMP_DIR"/external-crates/move/target/release/"$ARCHIVE_SERVER_BIN
     DST_SERVER_BIN_LOC=$LANG_SERVER_DIR"/"$SERVER_BIN
     cp $SRC_SERVER_BIN_LOC $DST_SERVER_BIN_LOC
 
