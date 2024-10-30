@@ -4514,7 +4514,11 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1, TransactionEffects)> {
+    ) -> anyhow::Result<(
+        IotaSystemState,
+        Option<SystemEpochInfoEventV1>,
+        TransactionEffects,
+    )> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
@@ -4644,11 +4648,13 @@ impl AuthorityState {
             .data
             .iter()
             .find(|event| event.is_system_epoch_info_event())
-            .expect("end of epoch tx must emit system epoch info event");
-        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEventV1>(
-            &system_epoch_info_event.contents,
-        )
-        .expect("deserialization should succeed since we asserted that the event is of this type");
+            .map(|event| {
+                bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents)
+                    .expect("event deserialization should succeed as type was pre-validated")
+            });
+        // The system epoch info event can be `None` in case if the `advance_epoch`
+        // Move function call failed and was executed in the safe mode.
+        assert!(system_epoch_info_event.is_some() || system_obj.safe_mode());
 
         // We must write tx and effects to the state sync tables so that state sync is
         // able to deliver to the transaction to CheckpointExecutor after it is
