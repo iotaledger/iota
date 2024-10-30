@@ -129,7 +129,7 @@ function DappStatus() {
                                 </div>
                             </div>
                             <Loading loading={disconnecting}>
-                                <div className="self-end">
+                                <div className="self-center">
                                     <Button
                                         onClick={handleDisconnect}
                                         disabled={disconnecting}
