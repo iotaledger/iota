@@ -15,7 +15,7 @@ module iota_system::timelocked_stake_tests {
 
     use iota_system::iota_system::IotaSystemState;
     use iota_system::staking_pool::{Self, PoolTokenExchangeRate};
-    use iota_system::validator_set::{Self, ValidatorSet};
+    use iota_system::validator_set::{Self, ValidatorSetV1};
     use iota_system::governance_test_utils::{
         add_validator,
         add_validator_candidate,
@@ -925,12 +925,12 @@ module iota_system::timelocked_stake_tests {
         // The computation reward is lower than the target reward, so 400 IOTA should be minted.
         // Each validator pool has 50% of the voting power and thus gets 50% of the reward (400 IOTA).
         assert_validator_total_stake_amounts(
-          validator_addrs(),
-          vector[
-            (200 + 400) * NANOS_PER_IOTA,
-            (200 + 400) * NANOS_PER_IOTA,
-          ],
-          scenario
+            validator_addrs(),
+            vector[
+                (200 + 400) * NANOS_PER_IOTA,
+                (200 + 400) * NANOS_PER_IOTA,
+            ],
+            scenario
         );
 
         unstake_timelocked(STAKER_ADDR_1, 0, scenario);
@@ -963,12 +963,12 @@ module iota_system::timelocked_stake_tests {
         // The computation reward is higher than the target reward, so 200 IOTA should be burned.
         // Each validator pool has 50% of the voting power and thus gets 50% of the reward (400 IOTA).
         assert_validator_total_stake_amounts(
-          validator_addrs(),
-          vector[
-            (200 + 400) * NANOS_PER_IOTA,
-            (250 + 400) * NANOS_PER_IOTA,
-          ],
-          scenario
+            validator_addrs(),
+            vector[
+                (200 + 400) * NANOS_PER_IOTA,
+                (250 + 400) * NANOS_PER_IOTA,
+            ],
+            scenario
         );
 
         unstake_timelocked(STAKER_ADDR_1, 0, scenario);
@@ -1115,7 +1115,7 @@ module iota_system::timelocked_stake_tests {
         scenario.has_most_recent_for_sender<Coin<IOTA>>()
     }
 
-    fun is_active_validator_by_iota_address(set: &ValidatorSet, validator_address: address): bool {
+    fun is_active_validator_by_iota_address(set: &ValidatorSetV1, validator_address: address): bool {
         let validators = set.active_validators();
         let length = validators.length();
         let mut i = 0;

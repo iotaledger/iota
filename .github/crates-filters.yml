@@ -170,16 +170,6 @@ typed-store-derive:
   - "crates/typed-store-derive/**"
 typed-store-error:
   - "crates/typed-store-error/**"
-narwhal-config:
-  - "narwhal/config/**"
-narwhal-crypto:
-  - "narwhal/crypto/**"
-narwhal-network:
-  - "narwhal/network/**"
-narwhal-test-utils:
-  - "narwhal/test-utils/**"
-narwhal-types:
-  - "narwhal/types/**"
 iota-execution:
   - "iota-execution/**"
 iota-execution-cut:

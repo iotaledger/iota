@@ -78,7 +78,14 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
-        spam_policy_type: PolicyType::TestNConnIP(5),
+        // In this test, the validator gRPC API is receiving some requests that don't count towards
+        // the policy and two requests that do (/iota.validator.Validator/CertifiedTransactionV1 for
+        // an already executed transaction). However, the counter is updated only after the response
+        // is generated, but the limit is checked before we handle the request, so at the end we end
+        // up with 2 handled requests even if the limit is set to 1 and only the subsequent request
+        // would be rejected. Set the limit to the actual number of requests, so that it's
+        // not flaky on slower runners.
+        spam_policy_type: PolicyType::TestNConnIP(2),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
         error_policy_type: PolicyType::TestPanicOnInvocation,
@@ -102,7 +109,13 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
-        spam_policy_type: PolicyType::TestNConnIP(10),
+        // The following JSON API requests are counted towards this limit:
+        // 2 x rpc.discover - those are not sent by the test scenario
+        // 5 x iotax_getOwnedObjects
+        // 1 x iotax_getReferenceGasPrice
+        // 2 x iota_executeTransactionBlock
+        // 1 x iota_getTransactionBlock
+        spam_policy_type: PolicyType::TestNConnIP(11),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
         error_policy_type: PolicyType::TestPanicOnInvocation,
@@ -210,7 +223,9 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
-        // Test that any N requests will cause an IP to be added to the blocklist.
+        // Test that any N requests to the gRPC API of the validator will cause an IP to be added to
+        // the blocklist. In this test we're directly calling
+        // `/iota.validator.Validator/Transaction` gRPC method to go above the limit.
         error_policy_type: PolicyType::TestNConnIP(n - 1),
         dry_run: false,
         ..Default::default()
@@ -253,7 +268,10 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     let txn_count = 15;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
-        // Test that any N requests will cause an IP to be added to the blocklist.
+        // Test that any N requests will cause an IP to be added to the blocklist. In the test we
+        // are performing `txn_count` `iota_getTransactionBlock` calls to the fullnode's JSON API,
+        // but additionally before that, we're performing other requests, but using `txn_count - 1`
+        // as the limit is enough to test the blocking functionality.
         spam_policy_type: PolicyType::TestNConnIP(txn_count - 1),
         spam_sample_rate: Weight::one(),
         dry_run: false,
@@ -591,8 +609,8 @@ async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow
 #[sim_test]
 async fn test_traffic_sketch_no_blocks() {
     let sketch_config = FreqThresholdConfig {
-        client_threshold: 10_100,
-        proxied_client_threshold: 10_100,
+        client_threshold: 5_050,
+        proxied_client_threshold: 5_050,
         window_size_secs: 4,
         update_interval_secs: 1,
         ..Default::default()
@@ -602,21 +620,24 @@ async fn test_traffic_sketch_no_blocks() {
         proxy_blocklist_ttl_sec: 1,
         spam_policy_type: PolicyType::NoOp,
         error_policy_type: PolicyType::FreqThreshold(sketch_config),
-        channel_capacity: 100,
+        // keeping channel capacity small results in less errors in test metrics,
+        // in case of congestion (due to running on slower hardware) requests are dropped
+        // and do not influence the rate and do not make the spam rate inconsistent
+        channel_capacity: 10,
         dry_run: false,
         ..Default::default()
     };
     let metrics = TrafficSim::run(
         policy,
-        10,     // num_clients
-        10_000, // per_client_tps
+        10,    // num_clients
+        5_000, // per_client_tps
         Duration::from_secs(20),
         true, // report
     )
     .await;
 
-    let expected_requests = 10_000 * 10 * 20;
-    assert!(metrics.num_blocked < 10_010);
+    let expected_requests = 5_000 * 10 * 20;
+    assert!(metrics.num_blocked < 5_005);
     assert!(metrics.num_requests > expected_requests - 1_000);
     assert!(metrics.num_requests < expected_requests + 200);
     assert!(metrics.num_blocklist_adds <= 1);
@@ -670,8 +691,8 @@ async fn test_traffic_sketch_with_slow_blocks() {
 #[sim_test]
 async fn test_traffic_sketch_with_sampled_spam() {
     let sketch_config = FreqThresholdConfig {
-        client_threshold: 4_500,
-        proxied_client_threshold: 4_500,
+        client_threshold: 450,
+        proxied_client_threshold: 450,
         window_size_secs: 4,
         update_interval_secs: 1,
         ..Default::default()
@@ -682,26 +703,30 @@ async fn test_traffic_sketch_with_sampled_spam() {
         spam_policy_type: PolicyType::FreqThreshold(sketch_config),
         spam_sample_rate: Weight::new(0.5).unwrap(),
         dry_run: false,
+        // keeping channel capacity small results in less errors in test metrics,
+        // in case of congestion (due to running on slower hardware) requests are dropped
+        // and do not influence the rate and do not make the spam rate inconsistent
+        channel_capacity: 10,
         ..Default::default()
     };
     let metrics = TrafficSim::run(
         policy,
-        1,      // num_clients
-        10_000, // per_client_tps
+        1,    // num_clients
+        1000, // per_client_tps
         Duration::from_secs(20),
         true, // report
     )
     .await;
 
-    let expected_requests = 10_000 * 20;
-    assert!(metrics.num_requests > expected_requests - 1_000);
-    assert!(metrics.num_requests < expected_requests + 200);
+    let expected_requests = 1000 * 20;
+    assert!(metrics.num_requests > expected_requests - 100);
+    assert!(metrics.num_requests < expected_requests + 20);
     // number of blocked requests should be nearly the same
     // as before, as we have half the single client TPS,
     // but the threshould is also halved. However, divide by
     // 5 instead of 4 as a buffer due in case we're unlucky with
     // the sampling
-    assert!(metrics.num_blocked > (expected_requests / 5) - 1000);
+    assert!(metrics.num_blocked > (expected_requests / 5) - 100);
 }
 
 async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), anyhow::Error> {

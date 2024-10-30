@@ -16,7 +16,7 @@ use iota_types::{
     effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
-        DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV2, SharedInput,
+        DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
     },
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -53,7 +53,7 @@ pub struct TemporaryStore<'backing> {
     /// this store.
     lamport_timestamp: SequenceNumber,
     mutable_input_refs: BTreeMap<ObjectID, (VersionDigest, Owner)>, // Inputs that are mutable
-    execution_results: ExecutionResultsV2,
+    execution_results: ExecutionResultsV1,
     /// Objects that were loaded during execution (dynamic fields + received
     /// objects).
     loaded_runtime_objects: BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
@@ -117,7 +117,7 @@ impl<'backing> TemporaryStore<'backing> {
             input_objects: objects,
             lamport_timestamp,
             mutable_input_refs,
-            execution_results: ExecutionResultsV2::default(),
+            execution_results: ExecutionResultsV1::default(),
             protocol_config,
             loaded_runtime_objects: BTreeMap::new(),
             wrapped_object_containers: BTreeMap::new(),
@@ -257,7 +257,7 @@ impl<'backing> TemporaryStore<'backing> {
         let loaded_per_epoch_config_objects = self.loaded_per_epoch_config_objects.read().clone();
         let inner = self.into_inner();
 
-        let effects = TransactionEffects::new_from_execution_v2(
+        let effects = TransactionEffects::new_from_execution_v1(
             status,
             epoch,
             gas_cost_summary,
@@ -444,7 +444,7 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     pub fn estimate_effects_size_upperbound(&self) -> usize {
-        TransactionEffects::estimate_effects_size_upperbound_v2(
+        TransactionEffects::estimate_effects_size_upperbound_v1(
             self.execution_results.written_objects.len(),
             self.execution_results.modified_objects.len(),
             self.input_objects.len(),
@@ -1025,12 +1025,10 @@ impl<'backing> Storage for TemporaryStore<'backing> {
         TemporaryStore::read_object(self, id)
     }
 
-    /// Take execution results v2, and translate it back to be compatible with
-    /// effects v1.
+    /// Take execution results v1.
     fn record_execution_results(&mut self, results: ExecutionResults) {
-        let ExecutionResults::V2(results) = results else {
-            panic!("ExecutionResults::V2 expected in iota-execution v1 and above");
-        };
+        let ExecutionResults::V1(results) = results;
+
         // It's important to merge instead of override results because it's
         // possible to execute PT more than once during tx execution.
         self.execution_results.merge_results(results);
@@ -1082,9 +1080,9 @@ impl<'backing> BackingPackageStore for TemporaryStore<'backing> {
         if let Some(obj) = self.execution_results.written_objects.get(package_id) {
             Ok(Some(PackageObject::new(obj.clone())))
         } else {
-            self.store.get_package_object(package_id).map(|obj| {
+            self.store.get_package_object(package_id).inspect(|obj| {
                 // Track object but leave unchanged
-                if let Some(v) = &obj {
+                if let Some(v) = obj {
                     if !self
                         .runtime_packages_loaded_from_db
                         .read()
@@ -1099,7 +1097,6 @@ impl<'backing> BackingPackageStore for TemporaryStore<'backing> {
                             .insert(*package_id, v.clone());
                     }
                 }
-                obj
             })
         }
     }

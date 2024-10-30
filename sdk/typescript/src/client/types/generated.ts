@@ -228,7 +228,7 @@ export interface EndOfEpochInfo {
     epochEndTimestamp: string;
     lastCheckpointId: string;
     mintedTokensAmount: string;
-    /** existing fields from `SystemEpochInfoEvent` (without epoch) */
+    /** existing fields from `SystemEpochInfoEventV1` (without epoch) */
     protocolVersion: string;
     referenceGasPrice: string;
     storageCharge: string;
@@ -690,6 +690,11 @@ export interface IotaSystemStateSummary {
      * epoch to go above this.
      */
     maxValidatorCount: string;
+    /**
+     * Minimum number of active validators at any moment. We do not allow the number of validators in any
+     * epoch to go under this.
+     */
+    minValidatorCount: string;
     /** Lower-bound on the amount of stake required to become a validator. */
     minValidatorJoiningStake: string;
     /** ID of the object that contains the list of new validators that will join at the end of the epoch. */
@@ -800,6 +805,7 @@ export type IotaTransactionBlockBuilderMode = 'Commit' | 'DevInspect';
  * fields so that they are decoupled from the internal definitions.
  */
 export interface IotaValidatorSummary {
+    authorityPubkeyBytes: string;
     commissionRate: string;
     description: string;
     /** ID of the exchange rate table object. */
@@ -812,6 +818,7 @@ export interface IotaValidatorSummary {
     name: string;
     netAddress: string;
     networkPubkeyBytes: string;
+    nextEpochAuthorityPubkeyBytes?: string | null;
     nextEpochCommissionRate: string;
     nextEpochGasPrice: string;
     nextEpochNetAddress?: string | null;
@@ -821,8 +828,6 @@ export interface IotaValidatorSummary {
     nextEpochProofOfPossession?: string | null;
     nextEpochProtocolPubkeyBytes?: string | null;
     nextEpochStake: string;
-    nextEpochWorkerAddress?: string | null;
-    nextEpochWorkerPubkeyBytes?: string | null;
     operationCapId: string;
     p2pAddress: string;
     /** Pending pool token withdrawn during the current epoch, emptied at epoch boundaries. */
@@ -848,8 +853,6 @@ export interface IotaValidatorSummary {
     /** The total number of IOTA tokens in this pool. */
     stakingPoolIotaBalance: string;
     votingPower: string;
-    workerAddress: string;
-    workerPubkeyBytes: string;
 }
 export interface MoveCallMetrics {
     /** The count of calls of each function in the last 30 days. */
@@ -1114,7 +1117,7 @@ export type ObjectResponseError =
           code: 'unknown';
       }
     | {
-          code: 'displayError';
+          code: 'display';
           error: string;
       };
 export interface IotaObjectResponseQuery {
@@ -1481,7 +1484,7 @@ export type IotaTransactionBlockKind =
       } /** A transaction which updates global authenticator state */
     | {
           epoch: string;
-          kind: 'AuthenticatorStateUpdate';
+          kind: 'AuthenticatorStateUpdateV1';
           new_active_jwks: IotaActiveJwk[];
           round: string;
       } /** A transaction which updates global randomness state */

@@ -8,8 +8,15 @@ import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
-import { Loader } from '@iota/ui-icons';
-import { Button, ButtonHtmlType, ButtonType, Header, InputType } from '@iota/apps-ui-kit';
+import { ArrowLeft, ArrowRight, Loader } from '@iota/ui-icons';
+import {
+    Button,
+    ButtonHtmlType,
+    ButtonType,
+    ButtonSize,
+    Header,
+    InputType,
+} from '@iota/apps-ui-kit';
 import { PasswordInputField } from '../shared/input/password';
 
 const validation = object({
@@ -83,8 +90,10 @@ export function PasswordInputDialog({
                     <div className="flex flex-nowrap gap-3.75 self-stretch">
                         {showBackButton ? (
                             <Button
+                                size={ButtonSize.Small}
                                 text="Back"
                                 type={ButtonType.Secondary}
+                                icon={<ArrowLeft className="h-4 w-4" />}
                                 onClick={() => {
                                     if (typeof onBackClicked === 'function') {
                                         onBackClicked();
@@ -97,11 +106,18 @@ export function PasswordInputDialog({
                             />
                         ) : null}
                         <Button
+                            size={ButtonSize.Small}
                             htmlType={ButtonHtmlType.Submit}
                             type={ButtonType.Primary}
                             text={continueLabel}
-                            disabled={!isValid}
-                            icon={isSubmitting ? <Loader className="h-4 w-4 animate-spin" /> : null}
+                            disabled={isSubmitting || !isValid}
+                            icon={
+                                isSubmitting ? (
+                                    <Loader className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <ArrowRight className="h-4 w-4" />
+                                )
+                            }
                             iconAfterText
                             fullWidth
                         />

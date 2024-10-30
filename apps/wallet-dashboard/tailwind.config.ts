@@ -2,24 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Config } from 'tailwindcss';
+// Note: exception for the tailwind preset import
+import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive.preset';
 
-const config: Config = {
+export default {
+    presets: [uiKitResponsivePreset],
     content: [
         './app/**/*.{js,ts,jsx,tsx,mdx}',
         './pages/**/*.{js,ts,jsx,tsx,mdx}',
         './components/**/*.{js,ts,jsx,tsx,mdx}',
+        './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}',
     ],
     darkMode: 'class',
     theme: {
-        extend: {
-            backgroundImage: {
-                'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-                'gradient-conic':
-                    'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-            },
-        },
+        extend: {},
         plugins: [],
     },
-};
-
-export default config;
+} satisfies Partial<Config>;

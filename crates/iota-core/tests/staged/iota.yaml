@@ -31,7 +31,7 @@ AuthenticatorStateExpire:
     - min_epoch: U64
     - authenticator_obj_initial_shared_version:
         TYPENAME: SequenceNumber
-AuthenticatorStateUpdate:
+AuthenticatorStateUpdateV1:
   STRUCT:
     - epoch: U64
     - round: U64
@@ -868,89 +868,10 @@ TransactionEffects:
       V1:
         NEWTYPE:
           TYPENAME: TransactionEffectsV1
-    1:
-      V2:
-        NEWTYPE:
-          TYPENAME: TransactionEffectsV2
 TransactionEffectsDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
 TransactionEffectsV1:
-  STRUCT:
-    - status:
-        TYPENAME: ExecutionStatus
-    - executed_epoch: U64
-    - gas_used:
-        TYPENAME: GasCostSummary
-    - modified_at_versions:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-    - shared_objects:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-    - transaction_digest:
-        TYPENAME: TransactionDigest
-    - created:
-        SEQ:
-          TUPLE:
-            - TUPLE:
-                - TYPENAME: ObjectID
-                - TYPENAME: SequenceNumber
-                - TYPENAME: ObjectDigest
-            - TYPENAME: Owner
-    - mutated:
-        SEQ:
-          TUPLE:
-            - TUPLE:
-                - TYPENAME: ObjectID
-                - TYPENAME: SequenceNumber
-                - TYPENAME: ObjectDigest
-            - TYPENAME: Owner
-    - unwrapped:
-        SEQ:
-          TUPLE:
-            - TUPLE:
-                - TYPENAME: ObjectID
-                - TYPENAME: SequenceNumber
-                - TYPENAME: ObjectDigest
-            - TYPENAME: Owner
-    - deleted:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-    - unwrapped_then_deleted:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-    - wrapped:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-    - gas_object:
-        TUPLE:
-          - TUPLE:
-              - TYPENAME: ObjectID
-              - TYPENAME: SequenceNumber
-              - TYPENAME: ObjectDigest
-          - TYPENAME: Owner
-    - events_digest:
-        OPTION:
-          TYPENAME: TransactionEventsDigest
-    - dependencies:
-        SEQ:
-          TYPENAME: TransactionDigest
-TransactionEffectsV2:
   STRUCT:
     - status:
         TYPENAME: ExecutionStatus
@@ -1007,9 +928,9 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: ConsensusCommitPrologueV1
     3:
-      AuthenticatorStateUpdate:
+      AuthenticatorStateUpdateV1:
         NEWTYPE:
-          TYPENAME: AuthenticatorStateUpdate
+          TYPENAME: AuthenticatorStateUpdateV1
     4:
       EndOfEpochTransaction:
         NEWTYPE:

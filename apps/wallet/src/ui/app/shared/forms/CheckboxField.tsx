@@ -4,7 +4,6 @@
 
 import { forwardRef, type ComponentProps, type ReactNode } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
-import FormField from './FormField';
 import { Checkbox } from '@iota/apps-ui-kit';
 
 type CheckboxFieldProps = {
@@ -20,19 +19,17 @@ export const CheckboxField = forwardRef<HTMLInputElement, CheckboxFieldProps>(
                 control={control}
                 name={name}
                 render={({ field: { onChange, name, value } }) => (
-                    <FormField name={name}>
-                        <div className="flex justify-start">
-                            <Checkbox
-                                label={label}
-                                onCheckedChange={onChange}
-                                name={name}
-                                isChecked={value}
-                                ref={forwardedRef}
-                                {...props}
-                                isDisabled={props.disabled}
-                            />
-                        </div>
-                    </FormField>
+                    <div className="flex justify-start">
+                        <Checkbox
+                            label={label}
+                            onCheckedChange={onChange}
+                            name={name}
+                            isChecked={value}
+                            ref={forwardedRef}
+                            {...props}
+                            isDisabled={props.disabled}
+                        />
+                    </div>
                 )}
             />
         );

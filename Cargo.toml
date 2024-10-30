@@ -1,6 +1,5 @@
 [workspace]
 resolver = "2"
-
 exclude = [
   "external-crates/move/crates/bytecode-interpreter-crypto",
   "external-crates/move/crates/bytecode-verifier-libfuzzer",
@@ -61,7 +60,6 @@ exclude = [
   "external-crates/move/move-execution/v0/crates/move-vm-runtime",
   "sdk/move-bytecode-template",
 ]
-
 members = [
   "consensus/config",
   "consensus/core",
@@ -167,13 +165,11 @@ members = [
   "iota-execution/v0/iota-adapter",
   "iota-execution/v0/iota-move-natives",
   "iota-execution/v0/iota-verifier",
-  "narwhal/network",
-  "narwhal/types",
 ]
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "0.4.0"
+version = "0.5.0-alpha"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
@@ -420,8 +416,8 @@ iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-# core-types with json format for REST api
-iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "46d46d64237e001e8e23f322caecb3211c9a8c97", features = ["hash", "serde", "schemars"] }
+# core-types with json format for REST API
+iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "ed6173d434c77604ddc93aaa1550168fdbe97b09", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -464,8 +460,6 @@ move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
-narwhal-network = { path = "narwhal/network" }
-narwhal-types = { path = "narwhal/types" }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }

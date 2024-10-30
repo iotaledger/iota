@@ -37,18 +37,6 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x90fe12b6a159cd99f67000fb7102a692407cb182a97c5c47bbbd2013685e4e2f::m::Bar"
-                        }
-                      },
-                      "hasPublicTransfer": false
-                    }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMoveObject": {
-                      "contents": {
-                        "type": {
                           "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         }
                       },
@@ -61,10 +49,22 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x90fe12b6a159cd99f67000fb7102a692407cb182a97c5c47bbbd2013685e4e2f::m::Foo"
+                          "repr": "0x5dcee5041fc8e936ebc590c5d365907985d08aa45f3dc1bca8037f55e99ca26f::m::Foo"
                         }
                       },
                       "hasPublicTransfer": true
+                    }
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x5dcee5041fc8e936ebc590c5d365907985d08aa45f3dc1bca8037f55e99ca26f::m::Bar"
+                        }
+                      },
+                      "hasPublicTransfer": false
                     }
                   }
                 }

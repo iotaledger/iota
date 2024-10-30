@@ -62,6 +62,5 @@ jobs:
     if: |
       !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
     needs:
-      - rust-tests
-      - external-tests
+      - rust-lints
     uses: ./.github/workflows/_execution_cut.yml
