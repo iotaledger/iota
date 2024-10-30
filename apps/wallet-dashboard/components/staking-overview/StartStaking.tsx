@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
-import { usePopups } from '@/hooks';
-import { NewStakePopup } from '../Popup';
 import { Theme, useTheme } from '@/contexts';
+import { useState } from 'react';
+import { StakeDialog } from '../Dialogs';
 
 export function StartStaking() {
     const { theme } = useTheme();
-    const { openPopup, closePopup } = usePopups();
+    const [isDialogStakeOpen, setIsDialogStakeOpen] = useState(false);
 
-    function addNewStake() {
-        openPopup(<NewStakePopup onClose={closePopup} />);
+    function handleNewStake() {
+        setIsDialogStakeOpen(true);
     }
 
     const videoSrc =
@@ -33,7 +33,7 @@ export function StartStaking() {
                     </div>
                     <div>
                         <Button
-                            onClick={addNewStake}
+                            onClick={handleNewStake}
                             size={ButtonSize.Small}
                             type={ButtonType.Outlined}
                             text="Stake"
@@ -50,6 +50,7 @@ export function StartStaking() {
                     ></video>
                 </div>
             </div>
+            <StakeDialog isOpen={isDialogStakeOpen} setOpen={setIsDialogStakeOpen} />
         </Panel>
     );
 }
