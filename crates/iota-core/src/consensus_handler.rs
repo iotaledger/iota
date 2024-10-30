@@ -25,7 +25,7 @@ use iota_types::{
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, instrument, trace_span, warn};
+use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{
@@ -314,18 +314,9 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
                     }
-                    if let ConsensusTransactionKind::RandomnessStateUpdate(randomness_round, _) =
-                        &transaction.kind
-                    {
-                        // These are deprecated and we should never see them. Log an error and eat
-                        // the tx if one appears.
-                        error!(
-                            "BUG: saw deprecated RandomnessStateUpdate tx for commit round {round:?}, randomness round {randomness_round:?}"
-                        )
-                    } else {
-                        let transaction = SequencedConsensusTransactionKind::External(transaction);
-                        transactions.push((serialized_transaction, transaction, authority_index));
-                    }
+
+                    let transaction = SequencedConsensusTransactionKind::External(transaction);
+                    transactions.push((serialized_transaction, transaction, authority_index));
                 }
             }
         }
@@ -541,7 +532,6 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
-        ConsensusTransactionKind::RandomnessStateUpdate(_, _) => "randomness_state_update",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
     }
