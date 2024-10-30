@@ -74,7 +74,7 @@ async function runVSCodeTest(vscodeVersion: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-    await runVSCodeTest('1.82.0'); // Test with vscode v1.82.0, th minimal supported version
+    await runVSCodeTest('1.82.0'); // Test with vscode v1.82.0, the minimal supported version
 }
 
 void main();
