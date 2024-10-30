@@ -3,17 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::iota_system {
-    use std::vector;
-
     use iota::balance::Balance;
-    use iota::object::UID;
-    use iota::iota::IOTA;
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
     use iota::dynamic_field;
+    use iota::iota::IOTA;
+    use iota::iota::IotaTreasuryCap;
+    use iota::timelock::SystemTimelockCap;
 
-    use iota_system::validator::Validator;
-    use iota_system::iota_system_state_inner::{Self, IotaSystemStateInner, IotaSystemStateInnerV2};
+    use iota_system::validator::ValidatorV1;
+    use iota_system::iota_system_state_inner::{Self, IotaSystemStateV1, IotaSystemStateV2};
+
+    const SYSTEM_TIMELOCK_CAP_DF_KEY: vector<u8> = b"sys_timelock_cap";
 
     public struct IotaSystemState has key {
         id: UID,
@@ -22,14 +21,17 @@ module iota_system::iota_system {
 
     public(package) fun create(
         id: UID,
-        validators: vector<Validator>,
+        iota_treasury_cap: IotaTreasuryCap,
+        validators: vector<ValidatorV1>,
         storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
+        system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
         let system_state = iota_system_state_inner::create(
+            iota_treasury_cap,
             validators,
             storage_fund,
             protocol_version,
@@ -43,21 +45,22 @@ module iota_system::iota_system {
             version,
         };
         dynamic_field::add(&mut self.id, version, system_state);
+        dynamic_field::add(&mut self.id, SYSTEM_TIMELOCK_CAP_DF_KEY, system_timelock_cap);
         transfer::share_object(self);
     }
 
+    #[allow(unused_function)]
     fun advance_epoch(
+        validator_target_reward: u64,
         storage_charge: Balance<IOTA>,
         computation_reward: Balance<IOTA>,
         wrapper: &mut IotaSystemState,
         new_epoch: u64,
         next_protocol_version: u64,
         storage_rebate: u64,
-        _non_refundable_storage_fee: u64,
-        _storage_fund_reinvest_rate: u64, // share of storage fund's rewards that's reinvested
-                                         // into storage fund, in basis point.
-        _reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
-        epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
+        non_refundable_storage_fee: u64,
+        reward_slashing_rate: u64,
+        epoch_start_timestamp_ms: u64,
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
@@ -66,34 +69,38 @@ module iota_system::iota_system {
             self,
             new_epoch,
             next_protocol_version,
+            validator_target_reward,
             storage_charge,
             computation_reward,
             storage_rebate,
+            non_refundable_storage_fee,
+            reward_slashing_rate,
             epoch_start_timestamp_ms,
+            ctx
         );
 
         storage_rebate
     }
 
-    public fun active_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
+    public fun active_validator_addresses(_wrapper: &mut IotaSystemState): vector<address> {
         vector::empty()
     }
 
-    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateInnerV2 {
+    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV2 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateInnerV2 {
+    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV2 {
         let mut version = self.version;
         if (version == iota_system_state_inner::genesis_system_state_version()) {
-            let inner: IotaSystemStateInner = dynamic_field::remove(&mut self.id, version);
+            let inner: IotaSystemStateV1 = dynamic_field::remove(&mut self.id, version);
             let new_inner = iota_system_state_inner::v1_to_v2(inner);
             version = iota_system_state_inner::system_state_version(&new_inner);
             dynamic_field::add(&mut self.id, version, new_inner);
             self.version = version;
         };
 
-        let inner: &mut IotaSystemStateInnerV2 = dynamic_field::borrow_mut(&mut self.id, version);
+        let inner: &mut IotaSystemStateV2 = dynamic_field::borrow_mut(&mut self.id, version);
         assert!(iota_system_state_inner::system_state_version(inner) == version, 0);
         inner
     }
