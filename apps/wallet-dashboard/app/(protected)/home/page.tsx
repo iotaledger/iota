@@ -2,30 +2,40 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AccountBalance, MyCoins, Button, NewStakePopup } from '@/components';
-import { usePopups } from '@/hooks';
+import { AccountBalance, MyCoins } from '@/components';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
-    const { openPopup, closePopup } = usePopups();
-
-    const addNewStake = () => {
-        openPopup(<NewStakePopup onClose={closePopup} />);
-    };
-
     return (
-        <main className="flex flex-1 flex-col items-center space-y-8 p-24">
-            <p>Connection status: {connectionStatus}</p>
+        <main className="flex flex-1 flex-col items-center space-y-8 py-md">
             {connectionStatus === 'connected' && account && (
-                <div className="flex flex-col items-center justify-center space-y-2">
-                    <h1>Welcome</h1>
-                    <div>Address: {account.address}</div>
-                    <AccountBalance />
-                    <MyCoins />
-                    <Button onClick={addNewStake}>New Stake</Button>
-                </div>
+                <>
+                    <div className="home-page-grid-container h-full w-full">
+                        <div style={{ gridArea: 'balance' }} className="flex grow overflow-hidden">
+                            <AccountBalance />
+                        </div>
+                        <div style={{ gridArea: 'staking' }} className="flex grow overflow-hidden">
+                            Staking
+                        </div>
+                        <div
+                            style={{ gridArea: 'migration' }}
+                            className="flex grow overflow-hidden"
+                        >
+                            Migration
+                        </div>
+                        <div style={{ gridArea: 'coins' }}>
+                            <MyCoins />
+                        </div>
+                        <div style={{ gridArea: 'vesting' }} className="flex grow overflow-hidden">
+                            Vesting
+                        </div>
+                        <div style={{ gridArea: 'activity' }} className="flex grow overflow-hidden">
+                            Activity
+                        </div>
+                    </div>
+                </>
             )}
         </main>
     );

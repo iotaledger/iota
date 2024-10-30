@@ -27,7 +27,6 @@ iota-framework.workspace = true
 iota-move-build.workspace = true
 iota-types.workspace = true
 move-package.workspace = true
-narwhal-network.workspace = true
 telemetry-subscribers.workspace = true
 
 [target.'cfg(msim)'.dependencies]

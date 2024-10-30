@@ -29,7 +29,7 @@ services:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9123:9123"
     healthcheck:
-      test: "curl -f http://local-network:9000/rest/"
+      test: "curl -f http://local-network:9000/api/v1/"
       interval: 1s
       start_period: 5s
       timeout: 2s
