@@ -54,7 +54,6 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "kiosk_extension",
             "labeler",
             "linked_table",
-            "math",
             "object",
             "object_bag",
             "object_table",
@@ -132,7 +131,6 @@ async fn get_normalized_move_module() -> Result<(), anyhow::Error> {
         [
             "Coin",
             "CoinMetadata",
-            "CurrencyCreated",
             "DenyCapV1",
             "RegulatedCoinMetadata",
             "TreasuryCap",
@@ -176,7 +174,6 @@ async fn get_normalized_move_module() -> Result<(), anyhow::Error> {
             "mint_balance",
             "put",
             "split",
-            "supply",
             "supply_immut",
             "supply_mut",
             "take",

@@ -22,7 +22,7 @@ mod checked {
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
-        execution::{ExecutionResults, ExecutionResultsV2},
+        execution::{ExecutionResults, ExecutionResultsV1},
         execution_status::CommandArgumentError,
         metrics::LimitsMetrics,
         move_package::MovePackage,
@@ -834,7 +834,7 @@ mod checked {
                 })
                 .collect();
 
-            Ok(ExecutionResults::V2(ExecutionResultsV2 {
+            Ok(ExecutionResults::V1(ExecutionResultsV1 {
                 written_objects,
                 modified_objects: loaded_runtime_objects
                     .into_iter()
