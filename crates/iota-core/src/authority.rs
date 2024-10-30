@@ -4986,15 +4986,6 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
-    async fn deprecated_get_transaction_checkpoint(
-        &self,
-        digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.get_checkpoint_cache()
-            .deprecated_get_transaction_checkpoint(&digest)
-            .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
-    }
-
     async fn get_object(
         &self,
         object_id: ObjectID,
