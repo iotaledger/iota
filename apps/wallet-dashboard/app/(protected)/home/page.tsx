@@ -4,6 +4,8 @@
 
 import { AccountBalance, MyCoins, Button, NewStakePopup, StakingOverview } from '@/components';
 import { usePopups } from '@/hooks';
+import { useFeature } from '@growthbook/growthbook-react';
+import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import clsx from 'clsx';
 
@@ -16,7 +18,9 @@ function HomeDashboardPage(): JSX.Element {
         openPopup(<NewStakePopup onClose={closePopup} />);
     };
 
-    const needsMigration = false;
+    const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
+    // Add the logic here to check if the user has migration objects.
+    const needsMigration = false && stardustMigrationEnabled;
 
     return (
         <main className="flex flex-1 flex-col items-center space-y-8 py-md">
