@@ -13,9 +13,10 @@ export { default as TransactionIcon } from './TransactionIcon';
 export { default as Dropdown } from './Dropdown';
 
 export * from './account-balance/AccountBalance';
-export * from './Coins';
+export * from './coins';
 export * from './Popup';
 export * from './AppList';
 export * from './Cards';
 export * from './Buttons';
 export * from './Dialogs';
+export * from './ImageIcon';
