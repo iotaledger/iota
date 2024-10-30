@@ -13,16 +13,16 @@ This document highlights some new features to try out and shows how to use them 
 
 :::info
 
-Please, provide any feedback or report any issues you encounter via [GitHub](https://github.com/MystenLabs/sui/issues/new/choose), [Discord](https://discord.gg/Sui), or [Telegram](https://t.me/SuiTokenNetwork).
+Please, provide any feedback or report any issues you encounter via [GitHub](https://github.com/iotaledger/iota/issues/new/choose) or [Discord](https://discord.iota.org/).
 
 :::
 
 ### Update IDE support
 
-Use the new [VSCode Move extension](https://marketplace.visualstudio.com/items?itemName=mysten.move) to get support for Move 2024 features. The new extension has a number of improvements over the original [move-analyzer extension](https://marketplace.visualstudio.com/items?itemName=move.move-analyzer), but if you would like to keep using the original one, be sure to rebuild and reinstall the `move-analyzer` binary to get 2024 support:
-
+[//]: # (Use the new [VSCode Move extension]&#40;https://marketplace.visualstudio.com/items?itemName=mysten.move&#41; to get support for Move 2024 features. The new extension has a number of improvements over the original [move-analyzer extension]&#40;https://marketplace.visualstudio.com/items?itemName=move.move-analyzer&#41;, but if you would like to keep using the original one, be sure to rebuild and reinstall the `move-analyzer` binary to get 2024 support:)
+Currently, the new VSCode Move extension is not yet published. Once available, it will offer support for Move 2024 features and include several enhancements compared to the original move-analyzer extension. In the meantime, if you would like to keep using the original one, be sure to rebuild and reinstall the move-analyzer binary to get 2024 support:
 ```shell
-cargo install --git https://github.com/MystenLabs/sui.git move-analyzer
+cargo install --git https://github.com/iotaledger/iota.git move-analyzer
 ```
 
 See the getting started guide on [Move IDEs and plugins](../../developer/getting-started/iota-environment.mdx#move-ides-and-plugins) for more information.
@@ -336,7 +336,7 @@ let y = loop 'outer: {
 In this toy example, `y` will take on the value `10` because the first `break` will break the
 'outer` loop with that value.
 
-Finally, this feature can be apply to normal blocks in Move, but instead utilizes the `return`
+Finally, this feature can be applied to normal blocks in Move, but instead utilizes the `return`
 keyword. This can be useful when sequencing a block of code that may need early returns with values.
 
 ```move
@@ -463,7 +463,7 @@ The migration script attempts to remediate naming errors using global qualificat
 
 ## Follow along
 
-The beta release of Move 2024 comes with some powerful new features in addition to the breaking changes described here. There are also more on the horizon. Join the [IOTA developer newsletter](https://sui.io/developers#newsletter) to learn about new, exciting features coming to Move this year, including syntactic macros, enums with pattern matching, and other user-defined syntax extensions.
+The beta release of Move 2024 comes with some powerful new features in addition to the breaking changes described here. There are also more on the horizon, such as syntactic macros, enums with pattern matching, and other user-defined syntax extensions.
 
 ### `alpha` and `beta` guidance
 
