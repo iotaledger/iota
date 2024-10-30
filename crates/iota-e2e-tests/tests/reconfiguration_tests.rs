@@ -756,6 +756,10 @@ async fn test_epoch_flag_upgrade() {
     use iota_macros::register_fail_point_arg;
 
     let initial_flags_nodes = Arc::new(Mutex::new(HashSet::new()));
+    // Register a fail_point_arg, for which the handler is also placed in the
+    // authority_store's open() function. When we switch an epoch, the following
+    // code will inject the new flags to the selected nodes once, so that we can
+    // later assert that the flags have changed.
     register_fail_point_arg("initial_epoch_flags", move || {
         // only alter flags on each node once
         let current_node = iota_simulator::current_simnode_id();
@@ -767,9 +771,10 @@ async fn test_epoch_flag_upgrade() {
         }
 
         // start with no flags set
-        Some(Vec::<EpochFlag>::new())
+        Some(vec![EpochFlag::WritebackCacheEnabled])
     });
 
+    // Start the cluster with flags set to an empty set.
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(30000)
         .build()
@@ -788,20 +793,24 @@ async fn test_epoch_flag_upgrade() {
     }
     assert!(any_empty);
 
+    // When the epoch changes, flags on some nodes should be updated via the
+    // fail_point_arg macro.
     test_cluster.wait_for_epoch_all_nodes(1).await;
 
-    let mut any_empty = false;
+    // Make sure that there are nodes which don't have empty flags.
+    let mut any_not_empty = false;
     for node in test_cluster.all_node_handles() {
-        any_empty = any_empty
+        any_not_empty = any_not_empty
             || node.with(|node| {
-                node.state()
+                !node
+                    .state()
                     .epoch_store_for_testing()
                     .epoch_start_config()
                     .flags()
                     .is_empty()
             });
     }
-    assert!(!any_empty);
+    assert!(!any_not_empty);
 
     sleep(Duration::from_secs(15)).await;
 
