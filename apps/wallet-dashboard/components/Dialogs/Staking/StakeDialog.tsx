@@ -20,11 +20,13 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
+import { Dialog, DialogBody, DialogContent, DialogPosition, Header } from '@iota/apps-ui-kit';
 
-interface NewStakePopupProps {
-    onClose: () => void;
+interface StakeDialogProps {
     isTimelockedStaking?: boolean;
     onSuccess?: (digest: string) => void;
+    isOpen: boolean;
+    setOpen: (bool: boolean) => void;
 }
 
 enum Step {
@@ -32,11 +34,12 @@ enum Step {
     EnterAmount,
 }
 
-function NewStakePopup({
-    onClose,
+function StakeDialog({
     onSuccess,
     isTimelockedStaking,
-}: NewStakePopupProps): JSX.Element {
+    isOpen,
+    setOpen,
+}: StakeDialogProps): JSX.Element {
     const [step, setStep] = useState<Step>(Step.SelectValidator);
     const [selectedValidator, setSelectedValidator] = useState<string>('');
     const [amount, setAmount] = useState<string>('');
@@ -109,7 +112,6 @@ function NewStakePopup({
             },
         )
             .then(() => {
-                onClose();
                 addNotification('Stake transaction has been sent');
             })
             .catch(() => {
@@ -118,22 +120,30 @@ function NewStakePopup({
     }
 
     return (
-        <div className="flex min-w-[300px] flex-col gap-2">
-            {step === Step.SelectValidator && (
-                <SelectValidatorView validators={validators} onSelect={handleValidatorSelect} />
-            )}
-            {step === Step.EnterAmount && (
-                <EnterAmountView
-                    selectedValidator={selectedValidator}
-                    amount={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    onBack={handleBack}
-                    onStake={handleStake}
-                    isStakeDisabled={!amount}
-                />
-            )}
-        </div>
+        <Dialog open={isOpen} onOpenChange={setOpen}>
+            <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>
+                <Header title="Receive" onClose={() => setOpen(false)} />
+                <DialogBody>
+                    {step === Step.SelectValidator && (
+                        <SelectValidatorView
+                            validators={validators}
+                            onSelect={handleValidatorSelect}
+                        />
+                    )}
+                    {step === Step.EnterAmount && (
+                        <EnterAmountView
+                            selectedValidator={selectedValidator}
+                            amount={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            onBack={handleBack}
+                            onStake={handleStake}
+                            isStakeDisabled={!amount}
+                        />
+                    )}
+                </DialogBody>
+            </DialogContent>
+        </Dialog>
     );
 }
 
-export default NewStakePopup;
+export default StakeDialog;

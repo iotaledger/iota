@@ -19,4 +19,5 @@ export * from './AppList';
 export * from './Cards';
 export * from './Buttons';
 export * from './staking-overview';
+export * from './Dialogs';
 export * from './ImageIcon';

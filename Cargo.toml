@@ -165,8 +165,6 @@ members = [
   "iota-execution/v0/iota-adapter",
   "iota-execution/v0/iota-move-natives",
   "iota-execution/v0/iota-verifier",
-  "narwhal/network",
-  "narwhal/types",
 ]
 
 [workspace.package]
@@ -462,8 +460,6 @@ move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
-narwhal-network = { path = "narwhal/network" }
-narwhal-types = { path = "narwhal/types" }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }

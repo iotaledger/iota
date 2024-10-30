@@ -1767,9 +1767,6 @@
                 "max_accumulated_txn_cost_per_object_in_mysticeti_commit": {
                   "u64": "10"
                 },
-                "max_accumulated_txn_cost_per_object_in_narwhal_commit": {
-                  "u64": "100"
-                },
                 "max_age_of_jwk_in_epochs": {
                   "u64": "1"
                 },

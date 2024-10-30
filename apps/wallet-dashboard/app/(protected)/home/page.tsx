@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AccountBalance, MyCoins, Button, NewStakePopup, StakingOverview } from '@/components';
-import { usePopups } from '@/hooks';
+import { AccountBalance, MyCoins, StakingOverview } from '@/components';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
@@ -12,11 +11,6 @@ import clsx from 'clsx';
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
-    const { openPopup, closePopup } = usePopups();
-
-    const addNewStake = () => {
-        openPopup(<NewStakePopup onClose={closePopup} />);
-    };
 
     const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
     // Add the logic here to check if the user has migration objects.
@@ -56,7 +50,6 @@ function HomeDashboardPage(): JSX.Element {
                             Activity
                         </div>
                     </div>
-                    <Button onClick={addNewStake}>New Stake</Button>
                 </>
             )}
         </main>
