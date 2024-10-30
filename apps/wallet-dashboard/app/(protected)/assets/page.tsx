@@ -22,10 +22,6 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
         label: 'Other',
         value: AssetCategory.Other,
     },
-    // {
-    //     label: 'Hidden',
-    //     value: AssetCategory.Hidden,
-    // },
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {
@@ -62,7 +58,6 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const categoryToAsset: Record<AssetCategory, IotaObjectData[]> = {
         [AssetCategory.Visual]: visual,
         [AssetCategory.Other]: nonVisual,
-        // [AssetCategory.Hidden]: [],
     };
 
     const assetList = categoryToAsset[selectedCategory];
