@@ -757,6 +757,7 @@ async fn start(
             fullnode_url.clone(),
             ReaderWriterConfig::writer_mode(None),
             data_ingestion_path.clone(),
+            None,
         )
         .await;
         info!("Indexer in writer mode started");
@@ -767,6 +768,7 @@ async fn start(
             fullnode_url.clone(),
             ReaderWriterConfig::reader_mode(indexer_address.to_string()),
             data_ingestion_path,
+            None,
         )
         .await;
         info!("Indexer in reader mode started");
