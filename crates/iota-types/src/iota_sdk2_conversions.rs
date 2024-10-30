@@ -21,19 +21,22 @@ use crate::transaction::TransactionDataAPI as _;
 
 impl From<crate::object::Object> for Object {
     fn from(value: crate::object::Object) -> Self {
-        Self::new(
-            value.data.clone().into(),
-            value.owner.into(),
-            value.previous_transaction.into(),
-            value.storage_rebate,
-        )
+        Self {
+            data: value.data.clone().into(),
+            owner: value.owner.into(),
+            previous_transaction: value.previous_transaction.into(),
+            storage_rebate: value.storage_rebate,
+        }
     }
 }
 
 impl From<Object> for crate::object::Object {
     fn from(value: Object) -> Self {
-        let (owner, prev_txn) = (*value.owner(), value.previous_transaction());
-        Self::new_from_genesis(value.into_data().into(), owner.into(), prev_txn.into())
+        Self::new_from_genesis(
+            value.data.into(),
+            value.owner.into(),
+            value.previous_transaction.into(),
+        )
     }
 }
 
@@ -284,8 +287,23 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                         .into_iter()
                         .map(|obj| match obj {
                             crate::transaction::GenesisObject::RawObject { data, owner } => {
-                                GenesisObject::new(data.into(), owner.into())
+                                GenesisObject {
+                                    data: data.into(),
+                                    owner: owner.into(),
+                                }
                             }
+                        })
+                        .collect(),
+                    events: genesis_transaction
+                        .events
+                        .into_iter()
+                        .map(|event| Event {
+                            package_id: event.package_id.into(),
+                            module: Identifier::new(event.transaction_module.as_str())
+                                .expect("invalid transaction module"),
+                            sender: event.sender.into(),
+                            type_: struct_tag_core_to_sdk(event.type_),
+                            contents: event.contents,
                         })
                         .collect(),
                 })
@@ -300,7 +318,7 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                                     value
                                         .1
                                         .into_iter()
-                                        .map(|value| VersionAssignment::new(value.0.into(), value.1.value()))
+                                        .map(|value| VersionAssignment { object_id: value.0.into(), version: value.1.value() })
                                         .collect(),
                             }).collect()
                         },
@@ -386,7 +404,18 @@ impl From<TransactionKind> for crate::transaction::TransactionKind {
                             owner: obj.owner.into(),
                         })
                         .collect(),
-                    events: todo!(),
+                    events: genesis_transaction
+                        .events
+                        .into_iter()
+                        .map(|event| crate::event::Event {
+                            package_id: event.package_id.into(),
+                            transaction_module: crate::Identifier::new(event.module.as_str())
+                                .expect("invalid transaction module"),
+                            sender: event.sender.into(),
+                            type_: struct_tag_sdk_to_core(event.type_),
+                            contents: event.contents,
+                        })
+                        .collect(),
                 })
             }
             TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
@@ -1884,26 +1913,6 @@ pub fn type_tag_core_to_sdk(value: move_core_types::language_storage::TypeTag) -
     }
 }
 
-pub fn struct_tag_core_to_sdk(value: move_core_types::language_storage::StructTag) -> StructTag {
-    let move_core_types::language_storage::StructTag {
-        address,
-        module,
-        name,
-        type_params,
-    } = value;
-
-    let address = Address::new(address.into_bytes());
-    let module = Identifier::new(module.as_str()).unwrap();
-    let name = Identifier::new(name.as_str()).unwrap();
-    let type_params = type_params.into_iter().map(type_tag_core_to_sdk).collect();
-    StructTag {
-        address,
-        module,
-        name,
-        type_params,
-    }
-}
-
 pub fn type_tag_sdk_to_core(value: TypeTag) -> move_core_types::language_storage::TypeTag {
     match value {
         TypeTag::Bool => move_core_types::language_storage::TypeTag::Bool,
@@ -1921,6 +1930,26 @@ pub fn type_tag_sdk_to_core(value: TypeTag) -> move_core_types::language_storage
         TypeTag::U16 => move_core_types::language_storage::TypeTag::U16,
         TypeTag::U32 => move_core_types::language_storage::TypeTag::U32,
         TypeTag::U256 => move_core_types::language_storage::TypeTag::U256,
+    }
+}
+
+pub fn struct_tag_core_to_sdk(value: move_core_types::language_storage::StructTag) -> StructTag {
+    let move_core_types::language_storage::StructTag {
+        address,
+        module,
+        name,
+        type_params,
+    } = value;
+
+    let address = Address::new(address.into_bytes());
+    let module = Identifier::new(module.as_str()).unwrap();
+    let name = Identifier::new(name.as_str()).unwrap();
+    let type_params = type_params.into_iter().map(type_tag_core_to_sdk).collect();
+    StructTag {
+        address,
+        module,
+        name,
+        type_params,
     }
 }
 
