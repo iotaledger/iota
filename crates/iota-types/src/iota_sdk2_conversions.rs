@@ -264,9 +264,9 @@ impl From<Transaction> for crate::transaction::TransactionData {
 
 impl From<crate::transaction::TransactionKind> for TransactionKind {
     fn from(value: crate::transaction::TransactionKind) -> Self {
-        use crate::transaction::TransactionKind as TransactionKind2;
+        use crate::transaction::TransactionKind as InternalTxnKind;
         match value {
-            TransactionKind2::ProgrammableTransaction(programmable_transaction) => {
+            InternalTxnKind::ProgrammableTransaction(programmable_transaction) => {
                 TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
                     inputs: programmable_transaction
                         .inputs
@@ -280,7 +280,7 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                         .collect(),
                 })
             }
-            TransactionKind2::Genesis(genesis_transaction) => {
+            InternalTxnKind::Genesis(genesis_transaction) => {
                 TransactionKind::Genesis(GenesisTransaction {
                     objects: genesis_transaction
                         .objects
@@ -308,7 +308,7 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                         .collect(),
                 })
             }
-            TransactionKind2::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
+            InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
                 let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
                     crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(vec) =>
                         ConsensusDeterminedVersionAssignments::CancelledTransactions {
@@ -334,7 +334,7 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
-            TransactionKind2::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
+            InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
                 TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
                     epoch: authenticator_state_update_v1.epoch,
                     round: authenticator_state_update_v1.round,
@@ -360,10 +360,10 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                         .value(),
                 })
             }
-            TransactionKind2::EndOfEpochTransaction(vec) => {
+            InternalTxnKind::EndOfEpochTransaction(vec) => {
                 TransactionKind::EndOfEpoch(vec.into_iter().map(Into::into).collect())
             }
-            TransactionKind2::RandomnessStateUpdate(randomness_state_update) => {
+            InternalTxnKind::RandomnessStateUpdate(randomness_state_update) => {
                 TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,
                     randomness_round: randomness_state_update.randomness_round.0,
@@ -947,58 +947,56 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
             ExecutionFailureStatus::TypeArityMismatch => Self::TypeArityMismatch,
             ExecutionFailureStatus::NonEntryFunctionInvoked => Self::NonEntryFunctionInvoked,
             ExecutionFailureStatus::CommandArgumentError { arg_idx, kind } => {
-                use crate::execution_status::CommandArgumentError as CommandArgumentError2;
+                use crate::execution_status::CommandArgumentError as InternalCmdArgErr;
                 Self::CommandArgumentError {
                     argument: arg_idx,
                     kind: match kind {
-                        CommandArgumentError2::TypeMismatch => CommandArgumentError::TypeMismatch,
-                        CommandArgumentError2::InvalidBCSBytes => {
-                            CommandArgumentError::InvalidBcsBytes
-                        }
-                        CommandArgumentError2::InvalidUsageOfPureArg => {
+                        InternalCmdArgErr::TypeMismatch => CommandArgumentError::TypeMismatch,
+                        InternalCmdArgErr::InvalidBCSBytes => CommandArgumentError::InvalidBcsBytes,
+                        InternalCmdArgErr::InvalidUsageOfPureArg => {
                             CommandArgumentError::InvalidUsageOfPureArgument
                         }
-                        CommandArgumentError2::InvalidArgumentToPrivateEntryFunction => {
+                        InternalCmdArgErr::InvalidArgumentToPrivateEntryFunction => {
                             CommandArgumentError::InvalidArgumentToPrivateEntryFunction
                         }
-                        CommandArgumentError2::IndexOutOfBounds { idx } => {
+                        InternalCmdArgErr::IndexOutOfBounds { idx } => {
                             CommandArgumentError::IndexOutOfBounds { index: idx }
                         }
-                        CommandArgumentError2::SecondaryIndexOutOfBounds {
+                        InternalCmdArgErr::SecondaryIndexOutOfBounds {
                             result_idx,
                             secondary_idx,
                         } => CommandArgumentError::SecondaryIndexOutOfBounds {
                             result: result_idx,
                             subresult: secondary_idx,
                         },
-                        CommandArgumentError2::InvalidResultArity { result_idx } => {
+                        InternalCmdArgErr::InvalidResultArity { result_idx } => {
                             CommandArgumentError::InvalidResultArity { result: result_idx }
                         }
-                        CommandArgumentError2::InvalidGasCoinUsage => {
+                        InternalCmdArgErr::InvalidGasCoinUsage => {
                             CommandArgumentError::InvalidGasCoinUsage
                         }
-                        CommandArgumentError2::InvalidValueUsage => {
+                        InternalCmdArgErr::InvalidValueUsage => {
                             CommandArgumentError::InvalidValueUsage
                         }
-                        CommandArgumentError2::InvalidObjectByValue => {
+                        InternalCmdArgErr::InvalidObjectByValue => {
                             CommandArgumentError::InvalidObjectByValue
                         }
-                        CommandArgumentError2::InvalidObjectByMutRef => {
+                        InternalCmdArgErr::InvalidObjectByMutRef => {
                             CommandArgumentError::InvalidObjectByMutRef
                         }
-                        CommandArgumentError2::SharedObjectOperationNotAllowed => {
+                        InternalCmdArgErr::SharedObjectOperationNotAllowed => {
                             CommandArgumentError::SharedObjectOperationNotAllowed
                         }
                     },
                 }
             }
             ExecutionFailureStatus::TypeArgumentError { argument_idx, kind } => {
-                use crate::execution_status::TypeArgumentError as TypeArgumentError2;
+                use crate::execution_status::TypeArgumentError as InternalTypeArgErr;
                 Self::TypeArgumentError {
                     type_argument: argument_idx,
                     kind: match kind {
-                        TypeArgumentError2::TypeNotFound => TypeArgumentError::TypeNotFound,
-                        TypeArgumentError2::ConstraintNotSatisfied => {
+                        InternalTypeArgErr::TypeNotFound => TypeArgumentError::TypeNotFound,
+                        InternalTypeArgErr::ConstraintNotSatisfied => {
                             TypeArgumentError::ConstraintNotSatisfied
                         }
                     },
@@ -1029,31 +1027,31 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                 Self::PublishUpgradeDependencyDowngrade
             }
             ExecutionFailureStatus::PackageUpgradeError { upgrade_error } => {
-                use crate::execution_status::PackageUpgradeError as PackageUpgradeError2;
+                use crate::execution_status::PackageUpgradeError as InternalPkgUpgradeErr;
                 Self::PackageUpgradeError {
                     kind: match upgrade_error {
-                        PackageUpgradeError2::UnableToFetchPackage { package_id } => {
+                        InternalPkgUpgradeErr::UnableToFetchPackage { package_id } => {
                             PackageUpgradeError::UnableToFetchPackage {
                                 package_id: package_id.into(),
                             }
                         }
-                        PackageUpgradeError2::NotAPackage { object_id } => {
+                        InternalPkgUpgradeErr::NotAPackage { object_id } => {
                             PackageUpgradeError::NotAPackage {
                                 object_id: object_id.into(),
                             }
                         }
-                        PackageUpgradeError2::IncompatibleUpgrade => {
+                        InternalPkgUpgradeErr::IncompatibleUpgrade => {
                             PackageUpgradeError::IncompatibleUpgrade
                         }
-                        PackageUpgradeError2::DigestDoesNotMatch { digest } => {
+                        InternalPkgUpgradeErr::DigestDoesNotMatch { digest } => {
                             PackageUpgradeError::DigestDoesNotMatch {
                                 digest: Digest::from_bytes(digest).expect("invalid digest bytes"),
                             }
                         }
-                        PackageUpgradeError2::UnknownUpgradePolicy { policy } => {
+                        InternalPkgUpgradeErr::UnknownUpgradePolicy { policy } => {
                             PackageUpgradeError::UnknownUpgradePolicy { policy }
                         }
-                        PackageUpgradeError2::PackageIDDoesNotMatch {
+                        InternalPkgUpgradeErr::PackageIDDoesNotMatch {
                             package_id,
                             ticket_id,
                         } => PackageUpgradeError::PackageIdDoesNotMatch {
@@ -1142,46 +1140,44 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
             ExecutionError::TypeArityMismatch => Self::TypeArityMismatch,
             ExecutionError::NonEntryFunctionInvoked => Self::NonEntryFunctionInvoked,
             ExecutionError::CommandArgumentError { argument, kind } => {
-                use crate::execution_status::CommandArgumentError as CommandArgumentError2;
+                use crate::execution_status::CommandArgumentError as InternalCmdArgErr;
                 Self::CommandArgumentError {
                     arg_idx: argument,
                     kind: match kind {
-                        CommandArgumentError::TypeMismatch => CommandArgumentError2::TypeMismatch,
-                        CommandArgumentError::InvalidBcsBytes => {
-                            CommandArgumentError2::InvalidBCSBytes
-                        }
+                        CommandArgumentError::TypeMismatch => InternalCmdArgErr::TypeMismatch,
+                        CommandArgumentError::InvalidBcsBytes => InternalCmdArgErr::InvalidBCSBytes,
                         CommandArgumentError::InvalidUsageOfPureArgument => {
-                            CommandArgumentError2::InvalidUsageOfPureArg
+                            InternalCmdArgErr::InvalidUsageOfPureArg
                         }
                         CommandArgumentError::InvalidArgumentToPrivateEntryFunction => {
-                            CommandArgumentError2::InvalidArgumentToPrivateEntryFunction
+                            InternalCmdArgErr::InvalidArgumentToPrivateEntryFunction
                         }
                         CommandArgumentError::IndexOutOfBounds { index } => {
-                            CommandArgumentError2::IndexOutOfBounds { idx: index }
+                            InternalCmdArgErr::IndexOutOfBounds { idx: index }
                         }
                         CommandArgumentError::SecondaryIndexOutOfBounds { result, subresult } => {
-                            CommandArgumentError2::SecondaryIndexOutOfBounds {
+                            InternalCmdArgErr::SecondaryIndexOutOfBounds {
                                 result_idx: result,
                                 secondary_idx: subresult,
                             }
                         }
                         CommandArgumentError::InvalidResultArity { result } => {
-                            CommandArgumentError2::InvalidResultArity { result_idx: result }
+                            InternalCmdArgErr::InvalidResultArity { result_idx: result }
                         }
                         CommandArgumentError::InvalidGasCoinUsage => {
-                            CommandArgumentError2::InvalidGasCoinUsage
+                            InternalCmdArgErr::InvalidGasCoinUsage
                         }
                         CommandArgumentError::InvalidValueUsage => {
-                            CommandArgumentError2::InvalidValueUsage
+                            InternalCmdArgErr::InvalidValueUsage
                         }
                         CommandArgumentError::InvalidObjectByValue => {
-                            CommandArgumentError2::InvalidObjectByValue
+                            InternalCmdArgErr::InvalidObjectByValue
                         }
                         CommandArgumentError::InvalidObjectByMutRef => {
-                            CommandArgumentError2::InvalidObjectByMutRef
+                            InternalCmdArgErr::InvalidObjectByMutRef
                         }
                         CommandArgumentError::SharedObjectOperationNotAllowed => {
-                            CommandArgumentError2::SharedObjectOperationNotAllowed
+                            InternalCmdArgErr::SharedObjectOperationNotAllowed
                         }
                     },
                 }
@@ -1190,13 +1186,13 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 type_argument,
                 kind,
             } => {
-                use crate::execution_status::TypeArgumentError as TypeArgumentError2;
+                use crate::execution_status::TypeArgumentError as InternalTypeArgErr;
                 Self::TypeArgumentError {
                     argument_idx: type_argument,
                     kind: match kind {
-                        TypeArgumentError::TypeNotFound => TypeArgumentError2::TypeNotFound,
+                        TypeArgumentError::TypeNotFound => InternalTypeArgErr::TypeNotFound,
                         TypeArgumentError::ConstraintNotSatisfied => {
-                            TypeArgumentError2::ConstraintNotSatisfied
+                            InternalTypeArgErr::ConstraintNotSatisfied
                         }
                     },
                 }
@@ -1225,34 +1221,34 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 Self::PublishUpgradeDependencyDowngrade
             }
             ExecutionError::PackageUpgradeError { kind } => {
-                use crate::execution_status::PackageUpgradeError as PackageUpgradeError2;
+                use crate::execution_status::PackageUpgradeError as InternalPkgUpgradeErr;
                 Self::PackageUpgradeError {
                     upgrade_error: match kind {
                         PackageUpgradeError::UnableToFetchPackage { package_id } => {
-                            PackageUpgradeError2::UnableToFetchPackage {
+                            InternalPkgUpgradeErr::UnableToFetchPackage {
                                 package_id: package_id.into(),
                             }
                         }
                         PackageUpgradeError::NotAPackage { object_id } => {
-                            PackageUpgradeError2::NotAPackage {
+                            InternalPkgUpgradeErr::NotAPackage {
                                 object_id: object_id.into(),
                             }
                         }
                         PackageUpgradeError::IncompatibleUpgrade => {
-                            PackageUpgradeError2::IncompatibleUpgrade
+                            InternalPkgUpgradeErr::IncompatibleUpgrade
                         }
                         PackageUpgradeError::DigestDoesNotMatch { digest } => {
-                            PackageUpgradeError2::DigestDoesNotMatch {
+                            InternalPkgUpgradeErr::DigestDoesNotMatch {
                                 digest: digest.as_bytes().to_vec(),
                             }
                         }
                         PackageUpgradeError::UnknownUpgradePolicy { policy } => {
-                            PackageUpgradeError2::UnknownUpgradePolicy { policy }
+                            InternalPkgUpgradeErr::UnknownUpgradePolicy { policy }
                         }
                         PackageUpgradeError::PackageIdDoesNotMatch {
                             package_id,
                             ticket_id,
-                        } => PackageUpgradeError2::PackageIDDoesNotMatch {
+                        } => InternalPkgUpgradeErr::PackageIDDoesNotMatch {
                             package_id: package_id.into(),
                             ticket_id: ticket_id.into(),
                         },
@@ -1478,9 +1474,9 @@ impl From<Event> for crate::event::Event {
 
 impl From<crate::transaction::Command> for Command {
     fn from(value: crate::transaction::Command) -> Self {
-        use crate::transaction::Command as Command2;
+        use crate::transaction::Command as InternalCmd;
         match value {
-            Command2::MoveCall(programmable_move_call) => Self::MoveCall(MoveCall {
+            InternalCmd::MoveCall(programmable_move_call) => Self::MoveCall(MoveCall {
                 package: programmable_move_call.package.into(),
                 module: Identifier::new(programmable_move_call.module.as_str())
                     .expect("invalid move call module identifier"),
@@ -1497,32 +1493,36 @@ impl From<crate::transaction::Command> for Command {
                     .map(Into::into)
                     .collect(),
             }),
-            Command2::TransferObjects(objects, address) => Self::TransferObjects(TransferObjects {
-                objects: objects.into_iter().map(Into::into).collect(),
-                address: address.into(),
-            }),
-            Command2::SplitCoins(coin, amounts) => Self::SplitCoins(SplitCoins {
+            InternalCmd::TransferObjects(objects, address) => {
+                Self::TransferObjects(TransferObjects {
+                    objects: objects.into_iter().map(Into::into).collect(),
+                    address: address.into(),
+                })
+            }
+            InternalCmd::SplitCoins(coin, amounts) => Self::SplitCoins(SplitCoins {
                 coin: coin.into(),
                 amounts: amounts.into_iter().map(Into::into).collect(),
             }),
-            Command2::MergeCoins(argument, coins_to_merge) => Self::MergeCoins(MergeCoins {
+            InternalCmd::MergeCoins(argument, coins_to_merge) => Self::MergeCoins(MergeCoins {
                 coin: argument.into(),
                 coins_to_merge: coins_to_merge.into_iter().map(Into::into).collect(),
             }),
-            Command2::Publish(modules, dependencies) => Self::Publish(Publish {
+            InternalCmd::Publish(modules, dependencies) => Self::Publish(Publish {
                 modules,
                 dependencies: dependencies.into_iter().map(Into::into).collect(),
             }),
-            Command2::MakeMoveVec(type_tag, elements) => Self::MakeMoveVector(MakeMoveVector {
+            InternalCmd::MakeMoveVec(type_tag, elements) => Self::MakeMoveVector(MakeMoveVector {
                 type_: type_tag.map(type_tag_core_to_sdk),
                 elements: elements.into_iter().map(Into::into).collect(),
             }),
-            Command2::Upgrade(modules, dependencies, package, ticket) => Self::Upgrade(Upgrade {
-                modules,
-                dependencies: dependencies.into_iter().map(Into::into).collect(),
-                package: package.into(),
-                ticket: ticket.into(),
-            }),
+            InternalCmd::Upgrade(modules, dependencies, package, ticket) => {
+                Self::Upgrade(Upgrade {
+                    modules,
+                    dependencies: dependencies.into_iter().map(Into::into).collect(),
+                    package: package.into(),
+                    ticket: ticket.into(),
+                })
+            }
         }
     }
 }
