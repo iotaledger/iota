@@ -3,27 +3,18 @@
 'use client';
 
 import { Notifications } from '@/components/index';
-import React, { useEffect, useState, type PropsWithChildren } from 'react';
+import React, { useEffect, type PropsWithChildren } from 'react';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import { Button } from '@iota/apps-ui-kit';
 import { redirect } from 'next/navigation';
 import { Sidebar } from './components';
 import { TopNav } from './components/top-nav/TopNav';
+import { useTheme } from '@/contexts';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
-    const [isDarkMode, setIsDarkMode] = useState(false);
     const { connectionStatus } = useCurrentWallet();
+    const { toggleTheme } = useTheme();
     const account = useCurrentAccount();
-
-    const toggleDarkMode = () => {
-        setIsDarkMode(!isDarkMode);
-        if (isDarkMode) {
-            document.documentElement.classList.remove('dark');
-        } else {
-            document.documentElement.classList.add('dark');
-        }
-    };
-
     useEffect(() => {
         if (connectionStatus !== 'connected' && !account) {
             redirect('/');
@@ -44,7 +35,7 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
             </div>
 
             <div className="fixed bottom-5 right-5">
-                <Button onClick={toggleDarkMode} text={isDarkMode ? 'Light Mode' : 'Dark Mode'} />
+                <Button onClick={toggleTheme} text={'Change theme'} />
             </div>
 
             <Notifications />
