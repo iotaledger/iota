@@ -5,7 +5,6 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/mystenlabs/mysten-infra"
 description = "Library for a Prometheus metric that computes its value by given closure at collection time"
 
 [dependencies]
