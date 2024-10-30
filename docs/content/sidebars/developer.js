@@ -26,6 +26,7 @@ const developer = [
             'developer/getting-started/publish',
             'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
+            'developer/getting-started/coffee-example',
         ],
     },
     {
@@ -176,6 +177,24 @@ const developer = [
     },
     {
         type: 'category',
+        label: 'Capture The Flag',
+        link: {
+            type: 'doc',
+            id: 'developer/iota-move-ctf/introduction',
+        },
+        items: [
+            'developer/iota-move-ctf/challenge_1',
+            'developer/iota-move-ctf/challenge_2',
+            'developer/iota-move-ctf/challenge_3',
+            'developer/iota-move-ctf/challenge_4',
+            'developer/iota-move-ctf/challenge_5',
+            'developer/iota-move-ctf/challenge_6',
+            'developer/iota-move-ctf/challenge_7',
+            'developer/iota-move-ctf/challenge_8',
+        ],
+    },
+    {
+        type: 'category',
         label: 'Standards',
         link: {
           type: 'generated-index',
@@ -277,7 +296,7 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Migrating from IOTA/Shimmer Stardust',
+        label: 'Migrating from IOTA Stardust',
         link: {
             type: 'doc',
             id: 'developer/stardust/stardust-migration',
@@ -323,7 +342,7 @@ const developer = [
                     },
                     {
                         type: 'doc',
-                        label: 'Self-sponsor Shimmer Claiming',
+                        label: 'Self-sponsor Iota Claiming',
                         id: 'developer/stardust/claiming/self-sponsor',
                     },
                 ],

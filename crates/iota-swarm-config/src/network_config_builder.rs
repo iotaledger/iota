@@ -9,15 +9,18 @@ use std::{
     time::Duration,
 };
 
+use fastcrypto::traits::KeyPair;
 use iota_config::{
+    IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
     node::AuthorityOverloadConfig,
 };
+use iota_genesis_builder::genesis_build_effects::GenesisBuildEffects;
 use iota_macros::nondeterministic;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
     committee::{Committee, ProtocolVersion},
-    crypto::{AccountKeyPair, KeypairTraits, PublicKey, get_key_pair_from_rng},
+    crypto::{AccountKeyPair, PublicKey, get_key_pair_from_rng},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -64,12 +67,12 @@ pub enum ProtocolVersionsConfig {
     PerValidator(SupportedProtocolVersionsCallback),
 }
 
-pub type StateAccumulatorV2EnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
+pub type StateAccumulatorEnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
 
 #[derive(Clone)]
-pub enum StateAccumulatorV2EnabledConfig {
+pub enum StateAccumulatorV1EnabledConfig {
     Global(bool),
-    PerValidator(StateAccumulatorV2EnabledCallback),
+    PerValidator(StateAccumulatorEnabledCallback),
 }
 
 pub struct ConfigBuilder<R = OsRng> {
@@ -88,7 +91,7 @@ pub struct ConfigBuilder<R = OsRng> {
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_v2_enabled_config: Option<StateAccumulatorV2EnabledConfig>,
+    state_accumulator_config: Option<StateAccumulatorV1EnabledConfig>,
     empty_validator_genesis: bool,
 }
 
@@ -110,7 +113,7 @@ impl ConfigBuilder {
             firewall_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_v2_enabled_config: None,
+            state_accumulator_config: Some(StateAccumulatorV1EnabledConfig::Global(true)),
             empty_validator_genesis: false,
         }
     }
@@ -229,26 +232,16 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled(mut self, enabled: bool) -> Self {
-        self.state_accumulator_v2_enabled_config =
-            Some(StateAccumulatorV2EnabledConfig::Global(enabled));
+    pub fn with_state_accumulator_callback(
+        mut self,
+        func: StateAccumulatorEnabledCallback,
+    ) -> Self {
+        self.state_accumulator_config = Some(StateAccumulatorV1EnabledConfig::PerValidator(func));
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_callback(
-        mut self,
-        func: StateAccumulatorV2EnabledCallback,
-    ) -> Self {
-        self.state_accumulator_v2_enabled_config =
-            Some(StateAccumulatorV2EnabledConfig::PerValidator(func));
-        self
-    }
-
-    pub fn with_state_accumulator_v2_enabled_config(
-        mut self,
-        c: StateAccumulatorV2EnabledConfig,
-    ) -> Self {
-        self.state_accumulator_v2_enabled_config = Some(c);
+    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
+        self.state_accumulator_config = Some(c);
         self
     }
 
@@ -297,7 +290,7 @@ impl<R> ConfigBuilder<R> {
             firewall_config: self.firewall_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
+            state_accumulator_config: self.state_accumulator_config,
             empty_validator_genesis: self.empty_validator_genesis,
         }
     }
@@ -328,7 +321,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         let mut rng = self.rng.unwrap();
         let validators = match committee {
             CommitteeConfig::Size(size) => {
-                // We always get fixed protocol keys from this function (which is isolated from
+                // We always get fixed authority keys from this function (which is isolated from
                 // external test randomness because it uses a fixed seed). Necessary because
                 // some tests call `make_tx_certs_and_signed_effects`, which
                 // locally forges a cert using this same committee.
@@ -337,7 +330,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 keys.into_iter()
                     .map(|authority_key| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
-                            .with_protocol_key_pair(authority_key);
+                            .with_authority_key_pair(authority_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
                         }
@@ -349,13 +342,13 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             CommitteeConfig::Validators(v) => v,
 
             CommitteeConfig::AccountKeys(keys) => {
-                // See above re fixed protocol keys
-                let (_, protocol_keys) = Committee::new_simple_test_committee_of_size(keys.len());
+                // See above re fixed authority keys
+                let (_, authority_keys) = Committee::new_simple_test_committee_of_size(keys.len());
                 keys.into_iter()
-                    .zip(protocol_keys)
-                    .map(|(account_key, protocol_key)| {
+                    .zip(authority_keys)
+                    .map(|(account_key, authority_key)| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
-                            .with_protocol_key_pair(protocol_key)
+                            .with_authority_key_pair(authority_key)
                             .with_account_key_pair(account_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
@@ -422,7 +415,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder.build()
         };
 
-        let genesis = {
+        let GenesisBuildEffects {
+            genesis,
+            migration_tx_data,
+        } = {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
@@ -443,11 +439,20 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder = builder.with_token_distribution_schedule(token_distribution_schedule);
 
             for validator in &validators {
-                builder = builder.add_validator_signature(&validator.key_pair);
+                builder = builder.add_validator_signature(&validator.authority_key_pair);
             }
 
             builder.build()
         };
+
+        if let Some(migration_tx_data) = migration_tx_data {
+            migration_tx_data
+                .save(
+                    self.config_directory
+                        .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
+                )
+                .expect("Should be able to save the migration data");
+        }
 
         let validator_configs = validators
             .into_iter()
@@ -489,18 +494,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         }
                         ProtocolVersionsConfig::Global(v) => *v,
                         ProtocolVersionsConfig::PerValidator(func) => {
-                            func(idx, Some(validator.key_pair.public().into()))
+                            func(idx, Some(validator.authority_key_pair.public().into()))
                         }
                     };
                     builder = builder.with_supported_protocol_versions(supported_versions);
-                }
-                if let Some(acc_v2_config) = &self.state_accumulator_v2_enabled_config {
-                    let state_accumulator_v2_enabled: bool = match acc_v2_config {
-                        StateAccumulatorV2EnabledConfig::Global(enabled) => *enabled,
-                        StateAccumulatorV2EnabledConfig::PerValidator(func) => func(idx),
-                    };
-                    builder =
-                        builder.with_state_accumulator_v2_enabled(state_accumulator_v2_enabled);
                 }
                 if let Some(num_unpruned_validators) = self.num_unpruned_validators {
                     if idx < num_unpruned_validators {

@@ -3,13 +3,16 @@ title: Data Management
 description: A high-level description of data management on the IOTA network that you can use to optimize your IOTA Full node configuration. 
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/data-management.json';
+
 Managing the data on your IOTA Full node is critical to ensuring a healthy IOTA network. This topic provides a high-level description of data management on IOTA Full nodes that you can use to optimize your Full node configuration. For more information about IOTA Full nodes, such as pruning policies and archival settings, see [Run an IOTA Full Node](iota-full-node.mdx).
 
 ## Basic IOTA Full node functionality
 
 The minimal version of an IOTA Full node executes all of the transactions IOTA validators commit. IOTA Full nodes also orchestrate the submitting of new transactions to the system:
 
-![Basic IOTA Full node functionality](images/fn-basic-functionality.png "A diagram that shows the operations of a basic IOTA Full node.")
+![Basic IOTA Full node functionality](/img/operator/data-management/fn-basic-functionality.png "A diagram that shows the operations of a basic IOTA Full node.")
 
 The preceding image shows how data flows through a Full node:
 
@@ -176,3 +179,5 @@ authority-store-pruning-config:
   # Smooth pruning traffic throughout an epoch
   smooth: true
 ```
+
+<Quiz questions={questions} />

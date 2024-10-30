@@ -18,9 +18,6 @@ This package is a perfect fit for the following applications:
 
 ## Example of a Template Module
 
-The following code is a close-copy of the `Coin` example from the
-[Move by Example](https://examples.iota.io/samples/coin.html) book.
-
 ```move
 module 0x0::template {
     use std::option;

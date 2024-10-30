@@ -119,7 +119,7 @@ async fn make_clients(
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
-            AuthorityPublicKeyBytes::from_bytes(&validator.protocol_pubkey_bytes)?;
+            AuthorityPublicKeyBytes::from_bytes(&validator.authority_pubkey_bytes)?;
         authority_clients.insert(public_key_bytes, (net_addr.clone(), client));
     }
 
@@ -986,7 +986,6 @@ pub async fn download_formal_snapshot(
         perpetual_db.clone(),
         checkpoint_store,
         committee_store,
-        network,
         verify == SnapshotVerifyMode::Strict,
         num_live_objects,
         m,

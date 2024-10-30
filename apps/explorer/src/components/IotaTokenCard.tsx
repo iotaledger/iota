@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { Panel } from '@iota/apps-ui-kit';
 import { COIN_GECKO_IOTA_URL, useIotaCoinData } from '@iota/core';
-import { Text } from '@iota/ui';
-import { IotaLogoMark } from '@iota/ui-icons';
-
-import { ButtonOrLink, Card } from '~/components/ui';
+import { ButtonOrLink, ImageIconSize } from '~/components/ui';
+import { CoinIcon } from './owned-coins';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function IotaTokenCard(): JSX.Element {
     const { data } = useIotaCoinData();
@@ -21,21 +21,21 @@ export function IotaTokenCard(): JSX.Element {
 
     return (
         <ButtonOrLink href={COIN_GECKO_IOTA_URL}>
-            <Card growOnHover bg="white/80" spacing="lg" height="full">
-                <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 flex-shrink-0 rounded-full bg-iota p-1">
-                        <IotaLogoMark className="h-full w-full text-white" />
+            <Panel>
+                <div className="flex items-center gap-xs p-md--rs">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
+                        <CoinIcon coinType={IOTA_TYPE_ARG} size={ImageIconSize.Small} />
                     </div>
-                    <div className="flex w-full flex-col gap-0.5">
-                        <Text variant="body/semibold" color="steel-darker">
+                    <div className="flex w-full flex-col gap-xxxs">
+                        <span className="font-inter text-title-lg text-neutral-10 dark:text-neutral-92">
                             1 IOTA = {formattedPrice}
-                        </Text>
-                        <Text variant="subtitleSmallExtra/medium" color="steel">
+                        </span>
+                        <span className="font-inter text-label-lg text-neutral-60 dark:text-neutral-40">
                             via CoinGecko
-                        </Text>
+                        </span>
                     </div>
                 </div>
-            </Card>
+            </Panel>
         </ButtonOrLink>
     );
 }

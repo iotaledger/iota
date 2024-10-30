@@ -111,7 +111,7 @@ mod test {
                 ..Default::default()
             })
             .with_submit_delay_step_override_millis(3000)
-            .with_state_accumulator_v2_enabled_callback(Arc::new(|idx| idx % 2 == 0))
+            .with_state_accumulator_callback(Arc::new(|idx| idx % 2 == 0))
             .build()
             .await
             .into();
@@ -668,7 +668,8 @@ mod test {
     }
 
     async fn test_protocol_upgrade_compatibility_impl() {
-        let max_ver = ProtocolVersion::MAX.as_u64();
+        // TODO: Remove the `+ 1` after we have Protocol version 2
+        let max_ver = ProtocolVersion::MAX.as_u64() + 1;
         let manifest = iota_framework_snapshot::load_bytecode_snapshot_manifest();
 
         let Some((&starting_version, _)) = manifest.range(..max_ver).last() else {
@@ -677,7 +678,7 @@ mod test {
 
         let init_framework =
             iota_framework_snapshot::load_bytecode_snapshot(starting_version).unwrap();
-        let test_cluster = Arc::new(
+        let test_cluster: Arc<TestCluster> = Arc::new(
             init_test_cluster_builder(4, 15000)
                 .with_protocol_version(ProtocolVersion::new(starting_version))
                 .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
@@ -688,7 +689,6 @@ mod test {
                     SupportedProtocolVersions::new_for_testing(starting_version, max_ver),
                 )
                 .with_objects(init_framework.into_iter().map(|p| p.genesis_object()))
-                .with_stake_subsidy_start_epoch(10)
                 .build()
                 .await,
         );

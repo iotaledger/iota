@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::genesis {
-    use std::vector;
-    use iota::balance::{Self, Balance};
-    use iota::object::UID;
-    use iota::iota::IOTA;
-    use iota::tx_context::{Self, TxContext};
-    use std::option::Option;
+    use std::string::String;
+
+    use iota::balance;
+    use iota::iota::IotaTreasuryCap;
+    use iota::timelock::SystemTimelockCap;
 
     use iota_system::iota_system;
     use iota_system::validator;
@@ -24,16 +23,15 @@ module iota_system::genesis {
         gas_price: u64,
         commission_rate: u64,
 
-        protocol_public_key: vector<u8>,
+        authority_public_key: vector<u8>,
         proof_of_possession: vector<u8>,
 
         network_public_key: vector<u8>,
-        worker_public_key: vector<u8>,
+        protocol_public_key: vector<u8>,
 
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
     }
 
     public struct GenesisChainParameters has drop, copy {
@@ -56,15 +54,20 @@ module iota_system::genesis {
     public struct TokenAllocation has drop {
         recipient_address: address,
         amount_nanos: u64,
+
         staked_with_validator: Option<address>,
+        staked_with_timelock_expiration: Option<u64>,
     }
 
+    #[allow(unused_function)]
     fun create(
         iota_system_state_id: UID,
-        mut iota_supply: Balance<IOTA>,
+        mut iota_treasury_cap: IotaTreasuryCap,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         _token_distribution_schedule: TokenDistributionSchedule,
+        _timelock_genesis_label: Option<String>,
+        system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
         assert!(tx_context::epoch(ctx) == 0, 0);
@@ -81,26 +84,24 @@ module iota_system::genesis {
                 iota_address,
                 gas_price: _,
                 commission_rate: _,
-                protocol_public_key,
+                authority_public_key,
                 proof_of_possession: _,
                 network_public_key,
-                worker_public_key,
+                protocol_public_key,
                 network_address,
                 p2p_address,
                 primary_address,
-                worker_address,
             } = *vector::borrow(&genesis_validators, i);
 
             let validator = validator::new(
                 iota_address,
-                protocol_public_key,
+                authority_public_key,
                 network_public_key,
-                worker_public_key,
+                protocol_public_key,
                 network_address,
                 p2p_address,
                 primary_address,
-                worker_address,
-                balance::split(&mut iota_supply, 2500),
+                iota_treasury_cap.mint_balance(2500, ctx),
                 ctx
             );
 
@@ -111,11 +112,13 @@ module iota_system::genesis {
 
         iota_system::create(
             iota_system_state_id,
+            iota_treasury_cap,
             validators,
-            iota_supply, // storage_fund
+            balance::zero(),
             genesis_chain_parameters.protocol_version,
             genesis_chain_parameters.chain_start_timestamp_ms,
             genesis_chain_parameters.epoch_duration_ms,
+            system_timelock_cap,
             ctx,
         );
     }

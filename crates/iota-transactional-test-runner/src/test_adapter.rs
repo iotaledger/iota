@@ -37,11 +37,10 @@ use iota_storage::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID,
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
-    IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS,
-    STARDUST_PACKAGE_ID,
+    BRIDGE_ADDRESS, IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS,
+    IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
+    MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
     base_types::{
         IOTA_ADDRESS_LENGTH, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber,
     },
@@ -109,7 +108,6 @@ const DEFAULT_GAS_PRICE: u64 = 1_000;
 
 const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
     MOVE_STDLIB_PACKAGE_ID,
-    DEEPBOOK_PACKAGE_ID,
     IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_SYSTEM_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
@@ -258,9 +256,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     accounts,
                     protocol_version,
                     max_gas,
-                    shared_object_deletion,
-                    resolve_abort_locations_to_package_id,
-                    reshare_at_same_initial_version,
                     move_binary_format_version,
                     simulator,
                     custom_validator_account,
@@ -281,15 +276,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                 } else {
                     ProtocolConfig::get_for_max_version_UNSAFE()
                 };
-                if let Some(enable) = shared_object_deletion {
-                    protocol_config.set_shared_object_deletion_for_testing(enable);
-                }
-                if let Some(enable) = resolve_abort_locations_to_package_id {
-                    protocol_config.set_resolve_abort_locations_to_package_id_for_testing(enable);
-                }
-                if let Some(enable) = reshare_at_same_initial_version {
-                    protocol_config.set_reshare_at_same_initial_version_for_testing(enable);
-                }
                 if let Some(version) = move_binary_format_version {
                     protocol_config.set_move_binary_format_version_for_testing(version);
                 }
@@ -654,12 +640,9 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                 let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
                 Ok(Some(format!("Checkpoint created: {}", latest_chk)))
             }
-            IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand {
-                count,
-                create_random_state,
-            }) => {
+            IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand { count }) => {
                 for _ in 0..count.unwrap_or(1) {
-                    self.executor.advance_epoch(create_random_state).await?;
+                    self.executor.advance_epoch().await?;
                 }
                 let epoch = self.get_latest_epoch_id()?;
                 Ok(Some(format!("Epoch advanced: {epoch}")))
@@ -753,7 +736,7 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
             IotaSubcommand::ConsensusCommitPrologue(ConsensusCommitPrologueCommand {
                 timestamp_ms,
             }) => {
-                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
+                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
                     0,
                     0,
                     timestamp_ms,
@@ -1003,8 +986,6 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                 let digest = MovePackage::compute_digest_for_modules_and_deps(
                     module_bytes.iter(),
                     &dependencies,
-                    // hash_modules
-                    true,
                 )
                 .to_vec();
                 let staged = StagedPackage {
@@ -1256,16 +1237,7 @@ impl<'a> IotaTestAdapter {
 
                 variables.insert(format!("cursor_{idx}"), base64d);
             } else {
-                use base64::Engine;
-
-                // To comply with how `iota-graphql-rpc` decodes the json cursor
-                // (see `iota_graphql_rpc::types::cursor::JsonCursor`).
-                //
-                // This traces back to `async_graphql = 7.0.7` that uses no padding for
-                // encoding/decoding.
-                let base64d = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(s);
-
-                variables.insert(format!("cursor_{idx}"), base64d);
+                variables.insert(format!("cursor_{idx}"), Base64::encode(s));
             }
         }
 
@@ -1337,13 +1309,8 @@ impl<'a> IotaTestAdapter {
         // Argument::Input(0)
         IotaValue::Object(upgrade_capability, None).into_argument(&mut builder, self)?;
         let upgrade_arg = builder.pure(policy).unwrap();
-        let digest: Vec<u8> = MovePackage::compute_digest_for_modules_and_deps(
-            &modules_bytes,
-            &dependencies,
-            // hash_modules
-            true,
-        )
-        .into();
+        let digest: Vec<u8> =
+            MovePackage::compute_digest_for_modules_and_deps(&modules_bytes, &dependencies).into();
         let digest_arg = builder.pure(digest).unwrap();
 
         let upgrade_ticket = builder.programmable_move_call(
@@ -1930,13 +1897,6 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
         ),
     );
     map.insert(
-        "deepbook".to_string(),
-        NumericalAddress::new(
-            DEEPBOOK_ADDRESS.into_bytes(),
-            move_compiler::shared::NumberFormat::Hex,
-        ),
-    );
-    map.insert(
         "stardust".to_string(),
         NumericalAddress::new(
             STARDUST_ADDRESS.into_bytes(),
@@ -1973,11 +1933,6 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
         buf.extend(["packages", "move-stdlib", "sources"]);
         buf.to_string_lossy().to_string()
     };
-    let deepbook_sources = {
-        let mut buf = iota_files.to_path_buf();
-        buf.extend(["packages", "deepbook", "sources"]);
-        buf.to_string_lossy().to_string()
-    };
     let config = PackageConfig {
         edition: Edition::E2024_BETA,
         flavor: Flavor::Iota,
@@ -1991,13 +1946,7 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: Some(("iota-framework".into(), config)),
-            paths: vec![
-                iota_system_sources,
-                iota_sources,
-                iota_deps,
-                deepbook_sources,
-                bridge_sources,
-            ],
+            paths: vec![iota_system_sources, iota_sources, iota_deps, bridge_sources],
             named_address_map: NAMED_ADDRESSES.clone(),
         }],
         None,

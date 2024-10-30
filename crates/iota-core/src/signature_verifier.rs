@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use either::Either;
 use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId, OIDCProvider},
+    zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
 };
 use futures::pin_mut;
@@ -117,14 +117,9 @@ pub struct SignatureVerifier {
 /// Contains two parameters to pass in to verify a ZkLogin signature.
 #[derive(Clone)]
 struct ZkLoginParams {
-    /// A list of supported OAuth providers for ZkLogin.
-    pub supported_providers: Vec<OIDCProvider>,
     /// The environment (prod/test) the code runs in. It decides which verifying
     /// key to use in fastcrypto.
     pub env: ZkLoginEnv,
-    /// Flag to determine whether legacy address (derived from padded address
-    /// seed) should be verified.
-    pub verify_legacy_zklogin_address: bool,
     // Flag to determine whether zkLogin inside multisig is accepted.
     pub accept_zklogin_in_multisig: bool,
     /// Value that sets the upper bound for max_epoch in zkLogin signature.
@@ -136,9 +131,7 @@ impl SignatureVerifier {
         committee: Arc<Committee>,
         batch_size: usize,
         metrics: Arc<SignatureVerifierMetrics>,
-        supported_providers: Vec<OIDCProvider>,
         env: ZkLoginEnv,
-        verify_legacy_zklogin_address: bool,
         accept_zklogin_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
     ) -> Self {
@@ -163,9 +156,7 @@ impl SignatureVerifier {
             queue: Mutex::new(CertBuffer::new(batch_size)),
             metrics,
             zk_login_params: ZkLoginParams {
-                supported_providers,
                 env,
-                verify_legacy_zklogin_address,
                 accept_zklogin_in_multisig,
                 zklogin_max_epoch_upper_bound_delta,
             },
@@ -175,9 +166,7 @@ impl SignatureVerifier {
     pub fn new(
         committee: Arc<Committee>,
         metrics: Arc<SignatureVerifierMetrics>,
-        supported_providers: Vec<OIDCProvider>,
         zklogin_env: ZkLoginEnv,
-        verify_legacy_zklogin_address: bool,
         accept_zklogin_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
     ) -> Self {
@@ -185,9 +174,7 @@ impl SignatureVerifier {
             committee,
             MAX_BATCH_SIZE,
             metrics,
-            supported_providers,
             zklogin_env,
-            verify_legacy_zklogin_address,
             accept_zklogin_in_multisig,
             zklogin_max_epoch_upper_bound_delta,
         )
@@ -389,9 +376,7 @@ impl SignatureVerifier {
                 let jwks = self.jwks.read().clone();
                 let verify_params = VerifyParams::new(
                     jwks,
-                    self.zk_login_params.supported_providers.clone(),
                     self.zk_login_params.env,
-                    self.zk_login_params.verify_legacy_zklogin_address,
                     self.zk_login_params.accept_zklogin_in_multisig,
                     self.zk_login_params.zklogin_max_epoch_upper_bound_delta,
                 );

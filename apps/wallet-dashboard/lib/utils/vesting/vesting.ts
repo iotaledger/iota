@@ -145,7 +145,7 @@ export function getVestingOverview(
 
     const userType = getSupplyIncreaseVestingUserType([latestPayout]);
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
-    // note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
+    // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
     const totalVestedAmount = (vestingPayoutsCount * latestPayout.amount) / 0.9;
     const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
         latestPayout,
@@ -175,7 +175,8 @@ export function getVestingOverview(
     );
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > currentEpochTimestamp
+            current.expirationTimestampMs > currentEpochTimestamp &&
+            current.locked.value > MIN_STAKING_THRESHOLD
                 ? acc + current.locked.value
                 : acc,
         0,

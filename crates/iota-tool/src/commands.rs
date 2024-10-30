@@ -215,7 +215,7 @@ pub enum ToolCommand {
 
         #[arg(
             long = "concise",
-            help = "show concise output - name, protocol key and network address"
+            help = "show concise output - name, authority key and network address"
         )]
         concise: bool,
     },
@@ -316,9 +316,7 @@ pub enum ToolCommand {
         verbose: bool,
     },
 
-    // Restore from formal (slim, DB agnostic) snapshot. Note that this is only supported
-    /// for protocol versions supporting `commit_root_state_digest`. For
-    /// mainnet, this is epoch 20+, and for testnet this is epoch 12+
+    // Restore from formal (slim, DB agnostic) snapshot.
     #[clap(
         name = "download-formal-snapshot",
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
@@ -641,6 +639,7 @@ impl ToolCommand {
                         .handle_checkpoint(CheckpointRequest {
                             sequence_number,
                             request_content: true,
+                            certified: true,
                         })
                         .await
                         .unwrap();

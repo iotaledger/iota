@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/iota-sdk/client';
-import { Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
-import { Banner } from '~/components/ui';
 import { getFieldTypeValue } from '~/lib/ui';
 import { FieldItem } from './FieldItem';
 import { ScrollToViewCard } from './ScrollToViewCard';
@@ -20,8 +18,13 @@ import {
     Panel,
     TitleSize,
     LoadingIndicator,
+    Search,
+    ListItem,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { Search } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 const DEFAULT_OPEN_FIELDS = 3;
 const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
@@ -90,9 +93,13 @@ export function ObjectFieldsCard({
     }
     if (error) {
         return (
-            <Banner variant="error" spacing="lg" fullWidth>
-                Failed to get field data for {id}
-            </Banner>
+            <InfoBox
+                title="Error loading data"
+                supportingText={`Failed to get field data for ${id}`}
+                icon={<Warning />}
+                type={InfoBoxType.Error}
+                style={InfoBoxStyle.Elevated}
+            />
         );
     }
 
@@ -126,30 +133,36 @@ export function ObjectFieldsCard({
                     <Panel hasBorder>
                         <div className="flex flex-col gap-md p-xs">
                             {renderSearchBar && (
-                                <Combobox value={query} onValueChange={setQuery}>
-                                    <div className="flex w-full justify-between rounded-lg border border-white/50 bg-white py-1 pl-3 shadow-dropdownContent">
-                                        <ComboboxInput
-                                            placeholder="Search"
-                                            className="w-full border-none focus:outline-0"
-                                        />
-                                        <button
-                                            className="border-none bg-inherit pr-2"
-                                            type="submit"
-                                        >
-                                            <Search className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
-                                        </button>
-                                    </div>
-                                    <ComboboxList
-                                        showResultsCount
-                                        options={filteredFieldNames.map((item) => ({
-                                            value: item.name,
-                                            label: item.name,
-                                        }))}
-                                        onSelect={({ value }) => {
-                                            setActiveFieldName(value);
-                                        }}
-                                    />
-                                </Combobox>
+                                <Search
+                                    searchValue={query}
+                                    onSearchValueChange={setQuery}
+                                    placeholder="Search"
+                                    suggestions={
+                                        query.length > 0
+                                            ? filteredFieldNames.map((item) => ({
+                                                  id: item.name,
+                                                  type: item.name,
+                                                  label: item.name,
+                                              }))
+                                            : []
+                                    }
+                                    onSuggestionClick={(suggestion) => {
+                                        setActiveFieldName(suggestion.id);
+                                    }}
+                                    isLoading={false}
+                                    renderSuggestion={(suggestion) => (
+                                        <div className="flex cursor-pointer justify-between bg-neutral-98">
+                                            <ListItem hideBottomBorder>
+                                                <div className="overflow-hidden text-ellipsis">
+                                                    {suggestion.label}
+                                                </div>
+                                                <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
+                                                    {suggestion.type}
+                                                </div>
+                                            </ListItem>
+                                        </div>
+                                    )}
+                                />
                             )}
                             <div
                                 className={clsx(
@@ -157,7 +170,7 @@ export function ObjectFieldsCard({
                                     renderSearchBar && 'mt-4',
                                 )}
                             >
-                                {normalizedStructData?.fields?.map(({ name, type }) => (
+                                {filteredFieldNames?.map(({ name, type }) => (
                                     <ButtonUnstyled
                                         key={name}
                                         className="rounded-lg p-xs hover:bg-primary-80/20"

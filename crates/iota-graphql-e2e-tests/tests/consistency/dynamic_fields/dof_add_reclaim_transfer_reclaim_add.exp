@@ -3,13 +3,13 @@ processed 10 tasks
 init:
 A: object(0,0)
 
-task 1, lines 18-57:
+task 1, lines 19-58:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 7600000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 59-62:
+task 2, lines 60-63:
 //# programmable --sender A --inputs @A
 //> 0: Test::M1::child(Input(0));
 //> 1: Test::M1::parent(Input(0));
@@ -18,41 +18,41 @@ created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 4924800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 64:
+task 3, line 65:
 //# run Test::M1::add_child --sender A --args object(2,1) object(2,0) 42
 created: object(3,0)
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 4, line 66:
+task 4, line 67:
 //# run Test::M1::reclaim_and_transfer_child --sender A --args object(2,1) 42 @A
 mutated: object(0,0), object(2,0), object(2,1)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6004152, non_refundable_storage_fee: 60648
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
-task 5, line 68:
+task 5, line 69:
 //# run Test::M1::add_child --sender A --args object(2,2) object(2,0) 42
 created: object(5,0)
 mutated: object(0,0), object(2,0), object(2,2)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 6, line 70:
+task 6, line 71:
 //# run Test::M1::reclaim_and_transfer_child --sender A --args object(2,2) 42 @A
 mutated: object(0,0), object(2,0), object(2,2)
 deleted: object(5,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6004152, non_refundable_storage_fee: 60648
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
-task 7, line 72:
+task 7, line 73:
 //# run Test::M1::add_child --sender A --args object(2,1) object(2,0) 42
 created: object(3,0)
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
-task 8, line 74:
+task 8, line 75:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 9, lines 76-156:
+task 9, lines 77-157:
 //# run-graphql
 Response: {
   "data": {
@@ -61,7 +61,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "ICfYK9hpoZz2TvVoLEtiMG3hhlC9hZZKkiU4pl4iMT4YAQAAAAAAAAA=",
+            "cursor": "IEpDqte8MMXm9D9sJX7qPeGTan9IQM30pQBRTbguUkS8AQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -69,7 +69,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x082e460818873777f5d3bd1f9b4fefb932d010d508d4d17316b94b4efdd78151",
+                    "id": "0x750bdfe96c8b93ebf267e6967b1cd9fbb2670234a4502ce6b340b25e331d5fd2",
                     "count": "0"
                   }
                 }
@@ -85,7 +85,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x082e460818873777f5d3bd1f9b4fefb932d010d508d4d17316b94b4efdd78151",
+              "id": "0x750bdfe96c8b93ebf267e6967b1cd9fbb2670234a4502ce6b340b25e331d5fd2",
               "count": "0"
             }
           }
@@ -96,7 +96,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "ICfYK9hpoZz2TvVoLEtiMG3hhlC9hZZKkiU4pl4iMT4YAQAAAAAAAAA=",
+            "cursor": "IEpDqte8MMXm9D9sJX7qPeGTan9IQM30pQBRTbguUkS8AQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -104,7 +104,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x082e460818873777f5d3bd1f9b4fefb932d010d508d4d17316b94b4efdd78151",
+                    "id": "0x750bdfe96c8b93ebf267e6967b1cd9fbb2670234a4502ce6b340b25e331d5fd2",
                     "count": "0"
                   }
                 }
@@ -120,7 +120,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x082e460818873777f5d3bd1f9b4fefb932d010d508d4d17316b94b4efdd78151",
+              "id": "0x750bdfe96c8b93ebf267e6967b1cd9fbb2670234a4502ce6b340b25e331d5fd2",
               "count": "0"
             }
           }
@@ -139,7 +139,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "ICfYK9hpoZz2TvVoLEtiMG3hhlC9hZZKkiU4pl4iMT4YAQAAAAAAAAA=",
+            "cursor": "IEpDqte8MMXm9D9sJX7qPeGTan9IQM30pQBRTbguUkS8AQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -147,7 +147,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x082e460818873777f5d3bd1f9b4fefb932d010d508d4d17316b94b4efdd78151",
+                    "id": "0x750bdfe96c8b93ebf267e6967b1cd9fbb2670234a4502ce6b340b25e331d5fd2",
                     "count": "0"
                   }
                 }
@@ -163,7 +163,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x082e460818873777f5d3bd1f9b4fefb932d010d508d4d17316b94b4efdd78151",
+              "id": "0x750bdfe96c8b93ebf267e6967b1cd9fbb2670234a4502ce6b340b25e331d5fd2",
               "count": "0"
             }
           }
@@ -182,7 +182,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "ICfYK9hpoZz2TvVoLEtiMG3hhlC9hZZKkiU4pl4iMT4YAQAAAAAAAAA=",
+            "cursor": "IEpDqte8MMXm9D9sJX7qPeGTan9IQM30pQBRTbguUkS8AQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -190,7 +190,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x082e460818873777f5d3bd1f9b4fefb932d010d508d4d17316b94b4efdd78151",
+                    "id": "0x750bdfe96c8b93ebf267e6967b1cd9fbb2670234a4502ce6b340b25e331d5fd2",
                     "count": "0"
                   }
                 }
@@ -206,7 +206,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x082e460818873777f5d3bd1f9b4fefb932d010d508d4d17316b94b4efdd78151",
+              "id": "0x750bdfe96c8b93ebf267e6967b1cd9fbb2670234a4502ce6b340b25e331d5fd2",
               "count": "0"
             }
           }

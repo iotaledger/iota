@@ -31,7 +31,7 @@ AuthenticatorStateExpire:
     - min_epoch: U64
     - authenticator_obj_initial_shared_version:
         TYPENAME: SequenceNumber
-AuthenticatorStateUpdate:
+AuthenticatorStateUpdateV1:
   STRUCT:
     - epoch: U64
     - round: U64
@@ -232,19 +232,7 @@ CongestedObjects:
 ConsensusCommitDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
-ConsensusCommitPrologue:
-  STRUCT:
-    - epoch: U64
-    - round: U64
-    - commit_timestamp_ms: U64
-ConsensusCommitPrologueV2:
-  STRUCT:
-    - epoch: U64
-    - round: U64
-    - commit_timestamp_ms: U64
-    - consensus_commit_digest:
-        TYPENAME: ConsensusCommitDigest
-ConsensusCommitPrologueV3:
+ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
     - round: U64
@@ -330,14 +318,10 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire
     3:
-      RandomnessStateCreate: UNIT
-    4:
-      DenyListStateCreate: UNIT
-    5:
       BridgeStateCreate:
         NEWTYPE:
           TYPENAME: ChainIdentifier
-    6:
+    4:
       BridgeCommitteeInit:
         NEWTYPE:
           TYPENAME: SequenceNumber
@@ -884,89 +868,10 @@ TransactionEffects:
       V1:
         NEWTYPE:
           TYPENAME: TransactionEffectsV1
-    1:
-      V2:
-        NEWTYPE:
-          TYPENAME: TransactionEffectsV2
 TransactionEffectsDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
 TransactionEffectsV1:
-  STRUCT:
-    - status:
-        TYPENAME: ExecutionStatus
-    - executed_epoch: U64
-    - gas_used:
-        TYPENAME: GasCostSummary
-    - modified_at_versions:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-    - shared_objects:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-    - transaction_digest:
-        TYPENAME: TransactionDigest
-    - created:
-        SEQ:
-          TUPLE:
-            - TUPLE:
-                - TYPENAME: ObjectID
-                - TYPENAME: SequenceNumber
-                - TYPENAME: ObjectDigest
-            - TYPENAME: Owner
-    - mutated:
-        SEQ:
-          TUPLE:
-            - TUPLE:
-                - TYPENAME: ObjectID
-                - TYPENAME: SequenceNumber
-                - TYPENAME: ObjectDigest
-            - TYPENAME: Owner
-    - unwrapped:
-        SEQ:
-          TUPLE:
-            - TUPLE:
-                - TYPENAME: ObjectID
-                - TYPENAME: SequenceNumber
-                - TYPENAME: ObjectDigest
-            - TYPENAME: Owner
-    - deleted:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-    - unwrapped_then_deleted:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-    - wrapped:
-        SEQ:
-          TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-    - gas_object:
-        TUPLE:
-          - TUPLE:
-              - TYPENAME: ObjectID
-              - TYPENAME: SequenceNumber
-              - TYPENAME: ObjectDigest
-          - TYPENAME: Owner
-    - events_digest:
-        OPTION:
-          TYPENAME: TransactionEventsDigest
-    - dependencies:
-        SEQ:
-          TYPENAME: TransactionDigest
-TransactionEffectsV2:
   STRUCT:
     - status:
         TYPENAME: ExecutionStatus
@@ -1015,38 +920,26 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: ProgrammableTransaction
     1:
-      ChangeEpoch:
-        NEWTYPE:
-          TYPENAME: ChangeEpoch
-    2:
       Genesis:
         NEWTYPE:
           TYPENAME: GenesisTransaction
+    2:
+      ConsensusCommitPrologueV1:
+        NEWTYPE:
+          TYPENAME: ConsensusCommitPrologueV1
     3:
-      ConsensusCommitPrologue:
+      AuthenticatorStateUpdateV1:
         NEWTYPE:
-          TYPENAME: ConsensusCommitPrologue
+          TYPENAME: AuthenticatorStateUpdateV1
     4:
-      AuthenticatorStateUpdate:
-        NEWTYPE:
-          TYPENAME: AuthenticatorStateUpdate
-    5:
       EndOfEpochTransaction:
         NEWTYPE:
           SEQ:
             TYPENAME: EndOfEpochTransactionKind
-    6:
+    5:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
-    7:
-      ConsensusCommitPrologueV2:
-        NEWTYPE:
-          TYPENAME: ConsensusCommitPrologueV2
-    8:
-      ConsensusCommitPrologueV3:
-        NEWTYPE:
-          TYPENAME: ConsensusCommitPrologueV3
 TypeArgumentError:
   ENUM:
     0:
@@ -1090,10 +983,10 @@ TypeTag:
 TypedStoreError:
   ENUM:
     0:
-      RocksDBError:
+      RocksDB:
         NEWTYPE: STR
     1:
-      SerializationError:
+      Serialization:
         NEWTYPE: STR
     2:
       UnregisteredColumn:
@@ -1103,7 +996,7 @@ TypedStoreError:
     4:
       MetricsReporting: UNIT
     5:
-      RetryableTransactionError: UNIT
+      RetryableTransaction: UNIT
 UnchangedSharedKind:
   ENUM:
     0:

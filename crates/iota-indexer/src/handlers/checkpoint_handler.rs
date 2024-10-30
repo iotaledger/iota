@@ -18,7 +18,7 @@ use iota_types::{
     base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::TransactionEffectsAPI,
-    event::SystemEpochInfoEvent,
+    event::SystemEpochInfoEventV1,
     iota_system_state::{
         IotaSystemStateTrait, get_iota_system_state,
         iota_system_state_summary::IotaSystemStateSummary,
@@ -234,12 +234,12 @@ where
             .find(|ev| ev.is_system_epoch_info_event())
             .unwrap_or_else(|| {
                 panic!(
-                    "Can't find SystemEpochInfoEvent in epoch end checkpoint {}",
+                    "Can't find SystemEpochInfoEventV1 in epoch end checkpoint {}",
                     checkpoint_summary.sequence_number()
                 )
             });
 
-        let event = bcs::from_bytes::<SystemEpochInfoEvent>(&epoch_event.contents)?;
+        let event = bcs::from_bytes::<SystemEpochInfoEventV1>(&epoch_event.contents)?;
 
         // Now we just entered epoch X, we want to calculate the diff between
         // TotalTransactionsByEndOfEpoch(X-1) and TotalTransactionsByEndOfEpoch(X-2).
@@ -373,7 +373,7 @@ where
             .map(|(seq, execution_digest)| (execution_digest.transaction, seq));
 
         if checkpoint_contents.size() != transactions.len() {
-            return Err(IndexerError::FullNodeReadingError(format!(
+            return Err(IndexerError::FullNodeReading(format!(
                 "CheckpointContents has different size {} compared to Transactions {} for checkpoint {}",
                 checkpoint_contents.size(),
                 transactions.len(),
@@ -398,7 +398,7 @@ where
             // Unwrap safe - we checked they have equal length above
             let (tx_digest, tx_sequence_number) = tx_seq_num_iter.next().unwrap();
             if tx_digest != *sender_signed_data.digest() {
-                return Err(IndexerError::FullNodeReadingError(format!(
+                return Err(IndexerError::FullNodeReading(format!(
                     "Transactions has different ordering from CheckpointContents, for checkpoint {}, Mismatch found at {} v.s. {}",
                     checkpoint_seq,
                     tx_digest,
@@ -692,7 +692,7 @@ where
         if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore<T>>() {
             return Ok(pg_state.blocking_cp());
         }
-        Err(IndexerError::UncategorizedError(anyhow::anyhow!(
+        Err(IndexerError::Uncategorized(anyhow::anyhow!(
             "Failed to downcast state to PgIndexerStore"
         )))
     }
@@ -726,14 +726,14 @@ async fn get_move_struct_layout_map(
                     .type_layout(TypeTag::Struct(Box::new(struct_tag.clone())))
                     .await
                     .map_err(|e| {
-                        IndexerError::DynamicFieldError(format!(
+                        IndexerError::DynamicField(format!(
                             "Fail to resolve struct layout for {:?} with {:?}.",
                             struct_tag, e
                         ))
                     })?;
                 let move_struct_layout = match move_type_layout {
                     MoveTypeLayout::Struct(s) => Ok(s),
-                    _ => Err(IndexerError::ResolveMoveStructError(
+                    _ => Err(IndexerError::ResolveMoveStruct(
                         "MoveTypeLayout is not Struct".to_string(),
                     )),
                 }?;
@@ -773,7 +773,7 @@ fn try_create_dynamic_field_info(
         .get(&struct_tag)
         .cloned()
         .ok_or_else(|| {
-            IndexerError::DynamicFieldError(format!(
+            IndexerError::DynamicField(format!(
                 "Cannot find struct layout in mapfor {:?}.",
                 struct_tag
             ))
@@ -783,7 +783,7 @@ fn try_create_dynamic_field_info(
         DynamicFieldInfo::parse_move_object(&move_struct).tap_err(|e| warn!("{e}"))?;
     let name_type = move_object.type_().try_extract_field_name(&type_)?;
     let bcs_name = bcs::to_bytes(&name_value.clone().undecorate()).map_err(|e| {
-        IndexerError::SerdeError(format!(
+        IndexerError::Serde(format!(
             "Failed to serialize dynamic field name {:?}: {e}",
             name_value
         ))
@@ -796,7 +796,7 @@ fn try_create_dynamic_field_info(
         DynamicFieldType::DynamicObject => {
             let object = latest_objects
                 .get(&object_id)
-                .ok_or(IndexerError::UncategorizedError(anyhow::anyhow!(
+                .ok_or(IndexerError::Uncategorized(anyhow::anyhow!(
                     "Failed to find object_id {:?} when trying to create dynamic field info",
                     object_id
                 )))?;

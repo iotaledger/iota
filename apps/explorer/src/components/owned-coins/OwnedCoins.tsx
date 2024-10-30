@@ -25,6 +25,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { Pagination } from '../ui';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 
 export type CoinBalanceVerified = CoinBalance & {
     isRecognized?: boolean;
@@ -95,24 +96,29 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
         };
     }, [data, recognizedPackages]);
 
+    function handleFilterClick(filterValue: CoinFilter) {
+        setFilterValue(filterValue);
+        setCurrentSlice(1);
+    }
+
     const filterOptions: FilterOption[] = useMemo(
         () => [
             {
                 label: 'All',
                 counter: balances.allBalances.length,
-                onClick: () => setFilterValue(CoinFilter.All),
+                onClick: () => handleFilterClick(CoinFilter.All),
             },
             {
                 label: `Recognized`,
                 counter: balances.recognizedBalances.length,
                 isDisabled: !balances.recognizedBalances.length,
-                onClick: () => setFilterValue(CoinFilter.Recognized),
+                onClick: () => handleFilterClick(CoinFilter.Recognized),
             },
             {
                 label: `Unrecognized`,
                 counter: balances.unrecognizedBalances.length,
                 isDisabled: !balances.unrecognizedBalances.length,
-                onClick: () => setFilterValue(CoinFilter.Unrecognized),
+                onClick: () => handleFilterClick(CoinFilter.Unrecognized),
             },
         ],
         [balances],
@@ -125,7 +131,15 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
 
     if (isError) {
         return (
-            <div className="pt-2 font-sans font-semibold text-issue-dark">Failed to load Coins</div>
+            <div className="p-sm--rs">
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Coins"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
+            </div>
         );
     }
 
@@ -184,11 +198,10 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         <Select
                                             dropdownPosition={DropdownPosition.Top}
                                             value={limit.toString()}
-                                            options={[
-                                                { label: '20 / page', id: '20' },
-                                                { label: '40 / page', id: '40' },
-                                                { label: '60 / page', id: '60' },
-                                            ]}
+                                            options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                                label: `${size} / page`,
+                                                id: size.toString(),
+                                            }))}
                                             onValueChange={(value) => {
                                                 setLimit(Number(value));
                                                 setCurrentSlice(1);

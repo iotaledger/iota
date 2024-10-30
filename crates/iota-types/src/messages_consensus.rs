@@ -31,31 +31,6 @@ use crate::{
     transaction::CertifiedTransaction,
 };
 
-/// Only commit_timestamp_ms is passed to the move call currently.
-/// However we include epoch and round to make sure each ConsensusCommitPrologue
-/// has a unique tx digest.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologue {
-    /// Epoch of the commit prologue transaction
-    pub epoch: u64,
-    /// Consensus round of the commit
-    pub round: u64,
-    /// Unix timestamp from consensus
-    pub commit_timestamp_ms: CheckpointTimestamp,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologueV2 {
-    /// Epoch of the commit prologue transaction
-    pub epoch: u64,
-    /// Consensus round of the commit
-    pub round: u64,
-    /// Unix timestamp from consensus
-    pub commit_timestamp_ms: CheckpointTimestamp,
-    /// Digest of consensus output
-    pub consensus_commit_digest: ConsensusCommitDigest,
-}
-
 /// Uses an enum to allow for future expansion of the
 /// ConsensusDeterminedVersionAssignments.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
@@ -65,7 +40,7 @@ pub enum ConsensusDeterminedVersionAssignments {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologueV3 {
+pub struct ConsensusCommitPrologueV1 {
     /// Epoch of the commit prologue transaction
     pub epoch: u64,
     /// Consensus round of the commit
@@ -151,7 +126,8 @@ impl Debug for ConsensusTransactionKey {
 /// validators to negotiate the creation of the ChangeEpoch transaction.
 #[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct AuthorityCapabilitiesV1 {
-    /// Originating authority - must match consensus transaction source.
+    /// Originating authority - must match transaction source authority from
+    /// consensus.
     pub authority: AuthorityName,
     /// Generation number set by sending authority. Used to determine which of
     /// multiple AuthorityCapabilities messages from the same authority is
@@ -161,8 +137,9 @@ pub struct AuthorityCapabilitiesV1 {
     /// the epoch, but this should not be interpreted as a timestamp.)
     pub generation: u64,
 
-    /// ProtocolVersions that the authority supports.
-    pub supported_protocol_versions: SupportedProtocolVersions,
+    /// ProtocolVersions that the authority supports, including the hash of the
+    /// serialized ProtocolConfig of that authority per version.
+    pub supported_protocol_versions: SupportedProtocolVersionsWithHashes,
 
     /// The ObjectRefs of all versions of system packages that the validator
     /// possesses. Used to determine whether to do a framework/movestdlib
@@ -185,65 +162,6 @@ impl Debug for AuthorityCapabilitiesV1 {
 }
 
 impl AuthorityCapabilitiesV1 {
-    pub fn new(
-        authority: AuthorityName,
-        supported_protocol_versions: SupportedProtocolVersions,
-        available_system_packages: Vec<ObjectRef>,
-    ) -> Self {
-        let generation = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Iota did not exist prior to 1970")
-            .as_millis()
-            .try_into()
-            .expect("This build of iota is not supported in the year 500,000,000");
-        Self {
-            authority,
-            generation,
-            supported_protocol_versions,
-            available_system_packages,
-        }
-    }
-}
-
-/// Used to advertise capabilities of each authority via consensus. This allows
-/// validators to negotiate the creation of the ChangeEpoch transaction.
-#[derive(Serialize, Deserialize, Clone, Hash)]
-pub struct AuthorityCapabilitiesV2 {
-    /// Originating authority - must match transaction source authority from
-    /// consensus.
-    pub authority: AuthorityName,
-    /// Generation number set by sending authority. Used to determine which of
-    /// multiple AuthorityCapabilities messages from the same authority is
-    /// the most recent.
-    ///
-    /// (Currently, we just set this to the current time in milliseconds since
-    /// the epoch, but this should not be interpreted as a timestamp.)
-    pub generation: u64,
-
-    /// ProtocolVersions that the authority supports.
-    pub supported_protocol_versions: SupportedProtocolVersionsWithHashes,
-
-    /// The ObjectRefs of all versions of system packages that the validator
-    /// possesses. Used to determine whether to do a framework/movestdlib
-    /// upgrade.
-    pub available_system_packages: Vec<ObjectRef>,
-}
-
-impl Debug for AuthorityCapabilitiesV2 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AuthorityCapabilities")
-            .field("authority", &self.authority.concise())
-            .field("generation", &self.generation)
-            .field(
-                "supported_protocol_versions",
-                &self.supported_protocol_versions,
-            )
-            .field("available_system_packages", &self.available_system_packages)
-            .finish()
-    }
-}
-
-impl AuthorityCapabilitiesV2 {
     pub fn new(
         authority: AuthorityName,
         chain: Chain,
@@ -275,7 +193,7 @@ pub enum ConsensusTransactionKind {
     CheckpointSignature(Box<CheckpointSignatureMessage>),
     EndOfPublish(AuthorityName),
 
-    CapabilityNotification(AuthorityCapabilitiesV1),
+    CapabilityNotificationV1(AuthorityCapabilitiesV1),
 
     NewJWKFetched(AuthorityName, JwkId, JWK),
     RandomnessStateUpdate(u64, Vec<u8>), // deprecated
@@ -287,8 +205,6 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
-
-    CapabilityNotificationV2(AuthorityCapabilitiesV2),
 }
 
 impl ConsensusTransactionKind {
@@ -304,20 +220,17 @@ impl ConsensusTransactionKind {
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum VersionedDkgMessage {
-    V0(), // deprecated
     V1(dkg_v1::Message<bls12381::G2Element, bls12381::G2Element>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionedDkgConfirmation {
-    V0(), // deprecated
     V1(dkg::Confirmation<bls12381::G2Element>),
 }
 
 impl Debug for VersionedDkgMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            VersionedDkgMessage::V0() => write!(f, "Deprecated VersionedDkgMessage version 0"),
             VersionedDkgMessage::V1(msg) => write!(
                 f,
                 "DKG V1 Message with sender={}, vss_pk.degree={}, encrypted_shares.len()={}",
@@ -332,7 +245,6 @@ impl Debug for VersionedDkgMessage {
 impl VersionedDkgMessage {
     pub fn sender(&self) -> u16 {
         match self {
-            VersionedDkgMessage::V0() => panic!("BUG: invalid VersionedDkgMessage version"),
             VersionedDkgMessage::V1(msg) => msg.sender,
         }
     }
@@ -349,7 +261,6 @@ impl VersionedDkgMessage {
     pub fn unwrap_v1(self) -> dkg_v1::Message<bls12381::G2Element, bls12381::G2Element> {
         match self {
             VersionedDkgMessage::V1(msg) => msg,
-            _ => panic!("BUG: expected V1 message"),
         }
     }
 
@@ -361,18 +272,12 @@ impl VersionedDkgMessage {
 impl VersionedDkgConfirmation {
     pub fn sender(&self) -> u16 {
         match self {
-            VersionedDkgConfirmation::V0() => {
-                panic!("BUG: invalid VersionedDkgConfimation version")
-            }
             VersionedDkgConfirmation::V1(msg) => msg.sender,
         }
     }
 
     pub fn num_of_complaints(&self) -> usize {
         match self {
-            VersionedDkgConfirmation::V0() => {
-                panic!("BUG: invalid VersionedDkgConfimation version")
-            }
             VersionedDkgConfirmation::V1(msg) => msg.complaints.len(),
         }
     }
@@ -380,7 +285,6 @@ impl VersionedDkgConfirmation {
     pub fn unwrap_v1(&self) -> &dkg::Confirmation<bls12381::G2Element> {
         match self {
             VersionedDkgConfirmation::V1(msg) => msg,
-            _ => panic!("BUG: expected V1 confirmation"),
         }
     }
 
@@ -425,23 +329,13 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_capability_notification(capabilities: AuthorityCapabilitiesV1) -> Self {
+    pub fn new_capability_notification_v1(capabilities: AuthorityCapabilitiesV1) -> Self {
         let mut hasher = DefaultHasher::new();
         capabilities.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::CapabilityNotification(capabilities),
-        }
-    }
-
-    pub fn new_capability_notification_v2(capabilities: AuthorityCapabilitiesV2) -> Self {
-        let mut hasher = DefaultHasher::new();
-        capabilities.hash(&mut hasher);
-        let tracking_id = hasher.finish().to_le_bytes();
-        Self {
-            tracking_id,
-            kind: ConsensusTransactionKind::CapabilityNotificationV2(capabilities),
+            kind: ConsensusTransactionKind::CapabilityNotificationV1(capabilities),
         }
     }
 
@@ -521,10 +415,7 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::EndOfPublish(authority) => {
                 ConsensusTransactionKey::EndOfPublish(*authority)
             }
-            ConsensusTransactionKind::CapabilityNotification(cap) => {
-                ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
-            }
-            ConsensusTransactionKind::CapabilityNotificationV2(cap) => {
+            ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
             }
             ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {

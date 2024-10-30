@@ -71,7 +71,7 @@ impl ProtocolManager {
         client: Arc<LazyMysticetiClient>,
     ) -> Self {
         Self::Mysticeti(MysticetiManager::new(
-            config.worker_key_pair().copy(),
+            config.protocol_key_pair().copy(),
             config.network_key_pair().copy(),
             consensus_config.db_path().to_path_buf(),
             registry_service.clone(),

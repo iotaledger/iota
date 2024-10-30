@@ -3,7 +3,7 @@ processed 11 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-50:
+task 1, lines 7-51:
 //# run-graphql
 Response: {
   "data": {
@@ -132,17 +132,17 @@ Response: {
   }
 }
 
-task 2, lines 52-56:
+task 2, lines 53-57:
 //# publish --upgradeable --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5213600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 58:
+task 3, line 59:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 60-102:
+task 4, lines 61-103:
 //# run-graphql
 Response: {
   "data": {
@@ -154,7 +154,7 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x0516a97c38ac8f8e7ec1fec2e1aa8a64a416adc4fc47815ab3fb51f0fa5d7301",
+                    "address": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031",
                     "asMovePackage": {
                       "module": {
                         "struct": {
@@ -183,13 +183,13 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0x53eaddee260f724b981b7b53658dcd981214bc2ccffe988cff73f6a04f46a9bb",
+                    "address": "0x5588b330d8a2eab25791479a48c72fc568996bf8cdf4fd3de352c6901c0a31fb",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x767d679e36db949cb8fceeeba743a67487788b97c6a72db397d72d0840285bdf",
+                    "address": "0x8607c0c5eed96e3779f0946da7b802a3ceaa1c91b0f4f1ab6b2cce69c2c01a3c",
                     "asMovePackage": null
                   }
                 }
@@ -202,17 +202,17 @@ Response: {
   }
 }
 
-task 5, lines 104-110:
-//# upgrade --package P0 --upgrade-capability 2,1 --sender A
+task 5, lines 105-111:
+//# upgrade --package P0 --upgrade-capability 2,0 --sender A
 created: object(5,0)
-mutated: object(0,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6049600,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 6049600,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
-task 6, line 112:
+task 6, line 113:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 7, lines 114-171:
+task 7, lines 115-172:
 //# run-graphql
 Response: {
   "data": {
@@ -224,25 +224,25 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x53eaddee260f724b981b7b53658dcd981214bc2ccffe988cff73f6a04f46a9bb",
+                    "address": "0x5588b330d8a2eab25791479a48c72fc568996bf8cdf4fd3de352c6901c0a31fb",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x767d679e36db949cb8fceeeba743a67487788b97c6a72db397d72d0840285bdf",
+                    "address": "0x8607c0c5eed96e3779f0946da7b802a3ceaa1c91b0f4f1ab6b2cce69c2c01a3c",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x8f225fe07ab4384f0078020cc6a83a00bf6fb186745fda4dcee2091e470a8fe0",
+                    "address": "0xfd3b093e8412e789e3eec6e372a7ba0a77f529970288961bfe2e8469430f656b",
                     "asMovePackage": {
                       "module": {
                         "s": {
                           "module": {
                             "package": {
-                              "address": "0x0516a97c38ac8f8e7ec1fec2e1aa8a64a416adc4fc47815ab3fb51f0fa5d7301"
+                              "address": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031"
                             }
                           },
                           "name": "S",
@@ -267,7 +267,7 @@ Response: {
                         "t": {
                           "module": {
                             "package": {
-                              "address": "0x8f225fe07ab4384f0078020cc6a83a00bf6fb186745fda4dcee2091e470a8fe0"
+                              "address": "0xfd3b093e8412e789e3eec6e372a7ba0a77f529970288961bfe2e8469430f656b"
                             }
                           },
                           "name": "T",
@@ -294,12 +294,12 @@ Response: {
                             {
                               "name": "s",
                               "type": {
-                                "repr": "0x0516a97c38ac8f8e7ec1fec2e1aa8a64a416adc4fc47815ab3fb51f0fa5d7301::m::S",
+                                "repr": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031::m::S",
                                 "signature": {
                                   "ref": null,
                                   "body": {
                                     "datatype": {
-                                      "package": "0x0516a97c38ac8f8e7ec1fec2e1aa8a64a416adc4fc47815ab3fb51f0fa5d7301",
+                                      "package": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031",
                                       "module": "m",
                                       "type": "S",
                                       "typeParameters": []
@@ -328,7 +328,7 @@ Response: {
                             {
                               "name": "t",
                               "type": {
-                                "repr": "0x0516a97c38ac8f8e7ec1fec2e1aa8a64a416adc4fc47815ab3fb51f0fa5d7301::m::T<0x0516a97c38ac8f8e7ec1fec2e1aa8a64a416adc4fc47815ab3fb51f0fa5d7301::m::S>"
+                                "repr": "0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031::m::T<0x24ec6864c2cba3b1f98b1e318b001991b368e9528ac84b824473224727e63031::m::S>"
                               }
                             }
                           ]
@@ -346,7 +346,7 @@ Response: {
   }
 }
 
-task 8, lines 173-208:
+task 8, lines 174-209:
 //# run-graphql
 Response: {
   "data": {
@@ -395,7 +395,7 @@ Response: {
   }
 }
 
-task 9, lines 211-251:
+task 9, lines 212-252:
 //# run-graphql --cursors {"n":"Coin","c":2} {"n":"TreasuryCap","c":2}
 Response: {
   "data": {
@@ -463,23 +463,18 @@ Response: {
                 ]
               },
               {
-                "name": "CurrencyCreated",
-                "fields": [
-                  {
-                    "name": "decimals",
-                    "type": {
-                      "repr": "u8"
-                    }
-                  }
-                ]
-              },
-              {
-                "name": "DenyCap",
+                "name": "DenyCapV1",
                 "fields": [
                   {
                     "name": "id",
                     "type": {
                       "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::object::UID"
+                    }
+                  },
+                  {
+                    "name": "allow_global_pause",
+                    "type": {
+                      "repr": "bool"
                     }
                   }
                 ]
@@ -539,15 +534,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
-                "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -583,15 +572,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
-                "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -612,7 +595,7 @@ Response: {
   }
 }
 
-task 10, lines 253-300:
+task 10, lines 254-301:
 //# run-graphql --cursors {"n":"Coin","c":2} {"n":"TreasuryCap","c":2}
 Response: {
   "data": {
@@ -628,9 +611,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
+                  "name": "DenyCapV1"
                 }
               }
             ],
@@ -648,15 +631,15 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
+                  "name": "DenyCapV1"
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiUmVndWxhdGVkQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "RegulatedCoinMetadata"
                 }
               }
             ],
@@ -674,15 +657,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
-                "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -706,9 +683,9 @@ Response: {
           "suffix": {
             "edges": [
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -726,15 +703,15 @@ Response: {
           "suffixAll": {
             "edges": [
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
+                  "name": "CoinMetadata"
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -764,15 +741,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcCIsImMiOjJ9",
-                "node": {
-                  "name": "DenyCap"
+                  "name": "DenyCapV1"
                 }
               },
               {

@@ -74,7 +74,7 @@ pub fn iota_rpc_doc(version: &str) -> Project {
         "Iota JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://fullnode.NETWORK.iota.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
         "IOTA Foundation",
         "https://iota.org",
-        "contact@iota.org",
+        "info@iota.org",
         "Apache-2.0",
         "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE",
     )
@@ -228,11 +228,11 @@ impl JsonRpcServerBuilder {
         let listener = tokio::net::TcpListener::bind(listen_address)
             .await
             .map_err(|e| {
-                Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+                Error::Unexpected(format!("invalid listen address {listen_address}: {e}"))
             })?;
 
         let addr = listener.local_addr().map_err(|e| {
-            Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+            Error::Unexpected(format!("invalid listen address {listen_address}: {e}"))
         })?;
 
         let fut = async move {

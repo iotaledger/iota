@@ -57,25 +57,19 @@ pub const SINGLETON_KEY: u64 = 0;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum VersionedProcessedMessage {
-    V0(), // deprecated
     V1(dkg_v1::ProcessedMessage<PkG, EncG>),
 }
 
 impl VersionedProcessedMessage {
     pub fn sender(&self) -> PartyId {
         match self {
-            VersionedProcessedMessage::V0() => {
-                panic!("BUG: invalid VersionedProcessedMessage version V0")
-            }
             VersionedProcessedMessage::V1(msg) => msg.message.sender,
         }
     }
 
     pub fn unwrap_v1(self) -> dkg_v1::ProcessedMessage<PkG, EncG> {
-        if let VersionedProcessedMessage::V1(msg) = self {
-            msg
-        } else {
-            panic!("BUG: expected message version is 1")
+        match self {
+            VersionedProcessedMessage::V1(msg) => msg,
         }
     }
 
@@ -110,7 +104,6 @@ impl VersionedProcessedMessage {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionedUsedProcessedMessages {
-    V0(), // deprecated
     V1(dkg_v1::UsedProcessedMessages<PkG, EncG>),
 }
 
@@ -123,9 +116,7 @@ impl VersionedUsedProcessedMessages {
         // All inputs are verified in add_confirmation, so we can assume they are of the
         // correct version.
         let rng = &mut StdRng::from_rng(OsRng).expect("RNG construction should not fail");
-        let VersionedUsedProcessedMessages::V1(msg) = self else {
-            panic!("BUG: invalid VersionedUsedProcessedMessages version")
-        };
+        let VersionedUsedProcessedMessages::V1(msg) = self;
         party.complete_v1(
             msg,
             &confirmations
@@ -352,12 +343,12 @@ impl RandomnessManager {
             );
             rm.processed_messages.extend(
                 tables
-                    .dkg_processed_messages_v2
+                    .dkg_processed_messages
                     .safe_iter()
                     .map(|result| result.expect("typed_store should not fail")),
             );
             if let Some(used_messages) = tables
-                .dkg_used_messages_v2
+                .dkg_used_messages
                 .get(&SINGLETON_KEY)
                 .expect("typed_store should not fail")
             {
@@ -367,7 +358,7 @@ impl RandomnessManager {
             }
             rm.confirmations.extend(
                 tables
-                    .dkg_confirmations_v2
+                    .dkg_confirmations
                     .safe_iter()
                     .map(|result| result.expect("typed_store should not fail")),
             );
@@ -890,7 +881,7 @@ mod tests {
 
             let state = TestAuthorityBuilder::new()
                 .with_protocol_config(protocol_config.clone())
-                .with_genesis_and_keypair(&network_config.genesis, validator.protocol_key_pair())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
                 .build()
                 .await;
             let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -902,14 +893,13 @@ mod tests {
                 None,
                 None,
                 ConsensusAdapterMetrics::new_test(),
-                state.epoch_store_for_testing().protocol_config().clone(),
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
                 iota_network::randomness::Handle::new_stub(),
-                validator.protocol_key_pair(),
+                validator.authority_key_pair(),
             )
             .await
             .unwrap();
@@ -1022,7 +1012,7 @@ mod tests {
 
             let state = TestAuthorityBuilder::new()
                 .with_protocol_config(protocol_config.clone())
-                .with_genesis_and_keypair(&network_config.genesis, validator.protocol_key_pair())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
                 .build()
                 .await;
             let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -1034,14 +1024,13 @@ mod tests {
                 None,
                 None,
                 ConsensusAdapterMetrics::new_test(),
-                state.epoch_store_for_testing().protocol_config().clone(),
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
                 iota_network::randomness::Handle::new_stub(),
-                validator.protocol_key_pair(),
+                validator.authority_key_pair(),
             )
             .await
             .unwrap();

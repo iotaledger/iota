@@ -12,7 +12,7 @@ use std::path::Path;
 
 use iota_json_rpc_types::ObjectChange;
 use iota_move_build::BuildConfig;
-use iota_types::move_package::MovePackage;
+use iota_types::move_package::UpgradeCap;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -25,7 +25,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
     let gas_coin_object_id = coins.data[0].coin_object_id;
 
-    let gas_budget = 10_000_000;
+    let gas_budget = 50_000_000;
 
     let package_path = Path::new("../../examples/move/first_package");
     let module = BuildConfig::default().build(package_path)?;
@@ -36,7 +36,7 @@ async fn main() -> Result<(), anyhow::Error> {
             sender,
             module.get_package_bytes(false),
             module.published_dependency_ids(),
-            Some(gas_coin_object_id),
+            gas_coin_object_id,
             gas_budget,
         )
         .await?;
@@ -68,8 +68,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let upgrade_capability = object_changes
         .iter()
         .find_map(|c| {
-            if let ObjectChange::Created { .. } = c {
-                Some(c.object_id())
+            if let ObjectChange::Created { object_type, .. } = c {
+                if object_type == &UpgradeCap::type_() {
+                    Some(c.object_id())
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -81,8 +85,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let deps = module.published_dependency_ids();
     let package_bytes = module.get_package_bytes(false);
 
-    let package_digest =
-        MovePackage::compute_digest_for_modules_and_deps(&package_bytes, &deps, true);
     let tx_data = client
         .transaction_builder()
         .upgrade(
@@ -92,8 +94,7 @@ async fn main() -> Result<(), anyhow::Error> {
             deps,
             upgrade_capability,
             0,
-            package_digest.to_vec(),
-            Some(gas_coin_object_id),
+            gas_coin_object_id,
             gas_budget,
         )
         .await?;

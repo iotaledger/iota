@@ -1,7 +1,7 @@
 [package]
 name = "consensus-core"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 arc-swap.workspace = true
 async-trait.workspace = true
@@ -17,7 +18,6 @@ base64.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 cfg-if.workspace = true
-consensus-config.workspace = true
 dashmap.workspace = true
 enum_dispatch.workspace = true
 fastcrypto.workspace = true
@@ -25,13 +25,7 @@ futures.workspace = true
 http.workspace = true
 hyper.workspace = true
 hyper-rustls.workspace = true
-hyper-util.workspace = true
-iota-common.workspace = true
-iota-macros.workspace = true
-iota-metrics.workspace = true
-iota-network-stack.workspace = true
-iota-protocol-config.workspace = true
-iota-tls.workspace = true
+hyper-util = "0.1.6"
 itertools.workspace = true
 nom = "7.1.3"
 parking_lot.workspace = true
@@ -41,7 +35,6 @@ quinn-proto.workspace = true
 rand.workspace = true
 rustls.workspace = true
 serde.workspace = true
-shared-crypto.workspace = true
 strum_macros.workspace = true
 tap.workspace = true
 thiserror.workspace = true
@@ -53,12 +46,25 @@ tonic.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
+
+# internal dependencies
+consensus-config.workspace = true
+iota-common.workspace = true
+iota-macros.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
+iota-protocol-config.workspace = true
+iota-tls.workspace = true
+shared-crypto.workspace = true
 typed-store.workspace = true
 
 [dev-dependencies]
+# external dependencies
 rstest.workspace = true
-telemetry-subscribers.workspace = true
 tempfile.workspace = true
+
+# internal dependencies
+telemetry-subscribers.workspace = true
 
 [build-dependencies]
 tonic-build.workspace = true

@@ -4,11 +4,11 @@
 import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { type ApyByValidator, formatPercentageDisplay } from '@iota/core';
-
 import { ampli, getValidatorMoveEvent, VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib';
-import { StakeColumn, ValidatorLink, ImageIcon } from '~/components';
+import { StakeColumn } from '~/components';
 import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/dist/cjs/client';
 import clsx from 'clsx';
+import { ImageIcon, ImageIconSize, ValidatorLink } from '~/components/ui';
 
 interface generateValidatorsTableColumnsArgs {
     atRiskValidators: [string, string][];
@@ -41,7 +41,7 @@ function ValidatorWithImage({
                 <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
                     <ImageIcon
                         src={validator.imageUrl}
-                        size="sm"
+                        size={ImageIconSize.Medium}
                         label={validator.name}
                         fallback={validator.name}
                     />

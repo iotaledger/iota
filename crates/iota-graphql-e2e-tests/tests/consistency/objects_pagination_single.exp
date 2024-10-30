@@ -3,34 +3,34 @@ processed 15 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, lines 10-27:
+task 1, lines 11-28:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 5456800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 29:
+task 2, line 30:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, line 31:
+task 3, line 32:
 //# run Test::M1::create --args 1 @A
 created: object(3,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4, line 33:
+task 4, line 34:
 //# run Test::M1::update --sender A --args 100 object(2,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 1301652, non_refundable_storage_fee: 13148
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 1314800, non_refundable_storage_fee: 0
 
-task 5, line 35:
+task 5, line 36:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 6, lines 37-65:
+task 6, lines 38-66:
 //# run-graphql --cursors @{obj_3_0}
 Response: {
   "data": {
@@ -41,10 +41,10 @@ Response: {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                 "value": "100"
               }
             }
@@ -60,16 +60,16 @@ Response: {
   }
 }
 
-task 7, line 67:
+task 7, line 68:
 //# run Test::M1::update --sender A --args 200 object(2,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 8, line 69:
+task 8, line 70:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 9, lines 71-100:
+task 9, lines 72-101:
 //# run-graphql --cursors @{obj_3_0,1}
 Response: {
   "data": {
@@ -80,10 +80,10 @@ Response: {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                 "value": "100"
               }
             }
@@ -99,7 +99,7 @@ Response: {
   }
 }
 
-task 10, lines 102-177:
+task 10, lines 103-178:
 //# run-graphql --cursors @{obj_3_0,2}
 Response: {
   "data": {
@@ -110,10 +110,10 @@ Response: {
             "version": 4,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0x5a036eccabb35fa40c8dce9e83414df4086b4c14505b95ba6791de66e20e9648",
+                "id": "0x62667ab9dcc05a8e142344d516f796fe0f7cad2b50c8bdb4944a4eee03d0eda2",
                 "value": "1"
               }
             }
@@ -122,10 +122,10 @@ Response: {
             "version": 5,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                 "value": "200"
               }
             }
@@ -140,10 +140,10 @@ Response: {
             "version": 5,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                 "value": "200"
               }
             },
@@ -155,10 +155,10 @@ Response: {
                       "version": 4,
                       "contents": {
                         "type": {
-                          "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                          "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
                         },
                         "json": {
-                          "id": "0x5a036eccabb35fa40c8dce9e83414df4086b4c14505b95ba6791de66e20e9648",
+                          "id": "0x62667ab9dcc05a8e142344d516f796fe0f7cad2b50c8bdb4944a4eee03d0eda2",
                           "value": "1"
                         }
                       }
@@ -167,10 +167,10 @@ Response: {
                       "version": 5,
                       "contents": {
                         "type": {
-                          "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                          "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
                         },
                         "json": {
-                          "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                          "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                           "value": "200"
                         }
                       }
@@ -191,16 +191,16 @@ Response: {
   }
 }
 
-task 11, line 179:
+task 11, line 180:
 //# run Test::M1::update --sender A --args 300 object(3,0)
 mutated: object(0,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 12, line 181:
+task 12, line 182:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 13, lines 183-246:
+task 13, lines 184-247:
 //# run-graphql --cursors @{obj_3_0,2}
 Response: {
   "data": {
@@ -211,10 +211,10 @@ Response: {
             "version": 5,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                 "value": "200"
               }
             },
@@ -226,10 +226,10 @@ Response: {
                       "version": 4,
                       "contents": {
                         "type": {
-                          "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                          "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
                         },
                         "json": {
-                          "id": "0x5a036eccabb35fa40c8dce9e83414df4086b4c14505b95ba6791de66e20e9648",
+                          "id": "0x62667ab9dcc05a8e142344d516f796fe0f7cad2b50c8bdb4944a4eee03d0eda2",
                           "value": "1"
                         }
                       }
@@ -238,10 +238,10 @@ Response: {
                       "version": 5,
                       "contents": {
                         "type": {
-                          "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                          "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
                         },
                         "json": {
-                          "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                          "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                           "value": "200"
                         }
                       }
@@ -262,7 +262,7 @@ Response: {
   }
 }
 
-task 14, lines 248-323:
+task 14, lines 249-324:
 //# run-graphql --cursors @{obj_3_0,3}
 Response: {
   "data": {
@@ -273,10 +273,10 @@ Response: {
             "version": 6,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0x5a036eccabb35fa40c8dce9e83414df4086b4c14505b95ba6791de66e20e9648",
+                "id": "0x62667ab9dcc05a8e142344d516f796fe0f7cad2b50c8bdb4944a4eee03d0eda2",
                 "value": "300"
               }
             }
@@ -285,10 +285,10 @@ Response: {
             "version": 5,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                 "value": "200"
               }
             }
@@ -303,10 +303,10 @@ Response: {
             "version": 5,
             "contents": {
               "type": {
-                "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
               },
               "json": {
-                "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                 "value": "200"
               }
             },
@@ -318,10 +318,10 @@ Response: {
                       "version": 6,
                       "contents": {
                         "type": {
-                          "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                          "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
                         },
                         "json": {
-                          "id": "0x5a036eccabb35fa40c8dce9e83414df4086b4c14505b95ba6791de66e20e9648",
+                          "id": "0x62667ab9dcc05a8e142344d516f796fe0f7cad2b50c8bdb4944a4eee03d0eda2",
                           "value": "300"
                         }
                       }
@@ -330,10 +330,10 @@ Response: {
                       "version": 5,
                       "contents": {
                         "type": {
-                          "repr": "0x20cee016ae87d51618e53d13497a6558c373f80647fd570b1d60dea66fda28d5::M1::Object"
+                          "repr": "0xfd187d68c2af018bc15874c1eccdafcf4993cfb6d0f576edecf2e76b23351a04::M1::Object"
                         },
                         "json": {
-                          "id": "0xcfa9863ef3521130fa9821f63be4db23a292af6da509a9e0d7c8121a21a98685",
+                          "id": "0xab1b31396d4daf2e033795f600d307744617e58153b65eeb66c0066d9631088d",
                           "value": "200"
                         }
                       }
