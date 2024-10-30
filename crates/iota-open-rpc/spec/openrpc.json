@@ -1603,7 +1603,7 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "8"
+                  "u64": "1"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
@@ -1766,9 +1766,6 @@
                 },
                 "max_accumulated_txn_cost_per_object_in_mysticeti_commit": {
                   "u64": "10"
-                },
-                "max_accumulated_txn_cost_per_object_in_narwhal_commit": {
-                  "u64": "100"
                 },
                 "max_age_of_jwk_in_epochs": {
                   "u64": "1"

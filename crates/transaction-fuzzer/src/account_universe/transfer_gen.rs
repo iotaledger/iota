@@ -365,7 +365,7 @@ impl RunInfo {
         let gas_budget_too_low = p2p.gas < PROTOCOL_CONFIG.base_tx_cost_fixed() * p2p.gas_price;
         let not_enough_gas = p2p.gas < p2p_success_gas(p2p.gas_price);
         let gas_price_too_low = p2p.gas_price < rgp;
-        let gas_price_too_high = p2p.gas_price >= PROTOCOL_CONFIG.max_gas_price();
+        let gas_price_too_high = p2p.gas_price > PROTOCOL_CONFIG.max_gas_price();
         let gas_price_greater_than_budget = p2p.gas_price > p2p.gas;
         let gas_units_too_low = p2p.gas_price > 0
             && p2p.gas / p2p.gas_price < INSUFFICIENT_GAS_UNITS_THRESHOLD
