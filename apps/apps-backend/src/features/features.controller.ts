@@ -64,6 +64,12 @@ export class FeaturesController {
                 [Feature.AccountFinder]: {
                     defaultValue: false,
                 },
+                [Feature.WalletDashboardMigration]: {
+                    defaultValue: false,
+                },
+                [Feature.WalletDashboardSupplyIncreaseVesting]: {
+                    defaultValue: false,
+                },
             },
             dateUpdated: new Date().toISOString(),
         };

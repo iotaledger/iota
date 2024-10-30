@@ -46,11 +46,19 @@ jobs:
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
         with:
           images: docker-registry.iota.org/iota-node
+          # mapping semver tags to networks
+          # v{MAJOR}.{MINOR}.{PATCH}-alpha -> alphanet
+          # v{MAJOR}.{MINOR}.{PATCH}-beta -> devnet
+          # v{MAJOR}.{MINOR}.{PATCH}-rc -> testnet
+          # v{MAJOR}.{MINOR}.{PATCH} -> mainnet
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-alpha.*\d*,group=0,value=alphanet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-beta.*\d*,group=0,value=devnet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-rc.*\d*,group=0,value=testnet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+$,group=0,value=mainnet,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -97,11 +105,19 @@ jobs:
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
         with:
           images: docker-registry.iota.org/iota-indexer
+          # mapping semver tags to networks
+          # v{MAJOR}.{MINOR}.{PATCH}-alpha -> alphanet
+          # v{MAJOR}.{MINOR}.{PATCH}-beta -> devnet
+          # v{MAJOR}.{MINOR}.{PATCH}-rc -> testnet
+          # v{MAJOR}.{MINOR}.{PATCH} -> mainnet
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-alpha.*\d*,group=0,value=alphanet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-beta.*\d*,group=0,value=devnet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-rc.*\d*,group=0,value=testnet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+$,group=0,value=mainnet,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -148,11 +164,19 @@ jobs:
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
         with:
           images: docker-registry.iota.org/iota-tools
+          # mapping semver tags to networks
+          # v{MAJOR}.{MINOR}.{PATCH}-alpha -> alphanet
+          # v{MAJOR}.{MINOR}.{PATCH}-beta -> devnet
+          # v{MAJOR}.{MINOR}.{PATCH}-rc -> testnet
+          # v{MAJOR}.{MINOR}.{PATCH} -> mainnet
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-alpha.*\d*,group=0,value=alphanet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-beta.*\d*,group=0,value=devnet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-rc.*\d*,group=0,value=testnet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+$,group=0,value=mainnet,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -199,11 +223,19 @@ jobs:
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
         with:
           images: docker-registry.iota.org/iota-graphql-rpc
+          # mapping semver tags to networks
+          # v{MAJOR}.{MINOR}.{PATCH}-alpha -> alphanet
+          # v{MAJOR}.{MINOR}.{PATCH}-beta -> devnet
+          # v{MAJOR}.{MINOR}.{PATCH}-rc -> testnet
+          # v{MAJOR}.{MINOR}.{PATCH} -> mainnet
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=(.*)-v\d+\.\d+\.\d+,group=1,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-alpha.*\d*,group=0,value=alphanet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-beta.*\d*,group=0,value=devnet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+-rc.*\d*,group=0,value=testnet,enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v\d+\.\d+\.\d+$,group=0,value=mainnet,enable=${{ github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
