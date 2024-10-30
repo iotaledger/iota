@@ -21,14 +21,13 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use iota_macros::fail_point_if;
 use iota_network::randomness;
 use iota_types::{
-    base_types::AuthorityName,
+    base_types::{AuthorityName, CommitRound, TimestampMs},
     committee::{Committee, EpochId, StakeUnit},
     crypto::{AuthorityKeyPair, RandomnessRound},
     error::{IotaError, IotaResult},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation, VersionedDkgMessage},
 };
-use narwhal_types::{Round, TimestampMs};
 use parking_lot::Mutex;
 use rand::{
     SeedableRng,
@@ -456,7 +455,7 @@ impl RandomnessManager {
     pub(crate) async fn advance_dkg(
         &mut self,
         consensus_output: &mut ConsensusCommitOutput,
-        round: Round,
+        round: CommitRound,
     ) -> IotaResult {
         let epoch_store = self.epoch_store()?;
 

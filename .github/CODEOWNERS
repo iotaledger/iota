@@ -36,7 +36,6 @@
 
 # core-consensus team
 /consensus/ @iotaledger/core-consensus
-/narwhal/ @iotaledger/core-consensus
 
 # dev-tools team
 /crates/iota/ @iotaledger/dev-tools

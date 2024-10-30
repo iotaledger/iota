@@ -114,6 +114,12 @@ impl fmt::Display for SequenceNumber {
 
 pub type VersionNumber = SequenceNumber;
 
+/// The round number.
+pub type CommitRound = u64;
+
+/// The epoch UNIX timestamp in milliseconds
+pub type TimestampMs = u64;
+
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Default, Debug, Serialize, Deserialize)]
 pub struct UserData(pub Option<[u8; 32]>);
 

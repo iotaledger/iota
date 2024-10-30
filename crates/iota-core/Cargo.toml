@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 # external dependencies
 anemo.workspace = true
+anemo-tower.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
 arc-swap.workspace = true
 async-trait.workspace = true
@@ -41,7 +42,8 @@ object_store.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
-rand.workspace = true
+quinn-proto.workspace = true
+rand = { workspace = true, features = ["small_rng"] }
 rayon.workspace = true
 reqwest.workspace = true
 roaring.workspace = true
@@ -56,6 +58,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
 tokio-stream.workspace = true
+tower.workspace = true
 tracing.workspace = true
 twox-hash = "1.6"
 zeroize = "1.6"
@@ -87,7 +90,6 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
-narwhal-types.workspace = true
 shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
@@ -95,6 +97,7 @@ typed-store-derive.workspace = true
 
 [dev-dependencies]
 # external dependencies
+bincode.workspace = true
 clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true

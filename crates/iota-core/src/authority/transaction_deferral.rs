@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::base_types::ObjectID;
-use narwhal_types::Round;
+use iota_types::base_types::{CommitRound, ObjectID};
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -11,26 +10,26 @@ pub enum DeferralKey {
     // For transactions deferred until new randomness is available (whether delayd due to
     // DKG, or skipped commits).
     Randomness {
-        deferred_from_round: Round, // commit round, not randomness round
+        deferred_from_round: CommitRound, // commit round, not randomness round
     },
     // ConsensusRound deferral key requires both the round to which the tx should be deferred (so
     // that we can efficiently load all txns that are now ready), and the round from which it
     // has been deferred (so that multiple rounds can efficiently defer to the same future
     // round).
     ConsensusRound {
-        future_round: Round,
-        deferred_from_round: Round,
+        future_round: CommitRound,
+        deferred_from_round: CommitRound,
     },
 }
 
 impl DeferralKey {
-    pub fn new_for_randomness(deferred_from_round: Round) -> Self {
+    pub fn new_for_randomness(deferred_from_round: CommitRound) -> Self {
         Self::Randomness {
             deferred_from_round,
         }
     }
 
-    pub fn new_for_consensus_round(future_round: Round, deferred_from_round: Round) -> Self {
+    pub fn new_for_consensus_round(future_round: CommitRound, deferred_from_round: CommitRound) -> Self {
         Self::ConsensusRound {
             future_round,
             deferred_from_round,
@@ -50,7 +49,7 @@ impl DeferralKey {
 
     // Returns a range of deferral keys that are deferred up to the given consensus
     // round.
-    pub fn range_for_up_to_consensus_round(consensus_round: Round) -> (Self, Self) {
+    pub fn range_for_up_to_consensus_round(consensus_round: CommitRound) -> (Self, Self) {
         (
             Self::ConsensusRound {
                 future_round: 0,
@@ -63,7 +62,7 @@ impl DeferralKey {
         )
     }
 
-    pub fn deferred_from_round(&self) -> Round {
+    pub fn deferred_from_round(&self) -> CommitRound {
         match self {
             Self::Randomness {
                 deferred_from_round,

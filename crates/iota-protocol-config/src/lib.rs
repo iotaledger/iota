@@ -190,7 +190,7 @@ fn is_false(b: &bool) -> bool {
     !b
 }
 
-/// Ordering mechanism for transactions in one Narwhal consensus output.
+/// Ordering mechanism for transactions in one consensus output.
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusTransactionOrdering {
     /// No ordering. Transactions are processed in the order they appear in the
@@ -907,13 +907,6 @@ pub struct ProtocolConfig {
     /// The maximum number of transactions included in a consensus block.
     consensus_max_num_transactions_in_block: Option<u64>,
 
-    /// The max accumulated txn execution cost per object in a Narwhal commit.
-    /// Transactions in a checkpoint will be deferred once their touch
-    /// shared objects hit this limit. This config is meant to be used when
-    /// consensus protocol is Narwhal, where each consensus commit
-    /// corresponding to 1 checkpoint (or 2 if randomness is enabled)
-    max_accumulated_txn_cost_per_object_in_narwhal_commit: Option<u64>,
-
     /// The max number of consensus rounds a transaction can be deferred due to
     /// shared object congestion. Transactions will be cancelled after this
     /// many rounds.
@@ -934,11 +927,9 @@ pub struct ProtocolConfig {
     // `None` and `Some(false)`, as committee was already finalized on Testnet.
     bridge_should_try_to_finalize_committee: Option<bool>,
 
-    /// The max accumulated txn execution cost per object in a mysticeti.
+    /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit. This config plays the same role as
-    /// `max_accumulated_txn_cost_per_object_in_narwhal_commit`
-    /// but for mysticeti commits due to that mysticeti has higher commit rate.
+    /// objects hit this limit.    
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 }
 
@@ -1573,8 +1564,6 @@ impl ProtocolConfig {
             // = 250 transactions per block maximum Using a higher limit
             // that is 512, to account for bursty traffic and system transactions.
             consensus_max_num_transactions_in_block: Some(512),
-
-            max_accumulated_txn_cost_per_object_in_narwhal_commit: Some(100),
 
             max_deferral_rounds_for_congestion_control: Some(10),
 

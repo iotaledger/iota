@@ -10,6 +10,7 @@ pub mod authority_aggregator;
 pub mod authority_client;
 pub mod authority_server;
 pub mod checkpoints;
+pub mod connection_monitor;
 pub mod consensus_adapter;
 pub mod consensus_handler;
 pub mod consensus_manager;
@@ -20,6 +21,7 @@ pub mod epoch;
 pub mod execution_cache;
 mod execution_driver;
 pub mod metrics;
+pub mod metrics_network;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod mock_consensus;
 pub mod module_cache_metrics;

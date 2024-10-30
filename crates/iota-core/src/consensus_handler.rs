@@ -201,7 +201,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         let round = consensus_output.leader_round();
 
-        // TODO: Remove this once narwhal is deprecated. For now mysticeti will not
+        // TODO: Is this check necessary? For now mysticeti will not
         // return more than one leader per round so we are not in danger of
         // ignoring any commits.
         assert!(round >= last_committed_round);

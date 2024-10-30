@@ -32,8 +32,8 @@ use iota_types::{
     accumulator::Accumulator,
     authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
-        AuthorityName, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
-        TransactionDigest,
+        AuthorityName, ConciseableName, EpochId, CommitRound,
+        TimestampMs, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},
@@ -62,7 +62,6 @@ use iota_types::{
 };
 use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use narwhal_types::{Round, TimestampMs};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus::IntCounter;
 use serde::{Deserialize, Serialize};
@@ -1696,7 +1695,7 @@ impl AuthorityPerEpochStore {
     fn should_defer(
         &self,
         cert: &VerifiedExecutableTransaction,
-        commit_round: Round,
+        commit_round: CommitRound,
         dkg_failed: bool,
         generating_randomness: bool,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
@@ -3224,7 +3223,7 @@ impl AuthorityPerEpochStore {
         output: &mut ConsensusCommitOutput,
         transaction: &VerifiedSequencedConsensusTransaction,
         checkpoint_service: &Arc<C>,
-        commit_round: Round,
+        commit_round: CommitRound,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
         mut randomness_manager: Option<&mut RandomnessManager>,
         dkg_failed: bool,
