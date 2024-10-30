@@ -528,7 +528,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
             }),
             crate::transaction::EndOfEpochTransactionKind::BridgeStateCreate(chain_identifier) => {
                 EndOfEpochTransactionKind::BridgeStateCreate {
-                    chain_id: CheckpointDigest::new(chain_identifier.inner().into()),
+                    chain_id: CheckpointDigest::new(chain_identifier.digest().into()),
                 }
             }
             crate::transaction::EndOfEpochTransactionKind::BridgeCommitteeInit(sequence_number) => {
