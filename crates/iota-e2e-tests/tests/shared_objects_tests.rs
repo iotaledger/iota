@@ -628,7 +628,7 @@ async fn shared_object_sync() {
     assert!(effects.status().is_ok());
 
     // Submit transactions to the out-of-date authority.
-    // It will succeed because we share owned object certificates through narwhal
+    // It will succeed because we share owned object certificates through consensus
     let (effects, _) = test_cluster
         .submit_transaction_to_validators(increment_counter_transaction, &validators[0..1])
         .await

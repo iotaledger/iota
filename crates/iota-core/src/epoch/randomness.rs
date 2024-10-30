@@ -21,14 +21,13 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use iota_macros::fail_point_if;
 use iota_network::randomness;
 use iota_types::{
-    base_types::AuthorityName,
+    base_types::{AuthorityName, CommitRound},
     committee::{Committee, EpochId, StakeUnit},
     crypto::{AuthorityKeyPair, RandomnessRound},
     error::{IotaError, IotaResult},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation, VersionedDkgMessage},
 };
-use narwhal_types::{Round, TimestampMs};
 use parking_lot::Mutex;
 use rand::{
     SeedableRng,
@@ -46,6 +45,9 @@ use crate::{
     },
     consensus_adapter::SubmitToConsensus,
 };
+
+/// The epoch UNIX timestamp in milliseconds
+pub type CommitTimestampMs = u64;
 
 type PkG = bls12381::G2Element;
 type EncG = bls12381::G2Element;
@@ -456,7 +458,7 @@ impl RandomnessManager {
     pub(crate) async fn advance_dkg(
         &mut self,
         consensus_output: &mut ConsensusCommitOutput,
-        round: Round,
+        round: CommitRound,
     ) -> IotaResult {
         let epoch_store = self.epoch_store()?;
 
@@ -690,7 +692,7 @@ impl RandomnessManager {
     /// be resumed.
     pub(crate) fn reserve_next_randomness(
         &mut self,
-        commit_timestamp: TimestampMs,
+        commit_timestamp: CommitTimestampMs,
         output: &mut ConsensusCommitOutput,
     ) -> IotaResult<Option<RandomnessRound>> {
         let epoch_store = self.epoch_store()?;
