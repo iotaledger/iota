@@ -135,7 +135,7 @@ function DappStatus() {
                                         disabled={disconnecting}
                                         size={ButtonSize.Small}
                                         text="Disconnect App"
-                                        type={ButtonType.Ghost}
+                                        type={ButtonType.Destructive}
                                     />
                                 </div>
                             </Loading>
