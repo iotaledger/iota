@@ -31,7 +31,6 @@ COPY Cargo.toml Cargo.lock ./
 COPY consensus consensus
 COPY crates crates
 COPY iota-execution iota-execution
-COPY narwhal narwhal
 COPY external-crates external-crates
 COPY docs docs
 

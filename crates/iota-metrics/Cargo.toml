@@ -11,8 +11,11 @@ workspace = true
 
 [dependencies]
 # external dependencies
+anemo.workspace = true
+anemo-tower.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+bytes.workspace = true
 dashmap.workspace = true
 futures.workspace = true
 once_cell.workspace = true
