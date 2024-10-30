@@ -27,6 +27,7 @@ use iota_types::{
         iota_system_state_summary::get_validator_by_pool_id,
     },
     message_envelope::Message,
+    messages_grpc::HandleCertificateRequestV1,
     transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
@@ -182,7 +183,10 @@ async fn reconfig_with_revert_end_to_end_test() {
         .get_client(&authorities[reverting_authority_idx].with(|node| node.state().name))
         .unwrap();
     client
-        .handle_certificate_v2(cert.clone(), None)
+        .handle_certificate_v1(
+            HandleCertificateRequestV1::new(cert.clone()).with_events(),
+            None,
+        )
         .await
         .unwrap();
 
