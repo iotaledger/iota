@@ -770,7 +770,7 @@ async fn test_epoch_flag_upgrade() {
             return None;
         }
 
-        // start with no flags set
+        // Apply a modified flag set after epoch change.
         Some(vec![EpochFlag::WritebackCacheEnabled])
     });
 
