@@ -1257,7 +1257,7 @@ impl ProtocolConfig {
             obj_access_cost_verify_per_byte: Some(200),
             obj_data_cost_refundable: Some(100),
             obj_metadata_cost_non_refundable: Some(50),
-            gas_model_version: Some(8),
+            gas_model_version: Some(1),
             storage_rebate_rate: Some(10000),
             // Change reward slashing rate to 100%.
             reward_slashing_rate: Some(10000),
