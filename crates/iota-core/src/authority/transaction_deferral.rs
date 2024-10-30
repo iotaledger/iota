@@ -10,7 +10,7 @@ pub enum DeferralKey {
     // For transactions deferred until new randomness is available (whether delayd due to
     // DKG, or skipped commits).
     Randomness {
-        deferred_from_round: CommitRound, // commit round, not randomness round
+        deferred_from_round: CommitRound,
     },
     // ConsensusRound deferral key requires both the round to which the tx should be deferred (so
     // that we can efficiently load all txns that are now ready), and the round from which it
