@@ -6180,13 +6180,11 @@ name = "iota-core"
 version = "0.1.0"
 dependencies = [
  "anemo",
- "anemo-tower",
  "anyhow",
  "arc-swap",
  "async-trait",
  "axum",
  "bcs",
- "bincode",
  "bytes",
  "chrono",
  "clap",
@@ -6271,7 +6269,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
- "tower 0.4.13",
  "tracing",
  "twox-hash",
  "typed-store",
@@ -7084,8 +7081,11 @@ dependencies = [
 name = "iota-metrics"
 version = "0.7.0"
 dependencies = [
+ "anemo",
+ "anemo-tower",
  "async-trait",
  "axum",
+ "bytes",
  "dashmap",
  "futures",
  "once_cell",
@@ -7096,6 +7096,7 @@ dependencies = [
  "simple-server-timing-header",
  "tap",
  "tokio",
+ "tower 0.4.13",
  "tracing",
  "uuid 1.10.0",
 ]

@@ -7,11 +7,9 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use anemo::{PeerId, types::PeerEvent};
 use dashmap::DashMap;
 use futures::future;
-use iota_metrics::spawn_logged_monitored_task;
+use iota_metrics::{metrics_network::NetworkConnectionMetrics, spawn_logged_monitored_task};
 use quinn_proto::ConnectionStats;
 use tokio::{sync::broadcast, task::JoinHandle, time};
-
-use crate::metrics_network::NetworkConnectionMetrics;
 
 const CONNECTION_STAT_COLLECTION_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -273,6 +271,7 @@ mod tests {
 
     use anemo::{Network, Request, Response};
     use bytes::Bytes;
+    use iota_metrics::metrics_network::NetworkConnectionMetrics;
     use prometheus::Registry;
     use tokio::{
         sync::{broadcast, broadcast::error::SendError},
@@ -280,9 +279,8 @@ mod tests {
     };
     use tower::util::BoxCloneService;
 
-    use crate::{
-        connection_monitor::{ConditionalBroadcastReceiver, ConnectionMonitor, ConnectionStatus},
-        metrics_network::NetworkConnectionMetrics,
+    use crate::connection_monitor::{
+        ConditionalBroadcastReceiver, ConnectionMonitor, ConnectionStatus,
     };
 
     /// PreSubscribedBroadcastSender is a wrapped Broadcast channel that limits

@@ -21,7 +21,6 @@ pub mod epoch;
 pub mod execution_cache;
 mod execution_driver;
 pub mod metrics;
-pub mod metrics_network;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod mock_consensus;
 pub mod module_cache_metrics;

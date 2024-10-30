@@ -32,8 +32,8 @@ use iota_types::{
     accumulator::Accumulator,
     authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
-        AuthorityName, ConciseableName, EpochId, CommitRound,
-        TimestampMs, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
+        TimestampMs, TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},

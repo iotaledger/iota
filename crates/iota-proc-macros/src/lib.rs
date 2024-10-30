@@ -73,7 +73,7 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                 use ::iota_simulator::anemo_tower::trace::DefaultMakeSpan;
                 use ::iota_simulator::anemo_tower::trace::DefaultOnFailure;
                 use ::iota_simulator::anemo_tower::trace::TraceLayer;
-                use ::iota_core::metrics_network::{NetworkMetrics, MetricsMakeCallbackHandler};
+                use ::iota_metrics::metrics_network::{NetworkMetrics, MetricsMakeCallbackHandler};
 
                 use std::sync::Arc;
                 use ::iota_simulator::fastcrypto::traits::KeyPair;

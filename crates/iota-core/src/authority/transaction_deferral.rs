@@ -29,7 +29,10 @@ impl DeferralKey {
         }
     }
 
-    pub fn new_for_consensus_round(future_round: CommitRound, deferred_from_round: CommitRound) -> Self {
+    pub fn new_for_consensus_round(
+        future_round: CommitRound,
+        deferred_from_round: CommitRound,
+    ) -> Self {
         Self::ConsensusRound {
             future_round,
             deferred_from_round,

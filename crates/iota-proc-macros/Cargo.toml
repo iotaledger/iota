@@ -13,13 +13,9 @@ workspace = true
 proc-macro = true
 
 [dependencies]
-# external dependencies
 proc-macro2.workspace = true
 quote.workspace = true
 syn = { version = "2.0", features = ["full", "fold", "extra-traits"] }
-
-# internal dependencies
-iota-core.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 msim-macros = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim-macros" }
