@@ -779,33 +779,33 @@ async fn test_epoch_flag_upgrade() {
         .with_epoch_duration_ms(30000)
         .build()
         .await;
-    let mut any_not_empty = false;
-    for node in test_cluster.all_node_handles() {
-        any_not_empty = any_not_empty
-            || node.with(|node| {
-                !node
-                    .state()
-                    .epoch_store_for_testing()
-                    .epoch_start_config()
-                    .flags()
-                    .is_empty()
-            });
-    }
+    let any_not_empty = test_cluster.all_node_handles().iter().any(|node| {
+        node.with(|node| {
+            !node
+                .state()
+                .epoch_store_for_testing()
+                .epoch_start_config()
+                .flags()
+                .is_empty()
+        })
+    });
     assert!(any_not_empty);
-    // When the epoch changes, flags on some nodes should be updated to be empty.
+
+    // When the epoch changes, flags on some nodes should be re-initialized to be
+    // empty.
+
     test_cluster.wait_for_epoch_all_nodes(1).await;
-    // Make sure that there are nodes which don't have empty flags.
-    let mut all_empty = false;
-    for node in test_cluster.all_node_handles() {
-        all_empty = all_empty
-            || node.with(|node| {
-                node.state()
-                    .epoch_store_for_testing()
-                    .epoch_start_config()
-                    .flags()
-                    .is_empty()
-            });
-    }
+
+    // Make sure that all nodes have empty flags.
+    let all_empty = test_cluster.all_node_handles().iter().all(|node| {
+        node.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .epoch_start_config()
+                .flags()
+                .is_empty()
+        })
+    });
     assert!(all_empty);
 
     sleep(Duration::from_secs(15)).await;
