@@ -75,7 +75,7 @@ pub mod checked {
                 }
                 .into());
             }
-            if gas_price >= config.max_gas_price() {
+            if gas_price > config.max_gas_price() {
                 return Err(UserInputError::GasPriceTooHigh {
                     max_gas_price: config.max_gas_price(),
                 }
