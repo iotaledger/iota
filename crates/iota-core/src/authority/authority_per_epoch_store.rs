@@ -33,7 +33,7 @@ use iota_types::{
     authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
         AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
-        TimestampMs, TransactionDigest,
+        TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},
@@ -103,7 +103,7 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
+            DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY, CommitTimestampMs,
             VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
@@ -598,7 +598,7 @@ pub struct AuthorityEpochTables {
     pub(crate) randomness_highest_completed_round: DBMap<u64, RandomnessRound>,
 
     /// Holds the timestamp of the most recently generated round of randomness.
-    pub(crate) randomness_last_round_timestamp: DBMap<u64, TimestampMs>,
+    pub(crate) randomness_last_round_timestamp: DBMap<u64, CommitTimestampMs>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -3839,7 +3839,7 @@ pub(crate) struct ConsensusCommitOutput {
     pending_checkpoints: Vec<PendingCheckpoint>,
 
     // random beacon state
-    next_randomness_round: Option<(RandomnessRound, TimestampMs)>,
+    next_randomness_round: Option<(RandomnessRound, CommitTimestampMs)>,
 
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
@@ -3917,7 +3917,7 @@ impl ConsensusCommitOutput {
     pub fn reserve_next_randomness_round(
         &mut self,
         next_randomness_round: RandomnessRound,
-        commit_timestamp: TimestampMs,
+        commit_timestamp: CommitTimestampMs,
     ) {
         assert!(self.next_randomness_round.is_none());
         self.next_randomness_round = Some((next_randomness_round, commit_timestamp));
