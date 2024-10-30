@@ -103,7 +103,7 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY, CommitTimestampMs,
+            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
             VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
