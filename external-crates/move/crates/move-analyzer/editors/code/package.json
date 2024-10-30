@@ -1,7 +1,7 @@
 {
   "name": "iota-move",
   "displayName": "IOTA Move",
-  "description": "A Move language integrated development environment for Iota.",
+  "description": "A Move language integrated development environment for IOTA.",
   "publisher": "iota-foundation",
   "icon": "images/move.png",
   "license": "Apache-2.0",
@@ -88,7 +88,7 @@
           ],
           "scope": "machine-overridable",
           "default": null,
-          "markdownDescription": "Path to Iota executable (by default assumes that `iota` is on the systems path)."
+          "markdownDescription": "Path to IOTA executable (by default assumes that `iota` is on the systems path)."
         },
         "iota-move.trace.server": {
           "type": "string",
