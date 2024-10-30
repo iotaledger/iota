@@ -5,24 +5,17 @@ import { LabelText, LabelTextSize, Panel, Title } from '@iota/apps-ui-kit';
 import {
     formatDelegatedStake,
     useFormatCoin,
-    useGetDelegatedStake,
     useTotalDelegatedRewards,
     useTotalDelegatedStake,
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { DelegatedStake } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+interface StakingDataProps {
+    stakingData: DelegatedStake[] | undefined;
+}
 
-export function StakingData(): JSX.Element {
-    const account = useCurrentAccount();
-    const { data: delegatedStakeData } = useGetDelegatedStake({
-        address: account?.address || '',
-        staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
-        refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    });
-
-    const extendedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
+export function StakingData({ stakingData }: StakingDataProps) {
+    const extendedStakes = stakingData ? formatDelegatedStake(stakingData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
     const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin(

@@ -13,7 +13,7 @@ import { useTheme } from '@/contexts';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
-    const { toggleTheme } = useTheme();
+    const { theme, toggleTheme } = useTheme();
     const account = useCurrentAccount();
     useEffect(() => {
         if (connectionStatus !== 'connected' && !account) {
@@ -35,7 +35,10 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
             </div>
 
             <div className="fixed bottom-5 right-5">
-                <Button onClick={toggleTheme} text={'Change theme'} />
+                <Button
+                    onClick={toggleTheme}
+                    text={`${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+                />
             </div>
 
             <Notifications />
