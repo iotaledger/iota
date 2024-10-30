@@ -433,7 +433,9 @@ mod simtests {
     };
 
     use axum::{
+        body::Body,
         extract::{Request, State},
+        response::Response,
         routing::get,
     };
     use iota_macros::sim_test;
