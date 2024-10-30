@@ -4,40 +4,20 @@
 import { Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
 import { usePopups } from '@/hooks';
 import { NewStakePopup } from '../Popup';
-import { useEffect, useState } from 'react';
+import { Theme, useTheme } from '@/contexts';
 
 export function StartStaking() {
+    const { theme } = useTheme();
     const { openPopup, closePopup } = usePopups();
-    const [videoSrc, setVideoSrc] = useState('');
 
     function addNewStake() {
         openPopup(<NewStakePopup onClose={closePopup} />);
     }
 
-    useEffect(() => {
-        const updateVideoSrc = () => {
-            const isDarkMode = document.documentElement.classList.contains('dark');
-            setVideoSrc(
-                isDarkMode
-                    ? 'https://files.iota.org/media/tooling/wallet-dashboard-staking-dark.mp4'
-                    : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4',
-            );
-        };
-
-        // Observer to detect changes in the class attribute of `documentElement`
-        const observer = new MutationObserver(updateVideoSrc);
-
-        // Configure the observer to listen only to changes in the `class` attribute
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['class'],
-        });
-
-        updateVideoSrc();
-
-        // Disconnect the observer when the component is unmounted
-        return () => observer.disconnect();
-    }, []);
+    const videoSrc =
+        theme === Theme.Dark
+            ? 'https://files.iota.org/media/tooling/wallet-dashboard-staking-dark.mp4'
+            : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4';
 
     return (
         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
