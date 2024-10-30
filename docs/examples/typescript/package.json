@@ -10,7 +10,8 @@
     "check-basic-output-unlock-conditions": "ts-node src/stardust/check-basic-output-unlock-conditions.ts",
     "foundry-output-claim": "ts-node src/stardust/foundry-output-claim.ts",
     "iota-self-sponsor": "ts-node src/stardust/iota-self-sponsor.ts",
-    "nft-migration": "ts-node src/stardust/nft-migration.ts"
+    "nft-migration": "ts-node src/stardust/nft-migration.ts",
+    "nft-output-claim": "ts-node src/stardust/nft-output-claim.ts"
   },
   "keywords": [],
   "author": "",

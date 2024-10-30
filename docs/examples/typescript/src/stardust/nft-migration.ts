@@ -6,7 +6,7 @@
  * generated from iota-genesis-builder/src/stardust/test_outputs.
  */
 
-import {getFullnodeUrl, IotaClient, IotaParsedData} from "@iota/iota-sdk/client";
+import {getFullnodeUrl, IotaClient} from "@iota/iota-sdk/client";
 import {Ed25519Keypair} from "@iota/iota-sdk/keypairs/ed25519";
 import {publishCustomNftPackage} from "../utils";
 import {Transaction} from "@iota/iota-sdk/transactions";
