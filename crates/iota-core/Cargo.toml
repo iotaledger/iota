@@ -104,6 +104,7 @@ num-bigint.workspace = true
 pretty_assertions.workspace = true
 rstest.workspace = true
 serde-reflection.workspace = true
+tower.workspace = true
 serde_yaml.workspace = true
 
 # internal dependencies

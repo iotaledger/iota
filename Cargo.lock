@@ -6269,6 +6269,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
+ "tower 0.4.13",
  "tracing",
  "twox-hash",
  "typed-store",
@@ -7096,7 +7097,6 @@ dependencies = [
  "simple-server-timing-header",
  "tap",
  "tokio",
- "tower 0.4.13",
  "tracing",
  "uuid 1.10.0",
 ]
