@@ -79,7 +79,7 @@ fn get_coins_basic_scenario() {
         let (result_fullnode, result_indexer) =
             get_coins_fullnode_indexer(cluster, client, *owner, None, None, None).await;
 
-        assert!(result_indexer.data.len() > 0);
+        assert!(!result_indexer.data.is_empty());
         assert_eq!(result_fullnode, result_indexer);
     });
 }
@@ -104,7 +104,7 @@ fn get_coins_with_cursor() {
         let (result_fullnode, result_indexer) =
             get_coins_fullnode_indexer(cluster, client, *owner, None, Some(cursor), None).await;
 
-        assert!(result_indexer.data.len() > 0);
+        assert!(!result_indexer.data.is_empty());
         assert_eq!(result_fullnode, result_indexer);
     });
 }
@@ -123,7 +123,7 @@ fn get_coins_with_limit() {
         let (result_fullnode, result_indexer) =
             get_coins_fullnode_indexer(cluster, client, *owner, None, None, Some(2)).await;
 
-        assert!(result_indexer.data.len() > 0);
+        assert!(!result_indexer.data.is_empty());
         assert_eq!(result_fullnode, result_indexer);
     });
 }
@@ -168,7 +168,7 @@ fn get_all_coins_basic_scenario() {
         let (result_fullnode, result_indexer) =
             get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
 
-        assert!(result_indexer.data.len() > 0);
+        assert!(!result_indexer.data.is_empty());
         assert_eq!(result_fullnode, result_indexer);
     });
 }
@@ -204,7 +204,7 @@ fn get_all_coins_with_cursor() {
         println!("Indexer: {:#?}", result_indexer);
         println!("Cursor: {:#?}", cursor);
 
-        assert!(result_indexer.data.len() > 0);
+        assert!(!result_indexer.data.is_empty());
         assert_eq!(result_fullnode, result_indexer);
     });
 }
@@ -223,7 +223,7 @@ fn get_all_coins_with_limit() {
         let (result_fullnode, result_indexer) =
             get_all_coins_fullnode_indexer(cluster, client, *owner, None, Some(2)).await;
 
-        assert!(result_indexer.data.len() > 0);
+        assert!(!result_indexer.data.is_empty());
         assert_eq!(result_fullnode, result_indexer);
     });
 }

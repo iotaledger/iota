@@ -19,7 +19,6 @@ use iota_types::{
     storage::ReadStore,
 };
 use simulacrum::Simulacrum;
-use tempfile::tempdir;
 use test_cluster::TestCluster;
 
 use crate::common::{ApiTestSetup, SimulacrumTestSetup, indexer_wait_for_checkpoint};
@@ -62,7 +61,7 @@ fn get_epochs() {
 
     runtime.block_on(async move {
         let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
+        indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client.get_epochs(None, None, None).await.unwrap();
 
@@ -99,7 +98,7 @@ fn get_epochs_descending() {
 
     runtime.block_on(async move {
         let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
+        indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client.get_epochs(None, None, Some(true)).await.unwrap();
 
@@ -126,7 +125,7 @@ fn get_epochs_paging() {
 
     runtime.block_on(async move {
         let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
+        indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client.get_epochs(None, Some(2), None).await.unwrap();
         let actual_epochs_order = epochs
@@ -168,7 +167,7 @@ fn get_epoch_metrics() {
 
     runtime.block_on(async move {
         let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
+        indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epoch_metrics = client.get_epoch_metrics(None, None, None).await.unwrap();
 
@@ -205,7 +204,7 @@ fn get_epoch_metrics_descending() {
 
     runtime.block_on(async move {
         let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
+        indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client
             .get_epoch_metrics(None, None, Some(true))
@@ -235,7 +234,7 @@ fn get_epoch_metrics_paging() {
 
     runtime.block_on(async move {
         let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
+        indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let epochs = client.get_epoch_metrics(None, Some(2), None).await.unwrap();
         let actual_epochs_order = epochs
@@ -277,7 +276,7 @@ fn get_current_epoch() {
 
     runtime.block_on(async move {
         let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
+        indexer_wait_for_checkpoint(store, last_checkpoint.sequence_number).await;
 
         let current_epoch = client.get_current_epoch().await.unwrap();
 
@@ -299,7 +298,7 @@ fn get_network_metrics() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        indexer_wait_for_checkpoint(&store, 10).await;
+        indexer_wait_for_checkpoint(store, 10).await;
 
         let network_metrics = client.get_network_metrics().await.unwrap();
 
@@ -319,14 +318,14 @@ fn get_move_call_metrics() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        execute_move_fn(&cluster).await.unwrap();
+        execute_move_fn(cluster).await.unwrap();
 
         let latest_checkpoint_sn = cluster
             .rpc_client()
             .get_latest_checkpoint_sequence_number()
             .await
             .unwrap();
-        indexer_wait_for_checkpoint(&store, latest_checkpoint_sn.into_inner()).await;
+        indexer_wait_for_checkpoint(store, latest_checkpoint_sn.into_inner()).await;
 
         let move_call_metrics = client.get_move_call_metrics().await.unwrap();
 
@@ -348,7 +347,7 @@ fn get_latest_address_metrics() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        indexer_wait_for_checkpoint(&store, 10).await;
+        indexer_wait_for_checkpoint(store, 10).await;
 
         let address_metrics = client.get_latest_address_metrics().await.unwrap();
 
@@ -367,7 +366,7 @@ fn get_checkpoint_address_metrics() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        indexer_wait_for_checkpoint(&store, 10).await;
+        indexer_wait_for_checkpoint(store, 10).await;
 
         let address_metrics = client.get_checkpoint_address_metrics(0).await.unwrap();
 
@@ -386,7 +385,7 @@ fn get_all_epoch_address_metrics() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        indexer_wait_for_checkpoint(&store, 10).await;
+        indexer_wait_for_checkpoint(store, 10).await;
 
         let address_metrics = client.get_all_epoch_address_metrics(None).await.unwrap();
 
@@ -406,7 +405,7 @@ fn get_total_transactions() {
     runtime.block_on(async move {
         let latest_checkpoint = sim.get_latest_checkpoint().unwrap();
         let total_transactions_count = latest_checkpoint.network_total_transactions;
-        indexer_wait_for_checkpoint(&store, latest_checkpoint.sequence_number).await;
+        indexer_wait_for_checkpoint(store, latest_checkpoint.sequence_number).await;
 
         let transactions_cnt = client.get_total_transactions().await.unwrap();
         assert_eq!(transactions_cnt.into_inner(), total_transactions_count);
