@@ -7,7 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-# diem dependencies
+# internal dependencies
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
 move-command-line-common.workspace = true
