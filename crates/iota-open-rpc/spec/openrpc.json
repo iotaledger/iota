@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.4.0"
+    "version": "0.5.0-alpha"
   },
   "methods": [
     {
@@ -1297,7 +1297,6 @@
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
-                "authority_capabilities_v2": true,
                 "bridge": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "enable_group_ops_native_function_msm": true,
@@ -1604,7 +1603,7 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "8"
+                  "u64": "1"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
@@ -1767,9 +1766,6 @@
                 },
                 "max_accumulated_txn_cost_per_object_in_mysticeti_commit": {
                   "u64": "10"
-                },
-                "max_accumulated_txn_cost_per_object_in_narwhal_commit": {
-                  "u64": "100"
                 },
                 "max_age_of_jwk_in_epochs": {
                   "u64": "1"
@@ -6591,7 +6587,7 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "protocolVersion": {
-            "description": "existing fields from `SystemEpochInfoEvent` (without epoch)",
+            "description": "existing fields from `SystemEpochInfoEventV1` (without epoch)",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -8310,6 +8306,7 @@
           "iotaTotalSupply",
           "iotaTreasuryCapId",
           "maxValidatorCount",
+          "minValidatorCount",
           "minValidatorJoiningStake",
           "pendingActiveValidatorsId",
           "pendingActiveValidatorsSize",
@@ -8417,6 +8414,14 @@
           },
           "maxValidatorCount": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "minValidatorCount": {
+            "description": "Minimum number of active validators at any moment. We do not allow the number of validators in any epoch to go under this.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -11293,7 +11298,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "AuthenticatorStateUpdate"
+                  "AuthenticatorStateUpdateV1"
                 ]
               },
               "new_active_jwks": {

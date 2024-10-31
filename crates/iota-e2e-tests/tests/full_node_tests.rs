@@ -33,7 +33,7 @@ use iota_types::{
     object::{Object, ObjectRead, Owner, PastObjectRead},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV3, QuorumDriverResponse,
+        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, QuorumDriverResponse,
     },
     storage::ObjectStore,
     transaction::{
@@ -271,32 +271,7 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
     let node = &test_cluster.fullnode_handle.iota_node;
     let context = &mut test_cluster.wallet;
 
-    let (transferred_object, sender, receiver, digest, _) = transfer_coin(context).await?;
-
-    let txes = node
-        .state()
-        .get_transactions_for_tests(
-            Some(TransactionFilter::InputObject(transferred_object)),
-            None,
-            None,
-            false,
-        )
-        .await?;
-
-    assert_eq!(txes.len(), 1);
-    assert_eq!(txes[0], digest);
-
-    let txes = node
-        .state()
-        .get_transactions_for_tests(
-            Some(TransactionFilter::ChangedObject(transferred_object)),
-            None,
-            None,
-            false,
-        )
-        .await?;
-    assert_eq!(txes.len(), 2);
-    assert_eq!(txes[1], digest);
+    let (_, sender, receiver, digest, _) = transfer_coin(context).await?;
 
     let txes = node
         .state()
@@ -641,14 +616,14 @@ async fn test_full_node_event_read_api_ok() {
     let node = &test_cluster.fullnode_handle.iota_node;
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
-    let (package_id, gas_id_1, _) = publish_nfts_package(context).await;
+    let (package_id, _, publish_digest) = publish_nfts_package(context).await;
 
-    let (transferred_object, _, _, digest, _) = transfer_coin(context).await.unwrap();
+    let (_, sender, _, transfer_digest, _) = transfer_coin(context).await.unwrap();
 
     let txes = node
         .state()
         .get_transactions_for_tests(
-            Some(TransactionFilter::InputObject(transferred_object)),
+            Some(TransactionFilter::FromAddress(sender)),
             None,
             None,
             false,
@@ -656,13 +631,11 @@ async fn test_full_node_event_read_api_ok() {
         .await
         .unwrap();
 
-    if gas_id_1 == transferred_object {
-        assert_eq!(txes.len(), 2);
-        assert!(txes[0] == digest || txes[1] == digest);
-    } else {
-        assert_eq!(txes.len(), 1);
-        assert_eq!(txes[0], digest);
-    }
+    assert_eq!(txes.len(), 2);
+    assert!(
+        (txes[0] == publish_digest && txes[1] == transfer_digest)
+            || (txes[0] == transfer_digest && txes[1] == publish_digest)
+    );
 
     // This is a poor substitute for the post processing taking some time
     sleep(Duration::from_millis(1000)).await;
@@ -749,7 +722,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let digest = *txn.digest();
     let res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV3::new_v2(txn),
+            ExecuteTransactionRequestV1::new(txn),
             ExecuteTransactionRequestType::WaitForLocalExecution,
             None,
         )
@@ -784,7 +757,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let digest = *txn.digest();
     let res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV3::new_v2(txn),
+            ExecuteTransactionRequestV1::new(txn),
             ExecuteTransactionRequestType::WaitForEffectsCert,
             None,
         )
@@ -1194,7 +1167,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     let digest = *tx.digest();
     let _res = transaction_orchestrator
         .execute_transaction_block(
-            ExecuteTransactionRequestV3::new_v2(tx),
+            ExecuteTransactionRequestV1::new(tx),
             ExecuteTransactionRequestType::WaitForLocalExecution,
             None,
         )

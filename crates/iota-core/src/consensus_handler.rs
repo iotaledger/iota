@@ -25,7 +25,7 @@ use iota_types::{
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, instrument, trace_span, warn};
+use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{
@@ -201,7 +201,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         let round = consensus_output.leader_round();
 
-        // TODO: Remove this once narwhal is deprecated. For now mysticeti will not
+        // TODO: Is this check necessary? For now mysticeti will not
         // return more than one leader per round so we are not in danger of
         // ignoring any commits.
         assert!(round >= last_committed_round);
@@ -260,7 +260,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             let authenticator_state_update_transaction =
                 self.authenticator_state_update_transaction(round, new_jwks);
             debug!(
-                "adding AuthenticatorStateUpdate({:?}) tx: {:?}",
+                "adding AuthenticatorStateUpdateV1({:?}) tx: {:?}",
                 authenticator_state_update_transaction.digest(),
                 authenticator_state_update_transaction,
             );
@@ -314,18 +314,9 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
                     }
-                    if let ConsensusTransactionKind::RandomnessStateUpdate(randomness_round, _) =
-                        &transaction.kind
-                    {
-                        // These are deprecated and we should never see them. Log an error and eat
-                        // the tx if one appears.
-                        error!(
-                            "BUG: saw deprecated RandomnessStateUpdate tx for commit round {round:?}, randomness round {randomness_round:?}"
-                        )
-                    } else {
-                        let transaction = SequencedConsensusTransactionKind::External(transaction);
-                        transactions.push((serialized_transaction, transaction, authority_index));
-                    }
+
+                    let transaction = SequencedConsensusTransactionKind::External(transaction);
+                    transactions.push((serialized_transaction, transaction, authority_index));
                 }
             }
         }
@@ -539,10 +530,8 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
-        ConsensusTransactionKind::CapabilityNotification(_) => "capability_notification",
-        ConsensusTransactionKind::CapabilityNotificationV2(_) => "capability_notification_v2",
+        ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
-        ConsensusTransactionKind::RandomnessStateUpdate(_, _) => "randomness_state_update",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
     }
@@ -807,7 +796,7 @@ mod tests {
     use consensus_core::{
         BlockAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlock, Transaction, VerifiedBlock,
     };
-    use iota_protocol_config::ConsensusTransactionOrdering;
+    use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
         committee::Committee,
@@ -815,7 +804,9 @@ mod tests {
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
         object::Object,
-        supported_protocol_versions::SupportedProtocolVersions,
+        supported_protocol_versions::{
+            SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+        },
         transaction::{
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
@@ -960,7 +951,13 @@ mod tests {
 
     #[test]
     fn test_order_by_gas_price() {
-        let mut v = vec![cap_txn(10), user_txn(42), user_txn(100), cap_txn(1)];
+        let chain = Chain::Unknown;
+        let mut v = vec![
+            cap_txn(10, chain),
+            user_txn(42),
+            user_txn(100),
+            cap_txn(1, chain),
+        ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
         assert_eq!(extract(v), vec![
             "cap(10)".to_string(),
@@ -971,12 +968,12 @@ mod tests {
 
         let mut v = vec![
             user_txn(1200),
-            cap_txn(10),
+            cap_txn(10, chain),
             user_txn(12),
             user_txn(1000),
             user_txn(42),
             user_txn(100),
-            cap_txn(1),
+            cap_txn(1, chain),
             user_txn(1000),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
@@ -993,10 +990,10 @@ mod tests {
 
         // If there are no user transactions, the order should be preserved.
         let mut v = vec![
-            cap_txn(10),
+            cap_txn(10, chain),
             eop_txn(12),
             eop_txn(10),
-            cap_txn(1),
+            cap_txn(1, chain),
             eop_txn(11),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
@@ -1019,7 +1016,7 @@ mod tests {
                 ConsensusTransactionKind::EndOfPublish(authority) => {
                     format!("eop({})", authority.0[0])
                 }
-                ConsensusTransactionKind::CapabilityNotification(cap) => {
+                ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                     format!("cap({})", cap.generation)
                 }
                 ConsensusTransactionKind::UserTransaction(txn) => {
@@ -1037,12 +1034,17 @@ mod tests {
         txn(ConsensusTransactionKind::EndOfPublish(authority))
     }
 
-    fn cap_txn(generation: u64) -> VerifiedSequencedConsensusTransaction {
-        txn(ConsensusTransactionKind::CapabilityNotification(
+    fn cap_txn(generation: u64, chain: Chain) -> VerifiedSequencedConsensusTransaction {
+        txn(ConsensusTransactionKind::CapabilityNotificationV1(
+            // we don't use the "new" constructor because we need to set the generation
             AuthorityCapabilitiesV1 {
                 authority: Default::default(),
                 generation,
-                supported_protocol_versions: SupportedProtocolVersions::SYSTEM_DEFAULT,
+                supported_protocol_versions:
+                    SupportedProtocolVersionsWithHashes::from_supported_versions(
+                        SupportedProtocolVersions::SYSTEM_DEFAULT,
+                        chain,
+                    ),
                 available_system_packages: vec![],
             },
         ))
