@@ -87,7 +87,7 @@ fn move_struct_tag_to_sdk(st: move_core_types::language_storage::StructTag) -> S
         type_params: st
             .type_params
             .into_iter()
-            .map(|tt| move_type_tag_to_sdk(tt))
+            .map(move_type_tag_to_sdk)
             .collect(),
     }
 }
@@ -221,9 +221,9 @@ impl From<crate::transaction::TransactionData> for Transaction {
             gas_payment: GasPayment {
                 objects: value
                     .gas()
-                    .into_iter()
+                    .iter()
                     .map(|(id, seq, digest)| {
-                        ObjectReference::new((*id).into(), seq.value().into(), (*digest).into())
+                        ObjectReference::new((*id).into(), seq.value(), (*digest).into())
                     })
                     .collect(),
                 owner: Address::new(value.gas_data().owner.to_inner()),
@@ -1017,8 +1017,8 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                 current_size,
                 max_size,
             } => Self::EffectsTooLarge {
-                current_size: current_size,
-                max_size: max_size,
+                current_size,
+                max_size,
             },
             ExecutionFailureStatus::PublishUpgradeMissingDependency => {
                 Self::PublishUpgradeMissingDependency
@@ -1211,8 +1211,8 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 current_size,
                 max_size,
             } => Self::EffectsTooLarge {
-                current_size: current_size,
-                max_size: max_size,
+                current_size,
+                max_size,
             },
             ExecutionError::PublishUpgradeMissingDependency => {
                 Self::PublishUpgradeMissingDependency
@@ -1295,12 +1295,12 @@ impl From<crate::execution_status::MoveLocation> for MoveLocation {
     fn from(value: crate::execution_status::MoveLocation) -> Self {
         Self {
             package: ObjectId::new(value.module.address().into_bytes()),
-            module: Identifier::new(value.module.name().as_str()).expect("invalid module mame"),
+            module: Identifier::new(value.module.name().as_str()).expect("invalid module name"),
             function: value.function,
             instruction: value.instruction,
             function_name: value
                 .function_name
-                .map(|name| Identifier::new(name).expect("invalid function mame")),
+                .map(|name| Identifier::new(name).expect("invalid function name")),
         }
     }
 }
@@ -1310,7 +1310,7 @@ impl From<MoveLocation> for crate::execution_status::MoveLocation {
         Self {
             module: ModuleId::new(
                 move_core_types::account_address::AccountAddress::new(value.package.into_inner()),
-                crate::Identifier::new(value.module.as_str()).expect("invalid module mame"),
+                crate::Identifier::new(value.module.as_str()).expect("invalid module name"),
             ),
             function: value.function,
             instruction: value.instruction,
