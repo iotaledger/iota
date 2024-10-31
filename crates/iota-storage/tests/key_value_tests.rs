@@ -215,12 +215,12 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
-    async fn deprecated_get_transaction_checkpoint(
-        &self,
-        digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        Ok(self.tx_to_checkpoint.get(&digest).cloned())
-    }
+    // async fn deprecated_get_transaction_checkpoint(
+    //     &self,
+    //     digest: TransactionDigest,
+    // ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+    //     Ok(self.tx_to_checkpoint.get(&digest).cloned())
+    // }
 
     async fn get_object(
         &self,

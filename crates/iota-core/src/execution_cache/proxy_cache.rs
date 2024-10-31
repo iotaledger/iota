@@ -21,7 +21,7 @@ use iota_types::{
 use parking_lot::RwLock;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfigType, ExecutionCacheMetrics,
+    ExecutionCacheCommit, ExecutionCacheConfigType, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, PassthroughCache,
     StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
 };
@@ -317,30 +317,30 @@ impl ExecutionCacheCommit for ProxyCache {
     }
 }
 
-impl CheckpointCache for ProxyCache {
-    fn deprecated_get_transaction_checkpoint(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        delegate_method!(self.deprecated_get_transaction_checkpoint(digest))
-    }
+// impl CheckpointCache for ProxyCache {
+//     fn deprecated_get_transaction_checkpoint(
+//         &self,
+//         digest: &TransactionDigest,
+//     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+//         delegate_method!(self.deprecated_get_transaction_checkpoint(digest))
+//     }
 
-    fn deprecated_multi_get_transaction_checkpoint(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-        delegate_method!(self.deprecated_multi_get_transaction_checkpoint(digests))
-    }
+//     fn deprecated_multi_get_transaction_checkpoint(
+//         &self,
+//         digests: &[TransactionDigest],
+//     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+//         delegate_method!(self.
+// deprecated_multi_get_transaction_checkpoint(digests))     }
 
-    fn deprecated_insert_finalized_transactions(
-        &self,
-        digests: &[TransactionDigest],
-        epoch: EpochId,
-        sequence: CheckpointSequenceNumber,
-    ) -> IotaResult {
-        delegate_method!(self.deprecated_insert_finalized_transactions(digests, epoch, sequence))
-    }
-}
+//     fn deprecated_insert_finalized_transactions(
+//         &self,
+//         digests: &[TransactionDigest],
+//         epoch: EpochId,
+//         sequence: CheckpointSequenceNumber,
+//     ) -> IotaResult {
+//         delegate_method!(self.
+// deprecated_insert_finalized_transactions(digests, epoch, sequence))     }
+// }
 
 impl ExecutionCacheReconfigAPI for ProxyCache {
     fn insert_genesis_object(&self, object: Object) -> IotaResult {
