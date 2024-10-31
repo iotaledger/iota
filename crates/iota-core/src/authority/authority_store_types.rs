@@ -172,7 +172,6 @@ impl From<StoreMoveObject> for StoreMoveObjectWrapper {
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct StoreMoveObjectV1 {
     pub type_: MoveObjectType,
-    has_public_transfer: bool,
     #[serde_as(as = "Bytes")]
     contents: Vec<u8>,
     /// reference count of `MoveMetadata` that point to the same content
@@ -211,12 +210,10 @@ pub fn get_store_object_pair(object: Object, indirect_objects_threshold: usize) 
             if indirect_objects_threshold > 0
                 && move_obj.contents().len() >= indirect_objects_threshold
             {
-                let has_public_transfer = move_obj.has_public_transfer();
                 let version = move_obj.version();
                 let (type_, contents) = move_obj.into_inner();
                 let move_object = StoreMoveObject {
                     type_,
-                    has_public_transfer,
                     contents,
                     ref_count: 1,
                 };
@@ -258,7 +255,6 @@ pub(crate) fn try_construct_object(
         (StoreData::IndirectObject(metadata), Some(indirect_obj)) => unsafe {
             Data::Move(MoveObject::new_from_execution_with_limit(
                 indirect_obj.type_,
-                indirect_obj.has_public_transfer,
                 metadata.version,
                 indirect_obj.contents,
                 // verification is already done during initial execution
@@ -268,7 +264,6 @@ pub(crate) fn try_construct_object(
         (StoreData::Coin(balance), None) => unsafe {
             Data::Move(MoveObject::new_from_execution_with_limit(
                 MoveObjectType::gas_coin(),
-                true,
                 object_key.1,
                 bcs::to_bytes(&(object_key.0, balance)).expect("serialization failed"),
                 u64::MAX,

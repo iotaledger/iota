@@ -127,7 +127,6 @@ pub fn to_genesis_object(
         // that it is not publicly transferable (`store` ability is absent).
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
-            false,
             version,
             timelock.to_bcs_bytes(),
             protocol_config,

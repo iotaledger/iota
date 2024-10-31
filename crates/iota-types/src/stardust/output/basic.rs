@@ -144,7 +144,6 @@ impl BasicOutput {
             // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
                 BasicOutput::tag(coin_type.to_type_tag()).into(),
-                false,
                 version,
                 bcs::to_bytes(self)?,
                 protocol_config,
@@ -200,7 +199,6 @@ pub(crate) fn create_coin(
         // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
             MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
-            true,
             version,
             bcs::to_bytes(&coin)?,
             protocol_config,

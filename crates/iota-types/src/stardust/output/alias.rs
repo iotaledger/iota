@@ -119,7 +119,6 @@ impl Alias {
             // that it has public transfer (`store` ability is present).
             MoveObject::new_from_execution(
                 Self::tag().into(),
-                true,
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -192,7 +191,6 @@ impl AliasOutput {
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
                 AliasOutput::tag(coin_type.to_type_tag()).into(),
-                false,
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
