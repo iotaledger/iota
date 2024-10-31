@@ -592,7 +592,7 @@ impl ReadApi {
 
     /// Dry run a transaction block given the provided transaction data.
     ///
-    /// Simulates running the transaction, including all standard checks,
+    /// This simulates running the transaction, including all standard checks,
     /// without actually running it. This is useful for estimating the gas
     /// fees of a transaction before executing it. You can also use it to
     /// identify any side-effects of a transaction before you execute it on
@@ -625,7 +625,7 @@ impl ReadApi {
     /// - Function returns do not need to be used, even if they do not have
     ///   `drop`
     ///
-    /// This methods output includes a breakdown of results returned by every
+    /// This method's output includes a breakdown of results returned by every
     /// transaction in the block, as well as the transaction's effects.
     ///
     /// To run an accurate simulation of a transaction and understand whether

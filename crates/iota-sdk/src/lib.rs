@@ -195,7 +195,7 @@ impl IotaClientBuilder {
         self
     }
 
-    /// Returns an [IotaClient] object connected to the Iota network accessable
+    /// Return an [IotaClient] object connected to the Iota network accessable
     /// via the provided URI.
     ///
     /// # Examples

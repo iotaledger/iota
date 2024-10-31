@@ -28,7 +28,7 @@ impl EventApi {
         Self { api }
     }
 
-    /// Subscribes to receive a stream of filtered events.
+    /// Subscribe to receive a stream of filtered events.
     ///
     /// Subscription is only possible via WebSockets.
     /// For a list of possible event filters, see [EventFilter].

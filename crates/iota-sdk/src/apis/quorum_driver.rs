@@ -31,7 +31,7 @@ impl QuorumDriverApi {
         Self { api }
     }
 
-    /// Executes a transaction with a FullNode client.
+    /// Execute a transaction with a FullNode client.
     ///
     /// The request type defaults to
     /// [`ExecuteTransactionRequestType::WaitForLocalExecution`].
