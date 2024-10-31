@@ -7,7 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-# diem dependencies
+# internal dependencies
 move-compiler.workspace = true
 move-model.workspace = true
 

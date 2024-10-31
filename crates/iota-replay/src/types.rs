@@ -276,10 +276,6 @@ pub enum ExecutionStoreEvent {
         child: ObjectID,
         result: IotaResult<Option<Object>>,
     },
-    ParentSyncStoreGetLatestParentEntryRef {
-        object_id: ObjectID,
-        result: IotaResult<Option<ObjectRef>>,
-    },
     ResourceResolverGetResource {
         address: AccountAddress,
         typ: StructTag,
