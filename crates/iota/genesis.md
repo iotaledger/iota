@@ -88,7 +88,7 @@ recipient-address,amount-nanos,staked-with-validator,staked-with-timelock-expira
 <validator-2-address>,1500000000000000,<validator-2-address>,
 ```
 
-This is useful for allocating funds for a faucet, for distributing the initial
+This is useful for allocating funds for a faucet, or for distributing the initial
 stake to validators.
 
 The resulting distribution schedule is amended only if any migration sources are
