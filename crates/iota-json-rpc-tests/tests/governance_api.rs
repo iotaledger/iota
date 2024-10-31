@@ -254,7 +254,6 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     let timelock_iota = unsafe {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
-            false,
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),
@@ -406,7 +405,6 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     let timelock_iota = unsafe {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
-            false,
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),

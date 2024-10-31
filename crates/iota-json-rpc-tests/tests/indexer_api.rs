@@ -69,7 +69,6 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     let nft_move_object = unsafe {
         MoveObject::new_from_execution(
             MoveObjectType::stardust_nft(),
-            true,
             OBJECT_START_VERSION,
             bcs::to_bytes(&nft).unwrap(),
             &ProtocolConfig::get_for_min_version(),

@@ -1102,7 +1102,6 @@ impl RpcExampleProvider {
                     unsafe {
                         MoveObject::new_from_execution_with_limit(
                             MoveObjectType::from(struct_tag.clone()),
-                            true,
                             SequenceNumber::from_u64(1),
                             Vec::new(),
                             5,
