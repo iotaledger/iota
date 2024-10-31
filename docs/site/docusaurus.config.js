@@ -76,6 +76,39 @@ const config = {
       };
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
+    [
+      'docusaurus-plugin-typedoc',
+
+      // Options
+      {
+        tsconfig: '../../sdk/typescript/tsconfig.json',
+        entryPoints: [
+          "../../sdk/typescript/src/bcs",
+          "../../sdk/typescript/src/client",
+          "../../sdk/typescript/src/cryptography",
+          "../../sdk/typescript/src/faucet",
+          "../../sdk/typescript/src/graphql",
+          "../../sdk/typescript/src/keypairs/ed25519",
+          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/multisig",
+          "../../sdk/typescript/src/transactions",
+          "../../sdk/typescript/src/utils",
+          "../../sdk/typescript/src/verify"
+        ],
+        plugin: ["typedoc-plugin-markdown"],
+        out: "../../docs/content/references/ts-sdk/api/",
+        githubPages: false,
+        readme: "none",
+        hideGenerator: true,
+        sort: ["source-order"],
+        excludeInternal: true,
+        excludePrivate: true,
+        disableSources: true,
+        hideBreadcrumbs: true,
+        intentionallyNotExported: [],
+      },
+    ],
   ],
   presets: [
     [
@@ -93,7 +126,9 @@ const config = {
           }) {
             return defaultSidebarItemsGenerator({
               ...args,
-              isCategoryIndex() {
+              isCategoryIndex(doc) {
+                if(doc.fileName === 'index' && doc.directories.includes('ts-sdk'))
+                  return true;
                 // No doc will be automatically picked as category index
                 return false;
               },
