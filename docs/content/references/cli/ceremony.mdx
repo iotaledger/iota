@@ -126,9 +126,9 @@ validator1     0xba55e3ce221bb7edfbbef4d59b68893f5550b6302a9456b738ad8cf06919be0
 
 </details>
 
-### Initialize token-distribution schedule
+### Initialize the Token Distribution Schedule
 
-Set the initial token-distribution schedule through a csv file. E.g.
+Set the initial token distribution schedule through a `.csv` file:
 
 ```csv
 recipient-address,amount-nanos,staked-with-validator,staked-with-timelock-expiration
@@ -141,7 +141,7 @@ This is useful for allocating funds for a faucet, or for distributing the initia
 stake to validators.
 
 The resulting distribution schedule is amended only if any migration sources are
-passed in the "Build the Unsigned Checkpoint" step.
+passed in the [Build the Unsigned Checkpoint](#build-the-unsigned-checkpoint) step.
 
 ```shell
 $ iota genesis-ceremony init-token-distribution-schedule \
