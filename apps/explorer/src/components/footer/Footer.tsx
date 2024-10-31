@@ -7,6 +7,7 @@ import { LegalLinks, LegalText } from './Legal';
 import { IotaLogoWeb } from '@iota/ui-icons';
 import { Link } from '~/components/ui';
 import { FOOTER_LINKS } from '~/lib/constants';
+import { rev } from '~/../rev.json'
 
 function FooterLinks(): JSX.Element {
     return (
@@ -45,6 +46,7 @@ function Footer(): JSX.Element {
             <div className="mt-4 flex justify-center pt-5 text-neutral-10 md:hidden md:self-start">
                 <IotaLogoWeb width={137} height={36} />
             </div>
+            <p className="text-neutral-40 text-center w-full p-8">{rev}</p>
         </footer>
     );
 }

@@ -2,12 +2,12 @@
     "name": "iota-explorer",
     "private": true,
     "scripts": {
-        "dev": "vite --port 3000",
+        "dev": "pnpm generate-rev && vite --port 3000",
         "test": "pnpm test:unit",
         "test:unit": "vitest run",
         "typecheck": "tsc -b",
         "playwright": "playwright",
-        "build": "pnpm typecheck && vite build",
+        "build": "pnpm generate-rev && pnpm typecheck && vite build",
         "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,jsx,ts,tsx}\"",
         "eslint:fix": "pnpm eslint:check --fix",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
@@ -16,7 +16,8 @@
         "lint:fix": "pnpm eslint:fix && pnpm prettier:fix",
         "preview": "vite preview",
         "ampli": "ampli",
-        "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/utils/analytics/ampli/index.ts"
+        "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/utils/analytics/ampli/index.ts",
+        "generate-rev": "node git-rev.mjs"
     },
     "dependencies": {
         "@amplitude/analytics-browser": "^1.10.3",

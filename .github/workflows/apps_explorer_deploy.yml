@@ -3,12 +3,23 @@ name: Deploy for Explorer
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.EXPLORER_VERCEL_PROJECT_ID }}
+  EXPLORER_VERCEL_PROJECT_STAGING_URL: ${{ EXPLORER_VERCEL_PROJECT_STAGING_URL }}
 
 on:
   workflow_dispatch:
+    inputs:
+      isProd:
+        type: boolean
+        required: true
+      isStaging:
+        type: boolean
+        required: true
   workflow_call:
     inputs:
       isProd:
+        type: boolean
+        required: true
+      isStaging:
         type: boolean
         required: true
 
@@ -64,6 +75,9 @@ jobs:
         id: deploy_url
         if: ${{ inputs.isProd == false }}
         run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
+      - name: Alias Staging deploy
+        if: ${{ inputs.isStaging }}
+        run: vercel alias $DEPLOY_URL $EXPLORER_VERCEL_PROJECT_STAGING_URL
       - name: Comment on pull request
         if: ${{ inputs.isProd == false }}
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # pin@v7
