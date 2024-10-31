@@ -186,7 +186,7 @@ pub enum ExecutionFailureStatus {
         "Iota Move Bytecode Verification Timeout. \
         Please run the Iota Move Verifier for more information."
     )]
-    IotaMoveVerificationTimedout,
+    IotaMoveVerificationTimeout,
 
     #[error("The shared object operation is not allowed.")]
     SharedObjectOperationNotAllowed,
