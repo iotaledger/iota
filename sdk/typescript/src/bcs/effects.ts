@@ -6,7 +6,7 @@ import { bcs } from '@iota/bcs';
 
 import { Address, ObjectDigest } from './bcs.js';
 
-export const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
+const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
     UnableToFetchPackage: bcs.struct('UnableToFetchPackage', { packageId: Address }),
     NotAPackage: bcs.struct('NotAPackage', { objectId: Address }),
     IncompatibleUpgrade: null,
@@ -18,18 +18,18 @@ export const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
     }),
 });
 
-export const ModuleId = bcs.struct('ModuleId', {
+const ModuleId = bcs.struct('ModuleId', {
     address: Address,
     name: bcs.string(),
 });
-export const MoveLocation = bcs.struct('MoveLocation', {
+const MoveLocation = bcs.struct('MoveLocation', {
     module: ModuleId,
     function: bcs.u16(),
     instruction: bcs.u16(),
     functionName: bcs.option(bcs.string()),
 });
 
-export const CommandArgumentError = bcs.enum('CommandArgumentError', {
+const CommandArgumentError = bcs.enum('CommandArgumentError', {
     TypeMismatch: null,
     InvalidBCSBytes: null,
     InvalidUsageOfPureArg: null,
@@ -47,12 +47,12 @@ export const CommandArgumentError = bcs.enum('CommandArgumentError', {
     SharedObjectOperationNotAllowed: null,
 });
 
-export const TypeArgumentError = bcs.enum('TypeArgumentError', {
+const TypeArgumentError = bcs.enum('TypeArgumentError', {
     TypeNotFound: null,
     ConstraintNotSatisfied: null,
 });
 
-export const ExecutionFailureStatus = bcs.enum('ExecutionFailureStatus', {
+const ExecutionFailureStatus = bcs.enum('ExecutionFailureStatus', {
     InsufficientGas: null,
     InvalidGasObject: null,
     InvariantViolation: null,
@@ -116,14 +116,14 @@ export const ExecutionStatus = bcs.enum('ExecutionStatus', {
     }),
 });
 
-export const GasCostSummary = bcs.struct('GasCostSummary', {
+const GasCostSummary = bcs.struct('GasCostSummary', {
     computationCost: bcs.u64(),
     storageCost: bcs.u64(),
     storageRebate: bcs.u64(),
     nonRefundableStorageFee: bcs.u64(),
 });
 
-export const Owner = bcs.enum('Owner', {
+const Owner = bcs.enum('Owner', {
     AddressOwner: Address,
     ObjectOwner: Address,
     Shared: bcs.struct('Shared', {
@@ -132,9 +132,9 @@ export const Owner = bcs.enum('Owner', {
     Immutable: null,
 });
 
-export const VersionDigest = bcs.tuple([bcs.u64(), ObjectDigest]);
+const VersionDigest = bcs.tuple([bcs.u64(), ObjectDigest]);
 
-export const ObjectIn = bcs.enum('ObjectIn', {
+const ObjectIn = bcs.enum('ObjectIn', {
     NotExist: null,
     Exist: bcs.tuple([VersionDigest, Owner]),
 });
@@ -145,19 +145,19 @@ export const ObjectOut = bcs.enum('ObjectOut', {
     PackageWrite: VersionDigest,
 });
 
-export const IDOperation = bcs.enum('IDOperation', {
+const IDOperation = bcs.enum('IDOperation', {
     None: null,
     Created: null,
     Deleted: null,
 });
 
-export const EffectsObjectChange = bcs.struct('EffectsObjectChange', {
+const EffectsObjectChange = bcs.struct('EffectsObjectChange', {
     inputState: ObjectIn,
     outputState: ObjectOut,
     idOperation: IDOperation,
 });
 
-export const UnchangedSharedKind = bcs.enum('UnchangedSharedKind', {
+const UnchangedSharedKind = bcs.enum('UnchangedSharedKind', {
     ReadOnlyRoot: VersionDigest,
     MutateDeleted: bcs.u64(),
     ReadDeleted: bcs.u64(),
@@ -165,7 +165,7 @@ export const UnchangedSharedKind = bcs.enum('UnchangedSharedKind', {
     PerEpochConfig: null,
 });
 
-export const TransactionEffectsV1 = bcs.struct('TransactionEffectsV1', {
+const TransactionEffectsV1 = bcs.struct('TransactionEffectsV1', {
     status: ExecutionStatus,
     executedEpoch: bcs.u64(),
     gasUsed: GasCostSummary,
