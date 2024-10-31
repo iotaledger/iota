@@ -30,7 +30,6 @@ cargo run --bin iota-tool -- anemo ping --server-name "$SERVER_NAME" "$ADDRESS"
 
 `iota-tool` has been preconfigured to support RPC calls using [RON (Rusty Object Notation)](https://crates.io/crates/ron) for the following servivces:
 
-- Narwhal: `PrimaryToPrimary` and `WorkerToWorker`
 - Iota: `Discovery` and `StateSync`
 
 Example command to send an RPC:

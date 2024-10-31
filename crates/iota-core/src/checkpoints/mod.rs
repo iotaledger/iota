@@ -1962,9 +1962,9 @@ impl CheckpointSignatureAggregator {
                 Err(())
             }
             InsertResult::QuorumReached(cert) => {
-                // It is not guaranteed that signature.authority == narwhal_cert.author, but we
-                // do verify the signature so we know that the author signed the
-                // message at some point.
+                // It is not guaranteed that signature.authority == consensus_cert.author, but
+                // we do verify the signature so we know that the author signed
+                // the message at some point.
                 if their_digest != self.digest {
                     self.metrics.remote_checkpoint_forks.inc();
                     warn!(

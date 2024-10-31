@@ -32,7 +32,7 @@ use iota_types::{
     accumulator::Accumulator,
     authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
-        AuthorityName, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
+        AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
@@ -62,7 +62,6 @@ use iota_types::{
 };
 use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use narwhal_types::{Round, TimestampMs};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus::IntCounter;
 use serde::{Deserialize, Serialize};
@@ -104,7 +103,7 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
+            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
             VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
@@ -599,7 +598,7 @@ pub struct AuthorityEpochTables {
     pub(crate) randomness_highest_completed_round: DBMap<u64, RandomnessRound>,
 
     /// Holds the timestamp of the most recently generated round of randomness.
-    pub(crate) randomness_last_round_timestamp: DBMap<u64, TimestampMs>,
+    pub(crate) randomness_last_round_timestamp: DBMap<u64, CommitTimestampMs>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1696,7 +1695,7 @@ impl AuthorityPerEpochStore {
     fn should_defer(
         &self,
         cert: &VerifiedExecutableTransaction,
-        commit_round: Round,
+        commit_round: CommitRound,
         dkg_failed: bool,
         generating_randomness: bool,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
@@ -2383,10 +2382,6 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessStateUpdate(_round, _bytes),
-                ..
-            }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes),
                 ..
@@ -3224,7 +3219,7 @@ impl AuthorityPerEpochStore {
         output: &mut ConsensusCommitOutput,
         transaction: &VerifiedSequencedConsensusTransaction,
         checkpoint_service: &Arc<C>,
-        commit_round: Round,
+        commit_round: CommitRound,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
         mut randomness_manager: Option<&mut RandomnessManager>,
         dkg_failed: bool,
@@ -3426,13 +3421,6 @@ impl AuthorityPerEpochStore {
                     );
                 }
                 Ok(ConsensusCertificateResult::ConsensusMessage)
-            }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessStateUpdate(_, _),
-                ..
-            }) => {
-                // These are always generated as System transactions (handled below).
-                panic!("process_consensus_transaction called with external RandomnessStateUpdate");
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, bytes),
@@ -3840,7 +3828,7 @@ pub(crate) struct ConsensusCommitOutput {
     pending_checkpoints: Vec<PendingCheckpoint>,
 
     // random beacon state
-    next_randomness_round: Option<(RandomnessRound, TimestampMs)>,
+    next_randomness_round: Option<(RandomnessRound, CommitTimestampMs)>,
 
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
@@ -3918,7 +3906,7 @@ impl ConsensusCommitOutput {
     pub fn reserve_next_randomness_round(
         &mut self,
         next_randomness_round: RandomnessRound,
-        commit_timestamp: TimestampMs,
+        commit_timestamp: CommitTimestampMs,
     ) {
         assert!(self.next_randomness_round.is_none());
         self.next_randomness_round = Some((next_randomness_round, commit_timestamp));
