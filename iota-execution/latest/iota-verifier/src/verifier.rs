@@ -39,7 +39,7 @@ pub fn iota_verify_module_metered_check_timeout_only(
     if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter) {
         if matches!(
             error.kind(),
-            iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimedout
+            iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimeout
         ) {
             return Err(error);
         }
@@ -57,7 +57,7 @@ pub fn iota_verify_module_unmetered(
         debug_assert!(
             !matches!(
                 err.kind(),
-                iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimedout
+                iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimeout
             ),
             "Unexpected timeout error in execution"
         );
