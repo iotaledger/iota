@@ -616,9 +616,9 @@ async fn test_full_node_event_read_api_ok() {
     let node = &test_cluster.fullnode_handle.iota_node;
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
-    let (package_id, _, _) = publish_nfts_package(context).await;
+    let (package_id, _, publish_digest) = publish_nfts_package(context).await;
 
-    let (_, sender, _, digest, _) = transfer_coin(context).await.unwrap();
+    let (_, sender, _, transfer_digest, _) = transfer_coin(context).await.unwrap();
 
     let txes = node
         .state()
@@ -632,7 +632,10 @@ async fn test_full_node_event_read_api_ok() {
         .unwrap();
 
     assert_eq!(txes.len(), 2);
-    assert!(txes[0] == digest || txes[1] == digest);
+    assert!(
+        (txes[0] == publish_digest && txes[1] == transfer_digest)
+            || (txes[0] == transfer_digest && txes[1] == publish_digest)
+    );
 
     // This is a poor substitute for the post processing taking some time
     sleep(Duration::from_millis(1000)).await;
