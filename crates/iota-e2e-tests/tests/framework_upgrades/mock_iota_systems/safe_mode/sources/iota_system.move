@@ -3,18 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::iota_system {
-    use std::vector;
-
     use iota::balance::Balance;
-    use iota::object::UID;
-    use iota::iota::IOTA;
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
     use iota::dynamic_field;
+    use iota::iota::IOTA;
+    use iota::iota::IotaTreasuryCap;
+    use iota::timelock::SystemTimelockCap;
 
-    use iota_system::validator::Validator;
-    use iota_system::iota_system_state_inner::IotaSystemStateInner;
-    use iota_system::iota_system_state_inner;
+    use iota_system::validator::ValidatorV1;
+    use iota_system::iota_system_state_inner::{Self, IotaSystemStateV1};
+
+    const SYSTEM_TIMELOCK_CAP_DF_KEY: vector<u8> = b"sys_timelock_cap";
 
     public struct IotaSystemState has key {
         id: UID,
@@ -23,14 +21,17 @@ module iota_system::iota_system {
 
     public(package) fun create(
         id: UID,
-        validators: vector<Validator>,
+        iota_treasury_cap: IotaTreasuryCap,
+        validators: vector<ValidatorV1>,
         storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
+        system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
         let system_state = iota_system_state_inner::create(
+            iota_treasury_cap,
             validators,
             storage_fund,
             protocol_version,
@@ -44,37 +45,44 @@ module iota_system::iota_system {
             version,
         };
         dynamic_field::add(&mut self.id, version, system_state);
+        dynamic_field::add(&mut self.id, SYSTEM_TIMELOCK_CAP_DF_KEY, system_timelock_cap);
         transfer::share_object(self);
     }
 
+    #[allow(unused_function)]
     fun advance_epoch(
+        validator_target_reward: u64,
         storage_charge: Balance<IOTA>,
         computation_reward: Balance<IOTA>,
         wrapper: &mut IotaSystemState,
         _new_epoch: u64,
         _next_protocol_version: u64,
         storage_rebate: u64,
-        _non_refundable_storage_fee: u64,
-        _storage_fund_reinvest_rate: u64,
-        _reward_slashing_rate: u64,
+        non_refundable_storage_fee: u64,
+        reward_slashing_rate: u64,
         _epoch_start_timestamp_ms: u64,
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
         assert!(tx_context::sender(ctx) == @0x1, 0); // aborts here
-        iota_system_state_inner::advance_epoch(
+        let storage_rebate = iota_system_state_inner::advance_epoch(
             self,
+            validator_target_reward,
             storage_charge,
             computation_reward,
             storage_rebate,
-        )
+            non_refundable_storage_fee,
+            reward_slashing_rate,
+            ctx
+        );
+        storage_rebate
     }
 
-    public fun active_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
+    public fun active_validator_addresses(_wrapper: &mut IotaSystemState): vector<address> {
         vector::empty()
     }
 
-    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateInner {
+    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
         let version = self.version;
         dynamic_field::borrow_mut(&mut self.id, version)
     }

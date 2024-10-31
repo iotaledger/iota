@@ -895,7 +895,7 @@ mod sim_only_tests {
             system_state.system_state_version(),
             IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1
         );
-        assert!(matches!(system_state, IotaSystemState::SimTestShallowV2(_)));
+        assert!(matches!(system_state, IotaSystemState::SimTestShallowV1(_)));
     }
 
     #[sim_test]
@@ -948,7 +948,7 @@ mod sim_only_tests {
             system_state.system_state_version(),
             IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1
         );
-        if let IotaSystemState::SimTestDeepV2(inner) = system_state {
+        if let IotaSystemState::SimTestDeepV1(inner) = system_state {
             // Make sure we have 1 inactive validator for latter testing.
             assert_eq!(inner.validators.inactive_validators.size, 1);
             get_validator_from_table(
@@ -963,7 +963,7 @@ mod sim_only_tests {
             )
             .unwrap();
         } else {
-            panic!("Expecting SimTestDeepV2 type");
+            panic!("Expecting SimTestDeepV1 type");
         }
     }
 

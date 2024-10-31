@@ -6,7 +6,7 @@ IOTA Indexer is an off-fullnode service to serve data from the IOTA protocol, in
 
 > [!NOTE]
 >
-> - Indexer sync workers require the `NodeConfig::enable_experimental_rest_api` flag set to `true` in the node
+> - Indexer sync workers require the `NodeConfig::enable_rest_api` flag set to `true` in the node
 > - Fullnodes expose read and transaction execution JSON-RPC APIs. Hence, transactions can be executed through fullnodes.
 > - Validators expose only read-only JSON-RPC APIs.
 > - Indexer instances expose read, write and extended JSON-RPC APIs.

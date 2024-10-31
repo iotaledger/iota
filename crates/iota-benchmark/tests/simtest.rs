@@ -376,15 +376,12 @@ mod test {
             }
         });
 
-        // Narwhal & Consensus 2.0 fail points.
+        // Consensus fail points.
         let dead_validator = dead_validator_orig.clone();
         let keep_alive_nodes_clone = keep_alive_nodes.clone();
         let grace_period_clone = grace_period.clone();
         register_fail_points(
             &[
-                "narwhal-rpc-response",
-                "narwhal-store-before-write",
-                "narwhal-store-after-write",
                 "consensus-store-before-write",
                 "consensus-store-after-write",
                 "consensus-after-propose",
@@ -399,7 +396,6 @@ mod test {
                 );
             },
         );
-        register_fail_point_async("narwhal-delay", || delay_failpoint(10..20, 0.001));
 
         let dead_validator = dead_validator_orig.clone();
         let keep_alive_nodes_clone = keep_alive_nodes.clone();
@@ -507,17 +503,11 @@ mod test {
                     let total_gas_limit = checkpoint_budget_factor
                         * DEFAULT_VALIDATOR_GAS_PRICE
                         * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
-                    config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(
-                        total_gas_limit,
-                    );
                     config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                         total_gas_limit,
                     );
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
-                    config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(
-                        txn_count_limit,
-                    );
                     config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                         txn_count_limit,
                     );
@@ -668,7 +658,8 @@ mod test {
     }
 
     async fn test_protocol_upgrade_compatibility_impl() {
-        let max_ver = ProtocolVersion::MAX.as_u64();
+        // TODO: Remove the `+ 1` after we have Protocol version 2
+        let max_ver = ProtocolVersion::MAX.as_u64() + 1;
         let manifest = iota_framework_snapshot::load_bytecode_snapshot_manifest();
 
         let Some((&starting_version, _)) = manifest.range(..max_ver).last() else {
@@ -838,9 +829,6 @@ mod test {
             "SIM_STRESS_TEST_NUM_VALIDATORS",
             default_num_validators,
         ));
-        if std::env::var("CHECKPOINTS_PER_EPOCH").is_ok() {
-            eprintln!("CHECKPOINTS_PER_EPOCH env var is deprecated, use EPOCH_DURATION_MS");
-        }
         let epoch_duration_ms = get_var("EPOCH_DURATION_MS", default_epoch_duration_ms);
         if epoch_duration_ms > 0 {
             builder = builder.with_epoch_duration_ms(epoch_duration_ms);

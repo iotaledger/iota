@@ -36,7 +36,6 @@
 
 # core-consensus team
 /consensus/ @iotaledger/core-consensus
-/narwhal/ @iotaledger/core-consensus
 
 # dev-tools team
 /crates/iota/ @iotaledger/dev-tools
@@ -69,11 +68,11 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 /docs/**/vercel.json @iotaledger/devx
 
 # CI Taskforce
-/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
-/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
+/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
+/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
 
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
-/.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
+/.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn
 
 # Scripts
 /scripts/dependency_graphs/ @muXxer

@@ -4,8 +4,7 @@
 
 use std::{
     fmt::{Debug, Display, Formatter},
-    fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -150,12 +149,6 @@ pub enum KeyToolCommand {
         #[clap(long, short = 's')]
         sort_by_alias: bool,
     },
-    /// This reads the content at the provided file path. The accepted format
-    /// is a Bech32 encoded [enum IotaKeyPair] or `type AuthorityKeyPair`
-    /// (Base64 encoded `privkey`). This prints out the account keypair as
-    /// Base64 encoded `flag || privkey`, the network keypair, protocol
-    /// keypair, authority keypair as Base64 encoded `privkey`.
-    LoadKeypair { file: PathBuf },
     /// To MultiSig Iota Address. Pass in a list of all public keys `flag || pk`
     /// in Base64. See `keytool list` for example public keys.
     MultiSigAddress {
@@ -220,11 +213,6 @@ pub enum KeyToolCommand {
         #[clap(long)]
         base64pk: String,
     },
-    /// This takes a bech32 encoded [enum IotaKeyPair]. It outputs the keypair
-    /// into a file at the current directory where the address is the
-    /// filename, and prints out its Iota address, Base64 encoded public
-    /// key, the key scheme, and the key scheme flag.
-    Unpack { keypair: String },
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // /// Given the max_epoch, generate an OAuth url, ask user to paste the
     // /// redirect with id_token, call salt server, then call the prover server,
@@ -358,15 +346,6 @@ pub struct ExportedKey {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct KeypairData {
-    account_keypair: String,
-    network_keypair: Option<String>,
-    protocol_keypair: Option<String>,
-    key_scheme: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MultiSigAddress {
     multisig_address: String,
     multisig: Vec<MultiSigOutput>,
@@ -456,7 +435,6 @@ pub enum CommandOutput {
     Import(Key),
     Export(ExportedKey),
     List(Vec<Key>),
-    LoadKeypair(KeypairData),
     MultiSigAddress(MultiSigAddress),
     MultiSigCombinePartialSig(MultiSigCombinePartialSig),
     Show(Key),
@@ -665,44 +643,6 @@ impl KeyToolCommand {
                 }
                 CommandOutput::List(keys)
             }
-            KeyToolCommand::LoadKeypair { file } => {
-                let output = match read_keypair_from_file(&file) {
-                    Ok(keypair) => {
-                        // Account keypair is encoded with the key scheme flag {},
-                        // and network and protocol keypair are not.
-                        let network_protocol_keypair = match &keypair {
-                            IotaKeyPair::Ed25519(kp) => kp.encode_base64(),
-                            IotaKeyPair::Secp256k1(kp) => kp.encode_base64(),
-                            IotaKeyPair::Secp256r1(kp) => kp.encode_base64(),
-                        };
-                        KeypairData {
-                            account_keypair: keypair.encode_base64(),
-                            network_keypair: Some(network_protocol_keypair.clone()),
-                            protocol_keypair: Some(network_protocol_keypair),
-                            key_scheme: keypair.public().scheme().to_string(),
-                        }
-                    }
-                    Err(_) => {
-                        // Authority keypair file is not stored with the flag, it will try read as
-                        // BLS keypair..
-                        match read_authority_keypair_from_file(&file) {
-                            Ok(keypair) => KeypairData {
-                                account_keypair: keypair.encode_base64(),
-                                network_keypair: None,
-                                protocol_keypair: None,
-                                key_scheme: SignatureScheme::BLS12381.to_string(),
-                            },
-                            Err(e) => {
-                                return Err(anyhow!(format!(
-                                    "Failed to read keypair at path {:?} err: {:?}",
-                                    file, e
-                                )));
-                            }
-                        }
-                    }
-                };
-                CommandOutput::LoadKeypair(output)
-            }
             KeyToolCommand::MultiSigAddress {
                 threshold,
                 pks,
@@ -854,16 +794,7 @@ impl KeyToolCommand {
                     serialized_sig_base64: serialized_sig,
                 })
             }
-            KeyToolCommand::Unpack { keypair } => {
-                let key = Key::from(
-                    &IotaKeyPair::decode(&keypair)
-                        .map_err(|_| anyhow!("Invalid Bech32 encoded keypair"))?,
-                );
-                let path_str = format!("{}.key", key.iota_address).to_lowercase();
-                let path = Path::new(&path_str);
-                fs::write(path, keypair)?;
-                CommandOutput::Show(key)
-            } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
+            /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
                *     let msg = PersonalMessage {
                *         message: data.as_bytes().to_vec(),
