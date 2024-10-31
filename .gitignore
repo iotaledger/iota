@@ -82,6 +82,3 @@ lcov.info
 docker/iota-private-network/data
 docker/iota-private-network/configs/validators/validator*
 docker/iota-private-network/configs/genesis/genesis.blob
-
-# Embedded git metadata in pnpm projects
-rev.json
