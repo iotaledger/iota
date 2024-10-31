@@ -612,12 +612,7 @@ pub fn allocate_receiving_ticket_for_object(
         ));
     };
     let move_object = unsafe {
-        MoveObject::new_from_execution_with_limit(
-            tag.into(),
-            object_version,
-            bytes,
-            250 * 1024,
-        )
+        MoveObject::new_from_execution_with_limit(tag.into(), object_version, bytes, 250 * 1024)
     }
     .unwrap();
 

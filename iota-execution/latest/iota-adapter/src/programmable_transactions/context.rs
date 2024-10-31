@@ -1351,9 +1351,7 @@ mod checked {
         object_value: ObjectValue,
     ) -> Result<(), ExecutionError> {
         let ObjectValue {
-            type_,
-            contents,
-            ..
+            type_, contents, ..
         } = object_value;
         let bytes = match contents {
             ObjectContents::Coin(coin) => coin.to_bcs_bytes(),
