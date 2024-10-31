@@ -60,10 +60,10 @@ If you need to restrict specific addresses from accessing your coin, consider im
 ## Creating a Regulated Coin
 
 To deny specific addresses from holding your coin,
-use the [`create_regulated_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_regulated_currency) function instead of [`create_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_currency).
+use the [`create_regulated_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_regulated_currency_v1) function instead of [`create_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_currency).
 
 Internally, `create_regulated_currency` calls `create_currency` to create the coin
-and also produces a [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycap) object.
+and also produces a [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycapv1) object.
 This object allows you to manage the deny list in a `DenyList` object.
 The process is similar to the previous example but includes transferring the `DenyCap` object to the module publisher.
 

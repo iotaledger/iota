@@ -10,9 +10,9 @@ Regulated coins on IOTA allow you to control access by restricting certain addre
 which is crucial for assets like stablecoins.
 These coins are similar to standard IOTA coins but provide additional control through a deny list.
 
-The IOTA [Coin](../../standards/coin.mdx) standard offers the [`create_regulated_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_regulated_currency) function
+The IOTA [Coin](../../standards/coin.mdx) standard offers the [`create_regulated_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_regulated_currency_v1) function
 to create such coins.
-This function not only creates the coin but also generates a [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycap) object,
+This function not only creates the coin but also generates a [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycapv1) object,
 \enabling you to manage a deny list via a [`DenyList`](../../../references/framework/iota-framework/deny_list.mdx) object.
 The process is akin to using [`create_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_currency),
 with the added step of handling the `DenyCap` object.
