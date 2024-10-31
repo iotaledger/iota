@@ -78,7 +78,6 @@ const config = {
     path.resolve(__dirname, `./src/plugins/descriptions`),
     [
       'docusaurus-plugin-typedoc',
-
       // Options
       {
         tsconfig: '../../sdk/typescript/tsconfig.json',
