@@ -98,7 +98,7 @@ The `pre_minted_supply` of the network can also be set.
 
 ```
 $ iota genesis-ceremony init-token-distribution-schedule \
-    --token_allocations_path <path-to-token-allocations-csv-file> \
+    --token-allocations-path <path-to-token-allocations-csv-file> \
     --pre-minted-supply <# of iota coins in nanos>
 $ git add .
 $ git commit -m "initialize token distribution schedule"
