@@ -94,7 +94,6 @@ stake to validators.
 The resulting distribution schedule is amended only if any migration sources are
 passed in the "Build Genesis" step.
 
-
 ```
 $ iota genesis-ceremony init-token-distribution-schedule \
     --token-allocations-path <path-to-token-allocations-csv-file>
