@@ -113,12 +113,7 @@ pub enum CeremonyCommand {
         )]
         #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
-        #[clap(
-            long,
-            name = "iota|<full-url>",
-            help = "Remote migration snapshots.",
-            default_values_t = vec![SnapshotUrl::Iota],
-        )]
+        #[clap(long, name = "iota|<full-url>", help = "Remote migration snapshots.")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
