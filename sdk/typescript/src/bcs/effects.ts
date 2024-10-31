@@ -108,7 +108,7 @@ const ExecutionFailureStatus = bcs.enum('ExecutionFailureStatus', {
     InputObjectDeleted: null,
 });
 
-export const ExecutionStatus = bcs.enum('ExecutionStatus', {
+const ExecutionStatus = bcs.enum('ExecutionStatus', {
     Success: null,
     Failed: bcs.struct('ExecutionFailed', {
         error: ExecutionFailureStatus,
