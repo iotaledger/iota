@@ -23,7 +23,6 @@ use typed_store::{
 
 use super::*;
 use crate::authority::{
-    authority_store::LockDetailsWrapperDeprecated,
     authority_store_types::{
         ObjectContentDigest, StoreData, StoreMoveObjectWrapper, StoreObject, StoreObjectPair,
         StoreObjectValue, StoreObjectWrapper, get_store_object_pair, try_construct_object,
@@ -63,15 +62,10 @@ pub struct AuthorityPerpetualTables {
     #[default_options_override_fn = "indirect_move_objects_table_default_config"]
     pub(crate) indirect_move_objects: DBMap<ObjectContentDigest, StoreMoveObjectWrapper>,
 
-    /// This is a map between object references of currently active objects that
-    /// can be mutated.
-    ///
-    /// For old epochs, it may also contain the transaction that they are lock
-    /// on for use by this specific validator. The transaction locks
-    /// themselves are now in AuthorityPerEpochStore.
+    /// Object references of currently active objects that can be mutated.
     #[default_options_override_fn = "owned_object_transaction_locks_table_default_config"]
     #[rename = "owned_object_transaction_locks"]
-    pub(crate) live_owned_object_markers: DBMap<ObjectRef, Option<LockDetailsWrapperDeprecated>>,
+    pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
