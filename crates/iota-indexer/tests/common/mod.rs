@@ -9,10 +9,7 @@ use std::{
 };
 
 use diesel::PgConnection;
-use iota_config::{
-    local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing},
-    node::RunWithRange,
-};
+use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_indexer::{
     IndexerConfig,
     errors::IndexerError,
@@ -26,7 +23,6 @@ use iota_metrics::init_metrics;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::TransactionDigest,
-    object::Object,
 };
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
@@ -58,12 +54,9 @@ impl ApiTestSetup {
         GLOBAL_API_TEST_SETUP.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
-            let (cluster, store, client) =
-                runtime.block_on(start_test_cluster_with_read_write_indexer(
-                    None,
-                    Some("shared_test_indexer_db"),
-                    None,
-                ));
+            let (cluster, store, client) = runtime.block_on(
+                start_test_cluster_with_read_write_indexer(Some("shared_test_indexer_db"), None),
+            );
 
             Self {
                 runtime,
@@ -117,23 +110,15 @@ impl SimulacrumTestSetup {
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
 /// `Write` indexer
 pub async fn start_test_cluster_with_read_write_indexer(
-    stop_cluster_after_checkpoint_seq: Option<u64>,
     database_name: Option<&str>,
-    objects: Option<Vec<Object>>,
+    cluster_builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
 ) -> (TestCluster, PgIndexerStore<PgConnection>, HttpClient) {
     let temp = tempdir().unwrap().into_path();
     let mut builder = TestClusterBuilder::new().with_data_ingestion_dir(temp.clone());
 
-    // run the cluster until the declared checkpoint sequence number
-    if let Some(stop_cluster_after_checkpoint_seq) = stop_cluster_after_checkpoint_seq {
-        builder = builder.with_fullnode_run_with_range(Some(RunWithRange::Checkpoint(
-            stop_cluster_after_checkpoint_seq,
-        )));
+    if let Some(cluster_builder_modifier) = cluster_builder_modifier {
+        builder = cluster_builder_modifier(builder);
     };
-
-    if let Some(objects) = objects {
-        builder = builder.with_objects(objects);
-    }
 
     let cluster = builder.build().await;
 
