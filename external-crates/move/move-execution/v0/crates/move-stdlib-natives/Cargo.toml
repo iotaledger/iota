@@ -1,13 +1,11 @@
 [package]
 name = "move-stdlib-natives-v0"
 version = "0.1.1"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
-homepage = "https://diem.com"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/diem/diem"
-description = "Diem stdlib"
+description = "Move stdlib"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
