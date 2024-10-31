@@ -625,7 +625,6 @@ mod tests {
             unsafe {
                 MoveObject::new_from_execution_with_limit(
                     object_type.into(),
-                    true,
                     1.into(),
                     contents,
                     256,
