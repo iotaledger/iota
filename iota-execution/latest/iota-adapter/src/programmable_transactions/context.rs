@@ -111,8 +111,6 @@ mod checked {
         recipient: Owner,
         /// the type of the object,
         type_: Type,
-        /// if the object has public transfer or not, i.e. if it has store
-        has_public_transfer: bool,
         /// contents of the object
         bytes: Vec<u8>,
     }
@@ -729,7 +727,6 @@ mod checked {
                 let AdditionalWrite {
                     recipient,
                     type_,
-                    has_public_transfer,
                     bytes,
                 } = additional_write;
                 // safe given the invariant that the runtime correctly propagates
@@ -742,7 +739,6 @@ mod checked {
                         &loaded_runtime_objects,
                         id,
                         type_,
-                        has_public_transfer,
                         bytes,
                     )?
                 };
@@ -754,11 +750,6 @@ mod checked {
             }
 
             for (id, (recipient, ty, value)) in writes {
-                let abilities = vm
-                    .get_runtime()
-                    .get_type_abilities(&ty)
-                    .map_err(|e| convert_vm_error(e, vm, &linkage_view))?;
-                let has_public_transfer = abilities.has_store();
                 let layout = vm
                     .get_runtime()
                     .type_to_type_layout(&ty)
@@ -775,7 +766,6 @@ mod checked {
                         &loaded_runtime_objects,
                         id,
                         ty,
-                        has_public_transfer,
                         bytes,
                     )?
                 };
@@ -1362,7 +1352,6 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let ObjectValue {
             type_,
-            has_public_transfer,
             contents,
             ..
         } = object_value;
@@ -1376,7 +1365,6 @@ mod checked {
         let additional_write = AdditionalWrite {
             recipient: owner,
             type_,
-            has_public_transfer,
             bytes,
         };
         additional_writes.insert(object_id, additional_write);
@@ -1421,7 +1409,6 @@ mod checked {
         objects_modified_at: &BTreeMap<ObjectID, LoadedRuntimeObject>,
         id: ObjectID,
         type_: Type,
-        has_public_transfer: bool,
         contents: Vec<u8>,
     ) -> Result<MoveObject, ExecutionError> {
         debug_assert_eq!(
@@ -1443,7 +1430,6 @@ mod checked {
         };
         MoveObject::new_from_execution(
             struct_tag.into(),
-            has_public_transfer,
             old_obj_ver.unwrap_or_default(),
             contents,
             protocol_config,
