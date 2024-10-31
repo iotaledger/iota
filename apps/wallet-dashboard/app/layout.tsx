@@ -8,7 +8,7 @@ import './globals.css';
 import React from 'react';
 import { AppProviders } from '@/providers';
 import { Metadata } from 'next';
-import { FontLinkStyle } from '@/components/FontLinkStyle';
+import { FontLinks } from '@/components/FontLinks';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -25,7 +25,7 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={inter.className}>
-                <FontLinkStyle />
+                <FontLinks />
                 <AppProviders>{children}</AppProviders>
             </body>
         </html>
