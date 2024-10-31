@@ -83,7 +83,7 @@ Set the initial token-distribution schedule through a csv file. E.g.
 
 ```csv
 recipient-address,amount-nanos,staked-with-validator,staked-with-timelock-expiration
-<faucet-address>,1500000000000000,
+<faucet-address>,1500000000000000,,
 <validator-1-address>,1500000000000000,<validator-1-address>,
 <validator-2-address>,1500000000000000,<validator-2-address>,
 ```
