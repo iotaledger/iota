@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[test_only]
+#[test_only, allow(deprecated_usage)]
 module iota::coin_tests {
     use iota::coin::{Self, Coin};
     use iota::pay;
