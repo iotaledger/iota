@@ -223,16 +223,6 @@ pub trait StateRead: Send + Sync {
         digest: CheckpointDigest,
     ) -> StateReadResult<VerifiedCheckpoint>;
 
-    // fn deprecated_multi_get_transaction_checkpoint(
-    //     &self,
-    //     digests: &[TransactionDigest],
-    // ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
-
-    // fn deprecated_get_transaction_checkpoint(
-    //     &self,
-    //     digest: &TransactionDigest,
-    // ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>>;
-
     fn multi_get_checkpoint_by_sequence_number(
         &self,
         sequence_numbers: &[CheckpointSequenceNumber],
@@ -543,24 +533,6 @@ impl StateRead for AuthorityState {
     ) -> StateReadResult<VerifiedCheckpoint> {
         Ok(self.get_verified_checkpoint_summary_by_digest(digest)?)
     }
-
-    // fn deprecated_multi_get_transaction_checkpoint(
-    //     &self,
-    //     digests: &[TransactionDigest],
-    // ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-    //     Ok(self
-    //         .get_checkpoint_cache()
-    //         .deprecated_multi_get_transaction_checkpoint(digests)?)
-    // }
-
-    // fn deprecated_get_transaction_checkpoint(
-    //     &self,
-    //     digest: &TransactionDigest,
-    // ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-    //     Ok(self
-    //         .get_checkpoint_cache()
-    //         .deprecated_get_transaction_checkpoint(digest)?)
-    // }
 
     fn multi_get_checkpoint_by_sequence_number(
         &self,

@@ -466,11 +466,6 @@ mod tests {
                 checkpoint_contents_by_digest: &[CheckpointContentsDigest],
             ) -> IotaResult<KVStoreCheckpointData>;
 
-            // async fn deprecated_get_transaction_checkpoint(
-            //     &self,
-            //     digest: TransactionDigest,
-            // ) -> IotaResult<Option<CheckpointSequenceNumber>>;
-
             async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> IotaResult<Option<Object>>;
 
             async fn multi_get_transaction_checkpoint(
