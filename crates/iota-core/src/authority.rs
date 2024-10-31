@@ -2735,10 +2735,6 @@ impl AuthorityState {
         &self.execution_cache_trait_pointers.accumulator_store
     }
 
-    // pub fn get_checkpoint_cache(&self) -> &Arc<dyn CheckpointCache> {
-    //     &self.execution_cache_trait_pointers.checkpoint_cache
-    // }
-
     pub fn get_state_sync_store(&self) -> &Arc<dyn StateSyncAPI> {
         &self.execution_cache_trait_pointers.state_sync_store
     }
@@ -4984,15 +4980,6 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
 
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
-
-    // async fn deprecated_get_transaction_checkpoint(
-    //     &self,
-    //     digest: TransactionDigest,
-    // ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-    //     self.get_checkpoint_cache()
-    //         .deprecated_get_transaction_checkpoint(&digest)
-    //         .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
-    // }
 
     async fn get_object(
         &self,

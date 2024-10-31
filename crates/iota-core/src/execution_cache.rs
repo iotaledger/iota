@@ -93,7 +93,6 @@ impl ExecutionCacheTraitPointers {
             object_store: cache.clone(),
             reconfig_api: cache.clone(),
             accumulator_store: cache.clone(),
-            // checkpoint_cache: cache.clone(),
             state_sync_store: cache.clone(),
             cache_commit: cache.clone(),
             testing_api: cache.clone(),
