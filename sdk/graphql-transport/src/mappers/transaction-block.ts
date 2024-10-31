@@ -443,6 +443,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                 ? change.outputState.ObjectWrite[1]
                 : { $kind: 'Immutable', Immutable: true },
         ]);
+
     const unwrapped: Array<[IotaObjectRef, InferedOwner]> = effects.V1.changedObjects
         .filter(
             ([_id, change]) =>
@@ -458,6 +459,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             },
             change.outputState.ObjectWrite![1],
         ]);
+
     const deleted = effects.V1.changedObjects
         .filter(
             ([_id, change]) =>
@@ -470,6 +472,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             version: Number(effects.V1.lamportVersion) as unknown as string,
             digest: OBJECT_DIGEST_DELETED,
         }));
+
     const unwrappedThenDeleted = effects.V1.changedObjects
         .filter(
             ([_id, change]) =>
