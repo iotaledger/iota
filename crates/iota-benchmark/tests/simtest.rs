@@ -829,9 +829,6 @@ mod test {
             "SIM_STRESS_TEST_NUM_VALIDATORS",
             default_num_validators,
         ));
-        if std::env::var("CHECKPOINTS_PER_EPOCH").is_ok() {
-            eprintln!("CHECKPOINTS_PER_EPOCH env var is deprecated, use EPOCH_DURATION_MS");
-        }
         let epoch_duration_ms = get_var("EPOCH_DURATION_MS", default_epoch_duration_ms);
         if epoch_duration_ms > 0 {
             builder = builder.with_epoch_duration_ms(epoch_duration_ms);
