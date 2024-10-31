@@ -50,3 +50,4 @@ iota-simulator.workspace = true
 [dev-dependencies]
 iota-json-rpc-api.workspace = true
 iota-macros.workspace = true
+iota-metrics.workspace = true

@@ -7,14 +7,29 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use anemo::{PeerId, types::PeerEvent};
 use dashmap::DashMap;
 use futures::future;
-use iota_metrics::spawn_logged_monitored_task;
+use iota_metrics::{metrics_network::NetworkConnectionMetrics, spawn_logged_monitored_task};
 use quinn_proto::ConnectionStats;
-use tokio::{task::JoinHandle, time};
-use types::ConditionalBroadcastReceiver;
-
-use crate::metrics::NetworkConnectionMetrics;
+use tokio::{sync::broadcast, task::JoinHandle, time};
 
 const CONNECTION_STAT_COLLECTION_INTERVAL: Duration = Duration::from_secs(60);
+
+#[derive(Debug)]
+pub struct ConditionalBroadcastReceiver {
+    pub receiver: broadcast::Receiver<()>,
+}
+
+/// ConditionalBroadcastReceiver has an additional method for convenience to be
+/// able to use to conditionally check for shutdown in all branches of a select
+/// statement. Using this method will allow for the shutdown signal to propagate
+/// faster, since we will no longer be waiting until the branch that checks the
+/// receiver is randomly selected by the select macro.
+impl ConditionalBroadcastReceiver {
+    pub async fn received_signal(&mut self) -> bool {
+        futures::future::poll_immediate(&mut Box::pin(self.receiver.recv()))
+            .await
+            .is_some()
+    }
+}
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum ConnectionStatus {
@@ -256,14 +271,127 @@ mod tests {
 
     use anemo::{Network, Request, Response};
     use bytes::Bytes;
+    use iota_metrics::metrics_network::NetworkConnectionMetrics;
     use prometheus::Registry;
-    use tokio::time::{sleep, timeout};
+    use tokio::{
+        sync::{broadcast, broadcast::error::SendError},
+        time::{sleep, timeout},
+    };
     use tower::util::BoxCloneService;
 
-    use crate::{
-        connectivity::{ConnectionMonitor, ConnectionStatus},
-        metrics::NetworkConnectionMetrics,
+    use crate::connection_monitor::{
+        ConditionalBroadcastReceiver, ConnectionMonitor, ConnectionStatus,
     };
+
+    /// PreSubscribedBroadcastSender is a wrapped Broadcast channel that limits
+    /// subscription to initialization time. This is designed to be used for
+    /// cancellation signal to all the components, and the limitation is
+    /// intended to prevent a component missing the shutdown signal due to a
+    /// subscription that happens after the shutdown signal was sent. The
+    /// receivers have a special peek method which can be used to
+    /// conditionally check for shutdown signal on the channel.
+    struct PreSubscribedBroadcastSender {
+        sender: broadcast::Sender<()>,
+        receivers: Vec<ConditionalBroadcastReceiver>,
+    }
+
+    impl PreSubscribedBroadcastSender {
+        fn new(num_subscribers: u64) -> Self {
+            let (tx_init, _) = broadcast::channel(1);
+            let mut receivers = Vec::new();
+            for _i in 0..num_subscribers {
+                receivers.push(ConditionalBroadcastReceiver {
+                    receiver: tx_init.subscribe(),
+                });
+            }
+
+            PreSubscribedBroadcastSender {
+                sender: tx_init,
+                receivers,
+            }
+        }
+
+        fn try_subscribe(&mut self) -> Option<ConditionalBroadcastReceiver> {
+            self.receivers.pop()
+        }
+
+        fn send(&self) -> Result<usize, SendError<()>> {
+            self.sender.send(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pre_subscribed_broadcast() {
+        let mut tx_shutdown = PreSubscribedBroadcastSender::new(2);
+        let mut rx_shutdown_a = tx_shutdown.try_subscribe().unwrap();
+
+        let a = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = rx_shutdown_a.receiver.recv() => {
+                        return 1
+                    }
+
+                    _ = async{}, if true => {
+                        if rx_shutdown_a.received_signal().await {
+                            return 1
+                        }
+                    }
+                }
+            }
+        });
+
+        let mut rx_shutdown_b = tx_shutdown.try_subscribe().unwrap();
+        let rx_shutdown_c = tx_shutdown.try_subscribe();
+
+        assert!(rx_shutdown_c.is_none());
+
+        // send the shutdown signal before we start component b and started listening
+        // for shutdown there
+        assert!(tx_shutdown.send().is_ok());
+
+        let b = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = rx_shutdown_b.receiver.recv() => {
+                        return 2
+                    }
+
+                    _ = async{}, if true => {
+                        if rx_shutdown_b.received_signal().await {
+                            return 2
+                        }
+                    }
+                }
+            }
+        });
+
+        // assert that both component a and b loops have exited, effectively shutting
+        // down
+        assert_eq!(a.await.unwrap() + b.await.unwrap(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_conditional_broadcast_receiver() {
+        let mut tx_shutdown: PreSubscribedBroadcastSender = PreSubscribedBroadcastSender::new(2);
+        let mut rx_shutdown = tx_shutdown.try_subscribe().unwrap();
+
+        let a = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = async{}, if true => {
+                        if rx_shutdown.received_signal().await {
+                            return 1
+                        }
+                    }
+                }
+            }
+        });
+
+        assert!(tx_shutdown.send().is_ok());
+
+        assert_eq!(a.await.unwrap(), 1);
+    }
 
     #[tokio::test]
     async fn test_connectivity() {

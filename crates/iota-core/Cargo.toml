@@ -41,6 +41,7 @@ object_store.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
+quinn-proto.workspace = true
 rand.workspace = true
 rayon.workspace = true
 reqwest.workspace = true
@@ -87,7 +88,6 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
-narwhal-types.workspace = true
 shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
@@ -105,6 +105,7 @@ pretty_assertions.workspace = true
 rstest.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
+tower.workspace = true
 
 # internal dependencies
 iota-move.workspace = true
