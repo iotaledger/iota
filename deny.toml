@@ -83,7 +83,6 @@ allow = [
   "Unlicense",
   "BSL-1.0",
   "Unicode-DFS-2016",
-  "GPL-2.0",
   "OpenSSL",
   # "Apache-2.0 WITH LLVM-exception",
 ]
@@ -95,7 +94,7 @@ confidence-threshold = 0.8
 # Allow 1 or more licenses on a per-crate basis, so that particular licenses
 # aren't accepted for every possible crate as with the normal allow list
 exceptions = [
-
+  { allow = ["GPL-2.0"], name = "mysqlclient-src" }
 
   # Each entry is the crate and version constraint, and its specific allow
   # list
