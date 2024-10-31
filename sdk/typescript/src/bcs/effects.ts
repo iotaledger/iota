@@ -6,7 +6,7 @@ import { bcs } from '@iota/bcs';
 
 import { Address, ObjectDigest } from './bcs.js';
 
-const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
+export const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
     UnableToFetchPackage: bcs.struct('UnableToFetchPackage', { packageId: Address }),
     NotAPackage: bcs.struct('NotAPackage', { objectId: Address }),
     IncompatibleUpgrade: null,
@@ -18,18 +18,18 @@ const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
     }),
 });
 
-const ModuleId = bcs.struct('ModuleId', {
+export const ModuleId = bcs.struct('ModuleId', {
     address: Address,
     name: bcs.string(),
 });
-const MoveLocation = bcs.struct('MoveLocation', {
+export const MoveLocation = bcs.struct('MoveLocation', {
     module: ModuleId,
     function: bcs.u16(),
     instruction: bcs.u16(),
     functionName: bcs.option(bcs.string()),
 });
 
-const CommandArgumentError = bcs.enum('CommandArgumentError', {
+export const CommandArgumentError = bcs.enum('CommandArgumentError', {
     TypeMismatch: null,
     InvalidBCSBytes: null,
     InvalidUsageOfPureArg: null,
@@ -47,12 +47,12 @@ const CommandArgumentError = bcs.enum('CommandArgumentError', {
     SharedObjectOperationNotAllowed: null,
 });
 
-const TypeArgumentError = bcs.enum('TypeArgumentError', {
+export const TypeArgumentError = bcs.enum('TypeArgumentError', {
     TypeNotFound: null,
     ConstraintNotSatisfied: null,
 });
 
-const ExecutionFailureStatus = bcs.enum('ExecutionFailureStatus', {
+export const ExecutionFailureStatus = bcs.enum('ExecutionFailureStatus', {
     InsufficientGas: null,
     InvalidGasObject: null,
     InvariantViolation: null,
@@ -108,7 +108,7 @@ const ExecutionFailureStatus = bcs.enum('ExecutionFailureStatus', {
     InputObjectDeleted: null,
 });
 
-const ExecutionStatus = bcs.enum('ExecutionStatus', {
+export const ExecutionStatus = bcs.enum('ExecutionStatus', {
     Success: null,
     Failed: bcs.struct('ExecutionFailed', {
         error: ExecutionFailureStatus,
@@ -116,14 +116,14 @@ const ExecutionStatus = bcs.enum('ExecutionStatus', {
     }),
 });
 
-const GasCostSummary = bcs.struct('GasCostSummary', {
+export const GasCostSummary = bcs.struct('GasCostSummary', {
     computationCost: bcs.u64(),
     storageCost: bcs.u64(),
     storageRebate: bcs.u64(),
     nonRefundableStorageFee: bcs.u64(),
 });
 
-const Owner = bcs.enum('Owner', {
+export const Owner = bcs.enum('Owner', {
     AddressOwner: Address,
     ObjectOwner: Address,
     Shared: bcs.struct('Shared', {
@@ -132,32 +132,32 @@ const Owner = bcs.enum('Owner', {
     Immutable: null,
 });
 
-const VersionDigest = bcs.tuple([bcs.u64(), ObjectDigest]);
+export const VersionDigest = bcs.tuple([bcs.u64(), ObjectDigest]);
 
-const ObjectIn = bcs.enum('ObjectIn', {
+export const ObjectIn = bcs.enum('ObjectIn', {
     NotExist: null,
     Exist: bcs.tuple([VersionDigest, Owner]),
 });
 
-const ObjectOut = bcs.enum('ObjectOut', {
+export const ObjectOut = bcs.enum('ObjectOut', {
     NotExist: null,
     ObjectWrite: bcs.tuple([ObjectDigest, Owner]),
     PackageWrite: VersionDigest,
 });
 
-const IDOperation = bcs.enum('IDOperation', {
+export const IDOperation = bcs.enum('IDOperation', {
     None: null,
     Created: null,
     Deleted: null,
 });
 
-const EffectsObjectChange = bcs.struct('EffectsObjectChange', {
+export const EffectsObjectChange = bcs.struct('EffectsObjectChange', {
     inputState: ObjectIn,
     outputState: ObjectOut,
     idOperation: IDOperation,
 });
 
-const UnchangedSharedKind = bcs.enum('UnchangedSharedKind', {
+export const UnchangedSharedKind = bcs.enum('UnchangedSharedKind', {
     ReadOnlyRoot: VersionDigest,
     MutateDeleted: bcs.u64(),
     ReadDeleted: bcs.u64(),
@@ -165,7 +165,7 @@ const UnchangedSharedKind = bcs.enum('UnchangedSharedKind', {
     PerEpochConfig: null,
 });
 
-const TransactionEffectsV1 = bcs.struct('TransactionEffectsV1', {
+export const TransactionEffectsV1 = bcs.struct('TransactionEffectsV1', {
     status: ExecutionStatus,
     executedEpoch: bcs.u64(),
     gasUsed: GasCostSummary,

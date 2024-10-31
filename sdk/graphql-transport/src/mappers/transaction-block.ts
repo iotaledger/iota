@@ -14,8 +14,10 @@ import type {
     IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 } from '@iota/iota-sdk/client';
+import type { IotaObjectRef } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
+import type { ObjectOut } from '@iota/iota-sdk/src/bcs/effects.js';
 import type { Rpc_Transaction_FieldsFragment } from '../generated/queries.js';
 import { toShortTypeString } from './util.js';
 
@@ -351,7 +353,11 @@ const ADDRESS_ZERO = normalizeIotaAddress('0x0');
 export function mapEffects(data: string): IotaTransactionBlockResponse['effects'] {
     const effects = bcs.TransactionEffects.parse(fromB64(data));
 
-    // let effectsV1 = effects.V1;
+    type Things = typeof ObjectOut;
+
+    type Stuff = Things['$inferType']['ObjectWrite']; //Things['ObjectWrite'];
+
+    type Caracola = Exclude<Stuff, undefined>[1];
 
     const sharedObjects = effects.V1.unchangedSharedObjects.map(([id, sharedObject]) => {
         switch (sharedObject.$kind) {
@@ -419,7 +425,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                   ] as const),
         );
 
-    const mutated = effects.V1.changedObjects
+    const mutated: Array<[IotaObjectRef, Caracola]> = effects.V1.changedObjects
         .filter(
             ([_id, change]) =>
                 change.inputState.Exist &&
@@ -441,7 +447,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                 ? change.outputState.ObjectWrite[1]
                 : { $kind: 'Immutable', Immutable: true },
         ]);
-    const unwrapped = effects.V1.changedObjects
+    const unwrapped: Array<[IotaObjectRef, Caracola]> = effects.V1.changedObjects
         .filter(
             ([_id, change]) =>
                 change.inputState.NotExist &&
@@ -456,7 +462,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             },
             change.outputState.ObjectWrite![1],
         ]);
-    const deleted = effects.V1.changedObjects
+    const deleted: Array = effects.V1.changedObjects
         .filter(
             ([_id, change]) =>
                 change.inputState.Exist &&
@@ -497,7 +503,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             ? effects.V1.changedObjects[effects.V1.gasObjectIndex]
             : null;
 
-    const gasObject = gasObjectFromV1
+    const gasObject: [IotaObjectRef, Caracola] = gasObjectFromV1
         ? [
               {
                   objectId: gasObjectFromV1[0],
@@ -550,7 +556,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             : {
                   mutated: mutated.map(([reference, owner]) => ({
                       reference,
-                      owner: mapEffectsOwner(owner),
+                      owner: mapEffectsOwner(owner as Caracola),
                   })),
               }),
         ...(unwrapped.length === 0
@@ -561,7 +567,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                           ? undefined
                           : unwrapped.map(([reference, owner]) => ({
                                 reference,
-                                owner: mapEffectsOwner(owner),
+                                owner: mapEffectsOwner(owner as Caracola),
                             })),
               }),
         ...(deleted.length === 0 ? {} : { deleted: deleted }),
@@ -577,7 +583,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         dependencies: effects.V1.dependencies,
     };
 
-    function mapEffectsOwner(owner: NonNullable<typeof gasObject>[1]) {
+    function mapEffectsOwner(owner: NonNullable<Caracola>) {
         if (owner.Immutable) {
             return 'Immutable';
         } else if (owner.Shared) {
