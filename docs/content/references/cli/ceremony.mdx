@@ -143,12 +143,9 @@ stake to validators.
 The resulting distribution schedule is amended only if any migration sources are
 passed in the "Build the Unsigned Checkpoint" step.
 
-The `pre_minted_supply` of the network can also be set.
-
 ```shell
 $ iota genesis-ceremony init-token-distribution-schedule \
-    --token-allocations-path <path-to-token-allocations-csv-file> \
-    --pre-minted-supply <# of iota coins in nanos>
+    --token-allocations-path <path-to-token-allocations-csv-file>
 ```
 
 ### Validate the Genesis State

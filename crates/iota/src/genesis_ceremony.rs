@@ -99,12 +99,6 @@ pub enum CeremonyCommand {
     InitTokenDistributionSchedule {
         #[clap(
             long,
-            help = "The amount of any pre-minted supply",
-            default_value_t = 0
-        )]
-        pre_minted_supply: u64,
-        #[clap(
-            long,
             help = "The path to the csv file with the token allocations",
             name = "token_allocations.csv"
         )]
@@ -167,12 +161,10 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::InitTokenDistributionSchedule {
-            pre_minted_supply,
             token_allocations_path,
         } => {
             let mut builder = Builder::load(&dir).await?;
             let mut schedule_builder = TokenDistributionScheduleBuilder::new();
-            schedule_builder.set_pre_minted_supply(pre_minted_supply);
 
             let token_allocations_csv = File::open(token_allocations_path)?;
             let mut reader = csv::Reader::from_reader(token_allocations_csv);

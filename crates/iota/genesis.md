@@ -94,12 +94,10 @@ stake to validators.
 The resulting distribution schedule is amended only if any migration sources are
 passed in the "Build Genesis" step.
 
-The `pre_minted_supply` of the network can also be set.
 
 ```
 $ iota genesis-ceremony init-token-distribution-schedule \
-    --token-allocations-path <path-to-token-allocations-csv-file> \
-    --pre-minted-supply <# of iota coins in nanos>
+    --token-allocations-path <path-to-token-allocations-csv-file>
 $ git add .
 $ git commit -m "initialize token distribution schedule"
 $ git push
