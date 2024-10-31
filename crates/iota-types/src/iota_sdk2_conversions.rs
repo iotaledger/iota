@@ -1400,34 +1400,14 @@ impl From<CheckpointTransaction> for crate::full_checkpoint_content::CheckpointT
 
 impl From<crate::signature::GenericSignature> for UserSignature {
     fn from(value: crate::signature::GenericSignature) -> Self {
-        match value {
-            crate::signature::GenericSignature::MultiSig(multi_sig) => Self::Multisig(
-                MultisigAggregatedSignature::from_serialized_bytes(multi_sig.as_bytes())
-                    .expect("invalid multisig aggregated signature"),
-            ),
-            crate::signature::GenericSignature::Signature(signature) => Self::Simple(
-                SimpleSignature::from_serialized_bytes(signature.as_bytes())
-                    .expect("invalid simple signature"),
-            ),
-            crate::signature::GenericSignature::ZkLoginAuthenticator(zk_login_authenticator) => {
-                Self::ZkLogin(Box::new(
-                    ZkLoginAuthenticator::from_serialized_bytes(zk_login_authenticator.as_bytes())
-                        .expect("invalid zklogin authenticator"),
-                ))
-            }
-            crate::signature::GenericSignature::PasskeyAuthenticator(passkey_authenticator) => {
-                Self::Passkey(
-                    PasskeyAuthenticator::from_serialized_bytes(passkey_authenticator.as_bytes())
-                        .expect("invalid passkey authenticator"),
-                )
-            }
-        }
+        bcs::from_bytes(&bcs::to_bytes(&value).expect("invalid signature"))
+            .expect("invalid signature")
     }
 }
 
 impl From<UserSignature> for crate::signature::GenericSignature {
     fn from(value: UserSignature) -> Self {
-        Self::from_bytes(&bcs::to_bytes(&value).expect("invalid signature"))
+        bcs::from_bytes(&bcs::to_bytes(&value).expect("invalid signature"))
             .expect("invalid signature")
     }
 }
