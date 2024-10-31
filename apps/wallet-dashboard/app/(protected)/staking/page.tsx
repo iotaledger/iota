@@ -3,7 +3,7 @@
 
 'use client';
 
-import { AmountBox, Box, StakeCard, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
+import { AmountBox, Box, StakeCard, StakeDialog, StakeDetailsPopup, Button } from '@/components';
 import { usePopups } from '@/hooks';
 import {
     ExtendedDelegatedStake,
@@ -17,9 +17,12 @@ import {
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useState } from 'react';
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+    const [isDialogStakeOpen, setIsDialogStakeOpen] = useState(false);
+
     const { openPopup, closePopup } = usePopups();
     const { data: delegatedStakeData } = useGetDelegatedStake({
         address: account?.address || '',
@@ -42,37 +45,41 @@ function StakingDashboardPage(): JSX.Element {
     const viewStakeDetails = (extendedStake: ExtendedDelegatedStake) => {
         openPopup(<StakeDetailsPopup extendedStake={extendedStake} onClose={closePopup} />);
     };
-
-    const addNewStake = () => {
-        openPopup(<NewStakePopup onClose={closePopup} />);
-    };
+    function handleNewStake() {
+        setIsDialogStakeOpen(true);
+    }
 
     return (
-        <div className="flex flex-col items-center justify-center gap-4 pt-12">
-            <AmountBox
-                title="Currently staked"
-                amount={stakeResult.isPending ? '-' : `${formattedDelegatedStake} ${stakeSymbol}`}
-            />
-            <AmountBox
-                title="Earned"
-                amount={`${
-                    rewardsResult.isPending ? '-' : formattedDelegatedRewards
-                } ${rewardsSymbol}`}
-            />
-            <Box title="Stakes">
-                <div className="flex flex-col items-center gap-4">
-                    <h1>List of stakes</h1>
-                    {extendedStakes?.map((extendedStake) => (
-                        <StakeCard
-                            key={extendedStake.stakedIotaId}
-                            extendedStake={extendedStake}
-                            onDetailsClick={viewStakeDetails}
-                        />
-                    ))}
-                </div>
-            </Box>
-            <Button onClick={addNewStake}>New Stake</Button>
-        </div>
+        <>
+            <div className="flex flex-col items-center justify-center gap-4 pt-12">
+                <AmountBox
+                    title="Currently staked"
+                    amount={
+                        stakeResult.isPending ? '-' : `${formattedDelegatedStake} ${stakeSymbol}`
+                    }
+                />
+                <AmountBox
+                    title="Earned"
+                    amount={`${
+                        rewardsResult.isPending ? '-' : formattedDelegatedRewards
+                    } ${rewardsSymbol}`}
+                />
+                <Box title="Stakes">
+                    <div className="flex flex-col items-center gap-4">
+                        <h1>List of stakes</h1>
+                        {extendedStakes?.map((extendedStake) => (
+                            <StakeCard
+                                key={extendedStake.stakedIotaId}
+                                extendedStake={extendedStake}
+                                onDetailsClick={viewStakeDetails}
+                            />
+                        ))}
+                    </div>
+                </Box>
+                <Button onClick={handleNewStake}>New Stake</Button>
+            </div>
+            <StakeDialog isOpen={isDialogStakeOpen} setOpen={setIsDialogStakeOpen} />;
+        </>
     );
 }
 

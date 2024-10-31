@@ -453,7 +453,7 @@ ExecutionFailureStatus:
     29:
       CertificateDenied: UNIT
     30:
-      IotaMoveVerificationTimedout: UNIT
+      IotaMoveVerificationTimeout: UNIT
     31:
       SharedObjectOperationNotAllowed: UNIT
     32:
