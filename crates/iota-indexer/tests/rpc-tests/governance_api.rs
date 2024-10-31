@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_api::{GovernanceReadApiClient, TransactionBuilderClient};
-use iota_json_rpc_types::{DelegatedStake, StakeStatus, TransactionBlockBytes};
+use iota_json_rpc_types::{
+    DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
@@ -19,18 +21,17 @@ use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
     indexer_wait_for_object, indexer_wait_for_transaction,
+    start_test_cluster_with_read_write_indexer,
 };
 
 #[test]
 fn test_staking() {
-    let ApiTestSetup {
-        runtime,
-        store,
-        client,
-        cluster,
-    } = ApiTestSetup::get_or_init();
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
+        let (cluster, store, client) =
+            &start_test_cluster_with_read_write_indexer(None, Some("test_staking"), None).await;
+
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
@@ -102,16 +103,12 @@ fn test_staking() {
 
 #[test]
 fn test_unstaking() {
-    let ApiTestSetup {
-        runtime,
-        store,
-        client,
-        cluster,
-    } = ApiTestSetup::get_or_init();
-
-    let indexer_client = client;
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
+        let (cluster, store, client) =
+            &start_test_cluster_with_read_write_indexer(None, Some("test_unstaking"), None).await;
+
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
@@ -137,10 +134,10 @@ fn test_unstaking() {
         indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
 
         // Check StakedIota object before test
-        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(sender).await.unwrap();
+        let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
-        let validator = indexer_client
+        let validator = client
             .get_latest_iota_system_state()
             .await
             .unwrap()
@@ -148,7 +145,7 @@ fn test_unstaking() {
             .iota_address;
 
         // Delegate some IOTA
-        let transaction_bytes: TransactionBlockBytes = indexer_client
+        let transaction_bytes: TransactionBlockBytes = client
             .request_add_stake(
                 sender,
                 vec![iota_coin_ref.0],
@@ -169,7 +166,7 @@ fn test_unstaking() {
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         // Check DelegatedStake object
-        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(sender).await.unwrap();
+        let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert_eq!(1, staked_iota.len());
         assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
         assert!(matches!(
@@ -179,7 +176,7 @@ fn test_unstaking() {
             }
         ));
 
-        let transaction_bytes: TransactionBlockBytes = indexer_client
+        let transaction_bytes: TransactionBlockBytes = client
             .request_withdraw_stake(
                 sender,
                 staked_iota[0].stakes[0].staked_iota_id,
@@ -197,38 +194,29 @@ fn test_unstaking() {
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
-        let node_response = cluster
-            .rpc_client()
-            .get_stakes_by_ids(vec![staked_iota[0].stakes[0].staked_iota_id])
-            .await
-            .unwrap();
-        assert_eq!(1, node_response.len());
-        assert!(matches!(
-            node_response[0].stakes[0].status,
-            StakeStatus::Unstaked
-        ));
-
-        let indexer_response = indexer_client
+        let indexer_response = client
             .get_stakes_by_ids(vec![staked_iota[0].stakes[0].staked_iota_id])
             .await
             .unwrap();
         assert_eq!(0, indexer_response.len());
 
-        let staked_iota: Vec<DelegatedStake> = indexer_client.get_stakes(sender).await.unwrap();
+        let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
     });
 }
 
 #[test]
 fn test_timelocked_staking() {
-    let ApiTestSetup {
-        runtime,
-        store,
-        client,
-        cluster,
-    } = ApiTestSetup::get_or_init();
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            None,
+            Some("test_timelocked_staking"),
+            None,
+        )
+        .await;
+
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
@@ -315,22 +303,32 @@ fn test_timelocked_staking() {
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
-        let response = client.get_timelocked_stakes(sender).await.unwrap();
+        let staked_iota: Vec<DelegatedTimelockedStake> =
+            client.get_timelocked_stakes(sender).await.unwrap();
 
-        assert_eq!(response.len(), 1);
+        assert_eq!(staked_iota.len(), 1);
+        assert_eq!(10000000000, staked_iota[0].stakes[0].principal);
+        assert!(matches!(
+            staked_iota[0].stakes[0].status,
+            StakeStatus::Active {
+                estimated_reward: _
+            }
+        ));
     });
 }
 
 #[test]
 fn test_timelocked_unstaking() {
-    let ApiTestSetup {
-        runtime,
-        store,
-        client,
-        cluster,
-    } = ApiTestSetup::get_or_init();
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            None,
+            Some("test_timelocked_unstaking"),
+            None,
+        )
+        .await;
+
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
@@ -417,11 +415,18 @@ fn test_timelocked_unstaking() {
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
-        let response = client.get_timelocked_stakes(sender).await.unwrap();
+        let staked_iota = client.get_timelocked_stakes(sender).await.unwrap();
 
-        assert_eq!(response.len(), 1);
+        assert_eq!(staked_iota.len(), 1);
+        assert_eq!(10000000000, staked_iota[0].stakes[0].principal);
+        assert!(matches!(
+            staked_iota[0].stakes[0].status,
+            StakeStatus::Active {
+                estimated_reward: _
+            }
+        ));
 
-        let timelocked_stake_id = response[0].stakes[0].timelocked_staked_iota_id;
+        let timelocked_stake_id = staked_iota[0].stakes[0].timelocked_staked_iota_id;
         let timelocked_stake_id_ref = cluster
             .wallet
             .get_object_ref(timelocked_stake_id)
@@ -462,16 +467,6 @@ fn test_timelocked_unstaking() {
 
         let res = client.get_timelocked_stakes(sender).await.unwrap();
         assert_eq!(res.len(), 0);
-
-        let res = cluster
-            .rpc_client()
-            .get_timelocked_stakes_by_ids(vec![timelocked_stake_id])
-            .await
-            .unwrap();
-
-        assert_eq!(res.len(), 1);
-
-        assert!(matches!(res[0].stakes[0].status, StakeStatus::Unstaked));
 
         let res = client
             .get_timelocked_stakes_by_ids(vec![timelocked_stake_id])
