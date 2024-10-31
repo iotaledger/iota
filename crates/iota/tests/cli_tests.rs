@@ -26,7 +26,7 @@ use iota::{
     key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
-    Config, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
+    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
     IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
 };
 use iota_json::IotaJsonValue;
@@ -135,7 +135,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2983"]
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
@@ -167,7 +166,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let files = read_dir(working_dir)?
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
-    assert_eq!(12, files.len());
+    assert_eq!(13, files.len());
     assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
     assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
@@ -4145,15 +4144,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
 
     // Wait for the faucet to be up
     sleep(Duration::from_secs(1)).await;
-
-    let wallet_config = tmp.path().join("walletconfig");
-    let mut keystore = iota_keys::keystore::FileBasedKeystore::new(&tmp.path().join("keystore"))?;
-    keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
-        .unwrap();
-    let mut client_config = IotaClientConfig::new(keystore.into());
-    client_config.add_env(iota_sdk::iota_client_config::IotaEnv::localnet());
-    client_config.save(&wallet_config)?;
+    let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config, None, None)?;
 
     let faucet_result = IotaClientCommands::Faucet {
@@ -4171,8 +4162,10 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[ignore = "until the repo is public https://github.com/iotaledger/iota/issues/3741"]
+#[tokio::test]
 async fn test_move_new() -> Result<(), anyhow::Error> {
+    let current_dir = std::env::current_dir()?;
     let package_name = "test_move_new";
     IotaCommand::Move {
         package_path: None,
@@ -4196,7 +4189,54 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
     for name in ["sources", "tests", "Move.toml"] {
         assert!(files.contains(&name.to_string()));
     }
+    assert!(std::path::Path::new(&format!("{package_name}/sources/{package_name}.move")).exists());
+    assert!(
+        std::path::Path::new(&format!("{package_name}/tests/{package_name}_tests.move")).exists()
+    );
 
+    // Test if the generated files are valid to build a package
+    IotaCommand::Move {
+        package_path: Some(package_name.parse()?),
+        config: None,
+        build_config: move_package::BuildConfig::default(),
+        cmd: iota_move::Command::Build(iota_move::build::Build {
+            chain_id: None,
+            dump_bytecode_as_base64: false,
+            generate_struct_layouts: false,
+            with_unpublished_dependencies: false,
+        }),
+    }
+    .execute()
+    .await?;
+
+    // iota_move::Command::Build changes the current dir, so we have to switch back
+    // here
+    std::env::set_current_dir(&current_dir)?;
+
+    IotaCommand::Move {
+        package_path: Some(package_name.parse()?),
+        config: None,
+        build_config: move_package::BuildConfig::default(),
+        cmd: iota_move::Command::Test(iota_move::unit_test::Test {
+            test: move_cli::base::test::Test {
+                compute_coverage: false,
+                filter: None,
+                gas_limit: None,
+                list: false,
+                num_threads: 1,
+                report_statistics: None,
+                verbose_mode: false,
+                seed: None,
+                rand_num_iters: None,
+            },
+        }),
+    }
+    .execute()
+    .await?;
+
+    // iota_move::Command::Test changes the current dir, so we have to switch back
+    // here
+    std::env::set_current_dir(current_dir)?;
     std::fs::remove_dir_all(package_name)?;
     Ok(())
 }
