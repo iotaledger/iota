@@ -78,55 +78,23 @@ let unsubscribe = await provider.subscribeEvent({
 });
 ```
 
-Move smart contracts can call other smart contracts that emit events. For example, `Deepbook_utils` can call the `dee9` smart contract and emit this event. Note that using package, transaction module to query for `dee9/clob_v2` misses the following event even though it is actually an event the `dee9` package emits. The current workaround for this issue is to know all the `packageId`s you care about and search those in the `queryEvent` call.
+Move smart contracts can call other smart contracts that emit events. For example, `0x107a::nft` calls the `0x2::display::new_with_fields` smart contract and emits a `0x2::display::DisplayCreated` event. Note that using package and transaction module to query for `0x2::display` misses the following event even though it is actually an event the `0x2` package emits. The current workaround for this issue is to know all the `packageId`s you care about and search those in the `queryEvent` call.
 
 ```json
 {
-  "id": {
-    "txDigest": "bZnc1E7k1fJYLxWihfre5xCw1tX1CyAN6579zypJeiU",
-    "eventSeq": "0"
-  },
-  "packageId": "0x158f2027f60c89bb91526d9bf08831d27f5a0fcb0f74e6698b9f0e1fb2be5d05",
-  "transactionModule": "deepbook_utils",
-  "sender": "0x4419ae182ac112bb065bda2146136ed02524ee2611478bfe8ca5d3835bee4af6",
-  "type": "0xdee9::clob_v2::OrderPlaced<0x2::iota::IOTA, 0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN>",
-  "parsedJson": {
-    "base_asset_quantity_placed": "1000000000",
-    "client_order_id": "20082022",
-    "expire_timestamp": "1697121171540",
-    "is_bid": false,
-    "order_id": "9223372036854945121",
-    "original_quantity": "1000000000",
-    "owner": "0x8c23e5e23c6eb654d69f8ae7de3be23584f435cad81fa4b9cb024b6c989b7818",
-    "pool_id": "0x7f526b1263c4b91b43c9e646419b5696f424de28dda3c1e6658cc0a54558baa7",
-    "price": "500000"
-  },
-  "bcs": "2pWctGGQ9KULfmnzNtGuPpggLQrj1ZiUQaxva4neM6QWAtUAkuPAzU2eGrdZaGHti3bsUefDioUwwYoVR3bYBkG7Gxf5JVVSxxqTqzxdg5os5ESwFaP69ZcrNsya4G9rHK4KBac9i3m1MseN38xDwMvAMx3"
-}
-```
-
-```json
-{
-  "id": {
-    "txDigest": "896CKHod5GQ4kzhF7EwTAGyhQBdaTb9rQS41dcL76gj8",
-    "eventSeq": "0"
-  },
-  "packageId": "0x000000000000000000000000000000000000000000000000000000000000dee9",
-  "transactionModule": "clob_v2",
-  "sender": "0xf821d3483fc7725ebafaa5a3d12373d49901bdfce1484f219daa7066a30df77d",
-  "type": "0xdee9::clob_v2::OrderPlaced<0xbc3a676894871284b3ccfb2eec66f428612000e2a6e6d23f592ce8833c27c973::coin::COIN, 0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN>",
-  "parsedJson": {
-    "base_asset_quantity_placed": "5000000",
-    "client_order_id": "1696545636947311087",
-    "expire_timestamp": "1696549236947",
-    "is_bid": true,
-    "order_id": "562414",
-    "original_quantity": "5000000",
-    "owner": "0xf995d6df20e18421928ff0648bd583ccdf384ab05791d8be21d32977a37dacfc",
-    "pool_id": "0xf0f663cf87f1eb124da2fc9be813e0ce262146f3df60bc2052d738eb41a25899",
-    "price": "274518000000"
-  },
-  "bcs": "4SgemkCzrqEsTHLFgMcbUtttZCf2CrEH2njjFL1rizCHzvAoYsToGrbFLffQPtGxsSt96Xr4j2SLNeLcBGKeYXDrVYWqivhf3551Mqj71DZBxq5D1Qwfgh1TKeF43Jz4b4XH1nEpkya2Pr8515vzJbHUkpP"
+    "id": {
+        "txDigest": "DrZmtQDDCUKooLzFCi29VhUB4w6AT8phCsT9d62BAf8g",
+        "eventSeq": "0"
+    },
+    "packageId": "0x000000000000000000000000000000000000000000000000000000000000107a",
+    "transactionModule": "nft",
+    "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "type": "0x2::display::DisplayCreated<0x107a::nft::Nft>",
+    "parsedJson": {
+        "id": "0xa12d72c159d57d4c7f540b2b9e985327628d856b20c1d6cdfd3028a2a605abfe"
+    },
+    "bcs": "CFbAeqXAwwkyTxUD36FtzTGEcMGrVj4zgcTR1G7AaRjb",
+    "timestampMs": "1521456213521"
 }
 ```
 

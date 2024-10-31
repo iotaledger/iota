@@ -11,7 +11,7 @@ use iota_types::{
     digests::TransactionDigest,
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
-    event::SystemEpochInfoEvent,
+    event::SystemEpochInfoEventV1,
     iota_serde::IotaStructTag,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::{
@@ -122,7 +122,7 @@ impl IndexedEpochInfo {
     pub fn from_new_system_state_summary(
         new_system_state_summary: IotaSystemStateSummary,
         first_checkpoint_id: u64,
-        event: Option<&SystemEpochInfoEvent>,
+        event: Option<&SystemEpochInfoEventV1>,
     ) -> IndexedEpochInfo {
         Self {
             epoch: new_system_state_summary.epoch,
@@ -146,7 +146,7 @@ impl IndexedEpochInfo {
     pub fn from_end_of_epoch_data(
         system_state_summary: &IotaSystemStateSummary,
         last_checkpoint_summary: &CertifiedCheckpointSummary,
-        event: &SystemEpochInfoEvent,
+        event: &SystemEpochInfoEventV1,
         network_total_tx_num_at_last_epoch_end: u64,
     ) -> IndexedEpochInfo {
         Self {

@@ -18,7 +18,6 @@ pub use lru;
 pub use move_package;
 #[cfg(msim)]
 pub use msim::*;
-pub use narwhal_network;
 pub use telemetry_subscribers;
 pub use tempfile;
 pub use tower;

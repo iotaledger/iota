@@ -3,24 +3,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Iota System State Type Upgrade Guide
-/// `IotaSystemState` is a thin wrapper around `IotaSystemStateInner` that provides a versioned interface.
-/// The `IotaSystemState` object has a fixed ID 0x5, and the `IotaSystemStateInner` object is stored as a dynamic field.
-/// There are a few different ways to upgrade the `IotaSystemStateInner` type:
+/// `IotaSystemState` is a thin wrapper around `IotaSystemStateV1` that provides a versioned interface.
+/// The `IotaSystemState` object has a fixed ID 0x5, and the `IotaSystemStateV1` object is stored as a dynamic field.
+/// There are a few different ways to upgrade the `IotaSystemStateV1` type:
 ///
 /// The simplest and one that doesn't involve a real upgrade is to just add dynamic fields to the `extra_fields` field
-/// of `IotaSystemStateInner` or any of its sub type. This is useful when we are in a rush, or making a small change,
+/// of `IotaSystemStateV1` or any of its sub type. This is useful when we are in a rush, or making a small change,
 /// or still experimenting a new field.
 ///
-/// To properly upgrade the `IotaSystemStateInner` type, we need to ship a new framework that does the following:
-/// 1. Define a new `IotaSystemStateInner`type (e.g. `IotaSystemStateInnerV2`).
-/// 2. Define a data migration function that migrates the old `IotaSystemStateInner` to the new one (i.e. IotaSystemStateInnerV2).
-/// 3. Replace all uses of `IotaSystemStateInner` with `IotaSystemStateInnerV2` in both iota_system.move and iota_system_state_inner.move,
+/// To properly upgrade the `IotaSystemStateV1` type, we need to ship a new framework that does the following:
+/// 1. Define a new `IotaSystemState`type (e.g. `IotaSystemStateV2`).
+/// 2. Define a data migration function that migrates the old (e.g. `IotaSystemStateV1`) to the new one (e.g. `IotaSystemStateV2`).
+/// 3. Replace all uses of `IotaSystemStateV1` with `IotaSystemStateV2` in both iota_system.move and iota_system_state_inner.move,
 ///    with the exception of the `iota_system_state_inner::create` function, which should always return the genesis type.
 /// 4. Inside `load_inner_maybe_upgrade` function, check the current version in the wrapper, and if it's not the latest version,
 ///   call the data migration function to upgrade the inner object. Make sure to also update the version in the wrapper.
 /// A detailed example can be found in iota/tests/framework_upgrades/mock_iota_systems/shallow_upgrade.
 /// Along with the Move change, we also need to update the Rust code to support the new type. This includes:
-/// 1. Define a new `IotaSystemStateInner` struct type that matches the new Move type, and implement the IotaSystemStateTrait.
+/// 1. Define a new `IotaSystemState` struct type that matches the new Move type, and implement the `IotaSystemStateTrait`.
 /// 2. Update the `IotaSystemState` struct to include the new version as a new enum variant.
 /// 3. Update the `get_iota_system_state` function to handle the new version.
 /// To test that the upgrade will be successful, we need to modify `iota_system_state_production_upgrade_test` test in
@@ -29,15 +29,15 @@
 ///
 /// To upgrade Validator type, besides everything above, we also need to:
 /// 1. Define a new Validator type (e.g. ValidatorV2).
-/// 2. Define a data migration function that migrates the old Validator to the new one (i.e. ValidatorV2).
-/// 3. Replace all uses of Validator with ValidatorV2 except the genesis creation function.
+/// 2. Define a data migration function that migrates the old ValidatorV1 to the new one (i.e. ValidatorV2).
+/// 3. Replace all uses of ValidatorV1 with ValidatorV2 except the genesis creation function.
 /// 4. In validator_wrapper::upgrade_to_latest, check the current version in the wrapper, and if it's not the latest version,
 ///  call the data migration function to upgrade it.
 /// In Rust, we also need to add a new case in `get_validator_from_table`.
-/// Note that it is possible to upgrade IotaSystemStateInner without upgrading Validator, but not the other way around.
-/// And when we only upgrade IotaSystemStateInner, the version of Validator in the wrapper will not be updated, and hence may become
-/// inconsistent with the version of IotaSystemStateInner. This is fine as long as we don't use the Validator version to determine
-/// the IotaSystemStateInner version, or vice versa.
+/// Note that it is possible to upgrade IotaSystemStateV1 without upgrading ValidatorV1, but not the other way around.
+/// And when we only upgrade IotaSystemStateV1, the version of ValidatorV1 in the wrapper will not be updated, and hence may become
+/// inconsistent with the version of IotaSystemStateV1. This is fine as long as we don't use the ValidatorV1 version to determine
+/// the IotaSystemStateV1 version, or vice versa.
 
 module iota_system::iota_system {
     use iota::balance::Balance;
@@ -47,15 +47,15 @@ module iota_system::iota_system {
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::table::Table;
     use iota::timelock::SystemTimelockCap;
-    use iota_system::validator::Validator;
+    use iota_system::validator::ValidatorV1;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
-    use iota_system::iota_system_state_inner::{Self, SystemParameters, IotaSystemStateInner, IotaSystemStateInnerV2};
+    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1};
     use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::dynamic_field;
     use iota::vec_map::VecMap;
 
     #[test_only] use iota::balance;
-    #[test_only] use iota_system::validator_set::ValidatorSet;
+    #[test_only] use iota_system::validator_set::ValidatorSetV1;
     #[test_only] use iota::vec_set::VecSet;
 
     public struct IotaSystemState has key {
@@ -75,11 +75,11 @@ module iota_system::iota_system {
     public(package) fun create(
         id: UID,
         iota_treasury_cap: IotaTreasuryCap,
-        validators: vector<Validator>,
+        validators: vector<ValidatorV1>,
         storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
-        parameters: SystemParameters,
+        parameters: SystemParametersV1,
         system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
@@ -527,7 +527,7 @@ module iota_system::iota_system {
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
-        // Validator will make a special system call with sender set as 0x0.
+        // ValidatorV1 will make a special system call with sender set as 0x0.
         assert!(ctx.sender() == @0x0, ENotSystemAddress);
         let storage_rebate = self.advance_epoch(
             new_epoch,
@@ -545,23 +545,16 @@ module iota_system::iota_system {
         storage_rebate
     }
 
-    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateInnerV2 {
+    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateV1 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateInnerV2 {
+    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateInnerV2 {
-        if (self.version == 1) {
-            let v1: IotaSystemStateInner = dynamic_field::remove(&mut self.id, self.version);
-            let v2 = v1.v1_to_v2();
-            self.version = 2;
-            dynamic_field::add(&mut self.id, self.version, v2);
-        };
-
-        let inner: &mut IotaSystemStateInnerV2 = dynamic_field::borrow_mut(
+    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
+        let inner: &mut IotaSystemStateV1 = dynamic_field::borrow_mut(
             &mut self.id,
             self.version
         );
@@ -635,26 +628,26 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Return the current validator set
-    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSet {
+    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetV1 {
         let self = load_system_state(wrapper);
         self.validators()
     }
 
     #[test_only]
     /// Return the currently active validator by address
-    public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &Validator {
+    public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
         validators(self).get_active_validator_ref(validator_address)
     }
 
     #[test_only]
     /// Return the currently pending validator by address
-    public fun pending_validator_by_address(self: &mut IotaSystemState, validator_address: address): &Validator {
+    public fun pending_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
         validators(self).get_pending_validator_ref(validator_address)
     }
 
     #[test_only]
     /// Return the currently candidate validator by address
-    public fun candidate_validator_by_address(self: &mut IotaSystemState, validator_address: address): &Validator {
+    public fun candidate_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
         validators(self).get_candidate_validator_ref(validator_address)
     }
 

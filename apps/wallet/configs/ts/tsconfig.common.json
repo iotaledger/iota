@@ -54,5 +54,6 @@
         }
     },
     "include": ["../../src", "../../tests"],
-    "exclude": ["../../build", "../../node_modules"]
+    "exclude": ["../../build", "../../node_modules"],
+    "references": [{ "path": "../ui-kit" }]
 }

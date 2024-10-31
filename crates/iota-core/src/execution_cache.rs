@@ -17,7 +17,7 @@ use iota_types::{
     object::{Object, Owner},
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
-        ObjectOrTombstone, ObjectStore, PackageObject, ParentSync,
+        ObjectOrTombstone, ObjectStore, PackageObject,
         error::{Error as StorageError, Result as StorageResult},
     },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
@@ -817,15 +817,6 @@ macro_rules! implement_storage_traits {
                 package_id: &ObjectID,
             ) -> IotaResult<Option<PackageObject>> {
                 ObjectCacheRead::get_package_object(self, package_id)
-            }
-        }
-
-        impl ParentSync for $implementor {
-            fn get_latest_parent_entry_ref_deprecated(
-                &self,
-                object_id: ObjectID,
-            ) -> IotaResult<Option<ObjectRef>> {
-                ObjectCacheRead::get_latest_object_ref_or_tombstone(self, object_id)
             }
         }
     };

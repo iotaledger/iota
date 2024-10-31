@@ -23,7 +23,7 @@ import {
 } from '@iota/core';
 import { RecognizedBadge } from '@iota/ui-icons';
 import { useMemo } from 'react';
-import { CoinIcon } from '~/components';
+import { CoinIcon, ImageIconSize } from '~/components';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
 
@@ -49,7 +49,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
         <div className="flex flex-col gap-xs">
             <Card type={CardType.Filled}>
                 <CardImage type={ImageType.BgTransparent}>
-                    <CoinIcon coinType={coinType} />
+                    <CoinIcon coinType={coinType} size={ImageIconSize.Small} />
                 </CardImage>
                 <CardBody
                     title={coinMetaData?.name || symbol}
