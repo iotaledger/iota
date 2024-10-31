@@ -77,16 +77,31 @@ $ iota genesis-ceremony add-validator \
     --project-url https://www.iota.org
 ```
 
-3. Add token allocation for the faucet
+3. Initialize token-distribution schedule
 
-Add allocation for any faucet that might have been launched.
+Set the initial token-distribution schedule through a csv file. E.g.
+
+```csv
+recipient-address,amount-nanos,staked-with-validator,staked-with-timelock-expiration
+<faucet-address>,1500000000000000,
+<validator-1-address>,1500000000000000,<validator-1-address>,
+<validator-2-address>,1500000000000000,<validator-2-address>,
+```
+
+This is useful for allocating funds for a faucet, for distributing the initial
+stake to validators.
+
+The resulting distribution schedule is amended only if any migration sources are
+passed in the "Build Genesis" step.
+
+The `pre_minted_supply` of the network can also be set.
 
 ```
-$ iota genesis-ceremony add-token-allocation \
-    --recipient-address <IotaAddress> \
-    --amount-nanos <# of iota coins>
+$ iota genesis-ceremony init-token-distribution-schedule \
+    --token_allocations_path <path-to-token-allocations-csv-file> \
+    --pre-minted-supply <# of iota coins in nanos>
 $ git add .
-$ git commit -m "add faucet token allocation"
+$ git commit -m "initialize token distribution schedule"
 $ git push
 ```
 

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
+use std::{fs::File, path::PathBuf};
 
 use anyhow::Result;
 use camino::Utf8PathBuf;
@@ -10,7 +10,7 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     IOTA_GENESIS_FILENAME,
-    genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
+    genesis::{TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
 use iota_genesis_builder::{
     Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
@@ -95,12 +95,20 @@ pub enum CeremonyCommand {
         #[clap(long)]
         project_url: Option<String>,
     },
-    /// Add token allocation for the given address.
-    AddTokenAllocation {
-        #[clap(long)]
-        recipient_address: IotaAddress,
-        #[clap(long)]
-        amount_nanos: u64,
+    /// Initialize token distribution schedule.
+    InitTokenDistributionSchedule {
+        #[clap(
+            long,
+            help = "The amount of any pre-minted supply",
+            default_value_t = 0
+        )]
+        pre_minted_supply: u64,
+        #[clap(
+            long,
+            help = "The path to the csv file with the token allocations",
+            name = "token_allocations.csv"
+        )]
+        token_allocations_path: PathBuf,
     },
     /// List the current validators in the Genesis builder.
     ListValidators,
@@ -158,21 +166,21 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             );
         }
 
-        CeremonyCommand::AddTokenAllocation {
-            recipient_address,
-            amount_nanos,
+        CeremonyCommand::InitTokenDistributionSchedule {
+            pre_minted_supply,
+            token_allocations_path,
         } => {
             let mut builder = Builder::load(&dir).await?;
-            let token_allocation = TokenAllocation {
-                recipient_address,
-                amount_nanos,
-                staked_with_validator: None,
-                staked_with_timelock_expiration: None,
-            };
             let mut schedule_builder = TokenDistributionScheduleBuilder::new();
-            schedule_builder.add_allocation(token_allocation);
-            builder = builder.with_token_distribution_schedule(schedule_builder.build());
+            schedule_builder.set_pre_minted_supply(pre_minted_supply);
 
+            let token_allocations_csv = File::open(token_allocations_path)?;
+            let mut reader = csv::Reader::from_reader(token_allocations_csv);
+            for allocation in reader.deserialize() {
+                schedule_builder.add_allocation(allocation?);
+            }
+
+            builder = builder.with_token_distribution_schedule(schedule_builder.build());
             builder.save(dir)?;
         }
 
