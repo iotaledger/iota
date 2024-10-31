@@ -160,8 +160,8 @@ pub enum ObjectChange {
     Delete(DeleteKindWithOldVersion),
 }
 
-pub trait StorageView: Storage + ParentSync + ChildObjectResolver {}
-impl<T: Storage + ParentSync + ChildObjectResolver> StorageView for T {}
+pub trait StorageView: Storage + ChildObjectResolver {}
+impl<T: Storage + ChildObjectResolver> StorageView for T {}
 
 /// An abstraction of the (possibly distributed) store for objects. This
 /// API only allows for the retrieval of objects, not any state changes
@@ -382,42 +382,6 @@ impl BackingPackageStore for PostExecutionPackageResolver {
     }
 }
 
-pub trait ParentSync {
-    /// This function is only called by older protocol versions.
-    /// It creates an explicit dependency to tombstones, which is not desired.
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>>;
-}
-
-impl<S: ParentSync> ParentSync for std::sync::Arc<S> {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        ParentSync::get_latest_parent_entry_ref_deprecated(self.as_ref(), object_id)
-    }
-}
-
-impl<S: ParentSync> ParentSync for &S {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        ParentSync::get_latest_parent_entry_ref_deprecated(*self, object_id)
-    }
-}
-
-impl<S: ParentSync> ParentSync for &mut S {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        ParentSync::get_latest_parent_entry_ref_deprecated(*self, object_id)
-    }
-}
-
 impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
     fn read_child_object(
         &self,
@@ -589,9 +553,7 @@ impl Display for DeleteKind {
     }
 }
 
-pub trait BackingStore:
-    BackingPackageStore + ChildObjectResolver + ObjectStore + ParentSync
-{
+pub trait BackingStore: BackingPackageStore + ChildObjectResolver + ObjectStore {
     fn as_object_store(&self) -> &dyn ObjectStore;
 }
 
@@ -600,7 +562,6 @@ where
     T: BackingPackageStore,
     T: ChildObjectResolver,
     T: ObjectStore,
-    T: ParentSync,
 {
     fn as_object_store(&self) -> &dyn ObjectStore {
         self
