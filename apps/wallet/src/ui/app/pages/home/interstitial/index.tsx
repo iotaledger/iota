@@ -50,7 +50,7 @@ function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: Int
                     <ExternalLink
                         href={bannerUrl}
                         onClick={() => {
-                            ampli.clickedBullsharkQuestsCta({ sourceFlow: 'Interstitial' });
+                            ampli.clickedAppsBannerCta({ sourceFlow: 'Interstitial' });
                             closeInterstitial();
                         }}
                         className="h-full w-full"
@@ -59,7 +59,6 @@ function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: Int
                     </ExternalLink>
                 )}
                 <button
-                    data-testid="bullshark-dismiss"
                     className="absolute bottom-0 w-full cursor-pointer appearance-none border-none bg-transparent pb-5"
                     onClick={() => closeInterstitial(dismissKey)}
                 >

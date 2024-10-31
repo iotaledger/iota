@@ -46,14 +46,13 @@ use iota_core::{
         SubmitCheckpointToConsensus,
         checkpoint_executor::{CheckpointExecutor, StopReason, metrics::CheckpointExecutorMetrics},
     },
+    connection_monitor::ConnectionMonitor,
     consensus_adapter::{
         CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
         SubmitToConsensus,
     },
+    consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{ConsensusClient, ConsensusManager, ConsensusManagerTrait},
-    consensus_throughput_calculator::{
-        ConsensusThroughputCalculator, ConsensusThroughputProfiler, ThroughputProfileRanges,
-    },
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     db_checkpoint_handler::DBCheckpointHandler,
     epoch::{
@@ -65,11 +64,13 @@ use iota_core::{
     module_cache_metrics::ResolverMetrics,
     overload_monitor::overload_monitor,
     rest_index::RestIndexStore,
+    safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
     state_accumulator::{StateAccumulator, StateAccumulatorMetrics},
     storage::{RestReadStore, RocksDbStore},
     traffic_controller::metrics::TrafficControllerMetrics,
     transaction_orchestrator::TransactionOrchestrator,
+    validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_json_rpc::{
     JsonRpcServerBuilder, bridge_api::BridgeReadApi, coin_api::CoinReadApi,
@@ -79,7 +80,11 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
-use iota_metrics::{RegistryService, server_timing_middleware, spawn_monitored_task};
+use iota_metrics::{
+    RegistryService,
+    metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
+    server_timing_middleware, spawn_monitored_task,
+};
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
@@ -99,22 +104,21 @@ use iota_types::{
     crypto::{KeypairTraits, RandomnessRound},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
+    execution_config_utils::to_binary_config,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
-    messages_consensus::{
-        AuthorityCapabilitiesV1, AuthorityCapabilitiesV2, ConsensusTransaction,
-        check_total_jwk_size,
-    },
+    messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, check_total_jwk_size},
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::Transaction,
 };
-use narwhal_network::metrics::{
-    MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
-};
 use prometheus::Registry;
+#[cfg(msim)]
+pub use simulator::set_jwk_injector;
+#[cfg(msim)]
+use simulator::*;
 use tap::tap::TapFallible;
 use tokio::{
     runtime::Handle,
@@ -150,6 +154,7 @@ mod simulator {
     use std::sync::atomic::AtomicBool;
 
     use super::*;
+
     pub(super) struct SimState {
         pub sim_node: iota_simulator::runtime::NodeHandle,
         pub sim_safe_mode_expected: AtomicBool,
@@ -196,16 +201,6 @@ mod simulator {
         JWK_INJECTOR.with(|cell| *cell.borrow_mut() = injector);
     }
 }
-
-use iota_core::{
-    consensus_handler::ConsensusHandlerInitializer, safe_client::SafeClientMetricsBase,
-    validator_tx_finalizer::ValidatorTxFinalizer,
-};
-use iota_types::execution_config_utils::to_binary_config;
-#[cfg(msim)]
-pub use simulator::set_jwk_injector;
-#[cfg(msim)]
-use simulator::*;
 
 pub struct IotaNode {
     config: NodeConfig,
@@ -430,7 +425,7 @@ impl IotaNode {
         let is_full_node = !is_validator;
         let prometheus_registry = registry_service.default_registry();
 
-        info!(node =? config.protocol_public_key(),
+        info!(node =? config.authority_public_key(),
             "Initializing iota-node listening on {}", config.network_address
         );
 
@@ -456,7 +451,7 @@ impl IotaNode {
             None
         };
 
-        let secret = Arc::pin(config.protocol_key_pair().copy());
+        let secret = Arc::pin(config.authority_key_pair().copy());
         let genesis_committee = genesis.committee()?;
         let committee_store = Arc::new(CommitteeStore::new(
             config.db_path().join("epochs"),
@@ -509,7 +504,7 @@ impl IotaNode {
 
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
         let epoch_store = AuthorityPerEpochStore::new(
-            config.protocol_public_key(),
+            config.authority_public_key(),
             committee.clone(),
             &config.db_path().join("store"),
             Some(epoch_options.options),
@@ -586,9 +581,7 @@ impl IotaNode {
             None
         };
 
-        let rest_index = if is_full_node
-            && config.enable_experimental_rest_api
-            && config.enable_index_processing
+        let rest_index = if is_full_node && config.enable_rest_api && config.enable_index_processing
         {
             Some(Arc::new(RestIndexStore::new(
                 config.db_path().join("rest_index"),
@@ -665,7 +658,7 @@ impl IotaNode {
             genesis_objects.extend(migration_tx_data.get_objects());
         }
 
-        let authority_name = config.protocol_public_key();
+        let authority_name = config.authority_public_key();
         let validator_tx_finalizer =
             config
                 .enable_validator_tx_finalizer
@@ -774,7 +767,6 @@ impl IotaNode {
 
         let accumulator = Arc::new(StateAccumulator::new(
             cache_traits.accumulator_store.clone(),
-            &epoch_store,
             StateAccumulatorMetrics::new(&prometheus_registry),
         ));
 
@@ -787,13 +779,12 @@ impl IotaNode {
 
         let authority_names_to_peer_ids = ArcSwap::from_pointee(authority_names_to_peer_ids);
 
-        let (_connection_monitor_handle, connection_statuses) =
-            narwhal_network::connectivity::ConnectionMonitor::spawn(
-                p2p_network.downgrade(),
-                network_connection_metrics,
-                HashMap::new(),
-                None,
-            );
+        let (_connection_monitor_handle, connection_statuses) = ConnectionMonitor::spawn(
+            p2p_network.downgrade(),
+            network_connection_metrics,
+            HashMap::new(),
+            None,
+        );
 
         let connection_monitor_status = ConnectionMonitorStatus {
             connection_statuses,
@@ -1059,7 +1050,7 @@ impl IotaNode {
             .build();
 
         let (randomness, randomness_router) =
-            randomness::Builder::new(config.protocol_public_key(), randomness_tx)
+            randomness::Builder::new(config.authority_public_key(), randomness_tx)
                 .config(config.p2p_config.randomness.clone().unwrap_or_default())
                 .with_metrics(prometheus_registry)
                 .build();
@@ -1199,7 +1190,6 @@ impl IotaNode {
             state.name,
             connection_monitor_status.clone(),
             &registry_service.default_registry(),
-            epoch_store.protocol_config().clone(),
             client.clone(),
         ));
         let consensus_manager =
@@ -1306,7 +1296,7 @@ impl IotaNode {
             Arc::downgrade(&epoch_store),
             Box::new(consensus_adapter.clone()),
             randomness_handle,
-            config.protocol_key_pair(),
+            config.authority_key_pair(),
         )
         .await;
         if let Some(randomness_manager) = randomness_manager {
@@ -1315,27 +1305,11 @@ impl IotaNode {
                 .await?;
         }
 
-        let throughput_calculator = Arc::new(ConsensusThroughputCalculator::new(
-            None,
-            state.metrics.clone(),
-        ));
-
-        let throughput_profiler = Arc::new(ConsensusThroughputProfiler::new(
-            throughput_calculator.clone(),
-            None,
-            None,
-            state.metrics.clone(),
-            ThroughputProfileRanges::from_chain(epoch_store.get_chain_identifier()),
-        ));
-
-        consensus_adapter.swap_throughput_profiler(throughput_profiler);
-
         let consensus_handler_initializer = ConsensusHandlerInitializer::new(
             state.clone(),
             checkpoint_service.clone(),
             epoch_store.clone(),
             low_scoring_authorities,
-            throughput_calculator,
         );
 
         consensus_manager
@@ -1402,7 +1376,7 @@ impl IotaNode {
         let checkpoint_output = Box::new(SubmitCheckpointToConsensus {
             sender: consensus_adapter,
             signer: state.secret.clone(),
-            authority: config.protocol_public_key(),
+            authority: config.authority_public_key(),
             next_reconfiguration_timestamp_ms: epoch_start_timestamp_ms
                 .checked_add(epoch_duration_ms)
                 .expect("Overflow calculating next_reconfiguration_timestamp_ms"),
@@ -1434,7 +1408,6 @@ impl IotaNode {
         authority: AuthorityName,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         prometheus_registry: &Registry,
-        protocol_config: ProtocolConfig,
         consensus_client: Arc<dyn SubmitToConsensus>,
     ) -> ConsensusAdapter {
         let ca_metrics = ConsensusAdapterMetrics::new(prometheus_registry);
@@ -1450,7 +1423,6 @@ impl IotaNode {
             consensus_config.max_submit_position,
             consensus_config.submit_delay_step_override(),
             ca_metrics,
-            protocol_config,
         )
     }
 
@@ -1565,32 +1537,20 @@ impl IotaNode {
 
                 let config = cur_epoch_store.protocol_config();
                 let binary_config = to_binary_config(config);
-                let transaction = if config.authority_capabilities_v2() {
-                    ConsensusTransaction::new_capability_notification_v2(
-                        AuthorityCapabilitiesV2::new(
-                            self.state.name,
-                            cur_epoch_store.get_chain_identifier().chain(),
-                            self.config
-                                .supported_protocol_versions
-                                .expect("Supported versions should be populated")
-                                // no need to send digests of versions less than the current version
-                                .truncate_below(config.version),
-                            self.state
-                                .get_available_system_packages(&binary_config)
-                                .await,
-                        ),
-                    )
-                } else {
-                    ConsensusTransaction::new_capability_notification(AuthorityCapabilitiesV1::new(
+                let transaction = ConsensusTransaction::new_capability_notification_v1(
+                    AuthorityCapabilitiesV1::new(
                         self.state.name,
+                        cur_epoch_store.get_chain_identifier().chain(),
                         self.config
                             .supported_protocol_versions
-                            .expect("Supported versions should be populated"),
+                            .expect("Supported versions should be populated")
+                            // no need to send digests of versions less than the current version
+                            .truncate_below(config.version),
                         self.state
                             .get_available_system_packages(&binary_config)
                             .await,
-                    ))
-                };
+                    ),
+                );
                 info!(?transaction, "submitting capabilities to consensus");
                 components
                     .consensus_adapter
@@ -1713,7 +1673,6 @@ impl IotaNode {
                     .metrics();
                 let new_accumulator = Arc::new(StateAccumulator::new(
                     self.state.get_accumulator_store().clone(),
-                    &new_epoch_store,
                     accumulator_metrics,
                 ));
                 let weak_accumulator = Arc::downgrade(&new_accumulator);
@@ -1722,7 +1681,7 @@ impl IotaNode {
                 consensus_store_pruner.prune(next_epoch).await;
 
                 if self.state.is_validator(&new_epoch_store) {
-                    // Only restart Narwhal if this node is still a validator in the new epoch.
+                    // Only restart consensus if this node is still a validator in the new epoch.
                     Some(
                         Self::start_epoch_specific_validator_components(
                             &self.config,
@@ -1765,7 +1724,6 @@ impl IotaNode {
                     .metrics();
                 let new_accumulator = Arc::new(StateAccumulator::new(
                     self.state.get_accumulator_store().clone(),
-                    &new_epoch_store,
                     accumulator_metrics,
                 ));
                 let weak_accumulator = Arc::downgrade(&new_accumulator);
@@ -1956,7 +1914,7 @@ fn send_trusted_peer_change(
 ) -> Result<(), watch::error::SendError<TrustedPeerChangeEvent>> {
     sender
         .send(TrustedPeerChangeEvent {
-            new_peers: epoch_state_state.get_validator_as_p2p_peers(config.protocol_public_key()),
+            new_peers: epoch_state_state.get_validator_as_p2p_peers(config.authority_public_key()),
         })
         .tap_err(|err| {
             warn!(
@@ -2008,7 +1966,7 @@ fn build_kv_store(
     )))
 }
 
-/// Builds and starts the HTTP server for the Iota node, exposing JSON-RPC and
+/// Builds and starts the HTTP server for the IOTA node, exposing JSON-RPC and
 /// REST APIs based on the node's configuration.
 ///
 /// This function performs the following tasks:
@@ -2021,7 +1979,7 @@ fn build_kv_store(
 ///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
 ///    IndexerApi.
 /// 4. Optionally, if the REST API is enabled, nests the REST API router under
-///    the `/rest` path.
+///    the `/api/v1` path.
 /// 5. Binds the server to the specified JSON-RPC address and starts listening
 ///    for incoming connections.
 pub async fn build_http_server(
@@ -2094,7 +2052,7 @@ pub async fn build_http_server(
 
     router = router.merge(json_rpc_router);
 
-    if config.enable_experimental_rest_api {
+    if config.enable_rest_api {
         let mut rest_service = iota_rest_api::RestService::new(
             Arc::new(RestReadStore::new(state, store)),
             software_version,

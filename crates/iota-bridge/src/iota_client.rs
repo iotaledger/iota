@@ -159,7 +159,7 @@ where
         self.inner
             .get_bridge_summary()
             .await
-            .map_err(|e| BridgeError::InternalError(format!("Can't get bridge committee: {e}")))
+            .map_err(|e| BridgeError::Internal(format!("Can't get bridge committee: {e}")))
     }
 
     pub async fn is_bridge_paused(&self) -> BridgeResult<bool> {
@@ -182,7 +182,7 @@ where
                 parse_iota_type_tag(&format!("0x{name}"))
                     .map(|name| (id, name))
                     .map_err(|e| {
-                        BridgeError::InternalError(format!(
+                        BridgeError::Internal(format!(
                             "Failed to retrieve token id mapping: {e}, type name: {name}"
                         ))
                     })
@@ -208,7 +208,7 @@ where
                             None
                         }
                     })
-                    .ok_or(BridgeError::InternalError(
+                    .ok_or(BridgeError::Internal(
                         "Error encountered when retrieving token notional values.".into(),
                     ))
             })
@@ -216,10 +216,11 @@ where
     }
 
     pub async fn get_bridge_committee(&self) -> BridgeResult<BridgeCommittee> {
-        let bridge_summary =
-            self.inner.get_bridge_summary().await.map_err(|e| {
-                BridgeError::InternalError(format!("Can't get bridge committee: {e}"))
-            })?;
+        let bridge_summary = self
+            .inner
+            .get_bridge_summary()
+            .await
+            .map_err(|e| BridgeError::Internal(format!("Can't get bridge committee: {e}")))?;
         let move_type_bridge_committee = bridge_summary.committee;
 
         let mut authorities = vec![];

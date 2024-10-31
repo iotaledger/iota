@@ -79,7 +79,9 @@ module Test::M1 {
 
 //# run-graphql
 {
-  events(filter: {eventType: "@{Test}::M1::EventA<@{Test}::M1::T2>", transactionDigest: "HtZYWQwGZUXnULZcc4PnLbxc2NvS5NBYNZKgprJ3DfL8"}) {
+  # `transactionDigest` is the digest of the 5th transaction returned from
+  # task 6 (see `type_param_filter.exp`)
+  events(filter: {eventType: "@{Test}::M1::EventA<@{Test}::M1::T2>", transactionDigest: "ECJhnduFaZDQdcnG6iNdKweAnq6LvgnkvuDWVkAFwywj"}) {
     nodes {
       type {
         repr

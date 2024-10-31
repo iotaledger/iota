@@ -54,7 +54,7 @@ impl EpochInfo {
     pub fn committee(&self) -> Result<Committee, fastcrypto::error::FastCryptoError> {
         let mut voting_rights = BTreeMap::new();
         for validator in &self.validators {
-            let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes)?;
+            let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes)?;
             voting_rights.insert(name, validator.voting_power);
         }
         Ok(Committee::new(self.epoch, voting_rights))
@@ -96,7 +96,7 @@ pub struct EndOfEpochInfo {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch_end_timestamp: u64,
-    /// existing fields from `SystemEpochInfoEvent` (without epoch)
+    /// existing fields from `SystemEpochInfoEventV1` (without epoch)
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub protocol_version: u64,

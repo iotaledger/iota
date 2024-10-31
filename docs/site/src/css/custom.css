@@ -116,6 +116,9 @@
   color: #525860;
   font-weight: 600;
 }
+.hidden-text{
+  display: none;
+}
 [data-theme="dark"] .table-of-contents__link--active {
   color: white;
 }
@@ -318,6 +321,17 @@ h4 {
   }
 }
 @media screen and (max-width: 599px) {
+  .pagination-nav{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .pagination-nav__link{
+    width: 100%;
+  } 
+  .backgroundImage{
+    background-size: 125%
+  }
   h2,
   .h2 {
     font-size: 1.7rem;
@@ -415,7 +429,7 @@ h4 {
 
 /** Globals **/
 .button{
-  text-wrap: pretty;
+  text-wrap: wrap;
   color: var(--iota-white);
   background: var(--iota-hero-dark);
 }
@@ -472,4 +486,24 @@ h4 {
 }
 .text-gray {
   color: var(--iota-gray);
+}
+
+/* Ensure equations are scrollable on smaller screens */
+.katex-display {
+  overflow-x: scroll;
+  white-space: nowrap;
+}
+
+/* Reduce font size for mobile screens */
+@media screen and (max-width: 768px) {
+  .katex-display {
+    font-size: 0.9rem;
+    display: block;
+  }
+}
+
+/* Optional: Set a max-width for the math elements to prevent overflow */
+.katex-display {
+  max-width: 100%;
+  overflow-wrap: break-word;
 }

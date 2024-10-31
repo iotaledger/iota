@@ -1,6 +1,6 @@
 [package]
 name = "iota-graphql-e2e-tests"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -11,10 +11,13 @@ description = "End to end tests for Iota GraphQL"
 workspace = true
 
 [dev-dependencies]
+# external dependencies
 datatest-stable.workspace = true
+tokio.workspace = true
+
+# internal dependencies
 iota-graphql-rpc.workspace = true
 iota-transactional-test-runner.workspace = true
-tokio.workspace = true
 
 [[test]]
 name = "tests"

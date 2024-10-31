@@ -74,7 +74,7 @@ mod sim_only_tests {
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
         iota_system_state::{
-            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2, IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2,
+            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1, IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1,
             IOTA_SYSTEM_STATE_SIM_TEST_V1, IotaSystemState, IotaSystemStateTrait,
             epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
         },
@@ -893,9 +893,9 @@ mod sim_only_tests {
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
         assert_eq!(
             system_state.system_state_version(),
-            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2
+            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1
         );
-        assert!(matches!(system_state, IotaSystemState::SimTestShallowV2(_)));
+        assert!(matches!(system_state, IotaSystemState::SimTestShallowV1(_)));
     }
 
     #[sim_test]
@@ -946,9 +946,9 @@ mod sim_only_tests {
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
         assert_eq!(
             system_state.system_state_version(),
-            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2
+            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1
         );
-        if let IotaSystemState::SimTestDeepV2(inner) = system_state {
+        if let IotaSystemState::SimTestDeepV1(inner) = system_state {
             // Make sure we have 1 inactive validator for latter testing.
             assert_eq!(inner.validators.inactive_validators.size, 1);
             get_validator_from_table(
@@ -963,7 +963,7 @@ mod sim_only_tests {
             )
             .unwrap();
         } else {
-            panic!("Expecting SimTestDeepV2 type");
+            panic!("Expecting SimTestDeepV1 type");
         }
     }
 
@@ -991,7 +991,7 @@ mod sim_only_tests {
         // The system state object will be upgraded next time we execute advance_epoch
         // transaction at epoch boundary.
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
-        if let IotaSystemState::V2(inner) = system_state {
+        if let IotaSystemState::V1(inner) = system_state {
             assert_eq!(inner.parameters.min_validator_count, 4);
         } else {
             unreachable!("Unexpected iota system state version");

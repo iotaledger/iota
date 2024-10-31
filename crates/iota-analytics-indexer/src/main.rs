@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     let remote_store_url = config.remote_store_url.clone();
     let processor = make_analytics_processor(config, metrics)
         .await
-        .map_err(|e| AnalyticsIndexerError::GenericError(e.to_string()))?;
+        .map_err(|e| AnalyticsIndexerError::Generic(e.to_string()))?;
     let watermark = processor.last_committed_checkpoint().unwrap_or_default() + 1;
 
     let reader_options = ReaderOptions {

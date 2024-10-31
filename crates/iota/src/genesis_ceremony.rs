@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
+use std::{fs::File, path::PathBuf};
 
 use anyhow::Result;
 use camino::Utf8PathBuf;
@@ -10,7 +10,7 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     IOTA_GENESIS_FILENAME,
-    genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
+    genesis::{TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
 use iota_genesis_builder::{
     Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
@@ -64,10 +64,10 @@ pub enum CeremonyCommand {
         name: String,
         /// The path to the BLS12381 authority key file for the validator.
         #[clap(long)]
-        validator_key_file: PathBuf,
-        /// The path to the Ed25519 network key file for the worker.
+        authority_key_file: PathBuf,
+        /// The path to the Ed25519 network key file for the consensus protocol.
         #[clap(long)]
-        worker_key_file: PathBuf,
+        protocol_key_file: PathBuf,
         /// The path to the Ed25519 network key file for the account.
         #[clap(long)]
         account_key_file: PathBuf,
@@ -81,14 +81,10 @@ pub enum CeremonyCommand {
         /// format.
         #[clap(long)]
         p2p_address: Multiaddr,
-        /// The narwhal primary address. This must be a UDP address in ASCII
+        /// The primary address. This must be a UDP address in ASCII
         /// format.
         #[clap(long)]
-        narwhal_primary_address: Multiaddr,
-        /// The narwhal worker address. This must be a UDP address in ASCII
-        /// format.
-        #[clap(long)]
-        narwhal_worker_address: Multiaddr,
+        primary_address: Multiaddr,
         /// An optional description of the validator.
         #[clap(long)]
         description: Option<String>,
@@ -99,12 +95,14 @@ pub enum CeremonyCommand {
         #[clap(long)]
         project_url: Option<String>,
     },
-    /// Add token allocation for the given address.
-    AddTokenAllocation {
-        #[clap(long)]
-        recipient_address: IotaAddress,
-        #[clap(long)]
-        amount_nanos: u64,
+    /// Initialize token distribution schedule.
+    InitTokenDistributionSchedule {
+        #[clap(
+            long,
+            help = "The path to the csv file with the token allocations",
+            name = "token_allocations.csv"
+        )]
+        token_allocations_path: PathBuf,
     },
     /// List the current validators in the Genesis builder.
     ListValidators,
@@ -117,12 +115,7 @@ pub enum CeremonyCommand {
         )]
         #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
-        #[clap(
-            long,
-            name = "iota|<full-url>",
-            help = "Remote migration snapshots.",
-            default_values_t = vec![SnapshotUrl::Iota],
-        )]
+        #[clap(long, name = "iota|<full-url>", help = "Remote migration snapshots.")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
@@ -167,57 +160,58 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             );
         }
 
-        CeremonyCommand::AddTokenAllocation {
-            recipient_address,
-            amount_nanos,
+        CeremonyCommand::InitTokenDistributionSchedule {
+            token_allocations_path,
         } => {
             let mut builder = Builder::load(&dir).await?;
-            let token_allocation = TokenAllocation {
-                recipient_address,
-                amount_nanos,
-                staked_with_validator: None,
-                staked_with_timelock_expiration: None,
-            };
             let mut schedule_builder = TokenDistributionScheduleBuilder::new();
-            schedule_builder.add_allocation(token_allocation);
-            builder = builder.with_token_distribution_schedule(schedule_builder.build());
 
+            let token_allocations_csv = File::open(token_allocations_path)?;
+            let mut reader = csv::Reader::from_reader(token_allocations_csv);
+            for allocation in reader.deserialize() {
+                schedule_builder.add_allocation(allocation?);
+            }
+
+            builder = builder.with_token_distribution_schedule(schedule_builder.build());
             builder.save(dir)?;
         }
 
         CeremonyCommand::AddValidator {
             name,
-            validator_key_file,
-            worker_key_file,
+            authority_key_file,
+            protocol_key_file,
             account_key_file,
             network_key_file,
             network_address,
             p2p_address,
-            narwhal_primary_address,
-            narwhal_worker_address,
+            primary_address,
             description,
             image_url,
             project_url,
         } => {
             let mut builder = Builder::load(&dir).await?;
-            let keypair: AuthorityKeyPair = read_authority_keypair_from_file(validator_key_file)?;
+            let authority_keypair: AuthorityKeyPair =
+                read_authority_keypair_from_file(authority_key_file)?;
             let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
-            let worker_keypair: NetworkKeyPair = read_network_keypair_from_file(worker_key_file)?;
+            let protocol_keypair: NetworkKeyPair =
+                read_network_keypair_from_file(protocol_key_file)?;
             let network_keypair: NetworkKeyPair = read_network_keypair_from_file(network_key_file)?;
-            let pop = generate_proof_of_possession(&keypair, (&account_keypair.public()).into());
+            let pop = generate_proof_of_possession(
+                &authority_keypair,
+                (&account_keypair.public()).into(),
+            );
             builder = builder.add_validator(
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
-                    protocol_key: keypair.public().into(),
-                    worker_key: worker_keypair.public().clone(),
+                    authority_key: authority_keypair.public().into(),
+                    protocol_key: protocol_keypair.public().clone(),
                     account_address: IotaAddress::from(&account_keypair.public()),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address,
                     p2p_address,
-                    narwhal_primary_address,
-                    narwhal_worker_address,
+                    primary_address,
                     description: description.unwrap_or_default(),
                     image_url: image_url.unwrap_or_default(),
                     project_url: project_url.unwrap_or_default(),
@@ -225,7 +219,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 pop,
             );
             builder.save(dir)?;
-            println!("Successfully added validator",);
+            println!("Successfully added validator");
         }
 
         CeremonyCommand::ListValidators => {
@@ -378,8 +372,9 @@ mod test {
 
         let validators = (0..10)
             .map(|i| {
-                let keypair: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-                let worker_keypair: NetworkKeyPair =
+                let authority_keypair: AuthorityKeyPair =
+                    get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+                let protocol_keypair: NetworkKeyPair =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let network_keypair: NetworkKeyPair =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
@@ -387,25 +382,24 @@ mod test {
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),
-                    protocol_key: keypair.public().into(),
-                    worker_key: worker_keypair.public().clone(),
+                    authority_key: authority_keypair.public().into(),
+                    protocol_key: protocol_keypair.public().clone(),
                     account_address: IotaAddress::from(account_keypair.public()),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address: local_ip_utils::new_local_tcp_address_for_testing(),
                     p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
-                    narwhal_primary_address: local_ip_utils::new_local_udp_address_for_testing(),
-                    narwhal_worker_address: local_ip_utils::new_local_udp_address_for_testing(),
+                    primary_address: local_ip_utils::new_local_udp_address_for_testing(),
                     description: String::new(),
                     image_url: String::new(),
                     project_url: String::new(),
                 };
-                let key_file = dir.path().join(format!("{}-0.key", info.name));
-                write_authority_keypair_to_file(&keypair, &key_file).unwrap();
+                let authority_key_file = dir.path().join(format!("{}-0.key", info.name));
+                write_authority_keypair_to_file(&authority_keypair, &authority_key_file).unwrap();
 
-                let worker_key_file = dir.path().join(format!("{}.key", info.name));
-                write_keypair_to_file(&IotaKeyPair::Ed25519(worker_keypair), &worker_key_file)
+                let protocol_key_file = dir.path().join(format!("{}.key", info.name));
+                write_keypair_to_file(&IotaKeyPair::Ed25519(protocol_keypair), &protocol_key_file)
                     .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
@@ -417,8 +411,8 @@ mod test {
                     .unwrap();
 
                 (
-                    key_file,
-                    worker_key_file,
+                    authority_key_file,
+                    protocol_key_file,
                     network_key_file,
                     account_key_file,
                     info,
@@ -435,22 +429,26 @@ mod test {
         command.run().await?;
 
         // Add the validators
-        for (key_file, worker_key_file, network_key_file, account_key_file, validator) in
-            &validators
+        for (
+            authority_key_file,
+            protocol_key_file,
+            network_key_file,
+            account_key_file,
+            validator,
+        ) in &validators
         {
             let command = Ceremony {
                 path: Some(dir.path().into()),
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::AddValidator {
                     name: validator.name().to_owned(),
-                    validator_key_file: key_file.into(),
-                    worker_key_file: worker_key_file.into(),
+                    authority_key_file: authority_key_file.into(),
+                    protocol_key_file: protocol_key_file.into(),
                     network_key_file: network_key_file.into(),
                     account_key_file: account_key_file.into(),
                     network_address: validator.network_address().to_owned(),
                     p2p_address: validator.p2p_address().to_owned(),
-                    narwhal_primary_address: validator.narwhal_primary_address.clone(),
-                    narwhal_worker_address: validator.narwhal_worker_address.clone(),
+                    primary_address: validator.primary_address.clone(),
                     description: None,
                     image_url: None,
                     project_url: None,
@@ -479,12 +477,12 @@ mod test {
         command.run().await?;
 
         // Have all the validators verify and sign genesis
-        for (key, _worker_key, _network_key, _account_key, _validator) in &validators {
+        for (authority_key, _protocol_key, _network_key, _account_key, _validator) in &validators {
             let command = Ceremony {
                 path: Some(dir.path().into()),
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::VerifyAndSign {
-                    key_file: key.into(),
+                    key_file: authority_key.into(),
                 },
             };
             command.run().await?;

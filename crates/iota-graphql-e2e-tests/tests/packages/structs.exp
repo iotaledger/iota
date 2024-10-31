@@ -154,7 +154,13 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x012cf2675d614bc7c5dc6f42602abb7a1e5c74c24de25df0c7e6e831372c69a9",
+                    "address": "0x2f70f434dedbef6ca04cdff83afde4631684ccb6846780382d45ae301630d74e",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x6e052faf337b206054b319aff9325298b3b4995c7f30100dc8311f11a0ce23ae",
                     "asMovePackage": {
                       "module": {
                         "struct": {
@@ -183,13 +189,7 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0x4cde3822b6cc9be4b5c4593b54240b911a1ecb76dba539684a52a0efcb564a3c",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x60993177b721fb0ccd833d0937c9d0777d72da1262bf8cfc987b6aa23eb2a481",
+                    "address": "0xbf4fd0801cda9bdd4713316aeb2067f40dca9301714ab9ebc1c5f4a77e1baa95",
                     "asMovePackage": null
                   }
                 }
@@ -224,13 +224,19 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x0d43a77f5fc09ff51ee190935bfcb8e0e35c1893f23f49a8bbff0049bd830cdc",
+                    "address": "0x2f70f434dedbef6ca04cdff83afde4631684ccb6846780382d45ae301630d74e",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0xa5fc6cbb49375fc5e27a7a8cb9ddd211ec180a3693c0ab9030fa00c4f4ea2e89",
                     "asMovePackage": {
                       "module": {
                         "s": {
                           "module": {
                             "package": {
-                              "address": "0x012cf2675d614bc7c5dc6f42602abb7a1e5c74c24de25df0c7e6e831372c69a9"
+                              "address": "0x6e052faf337b206054b319aff9325298b3b4995c7f30100dc8311f11a0ce23ae"
                             }
                           },
                           "name": "S",
@@ -255,7 +261,7 @@ Response: {
                         "t": {
                           "module": {
                             "package": {
-                              "address": "0x0d43a77f5fc09ff51ee190935bfcb8e0e35c1893f23f49a8bbff0049bd830cdc"
+                              "address": "0xa5fc6cbb49375fc5e27a7a8cb9ddd211ec180a3693c0ab9030fa00c4f4ea2e89"
                             }
                           },
                           "name": "T",
@@ -282,12 +288,12 @@ Response: {
                             {
                               "name": "s",
                               "type": {
-                                "repr": "0x012cf2675d614bc7c5dc6f42602abb7a1e5c74c24de25df0c7e6e831372c69a9::m::S",
+                                "repr": "0x6e052faf337b206054b319aff9325298b3b4995c7f30100dc8311f11a0ce23ae::m::S",
                                 "signature": {
                                   "ref": null,
                                   "body": {
                                     "datatype": {
-                                      "package": "0x012cf2675d614bc7c5dc6f42602abb7a1e5c74c24de25df0c7e6e831372c69a9",
+                                      "package": "0x6e052faf337b206054b319aff9325298b3b4995c7f30100dc8311f11a0ce23ae",
                                       "module": "m",
                                       "type": "S",
                                       "typeParameters": []
@@ -316,7 +322,7 @@ Response: {
                             {
                               "name": "t",
                               "type": {
-                                "repr": "0x012cf2675d614bc7c5dc6f42602abb7a1e5c74c24de25df0c7e6e831372c69a9::m::T<0x012cf2675d614bc7c5dc6f42602abb7a1e5c74c24de25df0c7e6e831372c69a9::m::S>"
+                                "repr": "0x6e052faf337b206054b319aff9325298b3b4995c7f30100dc8311f11a0ce23ae::m::T<0x6e052faf337b206054b319aff9325298b3b4995c7f30100dc8311f11a0ce23ae::m::S>"
                               }
                             }
                           ]
@@ -327,13 +333,7 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0x4cde3822b6cc9be4b5c4593b54240b911a1ecb76dba539684a52a0efcb564a3c",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x60993177b721fb0ccd833d0937c9d0777d72da1262bf8cfc987b6aa23eb2a481",
+                    "address": "0xbf4fd0801cda9bdd4713316aeb2067f40dca9301714ab9ebc1c5f4a77e1baa95",
                     "asMovePackage": null
                   }
                 }
@@ -358,6 +358,11 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
                     "asMovePackage": {
                       "module": {
                         "s": {
@@ -374,11 +379,6 @@ Response: {
                         }
                       }
                     }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMovePackage": null
                   }
                 },
                 {
@@ -463,18 +463,7 @@ Response: {
                 ]
               },
               {
-                "name": "CurrencyCreated",
-                "fields": [
-                  {
-                    "name": "decimals",
-                    "type": {
-                      "repr": "u8"
-                    }
-                  }
-                ]
-              },
-              {
-                "name": "DenyCapV2",
+                "name": "DenyCapV1",
                 "fields": [
                   {
                     "name": "id",
@@ -545,15 +534,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcFYyIiwiYyI6Mn0",
-                "node": {
-                  "name": "DenyCapV2"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -589,15 +572,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcFYyIiwiYyI6Mn0",
-                "node": {
-                  "name": "DenyCapV2"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -634,9 +611,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
+                  "name": "DenyCapV1"
                 }
               }
             ],
@@ -654,15 +631,15 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
+                  "name": "DenyCapV1"
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcFYyIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiUmVndWxhdGVkQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCapV2"
+                  "name": "RegulatedCoinMetadata"
                 }
               }
             ],
@@ -680,15 +657,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcFYyIiwiYyI6Mn0",
-                "node": {
-                  "name": "DenyCapV2"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -712,9 +683,9 @@ Response: {
           "suffix": {
             "edges": [
               {
-                "cursor": "eyJuIjoiRGVueUNhcFYyIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCapV2"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -732,15 +703,15 @@ Response: {
           "suffixAll": {
             "edges": [
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
+                  "name": "CoinMetadata"
                 }
               },
               {
-                "cursor": "eyJuIjoiRGVueUNhcFYyIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "DenyCapV2"
+                  "name": "DenyCapV1"
                 }
               },
               {
@@ -770,15 +741,9 @@ Response: {
                 }
               },
               {
-                "cursor": "eyJuIjoiQ3VycmVuY3lDcmVhdGVkIiwiYyI6Mn0",
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
                 "node": {
-                  "name": "CurrencyCreated"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcFYyIiwiYyI6Mn0",
-                "node": {
-                  "name": "DenyCapV2"
+                  "name": "DenyCapV1"
                 }
               },
               {

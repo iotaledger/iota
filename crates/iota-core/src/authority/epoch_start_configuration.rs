@@ -10,7 +10,7 @@ use iota_types::{
     authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
     bridge::{get_bridge_obj_initial_shared_version, is_bridge_committee_initiated},
-    deny_list_v2::get_deny_list_obj_initial_shared_version,
+    deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
     error::IotaResult,
     iota_system_state::epoch_start_iota_system_state::{
@@ -54,51 +54,28 @@ pub trait EpochStartConfigTrait {
 // inconsistent with the released branch, and must be fixed.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum EpochFlag {
-    // The deprecated flags have all been in production for long enough that
-    // we can have deleted the old code paths they were guarding.
-    // We retain them here in order not to break deserialization.
-    _InMemoryCheckpointRootsDeprecated = 0,
-    _PerEpochFinalizedTransactionsDeprecated = 1,
-    _ObjectLockSplitTablesDeprecated = 2,
-
-    WritebackCacheEnabled = 3,
-
-    // This flag was "burned" because it was deployed with a broken version of the code. The
-    // new flags below are required to enable state accumulator v2
-    _StateAccumulatorV2EnabledDeprecated = 4,
-    StateAccumulatorV2EnabledTestnet = 5,
-    StateAccumulatorV2EnabledMainnet = 6,
-
-    ExecutedInEpochTable = 7,
+    WritebackCacheEnabled = 0,
 }
 
 impl EpochFlag {
     pub fn default_flags_for_new_epoch(config: &NodeConfig) -> Vec<Self> {
-        Self::default_flags_impl(&config.execution_cache, config.state_accumulator_v2)
+        Self::default_flags_impl(&config.execution_cache)
     }
 
     /// For situations in which there is no config available (e.g. setting up a
     /// downloaded snapshot).
     pub fn default_for_no_config() -> Vec<Self> {
-        Self::default_flags_impl(&Default::default(), true)
+        Self::default_flags_impl(&Default::default())
     }
 
-    fn default_flags_impl(
-        cache_config: &ExecutionCacheConfig,
-        enable_state_accumulator_v2: bool,
-    ) -> Vec<Self> {
-        let mut new_flags = vec![EpochFlag::ExecutedInEpochTable];
+    fn default_flags_impl(cache_config: &ExecutionCacheConfig) -> Vec<Self> {
+        let mut new_flags = vec![];
 
         if matches!(
             choose_execution_cache(cache_config),
             ExecutionCacheConfigType::WritebackCache
         ) {
             new_flags.push(EpochFlag::WritebackCacheEnabled);
-        }
-
-        if enable_state_accumulator_v2 {
-            new_flags.push(EpochFlag::StateAccumulatorV2EnabledTestnet);
-            new_flags.push(EpochFlag::StateAccumulatorV2EnabledMainnet);
         }
 
         new_flags
@@ -110,26 +87,7 @@ impl fmt::Display for EpochFlag {
         // Important - implementation should return low cardinality values because this
         // is used as metric key
         match self {
-            EpochFlag::_InMemoryCheckpointRootsDeprecated => {
-                write!(f, "InMemoryCheckpointRoots (DEPRECATED)")
-            }
-            EpochFlag::_PerEpochFinalizedTransactionsDeprecated => {
-                write!(f, "PerEpochFinalizedTransactions (DEPRECATED)")
-            }
-            EpochFlag::_ObjectLockSplitTablesDeprecated => {
-                write!(f, "ObjectLockSplitTables (DEPRECATED)")
-            }
             EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
-            EpochFlag::_StateAccumulatorV2EnabledDeprecated => {
-                write!(f, "StateAccumulatorV2EnabledDeprecated (DEPRECATED)")
-            }
-            EpochFlag::ExecutedInEpochTable => write!(f, "ExecutedInEpochTable"),
-            EpochFlag::StateAccumulatorV2EnabledTestnet => {
-                write!(f, "StateAccumulatorV2EnabledTestnet")
-            }
-            EpochFlag::StateAccumulatorV2EnabledMainnet => {
-                write!(f, "StateAccumulatorV2EnabledMainnet")
-            }
         }
     }
 }

@@ -1410,7 +1410,7 @@ mod tests {
             mock.add_iota_event_response(
                 iota_tx_digest,
                 iota_tx_event_index,
-                Err(BridgeError::RestAPIError("small issue".into())),
+                Err(BridgeError::RestAPI("small issue".into())),
             );
         }
     }

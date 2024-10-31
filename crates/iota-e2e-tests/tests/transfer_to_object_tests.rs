@@ -26,7 +26,7 @@ async fn receive_of_object_with_reconfiguration() {
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     env.receive(parent, child).await.unwrap();
-    env.test_cluster.trigger_reconfiguration().await;
+    env.test_cluster.force_new_epoch().await;
 }
 
 #[sim_test]
@@ -34,7 +34,7 @@ async fn receive_of_object_with_reconfiguration_receive_after_reconfig() {
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     let (new_parent, new_child) = env.receive(parent, child).await.unwrap();
-    env.test_cluster.trigger_reconfiguration().await;
+    env.test_cluster.force_new_epoch().await;
     assert!(env.receive(new_parent, new_child).await.is_ok());
 }
 
@@ -43,7 +43,7 @@ async fn receive_of_object_with_reconfiguration_receive_of_old_child_after_recon
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     let (new_parent, _) = env.receive(parent, child).await.unwrap();
-    env.test_cluster.trigger_reconfiguration().await;
+    env.test_cluster.force_new_epoch().await;
     assert!(env.receive(new_parent, child).await.is_err());
 }
 
@@ -52,7 +52,7 @@ async fn receive_of_object_with_reconfiguration_receive_of_old_parent_after_reco
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     let (_, new_child) = env.receive(parent, child).await.unwrap();
-    env.test_cluster.trigger_reconfiguration().await;
+    env.test_cluster.force_new_epoch().await;
     assert!(env.receive(parent, new_child).await.is_err());
 }
 
@@ -61,7 +61,7 @@ async fn receive_of_object_with_reconfiguration_receive_of_old_parent_and_child_
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     env.receive(parent, child).await.unwrap();
-    env.test_cluster.trigger_reconfiguration().await;
+    env.test_cluster.force_new_epoch().await;
     assert!(env.receive(parent, child).await.is_err());
 }
 
@@ -70,7 +70,7 @@ async fn receive_of_object_with_reconfiguration_receive_after_reconfig_with_inva
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     let (new_parent, new_child) = env.receive(parent, child).await.unwrap();
-    env.test_cluster.trigger_reconfiguration().await;
+    env.test_cluster.force_new_epoch().await;
     assert!(env.receive(new_child, new_parent).await.is_err());
 }
 
@@ -79,7 +79,7 @@ async fn delete_of_object_with_reconfiguration_receive_of_old_parent_and_child_a
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     env.delete(parent, child).await;
-    env.test_cluster.trigger_reconfiguration().await;
+    env.test_cluster.force_new_epoch().await;
     assert!(env.receive(parent, child).await.is_err());
 }
 
@@ -89,7 +89,7 @@ async fn delete_of_object_with_reconfiguration_receive_of_new_parent_and_old_chi
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     let new_parent = env.delete(parent, child).await;
-    env.test_cluster.trigger_reconfiguration().await;
+    env.test_cluster.force_new_epoch().await;
     assert!(env.receive(new_parent, child).await.is_err());
 }
 
