@@ -8176,6 +8176,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-rust-sdk",
  "iota-sdk 1.1.5",
+ "iota-util-mem",
  "itertools 0.13.0",
  "lru 0.12.4",
  "move-binary-format",
