@@ -22,11 +22,11 @@ jobs:
     name: cargo-deny (bans, licenses, sources)
     runs-on: [self-hosted]
     steps:
-      # - uses: taiki-e/install-action@cargo-deny
+      - uses: taiki-e/install-action@cargo-deny
       - run: cargo deny check bans licenses sources
   advisories:
     name: cargo-deny (advisories)
     runs-on: [self-hosted]
     steps:
-      # - uses: taiki-e/install-action@cargo-deny
+      - uses: taiki-e/install-action@cargo-deny
       - run: cargo deny check advisories
