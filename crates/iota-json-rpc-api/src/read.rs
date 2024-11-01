@@ -94,7 +94,7 @@ pub trait ReadApi {
     // underlying utility, e.g., `RemoteFetcher::get_child_object` uses
     // `try_get_object_before_version` to get the object with the versions <=
     // the given version. Thus we keep this endpoint for now.
-    #[method(name = "tryGetObjectBeforeVersion")]
+    #[method(name = "tryGetObjectBeforeVersion", deprecated = "true")]
     async fn try_get_object_before_version(
         &self,
         /// the ID of the queried object
