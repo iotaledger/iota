@@ -34,7 +34,6 @@ module iota::coin_manager_tests {
             scenario.ctx(),
         );
 
-
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         assert!(wrapper.decimals() == 0);
@@ -114,7 +113,6 @@ module iota::coin_manager_tests {
             scenario.ctx(),
         );
 
-
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         // We should start out with a Supply of 0.
@@ -129,7 +127,7 @@ module iota::coin_manager_tests {
         // We should now have a Supply of 10.
         assert!(wrapper.total_supply() == 10);
         
-        // This should fail
+        // This should fail.
         cmcap.mint_and_transfer(&mut wrapper, 1, sender, scenario.ctx());
 
         transfer::public_transfer(cmcap, scenario.ctx().sender());
@@ -158,7 +156,6 @@ module iota::coin_manager_tests {
             scenario.ctx(),
         );
 
-
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         // We should start out with a Supply of 0.
@@ -184,7 +181,7 @@ module iota::coin_manager_tests {
         scenario.end();
     }
 
-        #[test]
+    #[test]
     #[expected_failure(abort_code = coin_manager::EMaximumSupplyLowerThanTotalSupply)]
     fun test_max_supply_lower_than_total() {
         let sender = @0xA;
@@ -202,7 +199,6 @@ module iota::coin_manager_tests {
             scenario.ctx(),
         );
 
-
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
 
         // We should start out with a Supply of 0.
@@ -214,7 +210,7 @@ module iota::coin_manager_tests {
         // We should now have a Supply of 10.
         assert!(wrapper.total_supply() == 10);
 
-        // Update the maximum supply that lower than the total supply, this should not be allowed.
+        // Update the maximum supply to be lower than the total supply, this should not be allowed.
         cmcap.enforce_maximum_supply(&mut wrapper, 9);
         
         transfer::public_transfer(cmcap, scenario.ctx().sender());
@@ -242,7 +238,6 @@ module iota::coin_manager_tests {
             option::none(),
             scenario.ctx(),
         );
-
 
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
@@ -276,7 +271,6 @@ module iota::coin_manager_tests {
             option::none(),
             scenario.ctx(),
         );
-
 
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
@@ -334,7 +328,6 @@ module iota::coin_manager_tests {
             scenario.ctx(),
         );
 
-
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
 
         let bonus = BonusMetadata {
@@ -380,7 +373,6 @@ module iota::coin_manager_tests {
             option::none(),
             scenario.ctx(),
         );
-
 
         transfer::public_freeze_object(meta);
         test_scenario::next_tx(&mut scenario, sender);
