@@ -37,16 +37,16 @@ module iota::coin_manager_tests {
 
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
-        assert!(wrapper.decimals() == 0, 0);
+        assert!(wrapper.decimals() == 0);
 
         // We should start out with a Supply of 0.
-        assert!(wrapper.total_supply() == 0, 0);
+        assert!(wrapper.total_supply() == 0);
         
         // Mint some coin!
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
         
         // We should now have a Supply of 10.
-        assert!(wrapper.total_supply() == 10, 0);
+        assert!(wrapper.total_supply() == 10);
         
         // No maximum supply set, so we can do this again!
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
@@ -75,16 +75,16 @@ module iota::coin_manager_tests {
             scenario.ctx(),
         );
 
-        assert!(wrapper.decimals() == 0, 0);
+        assert!(wrapper.decimals() == 0);
 
         // We should start out with a Supply of 0.
-        assert!(wrapper.total_supply() == 0, 0);
+        assert!(wrapper.total_supply() == 0);
         
         // Mint some coin!
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
         
         // We should now have a Supply of 10.
-        assert!(wrapper.total_supply() == 10, 0);
+        assert!(wrapper.total_supply() == 10);
         
         // No maximum supply set, so we can do this again!
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
@@ -98,7 +98,7 @@ module iota::coin_manager_tests {
 
     #[test]
     #[expected_failure(abort_code = coin_manager::EMaximumSupplyReached)]
-    fun test_max_supply() {
+    fun test_max_supply_higher_that_total() {
         let sender = @0xA;
         let mut scenario = test_scenario::begin(sender);
         let witness = COIN_MANAGER_TESTS{};
@@ -118,20 +118,105 @@ module iota::coin_manager_tests {
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         // We should start out with a Supply of 0.
-        assert!(wrapper.total_supply() == 0, 0);
+        assert!(wrapper.total_supply() == 0);
 
-        // Enforce a Max Supply
+        // Enforce a Max Supply.
         cmcap.enforce_maximum_supply(&mut wrapper, 10);
         
         // Mint some coin!
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
         
         // We should now have a Supply of 10.
-        assert!(wrapper.total_supply() == 10, 0);
+        assert!(wrapper.total_supply() == 10);
         
         // This should fail
+        cmcap.mint_and_transfer(&mut wrapper, 1, sender, scenario.ctx());
+
+        transfer::public_transfer(cmcap, scenario.ctx().sender());
+        metacap.renounce_metadata_ownership(&mut wrapper);
+
+        transfer::public_share_object(wrapper);
+
+        scenario.end();
+    }
+
+    #[test]
+    #[expected_failure(abort_code = coin_manager::EMaximumSupplyReached)]
+    fun test_max_supply_equals_total() {
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+        let witness = COIN_MANAGER_TESTS{};
+
+        // Create a `Coin`.
+        let (cap, meta) = coin::create_currency(
+            witness,
+            0, 
+            b"TEST",
+            b"TEST",
+            b"TEST",
+            option::none(),
+            scenario.ctx(),
+        );
+
+
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+        
+        // We should start out with a Supply of 0.
+        assert!(wrapper.total_supply() == 0);
+        
+        // Mint some coin!
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
 
+        // We should now have a Supply of 10.
+        assert!(wrapper.total_supply() == 10);
+
+        // Enforce a Max Supply.
+        cmcap.enforce_maximum_supply(&mut wrapper, 10);
+        
+        // This should fail.
+        cmcap.mint_and_transfer(&mut wrapper, 1, sender, scenario.ctx());
+
+        transfer::public_transfer(cmcap, scenario.ctx().sender());
+        metacap.renounce_metadata_ownership(&mut wrapper);
+
+        transfer::public_share_object(wrapper);
+
+        scenario.end();
+    }
+
+        #[test]
+    #[expected_failure(abort_code = coin_manager::EMaximumSupplyLowerThanTotalSupply)]
+    fun test_max_supply_lower_than_total() {
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+        let witness = COIN_MANAGER_TESTS{};
+
+        // Create a `Coin`.
+        let (cap, meta) = coin::create_currency(
+            witness,
+            0, 
+            b"TEST",
+            b"TEST",
+            b"TEST",
+            option::none(),
+            scenario.ctx(),
+        );
+
+
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+
+        // We should start out with a Supply of 0.
+        assert!(wrapper.total_supply() == 0);
+
+        // Mint some coin!
+        cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
+        
+        // We should now have a Supply of 10.
+        assert!(wrapper.total_supply() == 10);
+
+        // Update the maximum supply that lower than the total supply, this should not be allowed.
+        cmcap.enforce_maximum_supply(&mut wrapper, 9);
+        
         transfer::public_transfer(cmcap, scenario.ctx().sender());
         metacap.renounce_metadata_ownership(&mut wrapper);
 
@@ -161,10 +246,10 @@ module iota::coin_manager_tests {
 
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
-        // Enforce a Max Supply
+        // Enforce a Max Supply.
         cmcap.enforce_maximum_supply(&mut wrapper, 10);
 
-        // Update it, this should not be allowed
+        // Update it, this should not be allowed.
         cmcap.enforce_maximum_supply(&mut wrapper, 20);
         
         transfer::public_transfer(cmcap, scenario.ctx().sender());
@@ -196,37 +281,37 @@ module iota::coin_manager_tests {
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         // We should start out with a Supply of 0.
-        assert!(wrapper.total_supply() == 0, 0);
+        assert!(wrapper.total_supply() == 0);
 
-        // Enforce a Max Supply
+        // Enforce a Max Supply.
         cmcap.enforce_maximum_supply(&mut wrapper, 10);
         
         // Mint some coin!
         cmcap.mint_and_transfer(&mut wrapper, 5, sender, scenario.ctx());
         
         // We should now have a Supply of 5.
-        assert!(wrapper.total_supply() == 5, 0);
+        assert!(wrapper.total_supply() == 5);
         
         // We should now have a Max Supply of 10.
-        assert!(wrapper.maximum_supply() == 10, 0);
+        assert!(wrapper.maximum_supply() == 10);
 
-        // The coin is not immutable right now, we still have a `CoinManagerCap`
-        assert!(!wrapper.supply_is_immutable(), 1);
-        assert!(!wrapper.metadata_is_immutable(), 1);
+        // The coin is not immutable right now, we still have a `CoinManagerCap`.
+        assert!(!wrapper.supply_is_immutable());
+        assert!(!wrapper.metadata_is_immutable());
         
         // Lets turn it immutable!
         cmcap.renounce_treasury_ownership(&mut wrapper);
 
-        // The coin should be immutable right now
-        assert!(wrapper.supply_is_immutable(), 2);
-        // But metadata should still be mutable
-        assert!(!wrapper.metadata_is_immutable(), 1);
+        // The coin should be immutable right now.
+        assert!(wrapper.supply_is_immutable());
+        // But metadata should still be mutable.
+        assert!(!wrapper.metadata_is_immutable());
         
         // We should now have a Max Supply of 5, due to renouncing of ownership.
-        assert!(wrapper.maximum_supply() == 5, 3);
+        assert!(wrapper.maximum_supply() == 5);
 
         metacap.renounce_metadata_ownership(&mut wrapper);
-        assert!(wrapper.metadata_is_immutable(), 1);
+        assert!(wrapper.metadata_is_immutable());
 
         transfer::public_share_object(wrapper);
         scenario.end();
@@ -259,7 +344,7 @@ module iota::coin_manager_tests {
 
         metacap.add_additional_metadata(&mut wrapper, bonus);
 
-        assert!(!wrapper.additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing, 0);
+        assert!(!wrapper.additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing);
         
         let bonus2 = BonusMetadata {
             website: url::new_unsafe(string(b"https://iota.org")),
@@ -270,7 +355,7 @@ module iota::coin_manager_tests {
 
         let BonusMetadata { website: _, is_amazing: _ } = oldmeta;
         
-        assert!(wrapper.additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing, 0);
+        assert!(wrapper.additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing);
         
         cmcap.renounce_treasury_ownership(&mut wrapper);
         metacap.renounce_metadata_ownership(&mut wrapper);
@@ -303,12 +388,12 @@ module iota::coin_manager_tests {
         let immeta = test_scenario::take_immutable<CoinMetadata<COIN_MANAGER_TESTS>>(&scenario);
         let (cmcap, mut wrapper) = coin_manager::new_with_immutable_metadata(cap, &immeta, scenario.ctx());
         
-        assert!(wrapper.metadata_is_immutable(), 0);
+        assert!(wrapper.metadata_is_immutable());
         
-        assert!(wrapper.decimals() == 0, 0);
+        assert!(wrapper.decimals() == 0);
 
         // We should start out with a Supply of 0.
-        assert!(wrapper.total_supply() == 0, 0);
+        assert!(wrapper.total_supply() == 0);
         
         // Mint some coin!
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
