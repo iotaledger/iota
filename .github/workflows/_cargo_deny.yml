@@ -14,13 +14,13 @@ concurrency:
 
 jobs:
   bans-licenses-sources:
-    name: cargo-deny (bans, licenses, sources)
+    name: cargo deny (bans, licenses, sources)
     runs-on: [self-hosted]
     steps:
       - uses: taiki-e/install-action@cargo-deny
       - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check bans licenses sources
   advisories:
-    name: cargo-deny (advisories)
+    name: cargo deny (advisories)
     runs-on: [self-hosted]
     steps:
       - uses: taiki-e/install-action@cargo-deny
