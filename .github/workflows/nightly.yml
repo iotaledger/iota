@@ -29,6 +29,12 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
+  cargo-deny-external:
+    uses: ./.github/workflows/_cargo_deny.yml
+    with:
+      manifest-path: external-crates/move/Cargo.toml
+    secrets: inherit
+
   release:
     name: build release binaries
     runs-on: ${{ matrix.os }}
