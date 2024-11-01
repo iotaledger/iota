@@ -91,9 +91,9 @@ pub trait ReadApi {
     /// Note that this endpoint is used by sui replay tool. Also the
     /// implementation in `iota-json-rpc` uses internally the
     /// `AuthorityState::find_object_lt_or_eq_version` method, which has
-    /// underlying utility, (e.g., `RemoteFetcher::get_child_object` uses
+    /// underlying utility, e.g., `RemoteFetcher::get_child_object` uses
     /// `try_get_object_before_version` to get the object with the versions <=
-    /// the given version). Thus we keep this endpoint for now.
+    /// the given version. Thus we keep this endpoint for now.
     #[method(name = "tryGetObjectBeforeVersion", deprecated = "true")]
     async fn try_get_object_before_version(
         &self,
