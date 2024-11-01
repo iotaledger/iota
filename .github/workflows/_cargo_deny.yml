@@ -7,11 +7,6 @@ on:
         type: string
         required: false
         default: "./Cargo.toml"
-    secrets:
-      SSH_PRIVATE_KEY_IOTA_CI:
-        required: true
-      SSH_GITHUB_KNOWN_HOSTS:
-        required: true
 
 concurrency:
   group: cargo-deny-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
