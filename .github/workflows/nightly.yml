@@ -29,7 +29,7 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
-  deny-external:
+  cargo-deny-external:
     uses: ./.github/workflows/_cargo_deny.yml
     with:
       manifest-path: external-crates/move/Cargo.toml
