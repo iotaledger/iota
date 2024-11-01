@@ -440,10 +440,10 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
     for rates in exchange_rate_table.into_iter().filter(|r| r.active) {
         let exchange_rates = rates.rates.iter().map(|(_, rate)| rate);
 
-        let average_apy = median_apy_from_exchange_rates(exchange_rates);
+        let median_apy = median_apy_from_exchange_rates(exchange_rates);
         apys.push(ValidatorApy {
             address: rates.address,
-            apy: average_apy,
+            apy: median_apy,
         });
     }
     apys
