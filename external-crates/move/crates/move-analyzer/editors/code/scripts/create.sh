@@ -33,7 +33,7 @@ do
         exit 0
     elif [[ "$cmd" == "-pkg" ]]; then
         OP="package"
-        OPTS="-omove-VSCODE_OS.vsix"
+        OPTS="-oiota-move-VSCODE_OS.vsix"
     elif [[ "$cmd" == "-pub" ]]; then
         OP="publish"
         OPTS=""
@@ -44,16 +44,16 @@ do
 done
 
 # these will have to change if we want a different network/version
-NETWORK="testnet"
-VERSION="1.13.0"
+NETWORK="alphanet"
+VERSION="0.4.0"
 
 # a map from os version identifiers in Iota's binary distribution to os version identifiers
 # representing VSCode's target platforms used for creating platform-specific plugin distributions
 declare -A SUPPORTED_OS
 SUPPORTED_OS[macos-arm64]=darwin-arm64
-SUPPORTED_OS[macos-x86_64]=darwin-x64
-SUPPORTED_OS[ubuntu-x86_64]=linux-x64
-SUPPORTED_OS[windows-x86_64]=win32-x64
+#SUPPORTED_OS[macos-x86_64]=darwin-x64
+SUPPORTED_OS[linux-x86_64]=linux-x64
+#SUPPORTED_OS[windows-x86_64]=win32-x64
 
 TMP_DIR=$( mktemp -d -t vscode-create )
 trap "clean_tmp_dir $TMP_DIR" EXIT
@@ -66,7 +66,7 @@ mkdir $LANG_SERVER_DIR
 for DIST_OS VSCODE_OS in "${(@kv)SUPPORTED_OS}"; do
     # Iota distribution identifier
     IOTA_DISTRO=$NETWORK"-v"$VERSION
-    # name of the Iota distribution archive file, for example iota-testnet-v1.13.0-macos-arm64.tgz
+    # name of the Iota distribution archive file, for example iota-testnet-v1.0.0-macos-arm64.tgz
     IOTA_ARCHIVE="iota-"$IOTA_DISTRO"-"$DIST_OS".tgz"
     # a path to downloaded Iota archive
     IOTA_ARCHIVE_PATH=$TMP_DIR"/"$IOTA_ARCHIVE

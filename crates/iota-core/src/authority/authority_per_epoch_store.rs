@@ -32,7 +32,7 @@ use iota_types::{
     accumulator::Accumulator,
     authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
-        AuthorityName, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
+        AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
@@ -49,9 +49,8 @@ use iota_types::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
-        AuthorityCapabilitiesV1, AuthorityCapabilitiesV2, ConsensusTransaction,
-        ConsensusTransactionKey, ConsensusTransactionKind, VersionedDkgConfirmation,
-        check_total_jwk_size,
+        AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind, VersionedDkgConfirmation, check_total_jwk_size,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, GetSharedLocks, InputKey, ObjectStore},
@@ -63,7 +62,6 @@ use iota_types::{
 };
 use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use narwhal_types::{Round, TimestampMs};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus::IntCounter;
 use serde::{Deserialize, Serialize};
@@ -105,7 +103,7 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
+            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
             VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
@@ -550,8 +548,7 @@ pub struct AuthorityEpochTables {
     pub running_root_accumulators: DBMap<CheckpointSequenceNumber, Accumulator>,
 
     /// Record of the capabilities advertised by each authority.
-    authority_capabilities: DBMap<AuthorityName, AuthorityCapabilitiesV1>,
-    authority_capabilities_v2: DBMap<AuthorityName, AuthorityCapabilitiesV2>,
+    authority_capabilities_v1: DBMap<AuthorityName, AuthorityCapabilitiesV1>,
 
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
@@ -601,7 +598,7 @@ pub struct AuthorityEpochTables {
     pub(crate) randomness_highest_completed_round: DBMap<u64, RandomnessRound>,
 
     /// Holds the timestamp of the most recently generated round of randomness.
-    pub(crate) randomness_last_round_timestamp: DBMap<u64, TimestampMs>,
+    pub(crate) randomness_last_round_timestamp: DBMap<u64, CommitTimestampMs>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1698,7 +1695,7 @@ impl AuthorityPerEpochStore {
     fn should_defer(
         &self,
         cert: &VerifiedExecutableTransaction,
-        commit_round: Round,
+        commit_round: CommitRound,
         dkg_failed: bool,
         generating_randomness: bool,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
@@ -2057,37 +2054,14 @@ impl AuthorityPerEpochStore {
     }
 
     /// Record most recently advertised capabilities of all authorities
-    pub fn record_capabilities(&self, capabilities: &AuthorityCapabilitiesV1) -> IotaResult {
-        info!("received capabilities {:?}", capabilities);
-        let authority = &capabilities.authority;
-        let tables = self.tables()?;
-
-        // Read-compare-write pattern assumes we are only called from the consensus
-        // handler task.
-        if let Some(cap) = tables.authority_capabilities.get(authority)? {
-            if cap.generation >= capabilities.generation {
-                debug!(
-                    "ignoring new capabilities {:?} in favor of previous capabilities {:?}",
-                    capabilities, cap
-                );
-                return Ok(());
-            }
-        }
-        tables
-            .authority_capabilities
-            .insert(authority, capabilities)?;
-        Ok(())
-    }
-
-    /// Record most recently advertised capabilities of all authorities
-    pub fn record_capabilities_v2(&self, capabilities: &AuthorityCapabilitiesV2) -> IotaResult {
+    pub fn record_capabilities_v1(&self, capabilities: &AuthorityCapabilitiesV1) -> IotaResult {
         info!("received capabilities v2 {:?}", capabilities);
         let authority = &capabilities.authority;
         let tables = self.tables()?;
 
         // Read-compare-write pattern assumes we are only called from the consensus
         // handler task.
-        if let Some(cap) = tables.authority_capabilities_v2.get(authority)? {
+        if let Some(cap) = tables.authority_capabilities_v1.get(authority)? {
             if cap.generation >= capabilities.generation {
                 debug!(
                     "ignoring new capabilities {:?} in favor of previous capabilities {:?}",
@@ -2097,27 +2071,15 @@ impl AuthorityPerEpochStore {
             }
         }
         tables
-            .authority_capabilities_v2
+            .authority_capabilities_v1
             .insert(authority, capabilities)?;
         Ok(())
     }
 
     pub fn get_capabilities_v1(&self) -> IotaResult<Vec<AuthorityCapabilitiesV1>> {
-        assert!(!self.protocol_config.authority_capabilities_v2());
         let result: Result<Vec<AuthorityCapabilitiesV1>, TypedStoreError> = self
             .tables()?
-            .authority_capabilities
-            .values()
-            .map_into()
-            .collect();
-        Ok(result?)
-    }
-
-    pub fn get_capabilities_v2(&self) -> IotaResult<Vec<AuthorityCapabilitiesV2>> {
-        assert!(self.protocol_config.authority_capabilities_v2());
-        let result: Result<Vec<AuthorityCapabilitiesV2>, TypedStoreError> = self
-            .tables()?
-            .authority_capabilities_v2
+            .authority_capabilities_v1
             .values()
             .map_into()
             .collect();
@@ -2387,15 +2349,7 @@ impl AuthorityPerEpochStore {
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind:
-                    ConsensusTransactionKind::CapabilityNotification(AuthorityCapabilitiesV1 {
-                        authority,
-                        ..
-                    }),
-                ..
-            })
-            | SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind:
-                    ConsensusTransactionKind::CapabilityNotificationV2(AuthorityCapabilitiesV2 {
+                    ConsensusTransactionKind::CapabilityNotificationV1(AuthorityCapabilitiesV1 {
                         authority,
                         ..
                     }),
@@ -2403,7 +2357,7 @@ impl AuthorityPerEpochStore {
             }) => {
                 if transaction.sender_authority() != *authority {
                     warn!(
-                        "CapabilityNotification authority {} does not match its author from consensus {}",
+                        "CapabilityNotificationV1 authority {} does not match its author from consensus {}",
                         authority, transaction.certificate_author_index
                     );
                     return None;
@@ -2428,10 +2382,6 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessStateUpdate(_round, _bytes),
-                ..
-            }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes),
                 ..
@@ -3269,7 +3219,7 @@ impl AuthorityPerEpochStore {
         output: &mut ConsensusCommitOutput,
         transaction: &VerifiedSequencedConsensusTransaction,
         checkpoint_service: &Arc<C>,
-        commit_round: Round,
+        commit_round: CommitRound,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
         mut randomness_manager: Option<&mut RandomnessManager>,
         dkg_failed: bool,
@@ -3427,7 +3377,7 @@ impl AuthorityPerEpochStore {
                 panic!("process_consensus_transaction called with end-of-publish transaction");
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CapabilityNotification(capabilities),
+                kind: ConsensusTransactionKind::CapabilityNotificationV1(capabilities),
                 ..
             }) => {
                 // Records capabilities for the authority.
@@ -3437,35 +3387,13 @@ impl AuthorityPerEpochStore {
                     .should_accept_consensus_certs()
                 {
                     debug!(
-                        "Received CapabilityNotification from {:?}",
+                        "Received CapabilityNotificationV1 from {:?}",
                         authority.concise()
                     );
-                    self.record_capabilities(capabilities)?;
+                    self.record_capabilities_v1(capabilities)?;
                 } else {
                     debug!(
-                        "Ignoring CapabilityNotification from {:?} because of end of epoch",
-                        authority.concise()
-                    );
-                }
-                Ok(ConsensusCertificateResult::ConsensusMessage)
-            }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CapabilityNotificationV2(capabilities),
-                ..
-            }) => {
-                let authority = capabilities.authority;
-                if self
-                    .get_reconfig_state_read_lock_guard()
-                    .should_accept_consensus_certs()
-                {
-                    debug!(
-                        "Received CapabilityNotificationV2 from {:?}",
-                        authority.concise()
-                    );
-                    self.record_capabilities_v2(capabilities)?;
-                } else {
-                    debug!(
-                        "Ignoring CapabilityNotificationV2 from {:?} because of end of epoch",
+                        "Ignoring CapabilityNotificationV1 from {:?} because of end of epoch",
                         authority.concise()
                     );
                 }
@@ -3493,13 +3421,6 @@ impl AuthorityPerEpochStore {
                     );
                 }
                 Ok(ConsensusCertificateResult::ConsensusMessage)
-            }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessStateUpdate(_, _),
-                ..
-            }) => {
-                // These are always generated as System transactions (handled below).
-                panic!("process_consensus_transaction called with external RandomnessStateUpdate");
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, bytes),
@@ -3907,7 +3828,7 @@ pub(crate) struct ConsensusCommitOutput {
     pending_checkpoints: Vec<PendingCheckpoint>,
 
     // random beacon state
-    next_randomness_round: Option<(RandomnessRound, TimestampMs)>,
+    next_randomness_round: Option<(RandomnessRound, CommitTimestampMs)>,
 
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
@@ -3985,7 +3906,7 @@ impl ConsensusCommitOutput {
     pub fn reserve_next_randomness_round(
         &mut self,
         next_randomness_round: RandomnessRound,
-        commit_timestamp: TimestampMs,
+        commit_timestamp: CommitTimestampMs,
     ) {
         assert!(self.next_randomness_round.is_none());
         self.next_randomness_round = Some((next_randomness_round, commit_timestamp));

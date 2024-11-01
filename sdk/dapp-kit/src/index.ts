@@ -25,6 +25,7 @@ export * from './hooks/wallet/useReportTransactionEffects.js';
 export * from './hooks/wallet/useSwitchAccount.js';
 export * from './hooks/wallet/useWallets.js';
 export * from './themes/lightTheme.js';
+export * from './themes/darkTheme.js';
 export * from './types.js';
 
 export type { Theme, ThemeVars, DynamicTheme } from './themes/themeContract.js';

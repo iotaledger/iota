@@ -19,10 +19,7 @@ pub mod checked {
         ObjectID,
         effects::{TransactionEffects, TransactionEffectsAPI},
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{
-            gas_predicates::gas_price_too_high, gas_v2::IotaGasStatus as IotaGasStatusV2,
-            tables::GasStatus,
-        },
+        gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         iota_serde::{BigInt, Readable},
         object::Object,
         transaction::ObjectReadResult,
@@ -57,9 +54,7 @@ pub mod checked {
     #[enum_dispatch(IotaGasStatusAPI)]
     #[derive(Debug)]
     pub enum IotaGasStatus {
-        // V1 does not exists any longer as it was a pre mainnet version.
-        // So we start the enum from V2
-        V2(IotaGasStatusV2),
+        V1(IotaGasStatusV1),
     }
 
     impl IotaGasStatus {
@@ -80,15 +75,14 @@ pub mod checked {
                 }
                 .into());
             }
-            if gas_price_too_high(config.gas_model_version()) && gas_price >= config.max_gas_price()
-            {
+            if gas_price > config.max_gas_price() {
                 return Err(UserInputError::GasPriceTooHigh {
                     max_gas_price: config.max_gas_price(),
                 }
                 .into());
             }
 
-            Ok(Self::V2(IotaGasStatusV2::new_with_budget(
+            Ok(Self::V1(IotaGasStatusV1::new_with_budget(
                 gas_budget,
                 gas_price,
                 reference_gas_price,
@@ -97,7 +91,7 @@ pub mod checked {
         }
 
         pub fn new_unmetered() -> Self {
-            Self::V2(IotaGasStatusV2::new_unmetered())
+            Self::V1(IotaGasStatusV1::new_unmetered())
         }
 
         // This is the only public API on IotaGasStatus, all other gas related
@@ -108,7 +102,7 @@ pub mod checked {
             gas_budget: u64,
         ) -> UserInputResult {
             match self {
-                Self::V2(status) => status.check_gas_balance(gas_objs, gas_budget),
+                Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
             }
         }
     }

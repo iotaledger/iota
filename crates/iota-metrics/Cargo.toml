@@ -1,6 +1,6 @@
 [package]
 name = "iota-metrics"
-version = "0.7.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -11,8 +11,11 @@ workspace = true
 
 [dependencies]
 # external dependencies
+anemo.workspace = true
+anemo-tower.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+bytes.workspace = true
 dashmap.workspace = true
 futures.workspace = true
 once_cell.workspace = true
