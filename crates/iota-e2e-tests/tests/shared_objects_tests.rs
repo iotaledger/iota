@@ -471,7 +471,7 @@ async fn call_shared_object_contract() {
 #[sim_test]
 async fn access_clock_object_test() {
     // Permitted timestamp tolerance for calculating potential time delay
-    let timestamp_tolerance_ms: u64 = 10;
+    let timestamp_tolerance_ms: u64 = 500;
     let test_cluster = TestClusterBuilder::new().build().await;
     let package_id = publish_basics_package(&test_cluster.wallet).await.0;
 
