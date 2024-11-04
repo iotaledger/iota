@@ -124,7 +124,7 @@ export class Context {
         command: (context: Readonly<Context>, ...args: Array<any>) => any,
     ): void {
         const disposable = vscode.commands.registerCommand(
-            `move.${name}`,
+            `iota-move.${name}`,
             async (...args: Array<any>) : Promise<any> => {
                 const ret = await command(this, ...args);
                 return ret;

@@ -2,12 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_network::tonic;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::ObjectID,
     crypto::deterministic_random_account_key,
-    multiaddr::Multiaddr,
     object::Object,
     transaction::{
         CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -16,8 +14,6 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
-use narwhal_types::{Empty, TransactionProto, Transactions, TransactionsServer};
-use tokio::sync::mpsc::{Receiver, Sender, channel};
 
 use super::*;
 use crate::{
@@ -188,46 +184,4 @@ async fn submit_transaction_to_consensus_adapter() {
         )
         .unwrap();
     waiter.await.unwrap();
-}
-
-pub struct ConsensusMockServer {
-    sender: Sender<TransactionProto>,
-}
-
-impl ConsensusMockServer {
-    pub fn spawn(address: Multiaddr) -> Receiver<TransactionProto> {
-        let (sender, receiver) = channel(1);
-        tokio::spawn(async move {
-            let config = iota_network_stack::config::Config::new();
-            let mock = Self { sender };
-            config
-                .server_builder()
-                .add_service(TransactionsServer::new(mock))
-                .bind(&address)
-                .await
-                .unwrap()
-                .serve()
-                .await
-        });
-        receiver
-    }
-}
-
-#[tonic::async_trait]
-impl Transactions for ConsensusMockServer {
-    /// Submit a Transactions
-    async fn submit_transaction(
-        &self,
-        request: tonic::Request<TransactionProto>,
-    ) -> Result<tonic::Response<Empty>, tonic::Status> {
-        self.sender.send(request.into_inner()).await.unwrap();
-        Ok(tonic::Response::new(Empty {}))
-    }
-    /// Submit a Transactions
-    async fn submit_transaction_stream(
-        &self,
-        _request: tonic::Request<tonic::Streaming<TransactionProto>>,
-    ) -> Result<tonic::Response<Empty>, tonic::Status> {
-        unimplemented!()
-    }
 }

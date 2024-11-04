@@ -5,7 +5,7 @@
 module iota_system::validator_wrapper {
     use iota::versioned::Versioned;
 
-    public struct ValidatorWrapper has store {
+    public struct Validator has store {
         inner: Versioned
     }
 }

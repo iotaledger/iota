@@ -4909,7 +4909,7 @@ async fn test_consensus_message_processed() {
             authority1.try_execute_for_test(&certificate).await.unwrap();
 
         // now, on authority2, we send 0 or 1 consensus messages, then we either
-        // sequence and execute via effects or via handle_certificate_v2, then
+        // sequence and execute via effects or via handle_certificate_v1, then
         // send 0 or 1 consensus messages.
         let send_first = rng.gen_bool(0.5);
         if send_first {
@@ -5818,15 +5818,11 @@ async fn test_consensus_handler_per_object_congestion_control(
         PerObjectCongestionControlMode::None => unreachable!(),
         PerObjectCongestionControlMode::TotalGasBudget => {
             protocol_config
-                .set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(200_000_000);
-            protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     200_000_000,
                 );
         }
         PerObjectCongestionControlMode::TotalTxCount => {
-            protocol_config
-                .set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(2);
             protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(2);
         }
@@ -6056,8 +6052,6 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     protocol_config.set_per_object_congestion_control_mode_for_testing(
         PerObjectCongestionControlMode::TotalGasBudget,
     );
-    protocol_config
-        .set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(100_000_000);
     protocol_config
         .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(100_000_000);
     protocol_config.set_max_deferral_rounds_for_congestion_control_for_testing(2);
