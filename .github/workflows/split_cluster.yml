@@ -32,7 +32,6 @@ jobs:
   #     - name: Mark Failures
   #       if: failure()
   #       run: exit 1
-
   validate-testnet:
     if: github.event.pull_request.draft == false
     runs-on: self-hosted
