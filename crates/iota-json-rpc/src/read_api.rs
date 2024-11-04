@@ -794,7 +794,10 @@ impl ReadApiServer for ReadApi {
                     error!("Failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
                 })?
                 .pop()
-                .unwrap();
+                .ok_or_else(|| {
+                    error!("No checkpoint sequence found for transaction {digest:?}");
+                    Error::new("No checkpoint sequence found for transaction")
+                })?;
 
             if let Some(checkpoint_seq) = &temp_response.checkpoint_seq {
                 let kv_store = self.transaction_kv_store.clone();
