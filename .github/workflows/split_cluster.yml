@@ -18,7 +18,6 @@ jobs:
   #       run: |
   #         IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=mainnet \
   #         scripts/compatibility/split-cluster-check.sh origin/mainnet ${{ github.sha }}
-
   validate-testnet:
     if: github.event.pull_request.draft == false
     runs-on: self-hosted
