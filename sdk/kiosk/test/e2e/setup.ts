@@ -235,8 +235,12 @@ export async function executeTransaction(
             showEvents: true,
             showObjectChanges: true,
         },
-        requestType: 'WaitForLocalExecution',
     });
+
+    await toolbox.client.waitForTransaction({
+        digest: resp.digest,
+    });
+
     expect(resp.effects?.status.status).toEqual('success');
     return resp;
 }
