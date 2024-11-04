@@ -33,6 +33,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
+use statrs::statistics::{Data, Median};
 use tracing::{info, instrument};
 
 use crate::{
@@ -439,18 +440,21 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
     for rates in exchange_rate_table.into_iter().filter(|r| r.active) {
         let exchange_rates = rates.rates.iter().map(|(_, rate)| rate);
 
-        let average_apy = average_apy_from_exchange_rates(exchange_rates);
+        let median_apy = median_apy_from_exchange_rates(exchange_rates);
         apys.push(ValidatorApy {
             address: rates.address,
-            apy: average_apy,
+            apy: median_apy,
         });
     }
     apys
 }
 
-/// Calculate an APY for a validator based on the exchange rates of the staking
+/// Calculate the APY for a validator based on the exchange rates of the staking
 /// pool.
-pub fn average_apy_from_exchange_rates<'er>(
+///
+/// The calculation uses the median value of the sample, to filter out
+/// outliers introduced by large staking/unstaking events.
+pub fn median_apy_from_exchange_rates<'er>(
     exchange_rates: impl DoubleEndedIterator<Item = &'er PoolTokenExchangeRate> + Clone,
 ) -> f64 {
     // rates are sorted by epoch in descending order.
@@ -462,15 +466,14 @@ pub fn average_apy_from_exchange_rates<'er>(
             let apy = calculate_apy(er, er_next);
             (apy > 0.0).then_some(apy)
         })
-        .take(30)
+        .take(90)
         .collect::<Vec<_>>();
 
     if apys.is_empty() {
         // not enough data points
         0.0
     } else {
-        let apy_counts = apys.len() as f64;
-        apys.iter().sum::<f64>() / apy_counts
+        Data::new(apys).median()
     }
 }
 
@@ -615,5 +618,41 @@ impl IotaRpcModule for GovernanceReadApi {
 
     fn rpc_doc_module() -> Module {
         GovernanceReadApiOpenRpc::module_doc()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calculate_apys_with_outliers() {
+        let file =
+            std::fs::File::open("src/unit_tests/data/validator_exchange_rate/rates.json").unwrap();
+        let rates: BTreeMap<String, Vec<(u64, PoolTokenExchangeRate)>> =
+            serde_json::from_reader(file).unwrap();
+
+        let mut address_map = BTreeMap::new();
+
+        let exchange_rates = rates
+            .into_iter()
+            .map(|(validator, rates)| {
+                let address = IotaAddress::random_for_testing_only();
+                address_map.insert(address, validator);
+                ValidatorExchangeRates {
+                    address,
+                    pool_id: ObjectID::random(),
+                    active: true,
+                    rates,
+                }
+            })
+            .collect();
+
+        let apys = calculate_apys(exchange_rates);
+
+        for apy in &apys {
+            println!("{}: {}", address_map[&apy.address], apy.apy);
+            assert!(apy.apy < 0.25)
+        }
     }
 }

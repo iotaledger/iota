@@ -10,7 +10,7 @@ use async_graphql::{
     *,
 };
 use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
-use iota_json_rpc::governance_api::average_apy_from_exchange_rates;
+use iota_json_rpc::governance_api::median_apy_from_exchange_rates;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
@@ -388,7 +388,7 @@ impl Validator {
             .iter()
             .map(|(_, exchange_rate)| exchange_rate);
 
-        let avg_apy = Some(average_apy_from_exchange_rates(rates));
+        let avg_apy = Some(median_apy_from_exchange_rates(rates));
 
         Ok(avg_apy.map(|x| (x * 10000.0) as u64))
     }
