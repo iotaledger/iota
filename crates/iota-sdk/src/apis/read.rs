@@ -12,12 +12,11 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
-    DryRunTransactionBlockResponse, DynamicFieldPage, IotaCommittee, IotaData,
-    IotaGetPastObjectRequest, IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockEffects,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    IotaTransactionBlockResponseQuery, ObjectsPage, ProtocolConfigResponse, TransactionBlocksPage,
-    TransactionFilter,
+    DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
+    IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage,
+    ProtocolConfigResponse, TransactionBlocksPage, TransactionFilter,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
@@ -33,8 +32,7 @@ use crate::{
     error::{Error, IotaRpcResult},
 };
 
-/// The main read API structure with functions for retrieving data about
-/// different objects and transactions
+/// Defines methods for retrieving data about objects and transactions.
 #[derive(Debug)]
 pub struct ReadApi {
     api: Arc<RpcClient>,
@@ -44,12 +42,13 @@ impl ReadApi {
     pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
-    /// Return a paginated response with the objects owned by the given address,
-    /// or an error upon failure.
+
+    /// Get the objects owned by the given address. Results are paginated.
     ///
-    /// Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects
-    /// (default is 50), the pagination is not accurate, because previous
-    /// page may have been updated when the next page is fetched.
+    /// Note that if the address owns more than
+    /// [`QUERY_MAX_RESULT_LIMIT`](iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT)
+    /// objects (default is 50), the pagination may not be accurate as the
+    /// previous page may have been updated before the next page is fetched.
     ///
     /// # Examples
     ///
@@ -84,16 +83,14 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return a paginated response with the dynamic fields owned by the given
-    /// [ObjectID], or an error upon failure.
+    /// Get the dynamic fields owned by the given [ObjectID]. Results are
+    /// paginated.
     ///
-    /// The return type is a list of `DynamicFieldInfo` objects, where the field
-    /// name is always present, represented as a Move `Value`.
+    /// If the field is a dynamic field, this method returns the ID of the Field
+    /// object, which contains both the name and the value.
     ///
-    /// If the field is a dynamic field, returns the ID of the Field object
-    /// (which contains both the name and the value). If the field is a
-    /// dynamic object field, it returns the ID of the Object (the value of the
-    /// field).
+    /// If the field is a dynamic object field, it returns the ID of the Object,
+    /// which is the value of the field.
     ///
     /// # Examples
     ///
@@ -141,7 +138,8 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return the dynamic field object information for a specified object.
+    /// Get information for a specified dynamic field object by its parent
+    /// object ID and field name.
     pub async fn get_dynamic_field_object(
         &self,
         parent_object_id: ObjectID,
@@ -154,13 +152,12 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return a parsed past object for the provided [ObjectID] and version, or
-    /// an error upon failure.
+    /// Get a parsed past object and version for the provided object ID.
     ///
-    /// An object's version increases (though it is not guaranteed that it
-    /// increases always by 1) when the object is mutated. A past object can
-    /// be used to understand how the object changed over time,
-    /// i.e. what was the total balance at a specific version.
+    /// An object's version increases when the object is mutated, though it is
+    /// not guaranteed that it increases always by 1. A past object can be
+    /// used to understand how the object changed over time, i.e. what was
+    /// the total balance at a specific version.
     ///
     /// # Examples
     ///
@@ -218,10 +215,9 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return a list of [IotaPastObjectResponse] objects, or an error upon
-    /// failure.
+    /// Get a list of parsed past objects.
     ///
-    /// See [this function](ReadApi::try_get_parsed_past_object) for more
+    /// See [Self::try_get_parsed_past_object] for more
     /// details about past objects.
     ///
     /// # Examples
@@ -298,14 +294,8 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return an [IotaObjectResponse] based on the provided [ObjectID] and
-    /// [IotaObjectDataOptions], or an error upon failure.
-    ///
-    /// The [IotaObjectResponse] contains two fields:
-    /// 1) `data` for the object's data (see
-    ///    [IotaObjectData](iota_json_rpc_types::IotaObjectData)),
-    /// 2) `error` for the error (if any) (see
-    ///    [IotaObjectResponseError](iota_types::error::IotaObjectResponseError)).
+    /// Get an object by object ID with optional fields enabled by
+    /// [IotaObjectDataOptions].
     ///
     /// # Examples
     ///
@@ -357,12 +347,8 @@ impl ReadApi {
         Ok(self.api.http.get_object(object_id, Some(options)).await?)
     }
 
-    /// Return a list of [IotaObjectResponse] from the given vector of
-    /// [ObjectID]s and [IotaObjectDataOptions], or an error upon failure.
-    ///
-    /// If only one object is needed, use the
-    /// [get_object_with_options](ReadApi::get_object_with_options) function
-    /// instead.
+    /// Get a list of objects by their object IDs with optional fields enabled
+    /// by [IotaObjectDataOptions].
     ///
     /// # Examples
     ///
@@ -418,8 +404,7 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return An object's bcs content [`Vec<u8>`] based on the provided
-    /// [ObjectID], or an error upon failure.
+    /// Get a [bcs] serialized object's bytes by object ID.
     pub async fn get_move_object_bcs(&self, object_id: ObjectID) -> IotaRpcResult<Vec<u8>> {
         let resp = self
             .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
@@ -437,8 +422,7 @@ impl ReadApi {
         Ok(raw_move_obj.bcs_bytes)
     }
 
-    /// Return the total number of transaction blocks known to server, or an
-    /// error upon failure.
+    /// Get the total number of transaction blocks known to server.
     ///
     /// # Examples
     ///
@@ -456,9 +440,8 @@ impl ReadApi {
         Ok(*self.api.http.get_total_transaction_blocks().await?)
     }
 
-    /// Return a transaction and its effects in an
-    /// [IotaTransactionBlockResponse] based on its [TransactionDigest], or
-    /// an error upon failure.
+    /// Get a transaction and its effects by its digest with optional fields
+    /// enabled by [IotaTransactionBlockResponseOptions].
     pub async fn get_transaction_with_options(
         &self,
         digest: TransactionDigest,
@@ -470,12 +453,9 @@ impl ReadApi {
             .get_transaction_block(digest, Some(options))
             .await?)
     }
-    /// Return a list of [IotaTransactionBlockResponse] based on the given
-    /// vector of [TransactionDigest], or an error upon failure.
-    ///
-    /// If only one transaction data is needed, use the
-    /// [get_transaction_with_options](ReadApi::get_transaction_with_options)
-    /// function instead.
+
+    /// Get a list of transactions and their effects by their digests with
+    /// optional fields enabled by [IotaTransactionBlockResponseOptions].
     pub async fn multi_get_transactions_with_options(
         &self,
         digests: Vec<TransactionDigest>,
@@ -488,36 +468,7 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return the [IotaCommittee] information for the provided `epoch`, or an
-    /// error upon failure.
-    ///
-    /// The [IotaCommittee] contains the validators list and their information
-    /// (name and stakes).
-    ///
-    /// The argument `epoch` is either a known epoch id or `None` for the
-    /// current epoch.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,no_run
-    /// use iota_sdk::IotaClientBuilder;
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
-    ///     let committee_info = iota.read_api().get_committee_info(None).await?;
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn get_committee_info(
-        &self,
-        epoch: impl Into<Option<BigInt<u64>>>,
-    ) -> IotaRpcResult<IotaCommittee> {
-        Ok(self.api.http.get_committee_info(epoch.into()).await?)
-    }
-
-    /// Return a paginated response with all transaction blocks information, or
-    /// an error upon failure.
+    /// Get filtered transaction blocks information. Results are paginated.
     pub async fn query_transaction_blocks(
         &self,
         query: IotaTransactionBlockResponseQuery,
@@ -532,21 +483,18 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return the first four bytes of the chain's genesis checkpoint digest, or
-    /// an error upon failure.
+    /// Get the first four bytes of the chain's genesis checkpoint digest in
+    /// hex format.
     pub async fn get_chain_identifier(&self) -> IotaRpcResult<String> {
         Ok(self.api.http.get_chain_identifier().await?)
     }
 
-    /// Return a checkpoint, or an error upon failure.
-    ///
-    /// A Iota checkpoint is a sequence of transaction sets that a quorum of
-    /// validators agree upon as having been executed within the Iota system.
+    /// Get a checkpoint by its ID.
     pub async fn get_checkpoint(&self, id: CheckpointId) -> IotaRpcResult<Checkpoint> {
         Ok(self.api.http.get_checkpoint(id).await?)
     }
 
-    /// Return a paginated list of checkpoints, or an error upon failure.
+    /// Return a list of checkpoints. Results are paginated.
     pub async fn get_checkpoints(
         &self,
         cursor: impl Into<Option<BigInt<u64>>>,
@@ -560,8 +508,8 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return the sequence number of the latest checkpoint that has been
-    /// executed, or an error upon failure.
+    /// Get the sequence number of the latest checkpoint that has been
+    /// executed.
     pub async fn get_latest_checkpoint_sequence_number(
         &self,
     ) -> IotaRpcResult<CheckpointSequenceNumber> {
@@ -572,8 +520,7 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return a stream of [IotaTransactionBlockResponse], or an error upon
-    /// failure.
+    /// Get a stream of transactions.
     pub fn get_transactions_stream(
         &self,
         query: IotaTransactionBlockResponseQuery,
@@ -625,8 +572,7 @@ impl ReadApi {
         Ok(subscription.map(|item| Ok(item?)))
     }
 
-    /// Return a map consisting of the move package name and the normalized
-    /// module, or an error upon failure.
+    /// Get move modules by package ID, keyed by name.
     pub async fn get_normalized_move_modules_by_package(
         &self,
         package: ObjectID,
@@ -639,18 +585,18 @@ impl ReadApi {
     }
 
     // TODO(devx): we can probably cache this given an epoch
-    /// Return the reference gas price, or an error upon failure.
+    /// Get the reference gas pric.
     pub async fn get_reference_gas_price(&self) -> IotaRpcResult<u64> {
         Ok(*self.api.http.get_reference_gas_price().await?)
     }
 
-    /// Dry run a transaction block given the provided transaction data. Returns
-    /// an error upon failure.
+    /// Dry run a transaction block given the provided transaction data.
     ///
-    /// Simulate running the transaction, including all standard checks, without
-    /// actually running it. This is useful for estimating the gas fees of a
-    /// transaction before executing it. You can also use it to identify any
-    /// side-effects of a transaction before you execute it on the network.
+    /// This simulates running the transaction, including all standard checks,
+    /// without actually running it. This is useful for estimating the gas
+    /// fees of a transaction before executing it. You can also use it to
+    /// identify any side-effects of a transaction before you execute it on
+    /// the network.
     pub async fn dry_run_transaction_block(
         &self,
         tx: TransactionData,
@@ -662,33 +608,29 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return the inspection of the transaction block, or an error upon
-    /// failure.
-    ///
     /// Use this function to inspect the current state of the network by running
     /// a programmable transaction block without committing its effects on
-    /// chain.  Unlike
-    /// [dry_run_transaction_block](ReadApi::dry_run_transaction_block),
-    /// dev inspect will not validate whether the transaction block
-    /// would succeed or fail under normal circumstances, e.g.:
+    /// chain.
+    ///
+    /// Unlike a dry run, this method will not validate whether the transaction
+    /// block would succeed or fail under normal circumstances, e.g.:
     ///
     /// - Transaction inputs are not checked for ownership (i.e. you can
-    ///   construct calls involving objects you do not own).
+    ///   construct calls involving objects you do not own)
     /// - Calls are not checked for visibility (you can call private functions
     ///   on modules)
-    /// - Inputs of any type can be constructed and passed in, (including Coins
+    /// - Inputs of any type can be constructed and passed in, including coins
     ///   and other objects that would usually need to be constructed with a
-    ///   move call).
+    ///   move call
     /// - Function returns do not need to be used, even if they do not have
-    ///   `drop`.
+    ///   `drop`
     ///
-    /// Dev inspect's output includes a breakdown of results returned by every
+    /// This method's output includes a breakdown of results returned by every
     /// transaction in the block, as well as the transaction's effects.
     ///
     /// To run an accurate simulation of a transaction and understand whether
-    /// it will successfully validate and run,
-    /// use the [dry_run_transaction_block](ReadApi::dry_run_transaction_block)
-    /// function instead.
+    /// it will successfully validate and run, use
+    /// [Self::dry_run_transaction_block] instead.
     pub async fn dev_inspect_transaction_block(
         &self,
         sender_address: IotaAddress,
@@ -710,7 +652,9 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return the protocol config, or an error upon failure.
+    /// Get the protocol config by version.
+    ///
+    /// The version defaults to the current version.
     pub async fn get_protocol_config(
         &self,
         version: impl Into<Option<BigInt<u64>>>,
@@ -718,6 +662,7 @@ impl ReadApi {
         Ok(self.api.http.get_protocol_config(version.into()).await?)
     }
 
+    /// Get an object by ID before the given version.
     pub async fn try_get_object_before_version(
         &self,
         object_id: ObjectID,

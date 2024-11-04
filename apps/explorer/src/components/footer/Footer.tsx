@@ -45,6 +45,7 @@ function Footer(): JSX.Element {
             <div className="mt-4 flex justify-center pt-5 text-neutral-10 md:hidden md:self-start">
                 <IotaLogoWeb width={137} height={36} />
             </div>
+            <p className="mt-8 w-full text-center text-body-sm text-neutral-40">{EXPLORER_REV}</p>
         </footer>
     );
 }
