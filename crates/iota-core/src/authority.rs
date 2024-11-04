@@ -4995,12 +4995,10 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
-        let res = self
+        Ok(self
             .epoch_store
             .load()
-            .multi_get_transaction_checkpoint(digests)?;
-
-        Ok(res.into_iter().collect())
+            .multi_get_transaction_checkpoint(digests)?)
     }
 }
 
