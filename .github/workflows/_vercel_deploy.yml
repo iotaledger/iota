@@ -40,6 +40,7 @@ jobs:
     secrets: inherit
     with:
       isProd: false
+      isStating: false
 
   explorer-staging:
     name: Vercel Explorer Staging
@@ -47,6 +48,7 @@ jobs:
     uses: ./.github/workflows/apps_explorer_deploy.yml
     secrets: inherit
     with:
+      isProd: false
       isStaging: true
 
   ui-kit-preview:
