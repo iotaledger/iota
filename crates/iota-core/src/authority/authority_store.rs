@@ -1050,7 +1050,7 @@ impl AuthorityStore {
         // TODO: replace with optimistic db_transactions (i.e. set lock to tx if none)
         let _mutexes = self.acquire_locks(owned_input_objects).await;
 
-        trace!(?owned_input_objects, "acquire_locks");
+        trace!(?owned_input_objects, "acquire_transaction_locks");
         let mut locks_to_write = Vec::new();
 
         let live_object_markers = self
@@ -1070,11 +1070,12 @@ impl AuthorityStore {
             owned_input_objects
         ) {
             if live_marker.is_none() {
-                let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
+                // object at that version does not exist
+                let latest_live_version = self.get_latest_live_version_for_object_id(obj_ref.0)?;
                 fp_bail!(
                     UserInputError::ObjectVersionUnavailableForConsumption {
                         provided_obj_ref: *obj_ref,
-                        current_version: latest_lock.1
+                        current_version: latest_live_version.1
                     }
                     .into()
                 );
@@ -1121,6 +1122,7 @@ impl AuthorityStore {
             .get(&obj_ref)?
             .is_none()
         {
+            // object at that version does not exist
             return Ok(ObjectLockStatus::LockedAtDifferentVersion {
                 locked_ref: self.get_latest_live_version_for_object_id(obj_ref.0)?,
             });
@@ -1172,17 +1174,18 @@ impl AuthorityStore {
     /// Returns UserInputError::ObjectVersionUnavailableForConsumption if at
     /// least one object lock is not initialized     at the given version.
     pub fn check_owned_objects_are_live(&self, objects: &[ObjectRef]) -> IotaResult {
-        let locks = self
+        let live_markers = self
             .perpetual_tables
             .live_owned_object_markers
             .multi_get(objects)?;
-        for (lock, obj_ref) in locks.into_iter().zip(objects) {
-            if lock.is_none() {
-                let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
+        for (live_marker, obj_ref) in live_markers.into_iter().zip(objects) {
+            if live_marker.is_none() {
+                // object at that version does not exist
+                let latest_live_version = self.get_latest_live_version_for_object_id(obj_ref.0)?;
                 fp_bail!(
                     UserInputError::ObjectVersionUnavailableForConsumption {
                         provided_obj_ref: *obj_ref,
-                        current_version: latest_lock.1
+                        current_version: latest_live_version.1
                     }
                     .into()
                 );
@@ -1209,7 +1212,7 @@ impl AuthorityStore {
         write_batch: &mut DBBatch,
         objects: &[ObjectRef],
     ) -> IotaResult {
-        trace!(?objects, "initialize_locks");
+        trace!(?objects, "initialize_live_object_markers");
 
         write_batch.insert_batch(
             live_object_marker_table,
@@ -1224,7 +1227,7 @@ impl AuthorityStore {
         write_batch: &mut DBBatch,
         objects: &[ObjectRef],
     ) -> IotaResult {
-        trace!(?objects, "delete_locks");
+        trace!(?objects, "delete_live_object_markers");
         write_batch.delete_batch(
             &self.perpetual_tables.live_owned_object_markers,
             objects.iter(),
@@ -1233,7 +1236,7 @@ impl AuthorityStore {
     }
 
     #[cfg(test)]
-    pub(crate) fn reset_locks_for_test(
+    pub(crate) fn reset_locks_and_live_markers_for_test(
         &self,
         transactions: &[TransactionDigest],
         objects: &[ObjectRef],
@@ -1346,10 +1349,10 @@ impl AuthorityStore {
 
         let old_locks: Vec<_> = old_locks.flatten().collect();
 
-        // Re-create old locks.
+        // Re-create old live markers.
         self.initialize_live_object_markers_impl(&mut write_batch, &old_locks)?;
 
-        // Delete new locks
+        // Delete new live markers
         write_batch.delete_batch(
             &self.perpetual_tables.live_owned_object_markers,
             new_locks.flatten(),
