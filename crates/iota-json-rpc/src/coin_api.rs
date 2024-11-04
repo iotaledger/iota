@@ -176,8 +176,6 @@ impl CoinReadApiServer for CoinReadApi {
                 coin_type: coin_type_tag.to_string(),
                 coin_object_count: balance.num_coins as usize,
                 total_balance: balance.balance as u128,
-                // note: LockedCoin is deprecated
-                locked_balance: Default::default(),
             })
         }
         .trace()
@@ -192,14 +190,10 @@ impl CoinReadApiServer for CoinReadApi {
             })?;
             Ok(all_balance
                 .iter()
-                .map(|(coin_type, balance)| {
-                    Balance {
-                        coin_type: coin_type.to_string(),
-                        coin_object_count: balance.num_coins as usize,
-                        total_balance: balance.balance as u128,
-                        // note: LockedCoin is deprecated
-                        locked_balance: Default::default(),
-                    }
+                .map(|(coin_type, balance)| Balance {
+                    coin_type: coin_type.to_string(),
+                    coin_object_count: balance.num_coins as usize,
+                    total_balance: balance.balance as u128,
                 })
                 .collect())
         }
@@ -966,7 +960,6 @@ mod tests {
                 coin_type: gas_coin.coin_type,
                 coin_object_count: 9,
                 total_balance: 7,
-                locked_balance: Default::default()
             });
         }
 
@@ -999,7 +992,6 @@ mod tests {
                 coin_type: coin.coin_type,
                 coin_object_count: 11,
                 total_balance: 10,
-                locked_balance: Default::default()
             });
         }
 
@@ -1113,13 +1105,11 @@ mod tests {
                     coin_type: gas_coin.coin_type,
                     coin_object_count: 9,
                     total_balance: 7,
-                    locked_balance: Default::default(),
                 },
                 Balance {
                     coin_type: usdc_coin.coin_type,
                     coin_object_count: 11,
                     total_balance: 10,
-                    locked_balance: Default::default(),
                 },
             ];
             // This is because the underlying result is a hashmap, so order is not
