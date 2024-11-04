@@ -114,6 +114,7 @@ struct FeatureFlags {
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
     disable_invariant_violation_check_in_swap_loc: bool,
+
     // If true, checks no extra bytes in a compiled module
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
@@ -122,6 +123,7 @@ struct FeatureFlags {
     // Enable zklogin auth
     #[serde(skip_serializing_if = "is_false")]
     zklogin_auth: bool,
+
     // How we order transactions coming out of consensus before sending to execution.
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
@@ -173,10 +175,6 @@ struct FeatureFlags {
     // Enable passkey auth (SIP-9)
     #[serde(skip_serializing_if = "is_false")]
     passkey_auth: bool,
-
-    // Use AuthorityCapabilitiesV2
-    #[serde(skip_serializing_if = "is_false")]
-    authority_capabilities_v2: bool,
 
     // Rethrow type layout errors during serialization instead of trying to convert them.
     // This flag is used to provide the correct MoveVM configuration for clients.
@@ -1041,10 +1039,6 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
-    pub fn authority_capabilities_v2(&self) -> bool {
-        self.feature_flags.authority_capabilities_v2
-    }
-
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1272,7 +1266,7 @@ impl ProtocolConfig {
             obj_access_cost_verify_per_byte: Some(200),
             obj_data_cost_refundable: Some(100),
             obj_metadata_cost_non_refundable: Some(50),
-            gas_model_version: Some(8),
+            gas_model_version: Some(1),
             storage_rebate_rate: Some(10000),
             // Change reward slashing rate to 100%.
             reward_slashing_rate: Some(10000),
@@ -1644,8 +1638,6 @@ impl ProtocolConfig {
             cfg.vdf_hash_to_input_cost = Some(100);
 
             cfg.feature_flags.passkey_auth = true;
-
-            cfg.feature_flags.authority_capabilities_v2 = true;
         }
 
         // Ignore this check for the fake versions for

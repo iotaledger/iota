@@ -9,7 +9,7 @@ import { Panel, Title, Chip, TitleSize, DropdownPosition } from '@iota/apps-ui-k
 import { hasDisplayData, useCursorPagination, useGetOwnedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { VisibilityOff } from '@iota/ui-icons';
 import { useRouter } from 'next/navigation';
@@ -25,10 +25,6 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
         label: 'Other',
         value: AssetCategory.Other,
     },
-    // {
-    //     label: 'Hidden',
-    //     value: AssetCategory.Hidden,
-    // },
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {
@@ -43,7 +39,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
 
     const { data: ownedObjects } = data || {};
 
-    const [visual, nonVisual] = useMemo(() => {
+    const [visual, nonVisual] = (() => {
         const visual: IotaObjectData[] = [];
         const nonVisual: IotaObjectData[] = [];
 
@@ -60,12 +56,11 @@ export default function AssetsDashboardPage(): React.JSX.Element {
             });
 
         return [visual, nonVisual];
-    }, [ownedObjects]);
+    })();
 
     const categoryToAsset: Record<AssetCategory, IotaObjectData[]> = {
         [AssetCategory.Visual]: visual,
         [AssetCategory.Other]: nonVisual,
-        // [AssetCategory.Hidden]: [],
     };
 
     const assetList = categoryToAsset[selectedCategory];

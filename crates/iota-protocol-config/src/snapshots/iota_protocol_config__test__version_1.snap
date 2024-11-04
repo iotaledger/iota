@@ -11,7 +11,6 @@ feature_flags:
   zklogin_max_epoch_upper_bound_delta: 30
   enable_vdf: true
   passkey_auth: true
-  authority_capabilities_v2: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -89,7 +88,7 @@ obj_access_cost_read_per_byte: 15
 obj_access_cost_mutate_per_byte: 40
 obj_access_cost_delete_per_byte: 40
 obj_access_cost_verify_per_byte: 200
-gas_model_version: 8
+gas_model_version: 1
 obj_data_cost_refundable: 100
 obj_metadata_cost_non_refundable: 50
 storage_rebate_rate: 10000

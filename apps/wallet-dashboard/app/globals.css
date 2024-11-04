@@ -1,3 +1,5 @@
+@import '@iota/apps-ui-kit/styles';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -15,6 +17,40 @@ body {
     }
 }
 
-.grid-template-visual-assets {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+@layer components {
+    .home-page-grid-container {
+        @apply grid grid-cols-1 gap-lg;
+        grid-template-areas:
+            'balance'
+            'staking'
+            'migration'
+            'coins'
+            'vesting'
+            'activity';
+    }
+
+    @screen sm {
+        .home-page-grid-container {
+            @apply grid-cols-2;
+            grid-template-areas:
+                'balance coins'
+                'staking migration'
+                'vesting vesting'
+                'activity activity';
+        }
+    }
+
+    @screen md {
+        .home-page-grid-container {
+            @apply grid-cols-3;
+            grid-template-areas:
+                'balance staking migration'
+                'coins vesting vesting'
+                'coins activity activity';
+        }
+    }
+
+    .grid-template-visual-assets {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
 }

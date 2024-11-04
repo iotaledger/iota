@@ -104,10 +104,7 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
-    messages_consensus::{
-        AuthorityCapabilitiesV1, AuthorityCapabilitiesV2, ConsensusTransaction,
-        check_total_jwk_size,
-    },
+    messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, check_total_jwk_size},
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::Transaction,
@@ -582,9 +579,7 @@ impl IotaNode {
             None
         };
 
-        let rest_index = if is_full_node
-            && config.enable_experimental_rest_api
-            && config.enable_index_processing
+        let rest_index = if is_full_node && config.enable_rest_api && config.enable_index_processing
         {
             Some(Arc::new(RestIndexStore::new(
                 config.db_path().join("rest_index"),
@@ -1541,32 +1536,20 @@ impl IotaNode {
 
                 let config = cur_epoch_store.protocol_config();
                 let binary_config = to_binary_config(config);
-                let transaction = if config.authority_capabilities_v2() {
-                    ConsensusTransaction::new_capability_notification_v2(
-                        AuthorityCapabilitiesV2::new(
-                            self.state.name,
-                            cur_epoch_store.get_chain_identifier().chain(),
-                            self.config
-                                .supported_protocol_versions
-                                .expect("Supported versions should be populated")
-                                // no need to send digests of versions less than the current version
-                                .truncate_below(config.version),
-                            self.state
-                                .get_available_system_packages(&binary_config)
-                                .await,
-                        ),
-                    )
-                } else {
-                    ConsensusTransaction::new_capability_notification(AuthorityCapabilitiesV1::new(
+                let transaction = ConsensusTransaction::new_capability_notification_v1(
+                    AuthorityCapabilitiesV1::new(
                         self.state.name,
+                        cur_epoch_store.get_chain_identifier().chain(),
                         self.config
                             .supported_protocol_versions
-                            .expect("Supported versions should be populated"),
+                            .expect("Supported versions should be populated")
+                            // no need to send digests of versions less than the current version
+                            .truncate_below(config.version),
                         self.state
                             .get_available_system_packages(&binary_config)
                             .await,
-                    ))
-                };
+                    ),
+                );
                 info!(?transaction, "submitting capabilities to consensus");
                 components
                     .consensus_adapter
@@ -1982,7 +1965,7 @@ fn build_kv_store(
     )))
 }
 
-/// Builds and starts the HTTP server for the Iota node, exposing JSON-RPC and
+/// Builds and starts the HTTP server for the IOTA node, exposing JSON-RPC and
 /// REST APIs based on the node's configuration.
 ///
 /// This function performs the following tasks:
@@ -1995,7 +1978,7 @@ fn build_kv_store(
 ///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
 ///    IndexerApi.
 /// 4. Optionally, if the REST API is enabled, nests the REST API router under
-///    the `/rest` path.
+///    the `/api/v1` path.
 /// 5. Binds the server to the specified JSON-RPC address and starts listening
 ///    for incoming connections.
 pub async fn build_http_server(
@@ -2068,7 +2051,7 @@ pub async fn build_http_server(
 
     router = router.merge(json_rpc_router);
 
-    if config.enable_experimental_rest_api {
+    if config.enable_rest_api {
         let mut rest_service = iota_rest_api::RestService::new(
             Arc::new(RestReadStore::new(state, store)),
             software_version,
