@@ -146,9 +146,9 @@ describe('ParallelTransactionExecutor', { retry: 3 }, () => {
                 const result = await executor.executeTransaction(txb);
 
                 const effects = bcs.TransactionEffects.fromBase64(result.effects);
-                const newCoinId = effects.V2?.changedObjects.find(
+                const newCoinId = effects.V1?.changedObjects.find(
                     ([_id, { outputState }], index) =>
-                        index !== effects.V2.gasObjectIndex && outputState.ObjectWrite,
+                        index !== effects.V1.gasObjectIndex && outputState.ObjectWrite,
                 )?.[0]!;
 
                 return newCoinId;
