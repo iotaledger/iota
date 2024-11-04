@@ -21,7 +21,7 @@ The `[package]` section contains the following information:
 
 The IOTA Move compiler creates the `[dependencies]` section for you with a single entry for the GitHub address of the IOTA network. If you need to use a local version of the network, you can edit the address to point to the local version. For example,
 
-```.toml
+```toml
 IOTA = { local = "../crates/iota-framework" }
 ```
 
@@ -31,7 +31,7 @@ You place each additional dependency your package has on a new line directly bel
 
 The IOTA Move compiler creates the `[addresses]` section for you with an entry for your package and one for the IOTA network.
 
-```.toml
+```toml
 [addresses]
 your_package_name =  "0x0"
 iota =  "0000000000000000000000000000000000000000000000000000000000000002"

@@ -31,7 +31,7 @@ The `Move.toml` file is the package's manifest. It describes the package and its
 In `.toml` files, use the hash mark (`#`) to denote a comment.
 :::
 
-```.toml file=<rootDir>/examples/move/first_package/Move.toml
+```toml file=<rootDir>/examples/move/first_package/Move.toml
 ```
 
 :::tip Using a local version of IOTA
@@ -54,7 +54,7 @@ of the metadata.
 The `[dependencies]` section specifies the dependencies of the project. The dependency specification can be a git
 repository URL or a path to the local directory.
 
-```.toml file=<rootDir>/examples/move/first_package/Move.toml#L10-L15
+```toml file=<rootDir>/examples/move/first_package/Move.toml#L10-L15
 ```
 
 Packages also import addresses from other packages. For example, the `Iota` dependency adds the `std` and `iota` addresses
@@ -66,7 +66,7 @@ If you have two dependencies that use different versions of the same package, yo
 the `[dependencies]` section. To do so, add the `override` field to the dependency. The version specified in
 the `[dependencies]` section will be used instead of the one specified in the dependency itself.
 
-```.toml file=<rootDir>/examples/move/first_package/Move.toml#L17-L19
+```yaml file=<rootDir>/examples/move/first_package/Move.toml#L17-L19
 ```
 
 ### Dev-dependencies
