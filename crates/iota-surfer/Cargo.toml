@@ -35,5 +35,6 @@ prometheus.workspace = true
 
 # internal dependencies
 iota-macros.workspace = true
+iota-metrics.workspace = true
 iota-simulator.workspace = true
 move-package.workspace = true

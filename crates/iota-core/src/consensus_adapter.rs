@@ -14,7 +14,6 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use bytes::Bytes;
 use dashmap::{DashMap, try_result::TryResult};
 use futures::{
     FutureExt,
@@ -22,7 +21,7 @@ use futures::{
     pin_mut,
 };
 use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, spawn_monitored_task};
-use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
+use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
     committee::Committee,
@@ -31,7 +30,6 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
 use itertools::Itertools;
-use narwhal_types::{TransactionProto, TransactionsClient};
 use parking_lot::RwLockReadGuard;
 use prometheus::{
     Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
@@ -39,7 +37,6 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
 };
-use tap::prelude::*;
 use tokio::{
     sync::{Semaphore, SemaphorePermit},
     task::JoinHandle,
@@ -49,6 +46,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    connection_monitor::ConnectionStatus,
     consensus_handler::{SequencedConsensusTransactionKey, classify},
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
     metrics::LatencyObserver,
@@ -188,35 +186,6 @@ pub trait SubmitToConsensus: Sync + Send + 'static {
     ) -> IotaResult;
 }
 
-#[async_trait::async_trait]
-impl SubmitToConsensus for TransactionsClient<iota_network::tonic::transport::Channel> {
-    async fn submit_to_consensus(
-        &self,
-        transactions: &[ConsensusTransaction],
-        _epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
-        let transactions_bytes = transactions
-            .iter()
-            .map(|t| {
-                let serialized =
-                    bcs::to_bytes(t).expect("Serializing consensus transaction cannot fail");
-                Bytes::from(serialized)
-            })
-            .collect::<Vec<_>>();
-        self.clone()
-            .submit_transaction(TransactionProto {
-                transactions: transactions_bytes,
-            })
-            .await
-            .map_err(|e| IotaError::ConsensusConnectionBroken(format!("{:?}", e)))
-            .tap_err(|r| {
-                // Will be logged by caller as well.
-                warn!("Submit transaction failed with: {:?}", r);
-            })?;
-        Ok(())
-    }
-}
-
 /// Submit Iota certificates to the consensus.
 pub struct ConsensusAdapter {
     /// The network client connecting to the consensus node of this authority.
@@ -241,7 +210,7 @@ pub struct ConsensusAdapter {
     low_scoring_authorities: ArcSwap<Arc<ArcSwap<HashMap<AuthorityName, u64>>>>,
     /// A structure to register metrics
     metrics: ConsensusAdapterMetrics,
-    /// Semaphore limiting parallel submissions to narwhal
+    /// Semaphore limiting parallel submissions to consensus
     submit_semaphore: Semaphore,
     latency_observer: LatencyObserver,
 }
@@ -301,11 +270,12 @@ impl ConsensusAdapter {
         self.low_scoring_authorities.swap(Arc::new(new_low_scoring));
     }
 
-    // todo - this probably need to hold some kind of lock to make sure epoch does
+    // TODO - this probably need to hold some kind of lock to make sure epoch does
     // not change while we are recovering
     pub fn submit_recovered(self: &Arc<Self>, epoch_store: &Arc<AuthorityPerEpochStore>) {
-        // Currently narwhal worker might lose transactions on restart, so we need to
-        // resend them todo - get_all_pending_consensus_transactions is called
+        // Currently consensus worker might lose transactions on restart, so we need to
+        // resend them.
+        // TODO: get_all_pending_consensus_transactions is called
         // twice when initializing AuthorityPerEpochStore and here, should not
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
@@ -612,9 +582,9 @@ impl ConsensusAdapter {
         // In addition to that, within_alive_epoch ensures that all pending consensus
         // adapter tasks are stopped before reconfiguration can proceed.
         //
-        // This is essential because narwhal workers reuse same ports when narwhal
+        // This is essential because consensus workers reuse same ports when consensus
         // restarts, this means we might be sending transactions from previous
-        // epochs to narwhal of new epoch if we have not had this barrier.
+        // epochs to consensus of new epoch if we have not had this barrier.
         epoch_store
             .within_alive_epoch(self.submit_and_wait_inner(transactions, &epoch_store))
             .await

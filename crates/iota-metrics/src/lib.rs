@@ -35,6 +35,7 @@ use uuid::Uuid;
 mod guards;
 pub mod histogram;
 pub mod metered_channel;
+pub mod metrics_network;
 pub mod monitored_mpsc;
 pub mod thread_stall_monitor;
 pub use guards::*;

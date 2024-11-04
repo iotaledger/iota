@@ -4,7 +4,7 @@
 
 use std::fmt::{Display, Formatter};
 
-use iota_types::{gas::IotaGasStatus, gas_model::gas_v2::IotaGasStatus as GasStatusV2};
+use iota_types::{gas::IotaGasStatus, gas_model::gas_v1::IotaGasStatus as GasStatusV1};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Style as TableStyle, style::HorizontalLine},
@@ -16,7 +16,7 @@ impl<'a> Display for Pretty<'a, IotaGasStatus> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(iota_gas_status) = self;
         match iota_gas_status {
-            IotaGasStatus::V2(s) => {
+            IotaGasStatus::V1(s) => {
                 display_info(f, s)?;
                 per_object_storage_table(f, s)?;
             }
@@ -25,7 +25,7 @@ impl<'a> Display for Pretty<'a, IotaGasStatus> {
     }
 }
 
-fn per_object_storage_table(f: &mut Formatter, iota_gas_status: &GasStatusV2) -> std::fmt::Result {
+fn per_object_storage_table(f: &mut Formatter, iota_gas_status: &GasStatusV1) -> std::fmt::Result {
     let mut builder = TableBuilder::default();
     builder.push_record(vec!["Object ID", "Bytes", "Old Rebate", "New Rebate"]);
     for (object_id, per_obj_storage) in iota_gas_status.per_object_storage() {
@@ -45,7 +45,7 @@ fn per_object_storage_table(f: &mut Formatter, iota_gas_status: &GasStatusV2) ->
     write!(f, "\n{}\n", table)
 }
 
-fn display_info(f: &mut Formatter<'_>, iota_gas_status: &GasStatusV2) -> std::fmt::Result {
+fn display_info(f: &mut Formatter<'_>, iota_gas_status: &GasStatusV1) -> std::fmt::Result {
     let mut builder = TableBuilder::default();
     builder.push_record(vec!["Gas Info".to_string()]);
     builder.push_record(vec![format!(

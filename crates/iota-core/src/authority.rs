@@ -84,10 +84,9 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointRequestV2,
-        CheckpointResponse, CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
-        VerifiedCheckpoint,
+        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointResponse,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
+        CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
@@ -2558,30 +2557,6 @@ impl AuthorityState {
         &self,
         request: &CheckpointRequest,
     ) -> IotaResult<CheckpointResponse> {
-        let summary = match request.sequence_number {
-            Some(seq) => self
-                .checkpoint_store
-                .get_checkpoint_by_sequence_number(seq)?,
-            None => self.checkpoint_store.get_latest_certified_checkpoint(),
-        }
-        .map(|v| v.into_inner());
-        let contents = match &summary {
-            Some(s) => self
-                .checkpoint_store
-                .get_checkpoint_contents(&s.content_digest)?,
-            None => None,
-        };
-        Ok(CheckpointResponse {
-            checkpoint: summary,
-            contents,
-        })
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub fn handle_checkpoint_request_v2(
-        &self,
-        request: &CheckpointRequestV2,
-    ) -> IotaResult<CheckpointResponseV2> {
         let summary = if request.certified {
             let summary = match request.sequence_number {
                 Some(seq) => self
@@ -2606,7 +2581,7 @@ impl AuthorityState {
                 .get_checkpoint_contents(&s.content_digest())?,
             None => None,
         };
-        Ok(CheckpointResponseV2 {
+        Ok(CheckpointResponse {
             checkpoint: summary,
             contents,
         })
@@ -4539,7 +4514,11 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1, TransactionEffects)> {
+    ) -> anyhow::Result<(
+        IotaSystemState,
+        Option<SystemEpochInfoEventV1>,
+        TransactionEffects,
+    )> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
@@ -4669,11 +4648,13 @@ impl AuthorityState {
             .data
             .iter()
             .find(|event| event.is_system_epoch_info_event())
-            .expect("end of epoch tx must emit system epoch info event");
-        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEventV1>(
-            &system_epoch_info_event.contents,
-        )
-        .expect("deserialization should succeed since we asserted that the event is of this type");
+            .map(|event| {
+                bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents)
+                    .expect("event deserialization should succeed as type was pre-validated")
+            });
+        // The system epoch info event can be `None` in case if the `advance_epoch`
+        // Move function call failed and was executed in the safe mode.
+        assert!(system_epoch_info_event.is_some() || system_obj.safe_mode());
 
         // We must write tx and effects to the state sync tables so that state sync is
         // able to deliver to the transaction to CheckpointExecutor after it is
