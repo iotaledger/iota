@@ -679,6 +679,13 @@ impl AuthorityEpochTables {
         Ok(())
     }
 
+    pub fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        Ok(self.executed_transactions_to_checkpoint.get(digest)?)
+    }
+
     /// WARNING: This method is very subtle and can corrupt the database if used
     /// incorrectly. It should only be used in one-off cases or tests after
     /// fully understanding the risk.

@@ -16,6 +16,7 @@ use iota_core::{
 use iota_types::{
     base_types::{EpochId, ObjectID},
     digests::{CheckpointContentsDigest, TransactionDigest},
+    effects::TransactionEffectsAPI,
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectStore,
 };
@@ -40,6 +41,7 @@ pub enum DbToolCommand {
     DuplicatesSummary,
     ListDBMetadata(Options),
     PrintLastConsensusIndex,
+    PrintTransaction(PrintTransactionOptions),
     PrintObject(PrintObjectOptions),
     PrintCheckpoint(PrintCheckpointOptions),
     PrintCheckpointContent(PrintCheckpointContentOptions),
@@ -100,6 +102,10 @@ pub struct Options {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub struct PrintTransactionOptions {
+    /// The epoch to use when loading AuthorityEpochTables.
+    #[arg(long = "epoch", short = 'e')]
+    epoch: EpochId,
+
     #[arg(long, help = "The transaction digest to print")]
     digest: TransactionDigest,
 }
@@ -197,6 +203,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             print_table_metadata(d.store_name, d.epoch, db_path, &d.table_name)
         }
         DbToolCommand::PrintLastConsensusIndex => print_last_consensus_index(&db_path),
+        DbToolCommand::PrintTransaction(d) => print_transaction(&db_path, d),
         DbToolCommand::PrintObject(o) => print_object(&db_path, o),
         DbToolCommand::PrintCheckpoint(d) => print_checkpoint(&db_path, d),
         DbToolCommand::PrintCheckpointContent(d) => print_checkpoint_content(&db_path, d),
@@ -259,6 +266,25 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
     );
     let last_index = epoch_tables.get_last_consensus_index()?;
     println!("Last consensus index is {:?}", last_index);
+    Ok(())
+}
+
+pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::Result<()> {
+    let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
+    let epoch_db = AuthorityEpochTables::open(opt.epoch, &path.join("store"), None);
+    if let Some(checkpoint_seq_num) = epoch_db.get_transaction_checkpoint(&opt.digest)? {
+        println!(
+            "Transaction {:?} executed in epoch {} checkpoint {}",
+            opt.digest, opt.epoch, checkpoint_seq_num
+        );
+    };
+    if let Some(effects) = perpetual_db.get_effects(&opt.digest)? {
+        println!(
+            "Transaction {:?} dependencies: {:#?}",
+            opt.digest,
+            effects.dependencies(),
+        );
+    };
     Ok(())
 }
 
