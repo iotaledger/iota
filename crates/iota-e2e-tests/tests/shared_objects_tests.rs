@@ -28,9 +28,6 @@ use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
-// Permitted timestamp tolerance for calculating potential time delay
-const TIMESTAMP_TOLERANCE_MS: u64 = 500;
-
 /// Send a simple shared object transaction to Iota and ensures the client gets
 /// back a response.
 #[sim_test]
@@ -473,6 +470,8 @@ async fn call_shared_object_contract() {
 
 #[sim_test]
 async fn access_clock_object_test() {
+    // Permitted timestamp tolerance for calculating potential time delay
+    const TIMESTAMP_TOLERANCE_MS: u64 = 500;
     let test_cluster = TestClusterBuilder::new().build().await;
     let package_id = publish_basics_package(&test_cluster.wallet).await.0;
 
