@@ -54,7 +54,7 @@ use iota_types::{
     gas_coin::GasCoin,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     message_envelope::Envelope,
-    messages_grpc::{HandleCertificateResponseV2, TransactionStatus},
+    messages_grpc::{HandleCertificateRequestV1, HandleCertificateResponseV1, TransactionStatus},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
@@ -524,7 +524,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             let name = *name;
             futures.push(async move {
                 client
-                    .handle_certificate_v2(certificate, None)
+                    .handle_certificate_v1(HandleCertificateRequestV1::new(certificate), None)
                     .map(move |r| (r, name))
                     .await
             });
@@ -539,14 +539,14 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             auth_agg.metrics.inflight_certificate_requests.dec();
             match response {
                 // If all goes well, the validators reply with signed effects.
-                Ok(HandleCertificateResponseV2 {
-                    signed_effects,
+                Ok(HandleCertificateResponseV1 {
+                       signed_effects,
                     events,
-                    fastpath_input_objects: _, // unused field
+                    .. // unused field
                 }) => {
                     let author = signed_effects.auth_sig().authority;
                     transaction_effects = Some(signed_effects.data().clone());
-                    transaction_events = Some(events);
+                    transaction_events = events;
                     total_stake += self.committee.weight(&author);
                 }
 
@@ -645,7 +645,10 @@ impl FullNodeProxy {
             .build(http_url)
             .await?;
 
-        let resp = iota_client.read_api().get_committee_info(None).await?;
+        let resp = iota_client
+            .governance_api()
+            .get_committee_info(None)
+            .await?;
         let epoch = resp.epoch;
         let committee_vec = resp.validators;
         let committee_map = BTreeMap::from_iter(committee_vec.into_iter());

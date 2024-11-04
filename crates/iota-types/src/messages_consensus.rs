@@ -196,7 +196,6 @@ pub enum ConsensusTransactionKind {
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
 
     NewJWKFetched(AuthorityName, JwkId, JWK),
-    RandomnessStateUpdate(u64, Vec<u8>), // deprecated
     // DKG is used to generate keys for use in the random beacon protocol.
     // `RandomnessDkgMessage` is sent out at start-of-epoch to initiate the process.
     // Contents are a serialized `fastcrypto_tbls::dkg::Message`.
@@ -220,20 +219,17 @@ impl ConsensusTransactionKind {
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum VersionedDkgMessage {
-    V0(), // deprecated
     V1(dkg_v1::Message<bls12381::G2Element, bls12381::G2Element>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionedDkgConfirmation {
-    V0(), // deprecated
     V1(dkg::Confirmation<bls12381::G2Element>),
 }
 
 impl Debug for VersionedDkgMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            VersionedDkgMessage::V0() => write!(f, "Deprecated VersionedDkgMessage version 0"),
             VersionedDkgMessage::V1(msg) => write!(
                 f,
                 "DKG V1 Message with sender={}, vss_pk.degree={}, encrypted_shares.len()={}",
@@ -248,7 +244,6 @@ impl Debug for VersionedDkgMessage {
 impl VersionedDkgMessage {
     pub fn sender(&self) -> u16 {
         match self {
-            VersionedDkgMessage::V0() => panic!("BUG: invalid VersionedDkgMessage version"),
             VersionedDkgMessage::V1(msg) => msg.sender,
         }
     }
@@ -265,7 +260,6 @@ impl VersionedDkgMessage {
     pub fn unwrap_v1(self) -> dkg_v1::Message<bls12381::G2Element, bls12381::G2Element> {
         match self {
             VersionedDkgMessage::V1(msg) => msg,
-            _ => panic!("BUG: expected V1 message"),
         }
     }
 
@@ -277,18 +271,12 @@ impl VersionedDkgMessage {
 impl VersionedDkgConfirmation {
     pub fn sender(&self) -> u16 {
         match self {
-            VersionedDkgConfirmation::V0() => {
-                panic!("BUG: invalid VersionedDkgConfimation version")
-            }
             VersionedDkgConfirmation::V1(msg) => msg.sender,
         }
     }
 
     pub fn num_of_complaints(&self) -> usize {
         match self {
-            VersionedDkgConfirmation::V0() => {
-                panic!("BUG: invalid VersionedDkgConfimation version")
-            }
             VersionedDkgConfirmation::V1(msg) => msg.complaints.len(),
         }
     }
@@ -296,7 +284,6 @@ impl VersionedDkgConfirmation {
     pub fn unwrap_v1(&self) -> &dkg::Confirmation<bls12381::G2Element> {
         match self {
             VersionedDkgConfirmation::V1(msg) => msg,
-            _ => panic!("BUG: expected V1 confirmation"),
         }
     }
 
@@ -436,11 +423,6 @@ impl ConsensusTransaction {
                     id.clone(),
                     key.clone(),
                 )))
-            }
-            ConsensusTransactionKind::RandomnessStateUpdate(_, _) => {
-                unreachable!(
-                    "there should never be a RandomnessStateUpdate with SequencedConsensusTransactionKind::External"
-                )
             }
             ConsensusTransactionKind::RandomnessDkgMessage(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgMessage(*authority)

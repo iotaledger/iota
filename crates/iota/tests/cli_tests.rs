@@ -33,7 +33,7 @@ use iota::{
     key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
-    Config, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
+    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
     IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
 };
 use iota_json::IotaJsonValue;
@@ -4159,15 +4159,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
 
     // Wait for the faucet to be up
     sleep(Duration::from_secs(1)).await;
-
-    let wallet_config = tmp.path().join("walletconfig");
-    let mut keystore = iota_keys::keystore::FileBasedKeystore::new(&tmp.path().join("keystore"))?;
-    keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
-        .unwrap();
-    let mut client_config = IotaClientConfig::new(keystore.into());
-    client_config.add_env(iota_sdk::iota_client_config::IotaEnv::localnet());
-    client_config.save(&wallet_config)?;
+    let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config, None, None)?;
 
     let faucet_result = IotaClientCommands::Faucet {
@@ -4185,6 +4177,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[ignore = "until the repo is public https://github.com/iotaledger/iota/issues/3741"]
 #[tokio::test]
 async fn test_move_new() -> Result<(), anyhow::Error> {
     let current_dir = std::env::current_dir()?;

@@ -46,6 +46,7 @@ use iota_core::{
         SubmitCheckpointToConsensus,
         checkpoint_executor::{CheckpointExecutor, StopReason, metrics::CheckpointExecutorMetrics},
     },
+    connection_monitor::ConnectionMonitor,
     consensus_adapter::{
         CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
         SubmitToConsensus,
@@ -79,7 +80,11 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
-use iota_metrics::{RegistryService, server_timing_middleware, spawn_monitored_task};
+use iota_metrics::{
+    RegistryService,
+    metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
+    server_timing_middleware, spawn_monitored_task,
+};
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
@@ -108,9 +113,6 @@ use iota_types::{
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::Transaction,
-};
-use narwhal_network::metrics::{
-    MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
 };
 use prometheus::Registry;
 #[cfg(msim)]
@@ -579,9 +581,7 @@ impl IotaNode {
             None
         };
 
-        let rest_index = if is_full_node
-            && config.enable_experimental_rest_api
-            && config.enable_index_processing
+        let rest_index = if is_full_node && config.enable_rest_api && config.enable_index_processing
         {
             Some(Arc::new(RestIndexStore::new(
                 config.db_path().join("rest_index"),
@@ -779,13 +779,12 @@ impl IotaNode {
 
         let authority_names_to_peer_ids = ArcSwap::from_pointee(authority_names_to_peer_ids);
 
-        let (_connection_monitor_handle, connection_statuses) =
-            narwhal_network::connectivity::ConnectionMonitor::spawn(
-                p2p_network.downgrade(),
-                network_connection_metrics,
-                HashMap::new(),
-                None,
-            );
+        let (_connection_monitor_handle, connection_statuses) = ConnectionMonitor::spawn(
+            p2p_network.downgrade(),
+            network_connection_metrics,
+            HashMap::new(),
+            None,
+        );
 
         let connection_monitor_status = ConnectionMonitorStatus {
             connection_statuses,
@@ -1682,7 +1681,7 @@ impl IotaNode {
                 consensus_store_pruner.prune(next_epoch).await;
 
                 if self.state.is_validator(&new_epoch_store) {
-                    // Only restart Narwhal if this node is still a validator in the new epoch.
+                    // Only restart consensus if this node is still a validator in the new epoch.
                     Some(
                         Self::start_epoch_specific_validator_components(
                             &self.config,
@@ -1967,7 +1966,7 @@ fn build_kv_store(
     )))
 }
 
-/// Builds and starts the HTTP server for the Iota node, exposing JSON-RPC and
+/// Builds and starts the HTTP server for the IOTA node, exposing JSON-RPC and
 /// REST APIs based on the node's configuration.
 ///
 /// This function performs the following tasks:
@@ -1980,7 +1979,7 @@ fn build_kv_store(
 ///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
 ///    IndexerApi.
 /// 4. Optionally, if the REST API is enabled, nests the REST API router under
-///    the `/rest` path.
+///    the `/api/v1` path.
 /// 5. Binds the server to the specified JSON-RPC address and starts listening
 ///    for incoming connections.
 pub async fn build_http_server(
@@ -2053,7 +2052,7 @@ pub async fn build_http_server(
 
     router = router.merge(json_rpc_router);
 
-    if config.enable_experimental_rest_api {
+    if config.enable_rest_api {
         let mut rest_service = iota_rest_api::RestService::new(
             Arc::new(RestReadStore::new(state, store)),
             software_version,
