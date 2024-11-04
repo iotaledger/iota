@@ -142,9 +142,6 @@ pub enum StopReason {
 
 pub struct CheckpointExecutor {
     mailbox: broadcast::Receiver<VerifiedCheckpoint>,
-    // TODO: AuthorityState is only needed because we have to call
-    // deprecated_insert_finalized_transactions once that code is fully deprecated we can
-    // remove this
     state: Arc<AuthorityState>,
     checkpoint_store: Arc<CheckpointStore>,
     object_cache_reader: Arc<dyn ObjectCacheRead>,
