@@ -86,9 +86,7 @@ use crate::{
     authority::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store::{
-            ExecutionLockWriteGuard, IotaLockResult, LockDetailsDeprecated, ObjectLockStatus,
-        },
+        authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
         authority_store_tables::LiveObject,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
@@ -1576,7 +1574,6 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
-        let cur_epoch = epoch_store.epoch();
         match self.get_object_by_id_cache_only("lock", &obj_ref.0) {
             CacheResult::Hit((_, obj)) => {
                 let actual_objref = obj.compute_object_reference();
@@ -1592,10 +1589,7 @@ impl ObjectCacheRead for WritebackCache {
                             .get_transaction_lock(&obj_ref, epoch_store)?
                         {
                             Some(tx_digest) => ObjectLockStatus::LockedToTx {
-                                locked_by_tx: LockDetailsDeprecated {
-                                    epoch: cur_epoch,
-                                    tx_digest,
-                                },
+                                locked_by_tx: tx_digest,
                             },
                             None => ObjectLockStatus::Initialized,
                         },

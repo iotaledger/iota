@@ -4113,7 +4113,7 @@ impl AuthorityState {
             ObjectLockStatus::LockedToTx { locked_by_tx } => locked_by_tx,
         };
 
-        epoch_store.get_signed_transaction(&lock_info.tx_digest)
+        epoch_store.get_signed_transaction(&lock_info)
     }
 
     pub async fn get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
