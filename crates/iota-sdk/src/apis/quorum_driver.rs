@@ -38,7 +38,7 @@ impl QuorumDriverApi {
     ///
     /// When `WaitForLocalExecution` is used, but the returned
     /// `confirmed_local_execution` is false, the client will wait for
-    /// two seconds before returning [Error::FailToConfirmTransactionStatus].
+    /// some time before returning [Error::FailToConfirmTransactionStatus].
     pub async fn execute_transaction_block(
         &self,
         tx: Transaction,
