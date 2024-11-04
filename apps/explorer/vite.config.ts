@@ -33,6 +33,6 @@ export default defineConfig({
         },
     },
     define: {
-        EXPLORER_REV: JSON.stringify(EXPLORER_REV)
-    }
+        EXPLORER_REV: JSON.stringify(EXPLORER_REV),
+    },
 });
