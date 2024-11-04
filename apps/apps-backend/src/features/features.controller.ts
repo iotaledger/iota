@@ -64,10 +64,10 @@ export class FeaturesController {
                 [Feature.AccountFinder]: {
                     defaultValue: false,
                 },
-                [Feature.WalletDashboardMigration]: {
+                [Feature.StardustMigration]: {
                     defaultValue: false,
                 },
-                [Feature.WalletDashboardSupplyIncreaseVesting]: {
+                [Feature.SupplyIncreaseVesting]: {
                     defaultValue: false,
                 },
             },

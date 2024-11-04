@@ -2602,7 +2602,7 @@
               "error": {
                 "type": "string",
                 "enum": [
-                  "iota_move_verification_timedout"
+                  "iota_move_verification_timeout"
                 ]
               }
             }
@@ -4394,10 +4394,17 @@
           {
             "type": "object",
             "required": [
+              "events",
               "kind",
               "objects"
             ],
             "properties": {
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              },
               "kind": {
                 "type": "string",
                 "enum": [

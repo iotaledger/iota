@@ -17,7 +17,6 @@ export const KioskType = bcs.struct(KIOSK_TYPE, {
     profits: bcs.u64(),
     owner: bcs.Address,
     itemCount: bcs.u32(),
-    allowExtensions: bcs.bool(),
 });
 
 // Register the `PurchaseCap` for faster queries.
