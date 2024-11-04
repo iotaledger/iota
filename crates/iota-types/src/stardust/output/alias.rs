@@ -115,8 +115,6 @@ impl Alias {
     ) -> anyhow::Result<Object> {
         // Construct the Alias object.
         let move_alias_object = unsafe {
-            // Safety: we know from the definition of `Alias` in the stardust package
-            // that it has public transfer (`store` ability is present).
             MoveObject::new_from_execution(
                 Self::tag().into(),
                 version,
@@ -187,8 +185,6 @@ impl AliasOutput {
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
         let move_alias_output_object = unsafe {
-            // Safety: we know from the definition of `AliasOutput` in the stardust package
-            // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
                 AliasOutput::tag(coin_type.to_type_tag()).into(),
                 version,

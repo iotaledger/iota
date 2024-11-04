@@ -140,8 +140,6 @@ impl BasicOutput {
         coin_type: &CoinType,
     ) -> Result<Object> {
         let move_object = unsafe {
-            // Safety: we know from the definition of `BasicOutput` in the stardust package
-            // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
                 BasicOutput::tag(coin_type.to_type_tag()).into(),
                 version,
@@ -195,8 +193,6 @@ pub(crate) fn create_coin(
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
     let move_object = unsafe {
-        // Safety: we know from the definition of `Coin`
-        // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
             MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
             version,
