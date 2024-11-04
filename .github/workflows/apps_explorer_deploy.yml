@@ -79,7 +79,7 @@ jobs:
         if: ${{ inputs.isStaging }}
         run: vercel alias ${{ steps.deploy_url.outputs.DEPLOY_URL }} $EXPLORER_VERCEL_PROJECT_STAGING_URL --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_SCOPE }}
       - name: Comment on pull request
-        if: ${{ inputs.isProd == false }}
+        if: ${{ inputs.isProd == false && inputs.isStaging == false }}
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # pin@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
