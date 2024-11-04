@@ -788,16 +788,14 @@ impl ReadApiServer for ReadApi {
 
             temp_response.checkpoint_seq = self
                 .transaction_kv_store
-                .multi_get_transaction_checkpoint(&Vec::from([digest]))
+                .multi_get_transaction_checkpoint(&[digest])
                 .await
-                .tap_err(|e| {
+                .map_err(|e| {
                     error!("Failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
+                    Error::from(e)
                 })?
                 .pop()
-                .ok_or_else(|| {
-                    error!("No checkpoint sequence found for transaction {digest:?}");
-                    Error::new("No checkpoint sequence found for transaction")
-                })?;
+                .flatten();
 
             if let Some(checkpoint_seq) = &temp_response.checkpoint_seq {
                 let kv_store = self.transaction_kv_store.clone();

@@ -27,9 +27,8 @@ use tracing::instrument;
 use typed_store::Map;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
-    ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead,
-    implement_passthrough_traits,
+    ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI, ExecutionCacheWrite,
+    ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead, implement_passthrough_traits,
 };
 use crate::{
     authority::{

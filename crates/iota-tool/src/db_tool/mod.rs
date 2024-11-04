@@ -102,6 +102,10 @@ pub struct Options {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub struct PrintTransactionOptions {
+    /// The epoch to use when loading AuthorityEpochTables.
+    #[arg(long = "epoch", short = 'e')]
+    epoch: EpochId,
+
     #[arg(long, help = "The transaction digest to print")]
     digest: TransactionDigest,
 }
@@ -267,12 +271,11 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
 
 pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::Result<()> {
     let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
-    if let Some((epoch, checkpoint_seq_num)) =
-        perpetual_db.get_checkpoint_sequence_number(&opt.digest)?
-    {
+    let epoch_db = AuthorityEpochTables::open(opt.epoch, &path.join("store"), None);
+    if let Some(checkpoint_seq_num) = epoch_db.get_transaction_checkpoint(&opt.digest)? {
         println!(
             "Transaction {:?} executed in epoch {} checkpoint {}",
-            opt.digest, epoch, checkpoint_seq_num
+            opt.digest, opt.epoch, checkpoint_seq_num
         );
     };
     if let Some(effects) = perpetual_db.get_effects(&opt.digest)? {

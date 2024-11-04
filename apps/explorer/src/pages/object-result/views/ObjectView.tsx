@@ -7,6 +7,7 @@ import { CoinFormat, useFormatCoin } from '@iota/core';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
     formatAddress,
+    formatDigest,
     IOTA_TYPE_ARG,
     normalizeStructTag,
     parseStructTag,
@@ -113,12 +114,11 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
     };
 
     const normalizedStructTag = normalizeStructTag(structTag);
-
     return (
         <DisplayStats
             label="Type"
             value={
-                <ObjectLink objectId={`${address}?module=${module}`}>
+                <ObjectLink objectId={`${address}?module=${module}`} label={normalizedStructTag}>
                     {normalizedStructTag}
                 </ObjectLink>
             }
@@ -144,7 +144,7 @@ function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     return (
         <DisplayStats
             label="Last Transaction Block Digest"
-            value={<TransactionLink digest={digest}>{formatAddress(digest)}</TransactionLink>}
+            value={<TransactionLink digest={digest}>{formatDigest(digest)}</TransactionLink>}
         />
     );
 }

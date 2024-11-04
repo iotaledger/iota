@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { Inter } from 'next/font/google';
-
 import './globals.css';
+import '@iota/dapp-kit/dist/index.css';
+import { Inter } from 'next/font/google';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
@@ -14,6 +14,7 @@ import '@iota/dapp-kit/dist/index.css';
 import { Popup, PopupProvider } from '@/components/Popup';
 import { growthbook } from '@/lib/utils';
 import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from '@/contexts';
 
 const inter = Inter({ subsets: ['latin'] });
 growthbook.init();
@@ -46,11 +47,13 @@ export default function RootLayout({
                                     },
                                 ]}
                             >
-                                <PopupProvider>
-                                    {children}
-                                    <Toaster />
-                                    <Popup />
-                                </PopupProvider>
+                                <ThemeProvider>
+                                    <PopupProvider>
+                                        {children}
+                                        <Toaster />
+                                        <Popup />
+                                    </PopupProvider>
+                                </ThemeProvider>
                             </WalletProvider>
                         </IotaClientProvider>
                     </QueryClientProvider>

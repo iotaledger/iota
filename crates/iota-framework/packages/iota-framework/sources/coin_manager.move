@@ -17,20 +17,23 @@ module iota::coin_manager {
     use iota::balance::{Balance, Supply};
     use iota::dynamic_field as df;
 
-    /// The error returned when the maximum supply reached.
+    /// The error returned when the maximum supply reached
     const EMaximumSupplyReached: u64 = 0;
 
     /// The error returned if a attempt is made to change the maximum supply after setting it
     const EMaximumSupplyAlreadySet: u64 = 1;
 
+    /// The error returned if a attempt is made to change the maximum supply that is lower than the total supply
+    const EMaximumSupplyLowerThanTotalSupply: u64 = 2;
+
     /// The error returned if additional metadata already exists and you try to overwrite
-    const EAdditionalMetadataAlreadyExists: u64 = 2;
+    const EAdditionalMetadataAlreadyExists: u64 = 3;
 
     /// The error returned if you try to edit nonexisting additional metadata
-    const EAdditionalMetadataDoesNotExist: u64 = 3;
+    const EAdditionalMetadataDoesNotExist: u64 = 4;
 
     /// The error returned if you try to edit immutable metadata
-    const ENoMutableMetadata: u64 = 4;
+    const ENoMutableMetadata: u64 = 5;
 
     /// Holds all related objects to a Coin in a convenient shared function
     public struct CoinManager<phantom T> has key, store {
@@ -227,6 +230,7 @@ module iota::coin_manager {
         maximum_supply: u64
     ) {
         assert!(option::is_none(&manager.maximum_supply), EMaximumSupplyAlreadySet);
+        assert!(total_supply(manager) <= maximum_supply, EMaximumSupplyLowerThanTotalSupply);
         option::fill(&mut manager.maximum_supply, maximum_supply);
     }
 
