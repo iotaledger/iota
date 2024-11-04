@@ -3013,7 +3013,7 @@ pub(crate) async fn prerender_clever_errors(
 
 fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
-        return IotaTransactionBlockResponseOptions::new()
+        IotaTransactionBlockResponseOptions::new()
             .with_effects()
             .with_input()
             .with_events()
