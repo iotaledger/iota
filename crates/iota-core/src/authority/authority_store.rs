@@ -1069,7 +1069,7 @@ impl AuthorityStore {
             locks.into_iter(),
             owned_input_objects
         ) {
-            let Some(_live_marker) = live_marker else {
+            if live_marker.is_none() {
                 let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
                 fp_bail!(
                     UserInputError::ObjectVersionUnavailableForConsumption {
@@ -1905,6 +1905,6 @@ pub type IotaLockResult = IotaResult<ObjectLockStatus>;
 #[derive(Debug, PartialEq, Eq)]
 pub enum ObjectLockStatus {
     Initialized,
-    LockedToTx { locked_by_tx: LockDetails },
+    LockedToTx { locked_by_tx: LockDetails }, // no need to use wrapper, not stored or serialized
     LockedAtDifferentVersion { locked_ref: ObjectRef },
 }

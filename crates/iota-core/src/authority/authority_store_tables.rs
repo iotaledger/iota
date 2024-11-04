@@ -63,8 +63,7 @@ pub struct AuthorityPerpetualTables {
     pub(crate) indirect_move_objects: DBMap<ObjectContentDigest, StoreMoveObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
-    #[default_options_override_fn = "owned_object_transaction_locks_table_default_config"]
-    #[rename = "owned_object_transaction_locks"]
+    #[default_options_override_fn = "live_owned_object_markers_table_default_config"]
     pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
 
     /// This is a map between the transaction digest and the corresponding
@@ -608,7 +607,7 @@ impl Iterator for LiveSetIter<'_> {
 }
 
 // These functions are used to initialize the DB tables
-fn owned_object_transaction_locks_table_default_config() -> DBOptions {
+fn live_owned_object_markers_table_default_config() -> DBOptions {
     DBOptions {
         options: default_db_options()
             .optimize_for_write_throughput()
