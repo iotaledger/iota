@@ -106,8 +106,8 @@ async fn test_apy() {
         .sign_and_execute_transaction(&transaction)
         .await;
 
-    // Wait for two epochs with the new stake so we get two new exchange rates which
-    // are minimally needed to calculate the APY.
+    // Wait for three epochs with the new stake so we get an accurate
+    // statistical estimate of the APY.
     test_cluster.wait_for_epoch(None).await;
     test_cluster.wait_for_epoch(None).await;
     test_cluster.wait_for_epoch(None).await;
