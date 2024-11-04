@@ -14,7 +14,6 @@ use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::CommitConsumerMonitor;
 use iota_macros::{fail_point_async, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
@@ -26,7 +25,7 @@ use iota_types::{
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, instrument, trace_span, warn};
+use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{
@@ -38,7 +37,6 @@ use crate::{
         epoch_start_configuration::EpochStartConfigTrait,
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
-    consensus_throughput_calculator::ConsensusThroughputCalculator,
     consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
     execution_cache::ObjectCacheRead,
     scoring_decision::update_low_scoring_authorities,
@@ -50,7 +48,6 @@ pub struct ConsensusHandlerInitializer {
     checkpoint_service: Arc<CheckpointService>,
     epoch_store: Arc<AuthorityPerEpochStore>,
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-    throughput_calculator: Arc<ConsensusThroughputCalculator>,
 }
 
 impl ConsensusHandlerInitializer {
@@ -59,14 +56,12 @@ impl ConsensusHandlerInitializer {
         checkpoint_service: Arc<CheckpointService>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-        throughput_calculator: Arc<ConsensusThroughputCalculator>,
     ) -> Self {
         Self {
             state,
             checkpoint_service,
             epoch_store,
             low_scoring_authorities,
-            throughput_calculator,
         }
     }
 
@@ -79,10 +74,6 @@ impl ConsensusHandlerInitializer {
             checkpoint_service,
             epoch_store: state.epoch_store_for_testing().clone(),
             low_scoring_authorities: Arc::new(Default::default()),
-            throughput_calculator: Arc::new(ConsensusThroughputCalculator::new(
-                None,
-                state.metrics.clone(),
-            )),
         }
     }
 
@@ -98,7 +89,6 @@ impl ConsensusHandlerInitializer {
             self.low_scoring_authorities.clone(),
             consensus_committee,
             self.state.metrics.clone(),
-            self.throughput_calculator.clone(),
         )
     }
 }
@@ -129,9 +119,6 @@ pub struct ConsensusHandler<C> {
     /// Lru cache to quickly discard transactions processed by consensus
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
-    /// Using the throughput calculator to record the current consensus
-    /// throughput
-    throughput_calculator: Arc<ConsensusThroughputCalculator>,
 }
 
 const PROCESSED_CACHE_CAP: usize = 1024 * 1024;
@@ -145,7 +132,6 @@ impl<C> ConsensusHandler<C> {
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
         committee: ConsensusCommittee,
         metrics: Arc<AuthorityMetrics>,
-        throughput_calculator: Arc<ConsensusThroughputCalculator>,
     ) -> Self {
         // Recover last_consensus_stats so it is consistent across validators.
         let mut last_consensus_stats = epoch_store
@@ -167,7 +153,6 @@ impl<C> ConsensusHandler<C> {
             metrics,
             processed_cache: LruCache::new(NonZeroUsize::new(PROCESSED_CACHE_CAP).unwrap()),
             transaction_scheduler,
-            throughput_calculator,
         }
     }
 
@@ -216,7 +201,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         let round = consensus_output.leader_round();
 
-        // TODO: Remove this once narwhal is deprecated. For now mysticeti will not
+        // TODO: Is this check necessary? For now mysticeti will not
         // return more than one leader per round so we are not in danger of
         // ignoring any commits.
         assert!(round >= last_committed_round);
@@ -234,22 +219,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         // (serialized, transaction, output_cert)
         let mut transactions = vec![];
-        let timestamp = consensus_output.commit_timestamp_ms();
         let leader_author = consensus_output.leader_author_index();
         let commit_sub_dag_index = consensus_output.commit_sub_dag_index();
-
-        let epoch_start = self
-            .epoch_store
-            .epoch_start_config()
-            .epoch_start_timestamp_ms();
-        let timestamp = if timestamp < epoch_start {
-            error!(
-                "Unexpected commit timestamp {timestamp} less then epoch start time {epoch_start}, author {leader_author}, round {round}",
-            );
-            epoch_start
-        } else {
-            timestamp
-        };
 
         debug!(
             %consensus_output,
@@ -289,7 +260,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             let authenticator_state_update_transaction =
                 self.authenticator_state_update_transaction(round, new_jwks);
             debug!(
-                "adding AuthenticatorStateUpdate({:?}) tx: {:?}",
+                "adding AuthenticatorStateUpdateV1({:?}) tx: {:?}",
                 authenticator_state_update_transaction.digest(),
                 authenticator_state_update_transaction,
             );
@@ -343,18 +314,9 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
                     }
-                    if let ConsensusTransactionKind::RandomnessStateUpdate(randomness_round, _) =
-                        &transaction.kind
-                    {
-                        // These are deprecated and we should never see them. Log an error and eat
-                        // the tx if one appears.
-                        error!(
-                            "BUG: saw deprecated RandomnessStateUpdate tx for commit round {round:?}, randomness round {randomness_round:?}"
-                        )
-                    } else {
-                        let transaction = SequencedConsensusTransactionKind::External(transaction);
-                        transactions.push((serialized_transaction, transaction, authority_index));
-                    }
+
+                    let transaction = SequencedConsensusTransactionKind::External(transaction);
+                    transactions.push((serialized_transaction, transaction, authority_index));
                 }
             }
         }
@@ -433,15 +395,11 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
                 self.cache_reader.as_ref(),
-                &ConsensusCommitInfo::new(self.epoch_store.protocol_config(), &consensus_output),
+                &ConsensusCommitInfo::new(&consensus_output),
                 &self.metrics,
             )
             .await
             .expect("Unrecoverable error in consensus handler");
-
-        // update the calculated throughput
-        self.throughput_calculator
-            .add_transactions(timestamp, transactions_to_schedule.len() as u64);
 
         fail_point_if!("correlated-crash-after-consensus-commit-boundary", || {
             let key = [commit_sub_dag_index, self.epoch_store.epoch()];
@@ -572,10 +530,8 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
-        ConsensusTransactionKind::CapabilityNotification(_) => "capability_notification",
-        ConsensusTransactionKind::CapabilityNotificationV2(_) => "capability_notification_v2",
+        ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
-        ConsensusTransactionKind::RandomnessStateUpdate(_, _) => "randomness_state_update",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
     }
@@ -724,13 +680,7 @@ impl SequencedConsensusTransaction {
         )
     }
 
-    pub fn is_user_tx_with_randomness(&self, randomness_state_enabled: bool) -> bool {
-        if !randomness_state_enabled {
-            // If randomness is disabled, these should be processed same as a tx without
-            // randomness, which will eventually fail when the randomness state
-            // object is not found.
-            return false;
-        }
+    pub fn is_user_tx_with_randomness(&self) -> bool {
         let SequencedConsensusTransactionKind::External(ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransaction(certificate),
             ..
@@ -787,11 +737,11 @@ pub struct ConsensusCommitInfo {
 }
 
 impl ConsensusCommitInfo {
-    fn new(protocol_config: &ProtocolConfig, consensus_output: &impl ConsensusOutputAPI) -> Self {
+    fn new(consensus_output: &impl ConsensusOutputAPI) -> Self {
         Self {
             round: consensus_output.leader_round(),
             timestamp: consensus_output.commit_timestamp_ms(),
-            consensus_commit_digest: consensus_output.consensus_digest(protocol_config),
+            consensus_commit_digest: consensus_output.consensus_digest(),
 
             #[cfg(any(test, feature = "test-utils"))]
             skip_consensus_commit_prologue_in_test: false,
@@ -817,31 +767,12 @@ impl ConsensusCommitInfo {
         self.skip_consensus_commit_prologue_in_test
     }
 
-    fn consensus_commit_prologue_transaction(&self, epoch: u64) -> VerifiedExecutableTransaction {
-        let transaction =
-            VerifiedTransaction::new_consensus_commit_prologue(epoch, self.round, self.timestamp);
-        VerifiedExecutableTransaction::new_system(transaction, epoch)
-    }
-
-    fn consensus_commit_prologue_v2_transaction(
-        &self,
-        epoch: u64,
-    ) -> VerifiedExecutableTransaction {
-        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
-            epoch,
-            self.round,
-            self.timestamp,
-            self.consensus_commit_digest,
-        );
-        VerifiedExecutableTransaction::new_system(transaction, epoch)
-    }
-
-    fn consensus_commit_prologue_v3_transaction(
+    fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> VerifiedExecutableTransaction {
-        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
+        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
@@ -854,16 +785,9 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        protocol_config: &ProtocolConfig,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ) -> VerifiedExecutableTransaction {
-        if protocol_config.record_consensus_determined_version_assignments_in_prologue() {
-            self.consensus_commit_prologue_v3_transaction(epoch, cancelled_txn_version_assignment)
-        } else if protocol_config.include_consensus_digest_in_prologue() {
-            self.consensus_commit_prologue_v2_transaction(epoch)
-        } else {
-            self.consensus_commit_prologue_transaction(epoch)
-        }
+        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
     }
 }
 
@@ -872,7 +796,7 @@ mod tests {
     use consensus_core::{
         BlockAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlock, Transaction, VerifiedBlock,
     };
-    use iota_protocol_config::ConsensusTransactionOrdering;
+    use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
         committee::Committee,
@@ -880,7 +804,9 @@ mod tests {
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
         object::Object,
-        supported_protocol_versions::SupportedProtocolVersions,
+        supported_protocol_versions::{
+            SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+        },
         transaction::{
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
@@ -921,8 +847,6 @@ mod tests {
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
-        let throughput_calculator = ConsensusThroughputCalculator::new(None, metrics.clone());
-
         let mut consensus_handler = ConsensusHandler::new(
             epoch_store,
             Arc::new(CheckpointServiceNoop {}),
@@ -931,7 +855,6 @@ mod tests {
             Arc::new(ArcSwap::default()),
             consensus_committee.clone(),
             metrics,
-            Arc::new(throughput_calculator),
         );
 
         // AND
@@ -1028,7 +951,13 @@ mod tests {
 
     #[test]
     fn test_order_by_gas_price() {
-        let mut v = vec![cap_txn(10), user_txn(42), user_txn(100), cap_txn(1)];
+        let chain = Chain::Unknown;
+        let mut v = vec![
+            cap_txn(10, chain),
+            user_txn(42),
+            user_txn(100),
+            cap_txn(1, chain),
+        ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
         assert_eq!(extract(v), vec![
             "cap(10)".to_string(),
@@ -1039,12 +968,12 @@ mod tests {
 
         let mut v = vec![
             user_txn(1200),
-            cap_txn(10),
+            cap_txn(10, chain),
             user_txn(12),
             user_txn(1000),
             user_txn(42),
             user_txn(100),
-            cap_txn(1),
+            cap_txn(1, chain),
             user_txn(1000),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
@@ -1061,10 +990,10 @@ mod tests {
 
         // If there are no user transactions, the order should be preserved.
         let mut v = vec![
-            cap_txn(10),
+            cap_txn(10, chain),
             eop_txn(12),
             eop_txn(10),
-            cap_txn(1),
+            cap_txn(1, chain),
             eop_txn(11),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
@@ -1087,7 +1016,7 @@ mod tests {
                 ConsensusTransactionKind::EndOfPublish(authority) => {
                     format!("eop({})", authority.0[0])
                 }
-                ConsensusTransactionKind::CapabilityNotification(cap) => {
+                ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                     format!("cap({})", cap.generation)
                 }
                 ConsensusTransactionKind::UserTransaction(txn) => {
@@ -1105,12 +1034,17 @@ mod tests {
         txn(ConsensusTransactionKind::EndOfPublish(authority))
     }
 
-    fn cap_txn(generation: u64) -> VerifiedSequencedConsensusTransaction {
-        txn(ConsensusTransactionKind::CapabilityNotification(
+    fn cap_txn(generation: u64, chain: Chain) -> VerifiedSequencedConsensusTransaction {
+        txn(ConsensusTransactionKind::CapabilityNotificationV1(
+            // we don't use the "new" constructor because we need to set the generation
             AuthorityCapabilitiesV1 {
                 authority: Default::default(),
                 generation,
-                supported_protocol_versions: SupportedProtocolVersions::SYSTEM_DEFAULT,
+                supported_protocol_versions:
+                    SupportedProtocolVersionsWithHashes::from_supported_versions(
+                        SupportedProtocolVersions::SYSTEM_DEFAULT,
+                        chain,
+                    ),
                 available_system_packages: vec![],
             },
         ))

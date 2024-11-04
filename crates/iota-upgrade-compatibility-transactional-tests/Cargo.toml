@@ -1,6 +1,6 @@
 [package]
 name = "iota-upgrade-compatibility-transactional-tests"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -8,9 +8,12 @@ publish = false
 description = "Transactional tests for package upgrade compatibility checking"
 
 [dev-dependencies]
+# external dependencies
 anyhow.workspace = true
 datatest-stable.workspace = true
 insta.workspace = true
+
+# internal dependencies
 iota-move-build.workspace = true
 move-binary-format.workspace = true
 move-command-line-common.workspace = true

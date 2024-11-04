@@ -67,22 +67,6 @@ pub fn search_index(
                 termination
             )
         }
-        "transactions_by_input_object_id" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_by_input_object_id,
-                from_id_seq,
-                start,
-                termination
-            )
-        }
-        "transactions_by_mutated_object_id" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_by_mutated_object_id,
-                from_id_seq,
-                start,
-                termination
-            )
-        }
         "transactions_by_move_function" => {
             get_db_entries!(
                 db_read_only_handle.transactions_by_move_function,
@@ -127,14 +111,6 @@ pub fn search_index(
             get_db_entries!(
                 db_read_only_handle.dynamic_field_index,
                 from_oid_oid,
-                start,
-                termination
-            )
-        }
-        "loaded_child_object_versions" => {
-            get_db_entries!(
-                db_read_only_handle.loaded_child_object_versions,
-                TransactionDigest::from_str,
                 start,
                 termination
             )
@@ -263,19 +239,6 @@ fn from_addr_seq(s: &str) -> Result<(IotaAddress, TxSequenceNumber), anyhow::Err
     let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
 
     Ok((address, sequence_number))
-}
-
-fn from_id_seq(s: &str) -> Result<(ObjectID, TxSequenceNumber), anyhow::Error> {
-    // Remove whitespaces
-    let s = s.trim();
-    let tokens = s.split(',').collect::<Vec<&str>>();
-    if tokens.len() != 2 {
-        return Err(anyhow!("Invalid object id, sequence number pair"));
-    }
-    let oid = ObjectID::from_str(tokens[0].trim())?;
-    let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
-
-    Ok((oid, sequence_number))
 }
 
 fn from_id_module_function_txseq(

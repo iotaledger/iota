@@ -3,7 +3,7 @@ title: IOTA Genesis Ceremony CLI
 description: The IOTA Genesis Ceremony CLI provides commands for building a Genesis blob file.
 ---
 
-The IOTA CLI `genesis-ceremony` command allows the orchestration of an IOTA Genesis Ceremony, 
+The IOTA CLI `genesis-ceremony` command allows the orchestration of an IOTA Genesis Ceremony,
 where multiple remote validators can sign a genesis blob. Each step persists in a file structure
 that can be shared (for instance, via GitHub) with the validators.
 
@@ -41,7 +41,7 @@ The following example demonstrates how to build a genesis blob.
 
 ### Initialize the Genesis Builder
 
-This command creates a structure in the file system to persist the genesis builder. 
+This command creates a structure in the file system to persist the genesis builder.
 Afterward, the below commands can be used to set additional configurations.
 
 ```shell
@@ -69,14 +69,13 @@ Each validator is added one at a time, and is persisted in the `committee` folde
 ```shell
 iota genesis-ceremony add-validator \
     --name validator0 \
-    --validator-key-file validator.key \
-    --worker-key-file validator-worker.key \
+    --authority-key-file validator-authority.key \
+    --protocol-key-file validator-protocol.key \
     --account-key-file validator-account.key \
     --network-key-file validator-network.key \
     --network-address /ip4/127.0.0.1/tcp/38189/http \
     --p2p-address /ip4/127.0.0.1/udp/34523 \
-    --narwhal-primary-address /ip4/127.0.0.1/udp/38603 \
-    --narwhal-worker-address /ip4/127.0.0.1/udp/36603 \
+    --primary-address /ip4/127.0.0.1/udp/38603 \
     --description validator0 \
     --image-url https://www.iota.org/favicon.png \
     --project-url https://www.iota.org
@@ -91,15 +90,14 @@ iota genesis-ceremony add-validator \
 info:
   name: validator0
   account-address: 0xae12525173c83e472daf8c30e80ec6e220675c329029fe81dcae9bb3e53d4aef
-  protocol-key: l5SIw1DYpic0kkkKDQm5NuLxWhzICh2WymxnVCutKkIzsaJx8u71qWdvRzN7QoRqEsGONoGpkCu8VbRFp0+prU/lTzeozmJTeou5JmW8JWSIZ1aLrZ41+vKluYoV2tVB
-  worker-key: bjoiPMq9KY38ug6fwYKLIz/uPegBrghszVphlEHbX4c=
+  authority-key: l5SIw1DYpic0kkkKDQm5NuLxWhzICh2WymxnVCutKkIzsaJx8u71qWdvRzN7QoRqEsGONoGpkCu8VbRFp0+prU/lTzeozmJTeou5JmW8JWSIZ1aLrZ41+vKluYoV2tVB
+  protocol-key: bjoiPMq9KY38ug6fwYKLIz/uPegBrghszVphlEHbX4c=
   network-key: lMg+5fuSD/E65lxbk6bqB1QWPuVsxGAUIQWHEmSKJWg=
   gas-price: 1000
   commission-rate: 200
   network-address: /ip4/127.0.0.1/tcp/38189/http
   p2p-address: /ip4/127.0.0.1/udp/34523
-  narwhal-primary-address: /ip4/127.0.0.1/udp/38603
-  narwhal-worker-address: /ip4/127.0.0.1/udp/36603
+  primary-address: /ip4/127.0.0.1/udp/38603
   description: validator0
   image-url: https://www.iota.org/favicon.png
   project-url: https://www.iota.org
@@ -128,15 +126,26 @@ validator1     0xba55e3ce221bb7edfbbef4d59b68893f5550b6302a9456b738ad8cf06919be0
 
 </details>
 
-### Add Token Allocation
+### Initialize the Token Distribution Schedule
 
-This command allocates tokens to a given address for the genesis transaction, 
-and can be used to provide tokens to the faucet address.
+Set the initial token distribution schedule through a `.csv` file:
+
+```csv
+recipient-address,amount-nanos,staked-with-validator,staked-with-timelock-expiration
+<faucet-address>,1500000000000000,,
+<validator-1-address>,1500000000000000,<validator-1-address>,
+<validator-2-address>,1500000000000000,<validator-2-address>,
+```
+
+This is useful for allocating funds for a faucet, or for distributing the initial
+stake to validators.
+
+The resulting distribution schedule is amended only if any migration sources are
+passed in the [Build the Unsigned Checkpoint](#build-the-unsigned-checkpoint) step.
 
 ```shell
-iota genesis-ceremony add-token-allocation \
-    --recipient-address 0x923f43e0d325cd298c28a148858bb755921cfb032deeb0d2fb7772d6b4b168e0 \
-    --amount-nanos 1500000000000000
+$ iota genesis-ceremony init-token-distribution-schedule \
+    --token-allocations-path <path-to-token-allocations-csv-file>
 ```
 
 ### Validate the Genesis State
@@ -155,7 +164,7 @@ iota genesis-ceremony build-unsigned-checkpoint
 
 ### Examine the Genesis Checkpoint
 
-This command opens the Genesis Inspector, a responsive command-line tool which allows viewing various 
+This command opens the Genesis Inspector, a responsive command-line tool which allows viewing various
 attributes of the current built checkpoint.
 
 ```shell

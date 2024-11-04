@@ -1,6 +1,6 @@
 [package]
 name = "iota-genesis-common"
-version = "0.0.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -10,8 +10,10 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 prometheus.workspace = true
 
+# internal dependencies
 iota-execution.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true

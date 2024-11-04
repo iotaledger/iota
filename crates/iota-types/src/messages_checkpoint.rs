@@ -49,17 +49,6 @@ use iota_metrics::histogram::Histogram;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointRequest {
     /// if a sequence number is specified, return the checkpoint with that
-    /// sequence number; otherwise if None returns the latest authenticated
-    /// checkpoint stored.
-    pub sequence_number: Option<CheckpointSequenceNumber>,
-    // A flag, if true also return the contents of the
-    // checkpoint besides the meta-data.
-    pub request_content: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CheckpointRequestV2 {
-    /// if a sequence number is specified, return the checkpoint with that
     /// sequence number; otherwise if None returns the latest checkpoint
     /// stored (authenticated or pending, depending on the value of
     /// `certified` flag)
@@ -90,13 +79,6 @@ impl CheckpointSummaryResponse {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointResponse {
-    pub checkpoint: Option<CertifiedCheckpointSummary>,
-    pub contents: Option<CheckpointContents>,
-}
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CheckpointResponseV2 {
     pub checkpoint: Option<CheckpointSummaryResponse>,
     pub contents: Option<CheckpointContents>,
 }
@@ -442,13 +424,10 @@ pub struct CheckpointContentsV1 {
 }
 
 impl CheckpointContents {
-    pub fn new_with_digests_and_signatures<T>(
-        contents: T,
+    pub fn new_with_digests_and_signatures(
+        contents: impl IntoIterator<Item = ExecutionDigests>,
         user_signatures: Vec<Vec<GenericSignature>>,
-    ) -> Self
-    where
-        T: IntoIterator<Item = ExecutionDigests>,
-    {
+    ) -> Self {
         let transactions: Vec<_> = contents.into_iter().collect();
         assert_eq!(transactions.len(), user_signatures.len());
         Self::V1(CheckpointContentsV1 {
@@ -458,10 +437,9 @@ impl CheckpointContents {
         })
     }
 
-    pub fn new_with_causally_ordered_execution_data<'a, T>(contents: T) -> Self
-    where
-        T: IntoIterator<Item = &'a VerifiedExecutionData>,
-    {
+    pub fn new_with_causally_ordered_execution_data<'a>(
+        contents: impl IntoIterator<Item = &'a VerifiedExecutionData>,
+    ) -> Self {
         let (transactions, user_signatures): (Vec<_>, Vec<_>) = contents
             .into_iter()
             .map(|data| {
@@ -480,10 +458,9 @@ impl CheckpointContents {
     }
 
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn new_with_digests_only_for_tests<T>(contents: T) -> Self
-    where
-        T: IntoIterator<Item = ExecutionDigests>,
-    {
+    pub fn new_with_digests_only_for_tests(
+        contents: impl IntoIterator<Item = ExecutionDigests>,
+    ) -> Self {
         let transactions: Vec<_> = contents.into_iter().collect();
         let user_signatures = transactions.iter().map(|_| vec![]).collect();
         Self::V1(CheckpointContentsV1 {
@@ -969,14 +946,14 @@ mod tests {
         // First, tests that same consensus commit digest will produce the same
         // checkpoint content.
         {
-            let t1 = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            let t1 = VerifiedTransaction::new_consensus_commit_prologue_v1(
                 1,
                 2,
                 100,
                 ConsensusCommitDigest::default(),
                 Vec::new(),
             );
-            let t2 = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            let t2 = VerifiedTransaction::new_consensus_commit_prologue_v1(
                 1,
                 2,
                 100,
@@ -991,14 +968,14 @@ mod tests {
         // Next, tests that different consensus commit digests will produce the
         // different checkpoint contents.
         {
-            let t1 = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            let t1 = VerifiedTransaction::new_consensus_commit_prologue_v1(
                 1,
                 2,
                 100,
                 ConsensusCommitDigest::default(),
                 Vec::new(),
             );
-            let t2 = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            let t2 = VerifiedTransaction::new_consensus_commit_prologue_v1(
                 1,
                 2,
                 100,

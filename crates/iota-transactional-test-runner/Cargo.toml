@@ -1,6 +1,6 @@
 [package]
 name = "iota-transactional-test-runner"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -11,6 +11,7 @@ description = "Move framework for Iota platform"
 workspace = true
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
@@ -25,13 +26,10 @@ rand.workspace = true
 regex.workspace = true
 rocksdb.workspace = true
 serde_json.workspace = true
-simulacrum.workspace = true
-telemetry-subscribers.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
-typed-store.workspace = true
-typed-store-derive.workspace = true
 
+# internal dependencies
 iota-config.workspace = true
 iota-core = { workspace = true, features = ["test-utils"] }
 iota-framework.workspace = true
@@ -54,6 +52,10 @@ move-stdlib = { path = "../../external-crates/move/crates/move-stdlib" }
 move-symbol-pool.workspace = true
 move-transactional-test-runner = { path = "../../external-crates/move/crates/move-transactional-test-runner" }
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
+simulacrum.workspace = true
+telemetry-subscribers.workspace = true
+typed-store.workspace = true
+typed-store-derive.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 msim.workspace = true

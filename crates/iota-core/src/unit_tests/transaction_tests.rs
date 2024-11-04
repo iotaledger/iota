@@ -22,11 +22,11 @@ use iota_types::{
     error::{IotaError, UserInputError},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     messages_consensus::ConsensusDeterminedVersionAssignments,
-    messages_grpc::HandleSoftBundleCertificatesRequestV3,
+    messages_grpc::HandleSoftBundleCertificatesRequestV1,
     multisig::{MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
-        AuthenticatorStateUpdate, GenesisTransaction, TransactionDataAPI, TransactionKind,
+        AuthenticatorStateUpdateV1, GenesisTransaction, TransactionDataAPI, TransactionKind,
     },
     utils::{get_one_zklogin_inputs, load_test_vectors, to_sender_signed_transaction},
     zk_login_authenticator::ZkLoginAuthenticator,
@@ -60,10 +60,8 @@ macro_rules! assert_matches {
 
 use fastcrypto::traits::AggregateAuthenticator;
 use iota_types::{
-    digests::ConsensusCommitDigest,
-    messages_consensus::{
-        ConsensusCommitPrologue, ConsensusCommitPrologueV2, ConsensusCommitPrologueV3,
-    },
+    digests::ConsensusCommitDigest, messages_consensus::ConsensusCommitPrologueV1,
+    messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 
@@ -214,34 +212,9 @@ async fn test_user_sends_genesis_transaction() {
 }
 
 #[tokio::test]
-async fn test_user_sends_consensus_commit_prologue() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologue(
-        ConsensusCommitPrologue {
-            epoch: 0,
-            round: 0,
-            commit_timestamp_ms: 42,
-        },
-    ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_consensus_commit_prologue_v2() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV2(
-        ConsensusCommitPrologueV2 {
-            epoch: 0,
-            round: 0,
-            commit_timestamp_ms: 42,
-            consensus_commit_digest: ConsensusCommitDigest::default(),
-        },
-    ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_consensus_commit_prologue_v3() {
-    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV3(
-        ConsensusCommitPrologueV3 {
+async fn test_user_sends_consensus_commit_prologue_v1() {
+    test_user_sends_system_transaction_impl(TransactionKind::ConsensusCommitPrologueV1(
+        ConsensusCommitPrologueV1 {
             epoch: 0,
             round: 0,
             sub_dag_index: None,
@@ -251,21 +224,6 @@ async fn test_user_sends_consensus_commit_prologue_v3() {
                 ConsensusDeterminedVersionAssignments::CancelledTransactions(Vec::new()),
         },
     ))
-    .await;
-}
-
-#[tokio::test]
-async fn test_user_sends_change_epoch_transaction() {
-    test_user_sends_system_transaction_impl(TransactionKind::ChangeEpoch(ChangeEpoch {
-        epoch: 0,
-        protocol_version: ProtocolVersion::MIN,
-        storage_charge: 0,
-        computation_charge: 0,
-        storage_rebate: 0,
-        non_refundable_storage_fee: 0,
-        epoch_start_timestamp_ms: 0,
-        system_packages: vec![],
-    }))
     .await;
 }
 
@@ -475,13 +433,19 @@ async fn do_transaction_test_impl(
             let ct = CertifiedTransaction::new_from_data_and_sig(plain_tx.into_data(), cert_sig);
 
             let err = client
-                .handle_certificate_v2(ct.clone(), Some(socket_addr))
+                .handle_certificate_v1(
+                    HandleCertificateRequestV1::new(ct.clone()),
+                    Some(socket_addr),
+                )
                 .await
                 .unwrap_err();
             err_check(&err);
             epoch_store.clear_signature_cache();
             let err = client
-                .handle_certificate_v2(ct.clone(), Some(socket_addr))
+                .handle_certificate_v1(
+                    HandleCertificateRequestV1::new(ct.clone()),
+                    Some(socket_addr),
+                )
                 .await
                 .unwrap_err();
             err_check(&err);
@@ -491,8 +455,8 @@ async fn do_transaction_test_impl(
             if ct.contains_shared_object() {
                 epoch_store.clear_signature_cache();
                 let err = client
-                    .handle_soft_bundle_certificates_v3(
-                        HandleSoftBundleCertificatesRequestV3 {
+                    .handle_soft_bundle_certificates_v1(
+                        HandleSoftBundleCertificatesRequestV1 {
                             certificates: vec![ct.clone()],
                             wait_for_effects: true,
                             include_events: false,
@@ -1019,7 +983,7 @@ async fn setup_zklogin_network(
     let gas_object_id = gas_object_ids[0];
     let jwks = parse_jwks(DEFAULT_JWK_BYTES, &OIDCProvider::Twitch)?;
     let epoch_store = authority_state.epoch_store_for_testing();
-    epoch_store.update_authenticator_state(&AuthenticatorStateUpdate {
+    epoch_store.update_authenticator_state(&AuthenticatorStateUpdateV1 {
         epoch: 0,
         round: 0,
         new_active_jwks: jwks
@@ -1196,7 +1160,7 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
     // Initialize an authenticator state with a Google JWK.
     let jwks = parse_jwks(DEFAULT_JWK_BYTES, &OIDCProvider::Google).unwrap();
     let epoch_store = authority_state.epoch_store_for_testing();
-    epoch_store.update_authenticator_state(&AuthenticatorStateUpdate {
+    epoch_store.update_authenticator_state(&AuthenticatorStateUpdateV1 {
         epoch: 0,
         round: 0,
         new_active_jwks: jwks
@@ -1228,7 +1192,7 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
     // Initialize an authenticator state with Twitch's kid as "nosuckkey".
     pub const BAD_JWK_BYTES: &[u8] = r#"{"keys":[{"alg":"RS256","e":"AQAB","kid":"nosuchkey","kty":"RSA","n":"6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw","use":"sig"}]}"#.as_bytes();
     let jwks = parse_jwks(BAD_JWK_BYTES, &OIDCProvider::Twitch).unwrap();
-    epoch_store.update_authenticator_state(&AuthenticatorStateUpdate {
+    epoch_store.update_authenticator_state(&AuthenticatorStateUpdateV1 {
         epoch: 0,
         round: 0,
         new_active_jwks: jwks
@@ -1273,7 +1237,7 @@ async fn test_zklogin_multisig() {
 
     let jwks = parse_jwks(DEFAULT_JWK_BYTES, &OIDCProvider::Twitch).unwrap();
     let epoch_store = authority_state.epoch_store_for_testing();
-    epoch_store.update_authenticator_state(&AuthenticatorStateUpdate {
+    epoch_store.update_authenticator_state(&AuthenticatorStateUpdateV1 {
         epoch: 0,
         round: 0,
         new_active_jwks: jwks
@@ -1488,7 +1452,9 @@ async fn test_very_large_certificate() {
         quorum_signature,
     );
 
-    let res = client.handle_certificate_v2(cert, Some(socket_addr)).await;
+    let res = client
+        .handle_certificate_v1(HandleCertificateRequestV1::new(cert), Some(socket_addr))
+        .await;
     assert!(res.is_err());
     let err = res.err().unwrap();
     // The resulting error should be a RpcError with a message length too large.
@@ -1558,7 +1524,10 @@ async fn test_handle_certificate_errors() {
     let socket_addr = make_socket_addr();
 
     let err = client
-        .handle_certificate_v2(ct.clone(), Some(socket_addr))
+        .handle_certificate_v1(
+            HandleCertificateRequestV1::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
     assert_matches!(err, IotaError::WrongEpoch {
@@ -1576,7 +1545,13 @@ async fn test_handle_certificate_errors() {
 
     let committee = epoch_store.committee().deref().clone();
 
-    let tx = VerifiedTransaction::new_consensus_commit_prologue(0, 0, 42);
+    let tx = VerifiedTransaction::new_consensus_commit_prologue_v1(
+        0,
+        0,
+        42,
+        ConsensusCommitDigest::default(),
+        Vec::new(),
+    );
     let ct = CertifiedTransaction::new(
         tx.data().clone(),
         vec![signed_transaction.auth_sig().clone()],
@@ -1585,7 +1560,10 @@ async fn test_handle_certificate_errors() {
     .unwrap();
 
     let err = client
-        .handle_certificate_v2(ct.clone(), Some(socket_addr))
+        .handle_certificate_v1(
+            HandleCertificateRequestV1::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
 
@@ -1606,7 +1584,10 @@ async fn test_handle_certificate_errors() {
     )
     .unwrap();
     let err = client
-        .handle_certificate_v2(ct.clone(), Some(socket_addr))
+        .handle_certificate_v1(
+            HandleCertificateRequestV1::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
 
@@ -1628,7 +1609,10 @@ async fn test_handle_certificate_errors() {
     .unwrap();
 
     let err = client
-        .handle_certificate_v2(ct.clone(), Some(socket_addr))
+        .handle_certificate_v1(
+            HandleCertificateRequestV1::new(ct.clone()),
+            Some(socket_addr),
+        )
         .await
         .unwrap_err();
 
@@ -1641,7 +1625,6 @@ async fn test_handle_soft_bundle_certificates() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_soft_bundle_for_testing(true);
     protocol_config.set_max_soft_bundle_size_for_testing(10);
 
     let authority = TestAuthorityBuilder::new()
@@ -1760,8 +1743,8 @@ async fn test_handle_soft_bundle_certificates() {
         certificates.push(cert.into());
     }
     let responses = client
-        .handle_soft_bundle_certificates_v3(
-            HandleSoftBundleCertificatesRequestV3 {
+        .handle_soft_bundle_certificates_v1(
+            HandleSoftBundleCertificatesRequestV1 {
                 certificates,
                 wait_for_effects: true,
                 include_events: false,
@@ -1813,7 +1796,6 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_soft_bundle_for_testing(true);
     protocol_config.set_max_soft_bundle_size_for_testing(3);
     let authority = TestAuthorityBuilder::new()
         .with_reference_gas_price(1000)
@@ -1888,8 +1870,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
     // Case 0: submit an empty soft bundle.
     {
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates: vec![],
                     wait_for_effects: true,
                     include_events: false,
@@ -1903,7 +1885,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::NoCertificateProvidedError { .. }
+            IotaError::NoCertificateProvided { .. }
         );
     }
 
@@ -1936,8 +1918,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
             certificates.push(signed_tx_into_certificate(signed).await.into());
         }
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates,
                     wait_for_effects: true,
                     include_events: false,
@@ -1979,8 +1961,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
         );
         let signed = to_sender_signed_transaction(data, &senders[5].1);
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates: vec![signed_tx_into_certificate(signed).await.into()],
                     wait_for_effects: true,
                     include_events: false,
@@ -1993,7 +1975,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::NoSharedObjectError { .. },
+            error: UserInputError::NoSharedObject { .. },
         });
     }
 
@@ -2063,8 +2045,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
             signed_tx_into_certificate(signed).await
         };
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates: vec![cert0.into(), cert1.into()],
                     wait_for_effects: true,
                     include_events: false,
@@ -2077,7 +2059,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::GasPriceMismatchError { .. },
+            error: UserInputError::GasPriceMismatch { .. },
         });
     }
 
@@ -2149,8 +2131,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
         send_batch_consensus_no_execution(&authority, &vec![cert0.clone(), cert1.clone()], true)
             .await;
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates: vec![cert0.into(), cert1.into()],
                     wait_for_effects: true,
                     include_events: false,
@@ -2163,7 +2145,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await;
         assert!(response.is_err());
         assert_matches!(response.unwrap_err(), IotaError::UserInput {
-            error: UserInputError::CeritificateAlreadyProcessed { .. },
+            error: UserInputError::CertificateAlreadyProcessed { .. },
         });
     }
 }

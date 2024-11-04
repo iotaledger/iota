@@ -712,7 +712,6 @@ impl TransactionBuilder {
         dep_ids: Vec<ObjectID>,
         upgrade_capability: ObjectID,
         upgrade_policy: u8,
-        digest: Vec<u8>,
         gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -731,6 +730,8 @@ impl TransactionBuilder {
         let cap_owner = upgrade_cap
             .owner
             .ok_or_else(|| anyhow!("Unable to determine ownership of upgrade capability"))?;
+        let digest =
+            MovePackage::compute_digest_for_modules_and_deps(&compiled_modules, &dep_ids).to_vec();
         TransactionData::new_upgrade(
             sender,
             gas,
@@ -888,8 +889,8 @@ impl TransactionBuilder {
         let coin: Object = coin.try_into()?;
         let type_arguments = vec![coin.get_move_template_type()?];
         let package = IOTA_FRAMEWORK_PACKAGE_ID;
-        let module = coin::PAY_MODULE_NAME.to_owned();
-        let function = coin::PAY_JOIN_FUNC_NAME.to_owned();
+        let module = coin::COIN_MODULE_NAME.to_owned();
+        let function = coin::COIN_JOIN_FUNC_NAME.to_owned();
         let arguments = vec![
             CallArg::Object(ObjectArg::ImmOrOwnedObject(primary_coin_ref)),
             CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_to_merge_ref)),
@@ -935,8 +936,8 @@ impl TransactionBuilder {
         TransactionData::new_move_call(
             signer,
             IOTA_FRAMEWORK_PACKAGE_ID,
-            coin::PAY_MODULE_NAME.to_owned(),
-            coin::PAY_JOIN_FUNC_NAME.to_owned(),
+            coin::COIN_MODULE_NAME.to_owned(),
+            coin::COIN_JOIN_FUNC_NAME.to_owned(),
             type_args,
             gas,
             vec![

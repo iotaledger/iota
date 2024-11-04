@@ -1,21 +1,22 @@
 [package]
 name = "iota-transaction-builder"
-version = "0.0.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
 futures.workspace = true
 
+# internal dependencies
 iota-json.workspace = true
 iota-json-rpc-types.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
-
 move-core-types.workspace = true

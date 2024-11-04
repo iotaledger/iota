@@ -797,7 +797,9 @@ export const RPC_METHODS: {
             epochStartTimestampMs: String(new Date(systemState.startTimestamp).getTime()),
             inactivePoolsSize: String(systemState.validatorSet?.inactivePoolsSize),
             iotaTotalSupply: String(systemState.iotaTotalSupply),
+            iotaTreasuryCapId: String(systemState.iotaTreasuryCapId),
             maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
+            minValidatorCount: String(systemState.systemParameters?.minValidatorCount),
             minValidatorJoiningStake: String(
                 systemState.systemParameters?.minValidatorJoiningStake,
             ),
@@ -1234,7 +1236,7 @@ export const RPC_METHODS: {
         return {
             epoch: epochId.toString(),
             validators: validatorSet?.activeValidators?.nodes.map((val) => [
-                val.credentials?.protocolPubKey!,
+                val.credentials?.authorityPubKey!,
                 String(val.votingPower),
             ])!,
         };
@@ -1342,7 +1344,6 @@ export const RPC_METHODS: {
         const attributes: Record<string, ProtocolConfigValue | null> = {};
 
         const configTypeMap: Record<string, string> = {
-            max_accumulated_txn_cost_per_object_in_narwhal_commit: 'u64',
             max_arguments: 'u32',
             max_gas_payment_objects: 'u32',
             max_modules_in_publish: 'u32',

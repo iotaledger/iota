@@ -56,7 +56,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{
-        ProtocolVersionsConfig, StateAccumulatorV2EnabledCallback, StateAccumulatorV2EnabledConfig,
+        ProtocolVersionsConfig, StateAccumulatorEnabledCallback, StateAccumulatorV1EnabledConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
@@ -79,6 +79,7 @@ use iota_types::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     message_envelope::Message,
+    messages_grpc::HandleCertificateRequestV1,
     object::Object,
     quorum_driver_types::ExecuteTransactionRequestType,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -373,7 +374,7 @@ impl TestCluster {
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire
     /// network to reach the next epoch. This requires waiting for both the
     /// fullnode and all validators to reach the next epoch.
-    pub async fn trigger_reconfiguration(&self) {
+    pub async fn force_new_epoch(&self) {
         info!("Starting reconfiguration");
         let start = Instant::now();
 
@@ -553,7 +554,7 @@ impl TestCluster {
             return;
         }
         // wait for next epoch
-        self.trigger_reconfiguration().await;
+        self.force_new_epoch().await;
         bridge = get_bridge(self.fullnode_handle.iota_node.state().get_object_store()).unwrap();
         // Committee should be initiated
         assert!(bridge.committee().member_registrations.contents.is_empty());
@@ -612,7 +613,7 @@ impl TestCluster {
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
-                            TransactionKind::AuthenticatorStateUpdate(_) => break,
+                            TransactionKind::AuthenticatorStateUpdateV1(_) => break,
                             _ => panic!("{:?}", tx),
                         }
                     }
@@ -755,7 +756,14 @@ impl TestCluster {
                 })
                 .map(|client| {
                     let cert = certificate.clone();
-                    async move { client.handle_certificate_v2(cert, None).await }
+                    async move {
+                        client
+                            .handle_certificate_v1(
+                                HandleCertificateRequestV1::new(cert).with_events(),
+                                None,
+                            )
+                            .await
+                    }
                 })
                 .collect();
 
@@ -778,9 +786,9 @@ impl TestCluster {
         let mut all_events = HashMap::new();
         for reply in replies {
             let effects = reply.signed_effects.into_data();
+            let events = reply.events.unwrap_or_default();
             all_effects.insert(effects.digest(), effects);
-            all_events.insert(reply.events.digest(), reply.events);
-            // reply.fastpath_input_objects is unused.
+            all_events.insert(events.digest(), events);
         }
         assert_eq!(all_effects.len(), 1);
         assert_eq!(all_events.len(), 1);
@@ -1039,7 +1047,7 @@ pub struct TestClusterBuilder {
 
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig,
+    validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
 }
 
 impl TestClusterBuilder {
@@ -1067,9 +1075,7 @@ impl TestClusterBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig::Global(
-                true,
-            ),
+            validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
         }
     }
 
@@ -1190,12 +1196,12 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_callback(
+    pub fn with_state_accumulator_callback(
         mut self,
-        func: StateAccumulatorV2EnabledCallback,
+        func: StateAccumulatorEnabledCallback,
     ) -> Self {
-        self.validator_state_accumulator_v2_enabled_config =
-            StateAccumulatorV2EnabledConfig::PerValidator(func);
+        self.validator_state_accumulator_config =
+            StateAccumulatorV1EnabledConfig::PerValidator(func);
         self
     }
 
@@ -1519,9 +1525,7 @@ impl TestClusterBuilder {
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
-            .with_state_accumulator_v2_enabled_config(
-                self.validator_state_accumulator_v2_enabled_config.clone(),
-            )
+            .with_state_accumulator_config(self.validator_state_accumulator_config.clone())
             .with_fullnode_count(1)
             .with_fullnode_supported_protocol_versions_config(
                 self.fullnode_supported_protocol_versions_config

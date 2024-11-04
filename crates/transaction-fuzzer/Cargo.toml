@@ -1,6 +1,6 @@
 [package]
 name = "transaction-fuzzer"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -11,7 +11,7 @@ description = "Tool to fuzz the system with randomly generated transactions"
 workspace = true
 
 [dependencies]
-move-core-types.workspace = true
+# external dependencies
 once_cell.workspace = true
 proptest.workspace = true
 proptest-derive.workspace = true
@@ -19,10 +19,12 @@ rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 
+# internal dependencies
 iota-core = { workspace = true, features = ["test-utils"] }
 iota-move-build.workspace = true
 iota-protocol-config.workspace = true
 iota-types = { workspace = true, features = ["fuzzing"] }
+move-core-types.workspace = true
 
 [dev-dependencies]
 iota-types = { workspace = true, features = ["test-utils"] }

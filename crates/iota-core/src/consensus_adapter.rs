@@ -13,8 +13,7 @@ use std::{
     time::Instant,
 };
 
-use arc_swap::{ArcSwap, ArcSwapOption};
-use bytes::Bytes;
+use arc_swap::ArcSwap;
 use dashmap::{DashMap, try_result::TryResult};
 use futures::{
     FutureExt,
@@ -22,8 +21,7 @@ use futures::{
     pin_mut,
 };
 use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, spawn_monitored_task};
-use iota_protocol_config::ProtocolConfig;
-use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
+use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
     committee::Committee,
@@ -32,7 +30,6 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
 use itertools::Itertools;
-use narwhal_types::{TransactionProto, TransactionsClient};
 use parking_lot::RwLockReadGuard;
 use prometheus::{
     Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
@@ -40,7 +37,6 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
 };
-use tap::prelude::*;
 use tokio::{
     sync::{Semaphore, SemaphorePermit},
     task::JoinHandle,
@@ -50,8 +46,8 @@ use tracing::{debug, info, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    connection_monitor::ConnectionStatus,
     consensus_handler::{SequencedConsensusTransactionKey, classify},
-    consensus_throughput_calculator::{ConsensusThroughputProfiler, Level},
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
     metrics::LatencyObserver,
 };
@@ -190,35 +186,6 @@ pub trait SubmitToConsensus: Sync + Send + 'static {
     ) -> IotaResult;
 }
 
-#[async_trait::async_trait]
-impl SubmitToConsensus for TransactionsClient<iota_network::tonic::transport::Channel> {
-    async fn submit_to_consensus(
-        &self,
-        transactions: &[ConsensusTransaction],
-        _epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
-        let transactions_bytes = transactions
-            .iter()
-            .map(|t| {
-                let serialized =
-                    bcs::to_bytes(t).expect("Serializing consensus transaction cannot fail");
-                Bytes::from(serialized)
-            })
-            .collect::<Vec<_>>();
-        self.clone()
-            .submit_transaction(TransactionProto {
-                transactions: transactions_bytes,
-            })
-            .await
-            .map_err(|e| IotaError::ConsensusConnectionBroken(format!("{:?}", e)))
-            .tap_err(|r| {
-                // Will be logged by caller as well.
-                warn!("Submit transaction failed with: {:?}", r);
-            })?;
-        Ok(())
-    }
-}
-
 /// Submit Iota certificates to the consensus.
 pub struct ConsensusAdapter {
     /// The network client connecting to the consensus node of this authority.
@@ -241,15 +208,11 @@ pub struct ConsensusAdapter {
     connection_monitor_status: Arc<dyn CheckConnection>,
     /// A structure to check the reputation scores populated by Consensus
     low_scoring_authorities: ArcSwap<Arc<ArcSwap<HashMap<AuthorityName, u64>>>>,
-    /// The throughput profiler to be used when making decisions to submit to
-    /// consensus
-    consensus_throughput_profiler: ArcSwapOption<ConsensusThroughputProfiler>,
     /// A structure to register metrics
     metrics: ConsensusAdapterMetrics,
-    /// Semaphore limiting parallel submissions to narwhal
+    /// Semaphore limiting parallel submissions to consensus
     submit_semaphore: Semaphore,
     latency_observer: LatencyObserver,
-    protocol_config: ProtocolConfig,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -281,7 +244,6 @@ impl ConsensusAdapter {
         max_submit_position: Option<usize>,
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
-        protocol_config: ProtocolConfig,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -298,8 +260,6 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
-            consensus_throughput_profiler: ArcSwapOption::empty(),
-            protocol_config,
         }
     }
 
@@ -310,15 +270,12 @@ impl ConsensusAdapter {
         self.low_scoring_authorities.swap(Arc::new(new_low_scoring));
     }
 
-    pub fn swap_throughput_profiler(&self, profiler: Arc<ConsensusThroughputProfiler>) {
-        self.consensus_throughput_profiler.store(Some(profiler))
-    }
-
-    // todo - this probably need to hold some kind of lock to make sure epoch does
+    // TODO - this probably need to hold some kind of lock to make sure epoch does
     // not change while we are recovering
     pub fn submit_recovered(self: &Arc<Self>, epoch_store: &Arc<AuthorityPerEpochStore>) {
-        // Currently narwhal worker might lose transactions on restart, so we need to
-        // resend them todo - get_all_pending_consensus_transactions is called
+        // Currently consensus worker might lose transactions on restart, so we need to
+        // resend them.
+        // TODO: get_all_pending_consensus_transactions is called
         // twice when initializing AuthorityPerEpochStore and here, should not
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
@@ -404,7 +361,6 @@ impl ConsensusAdapter {
         let latency = std::cmp::max(latency, MIN_LATENCY);
         let latency = std::cmp::min(latency, MAX_LATENCY);
         let latency = latency * 2;
-        let latency = self.override_by_throughput_profiler(position, latency);
         let (delay_step, position) =
             self.override_by_max_submit_position_settings(latency, position);
 
@@ -418,42 +374,6 @@ impl ConsensusAdapter {
             positions_moved,
             preceding_disconnected,
         )
-    }
-
-    // According to the throughput profile we want to either allow some transaction
-    // duplication or not) When throughput profile is Low and the validator is
-    // in position = 1, then it will submit to consensus with much lower latency.
-    // When throughput profile is High then we go back to default operation and
-    // no-one co-submits.
-    fn override_by_throughput_profiler(&self, position: usize, latency: Duration) -> Duration {
-        const LOW_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS: u64 = 0;
-        const MEDIUM_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS: u64 = 2_500;
-        const HIGH_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS: u64 = 3_500;
-
-        let p = self.consensus_throughput_profiler.load();
-
-        if let Some(profiler) = p.as_ref() {
-            let (level, _) = profiler.throughput_level();
-
-            // we only run this for the position = 1 validator to co-submit with the
-            // validator of position = 0. We also enable this only when the
-            // feature is enabled on the protocol config.
-            if self.protocol_config.throughput_aware_consensus_submission() && position == 1 {
-                return match level {
-                    Level::Low => Duration::from_millis(LOW_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS),
-                    Level::Medium => {
-                        Duration::from_millis(MEDIUM_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS)
-                    }
-                    Level::High => {
-                        let l = Duration::from_millis(HIGH_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS);
-
-                        // back off according to recorded latency if it's significantly higher
-                        if latency >= 2 * l { latency } else { l }
-                    }
-                };
-            }
-        }
-        latency
     }
 
     /// Overrides the latency and the position if there are defined settings for
@@ -662,9 +582,9 @@ impl ConsensusAdapter {
         // In addition to that, within_alive_epoch ensures that all pending consensus
         // adapter tasks are stopped before reconfiguration can proceed.
         //
-        // This is essential because narwhal workers reuse same ports when narwhal
+        // This is essential because consensus workers reuse same ports when consensus
         // restarts, this means we might be sending transactions from previous
-        // epochs to narwhal of new epoch if we have not had this barrier.
+        // epochs to consensus of new epoch if we have not had this barrier.
         epoch_store
             .within_alive_epoch(self.submit_and_wait_inner(transactions, &epoch_store))
             .await
@@ -739,8 +659,7 @@ impl ConsensusAdapter {
             && matches!(
                 transactions[0].kind,
                 ConsensusTransactionKind::EndOfPublish(_)
-                    | ConsensusTransactionKind::CapabilityNotification(_)
-                    | ConsensusTransactionKind::CapabilityNotificationV2(_)
+                    | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
             ) {
@@ -1179,7 +1098,6 @@ mod adapter_tests {
             Some(1),
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
         );
 
         // transaction to submit
@@ -1209,7 +1127,6 @@ mod adapter_tests {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
         );
 
         let (delay_step, position, positions_moved, _) =

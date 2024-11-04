@@ -96,6 +96,12 @@ pub struct IotaSystemStateSummary {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub epoch_duration_ms: u64,
 
+    /// Minimum number of active validators at any moment.
+    /// We do not allow the number of validators in any epoch to go under this.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub min_validator_count: u64,
+
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
     #[schemars(with = "BigInt<u64>")]
@@ -183,16 +189,14 @@ impl IotaSystemStateSummary {
             .active_validators
             .iter()
             .map(|validator| {
-                let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
+                let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes).unwrap();
                 (
                     name,
                     (validator.voting_power, NetworkMetadata {
                         network_address: Multiaddr::try_from(validator.net_address.clone())
                             .unwrap(),
-                        narwhal_primary_address: Multiaddr::try_from(
-                            validator.primary_address.clone(),
-                        )
-                        .unwrap(),
+                        primary_address: Multiaddr::try_from(validator.primary_address.clone())
+                            .unwrap(),
                     }),
                 )
             })
@@ -212,13 +216,13 @@ pub struct IotaValidatorSummary {
     pub iota_address: IotaAddress,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub protocol_pubkey_bytes: Vec<u8>,
+    pub authority_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
     pub network_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
-    pub worker_pubkey_bytes: Vec<u8>,
+    pub protocol_pubkey_bytes: Vec<u8>,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
     pub proof_of_possession_bytes: Vec<u8>,
@@ -229,10 +233,9 @@ pub struct IotaValidatorSummary {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub worker_address: String,
     #[schemars(with = "Option<Base64>")]
     #[serde_as(as = "Option<Base64>")]
-    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_authority_pubkey_bytes: Option<Vec<u8>>,
     #[schemars(with = "Option<Base64>")]
     #[serde_as(as = "Option<Base64>")]
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
@@ -241,11 +244,10 @@ pub struct IotaValidatorSummary {
     pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
     #[schemars(with = "Option<Base64>")]
     #[serde_as(as = "Option<Base64>")]
-    pub next_epoch_worker_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,
     pub next_epoch_primary_address: Option<String>,
-    pub next_epoch_worker_address: Option<String>,
 
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -331,6 +333,7 @@ impl Default for IotaSystemStateSummary {
             safe_mode_non_refundable_storage_fee: 0,
             epoch_start_timestamp_ms: 0,
             epoch_duration_ms: 0,
+            min_validator_count: 0,
             max_validator_count: 0,
             min_validator_joining_stake: 0,
             validator_low_stake_threshold: 0,
@@ -357,9 +360,9 @@ impl Default for IotaValidatorSummary {
     fn default() -> Self {
         Self {
             iota_address: IotaAddress::default(),
-            protocol_pubkey_bytes: vec![],
+            authority_pubkey_bytes: vec![],
             network_pubkey_bytes: vec![],
-            worker_pubkey_bytes: vec![],
+            protocol_pubkey_bytes: vec![],
             proof_of_possession_bytes: vec![],
             name: String::new(),
             description: String::new(),
@@ -368,15 +371,13 @@ impl Default for IotaValidatorSummary {
             net_address: String::new(),
             p2p_address: String::new(),
             primary_address: String::new(),
-            worker_address: String::new(),
-            next_epoch_protocol_pubkey_bytes: None,
+            next_epoch_authority_pubkey_bytes: None,
             next_epoch_proof_of_possession: None,
             next_epoch_network_pubkey_bytes: None,
-            next_epoch_worker_pubkey_bytes: None,
+            next_epoch_protocol_pubkey_bytes: None,
             next_epoch_net_address: None,
             next_epoch_p2p_address: None,
             next_epoch_primary_address: None,
-            next_epoch_worker_address: None,
             voting_power: 0,
             operation_cap_id: ObjectID::ZERO,
             gas_price: 0,

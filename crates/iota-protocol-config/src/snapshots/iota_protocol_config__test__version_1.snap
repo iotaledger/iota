@@ -4,40 +4,13 @@ expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
 version: 1
 feature_flags:
-  disable_invariant_violation_check_in_swap_loc: true
-  advance_to_highest_supported_protocol_version: true
-  no_extraneous_module_bytes: true
   consensus_transaction_ordering: ByGasPrice
-  shared_object_deletion: true
-  loaded_child_object_format: true
-  loaded_child_object_format_type: true
-  random_beacon: true
-  enable_effects_v2: true
-  recompute_has_public_transfer_in_execution: true
-  include_consensus_digest_in_prologue: true
-  hardened_otw_check: true
-  allow_receiving_object_id: true
   enable_poseidon: true
-  enable_coin_deny_list: true
-  enable_group_ops_native_functions: true
   enable_group_ops_native_function_msm: true
-  reject_mutable_random_on_entry_functions: true
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
-  mysticeti_leader_scoring_and_schedule: true
-  reshare_at_same_initial_version: true
-  resolve_abort_locations_to_package_id: true
-  mysticeti_use_committed_subdag_digest: true
   enable_vdf: true
-  record_consensus_determined_version_assignments_in_prologue: true
-  fresh_vm_on_framework_upgrade: true
-  prepend_prologue_tx_in_consensus_commit_in_checkpoints: true
-  mysticeti_num_leaders_per_round: 1
-  soft_bundle: true
-  enable_coin_deny_list_v2: true
   passkey_auth: true
-  authority_capabilities_v2: true
-  rethrow_serialization_type_layout_errors: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -115,7 +88,7 @@ obj_access_cost_read_per_byte: 15
 obj_access_cost_mutate_per_byte: 40
 obj_access_cost_delete_per_byte: 40
 obj_access_cost_verify_per_byte: 200
-gas_model_version: 8
+gas_model_version: 1
 obj_data_cost_refundable: 100
 obj_metadata_cost_non_refundable: 50
 storage_rebate_rate: 10000
@@ -296,7 +269,6 @@ random_beacon_dkg_version: 1
 consensus_max_transaction_size_bytes: 262144
 consensus_max_transactions_in_block_bytes: 524288
 consensus_max_num_transactions_in_block: 512
-max_accumulated_txn_cost_per_object_in_narwhal_commit: 100
 max_deferral_rounds_for_congestion_control: 10
 min_checkpoint_interval_ms: 200
 checkpoint_summary_version_specific_data: 1

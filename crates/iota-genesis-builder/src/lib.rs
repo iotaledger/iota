@@ -62,6 +62,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME},
     stardust::stardust_to_iota_address,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
@@ -193,7 +194,7 @@ impl Builder {
         proof_of_possession: AuthoritySignature,
     ) -> Self {
         self.validators
-            .insert(validator.protocol_key(), GenesisValidatorInfo {
+            .insert(validator.authority_key(), GenesisValidatorInfo {
                 info: validator,
                 proof_of_possession,
             });
@@ -462,9 +463,9 @@ impl Builder {
         } = self.parameters.to_genesis_chain_parameters();
 
         // In non-testing code, genesis type must always be V1.
+        #[allow(clippy::infallible_destructuring_match)]
         let system_state = match unsigned_genesis.iota_system_object() {
             IotaSystemState::V1(inner) => inner,
-            IotaSystemState::V2(_) => unreachable!(),
             #[cfg(msim)]
             _ => {
                 // Types other than V1 used in simtests do not need to be validated.
@@ -480,20 +481,14 @@ impl Builder {
         } else {
             assert!(unsigned_genesis.authenticator_state_object().is_none());
         }
-        assert_eq!(
-            protocol_config.random_beacon(),
-            unsigned_genesis.has_randomness_state_object()
-        );
+        assert!(unsigned_genesis.has_randomness_state_object());
 
         assert_eq!(
             protocol_config.enable_bridge(),
             unsigned_genesis.has_bridge_object()
         );
 
-        assert_eq!(
-            protocol_config.enable_coin_deny_list_v1(),
-            unsigned_genesis.coin_deny_list_state().is_some(),
-        );
+        assert!(unsigned_genesis.has_coin_deny_list_object());
 
         assert_eq!(
             self.validators.len(),
@@ -515,9 +510,9 @@ impl Builder {
                     .is_none()
             );
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
-            assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
+            assert_eq!(validator.info.authority_key(), metadata.iota_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.network_pubkey);
-            assert_eq!(validator.info.worker_key, metadata.worker_pubkey);
+            assert_eq!(validator.info.protocol_key, metadata.protocol_pubkey);
             assert_eq!(
                 validator.proof_of_possession.as_ref().to_vec(),
                 metadata.proof_of_possession_bytes
@@ -528,14 +523,7 @@ impl Builder {
             assert_eq!(validator.info.project_url, metadata.project_url);
             assert_eq!(validator.info.network_address(), &metadata.net_address);
             assert_eq!(validator.info.p2p_address, metadata.p2p_address);
-            assert_eq!(
-                validator.info.narwhal_primary_address,
-                metadata.primary_address
-            );
-            assert_eq!(
-                validator.info.narwhal_worker_address,
-                metadata.worker_address
-            );
+            assert_eq!(validator.info.primary_address, metadata.primary_address);
 
             assert_eq!(validator.info.gas_price, onchain_validator.gas_price);
             assert_eq!(
@@ -789,7 +777,7 @@ impl Builder {
             let path = entry.path();
             let validator_info: GenesisValidatorInfo = serde_yaml::from_slice(&fs::read(path)?)
                 .with_context(|| format!("unable to load validator info for {path}"))?;
-            committee.insert(validator_info.info.protocol_key(), validator_info);
+            committee.insert(validator_info.info.authority_key(), validator_info);
         }
 
         // Load Signatures
@@ -1417,24 +1405,24 @@ pub fn generate_genesis_system_object(
                 vec![],
             )?;
         }
-        if protocol_config.random_beacon() {
-            builder.move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("random").to_owned(),
-                ident_str!("create").to_owned(),
-                vec![],
-                vec![],
-            )?;
-        }
-        if protocol_config.enable_coin_deny_list_v1() {
-            builder.move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                DENY_LIST_MODULE.to_owned(),
-                DENY_LIST_CREATE_FUNC.to_owned(),
-                vec![],
-                vec![],
-            )?;
-        }
+
+        // Create the randomness state_object
+        builder.move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            RANDOMNESS_MODULE_NAME.to_owned(),
+            RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
+            vec![],
+            vec![],
+        )?;
+
+        // Create the deny list
+        builder.move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            DENY_LIST_MODULE.to_owned(),
+            DENY_LIST_CREATE_FUNC.to_owned(),
+            vec![],
+            vec![],
+        )?;
 
         if protocol_config.enable_bridge() {
             let bridge_uid = builder
@@ -1774,27 +1762,26 @@ mod test {
     async fn ceremony() {
         let dir = tempfile::TempDir::new().unwrap();
 
-        let key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-        let worker_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: "0".into(),
-            protocol_key: key.public().into(),
-            worker_key: worker_key.public().clone(),
+            authority_key: authority_key.public().into(),
+            protocol_key: protocol_key.public().clone(),
             account_address: IotaAddress::from(account_key.public()),
             network_key: network_key.public().clone(),
             gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
             commission_rate: DEFAULT_COMMISSION_RATE,
             network_address: local_ip_utils::new_local_tcp_address_for_testing(),
             p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
-            narwhal_primary_address: local_ip_utils::new_local_udp_address_for_testing(),
-            narwhal_worker_address: local_ip_utils::new_local_udp_address_for_testing(),
+            primary_address: local_ip_utils::new_local_udp_address_for_testing(),
             description: String::new(),
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop = generate_proof_of_possession(&key, account_key.public().into());
+        let pop = generate_proof_of_possession(&authority_key, account_key.public().into());
         let mut builder = Builder::new().add_validator(validator, pop);
 
         let genesis = builder.get_or_build_unsigned_genesis();

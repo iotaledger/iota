@@ -6,8 +6,7 @@ use async_graphql::*;
 use iota_types::transaction::TransactionKind as NativeTransactionKind;
 
 use self::{
-    consensus_commit_prologue::ConsensusCommitPrologueTransaction,
-    end_of_epoch::ChangeEpochTransaction, genesis::GenesisTransaction,
+    consensus_commit_prologue::ConsensusCommitPrologueTransaction, genesis::GenesisTransaction,
     randomness_state_update::RandomnessStateUpdateTransaction,
 };
 use crate::types::transaction_block_kind::{
@@ -28,7 +27,6 @@ pub(crate) mod randomness_state_update;
 pub(crate) enum TransactionBlockKind {
     ConsensusCommitPrologue(ConsensusCommitPrologueTransaction),
     Genesis(GenesisTransaction),
-    ChangeEpoch(ChangeEpochTransaction),
     Programmable(ProgrammableTransactionBlock),
     AuthenticatorState(AuthenticatorStateUpdateTransaction),
     Randomness(RandomnessStateUpdateTransaction),
@@ -45,24 +43,17 @@ impl TransactionBlockKind {
                 native: pt,
                 checkpoint_viewed_at,
             }),
-            K::ChangeEpoch(ce) => T::ChangeEpoch(ChangeEpochTransaction {
-                native: ce,
-                checkpoint_viewed_at,
-            }),
             K::Genesis(g) => T::Genesis(GenesisTransaction {
                 native: g,
                 checkpoint_viewed_at,
             }),
-            K::ConsensusCommitPrologue(ccp) => T::ConsensusCommitPrologue(
-                ConsensusCommitPrologueTransaction::from_v1(ccp, checkpoint_viewed_at),
-            ),
-            K::ConsensusCommitPrologueV2(ccp) => T::ConsensusCommitPrologue(
-                ConsensusCommitPrologueTransaction::from_v2(ccp, checkpoint_viewed_at),
-            ),
-            K::ConsensusCommitPrologueV3(ccp) => T::ConsensusCommitPrologue(
-                ConsensusCommitPrologueTransaction::from_v3(ccp, checkpoint_viewed_at),
-            ),
-            K::AuthenticatorStateUpdate(asu) => {
+            K::ConsensusCommitPrologueV1(ccp) => {
+                T::ConsensusCommitPrologue(ConsensusCommitPrologueTransaction {
+                    native: ccp,
+                    checkpoint_viewed_at,
+                })
+            }
+            K::AuthenticatorStateUpdateV1(asu) => {
                 T::AuthenticatorState(AuthenticatorStateUpdateTransaction {
                     native: asu,
                     checkpoint_viewed_at,

@@ -215,7 +215,7 @@ pub enum ToolCommand {
 
         #[arg(
             long = "concise",
-            help = "show concise output - name, protocol key and network address"
+            help = "show concise output - name, authority key and network address"
         )]
         concise: bool,
     },
@@ -639,6 +639,7 @@ impl ToolCommand {
                         .handle_checkpoint(CheckpointRequest {
                             sequence_number,
                             request_content: true,
+                            certified: true,
                         })
                         .await
                         .unwrap();

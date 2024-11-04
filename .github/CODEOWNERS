@@ -15,7 +15,9 @@
 /docker/ @iotaledger/l1-core-infra @iotaledger/core-node @iotaledger/devops-admin
 /crates/iota-json-rpc*/ @iotaledger/l1-core-infra
 /crates/iota-graphql*/ @iotaledger/l1-core-infra
-/crates/iota-indexer/ @iotaledger/l1-core-infra
+/crates/iota-indexer*/ @iotaledger/l1-core-infra
+/crates/iota-data-ingestion*/ @iotaledger/l1-core-infra
+/crates/iota-analytics-indexer/ @iotaledger/l1-core-infra
 
 # core-node team
 /crates/iota-archival/ @iotaledger/core-node
@@ -34,7 +36,6 @@
 
 # core-consensus team
 /consensus/ @iotaledger/core-consensus
-/narwhal/ @iotaledger/core-consensus
 
 # dev-tools team
 /crates/iota/ @iotaledger/dev-tools
@@ -60,21 +61,25 @@ prettier.config.js @iotaledger/boxfish @iotaledger/tooling
 turbo.json @iotaledger/boxfish @iotaledger/tooling
 vercel.json @iotaledger/boxfish @iotaledger/tooling
 
-# Docs are for DevEx to approve upon
+# Docs and examples are for DevEx to approve upon
 /docs/ @iotaledger/devx
+/examples/ @iotaledger/devx
+
 # Override ownership of Boxfish Studio and the tooling team for the following files
 /docs/**/package.json @iotaledger/devx
 /docs/**/vercel.json @iotaledger/devx
 
 # CI Taskforce
-/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
-/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
+/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
+/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
 
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
-/.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
+/.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn
 
 # Scripts
 /scripts/dependency_graphs/ @muXxer
+/scripts/cargo_sort/ @muXxer
+/scripts/generate_files/ @muXxer
 /scripts/codesearch/ @muXxer
 /scripts/slipstream/ @muXxer
 

@@ -5,16 +5,16 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
 import { numberSuffix } from '~/lib/utils';
-import { InfoBox, InfoBoxStyle, InfoBoxType, Select } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
 import { generateTransactionsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/ui-icons';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
@@ -76,27 +76,24 @@ export function TransactionsActivityTable({
                         totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
                         viewAll="/recent"
                         paginationOptions={!disablePagination ? pagination : undefined}
+                        pageSizeSelector={
+                            !disablePagination && (
+                                <Select
+                                    value={limit.toString()}
+                                    options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                        label: `${size} / page`,
+                                        id: size.toString(),
+                                    }))}
+                                    onValueChange={(e) => {
+                                        setLimit(Number(e));
+                                        pagination.onFirst();
+                                    }}
+                                    size={SelectSize.Small}
+                                />
+                            )
+                        }
                     />
                 )}
-
-                <div className="flex justify-between">
-                    <div className="flex items-center space-x-3">
-                        {!disablePagination && (
-                            <Select
-                                value={limit.toString()}
-                                options={[
-                                    { id: '20', label: '20 Per Page' },
-                                    { id: '40', label: '40 Per Page' },
-                                    { id: '60', label: '60 Per Page' },
-                                ]}
-                                onValueChange={(e) => {
-                                    setLimit(Number(e));
-                                    pagination.onFirst();
-                                }}
-                            />
-                        )}
-                    </div>
-                </div>
             </div>
         </div>
     );

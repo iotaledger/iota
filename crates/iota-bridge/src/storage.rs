@@ -44,11 +44,11 @@ impl BridgeOrchestratorTables {
                 actions.iter().map(|a| (a.digest(), a)),
             )
             .map_err(|e| {
-                BridgeError::StorageError(format!("Couldn't insert into pending_actions: {:?}", e))
+                BridgeError::Storage(format!("Couldn't insert into pending_actions: {:?}", e))
             })?;
         batch
             .write()
-            .map_err(|e| BridgeError::StorageError(format!("Couldn't write batch: {:?}", e)))
+            .map_err(|e| BridgeError::Storage(format!("Couldn't write batch: {:?}", e)))
     }
 
     pub(crate) fn remove_pending_actions(
@@ -59,11 +59,11 @@ impl BridgeOrchestratorTables {
         batch
             .delete_batch(&self.pending_actions, actions)
             .map_err(|e| {
-                BridgeError::StorageError(format!("Couldn't delete from pending_actions: {:?}", e))
+                BridgeError::Storage(format!("Couldn't delete from pending_actions: {:?}", e))
             })?;
         batch
             .write()
-            .map_err(|e| BridgeError::StorageError(format!("Couldn't write batch: {:?}", e)))
+            .map_err(|e| BridgeError::Storage(format!("Couldn't write batch: {:?}", e)))
     }
 
     pub(crate) fn update_iota_event_cursor(
@@ -76,14 +76,11 @@ impl BridgeOrchestratorTables {
         batch
             .insert_batch(&self.iota_syncer_cursors, [(module, cursor)])
             .map_err(|e| {
-                BridgeError::StorageError(format!(
-                    "Couldn't insert into iota_syncer_cursors: {:?}",
-                    e
-                ))
+                BridgeError::Storage(format!("Couldn't insert into iota_syncer_cursors: {:?}", e))
             })?;
         batch
             .write()
-            .map_err(|e| BridgeError::StorageError(format!("Couldn't write batch: {:?}", e)))
+            .map_err(|e| BridgeError::Storage(format!("Couldn't write batch: {:?}", e)))
     }
 
     pub(crate) fn update_eth_event_cursor(
@@ -96,14 +93,11 @@ impl BridgeOrchestratorTables {
         batch
             .insert_batch(&self.eth_syncer_cursors, [(contract_address, cursor)])
             .map_err(|e| {
-                BridgeError::StorageError(format!(
-                    "Couldn't insert into eth_syncer_cursors: {:?}",
-                    e
-                ))
+                BridgeError::Storage(format!("Couldn't insert into eth_syncer_cursors: {:?}", e))
             })?;
         batch
             .write()
-            .map_err(|e| BridgeError::StorageError(format!("Couldn't write batch: {:?}", e)))
+            .map_err(|e| BridgeError::Storage(format!("Couldn't write batch: {:?}", e)))
     }
 
     pub fn get_all_pending_actions(&self) -> HashMap<BridgeActionDigest, BridgeAction> {
@@ -116,9 +110,7 @@ impl BridgeOrchestratorTables {
     ) -> BridgeResult<Vec<Option<EventID>>> {
         self.iota_syncer_cursors
             .multi_get(identifiers)
-            .map_err(|e| {
-                BridgeError::StorageError(format!("Couldn't get iota_syncer_cursors: {:?}", e))
-            })
+            .map_err(|e| BridgeError::Storage(format!("Couldn't get iota_syncer_cursors: {:?}", e)))
     }
 
     pub fn get_eth_event_cursors(
@@ -127,9 +119,7 @@ impl BridgeOrchestratorTables {
     ) -> BridgeResult<Vec<Option<u64>>> {
         self.eth_syncer_cursors
             .multi_get(contract_addresses)
-            .map_err(|e| {
-                BridgeError::StorageError(format!("Couldn't get iota_syncer_cursors: {:?}", e))
-            })
+            .map_err(|e| BridgeError::Storage(format!("Couldn't get iota_syncer_cursors: {:?}", e)))
     }
 }
 

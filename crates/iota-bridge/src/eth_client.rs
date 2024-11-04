@@ -79,7 +79,7 @@ where
             .await
             .map_err(BridgeError::from)?
             .ok_or(BridgeError::TxNotFound)?;
-        let receipt_block_num = receipt.block_number.ok_or(BridgeError::ProviderError(
+        let receipt_block_num = receipt.block_number.ok_or(BridgeError::Provider(
             "Provider returns log without block_number".into(),
         ))?;
         // TODO: save the latest finalized block id so we don't have to query it every
@@ -116,10 +116,10 @@ where
             self.provider
                 .request("eth_getBlockByNumber", ("finalized", false))
                 .await;
-        let block = block?.ok_or(BridgeError::TransientProviderError(
+        let block = block?.ok_or(BridgeError::TransientProvider(
             "Provider fails to return last finalized block".into(),
         ))?;
-        let number = block.number.ok_or(BridgeError::TransientProviderError(
+        let number = block.number.ok_or(BridgeError::TransientProvider(
             "Provider returns block without number".into(),
         ))?;
         Ok(number.as_u64())
@@ -153,7 +153,7 @@ where
 
         // Safeguard check that all events are emitted from requested contract address
         if logs.iter().any(|log| log.address != address) {
-            return Err(BridgeError::ProviderError(format!(
+            return Err(BridgeError::Provider(format!(
                 "Provider returns logs from different contract address (expected: {:?}): {:?}",
                 address, logs
             )));
@@ -204,11 +204,11 @@ where
         logs.into_iter().map(
             |log| {
                 if log.address != address {
-                    return Err(BridgeError::ProviderError(format!("Provider returns logs from different contract address (expected: {:?}): {:?}", address, log)));
+                    return Err(BridgeError::Provider(format!("Provider returns logs from different contract address (expected: {:?}): {:?}", address, log)));
                 }
                 Ok(RawEthLog {
-                block_number: log.block_number.ok_or(BridgeError::ProviderError("Provider returns log without block_number".into()))?.as_u64(),
-                tx_hash: log.transaction_hash.ok_or(BridgeError::ProviderError("Provider returns log without transaction_hash".into()))?,
+                block_number: log.block_number.ok_or(BridgeError::Provider("Provider returns log without block_number".into()))?.as_u64(),
+                tx_hash: log.transaction_hash.ok_or(BridgeError::Provider("Provider returns log without transaction_hash".into()))?,
                 log,
             })}
         ).collect::<Result<Vec<_>, _>>()
@@ -221,15 +221,15 @@ where
     async fn get_log_tx_details(&self, log: ethers::types::Log) -> BridgeResult<EthLog> {
         let block_number = log
             .block_number
-            .ok_or(BridgeError::ProviderError(
+            .ok_or(BridgeError::Provider(
                 "Provider returns log without block_number".into(),
             ))?
             .as_u64();
-        let tx_hash = log.transaction_hash.ok_or(BridgeError::ProviderError(
+        let tx_hash = log.transaction_hash.ok_or(BridgeError::Provider(
             "Provider returns log without transaction_hash".into(),
         ))?;
         // This is the log index in the block, rather than transaction.
-        let log_index = log.log_index.ok_or(BridgeError::ProviderError(
+        let log_index = log.log_index.ok_or(BridgeError::Provider(
             "Provider returns log without log_index".into(),
         ))?;
 
@@ -241,16 +241,16 @@ where
             .get_transaction_receipt(tx_hash)
             .await
             .map_err(BridgeError::from)?
-            .ok_or(BridgeError::ProviderError(format!(
+            .ok_or(BridgeError::Provider(format!(
                 "Provide cannot find eth transaction for log: {:?})",
                 log
             )))?;
 
-        let receipt_block_num = receipt.block_number.ok_or(BridgeError::ProviderError(
+        let receipt_block_num = receipt.block_number.ok_or(BridgeError::Provider(
             "Provider returns log without block_number".into(),
         ))?;
         if receipt_block_num.as_u64() != block_number {
-            return Err(BridgeError::ProviderError(format!(
+            return Err(BridgeError::Provider(format!(
                 "Provider returns receipt with different block number from log. Receipt: {:?}, Log: {:?}",
                 receipt, log
             )));
@@ -263,7 +263,7 @@ where
             if receipt_log.log_index == Some(log_index) {
                 // make sure the topics and data match
                 if receipt_log.topics != log.topics || receipt_log.data != log.data {
-                    return Err(BridgeError::ProviderError(format!(
+                    return Err(BridgeError::Provider(format!(
                         "Provider returns receipt with different log from log. Receipt: {:?}, Log: {:?}",
                         receipt, log
                     )));
@@ -271,7 +271,7 @@ where
                 log_index_in_tx = Some(idx);
             }
         }
-        let log_index_in_tx = log_index_in_tx.ok_or(BridgeError::ProviderError(format!(
+        let log_index_in_tx = log_index_in_tx.ok_or(BridgeError::Provider(format!(
             "Couldn't find matching log: {:?} in transaction {}",
             log, tx_hash
         )))?;

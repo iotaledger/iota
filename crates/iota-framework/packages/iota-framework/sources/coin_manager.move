@@ -361,11 +361,11 @@ module iota::coin_manager {
 
     /// Mint `amount` of `Coin` and send it to `recipient`. Invokes `mint()`.
     public fun mint_and_transfer<T>(
-       _: &CoinManagerTreasuryCap<T>,
-       manager: &mut CoinManager<T>, 
-       amount: u64, 
-       recipient: address, 
-       ctx: &mut TxContext
+        _: &CoinManagerTreasuryCap<T>,
+        manager: &mut CoinManager<T>, 
+        amount: u64, 
+        recipient: address, 
+        ctx: &mut TxContext
     ) {
         assert!(total_supply(manager) + amount <= maximum_supply(manager), EMaximumSupplyReached);
         coin::mint_and_transfer(&mut manager.treasury_cap, amount, recipient, ctx)
