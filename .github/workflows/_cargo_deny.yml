@@ -17,16 +17,10 @@ jobs:
     name: cargo deny (bans, licenses, sources)
     runs-on: [self-hosted]
     steps:
-      - uses: taiki-e/install-action@684122deb17127bf60d1d99224e12e8fc0012210 # v2.44.58
-        with:
-          tool: cargo-deny
       - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check bans licenses sources
 
   advisories:
     name: cargo deny (advisories)
     runs-on: [self-hosted]
     steps:
-      - uses: taiki-e/install-action@684122deb17127bf60d1d99224e12e8fc0012210 # v2.44.58
-        with:
-          tool: cargo-deny
       - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check advisories
