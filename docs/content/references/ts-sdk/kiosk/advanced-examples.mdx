@@ -26,7 +26,7 @@ const kioskClient = new KioskClient({
 This example demonstrates how to mint a MyCoin.
 
 ```typescript
-async function mintFren(address: string) {
+async function mintMyCoin(address: string) {
     const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address });
 
     // Choose the first kiosk for simplicity. We could have extra logic here (e.g. let the user choose, pick a personal one, etc).
@@ -57,45 +57,45 @@ async function mintFren(address: string) {
 
 ## Mixing two MyCoins
 
-This example demonstrates how to use the Kiosk SDK to mix two `bullsharks`.
+This example demonstrates how to use the Kiosk SDK to mix two `MyCoins`.
 
 ```typescript
-// We're mixing two frens.
-async function mixFrens(firstFrenObjectId: string, secondFrenObjectId: string, cap: KioskOwnerCap) {
+// We're mixing two coins.
+async function mixMyCoins(firstCoinObjectId: string, secondCoinObjectId: string, cap: KioskOwnerCap) {
     const txb = new TransactionBlock();
     const kioskTx = new KioskTransaction({ transactionBlock: txb, kioskClient, cap });
 
-    // borrow both frens.
-    const [fren1, promise1] = kioskTx.borrow({
-        itemType: bullsharkType,
-        itemId: firstFrenObjectId.
+    // borrow both coins.
+    const [coin1, promise1] = kioskTx.borrow({
+        itemType: myType,
+        itemId: firstCoinObjectId.
     });
 
-    const [fren2, promise2] = kioskTx.borrow({
-        itemType: bullsharkType,
-        itemId: secondFrenObjectId.
+    const [coin2, promise2] = kioskTx.borrow({
+        itemType: myType,
+        itemId: secondCoinObjectId.
     });
 
     // Let's call the mix function. We skip any payment related stuff here.
     txb.moveCall({
         target: `${packageId}::mix_app::mix`,
         arguments: [
-            fren1,
-            fren2,
+            coin1,
+            coin2,
             kioskTx.getKiosk(),
             kioskTx.getKioskCap(),
         ]
-        typeArguments: [bullsharkType],
+        typeArguments: [myType],
     });
 
     kioskTx.return({
-        itemType: bullsharkType,
-        item: fren1,
+        itemType: myType,
+        item: coin1,
         promise: promise1
     })
     .return({
-        itemType: bullsharkType,
-        item: fren2,
+        itemType: myType,
+        item: coin2,
         promise: promise2
     }).finalize();
 
