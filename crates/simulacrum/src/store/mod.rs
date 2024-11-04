@@ -16,7 +16,7 @@ use iota_types::{
         VerifiedCheckpoint,
     },
     object::Object,
-    storage::{BackingStore, ChildObjectResolver, ParentSync},
+    storage::{BackingStore, ChildObjectResolver},
     transaction::{
         InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjectReadResult,
         ReceivingObjects, VerifiedTransaction,
@@ -25,10 +25,7 @@ use iota_types::{
 pub mod in_mem_store;
 
 pub trait SimulatorStore:
-    iota_types::storage::BackingPackageStore
-    + iota_types::storage::ObjectStore
-    + ParentSync
-    + ChildObjectResolver
+    iota_types::storage::BackingPackageStore + iota_types::storage::ObjectStore + ChildObjectResolver
 {
     fn init_with_genesis(&mut self, genesis: &genesis::Genesis) {
         self.insert_checkpoint(genesis.checkpoint());

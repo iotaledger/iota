@@ -15,6 +15,7 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { ImageIconSize } from '../../shared/image-icon';
 
 interface CoinItemProps {
     coinType: string;
@@ -32,7 +33,7 @@ export function CoinItem({ coinType, balance, usd, clickableAction, icon }: Coin
         <Card type={CardType.Default}>
             <CardImage type={ImageType.BgTransparent}>
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
-                    <CoinIcon coinType={coinType} rounded />
+                    <CoinIcon coinType={coinType} rounded size={ImageIconSize.Small} />
                 </div>
             </CardImage>
             <CardBody

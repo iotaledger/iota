@@ -5,14 +5,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use effects_v1::TransactionEffectsV1;
-pub use effects_v2::UnchangedSharedKind;
+pub use effects_v1::UnchangedSharedKind;
 use enum_dispatch::enum_dispatch;
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentScope};
 pub use test_effects_builder::TestEffectsBuilder;
 
-use self::effects_v2::TransactionEffectsV2;
 use crate::{
     base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
@@ -31,8 +30,7 @@ use crate::{
     storage::WriteKind,
 };
 
-mod effects_v1;
-mod effects_v2;
+pub(crate) mod effects_v1;
 mod object_change;
 mod test_effects_builder;
 
@@ -59,7 +57,6 @@ pub const APPROX_SIZE_OF_OWNER: usize = 48;
 #[allow(clippy::large_enum_variant)]
 pub enum TransactionEffects {
     V1(TransactionEffectsV1),
-    V2(TransactionEffectsV2),
 }
 
 impl Message for TransactionEffects {
@@ -74,7 +71,7 @@ impl Message for TransactionEffects {
 // TODO: Get rid of this and use TestEffectsBuilder instead.
 impl Default for TransactionEffects {
     fn default() -> Self {
-        TransactionEffects::V2(Default::default())
+        TransactionEffects::V1(Default::default())
     }
 }
 
@@ -90,44 +87,6 @@ impl TransactionEffects {
         status: ExecutionStatus,
         executed_epoch: EpochId,
         gas_used: GasCostSummary,
-        modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
-        shared_objects: Vec<ObjectRef>,
-        transaction_digest: TransactionDigest,
-        created: Vec<(ObjectRef, Owner)>,
-        mutated: Vec<(ObjectRef, Owner)>,
-        unwrapped: Vec<(ObjectRef, Owner)>,
-        deleted: Vec<ObjectRef>,
-        unwrapped_then_deleted: Vec<ObjectRef>,
-        wrapped: Vec<ObjectRef>,
-        gas_object: (ObjectRef, Owner),
-        events_digest: Option<TransactionEventsDigest>,
-        dependencies: Vec<TransactionDigest>,
-    ) -> Self {
-        Self::V1(TransactionEffectsV1::new(
-            status,
-            executed_epoch,
-            gas_used,
-            modified_at_versions,
-            shared_objects,
-            transaction_digest,
-            created,
-            mutated,
-            unwrapped,
-            deleted,
-            unwrapped_then_deleted,
-            wrapped,
-            gas_object,
-            events_digest,
-            dependencies,
-        ))
-    }
-
-    /// Creates a TransactionEffects message from the results of execution,
-    /// choosing the correct format for the current protocol version.
-    pub fn new_from_execution_v2(
-        status: ExecutionStatus,
-        executed_epoch: EpochId,
-        gas_used: GasCostSummary,
         shared_objects: Vec<SharedInput>,
         loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
         transaction_digest: TransactionDigest,
@@ -137,7 +96,7 @@ impl TransactionEffects {
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
     ) -> Self {
-        Self::V2(TransactionEffectsV2::new(
+        Self::V1(TransactionEffectsV1::new(
             status,
             executed_epoch,
             gas_used,
@@ -160,30 +119,6 @@ impl TransactionEffects {
     }
 
     pub fn estimate_effects_size_upperbound_v1(
-        num_writes: usize,
-        num_mutables: usize,
-        num_deletes: usize,
-        num_deps: usize,
-    ) -> usize {
-        let fixed_sizes = APPROX_SIZE_OF_EXECUTION_STATUS
-            + APPROX_SIZE_OF_EPOCH_ID
-            + APPROX_SIZE_OF_GAS_COST_SUMMARY
-            + APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST;
-
-        // Each write or delete contributes at roughly this amount because:
-        // Each write can be a mutation which can show up in `mutated` and
-        // `modified_at_versions` `num_delete` is added for padding
-        let approx_change_entry_size = 1_000
-            + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_writes
-            + (APPROX_SIZE_OF_OBJECT_REF * num_mutables)
-            + (APPROX_SIZE_OF_OBJECT_REF * num_deletes);
-
-        let deps_size = 1_000 + APPROX_SIZE_OF_TX_DIGEST * num_deps;
-
-        fixed_sizes + approx_change_entry_size + deps_size
-    }
-
-    pub fn estimate_effects_size_upperbound_v2(
         num_writes: usize,
         num_modifies: usize,
         num_deps: usize,
@@ -317,7 +252,7 @@ pub trait TransactionEffectsAPI {
     /// Metadata of objects prior to modification. This includes any object that
     /// exists in the store prior to this transaction and is modified in
     /// this transaction. It includes objects that are mutated, wrapped and
-    /// deleted. This API is only available on effects v2 and above.
+    /// deleted.
     fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)>;
     /// Returns the list of sequenced shared objects used in the input.
     /// This is needed in effects because in transaction we only have object ID

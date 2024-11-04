@@ -64,6 +64,12 @@ export class FeaturesController {
                 [Feature.AccountFinder]: {
                     defaultValue: false,
                 },
+                [Feature.StardustMigration]: {
+                    defaultValue: false,
+                },
+                [Feature.SupplyIncreaseVesting]: {
+                    defaultValue: false,
+                },
             },
             dateUpdated: new Date().toISOString(),
         };

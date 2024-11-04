@@ -164,7 +164,7 @@ describe('useSignAndExecuteTransaction', () => {
             ]),
         );
         const effectsBcs = bcs.TransactionEffects.serialize({
-            V2: {
+            V1: {
                 status: {
                     Success: true,
                 },

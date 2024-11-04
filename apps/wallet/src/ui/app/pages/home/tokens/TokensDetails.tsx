@@ -195,10 +195,10 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                         <UnlockAccountButton account={activeAccount} />
                     ) : (
                         <div className="flex w-full flex-col gap-md">
-                            <div className="flex w-full flex-col items-center gap-3 rounded-2xl">
+                            <div className="flex w-full flex-col items-center gap-sm rounded-2xl">
                                 {!accountHasIota ? (
-                                    <div className="flex flex-col gap-5">
-                                        <div className="flex flex-col flex-nowrap items-center justify-center px-2.5 text-center">
+                                    <div className="flex flex-col gap-md">
+                                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
                                             <span className="text-body-sm text-neutral-40">
                                                 {isMainnet
                                                     ? 'Start by buying IOTA'

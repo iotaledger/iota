@@ -157,7 +157,7 @@ impl fmt::UpperHex for Digest {
     Deserialize,
     JsonSchema,
 )]
-pub struct ChainIdentifier(CheckpointDigest);
+pub struct ChainIdentifier(pub(crate) CheckpointDigest);
 
 pub static MAINNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
 pub static TESTNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
@@ -204,6 +204,14 @@ impl ChainIdentifier {
 
     pub fn as_bytes(&self) -> &[u8; 32] {
         self.0.inner()
+    }
+
+    pub fn into_bytes(self) -> [u8; 32] {
+        self.0.into_inner()
+    }
+
+    pub fn digest(&self) -> CheckpointDigest {
+        self.0
     }
 }
 
