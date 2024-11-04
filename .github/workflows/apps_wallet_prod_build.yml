@@ -3,7 +3,7 @@ name: Build Wallet App (Prod)
 on:
   push:
     tags:
-      - 'wallet-v*.*.*' 
+      - "wallet-v*.*.*"
 
 env:
   DEFAULT_NETWORK: ${{ secrets.WALLET_RC_DEFAULT_NETWORK }}
