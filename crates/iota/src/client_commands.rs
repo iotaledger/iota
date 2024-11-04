@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, btree_map::Entry, HashSet},
+    cmp::Eq,
+    collections::{BTreeMap, HashSet, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
-    cmp::Eq
 };
 
 use anyhow::{Context, anyhow, bail, ensure};
@@ -58,11 +58,11 @@ use iota_types::{
     move_package::UpgradeCap,
     object::Owner,
     parse_iota_type_tag,
+    quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
         SenderSignedData, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
-    quorum_driver_types::ExecuteTransactionRequestType
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
@@ -74,6 +74,7 @@ use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
 use shared_crypto::intent::Intent;
+use strum::EnumString;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{
@@ -85,7 +86,6 @@ use tabled::{
     },
 };
 use tracing::info;
-use strum::EnumString;
 
 use crate::{
     clever_error_rendering::render_clever_error_opt,
@@ -675,7 +675,8 @@ pub struct OptsWithGas {
 
 impl Opts {
     /// Uses the passed gas_budget for the gas budget variable and sets all
-    /// other flags to false, and emit to an empty vector(defaulting to all emit options).
+    /// other flags to false, and emit to an empty vector(defaulting to all emit
+    /// options).
     pub fn for_testing(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -686,7 +687,8 @@ impl Opts {
         }
     }
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// true, and sets all other flags to false, and emit to an empty vector(defaulting to all emit options).
+    /// true, and sets all other flags to false, and emit to an empty
+    /// vector(defaulting to all emit options).
     pub fn for_testing_dry_run(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -698,7 +700,8 @@ impl Opts {
     }
 
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// false, and sets all other flags to false, and emit to the passed emit vector.
+    /// false, and sets all other flags to false, and emit to the passed emit
+    /// vector.
     pub fn for_testing_emit_options(gas_budget: u64, emit: HashSet<EmitOption>) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -729,8 +732,8 @@ impl OptsWithGas {
     }
 
     /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. Dry run is set to false, and emit to the passed emit vector.
-    /// All other flags are set to false.
+    /// budget variable. Dry run is set to false, and emit to the passed emit
+    /// vector. All other flags are set to false.
     pub fn for_testing_emit_options(
         gas: Option<ObjectID>,
         gas_budget: u64,
@@ -2978,15 +2981,14 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
-            let response =
-                    client
-                        .quorum_driver_api()
-                        .execute_transaction_block(
-                            transaction,
-                            opts_from_cli(opts.emit),
-                            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-                        )
-                        .await?;
+            let response = client
+                .quorum_driver_api()
+                .execute_transaction_block(
+                    transaction,
+                    opts_from_cli(opts.emit),
+                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                )
+                .await?;
 
             let errors: &Vec<String> = response.errors.as_ref();
             if !errors.is_empty() {
@@ -3026,7 +3028,7 @@ fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptio
             show_effects: opts.contains(&EmitOption::Effects),
             show_raw_effects: false,
             show_raw_input: false,
-         }
+        }
     }
 }
 

@@ -9,8 +9,15 @@ use std::os::windows::fs::FileExt;
 #[cfg(not(msim))]
 use std::str::FromStr;
 use std::{
-    collections::{BTreeSet, HashSet}, env, fmt::Write, fs::read_dir, io::Read, net::SocketAddr, path::PathBuf,
-    str, thread, time::Duration,
+    collections::{BTreeSet, HashSet},
+    env,
+    fmt::Write,
+    fs::read_dir,
+    io::Read,
+    net::SocketAddr,
+    path::PathBuf,
+    str, thread,
+    time::Duration,
 };
 
 use expect_test::expect;
@@ -18,8 +25,8 @@ use expect_test::expect;
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
     client_commands::{
-        IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
-        estimate_gas_budget, EmitOption
+        EmitOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
+        estimate_gas_budget,
     },
     client_ptb::ptb::PTB,
     iota_commands::{IotaCommand, parse_host_port},
