@@ -26,7 +26,7 @@
 //!
 //! # Usage
 //! The main way to interact with the API is through the [IotaClientBuilder],
-//! which returns a [IotaClient] object from which the user can access the
+//! which returns an [IotaClient] object from which the user can access the
 //! various APIs.
 //!
 //! ## Getting Started
@@ -195,7 +195,7 @@ impl IotaClientBuilder {
         self
     }
 
-    /// Returns a [IotaClient] object connected to the Iota network running at
+    /// Returns an [IotaClient] object connected to the Iota network running at
     /// the URI provided.
     ///
     /// # Examples
@@ -285,7 +285,7 @@ impl IotaClientBuilder {
         })
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the local
+    /// Returns an [IotaClient] object that is ready to interact with the local
     /// development network (by default it expects the Iota network to be
     /// up and running at `127.0.0.1:9000`).
     ///
@@ -308,7 +308,7 @@ impl IotaClientBuilder {
         self.build(IOTA_LOCAL_NETWORK_URL).await
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the Iota
+    /// Returns an [IotaClient] object that is ready to interact with the Iota
     /// devnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead..
@@ -330,7 +330,7 @@ impl IotaClientBuilder {
         self.build(IOTA_DEVNET_URL).await
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the Iota
+    /// Returns an [IotaClient] object that is ready to interact with the Iota
     /// testnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
@@ -404,7 +404,7 @@ impl IotaClientBuilder {
 ///
 /// # Usage
 ///
-/// Use [IotaClientBuilder] to build a [IotaClient].
+/// Use [IotaClientBuilder] to build an [IotaClient].
 ///
 /// # Examples
 ///

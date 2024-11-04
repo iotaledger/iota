@@ -4,6 +4,7 @@
 
 import { execSync } from 'child_process';
 import { mkdtemp } from 'fs/promises';
+import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import type {
@@ -15,7 +16,7 @@ import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import {
     FaucetRateLimitError,
     getFaucetHost,
-    requestIotaFromFaucetV0,
+    requestIotaFromFaucetV1,
 } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -32,6 +33,18 @@ const DEFAULT_FAUCET_URL = import.meta.env.VITE_FAUCET_URL ?? getFaucetHost('loc
 const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getFullnodeUrl('localnet');
 //@ts-expect-error env not found on meta
 const IOTA_BIN = import.meta.env.VITE_IOTA_BIN ?? 'cargo run --bin iota';
+
+const CONFIG_DATA = `
+---
+keystore:
+  File: ~/.iota/iota_config/iota.keystore
+envs:
+  - alias: localnet
+    rpc: "http://localhost:9000"
+    ws: ~
+    basic_auth: ~
+active_env: localnet
+`;
 
 export class TestToolbox {
     keypair: Ed25519Keypair;
@@ -64,7 +77,7 @@ export async function setupIotaClient() {
     const keypair = Ed25519Keypair.generate();
     const address = keypair.getPublicKey().toIotaAddress();
     const client = getClient();
-    await retry(() => requestIotaFromFaucetV0({ host: DEFAULT_FAUCET_URL, recipient: address }), {
+    await retry(() => requestIotaFromFaucetV1({ host: DEFAULT_FAUCET_URL, recipient: address }), {
         backoff: 'EXPONENTIAL',
         // overall timeout in 60 seconds
         timeout: 1000 * 60,
@@ -76,6 +89,7 @@ export async function setupIotaClient() {
     const tmpDirPath = path.join(tmpdir(), 'config-');
     const tmpDir = await mkdtemp(tmpDirPath);
     const configPath = path.join(tmpDir, 'client.yaml');
+    writeFileSync(configPath, CONFIG_DATA, { flag: 'w', flush: true });
     execSync(`${IOTA_BIN} client --yes --client.config ${configPath}`, { encoding: 'utf-8' });
     return new TestToolbox(keypair, client, configPath);
 }
@@ -221,6 +235,7 @@ export async function executeTransaction(
             showEvents: true,
             showObjectChanges: true,
         },
+        requestType: 'WaitForLocalExecution',
     });
     expect(resp.effects?.status.status).toEqual('success');
     return resp;
