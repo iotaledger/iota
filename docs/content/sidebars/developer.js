@@ -26,10 +26,11 @@ const developer = [
             'developer/getting-started/publish',
             'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
-            'developer/getting-started/network-overview',
             'developer/getting-started/coffee-example',
+            // 'developer/getting-started/network-overview',
         ],
     },
+    'developer/network-overview',
     {
         type: 'category',
         label: 'IOTA 101',
