@@ -711,7 +711,7 @@ impl AuthorityStore {
 
         // Update the index
         if object.get_single_owner().is_some() {
-            // Only initialize lock for address owned objects.
+            // Only initialize live object markers for address owned objects.
             if !object.is_child_object() {
                 self.initialize_live_object_markers_impl(&mut write_batch, &[object_ref])?;
             }
@@ -916,8 +916,8 @@ impl AuthorityStore {
             deleted,
             written,
             events,
-            locks_to_delete,
-            new_locks_to_init,
+            live_object_markers_to_delete,
+            new_live_object_markers_to_init,
             ..
         } = tx_outputs;
 
@@ -1000,11 +1000,11 @@ impl AuthorityStore {
 
         write_batch.insert_batch(&self.perpetual_tables.events, events)?;
 
-        self.initialize_live_object_markers_impl(write_batch, new_locks_to_init)?;
+        self.initialize_live_object_markers_impl(write_batch, new_live_object_markers_to_init)?;
 
-        // Note: deletes locks for received objects as well (but not for objects that
+        // Note: deletes live object markers for received objects as well (but not for objects that
         // were in `Receiving` arguments which were not received)
-        self.delete_live_object_markers(write_batch, locks_to_delete)?;
+        self.delete_live_object_markers(write_batch, live_object_markers_to_delete)?;
 
         write_batch
             .insert_batch(&self.perpetual_tables.effects, [(
@@ -1194,7 +1194,7 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// Initialize a lock for a given list of ObjectRefs.
+    /// Initialize live object markers for a given list of ObjectRefs.
     fn initialize_live_object_markers_impl(
         &self,
         write_batch: &mut DBBatch,
