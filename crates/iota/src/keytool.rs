@@ -587,50 +587,39 @@ impl KeyToolCommand {
                 input_string,
                 key_scheme,
                 derivation_path,
-            } => {
-                if Hex::decode(&input_string).is_ok() {
-                    return Err(anyhow!(
-                        "Iota Keystore and Iota Wallet no longer support importing 
-                    private key as Hex, if you are sure your private key is encoded in Hex, use 
-                    `iota keytool convert $HEX` to convert first then import the Bech32 encoded 
-                    private key starting with `iotaprivkey`."
-                    ));
+            } => match IotaKeyPair::decode(&input_string) {
+                Ok(ikp) => {
+                    info!("Importing Bech32 encoded private key to keystore");
+                    let key = Key::from(&ikp);
+                    keystore.add_key(alias, ikp)?;
+                    CommandOutput::Import(key)
                 }
-
-                match IotaKeyPair::decode(&input_string) {
-                    Ok(ikp) => {
-                        info!("Importing Bech32 encoded private key to keystore");
-                        let key = Key::from(&ikp);
-                        keystore.add_key(alias, ikp)?;
-                        CommandOutput::Import(key)
-                    }
-                    Err(_) => {
-                        let iota_address = match Hex::decode(&input_string.replace("0x", "")) {
-                            Ok(seed) => {
-                                info!("Importing seed to keystore");
-                                if seed.len() != 64 {
-                                    return Err(anyhow!(
-                                        "Invalid seed length: {}, only 64 byte seeds are supported",
-                                        seed.len()
-                                    ));
-                                }
-                                keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
-                            },
-                            Err(_) => {
-                                info!("Importing mnemonic to keystore");
-                                keystore.import_from_mnemonic(
-                                    &input_string,
-                                    key_scheme,
-                                    derivation_path,
-                                    alias
-                                )?
+                Err(_) => {
+                    let iota_address = match Hex::decode(&input_string.replace("0x", "")) {
+                        Ok(seed) => {
+                            info!("Importing seed to keystore");
+                            if seed.len() != 64 {
+                                return Err(anyhow!(
+                                    "Invalid seed length: {}, only 64 byte seeds are supported",
+                                    seed.len()
+                                ));
                             }
-                        };
+                            keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
+                        },
+                        Err(_) => {
+                            info!("Importing mnemonic to keystore");
+                            keystore.import_from_mnemonic(
+                                &input_string,
+                                key_scheme,
+                                derivation_path,
+                                alias
+                            )?
+                        }
+                    };
 
-                        let ikp = keystore.get_key(&iota_address)?;
-                        let key = Key::from(ikp);
-                        CommandOutput::Import(key)
-                    }
+                    let ikp = keystore.get_key(&iota_address)?;
+                    let key = Key::from(ikp);
+                    CommandOutput::Import(key)
                 }
             }
             KeyToolCommand::Export { key_identity } => {
