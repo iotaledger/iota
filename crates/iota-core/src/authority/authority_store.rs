@@ -1002,8 +1002,8 @@ impl AuthorityStore {
 
         self.initialize_live_object_markers_impl(write_batch, new_live_object_markers_to_init)?;
 
-        // Note: deletes live object markers for received objects as well (but not for objects that
-        // were in `Receiving` arguments which were not received)
+        // Note: deletes live object markers for received objects as well (but not for
+        // objects that were in `Receiving` arguments which were not received)
         self.delete_live_object_markers(write_batch, live_object_markers_to_delete)?;
 
         write_batch
