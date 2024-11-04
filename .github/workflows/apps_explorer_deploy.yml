@@ -77,7 +77,7 @@ jobs:
         run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
       - name: Alias Staging deploy
         if: ${{ inputs.isStaging }}
-        run: vercel alias ${{ steps.deploy_url.outputs.DEPLOY_URL }} $EXPLORER_VERCEL_PROJECT_STAGING_URL
+        run: vercel alias ${{ steps.deploy_url.outputs.DEPLOY_URL }} $EXPLORER_VERCEL_PROJECT_STAGING_URL --token=${{ secrets.VERCEL_TOKEN }}
       - name: Comment on pull request
         if: ${{ inputs.isProd == false }}
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # pin@v7
