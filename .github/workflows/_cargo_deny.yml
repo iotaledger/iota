@@ -2,35 +2,30 @@ name: Cargo deny
 
 on:
   workflow_call:
-    secrets:
-      SSH_PRIVATE_KEY_IOTA_CI:
-        required: true
-      SSH_GITHUB_KNOWN_HOSTS:
-        required: true
+    inputs:
+      manifest-path:
+        type: string
+        required: false
+        default: "./Cargo.toml"
 
 concurrency:
   group: cargo-deny-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  rust-crates:
-    name: cargo-deny (advisories, licenses, bans, ...)
+  bans-licenses-sources:
+    name: cargo deny (bans, licenses, sources)
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: EmbarkStudios/cargo-deny-action@8371184bd11e21dcf8ac82ebf8c9c9f74ebf7268 # pin@v2
+      - uses: taiki-e/install-action@684122deb17127bf60d1d99224e12e8fc0012210 # v2.44.58
         with:
-          ssh-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
-          ssh-known-hosts: ${{ secrets.SSH_GITHUB_KNOWN_HOSTS }}
-          use-git-cli: true
-
-  external-crates:
-    name: cargo-deny (advisories, licenses, bans, ...)
+          tool: cargo-deny
+      - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check bans licenses sources
+  advisories:
+    name: cargo deny (advisories)
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: EmbarkStudios/cargo-deny-action@8371184bd11e21dcf8ac82ebf8c9c9f74ebf7268 # pin@v2
+      - uses: taiki-e/install-action@684122deb17127bf60d1d99224e12e8fc0012210 # v2.44.58
         with:
-          ssh-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
-          ssh-known-hosts: ${{ secrets.SSH_GITHUB_KNOWN_HOSTS }}
-          use-git-cli: true
+          tool: cargo-deny
+      - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check advisories

@@ -396,7 +396,6 @@ network = "mainnet"
 [[packages.values.branches]]
 branch = "framework/mainnet"
 paths = [
-  { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
   { path = "crates/iota-framework/packages/iota-system", watch = "0x3" }
@@ -425,12 +424,6 @@ paths = [
                             Branch {
                                 branch: "framework/mainnet",
                                 paths: [
-                                    Package {
-                                        path: "crates/iota-framework/packages/deepbook",
-                                        watch: Some(
-                                            0x000000000000000000000000000000000000000000000000000000000000dee9,
-                                        ),
-                                    },
                                     Package {
                                         path: "crates/iota-framework/packages/move-stdlib",
                                         watch: Some(

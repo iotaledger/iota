@@ -16,7 +16,7 @@ export function ListView({ data, loading }: ListViewProps): JSX.Element {
     const tableColumns = generateObjectListColumns();
 
     return (
-        <div className="h-full w-full [&_div:not(table_div)]:mb-md [&_div:not(table_div)]:flex [&_div:not(table_div)]:flex-col">
+        <div className="h-full w-full overflow-y-auto">
             {tableColumns && data && <TableCard data={data ?? []} columns={tableColumns} />}
             {loading && new Array(10).fill(0).map((_, index) => <Placeholder key={index} />)}
         </div>

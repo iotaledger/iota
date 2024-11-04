@@ -34,7 +34,7 @@ pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
 
 // Struct tag used in system epoch change events
 pub(crate) const EPOCH_CHANGE_STRUCT_TAG: &str =
-    "0x3::iota_system_state_inner::SystemEpochInfoEvent";
+    "0x3::iota_system_state_inner::SystemEpochInfoEventV1";
 
 // TODO: A lot of the information in OnChainTransactionInfo is redundant from
 // what's already in SenderSignedData. We should consider removing them.
@@ -275,10 +275,6 @@ pub enum ExecutionStoreEvent {
         parent: ObjectID,
         child: ObjectID,
         result: IotaResult<Option<Object>>,
-    },
-    ParentSyncStoreGetLatestParentEntryRef {
-        object_id: ObjectID,
-        result: IotaResult<Option<ObjectRef>>,
     },
     ResourceResolverGetResource {
         address: AccountAddress,

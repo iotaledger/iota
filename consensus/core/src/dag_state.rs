@@ -127,17 +127,10 @@ impl DagState {
                         last_committed_rounds[block_ref.author] =
                             max(last_committed_rounds[block_ref.author], block_ref.round);
                     }
-                    if context
-                        .protocol_config
-                        .mysticeti_leader_scoring_and_schedule()
-                    {
-                        let committed_subdag = load_committed_subdag_from_store(
-                            store.as_ref(),
-                            commit.clone(),
-                            vec![],
-                        ); // We don't need to recover reputation scores for unscored_committed_subdags
-                        unscored_committed_subdags.push(committed_subdag);
-                    }
+
+                    let committed_subdag =
+                        load_committed_subdag_from_store(store.as_ref(), commit.clone(), vec![]); // We don't need to recover reputation scores for unscored_committed_subdags
+                    unscored_committed_subdags.push(committed_subdag);
                 });
         }
 
@@ -656,10 +649,7 @@ impl DagState {
         // We empty the unscored committed subdags to calculate reputation scores.
         assert!(self.unscored_committed_subdags.is_empty());
 
-        let commit_info = CommitInfo {
-            committed_rounds: self.last_committed_rounds.clone(),
-            reputation_scores,
-        };
+        let commit_info = CommitInfo::new(self.last_committed_rounds.clone(), reputation_scores);
         let last_commit = self
             .last_commit
             .as_ref()
@@ -741,22 +731,7 @@ impl DagState {
         // Flush buffered data to storage.
         let blocks = std::mem::take(&mut self.blocks_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
-        let commit_info_to_write = if self
-            .context
-            .protocol_config
-            .mysticeti_leader_scoring_and_schedule()
-        {
-            std::mem::take(&mut self.commit_info_to_write)
-        } else if commits.is_empty() {
-            vec![]
-        } else {
-            let last_commit_ref = commits.last().as_ref().unwrap().reference();
-            let commit_info = CommitInfo::new(
-                self.last_committed_rounds.clone(),
-                ReputationScores::default(),
-            );
-            vec![(last_commit_ref, commit_info)]
-        };
+        let commit_info_to_write = std::mem::take(&mut self.commit_info_to_write);
 
         if blocks.is_empty() && commits.is_empty() {
             return;

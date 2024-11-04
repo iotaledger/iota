@@ -1,0 +1,34 @@
+{
+    "questions": [
+      {
+        "questionText": "What do validators maintain in the IOTA staking system?",
+        "answerOptions": [
+          { "answerText": "Their own smart contracts.", "isCorrect": false },
+          { "answerText": "Gas fee contracts.", "isCorrect": false },
+          { "answerText": "Their own staking pools.", "isCorrect": true },
+          { "answerText": "Exchange rate tables for token transfers", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "How are staking rewards calculated for each validator pool at epoch boundaries?",
+        "answerOptions": [
+          { "answerText": "Based on the total gas fees collected by validators.", "isCorrect": false },
+          { "answerText": "Proportionally to the staked tokens in each pool.", "isCorrect": true },
+          { "answerText": "By the total amount of tokens burned in the epoch.", "isCorrect": false },
+          { "answerText": "Using a fixed percentage of validator fees.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What happens when IOTA tokens are deposited into a staking pool in epoch `E`?",
+        "answerOptions": [
+          { "answerText": "They are locked until the next epoch.", "isCorrect": false },
+          { "answerText": "They are used to pay for gas fees.", "isCorrect": false },
+          { "answerText": "They are immediately burned.", "isCorrect": false },
+          { "answerText": "They are converted into staked tokens at the epoch `E` exchange rate.", "isCorrect": true }
+        ]
+      }
+    ]
+  }
+
+  
+  

@@ -78,18 +78,18 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IAOBRGK5lD0Nej7HS3XnFrhOWTDVz88WNSLSiQO/2YODAQAAAAAAAAA=",
+            "cursor": "ILNWmT6DXDql9qoDV/EF3YpQ36Op/EP5ELwEEwUIZqTGAQAAAAAAAAA=",
             "node": {
               "name": {
-                "bcs": "A2RmMg=="
+                "bcs": "A2RmMQ=="
               },
               "value": {
-                "json": "df2"
+                "json": "df1"
               }
             }
           },
           {
-            "cursor": "IFV2VC/Njx0C8OSVu4etZNkBZv792+lw+UdKoPyWgevFAQAAAAAAAAA=",
+            "cursor": "IOgvEDt90FUbL06dw3nbP7LEQKIVvvfIJe6ACpIHz09rAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMw=="
@@ -100,13 +100,13 @@ Response: {
             }
           },
           {
-            "cursor": "IGCzvIIt5UFj66EDIc/9FGdPSZDnmwGERDKgDt25QVTPAQAAAAAAAAA=",
+            "cursor": "IOhfBhBql46Y2hUeCE3R0z1PvoI+9rVuOFg2yDQT8K0MAQAAAAAAAAA=",
             "node": {
               "name": {
-                "bcs": "A2RmMQ=="
+                "bcs": "A2RmMg=="
               },
               "value": {
-                "json": "df1"
+                "json": "df2"
               }
             }
           }
@@ -154,7 +154,7 @@ Contents: Test::M1::Parent {
 
 task 11, line 114:
 //# run Test::M1::mutate_df1 --sender A --args object(2,0)
-mutated: object(0,0), object(2,0), object(4,2)
+mutated: object(0,0), object(2,0), object(4,0)
 gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4423200, non_refundable_storage_fee: 0
 
 task 12, line 116:
@@ -201,18 +201,18 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IAOBRGK5lD0Nej7HS3XnFrhOWTDVz88WNSLSiQO/2YODAgAAAAAAAAA=",
+            "cursor": "ILNWmT6DXDql9qoDV/EF3YpQ36Op/EP5ELwEEwUIZqTGAgAAAAAAAAA=",
             "node": {
               "name": {
-                "bcs": "A2RmMg=="
+                "bcs": "A2RmMQ=="
               },
               "value": {
-                "json": "df2"
+                "json": "df1_mutated"
               }
             }
           },
           {
-            "cursor": "IFV2VC/Njx0C8OSVu4etZNkBZv792+lw+UdKoPyWgevFAgAAAAAAAAA=",
+            "cursor": "IOgvEDt90FUbL06dw3nbP7LEQKIVvvfIJe6ACpIHz09rAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMw=="
@@ -223,13 +223,13 @@ Response: {
             }
           },
           {
-            "cursor": "IGCzvIIt5UFj66EDIc/9FGdPSZDnmwGERDKgDt25QVTPAgAAAAAAAAA=",
+            "cursor": "IOhfBhBql46Y2hUeCE3R0z1PvoI+9rVuOFg2yDQT8K0MAgAAAAAAAAA=",
             "node": {
               "name": {
-                "bcs": "A2RmMQ=="
+                "bcs": "A2RmMg=="
               },
               "value": {
-                "json": "df1_mutated"
+                "json": "df2"
               }
             }
           }

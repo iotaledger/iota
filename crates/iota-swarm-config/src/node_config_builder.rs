@@ -47,13 +47,11 @@ pub struct ValidatorConfigBuilder {
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_v2: bool,
 }
 
 impl ValidatorConfigBuilder {
     pub fn new() -> Self {
         Self {
-            state_accumulator_v2: true,
             ..Default::default()
         }
     }
@@ -113,11 +111,6 @@ impl ValidatorConfigBuilder {
         submit_delay_step_override_millis: u64,
     ) -> Self {
         self.submit_delay_step_override_millis = Some(submit_delay_step_override_millis);
-        self
-    }
-
-    pub fn with_state_accumulator_v2_enabled(mut self, enabled: bool) -> Self {
-        self.state_accumulator_v2 = enabled;
         self
     }
 
@@ -214,7 +207,7 @@ impl ValidatorConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
-            enable_experimental_rest_api: true,
+            enable_rest_api: true,
             jwk_fetch_interval_seconds: self
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
@@ -226,7 +219,6 @@ impl ValidatorConfigBuilder {
             policy_config: self.policy_config,
             firewall_config: self.firewall_config,
             execution_cache: ExecutionCacheConfig::default(),
-            state_accumulator_v2: self.state_accumulator_v2,
             enable_validator_tx_finalizer: true,
         }
     }
@@ -505,7 +497,7 @@ impl FullnodeConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
-            enable_experimental_rest_api: true,
+            enable_rest_api: true,
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
@@ -515,7 +507,6 @@ impl FullnodeConfigBuilder {
             policy_config: self.policy_config,
             firewall_config: self.fw_config,
             execution_cache: ExecutionCacheConfig::default(),
-            state_accumulator_v2: true,
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
         }

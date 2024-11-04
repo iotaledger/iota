@@ -13,7 +13,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectRef},
-    coin::{PAY_JOIN_FUNC_NAME, PAY_MODULE_NAME, PAY_SPLIT_VEC_FUNC_NAME},
+    coin::{COIN_JOIN_FUNC_NAME, COIN_MODULE_NAME, PAY_MODULE_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas::GasCostSummary,
     gas_coin::GAS,
     transaction::{CallArg, ObjectArg, TransactionData},
@@ -150,8 +150,8 @@ async fn create_txes(
     let merge_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
         .move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            PAY_MODULE_NAME.as_str(),
-            PAY_JOIN_FUNC_NAME.as_str(),
+            COIN_MODULE_NAME.as_str(),
+            COIN_JOIN_FUNC_NAME.as_str(),
             vec![
                 CallArg::Object(ObjectArg::ImmOrOwnedObject(c1)),
                 CallArg::Object(ObjectArg::ImmOrOwnedObject(gas_objects.pop().unwrap())),
