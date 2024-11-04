@@ -30,7 +30,7 @@ use crate::{
     storage::WriteKind,
 };
 
-mod effects_v1;
+pub(crate) mod effects_v1;
 mod object_change;
 mod test_effects_builder;
 

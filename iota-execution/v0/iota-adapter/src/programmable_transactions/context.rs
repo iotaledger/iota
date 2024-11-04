@@ -118,6 +118,12 @@ mod checked {
     }
 
     impl<'vm, 'state, 'a> ExecutionContext<'vm, 'state, 'a> {
+        /// Creates a new instance of the transaction execution context,
+        /// initializing the necessary components such as protocol
+        /// configuration, Move VM, gas management, inputs, and native
+        /// extensions. This function processes the input arguments, sets up gas
+        /// handling for the transaction, and prepares the state for
+        /// executing Move programs.
         #[instrument(name = "ExecutionContext::new", level = "trace", skip_all)]
         pub fn new(
             protocol_config: &'a ProtocolConfig,
@@ -381,6 +387,7 @@ mod checked {
             ) {
                 return Err(CommandArgumentError::InvalidObjectByValue);
             }
+
             // Any input object taken by value must be mutable
             if matches!(
                 input_metadata_opt,
@@ -940,6 +947,10 @@ mod checked {
             Ok((metadata, &mut result_value.value))
         }
 
+        /// Executes a Move function bypassing visibility checks, allowing the
+        /// execution of private or protected functions. This method
+        /// sets up the necessary gas status and data store, and then
+        /// delegates the execution to the Move VM runtime.
         pub(crate) fn execute_function_bypass_visibility(
             &mut self,
             module: &ModuleId,
@@ -960,6 +971,10 @@ mod checked {
             )
         }
 
+        /// Loads a Move function from the specified module with the given type
+        /// arguments without executing it. This function initializes
+        /// the data store and delegates the loading process to the Move
+        /// VM runtime.
         pub(crate) fn load_function(
             &mut self,
             module_id: &ModuleId,
@@ -975,6 +990,10 @@ mod checked {
             )
         }
 
+        /// Constructs an `ObjectValue` based on the provided Move object type,
+        /// transferability, usage context, and byte contents. This
+        /// function utilizes the protocol configuration, Move VM, and
+        /// linkage view to properly interpret and instantiate the object.
         pub(crate) fn make_object_value(
             &mut self,
             type_: MoveObjectType,
@@ -991,6 +1010,10 @@ mod checked {
             )
         }
 
+        /// Publishes a bundle of Move modules to the blockchain under the
+        /// specified sender's account address. The function initializes
+        /// a data store and delegates the publishing operation to the Move VM
+        /// runtime.
         pub fn publish_module_bundle(
             &mut self,
             modules: Vec<Vec<u8>>,
@@ -1009,6 +1032,8 @@ mod checked {
     }
 
     impl<'vm, 'state, 'a> TypeTagResolver for ExecutionContext<'vm, 'state, 'a> {
+        /// Retrieves the `TypeTag` corresponding to the provided `Type` by
+        /// querying the Move VM runtime.
         fn get_type_tag(&self, type_: &Type) -> Result<TypeTag, ExecutionError> {
             self.vm
                 .get_runtime()
@@ -1040,6 +1065,11 @@ mod checked {
         }
     }
 
+    /// Loads a `Type` from the given `StructTag`, retrieving the corresponding
+    /// struct from the package in storage. The function sets up the linkage
+    /// context to resolve the struct's module and verifies
+    /// any type parameter constraints. If the struct has type parameters, they
+    /// are recursively loaded and verified.
     pub fn load_type_from_struct(
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
@@ -1135,6 +1165,12 @@ mod checked {
         })
     }
 
+    /// Constructs an `ObjectValue` based on the provided `MoveObjectType`,
+    /// contents, and additional flags such as transferability and usage
+    /// context. If the object is a coin, it deserializes the contents into
+    /// a `Coin` type; otherwise, it treats the contents as raw data. The
+    /// function then loads the corresponding struct type from the Move
+    /// package and verifies its abilities if needed.
     pub(crate) fn make_object_value(
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
@@ -1168,6 +1204,10 @@ mod checked {
         })
     }
 
+    /// Converts a provided `Object` into an `ObjectValue`, extracting and
+    /// validating the `MoveObjectType` and contents. This function assumes
+    /// the object contains Move-specific data and passes the extracted data
+    /// through `make_object_value` to create the corresponding `ObjectValue`.
     pub(crate) fn value_from_object(
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
