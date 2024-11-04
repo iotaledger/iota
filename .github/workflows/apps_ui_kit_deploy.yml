@@ -45,7 +45,7 @@ jobs:
       - name: Pull Vercel Environment Information
         run: vercel pull --cwd ./apps/ui-kit --yes --environment=${{steps.setup_prod_flags.outputs.ENVIRONMENT}} --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build Project Artifacts
-        run: vercel build ${{steps.setup_prod_flags.outputs.PROD_FLAG}} --cwd ./apps/ui-kit --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_SCOPE }}
+        run: vercel build ${{steps.setup_prod_flags.outputs.PROD_FLAG}} --cwd ./apps/ui-kit --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
         run: vercel deploy --cwd ./apps/ui-kit ${{steps.setup_prod_flags.outputs.PROD_FLAG}} --prebuilt --token=${{ secrets.VERCEL_TOKEN }} ${{ steps.setup_prod_flags.outputs.VERCEL_OUTPUT }}
       - name: Extract Deploy URL
