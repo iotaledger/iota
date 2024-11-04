@@ -21,7 +21,7 @@ jobs:
         with:
           tool: cargo-deny
       - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check bans licenses sources
-  
+
   advisories:
     name: cargo deny (advisories)
     runs-on: [self-hosted]
