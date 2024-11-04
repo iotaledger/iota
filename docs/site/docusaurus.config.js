@@ -236,7 +236,7 @@ const config = {
       prism: {
         theme: themes.vsLight,
         darkTheme: themes.vsDark,
-        additionalLanguages: ["rust", "typescript", "toml", "solidity"],
+        additionalLanguages: ["rust", "typescript", "solidity"],
       },
     }),
 };
