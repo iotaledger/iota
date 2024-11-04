@@ -99,10 +99,6 @@ impl MoveObject {
         contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<Self, ExecutionError> {
-        // coins should always have public transfer, as they always should have store.
-        // Thus, type_ == GasCoin::type_() ==> has_public_transfer
-        // TODO: think this can be generalized to is_coin
-        debug_assert!(!type_.is_gas_coin());
         if contents.len() as u64 > max_move_object_size {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::MoveObjectTooBig {
