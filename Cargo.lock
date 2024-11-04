@@ -306,6 +306,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "approx"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "arbitrary"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1858,7 +1867,7 @@ dependencies = [
  "bitflags 2.6.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "lazy_static",
  "lazycell",
  "log",
@@ -4691,9 +4700,9 @@ dependencies = [
 
 [[package]]
 name = "futures-channel"
-version = "0.3.30"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eac8f7d7865dcb88bd4373ab671c8cf4508703796caa2b1985a9ca867b3fcb78"
+checksum = "2dff15bf788c671c1934e366d07e30c1814a8ef514e1af724a602e8a2fbe1b10"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -4701,9 +4710,9 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
-version = "0.3.30"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfc6580bb841c5a68e9ef15c77ccc837b40a7504914d52e47b8b0e9bbda25a1d"
+checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
 
 [[package]]
 name = "futures-executor"
@@ -4719,9 +4728,9 @@ dependencies = [
 
 [[package]]
 name = "futures-io"
-version = "0.3.30"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a44623e20b9681a318efdd71c299b6b222ed6f231972bfe2f224ebad6311f0c1"
+checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
 
 [[package]]
 name = "futures-locks"
@@ -4735,9 +4744,9 @@ dependencies = [
 
 [[package]]
 name = "futures-macro"
-version = "0.3.30"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87750cf4b7a4c0625b1529e4c543c2182106e4dedc60a2a6455e00d212c489ac"
+checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
@@ -4746,15 +4755,15 @@ dependencies = [
 
 [[package]]
 name = "futures-sink"
-version = "0.3.30"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fb8e00e87438d937621c1c6269e53f536c14d3fbd6a042bb24879e57d474fb5"
+checksum = "e575fab7d1e0dcb8d0c7bcf9a63ee213816ab51902e6d244a95819acacf1d4f7"
 
 [[package]]
 name = "futures-task"
-version = "0.3.30"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38d84fa142264698cdce1a9f9172cf383a0c82de1bddcf3092901442c4097004"
+checksum = "f90f7dce0722e95104fcb095585910c0977252f286e354b5e3bd38902cd99988"
 
 [[package]]
 name = "futures-timer"
@@ -4768,9 +4777,9 @@ dependencies = [
 
 [[package]]
 name = "futures-util"
-version = "0.3.30"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d6401deb83407ab3da39eba7e33987a73c3df0c82b4bb5813ee871c19c41d48"
+checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -5778,7 +5787,7 @@ dependencies = [
 
 [[package]]
 name = "iota-adapter-transactional-tests"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "datatest-stable",
  "iota-transactional-test-runner",
@@ -5905,7 +5914,7 @@ dependencies = [
 
 [[package]]
 name = "iota-authority-aggregation"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "futures",
  "iota-metrics",
@@ -5916,7 +5925,7 @@ dependencies = [
 
 [[package]]
 name = "iota-aws-orchestrator"
-version = "0.0.1"
+version = "0.5.0-alpha"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -5947,7 +5956,7 @@ dependencies = [
 
 [[package]]
 name = "iota-benchmark"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6072,7 +6081,7 @@ dependencies = [
 
 [[package]]
 name = "iota-bridge-indexer"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6142,7 +6151,7 @@ dependencies = [
 
 [[package]]
 name = "iota-common"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "futures",
  "parking_lot 0.12.3",
@@ -6151,7 +6160,7 @@ dependencies = [
 
 [[package]]
 name = "iota-config"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -6178,7 +6187,7 @@ dependencies = [
 
 [[package]]
 name = "iota-core"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -6280,7 +6289,7 @@ dependencies = [
 
 [[package]]
 name = "iota-cost"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -6369,7 +6378,7 @@ dependencies = [
 
 [[package]]
 name = "iota-data-ingestion-core"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6458,7 +6467,7 @@ dependencies = [
 
 [[package]]
 name = "iota-enum-compat-util"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "serde_yaml",
 ]
@@ -6539,7 +6548,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -6575,7 +6584,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-tests"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "datatest-stable",
  "iota-adapter-latest",
@@ -6595,7 +6604,7 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-builder"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -6647,7 +6656,7 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-common"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "iota-execution",
  "iota-protocol-config",
@@ -6665,7 +6674,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-e2e-tests"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "datatest-stable",
  "iota-graphql-rpc",
@@ -6676,7 +6685,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc"
-version = "2024.7.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -6755,7 +6764,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc-client"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "async-graphql",
  "axum",
@@ -6768,7 +6777,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc-headers"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "axum",
 ]
@@ -6835,7 +6844,7 @@ dependencies = [
 
 [[package]]
 name = "iota-indexer-builder"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6850,7 +6859,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -6869,7 +6878,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -6909,6 +6918,7 @@ dependencies = [
  "serde_json",
  "shared-crypto",
  "signature 1.6.4",
+ "statrs",
  "tap",
  "telemetry-subscribers",
  "thiserror",
@@ -6922,7 +6932,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-api"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -6941,7 +6951,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-tests"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6979,7 +6989,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-types"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -7008,7 +7018,7 @@ dependencies = [
 
 [[package]]
 name = "iota-keys"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "bip32",
@@ -7051,7 +7061,7 @@ dependencies = [
 
 [[package]]
 name = "iota-macros"
-version = "0.7.0"
+version = "0.5.0-alpha"
 dependencies = [
  "futures",
  "iota-proc-macros",
@@ -7082,7 +7092,7 @@ dependencies = [
 
 [[package]]
 name = "iota-metrics"
-version = "0.7.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -7219,7 +7229,7 @@ dependencies = [
 
 [[package]]
 name = "iota-network"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anemo",
  "anemo-build",
@@ -7257,7 +7267,7 @@ dependencies = [
 
 [[package]]
 name = "iota-network-stack"
-version = "0.2.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anemo",
  "bcs",
@@ -7354,7 +7364,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc-macros"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "derive-syn-parse",
  "itertools 0.13.0",
@@ -7398,7 +7408,7 @@ dependencies = [
 
 [[package]]
 name = "iota-package-resolver"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "async-trait",
  "bcs",
@@ -7421,7 +7431,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proc-macros"
-version = "0.7.0"
+version = "0.5.0-alpha"
 dependencies = [
  "msim-macros",
  "proc-macro2 1.0.86",
@@ -7431,7 +7441,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "clap",
  "insta",
@@ -7445,7 +7455,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config-macros"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
@@ -7454,7 +7464,7 @@ dependencies = [
 
 [[package]]
 name = "iota-replay"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -7501,7 +7511,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rest-api"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7600,7 +7610,7 @@ dependencies = [
 [[package]]
 name = "iota-rust-sdk"
 version = "0.0.0"
-source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=ed6173d434c77604ddc93aaa1550168fdbe97b09#ed6173d434c77604ddc93aaa1550168fdbe97b09"
+source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=dd7b331a5ec62fd5e810051d19f31dff90ea7e3f#dd7b331a5ec62fd5e810051d19f31dff90ea7e3f"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7696,7 +7706,7 @@ dependencies = [
 
 [[package]]
 name = "iota-simulator"
-version = "0.7.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -7753,7 +7763,7 @@ dependencies = [
 
 [[package]]
 name = "iota-snapshot"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -7813,7 +7823,7 @@ dependencies = [
 
 [[package]]
 name = "iota-source-validation-service"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "axum",
@@ -7852,7 +7862,7 @@ dependencies = [
 
 [[package]]
 name = "iota-storage"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7935,7 +7945,7 @@ dependencies = [
 
 [[package]]
 name = "iota-swarm"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "futures",
@@ -7960,7 +7970,7 @@ dependencies = [
 
 [[package]]
 name = "iota-swarm-config"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -7987,7 +7997,7 @@ dependencies = [
 
 [[package]]
 name = "iota-test-transaction-builder"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "bcs",
  "iota-genesis-builder",
@@ -8000,7 +8010,7 @@ dependencies = [
 
 [[package]]
 name = "iota-tls"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "axum",
@@ -8066,7 +8076,7 @@ dependencies = [
 
 [[package]]
 name = "iota-transaction-builder"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8082,7 +8092,7 @@ dependencies = [
 
 [[package]]
 name = "iota-transaction-checks"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "fastcrypto-zkp",
  "iota-config",
@@ -8096,7 +8106,7 @@ dependencies = [
 
 [[package]]
 name = "iota-transactional-test-runner"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8145,7 +8155,7 @@ dependencies = [
 
 [[package]]
 name = "iota-types"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -8227,7 +8237,7 @@ dependencies = [
 
 [[package]]
 name = "iota-upgrade-compatibility-transactional-tests"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "datatest-stable",
@@ -8241,7 +8251,7 @@ dependencies = [
 
 [[package]]
 name = "iota-util-mem"
-version = "0.11.0"
+version = "0.5.0-alpha"
 dependencies = [
  "cfg-if",
  "ed25519-consensus",
@@ -8259,7 +8269,7 @@ dependencies = [
 
 [[package]]
 name = "iota-util-mem-derive"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "proc-macro2 1.0.86",
  "syn 1.0.109",
@@ -8283,7 +8293,7 @@ dependencies = [
 
 [[package]]
 name = "iota-verifier-transactional-tests"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "datatest-stable",
  "iota-transactional-test-runner",
@@ -8879,7 +8889,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -9121,6 +9131,16 @@ name = "matchit"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
+
+[[package]]
+name = "matrixmultiply"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9380b911e3e96d10c1f415da0876389aaf1b56759054eeb0de7df940c456ba1a"
+dependencies = [
+ "autocfg",
+ "rawpointer",
+]
 
 [[package]]
 name = "md-5"
@@ -10150,6 +10170,35 @@ name = "naive-timer"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "034a0ad7deebf0c2abcf2435950a6666c3c15ea9d8fad0c0f48efa8a7f843fed"
+
+[[package]]
+name = "nalgebra"
+version = "0.32.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b5c17de023a86f59ed79891b2e5d5a94c705dbe904a5b5c9c952ea6221b03e4"
+dependencies = [
+ "approx",
+ "matrixmultiply",
+ "nalgebra-macros",
+ "num-complex",
+ "num-rational",
+ "num-traits",
+ "rand 0.8.5",
+ "rand_distr",
+ "simba",
+ "typenum",
+]
+
+[[package]]
+name = "nalgebra-macros"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "254a5372af8fc138e36684761d3c0cdb758a4410e938babcff1c860ce14ddbfc"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
 
 [[package]]
 name = "named-lock"
@@ -11783,7 +11832,7 @@ dependencies = [
 
 [[package]]
 name = "prometheus-closure-metric"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "prometheus",
@@ -11865,7 +11914,7 @@ checksum = "0c1318b19085f08681016926435853bbf7858f9c082d0999b80550ff5d9abe15"
 dependencies = [
  "bytes",
  "heck 0.5.0",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "once_cell",
@@ -11885,7 +11934,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 2.0.77",
@@ -12118,6 +12167,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_distr"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
+dependencies = [
+ "num-traits",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "rand_hc"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12170,6 +12229,12 @@ checksum = "cb9ee317cfe3fbd54b36a511efc1edd42e216903c9cd575e686dd68a2ba90d8d"
 dependencies = [
  "bitflags 2.6.0",
 ]
+
+[[package]]
+name = "rawpointer"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 
 [[package]]
 name = "rayon"
@@ -13051,6 +13116,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 
 [[package]]
+name = "safe_arch"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3460605018fdc9612bce72735cba0d27efbcd9904780d44c7e3a9948f96148a"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "salsa20"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13561,7 +13635,7 @@ dependencies = [
 
 [[package]]
 name = "shared-crypto"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "bcs",
  "eyre",
@@ -13642,6 +13716,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "simba"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "061507c94fc6ab4ba1c9a0305018408e312e17c041eb63bef8aa726fa33aceae"
+dependencies = [
+ "approx",
+ "num-complex",
+ "num-traits",
+ "paste",
+ "wide",
+]
+
+[[package]]
 name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13684,7 +13771,7 @@ dependencies = [
 
 [[package]]
 name = "simulacrum"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -14011,6 +14098,18 @@ name = "static_assertions_next"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7beae5182595e9a8b683fa98c4317f956c9a2dec3b9716990d20023cc60c766"
+
+[[package]]
+name = "statrs"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f697a07e4606a0a25c044de247e583a330dbb1731d11bc7350b81f48ad567255"
+dependencies = [
+ "approx",
+ "nalgebra",
+ "num-traits",
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "string_cache"
@@ -14388,7 +14487,7 @@ dependencies = [
 
 [[package]]
 name = "telemetry-subscribers"
-version = "0.2.0"
+version = "0.5.0-alpha"
 dependencies = [
  "atomic_float",
  "bytes",
@@ -14464,7 +14563,7 @@ checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 
 [[package]]
 name = "test-cluster"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -15205,7 +15304,7 @@ dependencies = [
 
 [[package]]
 name = "transaction-fuzzer"
-version = "0.1.0"
+version = "0.5.0-alpha"
 dependencies = [
  "iota-core",
  "iota-move-build",
@@ -15305,13 +15404,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
 [[package]]
 name = "typed-store"
-version = "0.4.0"
+version = "0.5.0-alpha"
 dependencies = [
  "async-trait",
  "bcs",
@@ -15342,7 +15441,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store-derive"
-version = "0.3.0"
+version = "0.5.0-alpha"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2 1.0.86",
@@ -15352,7 +15451,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store-error"
-version = "0.4.0"
+version = "0.5.0-alpha"
 dependencies = [
  "serde",
  "thiserror",
@@ -15360,7 +15459,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store-workspace-hack"
-version = "0.0.0"
+version = "0.5.0-alpha"
 dependencies = [
  "libc",
  "memchr",
@@ -15825,6 +15924,16 @@ dependencies = [
  "redox_syscall 0.5.6",
  "wasite",
  "web-sys",
+]
+
+[[package]]
+name = "wide"
+version = "0.7.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b828f995bf1e9622031f8009f8481a85406ce1f4d4588ff746d872043e855690"
+dependencies = [
+ "bytemuck",
+ "safe_arch",
 ]
 
 [[package]]

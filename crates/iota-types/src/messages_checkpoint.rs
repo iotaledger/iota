@@ -424,13 +424,10 @@ pub struct CheckpointContentsV1 {
 }
 
 impl CheckpointContents {
-    pub fn new_with_digests_and_signatures<T>(
-        contents: T,
+    pub fn new_with_digests_and_signatures(
+        contents: impl IntoIterator<Item = ExecutionDigests>,
         user_signatures: Vec<Vec<GenericSignature>>,
-    ) -> Self
-    where
-        T: IntoIterator<Item = ExecutionDigests>,
-    {
+    ) -> Self {
         let transactions: Vec<_> = contents.into_iter().collect();
         assert_eq!(transactions.len(), user_signatures.len());
         Self::V1(CheckpointContentsV1 {
@@ -440,10 +437,9 @@ impl CheckpointContents {
         })
     }
 
-    pub fn new_with_causally_ordered_execution_data<'a, T>(contents: T) -> Self
-    where
-        T: IntoIterator<Item = &'a VerifiedExecutionData>,
-    {
+    pub fn new_with_causally_ordered_execution_data<'a>(
+        contents: impl IntoIterator<Item = &'a VerifiedExecutionData>,
+    ) -> Self {
         let (transactions, user_signatures): (Vec<_>, Vec<_>) = contents
             .into_iter()
             .map(|data| {
@@ -462,10 +458,9 @@ impl CheckpointContents {
     }
 
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn new_with_digests_only_for_tests<T>(contents: T) -> Self
-    where
-        T: IntoIterator<Item = ExecutionDigests>,
-    {
+    pub fn new_with_digests_only_for_tests(
+        contents: impl IntoIterator<Item = ExecutionDigests>,
+    ) -> Self {
         let transactions: Vec<_> = contents.into_iter().collect();
         let user_signatures = transactions.iter().map(|_| vec![]).collect();
         Self::V1(CheckpointContentsV1 {
