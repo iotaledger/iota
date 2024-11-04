@@ -82,3 +82,6 @@ lcov.info
 docker/iota-private-network/data
 docker/iota-private-network/configs/validators/validator*
 docker/iota-private-network/configs/genesis/genesis.blob
+
+# nix build results
+result/
