@@ -93,7 +93,8 @@ pub trait ReadApi {
     // `AuthorityState::find_object_lt_or_eq_version` method, which has
     // underlying utility, e.g., `RemoteFetcher::get_child_object` uses
     // `try_get_object_before_version` to get the object with the versions <=
-    // the given version. Thus we keep this endpoint for now.
+    // the given version. We have the `deprecated` flag here to not expose it in
+    // the generated spec file, and it should be only for internal usage.
     #[method(name = "tryGetObjectBeforeVersion", deprecated = "true")]
     async fn try_get_object_before_version(
         &self,
