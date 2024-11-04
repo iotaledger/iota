@@ -9,7 +9,7 @@ on:
     - cron: "0 0 * * *"
 
 jobs:
-  link_checker:
+  links-checker:
     name: Check links and create automated issue if needed
     runs-on: self-hosted
     env:
@@ -44,33 +44,17 @@ jobs:
         id: last_issue
         with:
           state: open
-          labels: |
-            report
-            automated issue
+          labels: broken-links
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create issue from report file
-        if: steps.last_issue.outputs.has_found == 'false'
+      - name: Create or update report
         uses: peter-evans/create-issue-from-file@e8ef132d6df98ed982188e460ebb3b5d4ef3a9cd # pin@v4
         with:
           title: Link checker report
           content-filepath: ${{ env.LYCHEE_OUT }}
           issue-number: ${{ steps.last_issue.outputs.issue_number }}
-          labels: |
-            report
-            automated issue
-
-      - name: Update last report open issue created
-        if: steps.last_issue.outputs.has_found == 'true'
-        uses: peter-evans/create-issue-from-file@e8ef132d6df98ed982188e460ebb3b5d4ef3a9cd # pin@v4
-        with:
-          title: Link checker report
-          content-filepath: ${{ env.LYCHEE_OUT }}
-          issue-number: ${{ steps.last_issue.outputs.issue_number }}
-          labels: |
-            report
-            automated issue
+          labels: broken-links
 
       - name: Close last report open issue
         if: steps.lychee.outputs.exit_code == 0
