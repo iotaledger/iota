@@ -938,7 +938,7 @@ impl RpcExampleProvider {
             "Returns the argument types for the package and function the request provides.",
             vec![
                 ("package", json!(ObjectID::new(self.rng.gen()))),
-                ("module", json!("iotafrens".to_string())),
+                ("module", json!("my_module".to_string())),
                 ("function", json!("mint".to_string())),
             ],
             json!(result),
