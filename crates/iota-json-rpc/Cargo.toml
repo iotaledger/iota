@@ -27,6 +27,7 @@ prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 signature.workspace = true
+statrs = "0.17.1"
 tap.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
