@@ -402,7 +402,7 @@ pub struct AuthorityEpochTables {
         DBMap<TransactionDigest, TrustedEnvelope<SenderSignedData, AuthoritySignInfo>>,
 
     /// Map from ObjectRef to transaction locking that object
-    #[default_options_override_fn = "owned_object_transaction_locks_table_default_config"]
+    #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectRef, LockDetailsWrapper>,
 
     /// Signatures over transaction effects that we have signed and returned to
@@ -607,7 +607,7 @@ fn signed_transactions_table_default_config() -> DBOptions {
         .optimize_for_large_values_no_scan(1 << 10)
 }
 
-fn owned_object_transaction_locks_table_default_config() -> DBOptions {
+fn owned_object_locked_transactions_table_default_config() -> DBOptions {
     DBOptions {
         options: default_db_options()
             .optimize_for_write_throughput()
