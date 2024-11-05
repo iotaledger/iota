@@ -88,6 +88,11 @@ function StakingCard() {
     // set minimum stake amount to 1 IOTA
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), coinDecimals);
 
+    const validationSchema = useMemo(
+        () => createValidationSchema(coinBalance, coinSymbol, coinDecimals, unstake, minimumStake),
+        [coinBalance, coinSymbol, coinDecimals, unstake, minimumStake],
+    );
+
     const queryClient = useQueryClient();
     const delegationId =
         stakeData?.status === 'Unstaked' || stakeData?.status === 'Active'
@@ -141,52 +146,39 @@ function StakingCard() {
             },
         });
 
-    const validationSchema = useMemo(() => {
-        if (isStakeTokenTransactionPending) {
-            return null;
-        }
-        return createValidationSchema(coinBalance, coinSymbol, coinDecimals, unstake, minimumStake);
-    }, [
-        coinBalance,
-        coinSymbol,
-        coinDecimals,
-        unstake,
-        minimumStake,
-        isStakeTokenTransactionPending,
-    ]);
+    const { mutateAsync: unStakeTokenMutateAsync, isPending: isUnstakeTokenTransactionPending } =
+        useMutation({
+            mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
+                if (!stakedIotaId || !signer) {
+                    throw new Error('Failed, missing required field.');
+                }
 
-    const { mutateAsync: unStakeTokenMutateAsync } = useMutation({
-        mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
-            if (!stakedIotaId || !signer) {
-                throw new Error('Failed, missing required field.');
-            }
-
-            // const sentryTransaction = Sentry.startTransaction({
-            // 	name: 'stake',
-            // });
-            const transactionBlock = createUnstakeTransaction(stakedIotaId);
-            const tx = await signer.signAndExecuteTransaction({
-                transactionBlock,
-                options: {
-                    showInput: true,
-                    showEffects: true,
-                    showEvents: true,
-                },
-            });
-            await signer.client.waitForTransaction({
-                digest: tx.digest,
-            });
-            return tx;
-            // finally {
-            // 	sentryTransaction.finish();
-            // }
-        },
-        onSuccess: () => {
-            ampli.unstakedIota({
-                validatorAddress: validatorAddress!,
-            });
-        },
-    });
+                // const sentryTransaction = Sentry.startTransaction({
+                // 	name: 'stake',
+                // });
+                const transactionBlock = createUnstakeTransaction(stakedIotaId);
+                const tx = await signer.signAndExecuteTransaction({
+                    transactionBlock,
+                    options: {
+                        showInput: true,
+                        showEffects: true,
+                        showEvents: true,
+                    },
+                });
+                await signer.client.waitForTransaction({
+                    digest: tx.digest,
+                });
+                return tx;
+                // finally {
+                // 	sentryTransaction.finish();
+                // }
+            },
+            onSuccess: () => {
+                ampli.unstakedIota({
+                    validatorAddress: validatorAddress!,
+                });
+            },
+        });
 
     const onSubmit = useCallback(
         async ({ amount }: FormValues, { resetForm }: FormikHelpers<FormValues>) => {
@@ -270,7 +262,15 @@ function StakingCard() {
     }
     return (
         <div className="flex h-full w-full flex-grow flex-col flex-nowrap">
-            <Loading loading={isPending || validatorsIsPending || loadingIotaBalances}>
+            <Loading
+                loading={
+                    isPending ||
+                    validatorsIsPending ||
+                    loadingIotaBalances ||
+                    isStakeTokenTransactionPending ||
+                    isUnstakeTokenTransactionPending
+                }
+            >
                 <Formik
                     initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
