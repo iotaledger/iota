@@ -123,7 +123,7 @@ validator to start earning rewards again."
                         />
                     </div>
                 ) : null}
-                <div className="gap-2">
+                <div className="w-full gap-2">
                     {system &&
                         delegations
                             ?.filter(({ inactiveValidator }) => inactiveValidator)
@@ -137,7 +137,7 @@ validator to start earning rewards again."
                             ))}
                 </div>
 
-                <div className="gap-2">
+                <div className="w-full gap-2">
                     {system &&
                         delegations
                             ?.filter(({ inactiveValidator }) => !inactiveValidator)

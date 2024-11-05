@@ -157,11 +157,13 @@ export class KioskClient {
 
         const networkKiosk = getNetwork(network).kiosk;
 
-        /// Check existence of rule based on network and throw an error if it's not found.
-        if (!rules[rule] || !networkKiosk) {
+        const rulePackageId = rules[rule] || networkKiosk?.[rule];
+
+        /// Check existence of rule throw an error if it's not found.
+        if (!rulePackageId) {
             throw new Error(`Missing packageId for rule ${rule}`);
         }
 
-        return rules[rule] || networkKiosk[rule];
+        return rulePackageId;
     }
 }
