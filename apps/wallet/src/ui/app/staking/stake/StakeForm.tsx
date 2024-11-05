@@ -68,7 +68,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
     const shouldShowInsufficientRemainingFundsWarning =
-        maxTokenFormatted >= values.amount && !hasEnoughRemaingBalance;
+        Number(maxTokenFormatted) >= Number(values.amount) && !hasEnoughRemaingBalance;
 
     return (
         <Form
