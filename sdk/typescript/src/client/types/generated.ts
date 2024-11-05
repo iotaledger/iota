@@ -29,9 +29,6 @@ export interface AddressMetrics {
 export interface Balance {
     coinObjectCount: number;
     coinType: string;
-    lockedBalance: {
-        [key: string]: string;
-    };
     totalBalance: string;
 }
 export interface BalanceChange {

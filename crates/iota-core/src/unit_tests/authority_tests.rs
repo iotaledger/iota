@@ -2081,14 +2081,16 @@ async fn test_conflicting_transactions() {
                 .auth_sig()
         );
 
-        authority_state.database_for_testing().reset_locks_for_test(
-            &[*tx1.digest(), *tx2.digest()],
-            &[
-                gas_object.compute_object_reference(),
-                object.compute_object_reference(),
-            ],
-            &authority_state.epoch_store_for_testing(),
-        );
+        authority_state
+            .database_for_testing()
+            .reset_locks_and_live_markers_for_test(
+                &[*tx1.digest(), *tx2.digest()],
+                &[
+                    gas_object.compute_object_reference(),
+                    object.compute_object_reference(),
+                ],
+                &authority_state.epoch_store_for_testing(),
+            );
     }
 }
 
