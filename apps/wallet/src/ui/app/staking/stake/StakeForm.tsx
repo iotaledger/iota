@@ -57,6 +57,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
 
+    // do not remove: gasBudget field is used in the validation schema apps/wallet/src/ui/app/staking/stake/utils/validation.ts
     useEffect(() => {
         setFieldValue('gasBudget', gasBudget);
     }, [gasBudget]);
