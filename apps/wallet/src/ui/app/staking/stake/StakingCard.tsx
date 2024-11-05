@@ -78,7 +78,7 @@ function StakingCard() {
         return getDelegationDataByStakeId(allDelegation, stakeIotaIdParams);
     }, [allDelegation, stakeIotaIdParams]);
 
-    const coinSymbol = useMemo(() => (coinType && Coin.getCoinSymbol(coinType)) || '', [coinType]);
+    const coinSymbol = (coinType && Coin.getCoinSymbol(coinType)) || '';
 
     const iotaEarned =
         (stakeData as Extract<StakeObject, { estimatedReward: string }>)?.estimatedReward || '0';
@@ -94,10 +94,7 @@ function StakingCard() {
     );
 
     const queryClient = useQueryClient();
-    const delegationId = useMemo(() => {
-        if (!stakeData || stakeData.status === 'Pending') return null;
-        return stakeData.stakedIotaId;
-    }, [stakeData]);
+    const delegationId = stakeData?.status === 'Unstaked' || stakeData?.status === 'Active' ? stakeData?.stakedIotaId : undefined;
 
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
