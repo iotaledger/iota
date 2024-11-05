@@ -88,11 +88,6 @@ function StakingCard() {
     // set minimum stake amount to 1 IOTA
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), coinDecimals);
 
-    const validationSchema = useMemo(
-        () => createValidationSchema(coinBalance, coinSymbol, coinDecimals, unstake, minimumStake),
-        [coinBalance, coinSymbol, coinDecimals, unstake, minimumStake],
-    );
-
     const queryClient = useQueryClient();
     const delegationId =
         stakeData?.status === 'Unstaked' || stakeData?.status === 'Active'
@@ -102,48 +97,63 @@ function StakingCard() {
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
 
-    const { mutateAsync: stakeTokenMutateAsync } = useMutation({
-        mutationFn: async ({
-            tokenTypeArg,
-            amount,
-            validatorAddress,
-        }: {
-            tokenTypeArg: string;
-            amount: bigint;
-            validatorAddress: string;
-        }) => {
-            if (!validatorAddress || !amount || !tokenTypeArg || !signer) {
-                throw new Error('Failed, missing required field');
-            }
+    const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
+        useMutation({
+            mutationFn: async ({
+                tokenTypeArg,
+                amount,
+                validatorAddress,
+            }: {
+                tokenTypeArg: string;
+                amount: bigint;
+                validatorAddress: string;
+            }) => {
+                if (!validatorAddress || !amount || !tokenTypeArg || !signer) {
+                    throw new Error('Failed, missing required field');
+                }
 
-            // const sentryTransaction = Sentry.startTransaction({
-            // 	name: 'stake',
-            // });
-            try {
-                const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                const tx = await signer.signAndExecuteTransaction({
-                    transactionBlock,
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
+                // const sentryTransaction = Sentry.startTransaction({
+                // 	name: 'stake',
+                // });
+                try {
+                    const transactionBlock = createStakeTransaction(amount, validatorAddress);
+                    const tx = await signer.signAndExecuteTransaction({
+                        transactionBlock,
+                        options: {
+                            showInput: true,
+                            showEffects: true,
+                            showEvents: true,
+                        },
+                    });
+                    await signer.client.waitForTransaction({
+                        digest: tx.digest,
+                    });
+                    return tx;
+                } finally {
+                    // sentryTransaction.finish();
+                }
+            },
+            onSuccess: (_, { amount, validatorAddress }) => {
+                ampli.stakedIota({
+                    stakedAmount: Number(amount / NANOS_PER_IOTA),
+                    validatorAddress: validatorAddress,
                 });
-                await signer.client.waitForTransaction({
-                    digest: tx.digest,
-                });
-                return tx;
-            } finally {
-                // sentryTransaction.finish();
-            }
-        },
-        onSuccess: (_, { amount, validatorAddress }) => {
-            ampli.stakedIota({
-                stakedAmount: Number(amount / NANOS_PER_IOTA),
-                validatorAddress: validatorAddress,
-            });
-        },
-    });
+            },
+        });
+
+    const validationSchema = useMemo(() => {
+        if (isStakeTokenTransactionPending) {
+            return null;
+        }
+        return createValidationSchema(coinBalance, coinSymbol, coinDecimals, unstake, minimumStake);
+    }, [
+        coinBalance,
+        coinSymbol,
+        coinDecimals,
+        unstake,
+        minimumStake,
+        isStakeTokenTransactionPending,
+    ]);
 
     const { mutateAsync: unStakeTokenMutateAsync } = useMutation({
         mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
@@ -179,7 +189,7 @@ function StakingCard() {
     });
 
     const onSubmit = useCallback(
-        async ({ amount }: FormValues, { resetForm, setFieldValue }: FormikHelpers<FormValues>) => {
+        async ({ amount }: FormValues, { resetForm }: FormikHelpers<FormValues>) => {
             if (coinType === null || validatorAddress === null) {
                 return;
             }
@@ -198,7 +208,6 @@ function StakingCard() {
                     txDigest = response.digest;
                 } else {
                     const bigIntAmount = parseAmount(amount, coinDecimals);
-                    setFieldValue('amount', '');
                     response = await stakeTokenMutateAsync({
                         amount: bigIntAmount,
                         tokenTypeArg: coinType,
