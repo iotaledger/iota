@@ -65,13 +65,6 @@ pub(crate) enum MoveObjectDowncastError {
                 the corresponding data."
     ),
     field(
-        name = "has_public_transfer",
-        ty = "bool",
-        desc = "Determines whether a transaction can transfer this object, using the \
-                TransferObjects transaction command or `iota::transfer::public_transfer`, both of \
-                which require the object to have the `key` and `store` abilities."
-    ),
-    field(
         name = "display",
         ty = "Option<Vec<DisplayEntry>>",
         desc = "The set of named templates defined on-chain for the type of this object, to be \
