@@ -27,7 +27,7 @@ export interface StakeFromProps {
 }
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
-    const { values } = useFormikContext<FormValues>();
+    const { values, setFieldValue } = useFormikContext<FormValues>();
     const activeAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
@@ -56,6 +56,10 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
     );
 
     const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
+
+    useEffect(() => {
+        setFieldValue('gasBudget', gasBudget);
+      }, [gasBudget]);
 
     const maxTokenBalance = coinBalance - gasBudget;
     const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
