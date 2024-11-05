@@ -729,8 +729,7 @@ mod checked {
                     type_,
                     bytes,
                 } = additional_write;
-                // safe given the invariant that the runtime correctly propagates
-                // has_public_transfer
+
                 let move_object = unsafe {
                     create_written_object(
                         vm,
