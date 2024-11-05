@@ -260,15 +260,13 @@ pub(crate) fn try_construct_object(
                 // verification is already done during initial execution
                 u64::MAX,
             )?)
-        },
-        (StoreData::Coin(balance), None) => {
-            Data::Move(MoveObject::new_from_execution_with_limit(
-                MoveObjectType::gas_coin(),
-                object_key.1,
-                bcs::to_bytes(&(object_key.0, balance)).expect("serialization failed"),
-                u64::MAX,
-            )?)
-        },
+        }
+        (StoreData::Coin(balance), None) => Data::Move(MoveObject::new_from_execution_with_limit(
+            MoveObjectType::gas_coin(),
+            object_key.1,
+            bcs::to_bytes(&(object_key.0, balance)).expect("serialization failed"),
+            u64::MAX,
+        )?),
         _ => {
             return Err(IotaError::Storage(
                 "corrupted field: inconsistent object representation".to_string(),
