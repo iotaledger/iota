@@ -54,7 +54,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         activeAddress ?? undefined,
         stakeAllTransaction,
     );
-
+    console.log("stakeAllTransactionDryRun", stakeAllTransaction);
     const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
 
     useEffect(() => {

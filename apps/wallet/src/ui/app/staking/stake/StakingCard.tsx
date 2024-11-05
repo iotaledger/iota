@@ -179,12 +179,11 @@ function StakingCard() {
     });
 
     const onSubmit = useCallback(
-        async ({ amount }: FormValues, { resetForm }: FormikHelpers<FormValues>) => {
+        async ({ amount }: FormValues, { resetForm, setFieldValue }: FormikHelpers<FormValues>) => {
             if (coinType === null || validatorAddress === null) {
                 return;
             }
             try {
-                const bigIntAmount = parseAmount(amount, coinDecimals);
                 let response;
                 let txDigest;
                 if (unstake) {
@@ -198,6 +197,8 @@ function StakingCard() {
 
                     txDigest = response.digest;
                 } else {
+                    const bigIntAmount = parseAmount(amount, coinDecimals);
+                    setFieldValue('amount', '');
                     response = await stakeTokenMutateAsync({
                         amount: bigIntAmount,
                         tokenTypeArg: coinType,
