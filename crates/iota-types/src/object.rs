@@ -341,9 +341,8 @@ impl MoveObject {
     pub fn object_size_for_gas_metering(&self) -> usize {
         let serialized_type_tag_size =
             bcs::serialized_size(&self.type_).expect("Serializing type tag should not fail");
-        // + 1 for 'has_public_transfer'
         // + 8 for `version`
-        self.contents.len() + serialized_type_tag_size + 1 + 8
+        self.contents.len() + serialized_type_tag_size + 8
     }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
