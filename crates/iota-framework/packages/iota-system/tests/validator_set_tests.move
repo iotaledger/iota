@@ -8,7 +8,7 @@ module iota_system::validator_set_tests {
     use iota::coin;
     use iota_system::staking_pool::StakedIota;
     use iota_system::validator::{Self, ValidatorV1, staking_pool_id};
-    use iota_system::validator_set::{Self, ValidatorSetV1, active_validator_addresses};
+    use iota_system::validator_set::{Self, ValidatorSetV2, active_validator_addresses};
     use iota::test_scenario::{Self, Scenario};
     use iota::test_utils::{Self, assert_eq};
     use iota::vec_map;
@@ -27,7 +27,7 @@ module iota_system::validator_set_tests {
         let validator4 = create_validator(@0x4, 4, 1, false, ctx);
 
         // Create a validator set with only the first validator in it.
-        let mut validator_set = validator_set::new(vector[validator1], ctx);
+        let mut validator_set = validator_set::new(vector[validator1], ctx).v1_to_v2();
         assert!(validator_set.total_stake() == 100 * NANOS_PER_IOTA);
 
         // Add the other 3 validators one by one.
@@ -100,7 +100,7 @@ module iota_system::validator_set_tests {
         let v4 = create_validator(@0x4, 4, 41, false, ctx);
         let v5 = create_validator(@0x5, 10, 43, false, ctx);
         // Create a validator set with only the first validator in it.
-        let mut validator_set = validator_set::new(vector[v1], ctx);
+        let mut validator_set = validator_set::new(vector[v1], ctx).v1_to_v2();
 
         assert_eq(validator_set.derive_reference_gas_price(), 45);
 
@@ -148,7 +148,7 @@ module iota_system::validator_set_tests {
         let ctx = scenario.ctx();
 
         let validator1 = create_validator(@0x1, 1, 1, true, ctx);
-        let mut validator_set = validator_set::new(vector[validator1], ctx);
+        let mut validator_set = validator_set::new(vector[validator1], ctx).v1_to_v2();
         assert_eq(validator_set.total_stake(), 100 * NANOS_PER_IOTA);
         scenario_val.end();
 
@@ -173,7 +173,7 @@ module iota_system::validator_set_tests {
         let ctx = scenario.ctx();
 
         let validator1 = create_validator(@0x1, 1, 1, true, ctx);
-        let mut validator_set = validator_set::new(vector[validator1], ctx);
+        let mut validator_set = validator_set::new(vector[validator1], ctx).v1_to_v2();
         assert_eq(validator_set.total_stake(), 100 * NANOS_PER_IOTA);
         scenario_val.end();
 
@@ -206,7 +206,7 @@ module iota_system::validator_set_tests {
         let validator2 = create_validator(@0x2, 2, 1, false, ctx);
 
         // Create a validator set with only the first validator in it.
-        let mut validator_set = validator_set::new(vector[validator1], ctx);
+        let mut validator_set = validator_set::new(vector[validator1], ctx).v1_to_v2();
         assert_eq(validator_set.total_stake(), 100 * NANOS_PER_IOTA);
         scenario_val.end();
 
@@ -247,7 +247,7 @@ module iota_system::validator_set_tests {
         let validator2 = create_validator(@0x2, 2, 1, false, ctx);
 
         // Create a validator set with only the first validator in it.
-        let mut validator_set = validator_set::new(vector[validator1], ctx);
+        let mut validator_set = validator_set::new(vector[validator1], ctx).v1_to_v2();
         assert_eq(validator_set.total_stake(), 100 * NANOS_PER_IOTA);
         scenario_val.end();
 
@@ -290,7 +290,7 @@ module iota_system::validator_set_tests {
         let pool_id_2 = staking_pool_id(&validator2);
 
         // Create a validator set with only the first validator in it.
-        let mut validator_set = validator_set::new(vector[validator1], ctx);
+        let mut validator_set = validator_set::new(vector[validator1], ctx).v1_to_v2();
         assert_eq(validator_set.total_stake(), 100 * NANOS_PER_IOTA);
         scenario_val.end();
 
@@ -322,7 +322,7 @@ module iota_system::validator_set_tests {
         let v3 = create_validator(@0x3, 10, 1, true, ctx); // 1000 IOTA of stake
         let v4 = create_validator(@0x4, 4, 1, true, ctx); // 400 IOTA of stake
 
-        let mut validator_set = validator_set::new(vector[v1, v2, v3, v4], ctx);
+        let mut validator_set = validator_set::new(vector[v1, v2, v3, v4], ctx).v1_to_v2();
         scenario_val.end();
 
         let mut scenario_val = test_scenario::begin(@0x1);
@@ -429,7 +429,7 @@ module iota_system::validator_set_tests {
         ascii_bytes.to_ascii_string().into_bytes()
     }
 
-    fun advance_epoch_with_dummy_rewards(validator_set: &mut ValidatorSetV1, scenario: &mut Scenario) {
+    fun advance_epoch_with_dummy_rewards(validator_set: &mut ValidatorSetV2, scenario: &mut Scenario) {
         scenario.next_epoch(@0x0);
         let mut dummy_computation_charge = balance::zero();
 
@@ -447,7 +447,7 @@ module iota_system::validator_set_tests {
     }
 
     fun advance_epoch_with_low_stake_params(
-        validator_set: &mut ValidatorSetV1,
+        validator_set: &mut ValidatorSetV2,
         low_stake_threshold: u64,
         very_low_stake_threshold: u64,
         low_stake_grace_period: u64,
@@ -468,7 +468,7 @@ module iota_system::validator_set_tests {
         dummy_computation_charge.destroy_zero();
     }
 
-    fun add_and_activate_validator(validator_set: &mut ValidatorSetV1, validator: ValidatorV1, scenario: &mut Scenario) {
+    fun add_and_activate_validator(validator_set: &mut ValidatorSetV2, validator: ValidatorV1, scenario: &mut Scenario) {
         scenario.next_tx(validator.iota_address());
         let ctx = scenario.ctx();
         validator_set.request_add_validator_candidate(validator, ctx);

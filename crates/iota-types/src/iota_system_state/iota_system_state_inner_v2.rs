@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
+use fastcrypto::traits::ToFromBytes;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -16,12 +18,18 @@ use super::{
 };
 use crate::{
     balance::Balance,
-    base_types::IotaAddress,
+    base_types::{IotaAddress, ObjectID},
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
+    crypto::{
+        AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
+        verify_proof_of_possession,
+    },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
+    id::ID,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    multiaddr::Multiaddr,
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
 };
@@ -279,4 +287,12 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             validator_low_stake_grace_period,
         })
     }
+}
+
+/// Rust version of the Move
+/// iota_system::validator_cap::UnverifiedValidatorOperationCap type
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct UnverifiedValidatorOperationCap {
+    pub id: ObjectID,
+    pub authorizer_validator_address: IotaAddress,
 }

@@ -8,7 +8,7 @@ module iota_system::iota_system_state_inner {
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::system_admin_cap::IotaSystemAdminCap;
     use iota_system::validator::{Self, ValidatorV1};
-    use iota_system::validator_set::{Self, ValidatorSetV1};
+    use iota_system::validator_set::{Self, ValidatorSetV1, ValidatorSetV2};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::storage_fund::{Self, StorageFundV1};
     use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota};
@@ -123,7 +123,7 @@ module iota_system::iota_system_state_inner {
         /// The IOTA's TreasuryCap.
         iota_treasury_cap: IotaTreasuryCap,
         /// Contains all information about the validators.
-        validators: ValidatorSetV1,
+        validators: ValidatorSetV2,
         /// The storage fund.
         storage_fund: StorageFundV1,
         /// A list of system config parameters.
@@ -178,11 +178,11 @@ module iota_system::iota_system_state_inner {
         minted_tokens_amount: u64,
     }
 
-    
+
     #[allow(unused_field)]
     /// The second version of the event containing system-level epoch information,
     /// emitted during the epoch advancement transaction.
-    /// This version includes the tips_amount field to show how much of the total gas fees were paid to 
+    /// This version includes the tips_amount field to show how much of the total gas fees were paid to
     /// validators (tips) rather than burned.
     public struct SystemEpochInfoEventV2 has copy, drop {
         epoch: u64,
@@ -227,7 +227,7 @@ module iota_system::iota_system_state_inner {
         ctx: &mut TxContext,
     ): IotaSystemStateV1 {
         let validators = validator_set::new(validators, ctx);
-        let reference_gas_price = validators.derive_reference_gas_price();
+        let reference_gas_price = validators.derive_reference_gas_price_v1();
         // This type is fixed as it's created at genesis. It should not be updated during type upgrade.
         let system_state = IotaSystemStateV1 {
             epoch: 0,
@@ -301,7 +301,7 @@ module iota_system::iota_system_state_inner {
             protocol_version,
             system_state_version: 2,
             iota_treasury_cap,
-            validators,
+            validators: validators.v1_to_v2(),
             storage_fund,
             parameters,
             iota_system_admin_cap,
@@ -888,7 +888,7 @@ module iota_system::iota_system_state_inner {
         if (burnt_tokens_amount < minted_tokens_amount) {
             let actual_amount_to_mint = minted_tokens_amount - burnt_tokens_amount;
             let balance_to_mint = iota_treasury_cap.mint_balance(actual_amount_to_mint, ctx);
-            // total validator reward 
+            // total validator reward
             // = computation_charge + (minted_balance)
             // = computation_charge + (validator_subsidy - computation_charge_burned)
             // = validator_subsidy + (computation_charge - computation_charge_burned)
@@ -900,8 +900,8 @@ module iota_system::iota_system_state_inner {
             // = computation_charge - (amount_to_burn)
             // = computation_charge - (computation_charge_burned - validator_subsidy)
             // = validator_subsidy + (computation_charge - computation_charge_burned)
-            // = validator_subsidy + (tips) 
-            let balance_to_burn = computation_charges.split(actual_amount_to_burn);  
+            // = validator_subsidy + (tips)
+            let balance_to_burn = computation_charges.split(actual_amount_to_burn);
              iota_treasury_cap.burn_balance(balance_to_burn, ctx);
         };
         (computation_charges, minted_tokens_amount, burnt_tokens_amount)
@@ -1029,7 +1029,7 @@ module iota_system::iota_system_state_inner {
 
     #[test_only]
     /// Return the current validator set
-    public(package) fun validators(self: &IotaSystemStateV2): &ValidatorSetV1 {
+    public(package) fun validators(self: &IotaSystemStateV2): &ValidatorSetV2 {
         &self.validators
     }
 
