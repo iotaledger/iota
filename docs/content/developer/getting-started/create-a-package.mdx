@@ -66,7 +66,7 @@ If you have two dependencies that use different versions of the same package, yo
 the `[dependencies]` section. To do so, add the `override` field to the dependency. The version specified in
 the `[dependencies]` section will be used instead of the one specified in the dependency itself.
 
-```yaml file=<rootDir>/examples/move/first_package/Move.toml#L17-L19
+```toml file=<rootDir>/examples/move/first_package/Move.toml#L17-L19
 ```
 
 ### Dev-dependencies
@@ -101,7 +101,7 @@ for the dependencies.
 <Tabs groupId="toml-style">
 <TabItem label="Inline" value="inline">
 
-```move
+```toml
 [dependencies]
 iota = { override = true, git = "", subdir = "crates/iota-framework/packages/iota-framework", rev = "testnet" }
 MyPackage = { local = "../my-package" }
@@ -109,7 +109,7 @@ MyPackage = { local = "../my-package" }
 
 </TabItem>
 <TabItem label="Multiline" value="multiline">
-```move
+```toml
 [dependencies.iota]
 override = true
 git = "https://github.com/iotaledger/iota.git"
