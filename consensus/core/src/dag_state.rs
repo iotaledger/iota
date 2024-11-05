@@ -500,7 +500,7 @@ impl DagState {
             }
         }
 
-        blocks.into_iter().collect()
+        blocks
     }
 
     /// Checks whether a block exists in the slot. The method checks only
