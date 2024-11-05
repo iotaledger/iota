@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example shows the few basic ways to connect to a Iota network.
+//! This example shows the few basic ways to connect to an Iota network.
 //! There are several in-built methods for connecting to the Iota devnet,
 //! testnet, and localnet (running locally), as well as a custom way for
 //! connecting to custom URLs. The example prints out the API versions of the

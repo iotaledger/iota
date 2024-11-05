@@ -23,7 +23,6 @@ use typed_store::{
 
 use super::*;
 use crate::authority::{
-    authority_store::LockDetailsWrapperDeprecated,
     authority_store_types::{
         ObjectContentDigest, StoreData, StoreMoveObjectWrapper, StoreObject, StoreObjectPair,
         StoreObjectValue, StoreObjectWrapper, get_store_object_pair, try_construct_object,
@@ -63,15 +62,9 @@ pub struct AuthorityPerpetualTables {
     #[default_options_override_fn = "indirect_move_objects_table_default_config"]
     pub(crate) indirect_move_objects: DBMap<ObjectContentDigest, StoreMoveObjectWrapper>,
 
-    /// This is a map between object references of currently active objects that
-    /// can be mutated.
-    ///
-    /// For old epochs, it may also contain the transaction that they are lock
-    /// on for use by this specific validator. The transaction locks
-    /// themselves are now in AuthorityPerEpochStore.
-    #[default_options_override_fn = "owned_object_transaction_locks_table_default_config"]
-    #[rename = "owned_object_transaction_locks"]
-    pub(crate) live_owned_object_markers: DBMap<ObjectRef, Option<LockDetailsWrapperDeprecated>>,
+    /// Object references of currently active objects that can be mutated.
+    #[default_options_override_fn = "live_owned_object_markers_table_default_config"]
+    pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
@@ -108,13 +101,6 @@ pub struct AuthorityPerpetualTables {
     // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
     #[default_options_override_fn = "events_table_default_config"]
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
-
-    /// DEPRECATED in favor of the table of the same name in
-    /// authority_per_epoch_store. Please do not add new
-    /// accessors/callsites. When transaction is executed via checkpoint
-    /// executor, we store association here
-    pub(crate) executed_transactions_to_checkpoint:
-        DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
     // Finalized root state accumulator for epoch, to be included in CheckpointSummary
     // of last checkpoint of epoch. These values should only ever be written once
@@ -363,15 +349,6 @@ impl AuthorityPerpetualTables {
         Ok(self.effects.get(&effect_digest)?)
     }
 
-    // DEPRECATED as the backing table has been moved to authority_per_epoch_store.
-    // Please do not add new accessors/callsites.
-    pub fn get_checkpoint_sequence_number(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        Ok(self.executed_transactions_to_checkpoint.get(digest)?)
-    }
-
     pub fn get_newer_object_keys(
         &self,
         object: &(ObjectID, SequenceNumber),
@@ -441,7 +418,6 @@ impl AuthorityPerpetualTables {
         self.live_owned_object_markers.unsafe_clear()?;
         self.executed_effects.unsafe_clear()?;
         self.events.unsafe_clear()?;
-        self.executed_transactions_to_checkpoint.unsafe_clear()?;
         self.root_state_hash_by_epoch.unsafe_clear()?;
         self.epoch_start_configuration.unsafe_clear()?;
         self.pruned_checkpoint.unsafe_clear()?;
@@ -614,7 +590,7 @@ impl Iterator for LiveSetIter<'_> {
 }
 
 // These functions are used to initialize the DB tables
-fn owned_object_transaction_locks_table_default_config() -> DBOptions {
+fn live_owned_object_markers_table_default_config() -> DBOptions {
     DBOptions {
         options: default_db_options()
             .optimize_for_write_throughput()
