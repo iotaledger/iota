@@ -139,7 +139,7 @@ impl BasicOutput {
         version: SequenceNumber,
         coin_type: &CoinType,
     ) -> Result<Object> {
-        let move_object = unsafe {
+        let move_object = {
             MoveObject::new_from_execution(
                 BasicOutput::tag(coin_type.to_type_tag()).into(),
                 version,
@@ -192,7 +192,7 @@ pub(crate) fn create_coin(
     coin_type: &CoinType,
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
-    let move_object = unsafe {
+    let move_object = {
         MoveObject::new_from_execution(
             MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
             version,

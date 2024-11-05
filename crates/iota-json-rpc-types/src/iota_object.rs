@@ -586,7 +586,7 @@ impl TryInto<Object> for IotaObjectData {
     fn try_into(self) -> Result<Object, Self::Error> {
         let protocol_config = ProtocolConfig::get_for_min_version();
         let data = match self.bcs {
-            Some(IotaRawData::MoveObject(o)) => Data::Move(unsafe {
+            Some(IotaRawData::MoveObject(o)) => Data::Move({
                 MoveObject::new_from_execution(
                     o.type_().clone().into(),
                     o.version,

@@ -251,7 +251,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
-    let timelock_iota = unsafe {
+    let timelock_iota = {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
             OBJECT_START_VERSION,
@@ -402,7 +402,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
-    let timelock_iota = unsafe {
+    let timelock_iota = {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
             OBJECT_START_VERSION,

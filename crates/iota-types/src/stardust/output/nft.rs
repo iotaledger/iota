@@ -357,7 +357,7 @@ impl Nft {
         version: SequenceNumber,
     ) -> anyhow::Result<Object> {
         // Construct the Nft object.
-        let move_nft_object = unsafe {
+        let move_nft_object = {
             MoveObject::new_from_execution(
                 Self::tag().into(),
                 version,
@@ -444,7 +444,7 @@ impl NftOutput {
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
-        let move_nft_output_object = unsafe {
+        let move_nft_output_object = {
             MoveObject::new_from_execution(
                 NftOutput::tag(coin_type.to_type_tag()).into(),
                 version,

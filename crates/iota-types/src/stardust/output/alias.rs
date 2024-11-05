@@ -114,7 +114,7 @@ impl Alias {
         version: SequenceNumber,
     ) -> anyhow::Result<Object> {
         // Construct the Alias object.
-        let move_alias_object = unsafe {
+        let move_alias_object = {
             MoveObject::new_from_execution(
                 Self::tag().into(),
                 version,
@@ -184,7 +184,7 @@ impl AliasOutput {
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
-        let move_alias_output_object = unsafe {
+        let move_alias_output_object = {
             MoveObject::new_from_execution(
                 AliasOutput::tag(coin_type.to_type_tag()).into(),
                 version,

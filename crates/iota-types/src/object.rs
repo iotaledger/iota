@@ -70,13 +70,7 @@ impl MoveObject {
     /// modules of the `type_: StructTag`. In other words,
     /// `has_public_transfer` will be the same for all objects of the same
     /// `type_`.
-    ///
-    /// # Safety
-    ///
-    /// This function should ONLY be called if has_public_transfer has been
-    /// determined by the type_. Yes, this is a bit of an abuse of the
-    /// `unsafe` marker, but bad things will happen if this is inconsistent
-    pub unsafe fn new_from_execution(
+    pub fn new_from_execution(
         type_: MoveObjectType,
         version: SequenceNumber,
         contents: Vec<u8>,
@@ -90,10 +84,9 @@ impl MoveObject {
         )
     }
 
-    /// # Safety
-    /// This function should ONLY be called if has_public_transfer has been
-    /// determined by the type_
-    pub unsafe fn new_from_execution_with_limit(
+    /// Creates a new Move object of type `type_` with BCS encoded bytes in
+    /// `contents`. It allows to set a `max_move_object_size` for that.
+    pub fn new_from_execution_with_limit(
         type_: MoveObjectType,
         version: SequenceNumber,
         contents: Vec<u8>,
@@ -116,7 +109,7 @@ impl MoveObject {
 
     pub fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
-        unsafe {
+        {
             Self::new_from_execution_with_limit(
                 GasCoin::type_().into(),
                 version,
@@ -134,7 +127,7 @@ impl MoveObject {
         value: u64,
     ) -> Self {
         // unwrap safe because coins are always smaller than the max object size
-        unsafe {
+        {
             Self::new_from_execution_with_limit(
                 coin_type,
                 version,

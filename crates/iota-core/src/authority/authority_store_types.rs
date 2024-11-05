@@ -252,7 +252,7 @@ pub(crate) fn try_construct_object(
     let data = match (store_object.data, indirect_object) {
         (StoreData::Move(object), None) => Data::Move(object),
         (StoreData::Package(package), None) => Data::Package(package),
-        (StoreData::IndirectObject(metadata), Some(indirect_obj)) => unsafe {
+        (StoreData::IndirectObject(metadata), Some(indirect_obj)) => {
             Data::Move(MoveObject::new_from_execution_with_limit(
                 indirect_obj.type_,
                 metadata.version,
@@ -261,7 +261,7 @@ pub(crate) fn try_construct_object(
                 u64::MAX,
             )?)
         },
-        (StoreData::Coin(balance), None) => unsafe {
+        (StoreData::Coin(balance), None) => {
             Data::Move(MoveObject::new_from_execution_with_limit(
                 MoveObjectType::gas_coin(),
                 object_key.1,

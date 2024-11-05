@@ -730,7 +730,7 @@ mod checked {
                     bytes,
                 } = additional_write;
 
-                let move_object = unsafe {
+                let move_object = {
                     create_written_object(
                         vm,
                         &linkage_view,
@@ -757,7 +757,7 @@ mod checked {
                     invariant_violation!("Failed to deserialize already serialized Move value");
                 };
                 // safe because has_public_transfer has been determined by the abilities
-                let move_object = unsafe {
+                let move_object = {
                     create_written_object(
                         vm,
                         &linkage_view,
@@ -1397,12 +1397,7 @@ mod checked {
     }
 
     /// Generate an MoveObject given an updated/written object
-    /// # Safety
-    ///
-    /// This function assumes proper generation of has_public_transfer, either
-    /// from the abilities of the StructTag, or from the runtime correctly
-    /// propagating from the inputs
-    unsafe fn create_written_object(
+    fn create_written_object(
         vm: &MoveVM,
         linkage_view: &LinkageView,
         protocol_config: &ProtocolConfig,

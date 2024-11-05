@@ -122,7 +122,7 @@ pub fn to_genesis_object(
     tx_context: &TxContext,
     version: SequenceNumber,
 ) -> Result<Object, VestedRewardError> {
-    let move_object = unsafe {
+    let move_object = {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
             version,
