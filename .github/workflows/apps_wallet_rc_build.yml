@@ -41,7 +41,7 @@ jobs:
           export artifact_name="iota-wallet-${{ steps.package-version.outputs.current-version }}-rc.${{ env.RC_VERSION }}"
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
       - name: Build Wallet
-        run: pnpm --filter=iota-wallet build:rc
+        run: pnpm wallet build:rc
       - name: Upload artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         with:
