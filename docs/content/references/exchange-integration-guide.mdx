@@ -131,7 +131,7 @@ The response is a JSON object that includes the totalBalance for the address:
   "result": {
     "coinType": "0x2::iota::IOTA",
     "coinObjectCount": 40,
-    "totalBalance": 10000000000,
+    "totalBalance": 10000000000
   },
   "id": 1
 }
@@ -288,21 +288,6 @@ public fun request_add_stake_mul_coin(
 ) {
    let balance = extract_coin_balance(delegate_stakes, stake_amount, ctx);
    validator_set::request_add_stake(&mut self.validators, validator_address, balance, option::none(), ctx);
-}
-```
-
-- `request_add_stake_with_locked_coin`
-  Add user stake to a validator's staking pool using a locked IOTA coin.
-
-```move
-public fun request_add_stake_with_locked_coin(
-   self: &mut IOTASystemState,
-   stake: LockedCoin<IOTA>,
-   validator_address: address,
-   ctx: &mut TxContext,
-) {
-   let (balance, lock) = locked_coin::into_balance(stake);
-   validator_set::request_add_stake(&mut self.validators, validator_address, balance, option::some(lock), ctx);
 }
 ```
 
