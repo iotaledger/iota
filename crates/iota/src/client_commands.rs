@@ -3018,7 +3018,7 @@ fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptio
             .with_input()
             .with_events()
             .with_object_changes()
-            .with_balance_changes();
+            .with_balance_changes()
     } else {
         IotaTransactionBlockResponseOptions {
             show_input: opts.contains(&EmitOption::Input),
