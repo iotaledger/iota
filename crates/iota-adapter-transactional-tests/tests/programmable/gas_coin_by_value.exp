@@ -7,7 +7,7 @@ task 1, lines 9-10:
 //# programmable --sender A --inputs @B
 //> TransferObjects([Gas], Input(0))
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 12:
 //# view-object 0,0
@@ -20,6 +20,6 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
         },
     },
     balance: iota::balance::Balance<iota::iota::IOTA> {
-        value: 299999998012000u64,
+        value: 299999998019600u64,
     },
 }

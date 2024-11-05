@@ -7,7 +7,7 @@ task 1, lines 10-19:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5054000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5046400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 21-26:
 //# programmable --sender A --inputs @A
@@ -16,7 +16,7 @@ task 2, lines 21-26:
 // cannot use results from other functions
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2188800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 28-30:
 //# programmable

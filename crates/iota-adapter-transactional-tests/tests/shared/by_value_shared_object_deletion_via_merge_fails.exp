@@ -7,25 +7,25 @@ task 1, lines 14-63:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 9279600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 9272000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 65:
 //# run t2::o2::mint_owned_coin
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 67:
 //# run t2::o2::mint_shared_coin
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 69:
 //# run t2::o2::mint_shared_obj
 created: object(4,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2211600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 71:
 //# view-object 2,0
@@ -113,19 +113,19 @@ task 13, line 104:
 //# run t2::o2::mint_shared_coin
 created: object(13,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 14, line 106:
 //# run t2::o2::mint_shared_coin
 created: object(14,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 15, line 108:
 //# run t2::o2::mint_shared_obj
 created: object(15,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2211600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 16, line 110:
 //# view-object 13,0

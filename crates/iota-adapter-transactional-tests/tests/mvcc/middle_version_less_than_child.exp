@@ -7,7 +7,7 @@ task 1, lines 9-52:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 7493600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 7486000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 54-58:
 //# programmable --sender A --inputs @A
@@ -16,7 +16,7 @@ task 2, lines 54-58:
 // All 3 objects have version 2
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 6285200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 6254800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 60:
 //# view-object 2,0
@@ -78,7 +78,7 @@ task 6, lines 66-69:
 //> test::m::set(Input(0), Input(1))
 // The middle object has version 2, while the root and modified leaf have version 3
 mutated: object(0,0), object(2,1), object(2,2)
-gas summary: computation_cost: 1000000, storage_cost: 4278800,  storage_rebate: 4278800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 4256000,  storage_rebate: 4256000, non_refundable_storage_fee: 0
 
 task 7, line 71:
 //# view-object 2,0
@@ -139,4 +139,4 @@ task 10, lines 80-81:
 //# programmable --sender A --inputs object(2,2) 112
 //> test::m::check(Input(0), Input(1))
 mutated: object(0,0), object(2,2)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2272400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2257200,  storage_rebate: 2257200, non_refundable_storage_fee: 0

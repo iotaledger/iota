@@ -7,13 +7,13 @@ task 1, lines 7-77:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 12524800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 12517200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 79:
 //# run tto::M1::start --sender A
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 15298800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 15230400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 81:
 //# view-object 2,0
@@ -29,7 +29,7 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
         name: 1u64,
     },
     value: iota::object::ID {
-        bytes: fake(2,4),
+        bytes: fake(2,5),
     },
 }
 
@@ -103,7 +103,7 @@ Contents: iota::dynamic_field::Field<u64, tto::M1::A> {
 
 task 6, line 87:
 //# view-object 2,3
-Owner: Object ID: ( fake(2,5) )
+Owner: Object ID: ( fake(2,4) )
 Version: 2
 Contents: iota::dynamic_field::Field<u64, tto::M1::A> {
     id: iota::object::UID {
@@ -132,12 +132,34 @@ Contents: iota::dynamic_field::Field<u64, tto::M1::A> {
 
 task 7, line 89:
 //# view-object 2,4
-Owner: Object ID: ( fake(2,0) )
+Owner: Account Address ( fake(2,6) )
 Version: 2
 Contents: tto::M1::A {
     id: iota::object::UID {
         id: iota::object::ID {
             bytes: fake(2,4),
+        },
+    },
+    value: vector[
+        98u8,
+        95u8,
+        112u8,
+        97u8,
+        114u8,
+        101u8,
+        110u8,
+        116u8,
+    ],
+}
+
+task 8, line 91:
+//# view-object 2,5
+Owner: Object ID: ( fake(2,0) )
+Version: 2
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,5),
         },
     },
     value: vector[
@@ -158,28 +180,6 @@ Contents: tto::M1::A {
         100u8,
         111u8,
         102u8,
-    ],
-}
-
-task 8, line 91:
-//# view-object 2,5
-Owner: Account Address ( fake(2,6) )
-Version: 2
-Contents: tto::M1::A {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,5),
-        },
-    },
-    value: vector[
-        98u8,
-        95u8,
-        112u8,
-        97u8,
-        114u8,
-        101u8,
-        110u8,
-        116u8,
     ],
 }
 
@@ -240,14 +240,11 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 
 task 12, line 101:
 //# run tto::M1::receive_b_parent --args object(2,6) receiving(2,5) --sender A
-created: object(12,0)
-mutated: object(0,0), object(2,6)
-wrapped: object(2,5)
-gas summary: computation_cost: 1000000, storage_cost: 4278800,  storage_rebate: 3556800, non_refundable_storage_fee: 0
+Error: Error checking transaction input objects: InvalidChildObjectArgument { child_id: object(2,5), parent_id: object(2,0) }
 
 task 13, line 103:
 //# run tto::M1::receive_wrapped --args object(2,6) receiving(2,7) --sender A
 created: object(13,0)
 mutated: object(0,0), object(2,6)
 wrapped: object(2,7)
-gas summary: computation_cost: 1000000, storage_cost: 4856400,  storage_rebate: 4134400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 4833600,  storage_rebate: 4111600, non_refundable_storage_fee: 0
