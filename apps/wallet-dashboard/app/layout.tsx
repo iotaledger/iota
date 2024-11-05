@@ -50,7 +50,11 @@ export default function RootLayout({
                                 <ThemeProvider>
                                     <PopupProvider>
                                         {children}
-                                        <Toaster />
+                                        <Toaster
+                                            containerStyle={{
+                                                zIndex: 99999,
+                                            }}
+                                        />
                                         <Popup />
                                     </PopupProvider>
                                 </ThemeProvider>

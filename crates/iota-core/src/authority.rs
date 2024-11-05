@@ -143,9 +143,8 @@ use crate::{
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
     execution_cache::{
-        CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
-        ExecutionCacheTraitPointers, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI,
-        TransactionCacheRead,
+        ExecutionCacheCommit, ExecutionCacheReconfigAPI, ExecutionCacheTraitPointers,
+        ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TransactionCacheRead,
     },
     execution_driver::execution_process,
     metrics::{LatencyObserver, RateTracker},
@@ -2736,10 +2735,6 @@ impl AuthorityState {
         &self.execution_cache_trait_pointers.accumulator_store
     }
 
-    pub fn get_checkpoint_cache(&self) -> &Arc<dyn CheckpointCache> {
-        &self.execution_cache_trait_pointers.checkpoint_cache
-    }
-
     pub fn get_state_sync_store(&self) -> &Arc<dyn StateSyncAPI> {
         &self.execution_cache_trait_pointers.state_sync_store
     }
@@ -4118,7 +4113,7 @@ impl AuthorityState {
             ObjectLockStatus::LockedToTx { locked_by_tx } => locked_by_tx,
         };
 
-        epoch_store.get_signed_transaction(&lock_info.tx_digest)
+        epoch_store.get_signed_transaction(&lock_info)
     }
 
     pub async fn get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
@@ -4986,15 +4981,6 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
-    async fn deprecated_get_transaction_checkpoint(
-        &self,
-        digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.get_checkpoint_cache()
-            .deprecated_get_transaction_checkpoint(&digest)
-            .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
-    }
-
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -5009,14 +4995,10 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
-        let res = self
-            .get_checkpoint_cache()
-            .deprecated_multi_get_transaction_checkpoint(digests)?;
-
-        Ok(res
-            .into_iter()
-            .map(|maybe| maybe.map(|(_epoch, checkpoint)| checkpoint))
-            .collect())
+        Ok(self
+            .epoch_store
+            .load()
+            .multi_get_transaction_checkpoint(digests)?)
     }
 }
 
