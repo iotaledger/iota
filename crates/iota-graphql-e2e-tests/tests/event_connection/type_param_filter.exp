@@ -162,7 +162,21 @@ task 9, lines 80-95:
 Response: {
   "data": {
     "events": {
-      "nodes": []
+      "nodes": [
+        {
+          "type": {
+            "repr": "0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::EventA<0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::T2>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        }
+      ]
     }
   }
 }
