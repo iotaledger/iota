@@ -57,6 +57,8 @@ const developer = [
                             'developer/iota-101/move-overview/package-upgrades/custom-policies',
                         ],
                     },
+                    'developer/iota-101/move-overview/ownership-scope',
+                    'developer/iota-101/move-overview/references',
                     {
                         type: 'category',
                         label: 'Patterns',
