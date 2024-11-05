@@ -187,7 +187,6 @@ export const RPC_METHODS: {
             coinType: toShortTypeString(balance.coinType?.repr!),
             coinObjectCount: balance.coinObjectCount!,
             totalBalance: balance.totalBalance,
-            lockedBalance: {},
         };
     },
 
@@ -206,7 +205,6 @@ export const RPC_METHODS: {
             coinType: toShortTypeString(balance.coinType?.repr!),
             coinObjectCount: balance.coinObjectCount!,
             totalBalance: balance.totalBalance,
-            lockedBalance: {},
         }));
     },
     async getCoinMetadata(transport, inputs) {

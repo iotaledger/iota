@@ -78,10 +78,9 @@ use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
 
 use super::{
-    CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
-    ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
-    TransactionCacheRead, cache_types::CachedVersionMap, implement_passthrough_traits,
-    object_locks::ObjectLocks,
+    ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
+    ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead,
+    cache_types::CachedVersionMap, implement_passthrough_traits, object_locks::ObjectLocks,
 };
 use crate::{
     authority::{
