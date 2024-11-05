@@ -6,3 +6,4 @@ export * from './recognizedPackages.constants';
 export * from './coins.constants';
 export * from './timelock.constants';
 export * from './features.enum';
+export * from './gas.constants';

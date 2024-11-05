@@ -4,7 +4,6 @@
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { AddressInput, Loading } from '_components';
-import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import {
     useGetAllCoins,
     CoinFormat,
@@ -12,6 +11,7 @@ import {
     useCoinMetadata,
     useFormatCoin,
     parseAmount,
+    GAS_SYMBOL,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { type CoinStruct } from '@iota/iota-sdk/client';

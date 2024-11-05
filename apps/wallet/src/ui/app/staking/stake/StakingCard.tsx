@@ -15,6 +15,7 @@ import {
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    getStakeIotaByIotaId,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
@@ -30,7 +31,6 @@ import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { useSigner } from '../../hooks/useSigner';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
 import { createValidationSchema } from './utils/validation';
