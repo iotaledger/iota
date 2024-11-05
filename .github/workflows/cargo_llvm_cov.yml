@@ -73,7 +73,7 @@ jobs:
                 echo "Removing corrupted file: $file"
                 rm "$file"
             fi
-          done 
+          done
           cargo llvm-cov report --lcov --output-path target/llvm-cov-target/nextest.info
           if [ -f "target/llvm-cov-target/nextest.info" ]; then
             echo "Nextest coverage created."
@@ -103,6 +103,11 @@ jobs:
           cd target/llvm-cov-target
           genhtml -o coverage_report nextest.info simtest.info
           tar -czvf coverage_report.tgz ./coverage_report
+
+      - name: Upload code coverage report and trigger update
+        run: |
+          rsync -av coverage_report.tgz ${{ secrets.CODEGOV_REPORT_HOST }}:transfer/cargo-llvm-cov/
+          ssh ${{ secrets.CODEGOV_REPORT_HOST }}
 
       # TODO
       #- name: Update coverage webpage
