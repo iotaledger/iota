@@ -6,20 +6,20 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "digest": "Ap4ddWHXeYVMSMcf8cQT9j7WUM1rGKw7rG3Q8rpsuaUd",
+        "digest": "6wyR7YkwtD7gdqVAWA8mLEepj8hTFdapsBmXcTvEFFaw",
         "sequenceNumber": 0
       },
       "last": {
-        "digest": "Ap4ddWHXeYVMSMcf8cQT9j7WUM1rGKw7rG3Q8rpsuaUd",
+        "digest": "6wyR7YkwtD7gdqVAWA8mLEepj8hTFdapsBmXcTvEFFaw",
         "sequenceNumber": 0
       }
     },
     "first": {
-      "digest": "Ap4ddWHXeYVMSMcf8cQT9j7WUM1rGKw7rG3Q8rpsuaUd",
+      "digest": "6wyR7YkwtD7gdqVAWA8mLEepj8hTFdapsBmXcTvEFFaw",
       "sequenceNumber": 0
     },
     "last": {
-      "digest": "Ap4ddWHXeYVMSMcf8cQT9j7WUM1rGKw7rG3Q8rpsuaUd",
+      "digest": "6wyR7YkwtD7gdqVAWA8mLEepj8hTFdapsBmXcTvEFFaw",
       "sequenceNumber": 0
     }
   }
@@ -39,20 +39,20 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "digest": "Ap4ddWHXeYVMSMcf8cQT9j7WUM1rGKw7rG3Q8rpsuaUd",
+        "digest": "6wyR7YkwtD7gdqVAWA8mLEepj8hTFdapsBmXcTvEFFaw",
         "sequenceNumber": 0
       },
       "last": {
-        "digest": "6SSpR1JWujKRTEB844us1vSSxjpD3RADCZ6HujXWx9a1",
+        "digest": "5XTBMhyKNhY27jFhTi3EJhkTWthMSNh6ToneogvZzUwc",
         "sequenceNumber": 2
       }
     },
     "first": {
-      "digest": "Ap4ddWHXeYVMSMcf8cQT9j7WUM1rGKw7rG3Q8rpsuaUd",
+      "digest": "6wyR7YkwtD7gdqVAWA8mLEepj8hTFdapsBmXcTvEFFaw",
       "sequenceNumber": 0
     },
     "last": {
-      "digest": "6SSpR1JWujKRTEB844us1vSSxjpD3RADCZ6HujXWx9a1",
+      "digest": "5XTBMhyKNhY27jFhTi3EJhkTWthMSNh6ToneogvZzUwc",
       "sequenceNumber": 2
     }
   }

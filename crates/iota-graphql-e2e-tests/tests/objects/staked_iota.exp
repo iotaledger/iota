@@ -35,7 +35,7 @@ task 2, lines 34-36:
 //> TransferObjects([Result(0)], Input(1))
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1960800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 38:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
@@ -43,7 +43,7 @@ events: Event { package_id: iota_system, transaction_module: Identifier("iota_sy
 created: object(3,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 14523600,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 14493200,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 4, line 40:
 //# create-checkpoint
@@ -60,11 +60,11 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "ICzSs8gJrEchdo/v0DdIPKJpx37IypILVMI4TvKng3QUAgAAAAAAAAA=",
+          "cursor": "IHoT4mwLPstdJTymwopXK2Hkb482pqQC8RGq+pz5hHjNAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
-                "principal": "10000000000",
+                "principal": "15340000000000",
                 "poolId": "0xc31f5944196e6e820f9760da6bbcd81e0bc2e2b755444ace6965eedbc856eb29"
               }
             }
@@ -82,11 +82,11 @@ Response: {
           }
         },
         {
-          "cursor": "ILVYziRMbmfeQ0alyypl2nA4gTpsnVI0/mNu+O2M0UcwAgAAAAAAAAA=",
+          "cursor": "IPpfDq+7Ikt7j5QdhhsmA25f9p4Q3siWJsjGyWwLnU/vAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
-                "principal": "15340000000000",
+                "principal": "10000000000",
                 "poolId": "0xc31f5944196e6e820f9760da6bbcd81e0bc2e2b755444ace6965eedbc856eb29"
               }
             }
@@ -98,7 +98,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "ICzSs8gJrEchdo/v0DdIPKJpx37IypILVMI4TvKng3QUAgAAAAAAAAA=",
+            "cursor": "IPpfDq+7Ikt7j5QdhhsmA25f9p4Q3siWJsjGyWwLnU/vAgAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

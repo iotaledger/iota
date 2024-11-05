@@ -7,31 +7,31 @@ task 1, lines 14-27:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5168000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 29:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 31:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 33:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 35:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 37:
 //# create-checkpoint
@@ -41,19 +41,19 @@ task 7, line 39:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 8, line 41:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(8,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 9, line 43:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(9,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 10, line 45:
 //# create-checkpoint
@@ -63,13 +63,13 @@ task 11, line 47:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(11,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 12, line 49:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(12,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 13, line 51:
 //# create-checkpoint
@@ -94,12 +94,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "B5mycAo9Qjma8GXaB33VmBmY5aMphpvUaUGa31dBctQa",
+                  "digest": "EgHyhYjYkpGGrxXWfwJKQujEGKDkbhruSUo4aqgt4Xog",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -109,12 +109,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjozLCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "ESxws3HtgcjvKRyefUr7JAxsFLZWWUfDDAnroqeny4G5",
+                  "digest": "2TCioquMeoGvMQdzGBZM4RQAypg9pA4eViYcfN38WA7S",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -124,12 +124,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo0LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "AM5g6ZK4RPF6JcCr2Y8pe1SGQrJozxmJ6ZE2dmzZHfnz",
+                  "digest": "CLsmwubYL9iizZTA2T45VDXBvqronPLobCF2QaScNiNG",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -139,12 +139,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo1LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "cZvk4twvcLg8KqTa6Dx7ktHjtsW4T97rSGqRTDFB9i9",
+                  "digest": "BRzHC4iA83fBkQcdd3NGbW6qHxxY4kg7DAbq4BkxrjPW",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -161,12 +161,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo2LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "4dqvaY8wktxVDv685kMHE2tYzD3eA2d8CgcL1cnd5GEp",
+                  "digest": "7cHtmPytnYZA9zT4CB74zJkzuLHxRsLxms3jURmfuEvF",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -176,12 +176,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo3LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "A8y4xLrF2oDM2rmozRsScWd4AmTzkKetdqVgEWsY7ykF",
+                  "digest": "GR6wTwTFbZgEv2uMYKGSRd3TKJUh8dPn3sfByVerGdWr",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -191,12 +191,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo4LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "2ugu2t43xP3yRHTS2c2uwciMHWhnUXD3MEFeL6ULGe4P",
+                  "digest": "HLtd5wuDwEwaZ49V3BUB4SbKe4i3GjbVUetHMr2uDixC",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -213,12 +213,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo5LCJpIjpmYWxzZX0",
                 "node": {
-                  "digest": "5JeY5Q4Cj4teQ9SiuZUNvaMs1KNHhZ5z67n8skbH9gN2",
+                  "digest": "7QVSpixM2mmob5vgX8eTJNQpTC2VehGzbXGjmM9m8JX1",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -228,12 +228,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9",
                 "node": {
-                  "digest": "FSAPnPoBSZi2zRXBYAnHGn2hp5q1mJdSbXwscYTH4xuD",
+                  "digest": "GTT98cf37C1Jaq6XrxzZoCyLPS8WxBDgRNgwV3Uqy3ge",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPufMw9vd+aLxsrWja29I8somQM3GVmqlq+gt1RdyMo0AwAAAAAAAAA="
+                          "cursor": "INsoC/eN93dBfeB9D7J1irKsJyo9EYCIdREdtyzU5AjTAwAAAAAAAAA="
                         }
                       ]
                     }

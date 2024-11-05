@@ -7,43 +7,43 @@ task 1, lines 21-69:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 8770400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 8762800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 71:
 //# run Test::M1::parent --sender A --args @A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 73:
 //# run Test::M1::child --sender A --args @A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2280000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 75:
 //# run Test::M1::child --sender A --args @A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2280000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 77:
 //# run Test::M1::add_child --sender A --args object(2,0) object(3,0) 42
 created: object(5,0)
 mutated: object(0,0), object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 6034400,  storage_rebate: 3587200, non_refundable_storage_fee: 0
 
 task 6, line 79:
 //# run Test::M1::add_nested_child --sender A --args object(2,0) 42 object(4,0) 420
 created: object(6,0)
 mutated: object(0,0), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 6034400,  storage_rebate: 3587200, non_refundable_storage_fee: 0
 
 task 7, line 81:
 //# run Test::M1::reclaim_and_freeze_child --sender A --args object(2,0) 42
 mutated: object(0,0), object(2,0), object(3,0)
 deleted: object(5,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 3587200,  storage_rebate: 6034400, non_refundable_storage_fee: 0
 
 task 8, line 83:
 //# create-checkpoint
@@ -58,11 +58,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x7a305b9b25129bd2d2fe1fb25387f9595ac60a7bee62519911fc23e33fadf8cc",
+              "address": "0xfbbb66a9acfb4f2c326029a8ab32cb7b67b62e6975198286f0d3b1b65f85a6a5",
               "version": 5,
               "contents": {
                 "json": {
-                  "id": "0x7a305b9b25129bd2d2fe1fb25387f9595ac60a7bee62519911fc23e33fadf8cc",
+                  "id": "0xfbbb66a9acfb4f2c326029a8ab32cb7b67b62e6975198286f0d3b1b65f85a6a5",
                   "count": "0"
                 }
               },
@@ -86,11 +86,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x7a305b9b25129bd2d2fe1fb25387f9595ac60a7bee62519911fc23e33fadf8cc",
+              "address": "0xfbbb66a9acfb4f2c326029a8ab32cb7b67b62e6975198286f0d3b1b65f85a6a5",
               "version": 5,
               "contents": {
                 "json": {
-                  "id": "0x7a305b9b25129bd2d2fe1fb25387f9595ac60a7bee62519911fc23e33fadf8cc",
+                  "id": "0xfbbb66a9acfb4f2c326029a8ab32cb7b67b62e6975198286f0d3b1b65f85a6a5",
                   "count": "0"
                 }
               },
@@ -98,11 +98,11 @@ Response: {
                 "nodes": [
                   {
                     "value": {
-                      "address": "0xca3b014349c4ac5ab7f7e7998ab3eb200264615363dc749a4082a2ad0fd7cdcb",
+                      "address": "0xcb4922eddc66634b1d70a811f327c0780b7a83b48ef366cd5a17fc6b8933b1bb",
                       "version": 6,
                       "contents": {
                         "json": {
-                          "id": "0xca3b014349c4ac5ab7f7e7998ab3eb200264615363dc749a4082a2ad0fd7cdcb",
+                          "id": "0xcb4922eddc66634b1d70a811f327c0780b7a83b48ef366cd5a17fc6b8933b1bb",
                           "count": "0"
                         }
                       }
@@ -145,7 +145,7 @@ Response: {
     "object": {
       "owner": {
         "parent": {
-          "address": "0x8ef98765dff1f57631c60140a4ccbf107b30574055550de619ad3d8b2f1b6495"
+          "address": "0xb5eb77d2869e7cb55fc3088b5313e98fbde0bc04e61a0fe6a34a3d8d2913f400"
         }
       },
       "dynamicFields": {
@@ -175,11 +175,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0xca3b014349c4ac5ab7f7e7998ab3eb200264615363dc749a4082a2ad0fd7cdcb",
+              "address": "0xcb4922eddc66634b1d70a811f327c0780b7a83b48ef366cd5a17fc6b8933b1bb",
               "version": 6,
               "contents": {
                 "json": {
-                  "id": "0xca3b014349c4ac5ab7f7e7998ab3eb200264615363dc749a4082a2ad0fd7cdcb",
+                  "id": "0xcb4922eddc66634b1d70a811f327c0780b7a83b48ef366cd5a17fc6b8933b1bb",
                   "count": "0"
                 }
               }
@@ -203,11 +203,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0xca3b014349c4ac5ab7f7e7998ab3eb200264615363dc749a4082a2ad0fd7cdcb",
+              "address": "0xcb4922eddc66634b1d70a811f327c0780b7a83b48ef366cd5a17fc6b8933b1bb",
               "version": 6,
               "contents": {
                 "json": {
-                  "id": "0xca3b014349c4ac5ab7f7e7998ab3eb200264615363dc749a4082a2ad0fd7cdcb",
+                  "id": "0xcb4922eddc66634b1d70a811f327c0780b7a83b48ef366cd5a17fc6b8933b1bb",
                   "count": "0"
                 }
               }

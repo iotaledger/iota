@@ -9,7 +9,7 @@ task 2, lines 11-13:
 //> TransferObjects([Result(0)], Input(1))
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1960800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 15:
 //# create-checkpoint
@@ -30,7 +30,7 @@ Response: {
     "c0": {
       "nodes": [
         {
-          "digest": "7QovzgQGyjpqkgWsWawcAY7yviFNaSc8PrnercRt6RNc",
+          "digest": "6oLu2i6TZn9t2pfUdYLf5GRCG4sAovNeG4iYSBV5gjvz",
           "kind": {
             "__typename": "GenesisTransaction"
           }
@@ -46,7 +46,7 @@ Response: {
           }
         },
         {
-          "digest": "CeiRZnQNjzPELprt6jeFL89eM9LsadZyAg1eU48uARJT",
+          "digest": "GjTyZ8uKjPCYGVWLv2o6uDrRBcU16EnS86w5MQM7GTcE",
           "kind": {
             "__typename": "ProgrammableTransactionBlock"
           }
@@ -87,7 +87,7 @@ Response: {
       "transactionBlocks": {
         "nodes": [
           {
-            "digest": "7QovzgQGyjpqkgWsWawcAY7yviFNaSc8PrnercRt6RNc",
+            "digest": "6oLu2i6TZn9t2pfUdYLf5GRCG4sAovNeG4iYSBV5gjvz",
             "kind": {
               "__typename": "GenesisTransaction"
             }
@@ -105,7 +105,7 @@ Response: {
             }
           },
           {
-            "digest": "CeiRZnQNjzPELprt6jeFL89eM9LsadZyAg1eU48uARJT",
+            "digest": "GjTyZ8uKjPCYGVWLv2o6uDrRBcU16EnS86w5MQM7GTcE",
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             }
@@ -154,7 +154,7 @@ Response: {
           "transactionBlocks": {
             "nodes": [
               {
-                "digest": "7QovzgQGyjpqkgWsWawcAY7yviFNaSc8PrnercRt6RNc",
+                "digest": "6oLu2i6TZn9t2pfUdYLf5GRCG4sAovNeG4iYSBV5gjvz",
                 "kind": {
                   "__typename": "GenesisTransaction"
                 }
@@ -172,7 +172,7 @@ Response: {
                 }
               },
               {
-                "digest": "CeiRZnQNjzPELprt6jeFL89eM9LsadZyAg1eU48uARJT",
+                "digest": "GjTyZ8uKjPCYGVWLv2o6uDrRBcU16EnS86w5MQM7GTcE",
                 "kind": {
                   "__typename": "ProgrammableTransactionBlock"
                 }

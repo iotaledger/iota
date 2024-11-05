@@ -136,7 +136,7 @@ task 2, lines 53-57:
 //# publish --upgradeable --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5213600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5198400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 59:
 //# create-checkpoint
@@ -160,7 +160,13 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0x4a05c44de50b6021b0a536d649f1e59b2f25a7597d0e453c18cb62e94ab1b7b9",
+                    "address": "0x1f869400a3111e5f77f9dd5319cbc1988427e561ce674b99960df3bee8ce936d",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x396eb3dd9e0a20a9113ca2442d1dbd28fa6baa0dea473e19746a27fc269cf01b",
                     "asMovePackage": {
                       "module": {
                         "struct": {
@@ -186,12 +192,6 @@ Response: {
                       }
                     }
                   }
-                },
-                {
-                  "outputState": {
-                    "address": "0x9e4e458b26d85fe8b20d64dcc355957b0eed1b0c673db96021ca7c6f5fc3b63a",
-                    "asMovePackage": null
-                  }
                 }
               ]
             }
@@ -206,7 +206,7 @@ task 5, lines 105-111:
 //# upgrade --package P0 --upgrade-capability 2,0 --sender A
 created: object(5,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 6049600,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 6034400,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 6, line 113:
 //# create-checkpoint
@@ -230,19 +230,19 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0x9e4e458b26d85fe8b20d64dcc355957b0eed1b0c673db96021ca7c6f5fc3b63a",
+                    "address": "0x1f869400a3111e5f77f9dd5319cbc1988427e561ce674b99960df3bee8ce936d",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0xbed2a127422bc7a1f96de75b6e9c668e7a1e4f866e729882bb174e89c6719600",
+                    "address": "0xdc858398051782e6f3f9b1d96366b79be69328ce15e1a42171eb8e332d728d99",
                     "asMovePackage": {
                       "module": {
                         "s": {
                           "module": {
                             "package": {
-                              "address": "0x4a05c44de50b6021b0a536d649f1e59b2f25a7597d0e453c18cb62e94ab1b7b9"
+                              "address": "0x396eb3dd9e0a20a9113ca2442d1dbd28fa6baa0dea473e19746a27fc269cf01b"
                             }
                           },
                           "name": "S",
@@ -267,7 +267,7 @@ Response: {
                         "t": {
                           "module": {
                             "package": {
-                              "address": "0xbed2a127422bc7a1f96de75b6e9c668e7a1e4f866e729882bb174e89c6719600"
+                              "address": "0xdc858398051782e6f3f9b1d96366b79be69328ce15e1a42171eb8e332d728d99"
                             }
                           },
                           "name": "T",
@@ -294,12 +294,12 @@ Response: {
                             {
                               "name": "s",
                               "type": {
-                                "repr": "0x4a05c44de50b6021b0a536d649f1e59b2f25a7597d0e453c18cb62e94ab1b7b9::m::S",
+                                "repr": "0x396eb3dd9e0a20a9113ca2442d1dbd28fa6baa0dea473e19746a27fc269cf01b::m::S",
                                 "signature": {
                                   "ref": null,
                                   "body": {
                                     "datatype": {
-                                      "package": "0x4a05c44de50b6021b0a536d649f1e59b2f25a7597d0e453c18cb62e94ab1b7b9",
+                                      "package": "0x396eb3dd9e0a20a9113ca2442d1dbd28fa6baa0dea473e19746a27fc269cf01b",
                                       "module": "m",
                                       "type": "S",
                                       "typeParameters": []
@@ -328,7 +328,7 @@ Response: {
                             {
                               "name": "t",
                               "type": {
-                                "repr": "0x4a05c44de50b6021b0a536d649f1e59b2f25a7597d0e453c18cb62e94ab1b7b9::m::T<0x4a05c44de50b6021b0a536d649f1e59b2f25a7597d0e453c18cb62e94ab1b7b9::m::S>"
+                                "repr": "0x396eb3dd9e0a20a9113ca2442d1dbd28fa6baa0dea473e19746a27fc269cf01b::m::T<0x396eb3dd9e0a20a9113ca2442d1dbd28fa6baa0dea473e19746a27fc269cf01b::m::S>"
                               }
                             }
                           ]

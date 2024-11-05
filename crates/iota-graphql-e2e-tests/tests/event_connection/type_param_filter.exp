@@ -7,25 +7,25 @@ task 1, lines 7-30:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5996400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5988800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 33:
 //# run Test::M1::emit_T1 --sender A
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T1"), type_params: [] })] }, contents: [0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 35:
 //# run Test::M1::emit_T2 --sender A
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T2"), type_params: [] })] }, contents: [0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 37:
 //# run Test::M1::emit_both --sender A
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T1"), type_params: [] })] }, contents: [0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T2"), type_params: [] })] }, contents: [0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 39:
 //# create-checkpoint
@@ -38,19 +38,19 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "J2ipHUWhTfsoqMAG5AfXSsKG73c3oSqsxwQns9WP7WKv"
+          "digest": "67hPameda9JpVWkEhhbgkiJbab8Es1r9Bun3L1ZcqHnN"
         },
         {
-          "digest": "4xfhbjq2tmnU63qBvJmNoVHkn6ZDpc5tM7um5KZmcbD6"
+          "digest": "GRB3m3UzMU97EtryzWSdE6hwYBrmKiBzSRhBUE5VffoP"
         },
         {
-          "digest": "7KMh62FuUiuURWVLJ2h5u7x5HevR8xbM9cH1TJQpaCyJ"
+          "digest": "64xonNURVsGBXLkvF1LyZz78Yai16spUqm2P7UDDc28g"
         },
         {
-          "digest": "Ey8hFbd31T3ADiCyEDHAbQiEf4jTTguLAvwVU1ecZbmZ"
+          "digest": "o8oqTBvt7rJT3nspBxMkC7yadTxdNUGYC9VYoxViutr"
         },
         {
-          "digest": "AQdZp8NXSwowHBawy2qpoyST1LTpFLKr6uRyPAZ4LuZN"
+          "digest": "3DhKficF7uVtzdvYcTZxmAfh8UaTffRT7NBoA8EJ3RUT"
         }
       ]
     }
@@ -65,7 +65,7 @@ Response: {
       "nodes": [
         {
           "type": {
-            "repr": "0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::EventA<0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::T1>"
+            "repr": "0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::EventA<0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -78,7 +78,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::EventA<0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::T2>"
+            "repr": "0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::EventA<0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::T2>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -91,7 +91,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::EventA<0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::T1>"
+            "repr": "0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::EventA<0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -104,7 +104,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::EventA<0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::T2>"
+            "repr": "0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::EventA<0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::T2>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -128,7 +128,7 @@ Response: {
       "nodes": [
         {
           "type": {
-            "repr": "0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::EventA<0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::T1>"
+            "repr": "0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::EventA<0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -141,7 +141,7 @@ Response: {
         },
         {
           "type": {
-            "repr": "0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::EventA<0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::T1>"
+            "repr": "0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::EventA<0x3992fcadc9bd19e49f491b44ef7dd61b8a7b623805749095501d70715fd1d84e::M1::T1>"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -162,21 +162,7 @@ task 9, lines 80-95:
 Response: {
   "data": {
     "events": {
-      "nodes": [
-        {
-          "type": {
-            "repr": "0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::EventA<0x99e00ccb32fb943aafc2abe1722722f9ae1557e3efe3196623d9631c7286f2dd::M1::T2>"
-          },
-          "sender": {
-            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
-          },
-          "json": {
-            "value": {
-              "dummy_field": false
-            }
-          }
-        }
-      ]
+      "nodes": []
     }
   }
 }

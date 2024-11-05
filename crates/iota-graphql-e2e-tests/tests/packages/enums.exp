@@ -7,7 +7,7 @@ task 1, lines 7-18:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5783600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5768400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 20:
 //# create-checkpoint
@@ -31,7 +31,13 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0x76e7ff71302c8573d647fb6c1e7b72f8ff0552079062eee661c42d33fe843211",
+                    "address": "0x7910047afbb0d45a46b4d2004305f2522399cb89467a8156d0325df5f4fc9509",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0xffb241bbcfdad0fae8f9ae9f3222ed1c9ba54bf229dcd85aaa26d6b23575b19d",
                     "asMovePackage": {
                       "module": {
                         "enum": {
@@ -87,12 +93,6 @@ Response: {
                       }
                     }
                   }
-                },
-                {
-                  "outputState": {
-                    "address": "0x961298822ba41c38483a9bf76b28faaa4892649f91c67bd6030b54511723b8bf",
-                    "asMovePackage": null
-                  }
                 }
               ]
             }
@@ -107,7 +107,7 @@ task 4, lines 69-82:
 //# upgrade --package P0 --upgrade-capability 1,0 --sender A
 created: object(4,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 6657600,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 6642400,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 5, line 84:
 //# create-checkpoint
@@ -131,13 +131,19 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0x6606d773cbd440d344afaad70995ae878932157ceae72f6a3c07550467175d82",
+                    "address": "0x7910047afbb0d45a46b4d2004305f2522399cb89467a8156d0325df5f4fc9509",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0xa68c4531b9667c61e97d980dec6f42c6509dc8875454c0b8532fe7fb927d5767",
                     "asMovePackage": {
                       "module": {
                         "s": {
                           "module": {
                             "package": {
-                              "address": "0x76e7ff71302c8573d647fb6c1e7b72f8ff0552079062eee661c42d33fe843211"
+                              "address": "0xffb241bbcfdad0fae8f9ae9f3222ed1c9ba54bf229dcd85aaa26d6b23575b19d"
                             }
                           },
                           "name": "S",
@@ -192,7 +198,7 @@ Response: {
                         "t": {
                           "module": {
                             "package": {
-                              "address": "0x6606d773cbd440d344afaad70995ae878932157ceae72f6a3c07550467175d82"
+                              "address": "0xa68c4531b9667c61e97d980dec6f42c6509dc8875454c0b8532fe7fb927d5767"
                             }
                           },
                           "name": "T",
@@ -222,12 +228,12 @@ Response: {
                                 {
                                   "name": "s",
                                   "type": {
-                                    "repr": "0x76e7ff71302c8573d647fb6c1e7b72f8ff0552079062eee661c42d33fe843211::m::S",
+                                    "repr": "0xffb241bbcfdad0fae8f9ae9f3222ed1c9ba54bf229dcd85aaa26d6b23575b19d::m::S",
                                     "signature": {
                                       "ref": null,
                                       "body": {
                                         "datatype": {
-                                          "package": "0x76e7ff71302c8573d647fb6c1e7b72f8ff0552079062eee661c42d33fe843211",
+                                          "package": "0xffb241bbcfdad0fae8f9ae9f3222ed1c9ba54bf229dcd85aaa26d6b23575b19d",
                                           "module": "m",
                                           "type": "S",
                                           "typeParameters": []
@@ -261,7 +267,7 @@ Response: {
                                 {
                                   "name": "t",
                                   "type": {
-                                    "repr": "0x76e7ff71302c8573d647fb6c1e7b72f8ff0552079062eee661c42d33fe843211::m::T<0x76e7ff71302c8573d647fb6c1e7b72f8ff0552079062eee661c42d33fe843211::m::S>"
+                                    "repr": "0xffb241bbcfdad0fae8f9ae9f3222ed1c9ba54bf229dcd85aaa26d6b23575b19d::m::T<0xffb241bbcfdad0fae8f9ae9f3222ed1c9ba54bf229dcd85aaa26d6b23575b19d::m::S>"
                                   }
                                 }
                               ]
@@ -270,12 +276,6 @@ Response: {
                         }
                       }
                     }
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0x961298822ba41c38483a9bf76b28faaa4892649f91c67bd6030b54511723b8bf",
-                    "asMovePackage": null
                   }
                 }
               ]
@@ -304,6 +304,11 @@ Response: {
                 },
                 {
                   "outputState": {
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
                     "asMovePackage": {
                       "module": {
                         "s": {
@@ -320,11 +325,6 @@ Response: {
                         }
                       }
                     }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMovePackage": null
                   }
                 }
               ]
