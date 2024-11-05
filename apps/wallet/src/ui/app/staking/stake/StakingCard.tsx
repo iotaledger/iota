@@ -94,7 +94,10 @@ function StakingCard() {
     );
 
     const queryClient = useQueryClient();
-    const delegationId = stakeData?.status === 'Unstaked' || stakeData?.status === 'Active' ? stakeData?.stakedIotaId : undefined;
+    const delegationId =
+        stakeData?.status === 'Unstaked' || stakeData?.status === 'Active'
+            ? stakeData?.stakedIotaId
+            : undefined;
 
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);

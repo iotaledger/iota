@@ -59,7 +59,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     useEffect(() => {
         setFieldValue('gasBudget', gasBudget);
-      }, [gasBudget]);
+    }, [gasBudget]);
 
     const maxTokenBalance = coinBalance - gasBudget;
     const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
