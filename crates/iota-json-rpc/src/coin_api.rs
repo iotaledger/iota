@@ -1428,7 +1428,7 @@ mod tests {
                     validator_low_stake_grace_period: Default::default(),
                     extra_fields: Default::default(),
                 },
-                iota_system_admin_cap: IotaSystemAdminCap {},
+                iota_system_admin_cap: IotaSystemAdminCap::default(),
                 reference_gas_price: Default::default(),
                 validator_report_records: VecMap {
                     contents: Default::default(),

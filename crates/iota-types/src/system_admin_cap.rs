@@ -16,9 +16,14 @@ mod checked {
     use super::*;
     use crate::IOTA_FRAMEWORK_ADDRESS;
 
-    // Rust version of the IotaSystemAdminCap type
-    #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-    pub struct IotaSystemAdminCap {}
+    /// Rust version of the IotaSystemAdminCap type.
+    #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
+    pub struct IotaSystemAdminCap {
+        // This field is required to make a Rust struct compatible with an empty Move one.
+        // An empty Move struct contains a 1 byte dummy field because empty fields are not allowed
+        // in the bytecode.
+        dummy_field: u8,
+    }
 
     impl IotaSystemAdminCap {
         pub fn type_() -> StructTag {
