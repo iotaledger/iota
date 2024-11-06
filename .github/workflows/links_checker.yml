@@ -43,8 +43,6 @@ jobs:
         with:
           state: open
           labels: broken-links
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create or update report
         uses: peter-evans/create-issue-from-file@e8ef132d6df98ed982188e460ebb3b5d4ef3a9cd # pin@v4
