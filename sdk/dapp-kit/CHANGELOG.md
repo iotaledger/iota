@@ -1,5 +1,18 @@
 # @iota/dapp-kit
 
+## 0.3.0
+
+### Minor Changes
+
+-   6eabd18: Changes for compatibility with the node, simplification of exposed APIs and general
+    improvements.
+
+### Patch Changes
+
+-   Updated dependencies [6eabd18]
+    -   @iota/iota-sdk@0.3.0
+    -   @iota/wallet-standard@0.2.0
+
 ## 0.2.0
 
 ### Minor Changes

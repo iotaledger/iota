@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AccountBalance, MyCoins, StakingOverview } from '@/components';
+import { AccountBalance, MyCoins, TransactionsOverview, StakingOverview } from '@/components';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
@@ -47,7 +47,7 @@ function HomeDashboardPage(): JSX.Element {
                             Vesting
                         </div>
                         <div style={{ gridArea: 'activity' }} className="flex grow overflow-hidden">
-                            Activity
+                            <TransactionsOverview />
                         </div>
                     </div>
                 </>
