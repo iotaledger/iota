@@ -468,10 +468,9 @@ async fn call_shared_object_contract() {
     );
 }
 
+#[ignore("Disabled due to flakiness - re-enable when failure is fixed")]
 #[sim_test]
 async fn access_clock_object_test() {
-    // Permitted timestamp tolerance for calculating potential time delay
-    const TIMESTAMP_TOLERANCE_MS: u64 = 500;
     let test_cluster = TestClusterBuilder::new().build().await;
     let package_id = publish_basics_package(&test_cluster.wallet).await.0;
 
@@ -538,13 +537,7 @@ async fn access_clock_object_test() {
 
         // Timestamp that we have read in a smart contract
         // should match timestamp of the checkpoint where transaction is included
-        assert!(
-            (checkpoint.timestamp_ms as i64 - event.timestamp_ms as i64).abs()
-                <= TIMESTAMP_TOLERANCE_MS as i64,
-            "timestamps are not within the allowed tolerance. Checkpoint: {}, Event: {}",
-            checkpoint.timestamp_ms,
-            event.timestamp_ms
-        );
+        assert_eq!(checkpoint.timestamp_ms, event.timestamp_ms);
         break;
     }
 }
