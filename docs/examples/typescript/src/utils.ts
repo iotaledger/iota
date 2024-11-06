@@ -9,6 +9,7 @@ import {Ed25519Keypair} from '@iota/iota-sdk/keypairs/ed25519';
 import {IotaClient, type IotaObjectChangePublished} from "@iota/iota-sdk/dist/cjs/client";
 import {Transaction} from '@iota/iota-sdk/transactions';
 import {execSync} from 'child_process';
+import fs from 'fs';
 
 const SPONSOR_ADDRESS_MNEMONIC = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
 const CUSTOM_NFT_PACKAGE_PATH = "../../move/custom_nft";
@@ -80,6 +81,12 @@ export async function publishCustomNftPackage(
  * Utility function to publish a package.
  */
 async function publishPackage(iotaClient: IotaClient, keypair: Ed25519Keypair, packagePath: string): Promise<string> {
+    // First check if the iota binary is built.
+    if (!fs.existsSync(IOTA_BIN)) {
+        console.log("IOTA binary not found. Building the binary...");
+        execSync('cargo build --release -p iota', { cwd: path.resolve(__dirname, '../../../../') });
+    }
+
     const { modules, dependencies } = JSON.parse(
         execSync(
             `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath}`,
