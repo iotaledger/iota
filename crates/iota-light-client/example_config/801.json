@@ -1,63 +1,27 @@
 {
   "data": {
-    "epoch": 2,
+    "epoch": 3,
     "sequence_number": 801,
-    "network_total_transactions": 3498,
-    "content_digest": "2UJiT2bAw2jKqPXTgpQDVaQkWfQeUXhZNfo8q4PBAoGs",
-    "previous_digest": "5LLp9134guMunGhK7fFSSusyX24MmpEEpZh81qGJWeUE",
+    "network_total_transactions": 3477,
+    "content_digest": "AtVHrvk5k7rQAixdjge5fgUzeGQb2T36vcVxVFtZAFTB",
+    "previous_digest": "4r2Hdvkuq992F2URiiGqVAqDzWyWH5eCfyGji4eRCqeS",
     "epoch_rolling_gas_cost_summary": {
       "computationCost": "0",
       "storageCost": "0",
       "storageRebate": "0",
       "nonRefundableStorageFee": "0"
     },
-    "timestamp_ms": 1730201277471,
+    "timestamp_ms": 1730884781851,
     "checkpoint_commitments": [],
-    "end_of_epoch_data": {
-      "nextEpochCommittee": [
-        [
-          "jc/20VUECmVvSBmxMRG1LFdGqGunLzlfuv4uw4R9HoFA5iSnUf32tfIFC8cgXPnTAATJCwx0Cv/TJs5nPMKyOi0k1T4q/rKG38Zo/UBgCJ1tKxe3md02+Q0zLlSnozjU",
-          "2500"
-        ],
-        [
-          "mfJe9h+AMrkUY2RgmCxcxvE07x3a52ZX8sv+wev8jQlzdAgN9vzw3Li8Sw2OCvXYDrv/K0xZn1T0LWMS38MUJ2B4wcw0fru+xRmL4lhRPzhrkw0CwnSagD4jMJVevRoQ",
-          "2500"
-        ],
-        [
-          "rd7vlNiYyI5A297/kcXxBfnPLHR/tvK8N+wD1ske2y4aV4z1RL6LCTHiXyQ9WbDDDZihbOO6HWzx1/UEJpkusK2zE0sFW+gUDS218l+wDYP45CIr8B/WrJOh/0152ljy",
-          "2500"
-        ],
-        [
-          "s/1e+1yHJAOkrRPxGZUTYG0jNUqEUkmuoVdWTCP/PBXGyeZSty10DoysuTy8wGhrDsDMDBx2C/tCtDZRn8WoBUt2UzqXqfI5h9CX75ax8lJrsgc/oQp3GZQXcjR+8nT0",
-          "2500"
-        ]
-      ],
-      "nextEpochProtocolVersion": "1",
-      "epochCommitments": [
-        {
-          "ECMHLiveObjectSetDigest": {
-            "digest": "BcGNBp2x8z6g7PztfV8gH83mqwn6kFbVUCujttE31aMz"
-          }
-        }
-      ],
-      "epochSupplyChange": 767000000000000
-    },
+    "end_of_epoch_data": null,
     "version_specific_data": [
-      0,
-      1,
-      109,
-      0,
-      0,
-      0,
-      0,
-      0,
       0,
       0
     ]
   },
   "auth_signature": {
-    "epoch": 2,
-    "signature": "iZf2OsWQ2VwXEVaMjKP7A/dMXlWBHB9nJkybu2Slbyv0hblfLkZ43L94G85k3KBZ",
+    "epoch": 3,
+    "signature": "sQIuu9qMO/6fZccvkV6WHUTFaE/y069QSZriEq7cs0n1d2Z8s+Y2Pm8u+uPUaD91",
     "signers_map": [
       58,
       48,
