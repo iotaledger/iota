@@ -12,22 +12,15 @@ import type {
 
 import type { IotaReportTransactionEffectsFeature } from './iotaReportTransactionEffects.js';
 import type { IotaSignAndExecuteTransactionFeature } from './iotaSignAndExecuteTransaction.js';
-import type { IotaSignAndExecuteTransactionBlockFeature } from './iotaSignAndExecuteTransactionBlock.js';
-import type { IotaSignMessageFeature } from './iotaSignMessage.js';
 import type { IotaSignPersonalMessageFeature } from './iotaSignPersonalMessage.js';
 import type { IotaSignTransactionFeature } from './iotaSignTransaction.js';
-import type { IotaSignTransactionBlockFeature } from './iotaSignTransactionBlock.js';
 
 /**
  * Wallet Standard features that are unique to IOTA, and that all IOTA wallets are expected to implement.
  */
-export type IotaFeatures = Partial<IotaSignTransactionBlockFeature> &
-    Partial<IotaSignAndExecuteTransactionBlockFeature> &
-    IotaSignPersonalMessageFeature &
+export type IotaFeatures = IotaSignPersonalMessageFeature &
     IotaSignAndExecuteTransactionFeature &
     IotaSignTransactionFeature &
-    // This deprecated feature should be removed once wallets update to the new method:
-    Partial<IotaSignMessageFeature> &
     Partial<IotaReportTransactionEffectsFeature>;
 
 export type IotaWalletFeatures = StandardConnectFeature &
@@ -50,10 +43,7 @@ export type WalletWithRequiredFeatures = WalletWithFeatures<
 
 export type MinimallyRequiredFeatures = StandardConnectFeature & StandardEventsFeature;
 
-export * from './iotaSignMessage.js';
-export * from './iotaSignTransactionBlock.js';
 export * from './iotaSignTransaction.js';
-export * from './iotaSignAndExecuteTransactionBlock.js';
 export * from './iotaSignAndExecuteTransaction.js';
 export * from './iotaSignPersonalMessage.js';
 export * from './iotaReportTransactionEffects.js';

@@ -10,9 +10,8 @@ import type { IotaSignTransactionSerialized } from '_payloads/transactions/Execu
 import { type SignMessageRequest } from '_payloads/transactions/SignMessage';
 import type { TransactionRequestResponse } from '_payloads/transactions/ui/TransactionRequestResponse';
 import type { ContentScriptConnection } from '_src/background/connections/ContentScriptConnection';
-import { type SignedTransaction } from '_src/ui/app/WalletSigner';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { type IotaSignMessageOutput } from '@iota/wallet-standard';
+import { type SignedTransaction, type IotaSignPersonalMessageOutput } from '@iota/wallet-standard';
 import { filter, lastValueFrom, map, race, Subject, take } from 'rxjs';
 import { v4 as uuidV4 } from 'uuid';
 import Browser from 'webextension-polyfill';
@@ -68,12 +67,12 @@ class Transactions {
         return txSigned!;
     }
 
-    public async signMessage(
+    public async signPersonalMessage(
         { accountAddress, message }: Required<Pick<SignMessageRequest, 'args'>>['args'],
         connection: ContentScriptConnection,
-    ): Promise<IotaSignMessageOutput> {
+    ): Promise<IotaSignPersonalMessageOutput> {
         const { txResult, txResultError } = await this.requestApproval(
-            { type: 'sign-message', accountAddress, message },
+            { type: 'sign-personal-message', accountAddress, message },
             connection.origin,
             connection.originFavIcon,
         );
@@ -86,7 +85,7 @@ class Transactions {
         if (!('messageBytes' in txResult)) {
             throw new Error('Sign message error, unknown result');
         }
-        return txResult;
+        return txResult as IotaSignPersonalMessageOutput;
     }
 
     public async getTransactionRequests(): Promise<Record<string, ApprovalRequest>> {

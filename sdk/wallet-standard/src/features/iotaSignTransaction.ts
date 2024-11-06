@@ -40,3 +40,5 @@ export interface SignedTransaction {
     /** Base64 encoded signature */
     signature: string;
 }
+
+export interface IotaSignTransactionOutput extends SignedTransaction {}
