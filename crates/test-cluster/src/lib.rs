@@ -1308,24 +1308,20 @@ impl TestClusterBuilder {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
         // `NetworkConfig` can be used to configure and build the cluster.
-        let faucet = if self.network_config.is_none() {
+        let faucet = self.network_config.is_none().then(|| {
             let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
-
             let accounts = &mut self.get_or_init_genesis_config().accounts;
             accounts.push(AccountConfig {
                 address: Some(faucet_address),
                 gas_amounts: vec![DEFAULT_GAS_AMOUNT],
             });
-
-            Some(Faucet {
+            Faucet {
                 address: faucet_address,
                 keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
                     faucet_keypair,
                 ))),
-            })
-        } else {
-            None
-        };
+            }
+        });
 
         // All test clusters receive a continuous stream of random JWKs.
         // If we later use zklogin authenticated transactions in tests we will need to
