@@ -1320,7 +1320,7 @@ impl TestClusterBuilder {
             Some(Faucet {
                 address: faucet_address,
                 keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
-                    faucet_keypair.into(),
+                    faucet_keypair,
                 ))),
             })
         } else {
