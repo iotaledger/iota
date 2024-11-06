@@ -1225,7 +1225,7 @@ fn test_object_digest_and_serialized_format() {
     let objref = format!("{:?}", o.compute_object_reference());
     assert_eq!(
         objref,
-        "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#59tZq65HVqZjUyNtD7BCGLTD87N5cpayYwEFrtwR4aMz)"
+        "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
     );
 }
 
