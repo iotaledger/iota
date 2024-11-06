@@ -149,9 +149,13 @@ mod tests {
         Ok(())
     }
 
+    // TODO: why is this function here with hardcoed indexes?
+    // Can't this be done like in "read_test_data"?
+    // Maybe move "read_test_data" to some other place, so we don't need
+    // to duplicate the code here.
     async fn read_data() -> (Committee, CheckpointData) {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/532.json");
+        d.push("example_config/551.json");
 
         let checkpoint: Envelope<CheckpointSummary, AuthorityQuorumSignInfo<true>> =
             serde_json::from_reader(&fs::File::open(&d).unwrap())
@@ -174,7 +178,7 @@ mod tests {
         let committee = Committee::new(checkpoint.epoch().checked_add(1).unwrap(), prev_committee);
 
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/801.chk");
+        d.push("example_config/826.chk");
 
         let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
 
