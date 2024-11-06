@@ -4,7 +4,7 @@
 use std::fs;
 
 use iota_light_client::utils::{
-    read_checkpoint_list_from_config, sync_checkpoint_list_to_latest, CheckpointsList, Config
+    CheckpointsList, Config, read_checkpoint_list_from_config, sync_checkpoint_list_to_latest,
 };
 use iota_rest_api::Client;
 

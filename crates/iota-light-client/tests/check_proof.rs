@@ -11,8 +11,8 @@ use std::{
 use anyhow::anyhow;
 use iota_light_client::{
     construct::construct_proof,
-    proof::{verify_proof, Proof, ProofTarget},
-    utils::{read_checkpoint_list, CheckpointsList},
+    proof::{Proof, ProofTarget, verify_proof},
+    utils::{CheckpointsList, read_checkpoint_list},
 };
 use iota_rest_api::CheckpointData;
 use iota_types::{
@@ -36,11 +36,12 @@ async fn read_test_data() -> (Committee, CheckpointData) {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     d.push("example_config/checkpoints.yaml");
 
-    let checkpoints_list: CheckpointsList = read_checkpoint_list(d).expect("reading the checkpoints.yaml should not fail");
+    let checkpoints_list: CheckpointsList =
+        read_checkpoint_list(d).expect("reading the checkpoints.yaml should not fail");
 
     let committee_seq = checkpoints_list
         .checkpoints
-        .get(0)
+        .first()
         .expect("there should be a first checkpoint in the checkpoints.yaml");
     let seq = checkpoints_list
         .checkpoints
