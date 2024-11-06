@@ -813,7 +813,10 @@ impl TestCluster {
         amount: Option<u64>,
         funding_address: IotaAddress,
     ) -> ObjectRef {
-        let Faucet { address, keypair } = &self.faucet.as_ref().expect("Faucet not initialized: incompatible with `NetworkConfig`.");
+        let Faucet { address, keypair } = &self
+            .faucet
+            .as_ref()
+            .expect("Faucet not initialized: incompatible with `NetworkConfig`.");
 
         let keypair = &*keypair.lock().await;
 
@@ -1302,8 +1305,9 @@ impl TestClusterBuilder {
     }
 
     pub async fn build(mut self) -> TestCluster {
-        // We can add a faucet account to the `GenesisConfig` if there was no `NetworkConfig` provided.
-        // Only either a `GenesisConfig` or a `NetworkConfig` can be used to configure and build the cluster.
+        // We can add a faucet account to the `GenesisConfig` if there was no
+        // `NetworkConfig` provided. Only either a `GenesisConfig` or a
+        // `NetworkConfig` can be used to configure and build the cluster.
         let faucet = if self.network_config.is_none() {
             let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
 
@@ -1317,9 +1321,11 @@ impl TestClusterBuilder {
                 address: faucet_address,
                 keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
                     faucet_keypair.into(),
-                )))
+                ))),
             })
-        } else { None };
+        } else {
+            None
+        };
 
         // All test clusters receive a continuous stream of random JWKs.
         // If we later use zklogin authenticated transactions in tests we will need to
