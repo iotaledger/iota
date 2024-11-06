@@ -313,7 +313,7 @@ parameters:
       id: "0x4b729e195cfcf8f19c9508866d464aea19e48db9a721114e5a6159d53abf310f"
     size: 0
 iota_system_admin_cap:
-  dummy_field: 0
+  dummy_field: false
 reference_gas_price: 1000
 validator_report_records:
   contents: []

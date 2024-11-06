@@ -20,9 +20,9 @@ mod checked {
     #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
     pub struct IotaSystemAdminCap {
         // This field is required to make a Rust struct compatible with an empty Move one.
-        // An empty Move struct contains a 1 byte dummy field because empty fields are not allowed
-        // in the bytecode.
-        dummy_field: u8,
+        // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+        // allowed in the bytecode.
+        dummy_field: bool,
     }
 
     impl IotaSystemAdminCap {
