@@ -756,7 +756,6 @@ mod checked {
                 let Some(bytes) = value.simple_serialize(&layout) else {
                     invariant_violation!("Failed to deserialize already serialized Move value");
                 };
-                // safe because has_public_transfer has been determined by the abilities
                 let move_object = {
                     create_written_object(
                         vm,
@@ -1350,10 +1349,7 @@ mod checked {
         object_value: ObjectValue,
     ) -> Result<(), ExecutionError> {
         let ObjectValue {
-            type_,
-            has_public_transfer: _,
-            contents,
-            ..
+            type_, contents, ..
         } = object_value;
         let bytes = match contents {
             ObjectContents::Coin(coin) => coin.to_bcs_bytes(),

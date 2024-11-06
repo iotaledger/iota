@@ -756,7 +756,6 @@ mod checked {
                 let Some(bytes) = value.simple_serialize(&layout) else {
                     invariant_violation!("Failed to deserialize already serialized Move value");
                 };
-                // safe because has_public_transfer has been determined by the abilities
                 let move_object = {
                     create_written_object(
                         vm,
