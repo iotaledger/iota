@@ -14,13 +14,13 @@ import toast from "react-hot-toast";
  */
 export function useTransactionExecution() {
   const client = useIotaClient();
-  const { mutateAsync: signTransactionBlock } = useSignTransaction();
+  const { mutateAsync: signTransaction } = useSignTransaction();
 
   const executeTransaction = async (
     txb: Transaction,
   ): Promise<IotaTransactionBlockResponse | void> => {
     try {
-      const signature = await signTransactionBlock({
+      const signature = await signTransaction({
         transactionBlock: txb,
       });
 

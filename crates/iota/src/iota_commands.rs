@@ -87,7 +87,6 @@ pub struct IndexerFeatureArgs {
     /// `--with-indexer=0.0.0.0:9124` The indexer will be started in writer
     /// mode and reader mode.
     #[clap(long,
-            default_value = "0.0.0.0:9124",
             default_missing_value = "0.0.0.0:9124",
             num_args = 0..=1,
             require_equals = true,

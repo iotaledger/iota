@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { growthbook } from '@/lib/utils';
 import { Popup } from '@/components/Popup';
 import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from '@/contexts';
 
 growthbook.init();
 
@@ -35,11 +36,17 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                             },
                         ]}
                     >
-                        <PopupProvider>
-                            {children}
-                            <Toaster />
-                            <Popup />
-                        </PopupProvider>
+                        <ThemeProvider>
+                            <PopupProvider>
+                                {children}
+                                <Toaster
+                                    containerStyle={{
+                                        zIndex: 99999,
+                                    }}
+                                />
+                                <Popup />
+                            </PopupProvider>
+                        </ThemeProvider>
                     </WalletProvider>
                 </IotaClientProvider>
             </QueryClientProvider>
