@@ -27,11 +27,11 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
                 <Sidebar />
             </div>
 
-            <div className="container relative min-h-screen">
+            <div className="container relative flex min-h-screen flex-col">
                 <div className="sticky top-0">
                     <TopNav />
                 </div>
-                <div>{children}</div>
+                <div className="flex-1 py-md--rs">{children}</div>
             </div>
 
             <div className="fixed bottom-5 right-5">
