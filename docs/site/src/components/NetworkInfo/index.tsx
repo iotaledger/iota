@@ -50,6 +50,97 @@ function L1(props: NetworkProps) {
   );
 }
 
+// Testnet Component
+function Testnet(props: NetworkProps) {
+  return (
+    <table>
+      <tbody>
+        <tr>
+          <th>Base Token</th>
+          <td>{props.baseToken}</td>
+        </tr>
+        <tr>
+          <th>Protocol</th>
+          <td>{props.protocol}</td>
+        </tr>
+        <tr>
+          <th>HTTP REST API</th>
+          <td>
+            <CodeBlock>{props.httpRestApi}</CodeBlock>
+          </td>
+        </tr>
+        <tr>
+          <th>Event API</th>
+          <td>
+            <CodeBlock>{props.eventApi}</CodeBlock>
+          </td>
+        </tr>
+        <tr>
+          <th>Permanode API</th>
+          <td>
+            <CodeBlock>{props.permaNodeApi}</CodeBlock>
+          </td>
+        </tr>
+        {props.faucet && (
+          <tr>
+            <th>Faucet</th>
+            <td>
+              <a href={props.faucet} target='_blank' rel='noopener noreferrer'>
+                {props.faucet}
+              </a>
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+// Devtnet Component
+function Devtnet(props: NetworkProps) {
+  return (
+    <table>
+      <tbody>
+        <tr>
+          <th>Base Token</th>
+          <td>{props.baseToken}</td>
+        </tr>
+        <tr>
+          <th>Protocol</th>
+          <td>{props.protocol}</td>
+        </tr>
+        <tr>
+          <th>HTTP REST API</th>
+          <td>
+            <CodeBlock>{props.httpRestApi}</CodeBlock>
+          </td>
+        </tr>
+        <tr>
+          <th>Event API</th>
+          <td>
+            <CodeBlock>{props.eventApi}</CodeBlock>
+          </td>
+        </tr>
+        <tr>
+          <th>Permanode API</th>
+          <td>
+            <CodeBlock>{props.permaNodeApi}</CodeBlock>
+          </td>
+        </tr>
+        {props.faucet && (
+          <tr>
+            <th>Faucet</th>
+            <td>
+              <a href={props.faucet} target='_blank' rel='noopener noreferrer'>
+                {props.faucet}
+              </a>
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
 // EVM component
 function Evm(props: NetworkProps) {
   return (
@@ -223,4 +314,6 @@ export default {
   Evm,
   EvmCustom,
   Move,
+  Testnet,
+  Devnet
 };
