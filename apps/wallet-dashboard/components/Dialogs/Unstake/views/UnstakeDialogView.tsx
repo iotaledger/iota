@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button, KeyValueInfo, Divider, ButtonType, Panel, CardType } from '@iota/apps-ui-kit';
+import { Button, KeyValueInfo, Divider, ButtonType, Panel } from '@iota/apps-ui-kit';
 import {
     createUnstakeTransaction,
     ExtendedDelegatedStake,
@@ -12,8 +12,6 @@ import {
     useGetStakingValidatorDetails,
     useTimeAgo,
     useTransactionGasBudget,
-    ValidatorLogo,
-    ImageIconSize,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
@@ -115,13 +113,6 @@ export function UnstakeDialogView({
         <>
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col gap-y-md">
-                    <ValidatorLogo
-                        validatorAddress={extendedStake.validatorAddress}
-                        showActiveStatus={showActiveStatus}
-                        type={CardType.Filled}
-                        size={ImageIconSize.Large}
-                    />
-
                     <ValidatorStakingData
                         validatorAddress={extendedStake.validatorAddress}
                         stakeId={extendedStake.stakedIotaId}
