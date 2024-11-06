@@ -72,7 +72,7 @@ function VirtualList<T>({
                 {virtualItems.map((virtualItem) => (
                     <div
                         key={virtualItem.key}
-                        className={`absolute w-full pb-4 pr-4 ${onClick ? 'cursor-pointer' : ''}`}
+                        className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
                         style={{
                             position: 'absolute',
                             top: 0,
