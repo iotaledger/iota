@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BalanceChange } from '@iota/core';
-import { BalanceChangeEntries } from './';
+import { BalanceChangeEntries } from '.';
 
 interface BalanceChangesProps {
     balanceChanges: Record<string, BalanceChange[]>;
