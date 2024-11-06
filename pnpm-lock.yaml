@@ -222,9 +222,6 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.0
         version: 3.9.0(react-hook-form@7.53.0(react@18.3.1))
-      '@iota/apps-ui-kit':
-        specifier: workspace:*
-        version: link:../ui-kit
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
