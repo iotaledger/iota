@@ -1,3 +1,9 @@
+/** Copyright (c) 2024 IOTA Stiftung
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * A set of utility functions for the examples.
+ */
+
 import * as path from 'path';
 import {Ed25519Keypair} from '@iota/iota-sdk/keypairs/ed25519';
 import {IotaClient, type IotaObjectChangePublished} from "@iota/iota-sdk/dist/cjs/client";
