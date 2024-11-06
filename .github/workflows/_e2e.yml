@@ -74,6 +74,13 @@ jobs:
         if: inputs.isGraphQlTransport || inputs.isRust || inputs.isDevelop
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
 
+      - name: Build apps-backend
+        if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || inputs.isDevelop
+        run: pnpm --filter apps-backend build
+
+      - name: Run apps-backend e2e tests
+        run: pnpm --filter apps-backend test:e2e
+
       - name: Build explorer
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || inputs.isDevelop
         run: pnpm turbo --filter=iota-explorer build
