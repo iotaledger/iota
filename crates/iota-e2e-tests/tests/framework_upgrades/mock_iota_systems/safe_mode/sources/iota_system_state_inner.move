@@ -8,6 +8,7 @@ module iota_system::iota_system_state_inner {
     use iota::event;
     use iota::iota::IOTA;
     use iota::iota::IotaTreasuryCap;
+    use iota::system_admin_cap::IotaSystemAdminCap;
     use iota::table::{Self, Table};
 
     use iota_system::validator::ValidatorV1;
@@ -47,6 +48,7 @@ module iota_system::iota_system_state_inner {
         iota_treasury_cap: IotaTreasuryCap,
         validators: ValidatorSetV1,
         storage_fund: Balance<IOTA>,
+        iota_system_admin_cap: IotaSystemAdminCap,
         parameters: SystemParametersV1,
         reference_gas_price: u64,
         safe_mode: bool,
@@ -61,6 +63,7 @@ module iota_system::iota_system_state_inner {
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
+        iota_system_admin_cap: IotaSystemAdminCap,
         ctx: &mut TxContext,
     ): IotaSystemStateV1 {
         let system_state = IotaSystemStateV1 {
@@ -78,6 +81,7 @@ module iota_system::iota_system_state_inner {
                 epoch_duration_ms,
                 extra_fields: bag::new(ctx),
             },
+            iota_system_admin_cap,
             reference_gas_price: 1,
             safe_mode: false,
             epoch_start_timestamp_ms,
