@@ -813,7 +813,7 @@ impl TestCluster {
         amount: Option<u64>,
         funding_address: IotaAddress,
     ) -> ObjectRef {
-        let Faucet { address, keypair } = &self.faucet.as_ref().expect("cannot work with a `NetworkConfig`");
+        let Faucet { address, keypair } = &self.faucet.as_ref().expect("Cannot initialize faucet: incompatible with `NetworkConfig`.");
 
         let keypair = &*keypair.lock().await;
 
