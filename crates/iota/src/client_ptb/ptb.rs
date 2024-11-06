@@ -136,8 +136,8 @@ impl PTB {
                 .await
                 .map_err(|_| anyhow!("Could not find owner for gas object ID"))?,
             None => context
-                .config
-                .active_address
+                .config()
+                .active_address()
                 .ok_or_else(|| anyhow!("No active address, cannot execute PTB"))?,
         };
 
@@ -225,8 +225,8 @@ impl PTB {
         Vec<PTBError>,
     ) {
         let starting_addresses = context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .addresses_with_alias()
             .into_iter()
             .map(|(sa, alias)| (alias.alias.clone(), AccountAddress::from(*sa)))

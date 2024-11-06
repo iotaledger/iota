@@ -7641,6 +7641,7 @@ dependencies = [
  "fastcrypto",
  "futures",
  "futures-core",
+ "getset",
  "iota-config",
  "iota-json",
  "iota-json-rpc-api",

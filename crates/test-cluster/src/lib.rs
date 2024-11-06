@@ -1313,13 +1313,8 @@ impl TestClusterBuilder {
         let fullnode_handle =
             FullNodeHandle::new(fullnode.get_node_handle().unwrap(), json_rpc_address).await;
 
-        wallet_conf.envs.push(IotaEnv {
-            alias: "localnet".to_string(),
-            rpc: fullnode_handle.rpc_url.clone(),
-            ws: None,
-            basic_auth: None,
-        });
-        wallet_conf.active_env = Some("localnet".to_string());
+        wallet_conf.add_env(IotaEnv::new("localnet", fullnode_handle.rpc_url.clone()));
+        wallet_conf.set_active_env(Some("localnet".to_string()));
 
         wallet_conf
             .persisted(&working_dir.join(IOTA_CLIENT_CONFIG))
@@ -1611,13 +1606,9 @@ impl TestClusterBuilder {
         let active_address = keystore.addresses().first().cloned();
 
         // Create wallet config with stated authorities port
-        IotaClientConfig {
-            keystore: Keystore::from(FileBasedKeystore::new(&keystore_path)?),
-            envs: Default::default(),
-            active_address,
-            active_env: Default::default(),
-        }
-        .save(wallet_path)?;
+        IotaClientConfig::new(FileBasedKeystore::new(&keystore_path)?)
+            .with_active_address(active_address)
+            .save(wallet_path)?;
 
         // Return network handle
         Ok(swarm)
