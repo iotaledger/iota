@@ -27,7 +27,6 @@ use iota_types::{
 };
 use itertools::izip;
 use move_core_types::resolver::ModuleResolver;
-use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{RwLockReadGuard, RwLockWriteGuard},
     time::Instant,
@@ -45,7 +44,7 @@ use super::{
 };
 use crate::{
     authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
         authority_store_pruner::{
             AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
         },
@@ -542,50 +541,6 @@ impl AuthorityStore {
         Ok(result)
     }
 
-    // DEPRECATED -- use function of same name in AuthorityPerEpochStore
-    pub fn deprecated_insert_finalized_transactions(
-        &self,
-        digests: &[TransactionDigest],
-        epoch: EpochId,
-        sequence: CheckpointSequenceNumber,
-    ) -> IotaResult {
-        let mut batch = self
-            .perpetual_tables
-            .executed_transactions_to_checkpoint
-            .batch();
-        batch.insert_batch(
-            &self.perpetual_tables.executed_transactions_to_checkpoint,
-            digests.iter().map(|d| (*d, (epoch, sequence))),
-        )?;
-        batch.write()?;
-        trace!("Transactions {digests:?} finalized at checkpoint {sequence} epoch {epoch}");
-        Ok(())
-    }
-
-    // DEPRECATED -- use function of same name in AuthorityPerEpochStore
-    pub fn deprecated_get_transaction_checkpoint(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        Ok(self
-            .perpetual_tables
-            .executed_transactions_to_checkpoint
-            .get(digest)?)
-    }
-
-    // DEPRECATED -- use function of same name in AuthorityPerEpochStore
-    pub fn deprecated_multi_get_transaction_checkpoint(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-        Ok(self
-            .perpetual_tables
-            .executed_transactions_to_checkpoint
-            .multi_get(digests)?
-            .into_iter()
-            .collect())
-    }
-
     /// Returns true if there are no objects in the database
     pub fn database_is_empty(&self) -> IotaResult<bool> {
         self.perpetual_tables.database_is_empty()
@@ -712,9 +667,9 @@ impl AuthorityStore {
 
         // Update the index
         if object.get_single_owner().is_some() {
-            // Only initialize lock for address owned objects.
+            // Only initialize live object markers for address owned objects.
             if !object.is_child_object() {
-                self.initialize_live_object_markers_impl(&mut write_batch, &[object_ref], false)?;
+                self.initialize_live_object_markers_impl(&mut write_batch, &[object_ref])?;
             }
         }
 
@@ -758,11 +713,7 @@ impl AuthorityStore {
             .map(|(oref, _)| *oref)
             .collect();
 
-        self.initialize_live_object_markers_impl(
-            &mut batch,
-            &non_child_object_refs,
-            false, // is_force_reset
-        )?;
+        self.initialize_live_object_markers_impl(&mut batch, &non_child_object_refs)?;
 
         batch.write()?;
 
@@ -801,7 +752,6 @@ impl AuthorityStore {
                             &perpetual_db.live_owned_object_markers,
                             &mut batch,
                             &[object.compute_object_reference()],
-                            false, // is_force_reset
                         )?;
                     }
                 }
@@ -922,8 +872,8 @@ impl AuthorityStore {
             deleted,
             written,
             events,
-            locks_to_delete,
-            new_locks_to_init,
+            live_object_markers_to_delete,
+            new_live_object_markers_to_init,
             ..
         } = tx_outputs;
 
@@ -1006,11 +956,11 @@ impl AuthorityStore {
 
         write_batch.insert_batch(&self.perpetual_tables.events, events)?;
 
-        self.initialize_live_object_markers_impl(write_batch, new_locks_to_init, false)?;
+        self.initialize_live_object_markers_impl(write_batch, new_live_object_markers_to_init)?;
 
-        // Note: deletes locks for received objects as well (but not for objects that
-        // were in `Receiving` arguments which were not received)
-        self.delete_live_object_markers(write_batch, locks_to_delete)?;
+        // Note: deletes live object markers for received objects as well (but not for
+        // objects that were in `Receiving` arguments which were not received)
+        self.delete_live_object_markers(write_batch, live_object_markers_to_delete)?;
 
         write_batch
             .insert_batch(&self.perpetual_tables.effects, [(
@@ -1051,13 +1001,12 @@ impl AuthorityStore {
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult {
         let tx_digest = *transaction.digest();
-        let epoch = epoch_store.epoch();
         // Other writers may be attempting to acquire locks on the same objects, so a
         // mutex is required.
         // TODO: replace with optimistic db_transactions (i.e. set lock to tx if none)
         let _mutexes = self.acquire_locks(owned_input_objects).await;
 
-        trace!(?owned_input_objects, "acquire_locks");
+        trace!(?owned_input_objects, "acquire_transaction_locks");
         let mut locks_to_write = Vec::new();
 
         let live_object_markers = self
@@ -1076,32 +1025,17 @@ impl AuthorityStore {
             locks.into_iter(),
             owned_input_objects
         ) {
-            let Some(live_marker) = live_marker else {
-                let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
+            if live_marker.is_none() {
+                // object at that version does not exist
+                let latest_live_version = self.get_latest_live_version_for_object_id(obj_ref.0)?;
                 fp_bail!(
                     UserInputError::ObjectVersionUnavailableForConsumption {
                         provided_obj_ref: *obj_ref,
-                        current_version: latest_lock.1
+                        current_version: latest_live_version.1
                     }
                     .into()
                 );
             };
-
-            let live_marker = live_marker.map(|l| l.migrate().into_inner());
-
-            if let Some(LockDetailsDeprecated {
-                epoch: previous_epoch,
-                ..
-            }) = &live_marker
-            {
-                // this must be from a prior epoch, because we no longer write LockDetails to
-                // owned_object_transaction_locks
-                assert!(
-                    previous_epoch < &epoch,
-                    "lock for {:?} should be from a prior epoch",
-                    obj_ref
-                );
-            }
 
             if let Some(previous_tx_digest) = &lock {
                 if previous_tx_digest == &tx_digest {
@@ -1144,20 +1078,16 @@ impl AuthorityStore {
             .get(&obj_ref)?
             .is_none()
         {
+            // object at that version does not exist
             return Ok(ObjectLockStatus::LockedAtDifferentVersion {
                 locked_ref: self.get_latest_live_version_for_object_id(obj_ref.0)?,
             });
         }
 
         let tables = epoch_store.tables()?;
-        let epoch_id = epoch_store.epoch();
-
         if let Some(tx_digest) = tables.get_locked_transaction(&obj_ref)? {
             Ok(ObjectLockStatus::LockedToTx {
-                locked_by_tx: LockDetailsDeprecated {
-                    epoch: epoch_id,
-                    tx_digest,
-                },
+                locked_by_tx: tx_digest,
             })
         } else {
             Ok(ObjectLockStatus::Initialized)
@@ -1200,17 +1130,18 @@ impl AuthorityStore {
     /// Returns UserInputError::ObjectVersionUnavailableForConsumption if at
     /// least one object lock is not initialized     at the given version.
     pub fn check_owned_objects_are_live(&self, objects: &[ObjectRef]) -> IotaResult {
-        let locks = self
+        let live_markers = self
             .perpetual_tables
             .live_owned_object_markers
             .multi_get(objects)?;
-        for (lock, obj_ref) in locks.into_iter().zip(objects) {
-            if lock.is_none() {
-                let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
+        for (live_marker, obj_ref) in live_markers.into_iter().zip(objects) {
+            if live_marker.is_none() {
+                // object at that version does not exist
+                let latest_live_version = self.get_latest_live_version_for_object_id(obj_ref.0)?;
                 fp_bail!(
                     UserInputError::ObjectVersionUnavailableForConsumption {
                         provided_obj_ref: *obj_ref,
-                        current_version: latest_lock.1
+                        current_version: latest_live_version.1
                     }
                     .into()
                 );
@@ -1219,59 +1150,29 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// Initialize a lock to None (but exists) for a given list of ObjectRefs.
-    /// Returns IotaError::ObjectLockAlreadyInitialized if the lock already
-    /// exists and is locked to a transaction
+    /// Initialize live object markers for a given list of ObjectRefs.
     fn initialize_live_object_markers_impl(
         &self,
         write_batch: &mut DBBatch,
         objects: &[ObjectRef],
-        is_force_reset: bool,
     ) -> IotaResult {
         AuthorityStore::initialize_live_object_markers(
             &self.perpetual_tables.live_owned_object_markers,
             write_batch,
             objects,
-            is_force_reset,
         )
     }
 
     pub fn initialize_live_object_markers(
-        live_object_marker_table: &DBMap<ObjectRef, Option<LockDetailsWrapperDeprecated>>,
+        live_object_marker_table: &DBMap<ObjectRef, ()>,
         write_batch: &mut DBBatch,
         objects: &[ObjectRef],
-        is_force_reset: bool,
     ) -> IotaResult {
-        trace!(?objects, "initialize_locks");
-
-        let live_object_markers = live_object_marker_table.multi_get(objects)?;
-
-        if !is_force_reset {
-            // If any live_object_markers exist and are not None, return errors for them
-            // Note we don't check if there is a pre-existing lock. this is because
-            // initializing the live object marker will not overwrite the lock
-            // and cause the validator to equivocate.
-            let existing_live_object_markers: Vec<ObjectRef> = live_object_markers
-                .iter()
-                .zip(objects)
-                .filter_map(|(lock_opt, objref)| {
-                    lock_opt.clone().flatten().map(|_tx_digest| *objref)
-                })
-                .collect();
-            if !existing_live_object_markers.is_empty() {
-                info!(
-                    ?existing_live_object_markers,
-                    "Cannot initialize live_object_markers because some exist already"
-                );
-                return Err(IotaError::ObjectLockAlreadyInitialized {
-                    refs: existing_live_object_markers,
-                });
-            }
-        }
+        trace!(?objects, "initialize_live_object_markers");
 
         write_batch.insert_batch(
             live_object_marker_table,
-            objects.iter().map(|obj_ref| (obj_ref, None)),
+            objects.iter().map(|obj_ref| (obj_ref, ())),
         )?;
         Ok(())
     }
@@ -1282,7 +1183,7 @@ impl AuthorityStore {
         write_batch: &mut DBBatch,
         objects: &[ObjectRef],
     ) -> IotaResult {
-        trace!(?objects, "delete_locks");
+        trace!(?objects, "delete_live_object_markers");
         write_batch.delete_batch(
             &self.perpetual_tables.live_owned_object_markers,
             objects.iter(),
@@ -1291,7 +1192,7 @@ impl AuthorityStore {
     }
 
     #[cfg(test)]
-    pub(crate) fn reset_locks_for_test(
+    pub(crate) fn reset_locks_and_live_markers_for_test(
         &self,
         transactions: &[TransactionDigest],
         objects: &[ObjectRef],
@@ -1312,7 +1213,7 @@ impl AuthorityStore {
         batch.write().unwrap();
 
         let mut batch = self.perpetual_tables.live_owned_object_markers.batch();
-        self.initialize_live_object_markers_impl(&mut batch, objects, false)
+        self.initialize_live_object_markers_impl(&mut batch, objects)
             .unwrap();
         batch.write().unwrap();
     }
@@ -1404,10 +1305,10 @@ impl AuthorityStore {
 
         let old_locks: Vec<_> = old_locks.flatten().collect();
 
-        // Re-create old locks.
-        self.initialize_live_object_markers_impl(&mut write_batch, &old_locks, true)?;
+        // Re-create old live markers.
+        self.initialize_live_object_markers_impl(&mut write_batch, &old_locks)?;
 
-        // Delete new locks
+        // Delete new live markers
         write_batch.delete_batch(
             &self.perpetual_tables.live_owned_object_markers,
             new_locks.flatten(),
@@ -1963,56 +1864,6 @@ pub type IotaLockResult = IotaResult<ObjectLockStatus>;
 #[derive(Debug, PartialEq, Eq)]
 pub enum ObjectLockStatus {
     Initialized,
-    LockedToTx { locked_by_tx: LockDetailsDeprecated },
+    LockedToTx { locked_by_tx: LockDetails }, // no need to use wrapper, not stored or serialized
     LockedAtDifferentVersion { locked_ref: ObjectRef },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LockDetailsWrapperDeprecated {
-    V1(LockDetailsV1Deprecated),
-}
-
-impl LockDetailsWrapperDeprecated {
-    pub fn migrate(self) -> Self {
-        // TODO: when there are multiple versions, we must iteratively migrate from
-        // version N to N+1 until we arrive at the latest version
-        self
-    }
-
-    // Always returns the most recent version. Older versions are migrated to the
-    // latest version at read time, so there is never a need to access older
-    // versions.
-    pub fn inner(&self) -> &LockDetailsDeprecated {
-        match self {
-            Self::V1(v1) => v1,
-
-            // can remove #[allow] when there are multiple versions
-            #[allow(unreachable_patterns)]
-            _ => panic!("lock details should have been migrated to latest version at read time"),
-        }
-    }
-    pub fn into_inner(self) -> LockDetailsDeprecated {
-        match self {
-            Self::V1(v1) => v1,
-
-            // can remove #[allow] when there are multiple versions
-            #[allow(unreachable_patterns)]
-            _ => panic!("lock details should have been migrated to latest version at read time"),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LockDetailsV1Deprecated {
-    pub epoch: EpochId,
-    pub tx_digest: TransactionDigest,
-}
-
-pub type LockDetailsDeprecated = LockDetailsV1Deprecated;
-
-impl From<LockDetailsDeprecated> for LockDetailsWrapperDeprecated {
-    fn from(details: LockDetailsDeprecated) -> Self {
-        // always use latest version.
-        LockDetailsWrapperDeprecated::V1(details)
-    }
 }

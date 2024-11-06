@@ -61,7 +61,7 @@ function VirtualList<T>({
     ]);
 
     return (
-        <div className="relative h-[50vh] w-full overflow-auto" ref={containerRef}>
+        <div className="relative h-full w-full" ref={containerRef}>
             <div
                 style={{
                     height: `${virtualizer.getTotalSize()}px`,

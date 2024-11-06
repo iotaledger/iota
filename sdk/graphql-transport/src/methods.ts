@@ -187,7 +187,6 @@ export const RPC_METHODS: {
             coinType: toShortTypeString(balance.coinType?.repr!),
             coinObjectCount: balance.coinObjectCount!,
             totalBalance: balance.totalBalance,
-            lockedBalance: {},
         };
     },
 
@@ -206,7 +205,6 @@ export const RPC_METHODS: {
             coinType: toShortTypeString(balance.coinType?.repr!),
             coinObjectCount: balance.coinObjectCount!,
             totalBalance: balance.totalBalance,
-            lockedBalance: {},
         }));
     },
     async getCoinMetadata(transport, inputs) {
@@ -1069,8 +1067,7 @@ export const RPC_METHODS: {
             },
         };
     },
-    async executeTransactionBlock(transport, [txBytes, signatures, options, _requestType]) {
-        // TODO: requestType
+    async executeTransactionBlock(transport, [txBytes, signatures, options]) {
         const { effects, errors } = await transport.graphqlQuery(
             {
                 query: ExecuteTransactionBlockDocument,

@@ -1614,7 +1614,7 @@ impl LocalExec {
             })
             .collect();
         let gas_data = orig_tx.transaction_data().gas_data();
-        let gas_object_refs: Vec<_> = gas_data.clone().payment.into_iter().collect();
+        let gas_object_refs: Vec<_> = gas_data.clone().payment;
         let receiving_objs = orig_tx
             .transaction_data()
             .receiving_objects()
