@@ -1,0 +1,34 @@
+name: Split Cluster Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  # TODO: re-enable https://github.com/iotaledger/iota/issues/3862
+  # validate-mainnet:
+  #   if: github.event.pull_request.draft == false
+  #   runs-on: self-hosted
+  #   steps:
+  #     - name: Checkout code repository
+  #       uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+  #       with:
+  #         fetch-depth: 0
+  #     - name: Run split cluster check script
+  #       id: mn-split-cluster-check
+  #       run: |
+  #         IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=mainnet \
+  #         scripts/compatibility/split-cluster-check.sh origin/mainnet ${{ github.sha }}
+  validate-testnet:
+    if: github.event.pull_request.draft == false
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        with:
+          fetch-depth: 0
+      - name: Run split cluster check script
+        id: tn-split-cluster-check
+        run: |
+          IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=testnet \
+          scripts/compatibility/split-cluster-check.sh origin/testnet ${{ github.sha }}

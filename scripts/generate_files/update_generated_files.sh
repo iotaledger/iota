@@ -1,20 +1,33 @@
 #!/bin/bash
 TARGET_FOLDER="../.."
 SKIP_SPEC_GENERATION=false
+SKIP_TS_GENERATION=false
 CHECK_BUILDS=false
 
 # Parse command line arguments
 # Usage:
 # --target-folder <path>        - the target folder of the repository
 # --skip-spec-generation        - skip the generation of the open rpc and graphql schema
+# --skip-ts-generation          - skip the generation of the typescript files
 # --check-builds                - run a build check after the generation of the files
 while [ $# -gt 0 ]; do
+    # error on unknown arguments
+    if [[ $1 != *"--target-folder"* && $1 != *"--skip-spec-generation"* && $1 != *"--skip-ts-generation"* && $1 != *"--check-builds"* ]]; then
+        echo "Unknown argument: $1"
+        echo "Usage: $0 [--target-folder <path>] [--skip-spec-generation] [--skip-ts-generation] [--check-builds]"
+        exit 1
+    fi
+
     if [[ $1 == *"--target-folder"* ]]; then
         TARGET_FOLDER=$2
     fi
 
     if [[ $1 == *"--skip-spec-generation"* ]]; then
         SKIP_SPEC_GENERATION=true
+    fi
+
+    if [[ $1 == *"--skip-ts-generation"* ]]; then
+        SKIP_TS_GENERATION=true
     fi
 
     if [[ $1 == *"--check-builds"* ]]; then
@@ -76,6 +89,11 @@ if [ "$SKIP_SPEC_GENERATION" = false ]; then
     echo -e "\e[32mGenerating graphql schema..."
     cargo run --package iota-graphql-rpc generate-schema --file ./crates/iota-graphql-rpc/schema.graphql
     check_error "Failed to generate graphql schema"
+fi
+
+if [ "$SKIP_TS_GENERATION" = true ]; then
+    # skipping the generation of the typescript files
+    exit 0
 fi
 
 print_step "Installing typescript sdk dependencies..."

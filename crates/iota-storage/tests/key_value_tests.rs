@@ -215,13 +215,6 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
-    async fn deprecated_get_transaction_checkpoint(
-        &self,
-        digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        Ok(self.tx_to_checkpoint.get(&digest).cloned())
-    }
-
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -427,6 +420,7 @@ async fn test_get_tx_from_fallback() {
 #[cfg(msim)]
 mod simtests {
     use std::{
+        net::SocketAddr,
         sync::Mutex,
         time::{Duration, Instant},
     };
@@ -441,30 +435,32 @@ mod simtests {
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
     use rustls::crypto::{CryptoProvider, ring};
-    use tokio::net::TcpListener;
     use tracing::info;
 
     use super::*;
+
+    async fn svc(
+        State(state): State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
+        request: Request<Body>,
+    ) -> Response {
+        let path = request.uri().path().to_string();
+        let key = path.trim_start_matches('/');
+        let value = state.lock().unwrap().get(key).cloned();
+        info!("Got request for key: {:?}, value: {:?}", key, value);
+        match value {
+            Some(v) => Response::new(Body::from(v)),
+            None => Response::builder()
+                .status(hyper::StatusCode::NOT_FOUND)
+                .body(Body::empty())
+                .unwrap(),
+        }
+    }
 
     async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
         let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
         let startup_sender = Arc::new(startup_sender);
-        let (sender, _) = tokio::sync::broadcast::channel::<()>(1);
-
-        async fn get_data(
-            data: State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
-            req: Request,
-        ) -> Result<Vec<u8>, String> {
-            let path = req.uri().path().to_string();
-            let key = path.trim_start_matches('/');
-            let value = data.lock().unwrap().get(key).cloned();
-            info!("Got request for key: {:?}, value: {:?}", key, value);
-            value.ok_or_else(|| "no value".to_owned())
-        }
-
-        let sender_clone = sender.clone();
         let _node = builder
             .ip("10.10.10.10".parse().unwrap())
             .name("server")
@@ -472,21 +468,13 @@ mod simtests {
                 info!("Server started");
                 let data = data.clone();
                 let startup_sender = startup_sender.clone();
-                let mut receiver = sender_clone.subscribe();
                 async move {
-                    let app = axum::Router::new()
-                        .route("/", get(get_data))
-                        .with_state(data);
+                    let router = get(svc).with_state(data);
+                    let addr = SocketAddr::from(([10, 10, 10, 10], 8080));
+                    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
-                    let addr = TcpListener::bind(("10.10.10.10", 8080)).await.unwrap();
-
-                    tokio::spawn(async move {
-                        axum::serve(addr, app)
-                            .with_graceful_shutdown(async move {
-                                receiver.recv().await.ok();
-                            })
-                            .await
-                            .unwrap()
+                    tokio::spawn(async {
+                        axum::serve(listener, router).await.unwrap();
                     });
 
                     startup_sender.send(true).ok();
@@ -494,7 +482,6 @@ mod simtests {
             })
             .build();
         startup_receiver.changed().await.unwrap();
-        sender.send(()).ok();
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]

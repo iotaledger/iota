@@ -42,8 +42,8 @@ use iota_types::{
     },
     message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequestV2,
-        CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSignatureMessage,
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
+        CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
         CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData,
         FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint,
         VerifiedCheckpointContents,
@@ -1445,11 +1445,16 @@ impl CheckpointBuilder {
                     )
                     .await?;
 
+                // The system epoch info event can be `None` in case if the `advance_epoch`
+                // Move function call failed and was executed in the safe mode.
+                // In this case, the tokens supply should be unchanged.
+                //
                 // SAFETY: The number of minted and burnt tokens easily fit into an i64 and due
                 // to those small numbers, no overflows will occur during conversion or
                 // subtraction.
-                let epoch_supply_change = system_epoch_info_event.minted_tokens_amount as i64
-                    - system_epoch_info_event.burnt_tokens_amount as i64;
+                let epoch_supply_change = system_epoch_info_event.map_or(0, |event| {
+                    event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
+                });
 
                 let committee = system_state_obj
                     .get_current_epoch_committee()
@@ -1574,7 +1579,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1)> {
+    ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEventV1>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(
@@ -1957,9 +1962,9 @@ impl CheckpointSignatureAggregator {
                 Err(())
             }
             InsertResult::QuorumReached(cert) => {
-                // It is not guaranteed that signature.authority == narwhal_cert.author, but we
-                // do verify the signature so we know that the author signed the
-                // message at some point.
+                // It is not guaranteed that signature.authority == consensus_cert.author, but
+                // we do verify the signature so we know that the author signed
+                // the message at some point.
                 if their_digest != self.digest {
                     self.metrics.remote_checkpoint_forks.inc();
                     warn!(
@@ -2078,12 +2083,12 @@ async fn diagnose_split_brain(
             let client = network_clients
                 .get(&validator)
                 .expect("Failed to get network client");
-            let request = CheckpointRequestV2 {
+            let request = CheckpointRequest {
                 sequence_number: Some(local_summary.sequence_number),
                 request_content: true,
                 certified: false,
             };
-            client.handle_checkpoint_v2(request)
+            client.handle_checkpoint(request)
         })
         .collect::<Vec<_>>();
 
@@ -2094,17 +2099,17 @@ async fn diagnose_split_brain(
         .zip(digest_name_pair)
         .filter_map(|(response, (digest, name))| match response {
             Ok(response) => match response {
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: Some(CheckpointSummaryResponse::Pending(summary)),
                     contents: Some(contents),
                 } => Some((*name, *digest, summary, contents)),
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: Some(CheckpointSummaryResponse::Certified(_)),
                     contents: _,
                 } => {
                     panic!("Expected pending checkpoint, but got certified checkpoint");
                 }
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: None,
                     contents: _,
                 } => {
@@ -2114,7 +2119,7 @@ async fn diagnose_split_brain(
                     );
                     None
                 }
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: _,
                     contents: None,
                 } => {

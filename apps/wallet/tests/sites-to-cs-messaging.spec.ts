@@ -61,7 +61,7 @@ test.describe('site to content script messages', () => {
         [
             'sign message no account',
             {
-                type: 'sign-message-request',
+                type: 'sign-personal-message-request',
             },
             false,
         ],

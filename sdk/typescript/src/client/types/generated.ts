@@ -29,9 +29,6 @@ export interface AddressMetrics {
 export interface Balance {
     coinObjectCount: number;
     coinType: string;
-    lockedBalance: {
-        [key: string]: string;
-    };
     totalBalance: string;
 }
 export interface BalanceChange {
@@ -228,7 +225,7 @@ export interface EndOfEpochInfo {
     epochEndTimestamp: string;
     lastCheckpointId: string;
     mintedTokensAmount: string;
-    /** existing fields from `SystemEpochInfoEvent` (without epoch) */
+    /** existing fields from `SystemEpochInfoEventV1` (without epoch) */
     protocolVersion: string;
     referenceGasPrice: string;
     storageCharge: string;
@@ -690,6 +687,11 @@ export interface IotaSystemStateSummary {
      * epoch to go above this.
      */
     maxValidatorCount: string;
+    /**
+     * Minimum number of active validators at any moment. We do not allow the number of validators in any
+     * epoch to go under this.
+     */
+    minValidatorCount: string;
     /** Lower-bound on the amount of stake required to become a validator. */
     minValidatorJoiningStake: string;
     /** ID of the object that contains the list of new validators that will join at the end of the epoch. */
@@ -1479,7 +1481,7 @@ export type IotaTransactionBlockKind =
       } /** A transaction which updates global authenticator state */
     | {
           epoch: string;
-          kind: 'AuthenticatorStateUpdate';
+          kind: 'AuthenticatorStateUpdateV1';
           new_active_jwks: IotaActiveJwk[];
           round: string;
       } /** A transaction which updates global randomness state */

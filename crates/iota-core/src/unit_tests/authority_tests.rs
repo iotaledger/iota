@@ -30,7 +30,7 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{AuthorityCapabilitiesV2, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{AuthorityCapabilitiesV1, ConsensusDeterminedVersionAssignments},
     object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
@@ -2081,14 +2081,16 @@ async fn test_conflicting_transactions() {
                 .auth_sig()
         );
 
-        authority_state.database_for_testing().reset_locks_for_test(
-            &[*tx1.digest(), *tx2.digest()],
-            &[
-                gas_object.compute_object_reference(),
-                object.compute_object_reference(),
-            ],
-            &authority_state.epoch_store_for_testing(),
-        );
+        authority_state
+            .database_for_testing()
+            .reset_locks_and_live_markers_for_test(
+                &[*tx1.digest(), *tx2.digest()],
+                &[
+                    gas_object.compute_object_reference(),
+                    object.compute_object_reference(),
+                ],
+                &authority_state.epoch_store_for_testing(),
+            );
     }
 }
 
@@ -4909,7 +4911,7 @@ async fn test_consensus_message_processed() {
             authority1.try_execute_for_test(&certificate).await.unwrap();
 
         // now, on authority2, we send 0 or 1 consensus messages, then we either
-        // sequence and execute via effects or via handle_certificate_v2, then
+        // sequence and execute via effects or via handle_certificate_v1, then
         // send 0 or 1 consensus messages.
         let send_first = rng.gen_bool(0.5);
         if send_first {
@@ -4993,7 +4995,7 @@ async fn test_choose_next_system_packages() {
 
     macro_rules! make_capabilities {
         ($v: expr, $name: expr, $packages: expr) => {
-            AuthorityCapabilitiesV2::new(
+            AuthorityCapabilitiesV1::new(
                 $name,
                 Chain::Unknown,
                 SupportedProtocolVersions::new_for_testing(1, $v),
@@ -5002,7 +5004,7 @@ async fn test_choose_next_system_packages() {
         };
 
         ($v: expr, $name: expr, $packages: expr, $digest: expr) => {{
-            let mut cap = AuthorityCapabilitiesV2::new(
+            let mut cap = AuthorityCapabilitiesV1::new(
                 $name,
                 Chain::Unknown,
                 SupportedProtocolVersions::new_for_testing(1, $v),
@@ -5035,7 +5037,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5053,7 +5055,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities.clone(),
@@ -5066,7 +5068,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5084,7 +5086,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5102,7 +5104,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5120,7 +5122,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5138,7 +5140,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5156,7 +5158,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5175,7 +5177,7 @@ async fn test_choose_next_system_packages() {
     // upgrade to 3 which is the highest supported version
     assert_eq!(
         (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5196,7 +5198,7 @@ async fn test_choose_next_system_packages() {
     // won't happen until everyone moves to 3.
     assert_eq!(
         (ver(1), sort(vec![])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5217,7 +5219,7 @@ async fn test_choose_next_system_packages() {
 
     assert_eq!(
         (ver(1), sort(vec![])),
-        AuthorityState::choose_protocol_version_and_system_packages_v2(
+        AuthorityState::choose_protocol_version_and_system_packages_v1(
             ProtocolVersion::MIN,
             &committee,
             capabilities,
@@ -5818,15 +5820,11 @@ async fn test_consensus_handler_per_object_congestion_control(
         PerObjectCongestionControlMode::None => unreachable!(),
         PerObjectCongestionControlMode::TotalGasBudget => {
             protocol_config
-                .set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(200_000_000);
-            protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     200_000_000,
                 );
         }
         PerObjectCongestionControlMode::TotalTxCount => {
-            protocol_config
-                .set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(2);
             protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(2);
         }
@@ -6056,8 +6054,6 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     protocol_config.set_per_object_congestion_control_mode_for_testing(
         PerObjectCongestionControlMode::TotalGasBudget,
     );
-    protocol_config
-        .set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(100_000_000);
     protocol_config
         .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(100_000_000);
     protocol_config.set_max_deferral_rounds_for_congestion_control_for_testing(2);

@@ -4,5 +4,4 @@
 export enum AssetCategory {
     Visual = 'Visual',
     Other = 'Other',
-    // Hidden = 'Hidden',
 }

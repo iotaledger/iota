@@ -49,10 +49,10 @@ export function PaginationOptions({
             <div className="flex flex-row items-center gap-2">
                 {PAGINATION_BUTTONS.map((button, index) => (
                     <Button
+                        key={index}
                         type={ButtonType.Secondary}
                         size={ButtonSize.Small}
                         {...button}
-                        key={index}
                     />
                 ))}
             </div>

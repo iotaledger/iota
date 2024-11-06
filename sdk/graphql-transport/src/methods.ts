@@ -187,7 +187,6 @@ export const RPC_METHODS: {
             coinType: toShortTypeString(balance.coinType?.repr!),
             coinObjectCount: balance.coinObjectCount!,
             totalBalance: balance.totalBalance,
-            lockedBalance: {},
         };
     },
 
@@ -206,7 +205,6 @@ export const RPC_METHODS: {
             coinType: toShortTypeString(balance.coinType?.repr!),
             coinObjectCount: balance.coinObjectCount!,
             totalBalance: balance.totalBalance,
-            lockedBalance: {},
         }));
     },
     async getCoinMetadata(transport, inputs) {
@@ -799,6 +797,7 @@ export const RPC_METHODS: {
             iotaTotalSupply: String(systemState.iotaTotalSupply),
             iotaTreasuryCapId: String(systemState.iotaTreasuryCapId),
             maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
+            minValidatorCount: String(systemState.systemParameters?.minValidatorCount),
             minValidatorJoiningStake: String(
                 systemState.systemParameters?.minValidatorJoiningStake,
             ),
@@ -1068,8 +1067,7 @@ export const RPC_METHODS: {
             },
         };
     },
-    async executeTransactionBlock(transport, [txBytes, signatures, options, _requestType]) {
-        // TODO: requestType
+    async executeTransactionBlock(transport, [txBytes, signatures, options]) {
         const { effects, errors } = await transport.graphqlQuery(
             {
                 query: ExecuteTransactionBlockDocument,
@@ -1343,7 +1341,6 @@ export const RPC_METHODS: {
         const attributes: Record<string, ProtocolConfigValue | null> = {};
 
         const configTypeMap: Record<string, string> = {
-            max_accumulated_txn_cost_per_object_in_narwhal_commit: 'u64',
             max_arguments: 'u32',
             max_gas_payment_objects: 'u32',
             max_modules_in_publish: 'u32',

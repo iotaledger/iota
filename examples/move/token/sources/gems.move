@@ -75,8 +75,8 @@ module examples::gem {
     // rules for different types of actions.
     fun init(otw: GEM, ctx: &mut TxContext) {
         let (treasury_cap, coin_metadata) = coin::create_currency(
-            otw, 0, b"GEM", b"Capy Gems", // otw, decimal, symbol, name
-            b"In-game currency for Capy Miners", none(), // description, url
+            otw, 0, b"GEM", b"Gems", // otw, decimal, symbol, name
+            b"In-game currency for Miners", none(), // description, url
             ctx
         );
 

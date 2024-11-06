@@ -639,6 +639,7 @@ impl ToolCommand {
                         .handle_checkpoint(CheckpointRequest {
                             sequence_number,
                             request_content: true,
+                            certified: true,
                         })
                         .await
                         .unwrap();
