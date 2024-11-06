@@ -528,11 +528,24 @@ async fn exchange_rates(
     _current_epoch: EpochId,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
     let system_state = state.get_system_state()?;
-    let system_state_summary: IotaSystemStateSummary =
-        system_state.into_iota_system_state_summary();
+    let object_store = state.get_object_store();
 
     // Get validator rate tables
     let mut tables = vec![];
+
+    // Try to find for any pending active validator
+    for pending_active_validator in system_state.get_pending_active_validators(object_store)? {
+        tables.push((
+            pending_active_validator.iota_address,
+            pending_active_validator.staking_pool_id,
+            pending_active_validator.exchange_rates_id,
+            pending_active_validator.exchange_rates_size,
+            true,
+        ));
+    }
+
+    let system_state_summary: IotaSystemStateSummary =
+        system_state.into_iota_system_state_summary();
 
     for validator in system_state_summary.active_validators {
         tables.push((
