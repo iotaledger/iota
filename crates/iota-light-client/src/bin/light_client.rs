@@ -191,7 +191,7 @@ mod tests {
     async fn test_checkpoint_all_good() {
         let (committee, full_checkpoint) = read_data().await;
 
-        let tx_digest_0 = full_checkpoint.transactions[0].transaction.digest().clone();
+        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
         extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0).unwrap();
     }
@@ -200,7 +200,7 @@ mod tests {
     async fn test_checkpoint_bad_committee() {
         let (mut committee, full_checkpoint) = read_data().await;
 
-        let tx_digest_0 = full_checkpoint.transactions[0].transaction.digest().clone();
+        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
         // Change committee
         committee.epoch += 10;
@@ -230,7 +230,7 @@ mod tests {
     async fn test_checkpoint_bad_contents() {
         let (committee, mut full_checkpoint) = read_data().await;
 
-        let tx_digest_0 = full_checkpoint.transactions[0].transaction.digest().clone();
+        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
         // Change contents
         let random_contents = FullCheckpointContents::random_for_testing();
@@ -248,6 +248,8 @@ mod tests {
 
         // Add a random event to the transaction, so the event digest doesn't match
         let tx0 = &mut full_checkpoint.transactions[0];
+        let tx_digest_0 = *tx0.transaction.digest();
+
         if tx0.events.is_none() {
             // if there are no events yet, add them
             tx0.events = Some(TransactionEvents {
@@ -260,8 +262,6 @@ mod tests {
                 .data
                 .push(Event::random_for_testing());
         }
-
-        let tx_digest_0 = tx0.transaction.digest().clone();
 
         assert!(
             extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
