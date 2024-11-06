@@ -51,9 +51,3 @@ jobs:
           content-filepath: ${{ env.LYCHEE_OUT }}
           issue-number: ${{ steps.last-issue.outputs.issue-number }}
           labels: broken-links
-
-      - name: Close last report open issue
-        if: steps.lychee.outputs.exit_code == 0
-        uses: peter-evans/close-issue@276d7966e389d888f011539a86c8920025ea0626 # pin@v3
-        with:
-          issue-number: ${{ steps.last-issue.outputs.issue-number }}
