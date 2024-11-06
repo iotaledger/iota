@@ -97,7 +97,7 @@ function Testnet(props: NetworkProps) {
 }
 
 // Devtnet Component
-function Devtnet(props: NetworkProps) {
+function Devnet(props: NetworkProps) {
   return (
     <table>
       <tbody>
