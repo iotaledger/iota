@@ -32,7 +32,7 @@ use iota_types::{
     accumulator::Accumulator,
     authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
-        AuthorityName, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
+        AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
@@ -62,7 +62,6 @@ use iota_types::{
 };
 use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use narwhal_types::{Round, TimestampMs};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus::IntCounter;
 use serde::{Deserialize, Serialize};
@@ -104,7 +103,7 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
+            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
             VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
@@ -403,7 +402,7 @@ pub struct AuthorityEpochTables {
         DBMap<TransactionDigest, TrustedEnvelope<SenderSignedData, AuthoritySignInfo>>,
 
     /// Map from ObjectRef to transaction locking that object
-    #[default_options_override_fn = "owned_object_transaction_locks_table_default_config"]
+    #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectRef, LockDetailsWrapper>,
 
     /// Signatures over transaction effects that we have signed and returned to
@@ -599,7 +598,7 @@ pub struct AuthorityEpochTables {
     pub(crate) randomness_highest_completed_round: DBMap<u64, RandomnessRound>,
 
     /// Holds the timestamp of the most recently generated round of randomness.
-    pub(crate) randomness_last_round_timestamp: DBMap<u64, TimestampMs>,
+    pub(crate) randomness_last_round_timestamp: DBMap<u64, CommitTimestampMs>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -608,7 +607,7 @@ fn signed_transactions_table_default_config() -> DBOptions {
         .optimize_for_large_values_no_scan(1 << 10)
 }
 
-fn owned_object_transaction_locks_table_default_config() -> DBOptions {
+fn owned_object_locked_transactions_table_default_config() -> DBOptions {
     DBOptions {
         options: default_db_options()
             .optimize_for_write_throughput()
@@ -678,6 +677,13 @@ impl AuthorityEpochTables {
         // TODO: Add new tables that get added to the db automatically
         self.executed_transactions_to_checkpoint.unsafe_clear()?;
         Ok(())
+    }
+
+    pub fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        Ok(self.executed_transactions_to_checkpoint.get(digest)?)
     }
 
     /// WARNING: This method is very subtle and can corrupt the database if used
@@ -1458,9 +1464,7 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .executed_transactions_to_checkpoint
-            .multi_get(digests)?
-            .into_iter()
-            .collect())
+            .multi_get(digests)?)
     }
 
     // For each id in objects_to_init, return the next version for that id as
@@ -1696,7 +1700,7 @@ impl AuthorityPerEpochStore {
     fn should_defer(
         &self,
         cert: &VerifiedExecutableTransaction,
-        commit_round: Round,
+        commit_round: CommitRound,
         dkg_failed: bool,
         generating_randomness: bool,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
@@ -2383,10 +2387,6 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessStateUpdate(_round, _bytes),
-                ..
-            }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes),
                 ..
@@ -3224,7 +3224,7 @@ impl AuthorityPerEpochStore {
         output: &mut ConsensusCommitOutput,
         transaction: &VerifiedSequencedConsensusTransaction,
         checkpoint_service: &Arc<C>,
-        commit_round: Round,
+        commit_round: CommitRound,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
         mut randomness_manager: Option<&mut RandomnessManager>,
         dkg_failed: bool,
@@ -3426,13 +3426,6 @@ impl AuthorityPerEpochStore {
                     );
                 }
                 Ok(ConsensusCertificateResult::ConsensusMessage)
-            }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessStateUpdate(_, _),
-                ..
-            }) => {
-                // These are always generated as System transactions (handled below).
-                panic!("process_consensus_transaction called with external RandomnessStateUpdate");
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, bytes),
@@ -3840,7 +3833,7 @@ pub(crate) struct ConsensusCommitOutput {
     pending_checkpoints: Vec<PendingCheckpoint>,
 
     // random beacon state
-    next_randomness_round: Option<(RandomnessRound, TimestampMs)>,
+    next_randomness_round: Option<(RandomnessRound, CommitTimestampMs)>,
 
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
@@ -3918,7 +3911,7 @@ impl ConsensusCommitOutput {
     pub fn reserve_next_randomness_round(
         &mut self,
         next_randomness_round: RandomnessRound,
-        commit_timestamp: TimestampMs,
+        commit_timestamp: CommitTimestampMs,
     ) {
         assert!(self.next_randomness_round.is_none());
         self.next_randomness_round = Some((next_randomness_round, commit_timestamp));

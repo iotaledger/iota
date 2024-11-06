@@ -16,13 +16,13 @@ always be able to pay for the gas of the transaction.
 
 However, in more complex scenarios, you might want to define your own split strategy.
 
-Assume that you want to execute multiple transactions that transfer an object of type `CapyNFT`,
+Assume that you want to execute multiple transactions that transfer an object of type `MyNFT`,
 each to a different recipient.
 
 For this to work, the `ExecutorServiceHandler` needs to split the `mainPool` in a way such that
 every worker:
 
--   Contains at least one `CapyNFT` object.
+-   Contains at least one `MyNFT` object.
 -   Contains at least a coin (or set of coins) with a total balance enough to pay for the gas of the
     transaction.
 
@@ -30,7 +30,7 @@ To do this, you have to implement the `SplitStrategy` interface. In detail:
 
 ```ts
 class MyCustomSplitStrategy implements SplitStrategy {
-    private capyIncluded = false;
+    private myNftIncluded = false;
     private balanceSoFar = 0;
     private readonly minimumBalance;
 
@@ -38,13 +38,13 @@ class MyCustomSplitStrategy implements SplitStrategy {
         if (!obj) throw new Error('No object found!.');
         // If each requirement is fulfilled then terminate the split by returning null
         // This stops the split process and the worker pool is created
-        const terminateWhen = this.balanceSoFar >= this.minimumBalance && this.capyIncluded;
+        const terminateWhen = this.balanceSoFar >= this.minimumBalance && this.myNftIncluded;
         if (terminateWhen) {
             return null;
         }
-        // If a CapyNFT object is not already included, and the object is a CapyNFT, then include it
-        if (!capyIncluded && obj.type.includes('CapyNFT')) {
-            this.capyIncluded = true;
+        // If a MyNFT object is not already included, and the object is a MyNFT, then include it
+        if (!myNftIncluded && obj.type.includes('MyNFT')) {
+            this.myNftIncluded = true;
             return true;
         }
         // If the object is a coin and coins are still needed, then include it to the new pool

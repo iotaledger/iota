@@ -1,11 +1,10 @@
 [package]
 name = "telemetry-subscribers"
-version = "0.2.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/mystenlabs/mysten-infra"
 description = "Library for common telemetry and observability functionality"
 
 [dependencies]

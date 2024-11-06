@@ -131,7 +131,7 @@ function App() {
                 onClick={async () => {
                     setError(null);
                     try {
-                        await iotaWallet.features['iota:signMessage']?.signMessage({
+                        await iotaWallet.features['iota:signPersonalMessage']?.signPersonalMessage({
                             account: getAccount(accounts[0], useWrongAccounts),
                             message: new TextEncoder().encode('Test message'),
                         });

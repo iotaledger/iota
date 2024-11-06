@@ -1,10 +1,13 @@
 ---
 title: Create a Non-Fungible Token
+description: Learn how to create a non-fungible token (NFT) on IOTA using Move.
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/iota-101/create-nft.json';
 
-On IOTA, everything is an object. Moreover, in IOTA, everything is a non-fungible token (NFT) as its objects are unique, non-fungible, and owned. So technically, a basic type publishing is enough to create a specific NFT.
+On IOTA, everything is an [object](../objects/object-model.mdx).
+And, as objects in IOTA are unique, non-fungible, and owned, everything is a non-fungible token (NFT).
+This means that a basic type publishing is enough to create a specific NFT.
 
 ```move
 module examples::devnet_nft {

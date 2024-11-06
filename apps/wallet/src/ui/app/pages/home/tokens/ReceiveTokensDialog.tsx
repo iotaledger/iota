@@ -3,7 +3,7 @@
 
 import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
 import { useCopyToClipboard } from '_hooks';
-import { QR } from '_src/ui/app/components';
+import { QR } from '@iota/core';
 
 interface ReceiveTokensDialogProps {
     address: string;

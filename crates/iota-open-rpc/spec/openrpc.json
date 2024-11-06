@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.4.0"
+    "version": "0.6.0-alpha"
   },
   "methods": [
     {
@@ -883,7 +883,7 @@
             },
             {
               "name": "module",
-              "value": "iotafrens"
+              "value": "my_module"
             },
             {
               "name": "function",
@@ -1766,9 +1766,6 @@
                 },
                 "max_accumulated_txn_cost_per_object_in_mysticeti_commit": {
                   "u64": "10"
-                },
-                "max_accumulated_txn_cost_per_object_in_narwhal_commit": {
-                  "u64": "100"
                 },
                 "max_age_of_jwk_in_epochs": {
                   "u64": "1"
@@ -3195,8 +3192,7 @@
               {
                 "coinType": "0x2::iota::IOTA",
                 "coinObjectCount": 15,
-                "totalBalance": "3000000000",
-                "lockedBalance": {}
+                "totalBalance": "3000000000"
               }
             ]
           }
@@ -3373,8 +3369,7 @@
             "value": {
               "coinType": "0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC",
               "coinObjectCount": 15,
-              "totalBalance": "15",
-              "lockedBalance": {}
+              "totalBalance": "15"
             }
           }
         }
@@ -5742,7 +5737,6 @@
         "required": [
           "coinObjectCount",
           "coinType",
-          "lockedBalance",
           "totalBalance"
         ],
         "properties": {
@@ -5753,12 +5747,6 @@
           },
           "coinType": {
             "type": "string"
-          },
-          "lockedBalance": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/BigInt_for_uint128"
-            }
           },
           "totalBalance": {
             "$ref": "#/components/schemas/BigInt_for_uint128"

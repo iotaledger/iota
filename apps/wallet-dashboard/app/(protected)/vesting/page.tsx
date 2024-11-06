@@ -3,7 +3,7 @@
 
 'use client';
 
-import { Button, NewStakePopup, TimelockedUnstakePopup } from '@/components';
+import { Button, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
@@ -14,7 +14,9 @@ import {
     TimelockedStakedObjectsGrouped,
 } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
+import { useFeature } from '@growthbook/growthbook-react';
 import {
+    Feature,
     TIMELOCK_IOTA_TYPE,
     useGetActiveValidatorsInfo,
     useGetAllOwnedObjects,
@@ -24,11 +26,14 @@ import {
 import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
+    const router = useRouter();
     const { addNotification } = useNotifications();
     const { openPopup, closePopup } = usePopups();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
@@ -38,6 +43,8 @@ function VestingDashboardPage(): JSX.Element {
     });
     const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
@@ -128,11 +135,11 @@ function VestingDashboardPage(): JSX.Element {
         );
     }
 
-    function handleStake(): void {
-        openPopup(
-            <NewStakePopup onClose={closePopup} onSuccess={handleOnSuccess} isTimelockedStaking />,
-        );
-    }
+    useEffect(() => {
+        if (!supplyIncreaseVestingEnabled) {
+            router.push('/');
+        }
+    }, [router, supplyIncreaseVestingEnabled]);
 
     return (
         <div className="flex flex-row">
@@ -204,9 +211,6 @@ function VestingDashboardPage(): JSX.Element {
                     <div className="flex flex-row space-x-4">
                         {vestingSchedule.availableClaiming ? (
                             <Button onClick={handleCollect}>Collect</Button>
-                        ) : null}
-                        {vestingSchedule.availableStaking ? (
-                            <Button onClick={handleStake}>Stake</Button>
                         ) : null}
                     </div>
                 )}

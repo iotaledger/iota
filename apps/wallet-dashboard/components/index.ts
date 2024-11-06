@@ -15,8 +15,11 @@ export * from './PageSizeSelector';
 export * from './PaginationOptions';
 
 export * from './account-balance/AccountBalance';
-export * from './Coins';
+export * from './coins';
 export * from './Popup';
 export * from './AppList';
 export * from './Cards';
 export * from './Buttons';
+export * from './staking-overview';
+export * from './Dialogs';
+export * from './ImageIcon';
