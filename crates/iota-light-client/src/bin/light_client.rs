@@ -127,10 +127,7 @@ mod tests {
     use iota_light_client::utils::extract_verified_effects_and_events;
     use iota_rest_api::CheckpointData;
     use iota_types::{
-        committee::Committee,
-        crypto::AuthorityQuorumSignInfo,
-        message_envelope::Envelope,
-        messages_checkpoint::{CheckpointSummary, FullCheckpointContents},
+        committee::Committee, crypto::AuthorityQuorumSignInfo, effects::TransactionEvents, event::Event, message_envelope::Envelope, messages_checkpoint::{CheckpointSummary, FullCheckpointContents}
     };
 
     use super::*;
@@ -189,10 +186,12 @@ mod tests {
     async fn test_checkpoint_all_good() {
         let (committee, full_checkpoint) = read_data().await;
 
+        let tx_digest_0 = full_checkpoint.transactions[0].transaction.digest().clone();
+
         extract_verified_effects_and_events(
             &full_checkpoint,
             &committee,
-            TransactionDigest::from_str("Hero19xTN5BAmbkRVMG5HDAhrcp3ZiGiZwV2AFQSY1zX").unwrap(),
+            tx_digest_0,
         )
         .unwrap();
     }
@@ -201,6 +200,8 @@ mod tests {
     async fn test_checkpoint_bad_committee() {
         let (mut committee, full_checkpoint) = read_data().await;
 
+        let tx_digest_0 = full_checkpoint.transactions[0].transaction.digest().clone();
+
         // Change committee
         committee.epoch += 10;
 
@@ -208,8 +209,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("DpSZVwqohRzF7ASz7PMM8xL1ZkMnNvWMLJfjadt9ybE9")
-                    .unwrap(),
+                tx_digest_0,
             )
             .is_err()
         );
@@ -223,7 +223,8 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("6ciKBJF3gZ2zNNKLqwRMBL4ftZRGL2kHPgKepWP2thbs")
+                // tx does not exist
+                TransactionDigest::from_str("11111111111111111111111111111111")
                     .unwrap(),
             )
             .is_err()
@@ -234,6 +235,8 @@ mod tests {
     async fn test_checkpoint_bad_contents() {
         let (committee, mut full_checkpoint) = read_data().await;
 
+        let tx_digest_0 = full_checkpoint.transactions[0].transaction.digest().clone();
+
         // Change contents
         let random_contents = FullCheckpointContents::random_for_testing();
         full_checkpoint.checkpoint_contents = random_contents.checkpoint_contents();
@@ -242,8 +245,7 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("9AoR24Tcmss7K3DgBZYiUZNxHFuk8kdAbZEMcFe9mcAi")
-                    .unwrap(),
+                tx_digest_0,
             )
             .is_err()
         );
@@ -253,25 +255,22 @@ mod tests {
     async fn test_checkpoint_bad_events() {
         let (committee, mut full_checkpoint) = read_data().await;
 
-        let event = full_checkpoint.transactions[1]
-            .events
-            .as_ref()
-            .unwrap()
-            .data[0]
-            .clone();
-
-        for t in &mut full_checkpoint.transactions {
-            if let Some(events) = &mut t.events {
-                events.data.push(event.clone());
-            }
+        // Add a random event to the transaction, so the event digest doesn't match
+        let tx0 = &mut full_checkpoint.transactions[0];
+        if tx0.events.is_none() {
+            // if there are no events yet, add them
+            tx0.events = Some(TransactionEvents { data: vec!(Event::random_for_testing()) } );
+        } else {
+            tx0.events.as_mut().unwrap().data.push(Event::random_for_testing());
         }
 
+        let tx_digest_0 = tx0.transaction.digest().clone();
+        
         assert!(
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("Hj7mZdET3fKqxbSnbdcVbx9N2pqvHtkoKbPy6MEeFsfB")
-                    .unwrap(),
+                tx_digest_0,
             )
             .is_err()
         );
