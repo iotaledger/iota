@@ -6,9 +6,9 @@ on:
       - "wallet-v*.*.*"
 
 env:
-  DEFAULT_NETWORK: ${{ secrets.WALLET_RC_DEFAULT_NETWORK }}
-  IOTA_NETWORKS: ${{ secrets.WALLET_RC_IOTA_NETWORKS }}
-  APPS_BACKEND: ${{ secrets.WALLET_RC_APPS_BACKEND }}
+  DEFAULT_NETWORK: ${{ secrets.WALLET_PROD_DEFAULT_NETWORK }}
+  IOTA_NETWORKS: ${{ secrets.WALLET_PROD_IOTA_NETWORKS }}
+  APPS_BACKEND: ${{ secrets.WALLET_PROD_APPS_BACKEND }}
 
 jobs:
   wallet-prod-build:
