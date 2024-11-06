@@ -65,11 +65,7 @@ pub const ID_END_INDEX: usize = ObjectID::LENGTH;
 
 impl MoveObject {
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
-    /// `contents` `has_public_transfer` is determined by the abilities of
-    /// the `type_`, but resolving the abilities requires the compiled
-    /// modules of the `type_: StructTag`. In other words,
-    /// `has_public_transfer` will be the same for all objects of the same
-    /// `type_`.
+    /// `contents`.
     pub fn new_from_execution(
         type_: MoveObjectType,
         version: SequenceNumber,
