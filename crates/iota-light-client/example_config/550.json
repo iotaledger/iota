@@ -1,17 +1,17 @@
 {
   "data": {
     "epoch": 1,
-    "sequence_number": 551,
-    "network_total_transactions": 2405,
-    "content_digest": "A5hCvVDbwb37U9Jfrxn1cHKH9Y3CVLGuYHjCD5BV9vwB",
-    "previous_digest": "6KSEyAgpJCu77EJT2SLbBM5xHzt9393X864DGVz7MZHK",
+    "sequence_number": 550,
+    "network_total_transactions": 2403,
+    "content_digest": "47P1aNTqMzZKaZJTqbVgT9K7SFPFC5ctYJsvXy7o8ouP",
+    "previous_digest": "8Q8oGJNCsj1pcj6VZAgBck2UennBw5mjKb8ebaYG6gfS",
     "epoch_rolling_gas_cost_summary": {
       "computationCost": "0",
       "storageCost": "0",
       "storageRebate": "0",
       "nonRefundableStorageFee": "0"
     },
-    "timestamp_ms": 1730890429428,
+    "timestamp_ms": 1730899585469,
     "checkpoint_commitments": [],
     "end_of_epoch_data": {
       "nextEpochCommittee": [
@@ -36,7 +36,7 @@
       "epochCommitments": [
         {
           "ECMHLiveObjectSetDigest": {
-            "digest": "CWfcXZwRvQQ4vBFbziiZmyodv9yn1KgXgLZUMMMpgx5U"
+            "digest": "retjifC5anovnJzhyHiTkfT8fGCAe2e4u8SzSJG2ocs"
           }
         }
       ],
@@ -44,20 +44,12 @@
     },
     "version_specific_data": [
       0,
-      1,
-      111,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
       0
     ]
   },
   "auth_signature": {
     "epoch": 1,
-    "signature": "oGBOa1c0T8HpZgnN5qRALIiP4pwAnGfii8YTQvGAgYShYFnlGubNg8U59UvOD20b",
+    "signature": "hpGaM4d6YX1Tcgeqb640c6gcS2gJN1TCvd8H1qn9oTjrZ9aooOJ/J6/NH5lTa/Iw",
     "signers_map": [
       58,
       48,
@@ -75,7 +67,7 @@
       0,
       0,
       0,
-      1,
+      0,
       0,
       2,
       0,

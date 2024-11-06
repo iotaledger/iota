@@ -155,7 +155,7 @@ mod tests {
     // to duplicate the code here.
     async fn read_data() -> (Committee, CheckpointData) {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/551.json");
+        d.push("example_config/550.json");
 
         let checkpoint: Envelope<CheckpointSummary, AuthorityQuorumSignInfo<true>> =
             serde_json::from_reader(&fs::File::open(&d).unwrap())

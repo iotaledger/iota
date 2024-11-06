@@ -3,15 +3,15 @@
     "epoch": 2,
     "sequence_number": 826,
     "network_total_transactions": 3604,
-    "content_digest": "GkSdd3RfUQzdrVhL5wvzAucLsRULSvjJuZDpCRcU4iE2",
-    "previous_digest": "6XYFNnS8rbFoCzCoAVdmxRXFNeC5FYXoTLWos5bgmhNT",
+    "content_digest": "BSfcM97WPkbM5owrADCYfM2kiJgNqLan6gZmqq6Ho2Xb",
+    "previous_digest": "EVsJ7AuKoegf29oYzhcPJ4ACv8T65k8tkea7846ssv4R",
     "epoch_rolling_gas_cost_summary": {
       "computationCost": "0",
       "storageCost": "0",
       "storageRebate": "0",
       "nonRefundableStorageFee": "0"
     },
-    "timestamp_ms": 1730890490090,
+    "timestamp_ms": 1730899645819,
     "checkpoint_commitments": [],
     "end_of_epoch_data": {
       "nextEpochCommittee": [
@@ -36,7 +36,7 @@
       "epochCommitments": [
         {
           "ECMHLiveObjectSetDigest": {
-            "digest": "HcMtuTrkBUcuWWN88Wj6BG521LqGfsTkmHSnckd3J3B5"
+            "digest": "AeYtKLygimWXSY54yimY248UnoDqjmTdTBvicqipUZxL"
           }
         }
       ],
@@ -49,7 +49,7 @@
   },
   "auth_signature": {
     "epoch": 2,
-    "signature": "otQMeJvGeFMTZtpChxA+vyBHJ3BlS0BmiDKHK2Q6dgxZq1ZIbIZ+aH1v8DcS3wIx",
+    "signature": "rjBT/cXgnJwEZexN4aaA0IvDXUGk1tWAqBcg9iHz74t3L4cTE6wBUG3olvcSlZFa",
     "signers_map": [
       58,
       48,
@@ -69,7 +69,7 @@
       0,
       0,
       0,
-      2,
+      1,
       0,
       3,
       0
