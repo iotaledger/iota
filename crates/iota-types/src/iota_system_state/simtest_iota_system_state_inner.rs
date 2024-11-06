@@ -21,6 +21,7 @@ use crate::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     storage::ObjectStore,
+    system_admin_cap::IotaSystemAdminCap,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
