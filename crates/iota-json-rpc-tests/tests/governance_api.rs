@@ -142,7 +142,7 @@ async fn execute_add_validator_transactions(
 
 #[sim_test]
 async fn get_stakes_with_new_validator() {
-    // Create teh keypair for teh new validatro candidate
+    // Create the keypair for the new validator candidate
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let address = (&new_validator.account_key_pair.public()).into();
 
