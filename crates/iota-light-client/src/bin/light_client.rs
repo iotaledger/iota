@@ -127,7 +127,12 @@ mod tests {
     use iota_light_client::utils::extract_verified_effects_and_events;
     use iota_rest_api::CheckpointData;
     use iota_types::{
-        committee::Committee, crypto::AuthorityQuorumSignInfo, effects::TransactionEvents, event::Event, message_envelope::Envelope, messages_checkpoint::{CheckpointSummary, FullCheckpointContents}
+        committee::Committee,
+        crypto::AuthorityQuorumSignInfo,
+        effects::TransactionEvents,
+        event::Event,
+        message_envelope::Envelope,
+        messages_checkpoint::{CheckpointSummary, FullCheckpointContents},
     };
 
     use super::*;
@@ -188,12 +193,7 @@ mod tests {
 
         let tx_digest_0 = full_checkpoint.transactions[0].transaction.digest().clone();
 
-        extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            tx_digest_0,
-        )
-        .unwrap();
+        extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0).unwrap();
     }
 
     #[tokio::test]
@@ -206,12 +206,8 @@ mod tests {
         committee.epoch += 10;
 
         assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                tx_digest_0,
-            )
-            .is_err()
+            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
+                .is_err()
         );
     }
 
@@ -224,8 +220,7 @@ mod tests {
                 &full_checkpoint,
                 &committee,
                 // tx does not exist
-                TransactionDigest::from_str("11111111111111111111111111111111")
-                    .unwrap(),
+                TransactionDigest::from_str("11111111111111111111111111111111").unwrap(),
             )
             .is_err()
         );
@@ -242,12 +237,8 @@ mod tests {
         full_checkpoint.checkpoint_contents = random_contents.checkpoint_contents();
 
         assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                tx_digest_0,
-            )
-            .is_err()
+            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
+                .is_err()
         );
     }
 
@@ -259,20 +250,22 @@ mod tests {
         let tx0 = &mut full_checkpoint.transactions[0];
         if tx0.events.is_none() {
             // if there are no events yet, add them
-            tx0.events = Some(TransactionEvents { data: vec!(Event::random_for_testing()) } );
+            tx0.events = Some(TransactionEvents {
+                data: vec![Event::random_for_testing()],
+            });
         } else {
-            tx0.events.as_mut().unwrap().data.push(Event::random_for_testing());
+            tx0.events
+                .as_mut()
+                .unwrap()
+                .data
+                .push(Event::random_for_testing());
         }
 
         let tx_digest_0 = tx0.transaction.digest().clone();
-        
+
         assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                tx_digest_0,
-            )
-            .is_err()
+            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
+                .is_err()
         );
     }
 }
