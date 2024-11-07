@@ -42,7 +42,6 @@ use crate::{
     error::{Error, IotaRpcInputError, RpcInterimResult},
     logger::FutureWithTracing as _,
 };
-
 #[derive(Clone)]
 pub struct GovernanceReadApi {
     state: Arc<dyn StateRead>,
@@ -194,12 +193,13 @@ impl GovernanceReadApi {
         );
 
         let system_state = self.get_system_state()?;
-        let system_state_summary: IotaSystemStateSummary =
-            system_state.clone().into_iota_system_state_summary();
+        let system_state_summary = system_state.clone().into_iota_system_state_summary();
 
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
             .into_iter()
+            // Try to find for any pending active validator
+            .chain(pending_validator_exchange_rate(&self.state)?.into_iter())
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -528,24 +528,11 @@ async fn exchange_rates(
     _current_epoch: EpochId,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
     let system_state = state.get_system_state()?;
-    let object_store = state.get_object_store();
+    let system_state_summary: IotaSystemStateSummary =
+        system_state.into_iota_system_state_summary();
 
     // Get validator rate tables
     let mut tables = vec![];
-
-    // Try to find for any pending active validator
-    for pending_active_validator in system_state.get_pending_active_validators(object_store)? {
-        tables.push((
-            pending_active_validator.iota_address,
-            pending_active_validator.staking_pool_id,
-            pending_active_validator.exchange_rates_id,
-            pending_active_validator.exchange_rates_size,
-            true,
-        ));
-    }
-
-    let system_state_summary: IotaSystemStateSummary =
-        system_state.into_iota_system_state_summary();
 
     for validator in system_state_summary.active_validators {
         tables.push((
@@ -581,6 +568,18 @@ async fn exchange_rates(
         ));
     }
 
+    validator_exchange_rates(state, tables)
+}
+
+/// Get validator exchange rates
+fn validator_exchange_rates(
+    state: &Arc<dyn StateRead>,
+    tables: Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>,
+) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
+    if tables.is_empty() {
+        return Ok(vec![]);
+    };
+
     let mut exchange_rates = vec![];
     // Get exchange rates for each validator
     for (address, pool_id, exchange_rates_id, exchange_rates_size, active) in tables {
@@ -613,9 +612,34 @@ async fn exchange_rates(
             rates,
         });
     }
+
     Ok(exchange_rates)
 }
 
+/// Check if there is any pending validator and get its exchnage rates
+fn pending_validator_exchange_rate(
+    state: &Arc<dyn StateRead>,
+) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
+    let system_state = state.get_system_state()?;
+    let object_store = state.get_object_store();
+
+    // Try to find for any pending active validator
+    let tables = system_state
+        .get_pending_active_validators(object_store)?
+        .into_iter()
+        .map(|pending_active_validator| {
+            (
+                pending_active_validator.iota_address,
+                pending_active_validator.staking_pool_id,
+                pending_active_validator.exchange_rates_id,
+                pending_active_validator.exchange_rates_size,
+                false,
+            )
+        })
+        .collect::<Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>>();
+
+    validator_exchange_rates(state, tables)
+}
 #[derive(Clone, Debug)]
 pub struct ValidatorExchangeRates {
     pub address: IotaAddress,
