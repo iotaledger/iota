@@ -1261,7 +1261,6 @@ mod tests {
                     IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
                 },
             },
-            system_admin_cap::IotaSystemAdminCap,
         };
         use mockall::predicate;
 
@@ -1428,7 +1427,7 @@ mod tests {
                     validator_low_stake_grace_period: Default::default(),
                     extra_fields: Default::default(),
                 },
-                iota_system_admin_cap: IotaSystemAdminCap::default(),
+                iota_system_admin_cap: Default::default(),
                 reference_gas_price: Default::default(),
                 validator_report_records: VecMap {
                     contents: Default::default(),
