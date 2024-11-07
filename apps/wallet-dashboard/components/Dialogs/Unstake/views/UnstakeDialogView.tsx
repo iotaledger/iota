@@ -33,14 +33,12 @@ import { ValidatorStakingData } from '@/components';
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
     handleClose: () => void;
-    delegationId?: string;
     showActiveStatus?: boolean;
 }
 
 export function UnstakeDialogView({
     extendedStake,
     handleClose,
-    delegationId,
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const stakingReward = BigInt(extendedStake.estimatedReward ?? '').toString();
@@ -65,6 +63,8 @@ export function UnstakeDialogView({
         isError,
         error: delegatedStakeDataError,
     } = delegatedStakeDataResult;
+
+    const delegationId = extendedStake?.status === 'Active' && extendedStake?.stakedIotaId;
 
     const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + tokenBalance, IOTA_TYPE_ARG);
 
