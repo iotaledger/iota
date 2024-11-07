@@ -55,10 +55,10 @@ jobs:
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-alpha.*\d*,group=0,value=alphanet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-beta.*\d*,group=0,value=devnet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-rc.*\d*,group=0,value=testnet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+$,group=0,value=mainnet,enable=${{ github.event_name == 'release' }}
+            type=raw,value=alphanet,enable=${{ github.event_name == 'release' && contains(github.ref, '-alpha') }}
+            type=raw,value=devnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-beta') }}
+            type=raw,value=testnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-rc') }}
+            type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -114,10 +114,10 @@ jobs:
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-alpha.*\d*,group=0,value=alphanet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-beta.*\d*,group=0,value=devnet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-rc.*\d*,group=0,value=testnet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+$,group=0,value=mainnet,enable=${{ github.event_name == 'release' }}
+            type=raw,value=alphanet,enable=${{ github.event_name == 'release' && contains(github.ref, '-alpha') }}
+            type=raw,value=devnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-beta') }}
+            type=raw,value=testnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-rc') }}
+            type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -173,10 +173,10 @@ jobs:
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-alpha.*\d*,group=0,value=alphanet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-beta.*\d*,group=0,value=devnet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-rc.*\d*,group=0,value=testnet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+$,group=0,value=mainnet,enable=${{ github.event_name == 'release' }}
+            type=raw,value=alphanet,enable=${{ github.event_name == 'release' && contains(github.ref, '-alpha') }}
+            type=raw,value=devnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-beta') }}
+            type=raw,value=testnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-rc') }}
+            type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -232,10 +232,10 @@ jobs:
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-alpha.*\d*,group=0,value=alphanet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-beta.*\d*,group=0,value=devnet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+-rc.*\d*,group=0,value=testnet,enable=${{ github.event_name == 'release' }}
-            type=match,pattern=v\d+\.\d+\.\d+$,group=0,value=mainnet,enable=${{ github.event_name == 'release' }}
+            type=raw,value=alphanet,enable=${{ github.event_name == 'release' && contains(github.ref, '-alpha') }}
+            type=raw,value=devnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-beta') }}
+            type=raw,value=testnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-rc') }}
+            type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
