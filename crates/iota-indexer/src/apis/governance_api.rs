@@ -306,7 +306,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         Ok(exchange_rates)
     }
 
-    /// Check if there is any pending validator and get its exchnage rates
+    /// Check if there is any pending validator and get its exchange rates
     async fn pending_validator_exchange_rate(
         &self,
     ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {

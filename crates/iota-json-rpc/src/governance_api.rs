@@ -616,7 +616,7 @@ fn validator_exchange_rates(
     Ok(exchange_rates)
 }
 
-/// Check if there is any pending validator and get its exchnage rates
+/// Check if there is any pending validator and get its exchange rates
 fn pending_validator_exchange_rate(
     state: &Arc<dyn StateRead>,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
