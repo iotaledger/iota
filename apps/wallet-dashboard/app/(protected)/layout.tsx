@@ -5,10 +5,8 @@
 import { Notifications } from '@/components/index';
 import React, { type PropsWithChildren } from 'react';
 import { Button } from '@iota/apps-ui-kit';
-import { Sidebar } from './components';
-import { TopNav } from './components/top-nav/TopNav';
+import { Sidebar, TopNav, ConnectionGuard } from './components';
 import { useTheme } from '@/contexts';
-import { ConnectionGuard } from './components/connection-guard';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     const { theme, toggleTheme } = useTheme();
