@@ -18,39 +18,34 @@ const NFT_OUTPUT_MODULE_NAME = "nft_output";
 const NFT_OUTPUT_STRUCT_NAME = "NftOutput";
 
 async function main() {
-    // 1. Build a client to connect to the local IOTA network.
-
     // Build a client to connect to the local IOTA network.
     const iotaClient = new IotaClient({url: getFullnodeUrl('localnet')});
-
-    // 2. Derive keypair from mnemonic.
 
     // For this example we need to derive an address that is not at index 0. This
     // because we need an alias output that owns an Nft Output. In this case, we can
     // derive the address index "/2'" of the "/0'" account.
     const derivationPath = "m/44'/4218'/0'/0'/2'"
 
+    // Derive the address of the first account.
     const keypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC, derivationPath);
 
     const sender = keypair.toIotaAddress();
     console.log(`Sender: ${sender}`);
 
-    // 3. Fund address from sponsor (in utils.ts)
+    // Fund address from sponsor (in utils.ts).
     await fundAddress(iotaClient, sender);
 
-    // 4. Get a gas coin
-    // We actually don't need to do this, because the execution uses tx.gas by default.
-
-    // 5. Fetch alias_output_object_id and its object
+    // This object id was fetched manually. It refers to an Alias Output object that
+    // owns a NftOutput.
     const aliasOutputObjectId = "0x3b35e67750b8e4ccb45b2fc4a6a26a6d97e74c37a532f17177e6324ab93eaca6";
     const aliasOutputObject = await iotaClient.getObject({id: aliasOutputObjectId});
     if (!aliasOutputObject) {
         throw new Error("Alias output object not found");
     }
 
-    // 6. Get the dynamic field of the object
-    // Define the dynamic field name for the Alias object "alias", of type vector<u8>.
-
+    // Get the dynamic field owned by the Alias Output, i.e., only the Alias
+    // object.
+    // The dynamic field name for the Alias object is "alias", of type vector<u8>.
     const dfName = {
         type: bcs.TypeTag.serialize({
             vector: {
@@ -68,13 +63,8 @@ async function main() {
     // Get the object id of the Alias object.
     const aliasObjectId = aliasObject.data?.objectId;
 
-    // 7. Get NftOutput objects owned by the alias object
-
     // Some objects are owned by the Alias object. In this case we filter them by
     // type using the NftOutput type.
-
-    // Fetch the owned objects with the specified filter.
-
     const gasTypeTag = "0x2::iota::IOTA";
     const nftOutputStructTag = `${STARDUST_PACKAGE_ID}::${NFT_OUTPUT_MODULE_NAME}::${NFT_OUTPUT_STRUCT_NAME}<${gasTypeTag}>`;
 
@@ -93,9 +83,10 @@ async function main() {
 
     const nftOutputObjectId = nftOutputObjectOwnedByAlias.objectId;
 
-    // 8. Create the ptb
+    // Create the ptb.
     const tx = new Transaction();
 
+    // Extract alias output assets.
     const typeArgs = [gasTypeTag];
     const args = [tx.object(aliasOutputObjectId)]
     const extractedAliasOutputAssets = tx.moveCall({
@@ -104,7 +95,7 @@ async function main() {
         arguments: args,
     });
 
-    // Extract contents.
+    // Extract assets.
     const extractedBaseToken = extractedAliasOutputAssets[0];
     const extractedNativeTokensBag = extractedAliasOutputAssets[1];
     const alias = extractedAliasOutputAssets[2];
@@ -126,6 +117,7 @@ async function main() {
         arguments: [extractedNativeTokensBag],
     });
 
+    // Unlock the nft output.
     const aliasArg = alias;
     const nftOutputArg = tx.object(nftOutputObjectId);
 
@@ -135,36 +127,45 @@ async function main() {
         arguments: [aliasArg, nftOutputArg],
     });
 
+    // Transferring alias asset.
     tx.transferObjects([alias], tx.pure.address(sender));
 
-    // Extract the assets from the NftOutput.
+    // Extract the assets from the NftOutput (base token, native tokens bag, nft asset itself).
     const extractedAssets = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::nft_output::extract_assets`,
         typeArguments: typeArgs,
         arguments: [nftOutput],
     });
 
+    // If the nft output can be unlocked, the command will be successful and will
+    // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens and
+    // related nft object.
+
     const extractedBaseToken2 = extractedAssets[0];
     const extractedNativeTokensBag2 = extractedAssets[1];
     const nftAsset = extractedAssets[2];
 
+    // Extract the IOTA balance.
     const iotaCoin2 = tx.moveCall({
         target: '0x2::coin::from_balance',
         typeArguments: typeArgs,
         arguments: [extractedBaseToken2],
     });
 
+    // Transfer the IOTA balance to the sender.
     tx.transferObjects([iotaCoin2], tx.pure.address(sender));
 
+    // Cleanup the bag because it is empty.
     tx.moveCall({
         target: '0x2::bag::destroy_empty',
         typeArguments: [],
         arguments: [extractedNativeTokensBag2],
     });
 
+    // Transferring nft asset.
     tx.transferObjects([nftAsset], tx.pure.address(sender));
 
-    // 9. Submit the ptb
+    // Submit the ptb.
     tx.setGasBudget(10_000_000);
 
     // Sign and execute the transaction.

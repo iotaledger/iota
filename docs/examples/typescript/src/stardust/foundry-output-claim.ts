@@ -22,15 +22,16 @@ async function main() {
     // Build a client to connect to the local IOTA network.
     const iotaClient = new IotaClient({url: getFullnodeUrl('localnet')});
 
-    // Derive keypair from mnemonic.
+    // Derive the address of the first account.
     const keypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC);
     const sender = keypair.toIotaAddress();
     console.log(`Sender address: ${sender}`);
 
-    // Fund the address.
+    // Fund the sender address.
     await fundAddress(iotaClient, sender);
 
-    // Fetch the alias output object.
+    // This object id was fetched manually. It refers to an Alias Output object that
+    // contains a CoinManagerTreasuryCap (i.e., a Foundry representation).
     const aliasOutputObjectId = "0xa58e9b6b85863e2fa50710c4594f701b2f5e2c6ff5e3c2b10cf09e6b18d740da";
     const aliasOutputObject = await iotaClient.getObject({id: aliasOutputObjectId});
     if (!aliasOutputObject) {
@@ -59,7 +60,6 @@ async function main() {
 
     // Get the objects owned by the alias object and filter in the ones with
     // CoinManagerTreasuryCap as type.
-
     const aliasOwnedObjects = await iotaClient.getOwnedObjects({
         owner: aliasObjectId ? aliasObjectId.toString() : "",
         options: {
@@ -71,7 +71,7 @@ async function main() {
     // Only one page should exist.
     assert.ok(!aliasOwnedObjects.hasNextPage, "Only one page should exist");
 
-    // Get the CoinManagerTreasuryCaps from the query by filtering.
+    // Get the CoinManagerTreasuryCaps from the query.
     const ownedCoinManagerTreasuryCaps = aliasOwnedObjects.data
         .filter(object => {
             return isCoinManagerTreasuryCap(object.data as IotaObjectData);
@@ -83,6 +83,8 @@ async function main() {
         throw new Error("CoinManagerTreasuryCap not found");
     }
 
+    // Extract the foundry token type from the type parameters of the coin manager
+    // treasury cap object.
     const coinManagerTreasuryCapId = coinManagerTreasuryCap.objectId;
     const foundryTokenTypeStructTag = coinManagerTreasuryCap.type
     const foundryTokenType = foundryTokenTypeStructTag?.split("<")[1].split(">")[0] || "";
@@ -90,14 +92,21 @@ async function main() {
     // Create a PTB to claim the CoinManagerTreasuryCap related to the foundry
     // output from the alias output.
     const tx = new Transaction();
+    // Type argument for an AliasOutput coming from the IOTA network, i.e., the
+    // IOTA token or the Gas type tag.
     const gasTypeTag = "0x2::iota::IOTA";
+    // Then pass the AliasOutput object as an input.
     const args = [tx.object(aliasOutputObjectId)];
+    // Finally call the alias_output::extract_assets function.
     const extractedAliasOutputAssets = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::alias_output::extract_assets`,
         typeArguments: [gasTypeTag],
         arguments: args,
     });
 
+    // The alias output can always be unlocked by the governor address. So the
+    // command will be successful and will return a `base_token` (i.e., IOTA)
+    // balance, a `Bag` of the related native tokens and the related Alias object.
     const extractedBaseToken = extractedAliasOutputAssets[0];
     const extractedNativeTokensBag = extractedAliasOutputAssets[1];
     const alias = extractedAliasOutputAssets[2];
@@ -119,6 +128,7 @@ async function main() {
         arguments: [extractedNativeTokensBag],
     });
 
+    // Extract the CoinManagerTreasuryCap.
     const coinManagerTreasuryCapObject = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::address_unlock_condition::unlock_alias_address_owned_coinmanager_treasury`,
         typeArguments: [foundryTokenType],

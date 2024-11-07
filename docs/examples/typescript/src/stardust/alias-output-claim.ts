@@ -16,7 +16,7 @@ async function main() {
     // Build a client to connect to the local IOTA network.
     const iotaClient = new IotaClient({url: getFullnodeUrl('localnet')});
 
-    // Derive keypair from mnemonic.
+    // Derive the address of the first account.
     const keypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC);
     const sender = keypair.toIotaAddress();
     console.log(`Sender address: ${sender}`);
@@ -46,10 +46,12 @@ async function main() {
     // are the type_arg of each native token, so they can be used later in the PTB.
     const dfTypeKeys: string[] = [];
     if (nativeTokensBag.fields.size > 0) {
+        // Get the dynamic fields owned by the native tokens bag.
         const dynamicFieldPage = await iotaClient.getDynamicFields({
             parentId: nativeTokensBag.fields.id.id
         });
 
+        // Extract the dynamic fields keys, i.e., the native token type.
         dynamicFieldPage.data.forEach(dynamicField => {
             if (typeof dynamicField.name.value === 'string') {
                 dfTypeKeys.push(dynamicField.name.value);
@@ -61,8 +63,12 @@ async function main() {
 
     // Create a PTB to claim the assets related to the alias output.
     const tx = new Transaction();
+    // Type argument for an AliasOutput coming from the IOTA network, i.e., the
+    // IOTA token or the Gas type tag.
     const gasTypeTag = "0x2::iota::IOTA";
+    // Then pass the AliasOutput object as an input.
     const args = [tx.object(aliasOutputObjectId)];
+    // Finally call the alias_output::extract_assets function.
     const extractedAliasOutputAssets = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::alias_output::extract_assets`,
         typeArguments: [gasTypeTag],
@@ -92,6 +98,7 @@ async function main() {
         const typeArguments = [`0x${typeKey}`];
         const args = [extractedNativeTokensBag, tx.pure.address(sender)]
 
+        // Extract a native token balance.
         extractedNativeTokensBag = tx.moveCall({
             target: `${STARDUST_PACKAGE_ID}::utilities::extract_and_send_to`,
             typeArguments: typeArguments,

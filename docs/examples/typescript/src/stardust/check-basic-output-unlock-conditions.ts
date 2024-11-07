@@ -14,8 +14,10 @@ async function main() {
     // Build a client to connect to the local IOTA network.
     const iotaClient = new IotaClient({url: getFullnodeUrl('localnet')});
 
-    // Get the Basic object.
+    // This object id was fetched manually. It refers to a Basic Output object that
+    // contains some Native Tokens.
     const basicOutputObjectId = "0xde09139ed46b9f5f876671e4403f312fad867c5ae5d300a252e4b6a6f1fa1fbd";
+    // Get Basic Output object.
     const basicOutputObject = await iotaClient.getObject({id: basicOutputObjectId, options: { showContent: true }});
     if (!basicOutputObject) {
         throw new Error("Basic output object not found");

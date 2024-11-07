@@ -18,7 +18,7 @@ async function main() {
     // Build a client to connect to the local IOTA network.
     const iotaClient = new IotaClient({url: getFullnodeUrl('localnet')});
 
-    // Derive keypair from mnemonic.
+    // Derive the address of the first account.
     const keypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC);
     const sender = keypair.toIotaAddress();
     console.log(`Sender address: ${sender}`);
@@ -28,8 +28,9 @@ async function main() {
     // It is the same used in the Alias migration example.
     const customNftPackageId = await publishCustomNftPackage(iotaClient, keypair);
 
-    // Get the NFTOutput object.
+    // Get an NftOutput object id.
     const nftOutputObjectId = "0x6445847625cec7d1265ebb9d0da8050a2e43d2856c2746d3579df499a1a64226";
+    // Get an NftOutput object.
     const nftOutputObject = await iotaClient.getObject({id: nftOutputObjectId, options: { showContent: true }});
     if (!nftOutputObject) {
         throw new Error("NFT output object not found");
@@ -41,6 +42,7 @@ async function main() {
     const tx = new Transaction();
     const gasTypeTag = "0x2::iota::IOTA";
     const args = [tx.object(nftOutputObjectId)];
+    // Call the nft_output::extract_assets function.
     const extractedNftOutputAssets = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::nft_output::extract_assets`,
         typeArguments: [gasTypeTag],
@@ -62,7 +64,7 @@ async function main() {
         arguments: [nft],
     });
 
-    // Transfer the converted NFT to the sender.
+    // Transfer the converted NFT.
     tx.transferObjects([customNft], tx.pure.address(sender));
 
     // Extract the IOTA balance.
@@ -72,7 +74,7 @@ async function main() {
         arguments: [extractedBaseToken],
     });
 
-    // Transfer the IOTA balance to the sender.
+    // Transfer the IOTA balance.
     tx.transferObjects([iotaCoin], tx.pure.address(sender));
 
     // Cleanup the bag by destroying it.

@@ -19,13 +19,15 @@ async function main() {
     // Build a client to connect to the local IOTA network.
     const iotaClient = new IotaClient({url: getFullnodeUrl('localnet')});
 
-    // Derive keypair from mnemonic.
+    // Derive the address of the first account.
     const keypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC);
     const sender = keypair.toIotaAddress();
     console.log(`Sender address: ${sender}`);
 
+    // Publish the package of a custom NFT collection and then get the package id.
+    // The custom NFT module is obtained from a Move example in the docs.
+    // It is the same used in the Nft migration example.
     const customNftPackageId = await publishCustomNftPackage(iotaClient, keypair);
-    // console.log(`Custom NFT package ID: ${customNftPackageId}`);
 
     // Get the AliasOutput object.
     const aliasOutputObjectId = "0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554";
@@ -33,13 +35,6 @@ async function main() {
     if (!aliasOutputObject) {
         throw new Error("Alias output object not found");
     }
-
-    // // Convert AliasOutput to its rust representation.
-    // const AliasOutput = bcs.struct('AliasOutput', {
-    //     id: bcs.u8(),
-    //     balance: bcs.u64(),
-    //     native_tokens:
-    // })
 
     // Extract contents of the AliasOutput object.
     const moveObject = aliasOutputObject.data?.content as IotaParsedData;
@@ -59,10 +54,12 @@ async function main() {
     // are the type_arg of each native token, so they can be used later in the PTB.
     const dfTypeKeys: string[] = [];
     if (nativeTokensBag.fields.size > 0) {
+        // Get the dynamic fields owned by the native tokens bag.
         const dynamicFieldPage = await iotaClient.getDynamicFields({
             parentId: nativeTokensBag.fields.id.id
         });
 
+        // Extract the dynamic fields keys, i.e., the native token type.
         dynamicFieldPage.data.forEach(dynamicField => {
             if (typeof dynamicField.name.value === 'string') {
                 dfTypeKeys.push(dynamicField.name.value);
@@ -80,6 +77,8 @@ async function main() {
     const tx = new Transaction();
     const gasTypeTag = "0x2::iota::IOTA";
     const args = [tx.object(aliasOutputObjectId)];
+
+    // Call the nft_output::extract_assets function.
     const extractedAliasOutputAssets = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::alias_output::extract_assets`,
         typeArguments: [gasTypeTag],
@@ -109,7 +108,7 @@ async function main() {
         arguments: [nftCollectionController, tx.pure.string("Collection name")],
     });
 
-    // Mint a collection-related NFT
+    // Mint a collection-related NFT.
     const nftName = tx.pure.string("NFT name");
     const nftDescription = tx.pure.string("NFT description");
     const nftUrlVal = tx.pure.string("NFT URL");

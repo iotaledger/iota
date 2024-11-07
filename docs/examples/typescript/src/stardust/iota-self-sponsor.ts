@@ -22,7 +22,9 @@ async function main() {
     const sponsorDerivationPath = "m/44'/4218'/0'/0'/5'"
     const senderDerivationPath = "m/44'/4218'/0'/0'/50'"
 
+    // Derive the address of the sponsor.
     const sponsorKeypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC, sponsorDerivationPath);
+    // Derive the address of the sender.
     const senderKeypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC, senderDerivationPath);
 
     const sponsor = sponsorKeypair.toIotaAddress();
@@ -31,8 +33,10 @@ async function main() {
     console.log(`Sender: ${sender}`);
     console.log(`Sponsor: ${sponsor}`);
 
-    // Get the Basic object containing the Native tokens.
+    // This object id was fetched manually. It refers to a Basic Output object that
+    // contains some Native Tokens.
     const basicOutputObjectId = "0xd0ed7f2c50366202585ebd52a38cde6a7a7282ef3f52db52c3ba87042bca6fba";
+    // Get Basic Output object.
     const basicOutputObject = await iotaClient.getObject({id: basicOutputObjectId, options: { showBcs: true }});
     if (!basicOutputObject) {
         throw new Error("Basic output object not found");
@@ -40,8 +44,12 @@ async function main() {
 
     // Create a PTB to claim the assets related to the basic output.
     const tx = new Transaction();
+    // Extract the base token and native tokens bag.
+    // Type argument for a Basic Output holding IOTA coin.
     const gasTypeTag = "0x2::iota::IOTA";
+    // Then pass the basic output object as input.
     const args = [tx.object(basicOutputObjectId)];
+    // Finally call the basic_output::extract_assets function.
     const extractedBasicOutputAssets = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::basic_output::extract_assets`,
         typeArguments: [gasTypeTag],
@@ -53,21 +61,21 @@ async function main() {
     const extractedBaseToken = extractedBasicOutputAssets[0];
     const extractedNativeTokensBag = extractedBasicOutputAssets[1];
 
-    // Cleanup the bag by destroying it.
+    // Delete the empty native tokens bag.
     tx.moveCall({
         target: `0x2::bag::destroy_empty`,
         typeArguments: [],
         arguments: [extractedNativeTokensBag],
     });
 
-    // Extract the IOTA balance.
+    // Create a coin from the extracted IOTA balance.
     const iotaCoin = tx.moveCall({
         target: '0x2::coin::from_balance',
         typeArguments: [gasTypeTag],
         arguments: [extractedBaseToken],
     });
 
-    // Transfer the IOTA balance to the sender.
+    // Send back the base token coin to the user.
     tx.transferObjects([iotaCoin], tx.pure.address(sender));
 
     // Get a gas coin belonging to the sponsor.

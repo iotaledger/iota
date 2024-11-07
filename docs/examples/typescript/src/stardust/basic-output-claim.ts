@@ -17,13 +17,16 @@ async function main() {
     // Build a client to connect to the local IOTA network.
     const iotaClient = new IotaClient({url: getFullnodeUrl('localnet')});
 
-    // Derive keypair from mnemonic.
+    // Derive the address of the first account.
     const keypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC);
     const sender = keypair.toIotaAddress();
     console.log(`Sender address: ${sender}`);
 
-    // Get the Basic object containing the Native tokens.
+    // This object id was fetched manually. It refers to a Basic Output object that
+    // contains some Native Tokens.
     const basicOutputObjectId = "0xde09139ed46b9f5f876671e4403f312fad867c5ae5d300a252e4b6a6f1fa1fbd";
+
+    // Get Basic Output object.
     const basicOutputObject = await iotaClient.getObject({id: basicOutputObjectId, options: { showContent: true }});
     if (!basicOutputObject) {
         throw new Error("Basic output object not found");
@@ -47,10 +50,12 @@ async function main() {
     // are the type_arg of each native token, so they can be used later in the PTB.
     const dfTypeKeys: string[] = [];
     if (nativeTokensBag.fields.size > 0) {
+        // Get the dynamic fields owned by the native tokens bag.
         const dynamicFieldPage = await iotaClient.getDynamicFields({
             parentId: nativeTokensBag.fields.id.id
         });
 
+        // Extract the dynamic fields keys, i.e., the native token type.
         dynamicFieldPage.data.forEach(dynamicField => {
             if (typeof dynamicField.name.value === 'string') {
                 dfTypeKeys.push(dynamicField.name.value);
@@ -62,8 +67,14 @@ async function main() {
 
     // Create a PTB to claim the assets related to the basic output.
     const tx = new Transaction();
+
+    ////// Command #1: extract the base token and native tokens bag.
+    // Type argument for a Basic Output coming from the IOTA network, i.e., the IOTA
+    // token or Gas type tag
     const gasTypeTag = "0x2::iota::IOTA";
+    // Then pass the basic output object as input.
     const args = [tx.object(basicOutputObjectId)];
+    // Finally call the basic_output::extract_assets function.
     const extractedBasicOutputAssets = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::basic_output::extract_assets`,
         typeArguments: [gasTypeTag],
@@ -82,12 +93,14 @@ async function main() {
         arguments: [extractedBaseToken],
     });
 
-    // Transfer the IOTA balance to the sender.
+    // Send back the base token coin to the user.
     tx.transferObjects([iotaCoin], tx.pure.address(sender));
 
-    // Extract the native tokens from the Bag and send them to sender.
+    ////// Extract the native tokens from the Bag and send them to sender.
     for (const typeKey of dfTypeKeys) {
+        // Type argument for a Native Token contained in the basic output bag.
         const typeArguments = [`0x${typeKey}`];
+        // Then pass the the bag and the receiver address as input.
         const args = [extractedNativeTokensBag, tx.pure.address(sender)]
 
         extractedNativeTokensBag = tx.moveCall({

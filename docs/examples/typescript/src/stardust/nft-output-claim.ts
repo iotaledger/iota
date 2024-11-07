@@ -16,7 +16,7 @@ async function main() {
     // Build a client to connect to the local IOTA network.
     const iotaClient = new IotaClient({url: getFullnodeUrl('localnet')});
 
-    // Derive keypair from mnemonic.
+    // Derive the address of the first account.
     const keypair = Ed25519Keypair.deriveKeypair(MAIN_ADDRESS_MNEMONIC);
     const sender = keypair.toIotaAddress();
     console.log(`Sender address: ${sender}`);
@@ -50,10 +50,12 @@ async function main() {
     // are the type_arg of each native token, so they can be used later in the PTB.
     const dfTypeKeys: string[] = [];
     if (nativeTokensBag.fields.size > 0) {
+        // Get the dynamic fieldss of the native tokens bag.
         const dynamicFieldPage = await iotaClient.getDynamicFields({
             parentId: nativeTokensBag.fields.id.id
         });
 
+        // Extract the dynamic fields keys, i.e., the native token type.
         dynamicFieldPage.data.forEach(dynamicField => {
             if (typeof dynamicField.name.value === 'string') {
                 dfTypeKeys.push(dynamicField.name.value);
@@ -63,10 +65,11 @@ async function main() {
         });
     }
 
-    // Create a PTB to claim the assets related to the nft output.
     const tx = new Transaction();
+    // Extract nft assets(base token, native tokens bag, nft asset itself).
     const gasTypeTag = "0x2::iota::IOTA";
     const args = [tx.object(nftOutputObjectId)];
+    // Finally call the nft_output::extract_assets function.
     const extractedNftOutputAssets = tx.moveCall({
         target: `${STARDUST_PACKAGE_ID}::nft_output::extract_assets`,
         typeArguments: [gasTypeTag],
@@ -87,14 +90,18 @@ async function main() {
         arguments: [extractedBaseToken],
     });
 
-    // Transfer the IOTA balance to the sender.
+    // Transfer the IOTA balance.
     tx.transferObjects([iotaCoin], tx.pure.address(sender));
 
     // Extract the native tokens from the bag.
     for (const typeKey of dfTypeKeys) {
         const typeArguments = [`0x${typeKey}`];
+        // Then pass the the bag and the receiver address as input.
         const args = [extractedNativeTokensBag, tx.pure.address(sender)]
 
+        // Extract native tokens from the bag.
+        // Extract native token balance.
+        // Transfer native token balance.
         extractedNativeTokensBag = tx.moveCall({
             target: `${STARDUST_PACKAGE_ID}::utilities::extract_and_send_to`,
             typeArguments: typeArguments,
