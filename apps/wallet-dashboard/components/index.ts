@@ -23,3 +23,4 @@ export * from './Buttons';
 export * from './staking-overview';
 export * from './Dialogs';
 export * from './ImageIcon';
+export * from './tiles';
