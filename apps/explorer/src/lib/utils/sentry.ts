@@ -14,14 +14,14 @@ import {
 const SENTRY_ENABLED = import.meta.env.PROD;
 const SENTRY_SAMPLE_RATE = import.meta.env.VITE_SENTRY_SAMPLE_RATE
     ? parseFloat(import.meta.env.VITE_SENTRY_SAMPLE_RATE)
-    : 1;
+    : 0;
 
 export function initSentry() {
     Sentry.init({
         enabled: SENTRY_ENABLED,
         dsn: import.meta.env.PROD
-            ? import.meta.env.VITE_PROD_SENTRY_DSN
-            : import.meta.env.VITE_DEV_SENTRY_DSN,
+            ? 'https://e4e27ccfefe0d0dc5b1ccd4b28fd8ce7@o1010134.ingest.us.sentry.io/4508257079590912'
+            : 'https://e2160952da44d9899bcb037bef100872@o1010134.ingest.us.sentry.io/4508256860045312',
         environment: import.meta.env.VITE_VERCEL_ENV,
         integrations: [
             new Sentry.BrowserTracing({
@@ -56,10 +56,6 @@ export function initSentry() {
             /^chrome(?:-extension)?:\/\//i,
             /<anonymous>/,
         ],
-        allowUrls: [
-            /.*\.iota\.org/i,
-            /.*-iota-foundation\.vercel\.app/i,
-            'explorer-topaz.vercel.app',
-        ],
+        allowUrls: [/.*\.iota\.org/i, /.*\.iota\.cafe/i, /.*\.iotaledger\.net/i],
     });
 }
