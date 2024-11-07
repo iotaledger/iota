@@ -29,7 +29,7 @@ export const createIotaClient = (network: NetworkId): IotaClient => {
 
     const client = new IotaClient({
         transport:
-            supportedNetwork && network === Network.Mainnet
+            supportedNetwork && network === Network.Testnet
                 ? new SentryHttpTransport(networkUrl)
                 : new IotaHTTPTransport({ url: networkUrl }),
     });

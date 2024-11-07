@@ -25,7 +25,7 @@ export class FeaturesController {
                     ],
                 },
                 [Feature.WalletSentryTracing]: {
-                    defaultValue: 0.0025,
+                    defaultValue: 1,
                 },
                 // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
@@ -94,7 +94,7 @@ export class FeaturesController {
                     ],
                 },
                 [Feature.WalletSentryTracing]: {
-                    defaultValue: 0.0025,
+                    defaultValue: 1,
                 },
                 // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
