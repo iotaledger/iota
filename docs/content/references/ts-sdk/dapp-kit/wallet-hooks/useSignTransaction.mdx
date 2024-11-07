@@ -1,10 +1,8 @@
-import { UseSignTransactionExample } from '../../../examples/wallet-hooks';
-
 # useSignTransaction
 
 Use the `useSignTransaction` hook to prompt the user to sign a transaction with their wallet.
 
-```ts
+```ts live noInline
 function withProviders(
     Component: React.FunctionComponent<object>,
     walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
@@ -79,11 +77,9 @@ function MyComponent() {
 		</div>
 	);
 }
+render(<UseSignTransactionExample/>)
 ```
 
-## Example
-
-<UseSignTransactionExample />
 
 ## Arguments
 

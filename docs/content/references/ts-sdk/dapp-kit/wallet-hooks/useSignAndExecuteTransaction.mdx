@@ -1,5 +1,3 @@
-import { UseSignAndExecuteTransactionExample } from '../../../examples/wallet-hooks';
-
 # useSignAndExecuteTransaction
 
 Use the `useSignAndExecuteTransaction` hook to prompt the user to sign and execute a transaction
@@ -54,7 +52,7 @@ const UseSignAndExecuteTransactionExample = withProviders(() => {
 								signAndExecuteTransaction(
 									{
 										transaction: new Transaction(),
-										chain: 'sui:devnet',
+										chain: 'iota:devnet',
 									},
 									{
 										onSuccess: (result) => {
@@ -78,10 +76,6 @@ const UseSignAndExecuteTransactionExample = withProviders(() => {
 render(<UseSignAndExecuteTransactionExample/>)
 ```
 
-## Example
-
-<UseSignAndExecuteTransactionExample />
-
 ## Return additional data, or executing through GraphQL
 
 To customize how transactions are executed, and what data is returned when executing a transaction,
@@ -90,14 +84,14 @@ you can pass a custom `execute` function.
 ```ts
 import {
 	ConnectButton,
-	useSuiClient,
+	useIotaClient,
 	useCurrentAccount,
 	useSignAndExecuteTransaction,
-} from '@mysten/dapp-kit';
+} from '@iota/dapp-kit';
 import { useState } from 'react';
 
 function MyComponent() {
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction({
 		execute: async ({ bytes, signature }) =>
 			await client.executeTransactionBlock({
@@ -126,7 +120,7 @@ function MyComponent() {
 								signAndExecuteTransaction(
 									{
 										transaction: new Transaction(),
-										chain: 'sui:devnet',
+										chain: 'iota:devnet',
 									},
 									{
 										onSuccess: (result) => {
@@ -155,5 +149,5 @@ function MyComponent() {
 - `execute`: (optional) A custom function to execute the transaction
 
 In addition to these options, you can also pass any options that the
-[SuiClient.signAndExecuteTransaction](/typedoc/classes/_mysten_sui.client.SuiClient.html#signAndExecuteTransactionBlock)
+[IotaClient.signAndExecuteTransaction](../../api/client/classes/IotaClient.md#signandexecutetransaction)
 method accepts.

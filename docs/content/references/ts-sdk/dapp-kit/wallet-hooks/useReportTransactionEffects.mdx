@@ -1,5 +1,3 @@
-import { UseSignTransactionExample } from '../../../examples/wallet-hooks';
-
 # useReportTransactionEffects
 
 Use the `useReportTransactionEffects` hook can be used to report the effects of a transaction to the
@@ -7,8 +5,7 @@ connected wallet. The `useSignAndExecuteTransaction` hook automatically reports 
 `useSignTransaction` hook provides a `reportTransactionEffects` callback to report effects manually,
 so this hook is only needed when using a non-standard flow for executing transactions.
 
-```ts
-
+```ts live noInline
 function withProviders(
     Component: React.FunctionComponent<object>,
     walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
