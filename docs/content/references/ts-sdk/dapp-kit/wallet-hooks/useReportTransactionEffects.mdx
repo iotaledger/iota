@@ -1,0 +1,82 @@
+import { UseSignTransactionExample } from '../../../examples/wallet-hooks';
+
+# useReportTransactionEffects
+
+Use the `useReportTransactionEffects` hook can be used to report the effects of a transaction to the
+connected wallet. The `useSignAndExecuteTransaction` hook automatically reports effects, and the
+`useSignTransaction` hook provides a `reportTransactionEffects` callback to report effects manually,
+so this hook is only needed when using a non-standard flow for executing transactions.
+
+```ts
+
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        mainnet: { url: getFullnodeUrl('mainnet') },
+    };
+
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+function UseReportTransactionEffectsExample() {
+	const { mutateAsync: reportTransactionEffects } = useReportTransactionEffects();
+	const [signature, setSignature] = useState('');
+	const client = useSuiClient();
+	const currentAccount = useCurrentAccount();
+
+	return (
+		<div style={{ padding: 20 }}>
+			<ConnectButton />
+			{currentAccount && (
+				<>
+					<div>
+						<button
+							onClick={async () => {
+								const { effects } = await executePreSignedTransaction();
+								reportTransactionEffects({ effects });
+							}}
+						>
+							Sign empty transaction
+						</button>
+					</div>
+					<div>Signature: {signature}</div>
+				</>
+			)}
+		</div>
+	);
+}
+
+render(<UseReportTransactionEffectsExample/>)
+```
+
+## Arguments
+
+- `effects`: The effects of an executed transaction. This can either be the `rawEffects` returned
+  from the JSON-RPC `executeTransactionBlock` method (returned when showRawEffects is set to true),
+  or the `effects.bcs` when executing with the GraphQL API.
+- `chain`: (optional) The chain identifier the transaction was executed on.
+- `account` (optional) the account that signed the transaction, defaults to the currently connected
+  account
