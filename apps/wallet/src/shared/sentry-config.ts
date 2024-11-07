@@ -8,12 +8,11 @@ import Browser from 'webextension-polyfill';
 const WALLET_VERSION = Browser.runtime.getManifest().version;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-// NOTE: If you want to enable sentry in dev, you can tweak this value:
-// const ENABLE_SENTRY = IS_PROD;
-const ENABLE_SENTRY = true;
+// Sentry dev hint: If you want to enable sentry in dev, you can tweak this value:
+const ENABLE_SENTRY = IS_PROD;
 
 const SENTRY_DSN = IS_PROD
-    ? 'https://e52a4e5c90224fe0800cc96aa2570581@o1314142.ingest.sentry.io/6761112' // TODO: update
+    ? 'https://ca3888d99b4bb1bfd5e5466ba7cc2d8f@o1010134.ingest.us.sentry.io/4508256609697792'
     : 'https://d80ad35fe98bd767515050181efdec38@o1010134.ingest.us.sentry.io/4508256233848832';
 
 export function getSentryConfig({

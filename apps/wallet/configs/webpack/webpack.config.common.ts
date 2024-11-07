@@ -234,7 +234,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
             }),
             new SentryWebpackPlugin({
                 org: 'iota-foundation-h4',
-                project: 'iota-wallet-dev', // TODO: update to iota-wallet,
+                project: 'iota-wallet', // Sentry dev hint: use 'iota-wallet-dev' project for testing
                 include: OUTPUT_ROOT,
                 dryRun: !IS_PROD || !sentryAuthToken,
                 authToken: sentryAuthToken,
