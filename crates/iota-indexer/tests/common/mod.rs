@@ -111,13 +111,13 @@ impl SimulacrumTestSetup {
 /// `Write` indexer
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: Option<&str>,
-    cluster_builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
+    builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
 ) -> (TestCluster, PgIndexerStore<PgConnection>, HttpClient) {
     let temp = tempdir().unwrap().into_path();
     let mut builder = TestClusterBuilder::new().with_data_ingestion_dir(temp.clone());
 
-    if let Some(cluster_builder_modifier) = cluster_builder_modifier {
-        builder = cluster_builder_modifier(builder);
+    if let Some(builder_modifier) = builder_modifier {
+        builder = builder_modifier(builder);
     };
 
     let cluster = builder.build().await;
