@@ -607,13 +607,6 @@ type Coin implements IMoveObject & IObject & IOwner {
 	"""
 	contents: MoveValue
 	"""
-	Determines whether a transaction can transfer this object, using the
-	TransferObjects transaction command or
-	`iota::transfer::public_transfer`, both of which require the object to
-	have the `key` and `store` abilities.
-	"""
-	hasPublicTransfer: Boolean!
-	"""
 	The set of named templates defined on-chain for the type of this object,
 	to be handled off-chain. The server substitutes data from the object
 	into these templates to generate a display string per template.
@@ -780,13 +773,6 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	signature, and the BCS of the corresponding data.
 	"""
 	contents: MoveValue
-	"""
-	Determines whether a transaction can transfer this object, using the
-	TransferObjects transaction command or
-	`iota::transfer::public_transfer`, both of which require the object to
-	have the `key` and `store` abilities.
-	"""
-	hasPublicTransfer: Boolean!
 	"""
 	The set of named templates defined on-chain for the type of this object,
 	to be handled off-chain. The server substitutes data from the object
@@ -2142,13 +2128,6 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	signature, and the BCS of the corresponding data.
 	"""
 	contents: MoveValue
-	"""
-	Determines whether a transaction can transfer this object, using the
-	TransferObjects transaction command or
-	`iota::transfer::public_transfer`, both of which require the object to
-	have the `key` and `store` abilities.
-	"""
-	hasPublicTransfer: Boolean!
 	"""
 	The set of named templates defined on-chain for the type of this object,
 	to be handled off-chain. The server substitutes data from the object
@@ -3855,13 +3834,6 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	signature, and the BCS of the corresponding data.
 	"""
 	contents: MoveValue
-	"""
-	Determines whether a transaction can transfer this object, using the
-	TransferObjects transaction command or
-	`iota::transfer::public_transfer`, both of which require the object to
-	have the `key` and `store` abilities.
-	"""
-	hasPublicTransfer: Boolean!
 	"""
 	The set of named templates defined on-chain for the type of this object,
 	to be handled off-chain. The server substitutes data from the object
