@@ -23,15 +23,15 @@ A Governor address can claim the `AliasOutput` assets at any time:
 The first step is to fetch the `AliasOutput` object that needs to be claimed.
 
 <Tabs groupId="language">
-<TabItem value="rust" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L56-L81
-```
-
-</TabItem>
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript file=<rootDir>/docs/examples/typescript/src/stardust/alias-output-claim.ts#L24-L30
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L56-L81
 ```
 
 </TabItem>
@@ -43,15 +43,15 @@ Next, check the native tokens that might be held by this output. A [`Bag`](../..
 
 
 <Tabs groupId="language">
-<TabItem value="rust" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L83-L110
-```
-
-</TabItem>
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript file=<rootDir>/docs/examples/typescript/src/stardust/alias-output-claim.ts#L31-L60
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L83-L110
 ```
 
 </TabItem>
@@ -65,15 +65,15 @@ An `AliasOutput` differs from an `NftOutput` or a `BasicOutput` because it conta
 The main purpose of claiming is to extract the `Alias` object from the `AliasOutput`.
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/alias-output-claim.ts#L62-L110
+```
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L112-L180
 ```
 
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-```typescript file=<rootDir>/docs/examples/typescript/src/stardust/alias-output-claim.ts#L62-L110
-```
 </TabItem>
 </Tabs>
 
@@ -107,14 +107,14 @@ Also, the `nft.move` module was extended with the following function:
 Once the package is prepared, you can extract and use a Stardust `Alias` in a single transaction to create a `CollectionControllerCap`. This capability is then used in later transactions to manage new collections.
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/alias-migration.ts#L75-L170
+```
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/alias-migration.rs#L119-L244
 ```
 
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-```typescript file=<rootDir>/docs/examples/typescript/src/stardust/alias-migration.ts#L75-L170
-```
 </TabItem>
 </Tabs>

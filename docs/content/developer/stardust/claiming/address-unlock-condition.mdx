@@ -22,32 +22,32 @@ For this example, we use an `AliasOutput` to extract an `Alias` object that owns
 1. The first step is to fetch the `AliasOutput` object that is needed to claim the `NftOutput`.
 
 <Tabs groupId="language">
+<TabItem value="typescript"  label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L44-L50
+```
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L74-L92
 ```
 
 </TabItem>
-<TabItem value="typescript"  label="TypeScript">
-
-```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L44-L50
-```
-</TabItem>
 </Tabs>
 
 2. Use the dynamic field function with the "alias" dynamic field key filter to gather the `Alias` object itself.
 
 <Tabs groupId="language">
-<TabItem value="rust" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L94-L107
-```
-
-</TabItem>
 <TabItem value="typescript"  label="TypeScript">
 ```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L53-L70
 ```
 
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L94-L107
+```
 
 </TabItem>
 </Tabs>
@@ -55,29 +55,29 @@ For this example, we use an `AliasOutput` to extract an `Alias` object that owns
 3. Some objects are owned by the `Alias` object. In this case, filter them by type using the `NftOutput` type tag. Apply the filter to get `NftOutput`s owned by the `Alias`.
 
 <Tabs groupId="language">
+<TabItem value="typescript"  label="TypeScript">
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L77-L95
+```
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L109-L132
 ```
 
 </TabItem>
-<TabItem value="typescript"  label="TypeScript">
-```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L77-L95
-```
-</TabItem>
 </Tabs>
 
 4. Create a PTB that first extracts the assets from the `AliasOutput`, and then uses the extracted `Alias` to "address unlock" the `NftOutput` using the function `unlock_alias_address_owned_nft`.
 
 <Tabs groupId="language">
+<TabItem value="typescript"  label="TypeScript">
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L97-L166
+```
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L134-L243
 ```
 
-</TabItem>
-<TabItem value="typescript"  label="TypeScript">
-```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L97-L166
-```
 </TabItem>
 </Tabs>
