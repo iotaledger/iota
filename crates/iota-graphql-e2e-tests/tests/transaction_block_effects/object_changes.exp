@@ -30,7 +30,7 @@ Response: {
             "objectChanges": {
               "pageInfo": {
                 "hasPreviousPage": false,
-                "hasNextPage": true,
+                "hasNextPage": false,
                 "startCursor": "eyJpIjowLCJjIjoxfQ",
                 "endCursor": "eyJpIjoxOSwiYyI6MX0"
               },

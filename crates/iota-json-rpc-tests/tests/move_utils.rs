@@ -63,6 +63,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "priority_queue",
             "prover",
             "random",
+            "system_admin_cap",
             "table",
             "table_vec",
             "timelock",

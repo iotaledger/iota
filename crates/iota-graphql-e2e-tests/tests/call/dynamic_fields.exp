@@ -49,6 +49,34 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
+              "__typename": "MoveObject"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "vector<u8>"
+              },
+              "data": {
+                "Vector": []
+              },
+              "bcs": "AA=="
+            },
+            "value": {
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
               "__typename": "MoveValue"
             }
           },
@@ -129,21 +157,7 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "bool"
-              },
-              "data": {
-                "Bool": false
-              },
-              "bcs": "AA=="
-            },
-            "value": {
-              "__typename": "MoveValue"
+              "__typename": "MoveObject"
             }
           },
           {
@@ -171,22 +185,51 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "bool"
+              },
+              "data": {
+                "Bool": false
+              },
+              "bcs": "AA=="
+            },
+            "value": {
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
               "__typename": "MoveObject"
             }
-          }
-        ]
-      }
-    }
-  }
-}
-
-task 10, lines 117-142:
-//# run-graphql
-Response: {
-  "data": {
-    "owner": {
-      "dynamicFields": {
-        "nodes": [
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "vector<u8>"
+              },
+              "data": {
+                "Vector": []
+              },
+              "bcs": "AA=="
+            },
+            "value": {
+              "__typename": "MoveValue"
+            }
+          },
           {
             "name": {
               "type": {
