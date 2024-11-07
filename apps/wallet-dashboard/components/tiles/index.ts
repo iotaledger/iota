@@ -3,4 +3,4 @@
 
 export * from './VisualAssetTile';
 export * from './NonVisualAssetTile';
-export * from './AssetTile';
+export * from './AssetTileLink';
