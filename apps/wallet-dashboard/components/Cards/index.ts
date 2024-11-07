@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export { default as StakeCard } from './StakeCard';
+export * from './VisualAssetDetailsCard';
