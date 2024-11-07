@@ -13,6 +13,7 @@ env:
   IOTA_NETWORKS: ${{ secrets.WALLET_RC_IOTA_NETWORKS }}
   APPS_BACKEND: ${{ secrets.WALLET_RC_APPS_BACKEND }}
   RC_VERSION: "${{ github.event.inputs.rc_version }}"
+  SENTRY_AUTH_TOKEN: ${{ secrets.TOOLING_SENTRY_AUTH_TOKEN }}
 
 jobs:
   wallet-rc-build:
