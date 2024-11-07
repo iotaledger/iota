@@ -170,7 +170,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         let rates = exchange_rates(self, &system_state_summary)
             .await?
             .into_iter()
-            .chain(self.pending_validator_exchange_rate().await?.into_iter())
+            .chain(self.pending_validators_exchange_rate().await?.into_iter())
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -338,7 +338,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
     }
 
     /// Check if there is any pending validator and get its exchange rates
-    async fn pending_validator_exchange_rate(
+    pub async fn pending_validators_exchange_rate(
         &self,
     ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
         // Try to find for any pending active validator
