@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ObjectChangeSummary, IotaObjectChangeTypes } from '@iota/core';
-import { ObjectChangeEntry } from './';
+import { ObjectChangeEntry } from '.';
 
 interface ObjectChangesProps {
     objectSummary: ObjectChangeSummary;

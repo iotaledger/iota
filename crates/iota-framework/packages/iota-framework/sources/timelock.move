@@ -8,19 +8,16 @@ module iota::timelock {
 
     use iota::balance::Balance;
     use iota::labeler::LabelerCap;
-
-    /// The `new` function was called at a non-genesis epoch.
-    const ENotCalledAtGenesis: u64 = 0;
-    /// Sender is not @0x0 the system address.
-    const ENotSystemAddress: u64 = 1;
+    use iota::system_admin_cap::IotaSystemAdminCap;
+    
     /// Expiration timestamp of the lock is in the past.
-    const EExpireEpochIsPast: u64 = 2;
+    const EExpireEpochIsPast: u64 = 0;
     /// The lock has not expired yet.
-    const ENotExpiredYet: u64 = 3;
+    const ENotExpiredYet: u64 = 1;
     /// For when trying to join two time-locked balances with different expiration time.
-    const EDifferentExpirationTime: u64 = 4;
+    const EDifferentExpirationTime: u64 = 2;
     /// For when trying to join two time-locked balances with different labels.
-    const EDifferentLabels: u64 = 5;
+    const EDifferentLabels: u64 = 3;
 
     /// `TimeLock` struct that holds a locked object.
     public struct TimeLock<T: store> has key {
@@ -32,9 +29,6 @@ module iota::timelock {
         /// Timelock related label.
         label: Option<String>,
     }
-
-    /// `SystemTimelockCap` allows to `pack` and `unpack` TimeLocks
-    public struct SystemTimelockCap has store {}
 
     // === TimeLock lock and unlock ===
 
@@ -153,7 +147,7 @@ module iota::timelock {
 
     /// A utility function to pack a `TimeLock` that can be invoked only by a system package.
     public fun system_pack<T: store>(
-        _: &SystemTimelockCap,
+        _: &IotaSystemAdminCap,
         locked: T,
         expiration_timestamp_ms: u64,
         label: Option<String>,
@@ -163,7 +157,7 @@ module iota::timelock {
     }
 
     /// An utility function to unpack a `TimeLock` that can be invoked only by a system package.
-    public fun system_unpack<T: store>(_: &SystemTimelockCap, lock: TimeLock<T>): (T, u64, Option<String>) {
+    public fun system_unpack<T: store>(_: &IotaSystemAdminCap, lock: TimeLock<T>): (T, u64, Option<String>) {
         unpack(lock)
     }
 
@@ -266,23 +260,5 @@ module iota::timelock {
 
         // Check that `expiration_timestamp_ms` is valid.
         assert!(expiration_timestamp_ms > epoch_timestamp_ms, EExpireEpochIsPast);
-    }
-        
-    // === SystemTimelockCap ===
-
-    #[allow(unused_function)]
-    /// Create a `SystemTimelockCap`.
-    /// This should be called only once during genesis creation.
-    fun new_system_timelock_cap(ctx: &TxContext): SystemTimelockCap {
-        assert!(ctx.sender() == @0x0, ENotSystemAddress);
-        assert!(ctx.epoch() == 0, ENotCalledAtGenesis);
-
-        SystemTimelockCap {}
-    }
-
-    #[test_only]
-    /// Create a `SystemTimelockCap` for testing purposes.
-    public fun new_system_timelock_cap_for_testing(): SystemTimelockCap {
-        SystemTimelockCap { }
     }
 }

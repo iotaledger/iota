@@ -37,7 +37,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x9d880ed4fdb36fbc885a556e5ea55eb8338e56ea2185689d8491e8aa4bc3edfa::m::Bar"
+                          "repr": "0x40c4a165cdc6b25f0f9764ac15ced5fb7c86130d7751083490fa5c5ced8dc9c5::m::Bar"
                         }
                       },
                       "hasPublicTransfer": false
@@ -61,7 +61,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x9d880ed4fdb36fbc885a556e5ea55eb8338e56ea2185689d8491e8aa4bc3edfa::m::Foo"
+                          "repr": "0x40c4a165cdc6b25f0f9764ac15ced5fb7c86130d7751083490fa5c5ced8dc9c5::m::Foo"
                         }
                       },
                       "hasPublicTransfer": true

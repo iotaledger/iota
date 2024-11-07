@@ -15,7 +15,7 @@ const config = {
   title: "IOTA Documentation",
   tagline:
     "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
-  favicon: "/img/favicon.ico",
+  favicon: "/icons/favicon.ico",
 
   // Set the production url of your site here
   url: "https://docs.iota.io",
@@ -192,7 +192,7 @@ const config = {
       typesense: {
         // Replace this with the name of your index/collection.
         // It should match the "index_name" entry in the scraper's "config.json" file.
-        typesenseCollectionName: 'IOTADocs_1724878003',
+        typesenseCollectionName: 'IOTADocs',
         typesenseServerConfig: {
           nodes: [
             {
@@ -229,7 +229,7 @@ const config = {
         title: "",
         logo: {
           alt: "IOTA Docs Logo",
-          src: "img/iota-logo.svg",
+          src: "/logo/iota-logo.svg",
         },
         items: [
           {
@@ -253,7 +253,7 @@ const config = {
       footer: {
         logo: {
           alt: "IOTA Wiki Logo",
-          src: "img/iota-logo.svg",
+          src: "/logo/iota-logo.svg",
         },
         copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
                     The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
