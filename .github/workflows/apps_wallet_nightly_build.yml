@@ -11,7 +11,6 @@ env:
   IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
   APPS_BACKEND: ${{ secrets.WALLET_NIGHTLY_BUILD_APPS_BACKEND }}
   TAG_NAME: "${{ github.event.inputs.iota_branch || 'develop' }}"
-  SENTRY_AUTH_TOKEN: ${{ secrets.TOOLING_SENTRY_AUTH_TOKEN }}
 
 jobs:
   wallet-nightly-build:
@@ -44,7 +43,7 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
       - name: Build Wallet
-        run: pnpm wallet build
+        run: pnpm wallet build:dev
       - name: Upload artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         with:
