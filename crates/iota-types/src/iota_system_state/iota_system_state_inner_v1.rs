@@ -28,6 +28,7 @@ use crate::{
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     multiaddr::Multiaddr,
     storage::ObjectStore,
+    system_admin_cap::IotaSystemAdminCap,
 };
 
 const E_METADATA_INVALID_POP: u64 = 0;
@@ -444,6 +445,7 @@ pub struct IotaSystemStateV1 {
     pub validators: ValidatorSetV1,
     pub storage_fund: StorageFundV1,
     pub parameters: SystemParametersV1,
+    pub iota_system_admin_cap: IotaSystemAdminCap,
     pub reference_gas_price: u64,
     pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
     pub safe_mode: bool,
@@ -617,6 +619,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
                     validator_low_stake_grace_period,
                     extra_fields: _,
                 },
+            iota_system_admin_cap: _,
             reference_gas_price,
             validator_report_records:
                 VecMap {

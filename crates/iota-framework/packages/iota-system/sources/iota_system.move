@@ -46,7 +46,7 @@ module iota_system::iota_system {
     use iota_system::staking_pool::StakedIota;
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::table::Table;
-    use iota::timelock::SystemTimelockCap;
+    use iota::system_admin_cap::IotaSystemAdminCap;
     use iota_system::validator::ValidatorV1;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1};
@@ -66,8 +66,6 @@ module iota_system::iota_system {
     const ENotSystemAddress: u64 = 0;
     const EWrongInnerVersion: u64 = 1;
 
-    const SYSTEM_TIMELOCK_CAP_DF_KEY: vector<u8> = b"sys_timelock_cap";
-
     // ==== functions that can only be called by genesis ====
 
     /// Create a new IotaSystemState object and make it shared.
@@ -80,7 +78,7 @@ module iota_system::iota_system {
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         parameters: SystemParametersV1,
-        system_timelock_cap: SystemTimelockCap,
+        iota_system_admin_cap: IotaSystemAdminCap,
         ctx: &mut TxContext,
     ) {
         let system_state = iota_system_state_inner::create(
@@ -90,6 +88,7 @@ module iota_system::iota_system {
             protocol_version,
             epoch_start_timestamp_ms,
             parameters,
+            iota_system_admin_cap,
             ctx,
         );
         let version = iota_system_state_inner::genesis_system_state_version();
@@ -98,7 +97,6 @@ module iota_system::iota_system {
             version,
         };
         dynamic_field::add(&mut self.id, version, system_state);
-        dynamic_field::add(&mut self.id, SYSTEM_TIMELOCK_CAP_DF_KEY, system_timelock_cap);
         transfer::share_object(self);
     }
 
@@ -502,6 +500,11 @@ module iota_system::iota_system {
         self.active_validator_addresses()
     }
 
+    /// Returns the IOTA system admin capability reference.
+    public(package) fun load_iota_system_admin_cap(self: &mut IotaSystemState): &IotaSystemAdminCap {
+        self.load_system_state().iota_system_admin_cap()
+    }
+
     #[allow(unused_function)]
     /// This function should be called at the end of an epoch, and advances the system to the next epoch.
     /// It does the following things:
@@ -560,13 +563,6 @@ module iota_system::iota_system {
         );
         assert!(inner.system_state_version() == self.version, EWrongInnerVersion);
         inner
-    }
-
-    public(package) fun load_system_timelock_cap(self: &IotaSystemState): &SystemTimelockCap {
-        dynamic_field::borrow(
-            &self.id,
-            SYSTEM_TIMELOCK_CAP_DF_KEY
-        )
     }
 
     #[allow(unused_function)]

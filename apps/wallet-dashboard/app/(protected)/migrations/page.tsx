@@ -3,48 +3,43 @@
 'use client';
 
 import { VirtualList } from '@/components';
+import { useGetCurrentEpochStartTimestamp } from '@/hooks';
+import { groupStardustObjectsByMigrationStatus } from '@/lib/utils';
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
-} from '@/lib/constants/migration.constants';
-import { useGetOwnedObjects } from '@iota/core';
+    useGetAllOwnedObjects,
+} from '@iota/core';
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { getNetwork, IotaObjectData } from '@iota/iota-sdk/client';
 
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+    const address = account?.address || '';
     const { network } = useIotaClientContext();
     const { explorer } = getNetwork(network);
+    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
-    const {
-        data: basicOutputObjects,
-        fetchNextPage: fetchNextPageBasic,
-        hasNextPage: hasNextPageBasic,
-        isFetchingNextPage: isFetchingNextPageBasic,
-    } = useGetOwnedObjects(account?.address || '', {
+    const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
         StructType: STARDUST_BASIC_OUTPUT_TYPE,
     });
-    const {
-        data: nftOutputObjects,
-        fetchNextPage: fetchNextPageNft,
-        hasNextPage: hasNextPageNft,
-        isFetchingNextPage: isFetchingNextPageNft,
-    } = useGetOwnedObjects(account?.address || '', {
+    const { data: nftOutputObjects } = useGetAllOwnedObjects(address, {
         StructType: STARDUST_NFT_OUTPUT_TYPE,
     });
 
-    const basicOutputs =
-        basicOutputObjects?.pages
-            .flatMap((page) => page.data)
-            .filter((asset) => asset.data && asset.data.objectId)
-            .map((response) => response.data!) ?? [];
+    const { migratable: migratableBasicOutputs, unmigratable: unmigratableBasicOutputs } =
+        groupStardustObjectsByMigrationStatus(
+            basicOutputObjects ?? [],
+            Number(currentEpochMs),
+            address,
+        );
 
-    const nftOutputs =
-        nftOutputObjects?.pages
-            .flatMap((page) => page.data)
-            .filter((asset) => asset.data && asset.data.objectId)
-            .map((response) => response.data!) ?? [];
-
+    const { migratable: migratableNftOutputs, unmigratable: unmigratableNftOutputs } =
+        groupStardustObjectsByMigrationStatus(
+            nftOutputObjects ?? [],
+            Number(currentEpochMs),
+            address,
+        );
     const virtualItem = (asset: IotaObjectData): JSX.Element => (
         <a href={`${explorer}/object/${asset.objectId}`} target="_blank" rel="noreferrer">
             {asset.objectId}
@@ -52,25 +47,35 @@ function MigrationDashboardPage(): JSX.Element {
     );
 
     return (
-        <div className="flex h-full w-full flex-row items-center justify-center space-y-4">
+        <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
             <div className="flex w-1/2 flex-col">
-                <h1>Basic Outputs</h1>
+                <h1>Migratable Basic Outputs: {migratableBasicOutputs.length}</h1>
                 <VirtualList
-                    items={basicOutputs}
-                    hasNextPage={hasNextPageBasic}
-                    isFetchingNextPage={isFetchingNextPageBasic}
-                    fetchNextPage={fetchNextPageBasic}
+                    items={migratableBasicOutputs}
                     estimateSize={() => 30}
                     render={virtualItem}
                 />
             </div>
             <div className="flex w-1/2 flex-col">
-                <h1>Nft Outputs</h1>
+                <h1>Unmigratable Basic Outputs: {unmigratableBasicOutputs.length}</h1>
                 <VirtualList
-                    items={nftOutputs}
-                    hasNextPage={hasNextPageNft}
-                    isFetchingNextPage={isFetchingNextPageNft}
-                    fetchNextPage={fetchNextPageNft}
+                    items={unmigratableBasicOutputs}
+                    estimateSize={() => 30}
+                    render={virtualItem}
+                />
+            </div>
+            <div className="flex w-1/2 flex-col">
+                <h1>Migratable NFT Outputs: {migratableNftOutputs.length}</h1>
+                <VirtualList
+                    items={migratableNftOutputs}
+                    estimateSize={() => 30}
+                    render={virtualItem}
+                />
+            </div>
+            <div className="flex w-1/2 flex-col">
+                <h1>Unmigratable NFT Outputs: {unmigratableNftOutputs.length}</h1>
+                <VirtualList
+                    items={unmigratableNftOutputs}
                     estimateSize={() => 30}
                     render={virtualItem}
                 />
