@@ -155,6 +155,68 @@ export const Networks = {
       api: 'https://api.evm.testnet.shimmer.network',
     },
   },
+  move_testnet: {
+    baseToken: 'Testnet Token (no value)',
+    protocol: 'Stardust',
+    httpRestApi: 'https://api.testnet.shimmer.network',
+    eventApi: 'wss://api.testnet.shimmer.network:443/api/mqtt/v1 (MQTT 3.1)',
+    permaNodeApi: 'https://chronicle.testnet.shimmer.network',
+    faucet: 'https://faucet.testnet.shimmer.network',
+    explorer: 'https://explorer.shimmer.network/shimmer-testnet',
+    evm: {
+      chainId: '0x431',
+      chainName: 'ShimmerEVM Testnet',
+      nativeCurrency: {
+        name: 'Shimmer',
+        symbol: 'SMR',
+        decimals: 18,
+      },
+      rpcUrls: ['https://json-rpc.evm.testnet.shimmer.network'],
+      blockExplorerUrls: ['https://explorer.evm.testnet.shimmer.network/'],
+    },
+    evmCustom: {
+      chainAddress:
+        'rms1ppp00k5mmd2m8my8ukkp58nd3rskw6rx8l09aj35984k74uuc5u2cywn3ex',
+      aliasId:
+        '0x42f7da9bdb55b3ec87e5ac1a1e6d88e16768663fde5eca3429eb6f579cc538ac',
+      toolkit: {
+        url: 'https://evm-toolkit.evm.testnet.shimmer.network',
+        hasFaucet: true,
+      },
+      api: 'https://api.evm.testnet.shimmer.network',
+    },
+  },
+  move_devnet: {
+    baseToken: 'Testnet Token (no value)',
+    protocol: 'Stardust',
+    httpRestApi: 'https://api.testnet.shimmer.network',
+    eventApi: 'wss://api.testnet.shimmer.network:443/api/mqtt/v1 (MQTT 3.1)',
+    permaNodeApi: 'https://chronicle.testnet.shimmer.network',
+    faucet: 'https://faucet.testnet.shimmer.network',
+    explorer: 'https://explorer.shimmer.network/shimmer-testnet',
+    evm: {
+      chainId: '0x431',
+      chainName: 'ShimmerEVM Testnet',
+      nativeCurrency: {
+        name: 'Shimmer',
+        symbol: 'SMR',
+        decimals: 18,
+      },
+      rpcUrls: ['https://json-rpc.evm.testnet.shimmer.network'],
+      blockExplorerUrls: ['https://explorer.evm.testnet.shimmer.network/'],
+    },
+    evmCustom: {
+      chainAddress:
+        'rms1ppp00k5mmd2m8my8ukkp58nd3rskw6rx8l09aj35984k74uuc5u2cywn3ex',
+      aliasId:
+        '0x42f7da9bdb55b3ec87e5ac1a1e6d88e16768663fde5eca3429eb6f579cc538ac',
+      toolkit: {
+        url: 'https://evm-toolkit.evm.testnet.shimmer.network',
+        hasFaucet: true,
+      },
+      api: 'https://api.evm.testnet.shimmer.network',
+    },
+  },
 };
 
 export interface Toolkit {
