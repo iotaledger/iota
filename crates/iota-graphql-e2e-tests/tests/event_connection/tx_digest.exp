@@ -37,19 +37,19 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "J2ipHUWhTfsoqMAG5AfXSsKG73c3oSqsxwQns9WP7WKv"
+          "digest": "FsCY97AYJbqdvGiquSMZnFedF6H1D33TB2A83NbdHcE9"
         },
         {
-          "digest": "F8z11KNSYyUsBD9ggqQkqm4AgDGgVvfzDntJMW8Z5a3j"
+          "digest": "GWGAK3VMExg4fJkSDqKecxHrVj5VuaQ1zT5WtPWRChMw"
         },
         {
-          "digest": "8h2qDXpVYkN95m5SupmMWFJfHw2x9GTESNsw5nnL9j4N"
+          "digest": "3BfxUyysyKbHA98WJdUcFU59h8ucbavYVcwB73QFaUcs"
         },
         {
-          "digest": "3UpQ5k6ubWDEsCGeh39ZD7wRk8mx7LEHM7bxVC1kL1pc"
+          "digest": "F5e9ukAhbTVMDkuZeXRRmQHCh5bECD7z1M3oaWsekWag"
         },
         {
-          "digest": "BLYdLfV5uMQrev9TDtkKbcDoz74NJ76yjCyEBnhgWueE"
+          "digest": "EjPcNBST2zMhX2Feow5x6FSjKT75pktRsL7rXeefz2DZ"
         }
       ]
     }
@@ -61,24 +61,7 @@ task 7, lines 46-58:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6MywiZSI6MCwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "2"
-            }
-          }
-        },
-        {
-          "cursor": "eyJ0eCI6MywiZSI6MSwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "3"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
@@ -108,24 +91,7 @@ task 10, lines 93-105:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6NCwiZSI6MCwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "4"
-            }
-          }
-        },
-        {
-          "cursor": "eyJ0eCI6NCwiZSI6MSwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "5"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
@@ -135,16 +101,7 @@ task 11, lines 107-119:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6NCwiZSI6MSwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "5"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
@@ -154,24 +111,7 @@ task 12, lines 122-134:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6MywiZSI6MCwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "2"
-            }
-          }
-        },
-        {
-          "cursor": "eyJ0eCI6MywiZSI6MSwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "3"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
@@ -181,16 +121,7 @@ task 13, lines 136-149:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6MywiZSI6MCwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "2"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
@@ -210,24 +141,7 @@ task 15, lines 169-181:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6NCwiZSI6MCwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "4"
-            }
-          }
-        },
-        {
-          "cursor": "eyJ0eCI6NCwiZSI6MSwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "5"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
@@ -237,16 +151,7 @@ task 16, lines 183-195:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6NCwiZSI6MCwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "4"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
@@ -256,24 +161,7 @@ task 17, lines 197-210:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6MywiZSI6MCwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "2"
-            }
-          }
-        },
-        {
-          "cursor": "eyJ0eCI6MywiZSI6MSwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "3"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
@@ -283,24 +171,7 @@ task 18, lines 212-225:
 Response: {
   "data": {
     "events": {
-      "edges": [
-        {
-          "cursor": "eyJ0eCI6NCwiZSI6MCwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "4"
-            }
-          }
-        },
-        {
-          "cursor": "eyJ0eCI6NCwiZSI6MSwiYyI6MX0",
-          "node": {
-            "json": {
-              "new_value": "5"
-            }
-          }
-        }
-      ]
+      "edges": []
     }
   }
 }
