@@ -4,7 +4,7 @@
 'use client';
 
 import { AmountBox, Box, StakeCard, StakeDialog, Button } from '@/components';
-import { StakeDetailsDialog } from '@/components/Dialogs/StakeDetails';
+import { StakeDetailsDialog } from '@/components/Dialogs';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,
@@ -84,6 +84,7 @@ function StakingDashboardPage(): JSX.Element {
                 <StakeDetailsDialog
                     extendedStake={selectedStake}
                     handleClose={() => setSelectedStake(null)}
+                    showActiveStatus
                 />
             )}
         </>

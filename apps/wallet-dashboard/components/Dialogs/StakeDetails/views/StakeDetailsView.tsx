@@ -5,15 +5,12 @@ import React from 'react';
 import { Button } from '@/components';
 import { ExtendedDelegatedStake } from '@iota/core';
 
-interface StakeDetailsPopupProps {
+interface StakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
     onUnstake: () => void;
 }
 
-export function StakeDetailsView({
-    extendedStake,
-    onUnstake,
-}: StakeDetailsPopupProps): JSX.Element {
+export function StakeDialogView({ extendedStake, onUnstake }: StakeDialogProps): JSX.Element {
     return (
         <>
             <div className="flex w-full max-w-[336px] flex-1 flex-col">

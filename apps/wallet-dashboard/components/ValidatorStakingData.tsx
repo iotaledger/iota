@@ -16,11 +16,13 @@ export function ValidatorStakingData({
     stakeId,
     isUnstake,
 }: ValidatorStakingDataProps) {
+    const account = useCurrentAccount();
+
     const {
         validatorApy: { apy, isApyApproxZero },
         totalStakePercentage,
     } = useGetStakingValidatorDetails({
-        accountAddress: useCurrentAccount()?.address || '',
+        accountAddress: account?.address || '',
         validatorAddress,
         stakeId,
         unstake: isUnstake,

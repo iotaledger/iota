@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DialogView } from '@/lib/interfaces';
-import { StakeDetailsView } from './views';
+import { StakeDialogView } from './views';
 import { useState } from 'react';
 import { ExtendedDelegatedStake } from '@iota/core';
 import { Dialog, DialogBody, DialogContent, DialogPosition, Header } from '@iota/apps-ui-kit';
@@ -13,27 +13,29 @@ enum DialogViewIdentifier {
     Unstake = 'Unstake',
 }
 
-interface StakeDetailsDialogProps {
+interface StakeDetailsProps {
     extendedStake: ExtendedDelegatedStake;
     showActiveStatus?: boolean;
     handleClose: () => void;
 }
+
 export function StakeDetailsDialog({
     extendedStake,
     showActiveStatus,
     handleClose,
-}: StakeDetailsDialogProps) {
+}: StakeDetailsProps) {
     const [open, setOpen] = useState(true);
+    const [currentViewId, setCurrentViewId] = useState<DialogViewIdentifier>(
+        DialogViewIdentifier.StakeDetails,
+    );
 
     const VIEWS: Record<DialogViewIdentifier, DialogView> = {
         [DialogViewIdentifier.StakeDetails]: {
             header: <Header title="Stake Details" onClose={handleClose} />,
             body: (
-                <StakeDetailsView
+                <StakeDialogView
                     extendedStake={extendedStake}
-                    onUnstake={() => {
-                        setCurrentView(VIEWS[DialogViewIdentifier.Unstake]);
-                    }}
+                    onUnstake={() => setCurrentViewId(DialogViewIdentifier.Unstake)}
                 />
             ),
         },
@@ -49,9 +51,7 @@ export function StakeDetailsDialog({
         },
     };
 
-    const [currentView, setCurrentView] = useState<DialogView>(
-        VIEWS[DialogViewIdentifier.StakeDetails],
-    );
+    const currentView = VIEWS[currentViewId];
 
     return (
         <Dialog

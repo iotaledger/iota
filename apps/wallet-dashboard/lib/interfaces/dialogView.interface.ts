@@ -3,5 +3,5 @@
 
 export interface DialogView {
     header: React.ReactNode;
-    body?: React.ReactNode;
+    body: React.ReactNode;
 }
