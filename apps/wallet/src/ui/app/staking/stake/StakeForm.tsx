@@ -44,22 +44,20 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         transaction ?? new Transaction(),
     );
 
-    const gasSummary = useMemo(() => {
-        if (!txDryRunResponse) return null;
-        return getGasSummary(txDryRunResponse);
-    }, [txDryRunResponse]);
+    const gasSummary = txDryRunResponse ? getGasSummary(txDryRunResponse) : undefined;
 
     const stakeAllTransaction = useMemo(() => {
         return createStakeTransaction(coinBalance, validatorAddress);
-    }, [coinBalance, validatorAddress, decimals]);
+    }, [coinBalance, validatorAddress]);
 
     const { data: stakeAllTransactionDryRun } = useTransactionDryRun(
         activeAddress ?? undefined,
-        stakeAllTransaction ?? new Transaction(),
+        stakeAllTransaction,
     );
 
     const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
 
+    // do not remove: gasBudget field is used in the validation schema apps/wallet/src/ui/app/staking/stake/utils/validation.ts
     useEffect(() => {
         setFieldValue('gasBudget', gasBudget);
     }, [gasBudget]);
