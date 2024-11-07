@@ -29,7 +29,7 @@ events: Event { package_id: iota_system, transaction_module: Identifier("iota_sy
 created: object(3,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 14531200,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 14500800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 4, line 27:
 //# create-checkpoint
@@ -53,7 +53,7 @@ events: Event { package_id: iota_system, transaction_module: Identifier("iota_sy
 created: object(7,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(6,0)
-gas summary: computation_cost: 1000000, storage_cost: 14531200,  storage_rebate: 14227200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 14500800,  storage_rebate: 14196800, non_refundable_storage_fee: 0
 
 task 8, line 37:
 //# create-checkpoint
@@ -109,13 +109,13 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IEhTcCR8gCwWhb3Pa6IIeNcxMuM5/AQDAChvtODEIxaTBAAAAAAAAAA=",
+            "cursor": "ICY/+FbG+Hqd34UX7O+7VLiMXKC/bqtTKAZwQ4YiyetzBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
           },
           {
-            "cursor": "IFWL5fMBAvjGqySaASRTzX8LCOJmSehFXfVOmHh0TLNgBAAAAAAAAAA=",
+            "cursor": "IPEp6dbnEicrkwynNujLy5/Voas64Cc5Ta7ruT5oQNbTBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -161,7 +161,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IFWL5fMBAvjGqySaASRTzX8LCOJmSehFXfVOmHh0TLNgAwAAAAAAAAA=",
+            "cursor": "IPEp6dbnEicrkwynNujLy5/Voas64Cc5Ta7ruT5oQNbTAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -183,7 +183,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IEhTcCR8gCwWhb3Pa6IIeNcxMuM5/AQDAChvtODEIxaTAwAAAAAAAAA=",
+            "cursor": "ICY/+FbG+Hqd34UX7O+7VLiMXKC/bqtTKAZwQ4YiyetzAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

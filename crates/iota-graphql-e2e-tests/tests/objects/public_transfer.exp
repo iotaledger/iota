@@ -22,7 +22,7 @@ task 3, line 34:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 36-54:
+task 4, lines 36-53:
 //# run-graphql
 Response: {
   "data": {
@@ -37,10 +37,9 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x40c4a165cdc6b25f0f9764ac15ced5fb7c86130d7751083490fa5c5ced8dc9c5::m::Bar"
+                          "repr": "0xd01ba1620a63906586ce0abe061e1f132f9581e42c616660afa3119a028c48a5::m::Bar"
                         }
-                      },
-                      "hasPublicTransfer": true
+                      }
                     }
                   }
                 },
@@ -51,8 +50,7 @@ Response: {
                         "type": {
                           "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         }
-                      },
-                      "hasPublicTransfer": true
+                      }
                     }
                   }
                 },
@@ -61,10 +59,9 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x40c4a165cdc6b25f0f9764ac15ced5fb7c86130d7751083490fa5c5ced8dc9c5::m::Foo"
+                          "repr": "0xd01ba1620a63906586ce0abe061e1f132f9581e42c616660afa3119a028c48a5::m::Foo"
                         }
-                      },
-                      "hasPublicTransfer": false
+                      }
                     }
                   }
                 }

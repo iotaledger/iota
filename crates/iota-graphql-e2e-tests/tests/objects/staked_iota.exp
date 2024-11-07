@@ -43,7 +43,7 @@ events: Event { package_id: iota_system, transaction_module: Identifier("iota_sy
 created: object(3,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 14531200,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 14500800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 4, line 40:
 //# create-checkpoint
@@ -71,22 +71,22 @@ Response: {
           }
         },
         {
-          "cursor": "IFWL5fMBAvjGqySaASRTzX8LCOJmSehFXfVOmHh0TLNgAgAAAAAAAAA=",
+          "cursor": "IA+owYRIwFujnaEiElWV25tmsgRd3aiT7h9//oDyhQb2AgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
-                "principal": "10000000000",
+                "principal": "15340000000000",
                 "poolId": "0x91c949208717792507652867d8639b33766f73dc2cfd908f506785f03aeb89ca"
               }
             }
           }
         },
         {
-          "cursor": "IJBwUWU37b5wcCks4sYH9yj0in1fYITknJlXyi0qxJ9iAgAAAAAAAAA=",
+          "cursor": "IPEp6dbnEicrkwynNujLy5/Voas64Cc5Ta7ruT5oQNbTAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
-                "principal": "15340000000000",
+                "principal": "10000000000",
                 "poolId": "0x91c949208717792507652867d8639b33766f73dc2cfd908f506785f03aeb89ca"
               }
             }
@@ -98,7 +98,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IFWL5fMBAvjGqySaASRTzX8LCOJmSehFXfVOmHh0TLNgAgAAAAAAAAA=",
+            "cursor": "IPEp6dbnEicrkwynNujLy5/Voas64Cc5Ta7ruT5oQNbTAgAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

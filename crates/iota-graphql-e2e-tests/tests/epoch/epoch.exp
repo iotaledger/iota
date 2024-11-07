@@ -25,7 +25,7 @@ events: Event { package_id: iota_system, transaction_module: Identifier("iota_sy
 created: object(4,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 14531200,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 14500800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 5, line 20:
 //# create-checkpoint
@@ -71,17 +71,17 @@ Response: {
       },
       "totalGasFees": "1000000",
       "totalStakeRewards": "767000000000000",
-      "fundSize": "14531200",
-      "fundInflow": "1976000",
-      "fundOutflow": "988000",
-      "netInflow": "988000",
+      "fundSize": "14500800",
+      "fundInflow": "1960800",
+      "fundOutflow": "980400",
+      "netInflow": "980400",
       "transactionBlocks": {
         "nodes": [
           {
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             },
-            "digest": "EM966soJNHr5FPxc8yeuqkUmiuHcgMRtcKBAJgWbbQCj"
+            "digest": "7SJtdFybBPY6aTpoRw4y1Z7vShCUUGqqJUDmL5o64CDu"
           },
           {
             "kind": {
