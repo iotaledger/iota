@@ -151,7 +151,7 @@ mod tests {
         Ok(())
     }
 
-    // TODO: why is this function here with hardcoed indexes?
+    // TODO: why is this function here with hardcoded indexes?
     // Can't this be done like in "read_test_data"?
     // Maybe move "read_test_data" to some other place, so we don't need
     // to duplicate the code here.
