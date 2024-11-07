@@ -29,7 +29,7 @@ use iota_types::{
     object::{Data, Object, Owner},
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, DenyListResult, PackageObject,
-        ParentSync, Storage,
+        Storage,
     },
     transaction::InputObjects,
 };
@@ -1137,14 +1137,5 @@ impl<'backing> ResourceResolver for TemporaryStore<'backing> {
                 other
             ),
         }
-    }
-}
-
-impl<'backing> ParentSync for TemporaryStore<'backing> {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        _object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        unreachable!("Never called in newer protocol versions")
     }
 }

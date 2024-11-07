@@ -6,7 +6,7 @@
 # dependencies that were relevant for rocksdb.
 [package]
 name = "typed-store-workspace-hack"
-version = "0.0.0"
+version.workspace = true
 edition = "2021"
 license = "Apache-2.0"
 publish = false

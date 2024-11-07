@@ -228,7 +228,7 @@ export class ParallelTransactionExecutor {
             const effects = bcs.TransactionEffects.parse(effectsBytes);
 
             const gasResult = getGasCoinFromEffects(effects);
-            const gasUsed = effects.V2?.gasUsed;
+            const gasUsed = effects.V1?.gasUsed;
 
             if (gasCoin && gasUsed && gasResult.owner === this.#signer.toIotaAddress()) {
                 const totalUsed =
@@ -428,14 +428,14 @@ export class ParallelTransactionExecutor {
         });
 
         const effects = bcs.TransactionEffects.parse(Uint8Array.from(result.rawEffects!));
-        effects.V2?.changedObjects.forEach(([id, { outputState }], i) => {
-            if (i === effects.V2?.gasObjectIndex || !outputState.ObjectWrite) {
+        effects.V1?.changedObjects.forEach(([id, { outputState }], i) => {
+            if (i === effects.V1?.gasObjectIndex || !outputState.ObjectWrite) {
                 return;
             }
 
             this.#coinPool.push({
                 id,
-                version: effects.V2!.lamportVersion,
+                version: effects.V1!.lamportVersion,
                 digest: outputState.ObjectWrite[0],
                 balance: BigInt(this.#initialCoinBalance),
             });

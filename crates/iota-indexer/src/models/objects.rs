@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
@@ -541,7 +541,6 @@ impl TryFrom<CoinBalance> for Balance {
             coin_object_count: c.coin_num as usize,
             // TODO: deal with overflow
             total_balance: c.coin_balance as u128,
-            locked_balance: HashMap::default(),
         })
     }
 }
