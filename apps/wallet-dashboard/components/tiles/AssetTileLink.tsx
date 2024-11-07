@@ -13,8 +13,9 @@ import { VisibilityOff } from '@iota/ui-icons';
 import { VisualAssetTile } from '.';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { NonVisualAssetCard } from './NonVisualAssetTile';
-import { useExplorerLinkGenerator } from '@/hooks';
+import { useExplorerLinkGetter } from '@/hooks';
 import Link from 'next/link';
+import { ExplorerLinkType } from '@iota/core';
 
 interface AssetTileLinkProps {
     asset: IotaObjectData;
@@ -22,14 +23,21 @@ interface AssetTileLinkProps {
 }
 
 export function AssetTileLink({ asset, type }: AssetTileLinkProps): React.JSX.Element {
-    const getExplorerLink = useExplorerLinkGenerator();
+    const getExplorerLink = useExplorerLinkGetter();
+    const linkProps = getAssetLinkProps(asset);
 
     function getAssetLinkProps(asset: IotaObjectData): React.ComponentProps<typeof Link> {
         if (type === AssetCategory.Visual) {
             return { href: ASSETS_ROUTE.path + `/${asset.objectId}` };
         } else {
+            const explorerLink =
+                getExplorerLink({
+                    type: ExplorerLinkType.Object,
+                    objectID: asset.objectId,
+                }) ?? '';
+
             return {
-                href: getExplorerLink(asset.objectId),
+                href: explorerLink,
                 target: '_blank',
                 rel: 'noopener noreferrer',
             };
@@ -37,7 +45,7 @@ export function AssetTileLink({ asset, type }: AssetTileLinkProps): React.JSX.El
     }
 
     return (
-        <Link {...getAssetLinkProps(asset)}>
+        <Link {...linkProps}>
             {type === AssetCategory.Visual ? (
                 <VisualAssetTile asset={asset} icon={<VisibilityOff />} />
             ) : (
