@@ -8,7 +8,6 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '../constants';
-import { useMemo } from 'react';
 import { calculateStakeShare, getStakeIotaByIotaId, getTokenStakeIotaForValidator } from '../utils';
 import { useFormatCoin } from './useFormatCoin';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -38,47 +37,45 @@ export function useGetStakingValidatorDetails({
     const { data: system } = systemDataResult;
     const { data: stakeData } = delegatedStakeDataResult;
 
-    const validatorData = useMemo(() => {
-        if (!system) return null;
-        return system.activeValidators.find((av) => av.iotaAddress === validatorAddress);
-    }, [validatorAddress, systemDataResult]);
+    const validatorData = system?.activeValidators.find(
+        (av) => av.iotaAddress === validatorAddress,
+    );
 
     //TODO: verify this is the correct validator stake balance
     const totalValidatorStake = validatorData?.stakingPoolIotaBalance || 0;
 
-    const totalStake = useMemo(() => {
-        if (!stakeData) return 0n;
-        return unstake
-            ? getStakeIotaByIotaId(stakeData, stakeId)
-            : getTokenStakeIotaForValidator(stakeData, validatorAddress);
-    }, [stakeData, stakeId, unstake, validatorAddress]);
+    const totalStake = !stakeData
+        ? 0n
+        : unstake
+          ? getStakeIotaByIotaId(stakeData, stakeId)
+          : getTokenStakeIotaForValidator(stakeData, validatorAddress);
 
-    const totalValidatorsStake = useMemo(() => {
-        if (!system) return 0;
-        return system.activeValidators.reduce(
+    const totalValidatorsStake =
+        system?.activeValidators.reduce(
             (acc, curr) => (acc += BigInt(curr.stakingPoolIotaBalance)),
             0n,
-        );
-    }, [systemDataResult]);
+        ) ?? 0n;
 
-    const totalStakePercentage = useMemo(() => {
-        if (!systemDataResult || !validatorData) return null;
-
-        return calculateStakeShare(
-            BigInt(validatorData.stakingPoolIotaBalance),
-            BigInt(totalValidatorsStake),
-        );
-    }, [systemDataResult, totalValidatorsStake, validatorData]);
+    const totalStakePercentage =
+        !systemDataResult || !validatorData
+            ? null
+            : calculateStakeShare(
+                  BigInt(validatorData.stakingPoolIotaBalance),
+                  BigInt(totalValidatorsStake),
+              );
 
     const validatorApy = rollingAverageApys?.[validatorAddress] ?? {
         apy: null,
         isApyApproxZero: undefined,
     };
 
+    const totalStakeFormatted = useFormatCoin(totalStake, IOTA_TYPE_ARG);
+    const totalValidatorsStakeFormatted = useFormatCoin(totalValidatorStake, IOTA_TYPE_ARG);
+
     return {
-        epoch: Number(system?.epoch) ?? 0,
-        totalStake: useFormatCoin(totalStake, IOTA_TYPE_ARG),
-        totalValidatorsStake: useFormatCoin(totalValidatorStake, IOTA_TYPE_ARG),
+        epoch: Number(system?.epoch) || 0,
+        totalStake: totalStakeFormatted,
+        totalValidatorsStake: totalValidatorsStakeFormatted,
         totalStakePercentage,
         validatorApy,
         systemDataResult,

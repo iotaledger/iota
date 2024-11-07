@@ -8,12 +8,11 @@ import type { DelegatedStake, StakeObject } from '@iota/iota-sdk/client';
 export function getDelegationDataByStakeId(
     delegationsStake: DelegatedStake[],
     stakeIotaId: string,
-) {
-    let stake: StakeObject | null = null;
+): StakeObject | null {
     for (const { stakes } of delegationsStake) {
-        stake = stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId) || null;
+        const stake = stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId) || null;
         if (stake) return stake;
     }
 
-    return stake;
+    return null;
 }

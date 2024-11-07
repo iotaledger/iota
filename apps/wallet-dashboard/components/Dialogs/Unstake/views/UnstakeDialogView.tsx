@@ -1,7 +1,17 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button, KeyValueInfo, Divider, ButtonType, Panel } from '@iota/apps-ui-kit';
+import {
+    Button,
+    KeyValueInfo,
+    Divider,
+    ButtonType,
+    Panel,
+    LoadingIndicator,
+    InfoBoxType,
+    InfoBoxStyle,
+    InfoBox,
+} from '@iota/apps-ui-kit';
 import {
     createUnstakeTransaction,
     ExtendedDelegatedStake,
@@ -16,7 +26,7 @@ import {
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { Loader } from '@iota/ui-icons';
+import { Loader, Warning } from '@iota/ui-icons';
 import { useUnstakeTransaction } from '@/hooks';
 import { ValidatorStakingData } from '@/components';
 
@@ -40,12 +50,21 @@ export function UnstakeDialogView({
     const {
         totalStake: [tokenBalance],
         epoch,
+        systemDataResult,
+        delegatedStakeDataResult,
     } = useGetStakingValidatorDetails({
         accountAddress: activeAddress,
         validatorAddress: extendedStake.validatorAddress,
         stakeId: extendedStake.stakedIotaId,
         unstake: true,
     });
+
+    const { isLoading: loadingValidators, error: errorValidators } = systemDataResult;
+    const {
+        isLoading: isLoadingDelegatedStakeData,
+        isError,
+        error: delegatedStakeDataError,
+    } = delegatedStakeDataResult;
 
     const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + tokenBalance, IOTA_TYPE_ARG);
 
@@ -81,34 +100,28 @@ export function UnstakeDialogView({
     const currentEpochEndTimeFormatted =
         currentEpochEndTime > 0 ? currentEpochEndTimeAgo : `Epoch #${epoch}`;
 
-    // if (isPending || loadingValidators) {
-    //     return (
-    //         <div className="flex h-full w-full items-center justify-center p-2">
-    //             <LoadingIndicator />
-    //         </div>
-    //     );
-    // }
+    if (isLoadingDelegatedStakeData || loadingValidators) {
+        return (
+            <div className="flex h-full w-full items-center justify-center p-2">
+                <LoadingIndicator />
+            </div>
+        );
+    }
 
-    // if (isError || errorValidators) {
-    //     return (
-    //         <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-    //             <InfoBox
-    //                 title="Something went wrong"
-    //                 supportingText={error?.message ?? 'An error occurred'}
-    //                 style={InfoBoxStyle.Default}
-    //                 type={InfoBoxType.Error}
-    //                 icon={<Warning />}
-    //             />
-    //         </div>
-    //     );
-    // }
-    // function handleAddNewStake() {
-    //     router.push(stakeByValidatorAddress);
-    // }
+    if (isError || errorValidators) {
+        return (
+            <div className="mb-2 flex h-full w-full items-center justify-center p-2">
+                <InfoBox
+                    title="Something went wrong"
+                    supportingText={delegatedStakeDataError?.message ?? 'An error occurred'}
+                    style={InfoBoxStyle.Default}
+                    type={InfoBoxType.Error}
+                    icon={<Warning />}
+                />
+            </div>
+        );
+    }
 
-    // function handleUnstake() {
-    //     router.push(stakeByValidatorAddress + '&unstake=true');
-    // }
     return (
         <>
             <div className="flex h-full w-full flex-col justify-between">
