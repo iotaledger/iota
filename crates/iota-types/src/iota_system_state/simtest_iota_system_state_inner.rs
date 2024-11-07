@@ -21,6 +21,7 @@ use crate::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     storage::ObjectStore,
+    system_admin_cap::IotaSystemAdminCap,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -32,6 +33,7 @@ pub struct SimTestIotaSystemStateV1 {
     pub validators: SimTestValidatorSetV1,
     pub storage_fund: Balance,
     pub parameters: SimTestSystemParametersV1,
+    pub iota_system_admin_cap: IotaSystemAdminCap,
     pub reference_gas_price: u64,
     pub safe_mode: bool,
     pub epoch_start_timestamp_ms: u64,
@@ -231,6 +233,7 @@ pub struct SimTestIotaSystemStateShallowV1 {
     pub validators: SimTestValidatorSetV1,
     pub storage_fund: Balance,
     pub parameters: SimTestSystemParametersV1,
+    pub iota_system_admin_cap: IotaSystemAdminCap,
     pub reference_gas_price: u64,
     pub safe_mode: bool,
     pub epoch_start_timestamp_ms: u64,
@@ -373,6 +376,7 @@ pub struct SimTestIotaSystemStateDeepV1 {
     pub validators: SimTestValidatorSetDeepV1,
     pub storage_fund: Balance,
     pub parameters: SimTestSystemParametersV1,
+    pub iota_system_admin_cap: IotaSystemAdminCap,
     pub reference_gas_price: u64,
     pub safe_mode: bool,
     pub epoch_start_timestamp_ms: u64,
