@@ -409,6 +409,9 @@ version
 ValidatorSetV1
 	public struct
 	0x3::validator_set
+ValidatorSetV2
+	public struct
+	0x3::validator_set
 ValidatorEpochInfoEventV1
 	public struct
 	0x3::validator_set
@@ -419,6 +422,9 @@ ValidatorLeaveEvent
 	public struct
 	0x3::validator_set
 new
+	public(package) fun
+	0x3::validator_set
+v1_to_v2
 	public(package) fun
 	0x3::validator_set
 request_add_validator_candidate
@@ -453,6 +459,9 @@ update_and_process_low_stake_departures
 	0x3::validator_set
 effectuate_staged_metadata
 	fun
+	0x3::validator_set
+derive_reference_gas_price_v1
+	public fun
 	0x3::validator_set
 derive_reference_gas_price
 	public fun
@@ -611,6 +620,9 @@ total_balance
 	public fun
 	0x3::storage_fund
 SystemParametersV1
+	public struct
+	0x3::iota_system_state_inner
+IotaSystemStateV2
 	public struct
 	0x3::iota_system_state_inner
 IotaSystemStateV1
