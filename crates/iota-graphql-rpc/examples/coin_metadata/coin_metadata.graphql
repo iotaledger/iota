@@ -6,6 +6,5 @@ query CoinMetadata {
     description
     iconUrl
     supply
-    hasPublicTransfer
   }
 }
