@@ -832,7 +832,6 @@ async fn create_cluster_with_timelocked_iota(
     let timelock_iota = unsafe {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
-            false,
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),
