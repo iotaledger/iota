@@ -69,7 +69,10 @@
     "@docusaurus/types": "3.5.2",
     "@metamask/providers": "^10.2.1",
     "@types/react": "^18.3.3",
+    "docusaurus-plugin-typedoc": "^1.0.5",
     "remark-code-import": "^1.2.0",
+    "typedoc": "^0.26.10",
+    "typedoc-plugin-markdown": "^4.2.9",
     "typescript": "^5.5.3"
   },
   "resolutions": {

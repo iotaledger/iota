@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetKioskContents, useGetOwnedObjects, useLocalStorage } from '@iota/core';
+import {
+    useGetKioskContents,
+    useGetOwnedObjects,
+    useLocalStorage,
+    useCursorPagination,
+} from '@iota/core';
 import {
     Button,
     ButtonSize,
@@ -27,7 +32,7 @@ import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 import { ListView, SmallThumbnailsView, ThumbnailsView } from '~/components';
 import { ObjectViewMode } from '~/lib/enums';
-import { Pagination, useCursorPagination } from '~/components/ui';
+import { Pagination } from '~/components/ui';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
 
 const SHOW_PAGINATION_MAX_ITEMS = 9;
