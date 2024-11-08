@@ -113,6 +113,15 @@ export const Networks = {
       api: 'https://api.evm.testnet.shimmer.network',
     },
   },
+  iota_move: {
+    baseToken: 'IOTA Token (no value)',
+    jsonRpcUrl: 'jsonRpcUrl placeholder',
+    jsonRpcWebsocketUrl:'jsonRpcWebsocketUrl placeholder',
+    indexerRpc: 'indexerRpc placeholder',
+    graphqlRpc: 'graphqlRpc placeholder',
+    faucetUrl: 'faucetUrl placeholder',
+    explorerUrl: 'explorerUrl placeholder'
+  },
   iota_testnet: {
     baseToken: 'IOTA Token (no value)',
     jsonRpcUrl: 'https://api.iota-rebased-alphanet.iota.cafe',
