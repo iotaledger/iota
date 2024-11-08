@@ -122,12 +122,9 @@ pub fn to_genesis_object(
     tx_context: &TxContext,
     version: SequenceNumber,
 ) -> Result<Object, VestedRewardError> {
-    let move_object = unsafe {
-        // Safety: we know from the definition of `TimeLock` in the timelock package
-        // that it is not publicly transferable (`store` ability is absent).
+    let move_object = {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
-            false,
             version,
             timelock.to_bcs_bytes(),
             protocol_config,

@@ -263,7 +263,7 @@ task 9, lines 124-141:
 //# publish
 created: object(9,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 4461200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 4453600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 10, line 143:
 //# create-checkpoint
@@ -275,7 +275,7 @@ Response: {
   "data": null,
   "errors": [
     {
-      "message": "Internal error occurred while processing request: Error calculating layout for 0x237315fa57d7c90c666ab786ff8c541d669179c8c250eacd39c544b0c22b64d3::m::S1<u32>: Type layout nesting exceeded limit of 128",
+      "message": "Internal error occurred while processing request: Error calculating layout for 0xe61abd7728c5a61dbd0ee1088e5686724388708bfd5bdc55e1e546a1e4cf92fd::m::S1<u32>: Type layout nesting exceeded limit of 128",
       "locations": [
         {
           "line": 4,

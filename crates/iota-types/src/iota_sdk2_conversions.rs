@@ -144,7 +144,6 @@ fn sdk_package_to_move(package: MovePackage) -> crate::move_package::MovePackage
 fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
     MoveStruct {
         type_: move_object_type_to_sdk(obj.type_),
-        has_public_transfer: obj.has_public_transfer,
         version: obj.version.value(),
         contents: obj.contents,
     }
@@ -153,7 +152,6 @@ fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
 fn sdk_object_to_move(obj: MoveStruct) -> crate::object::MoveObject {
     crate::object::MoveObject {
         type_: sdk_object_type_to_move(obj.type_),
-        has_public_transfer: obj.has_public_transfer,
         version: obj.version.into(),
         contents: obj.contents,
     }
