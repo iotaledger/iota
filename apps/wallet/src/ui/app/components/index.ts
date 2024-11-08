@@ -19,7 +19,6 @@ export * from './coin-icon';
 export * from './error-boundary';
 export * from './explorer-link';
 export * from './explorer-link/Explorer';
-export * from './explorer-link/ExplorerLinkType';
 export * from './external-link';
 export * from './iota-apps';
 export * from './iota-apps/IotaApp';
