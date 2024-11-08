@@ -189,7 +189,6 @@ const references = [
                                 ],
                             },
                             'references/ts-sdk/kiosk/advanced-examples',
-                            'references/ts-sdk/kiosk/from-v1',
                         ],
                     },
                     'references/ts-sdk/bcs',
