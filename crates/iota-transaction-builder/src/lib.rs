@@ -315,10 +315,11 @@ impl TransactionBuilder {
         Ok(obj_refs)
     }
 
-    /// Construct a transaction kind for the PayIota transaction type
+    /// Construct a transaction kind for the PayIota transaction type.
     ///
     /// Use this function together with tx_data_for_dry_run or tx_data
-    /// for maximum reusability
+    /// for maximum reusability.
+    /// The length of the vectors must be the same.
     pub fn pay_iota_tx_kind(
         &self,
         recipients: Vec<IotaAddress>,
@@ -332,7 +333,7 @@ impl TransactionBuilder {
     }
 
     /// Take multiple IOTA coins and send to multiple addresses following the
-    /// specified amount list.
+    /// specified amount list. The length of the vectors must be the same.
     /// Only takes IOTA coins and does not require a gas coin object.
     ///
     /// The first IOTA coin object input will be used for gas payment, so the
