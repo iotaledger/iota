@@ -6767,6 +6767,7 @@ dependencies = [
 name = "iota-graphql-rpc-client"
 version = "0.6.0-alpha"
 dependencies = [
+ "anyhow",
  "async-graphql",
  "axum",
  "hyper 1.4.1",
@@ -6774,6 +6775,7 @@ dependencies = [
  "reqwest 0.12.7",
  "serde_json",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
