@@ -658,7 +658,7 @@ pub struct Opts {
     /// The fields are: effects, input, events, object_changes,
     /// balance_changes.
     #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_option)]
-    pub emit: HashSet<EmitOption>,
+    pub emit: Option<HashSet<EmitOption>>,
 }
 
 /// Global options with gas
@@ -683,7 +683,7 @@ impl Opts {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            emit: None,
         }
     }
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
@@ -695,7 +695,7 @@ impl Opts {
             dry_run: true,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            emit: None,
         }
     }
 
@@ -708,7 +708,7 @@ impl Opts {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit,
+            emit: Some(emit),
         }
     }
 }
@@ -3011,23 +3011,28 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
-fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
-    if opts.is_empty() {
-        IotaTransactionBlockResponseOptions::new()
-            .with_effects()
-            .with_input()
-            .with_events()
-            .with_object_changes()
-            .with_balance_changes()
-    } else {
-        IotaTransactionBlockResponseOptions {
-            show_input: opts.contains(&EmitOption::Input),
-            show_events: opts.contains(&EmitOption::Events),
-            show_object_changes: opts.contains(&EmitOption::ObjectChanges),
-            show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
-            show_effects: opts.contains(&EmitOption::Effects),
-            show_raw_effects: false,
-            show_raw_input: false,
+fn opts_from_cli(opts: Option<HashSet<EmitOption>>) -> IotaTransactionBlockResponseOptions {
+    match opts {
+        None => {
+            // If `opts` is None, use default settings
+            IotaTransactionBlockResponseOptions::new()
+                .with_effects()
+                .with_input()
+                .with_events()
+                .with_object_changes()
+                .with_balance_changes()
+        }
+        Some(options) => {
+            // If `opts` has a `HashSet`, use its contents to customize settings
+            IotaTransactionBlockResponseOptions {
+                show_input: options.contains(&EmitOption::Input),
+                show_events: options.contains(&EmitOption::Events),
+                show_object_changes: options.contains(&EmitOption::ObjectChanges),
+                show_balance_changes: options.contains(&EmitOption::BalanceChanges),
+                show_effects: options.contains(&EmitOption::Effects),
+                show_raw_effects: false,
+                show_raw_input: false,
+            }
         }
     }
 }
