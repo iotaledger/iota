@@ -50,13 +50,6 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [x] `get_coin_metadata`
 - [x] `get_total_supply`
 
-### `ExtendedApi` (0/4)
-
-- [ ] `get_epochs`
-- [ ] `get_current_epoch`
-- [ ] `query_objects`
-- [ ] `get_total_transactions`
-
 ### `GovernanceReadApi` (8/8)
 
 - [x] `get_stakes_by_ids`
