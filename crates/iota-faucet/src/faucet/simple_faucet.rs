@@ -427,8 +427,8 @@ impl SimpleFaucet {
     ) -> Result<IotaTransactionBlockResponse, FaucetError> {
         let signature = self
             .wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .sign_secure(&self.active_address, &tx_data, Intent::iota_transaction())
             .map_err(FaucetError::internal)?;
         let tx = Transaction::from_data(tx_data, vec![signature]);
@@ -1123,7 +1123,7 @@ mod tests {
         ctx: &mut WalletContext,
         tx_data: TransactionData,
     ) -> Result<IotaTransactionBlockEffects, anyhow::Error> {
-        let signature = ctx.config.keystore.sign_secure(
+        let signature = ctx.config().keystore().sign_secure(
             &tx_data.sender(),
             &tx_data,
             Intent::iota_transaction(),

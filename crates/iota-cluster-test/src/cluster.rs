@@ -384,20 +384,13 @@ pub fn new_wallet_context_from_cluster(
     keystore
         .add_key(None, IotaKeyPair::Ed25519(key_pair))
         .unwrap();
-    IotaClientConfig {
-        keystore,
-        envs: vec![IotaEnv {
-            alias: "localnet".to_string(),
-            rpc: fullnode_url.into(),
-            ws: None,
-            basic_auth: None,
-        }],
-        active_address: Some(address),
-        active_env: Some("localnet".to_string()),
-    }
-    .persisted(&wallet_config_path)
-    .save()
-    .unwrap();
+    IotaClientConfig::new(keystore)
+        .with_envs([IotaEnv::new("localnet", fullnode_url)])
+        .with_active_address(address)
+        .with_active_env("localnet".to_string())
+        .persisted(&wallet_config_path)
+        .save()
+        .unwrap();
 
     info!(
         "Initialize wallet from config path: {:?}",
