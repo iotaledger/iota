@@ -196,14 +196,16 @@ pub async fn indexer_wait_for_object(
 ) {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
-            if let Ok(obj_res) = client.get_object(object_id, None).await {
-                if obj_res
-                    .data
-                    .map(|obj| obj.version == sequence_number)
-                    .unwrap_or_default()
-                {
-                    break;
-                }
+            let Ok(obj_res) = client.get_object(object_id, None).await else {
+                continue;
+            };
+
+            if obj_res
+                .data
+                .map(|obj| obj.version == sequence_number)
+                .unwrap_or_default()
+            {
+                break;
             }
 
             tokio::time::sleep(Duration::from_millis(100)).await;
