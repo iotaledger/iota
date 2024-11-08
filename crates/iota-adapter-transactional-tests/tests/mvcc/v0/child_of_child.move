@@ -4,7 +4,7 @@
 
 // tests accessing the versions of a child of a child
 
-//# init --addresses test=0x0 --accounts A
+//# init --addresses test=0x0 --accounts A  --protocol-version 1
 
 //# publish
 
