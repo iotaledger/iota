@@ -239,8 +239,11 @@ Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer:
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("transfer") }, function: 12, instruction: 0, function_name: Some("receive_impl") }, 2), source: Some(VMError { major_status: ABORTED, sub_status: Some(2), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("transfer") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }
 
 task 12, line 101:
-//# run tto::M1::receive_b_parent --args object(2,6) receiving(2,5) --sender A
-Error: Error checking transaction input objects: InvalidChildObjectArgument { child_id: object(2,5), parent_id: object(2,0) }
+//# run tto::M1::receive_b_parent --args object(2,6) receiving(2,4) --sender A
+created: object(12,0)
+mutated: object(0,0), object(2,6)
+wrapped: object(2,4)
+gas summary: computation_cost: 1000000, storage_cost: 4256000,  storage_rebate: 3534000, non_refundable_storage_fee: 0
 
 task 13, line 103:
 //# run tto::M1::receive_wrapped --args object(2,6) receiving(2,7) --sender A
