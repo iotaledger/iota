@@ -1,11 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//[object Object]
-//[object Object]
 'use client';
-// Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
 
 import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
 import { AssetCategory } from '@/lib/enums';
