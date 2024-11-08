@@ -27,7 +27,6 @@ const developer = [
             'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
             'developer/getting-started/coffee-example',
-            // 'developer/getting-started/network-overview',
         ],
     },
     'developer/network-overview',
