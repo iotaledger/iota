@@ -21,15 +21,9 @@ on:
       shouldDeployPreview:
         type: boolean
         required: true
-      isDevelop:
-        type: boolean
-        required: true
-      githubRef:
-        type: string
-        required: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.githubRef }}
+  group: vercel-deploy-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -44,7 +38,7 @@ jobs:
 
   explorer-staging:
     name: Vercel Explorer Staging
-    if: inputs.isDevelop
+    if: github.ref_name == 'develop'
     uses: ./.github/workflows/apps_explorer_deploy.yml
     secrets: inherit
     with:
@@ -61,7 +55,7 @@ jobs:
 
   ui-kit-prod:
     name: Vercel UI Kit Production
-    if: inputs.isDevelop
+    if: github.ref_name == 'develop'
     uses: ./.github/workflows/apps_ui_kit_deploy.yml
     secrets: inherit
     with:
@@ -77,7 +71,7 @@ jobs:
 
   wallet-dashboard-prod:
     name: Vercel Wallet Dashboard Production
-    if: inputs.isDevelop
+    if: github.ref_name == 'develop'
     uses: ./.github/workflows/apps_wallet_dashboard_deploy.yml
     secrets: inherit
     with:
@@ -93,7 +87,7 @@ jobs:
 
   apps-backend-prod:
     name: Vercel apps-backend Production
-    if: inputs.isDevelop
+    if: github.ref_name == 'develop'
     uses: ./.github/workflows/apps_backend_deploy.yml
     secrets: inherit
     with:
