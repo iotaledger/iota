@@ -2982,7 +2982,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
-            emit: None,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -2997,7 +2997,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: None,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -3013,7 +3013,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: None,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -3865,7 +3865,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: None,
+            emit: HashSet::new(),
         },
     }
     .execute(context)

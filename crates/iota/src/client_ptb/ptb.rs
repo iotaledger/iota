@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashSet;
+
 use anyhow::{Error, anyhow, ensure};
 use clap::{Args, ValueHint, arg};
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
@@ -154,7 +156,7 @@ impl PTB {
                 gas_budget: program_metadata.gas_budget.map(|x| x.value),
                 serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
                 serialize_signed_transaction: program_metadata.serialize_signed_set,
-                emit: None,
+                emit: HashSet::new(),
             },
         };
 

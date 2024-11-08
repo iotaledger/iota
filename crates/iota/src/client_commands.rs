@@ -657,8 +657,8 @@ pub struct Opts {
     /// If not provided, all fields are displayed.
     /// The fields are: effects, input, events, object_changes,
     /// balance_changes.
-    #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_option)]
-    pub emit: Option<HashSet<EmitOption>>,
+    #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
+    pub emit: HashSet<EmitOption>,
 }
 
 /// Global options with gas
@@ -683,7 +683,7 @@ impl Opts {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: None,
+            emit: HashSet::new(),
         }
     }
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
@@ -695,7 +695,7 @@ impl Opts {
             dry_run: true,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: None,
+            emit: HashSet::new(),
         }
     }
 
@@ -708,7 +708,7 @@ impl Opts {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: Some(emit),
+            emit,
         }
     }
 }
@@ -3016,32 +3016,40 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
-fn opts_from_cli(opts: Option<HashSet<EmitOption>>) -> IotaTransactionBlockResponseOptions {
-    match opts {
-        None => {
-            // If `opts` is None, use default settings
-            IotaTransactionBlockResponseOptions::new()
-                .with_effects()
-                .with_input()
-                .with_events()
-                .with_object_changes()
-                .with_balance_changes()
-        }
-        Some(options) => {
-            // If `opts` has a `HashSet`, use its contents to customize settings
-            IotaTransactionBlockResponseOptions {
-                show_input: options.contains(&EmitOption::Input),
-                show_events: options.contains(&EmitOption::Events),
-                show_object_changes: options.contains(&EmitOption::ObjectChanges),
-                show_balance_changes: options.contains(&EmitOption::BalanceChanges),
-                show_effects: options.contains(&EmitOption::Effects),
-                show_raw_effects: false,
-                show_raw_input: false,
-            }
+fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
+    if opts.is_empty() {
+        IotaTransactionBlockResponseOptions::new()
+            .with_effects()
+            .with_input()
+            .with_events()
+            .with_object_changes()
+            .with_balance_changes()
+    } else {
+        IotaTransactionBlockResponseOptions {
+            show_input: opts.contains(&EmitOption::Input),
+            show_events: opts.contains(&EmitOption::Events),
+            show_object_changes: opts.contains(&EmitOption::ObjectChanges),
+            show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
+            show_effects: opts.contains(&EmitOption::Effects),
+            show_raw_effects: false,
+            show_raw_input: false,
         }
     }
 }
 
-fn parse_emit_option(s: &str) -> Result<EmitOption, String> {
-    EmitOption::from_str(s).map_err(|_| format!("Invalid emit option: {}", s))
+fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
+    let mut options = HashSet::new();
+
+    // Split the input string by commas and try to parse each part
+    for part in s.split(',') {
+        let part = part.trim(); // Trim whitespace
+        match EmitOption::from_str(part) {
+            Ok(option) => {
+                options.insert(option);
+            }
+            Err(_) => return Err(format!("Invalid emit option: {}", part)), // Return error if invalid
+        }
+    }
+
+    Ok(options)
 }
