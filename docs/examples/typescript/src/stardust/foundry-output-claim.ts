@@ -83,9 +83,10 @@ async function main() {
         throw new Error("CoinManagerTreasuryCap not found");
     }
 
+    const coinManagerTreasuryCapId = coinManagerTreasuryCap.objectId;
+
     // Extract the foundry token type from the type parameters of the coin manager
     // treasury cap object.
-    const coinManagerTreasuryCapId = coinManagerTreasuryCap.objectId;
     const foundryTokenTypeStructTag = coinManagerTreasuryCap.type
     const foundryTokenType = foundryTokenTypeStructTag?.split("<")[1].split(">")[0] || "";
 
