@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::{SizedCache, proc_macro::cached};
+use cached::{Cached, SizedCache};
 use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{IotaRpcModule, governance_api::ValidatorExchangeRates};
 use iota_json_rpc_api::GovernanceReadApiServer;
@@ -23,6 +23,7 @@ use iota_types::{
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
+use tokio::sync::Mutex;
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
@@ -32,11 +33,17 @@ const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
 #[derive(Clone)]
 pub struct GovernanceReadApi<T: R2D2Connection + 'static> {
     inner: IndexerReader<T>,
+    exchange_rates_cache: Arc<Mutex<SizedCache<EpochId, Vec<ValidatorExchangeRates>>>>,
+    validators_apys_cache: Arc<Mutex<SizedCache<EpochId, BTreeMap<IotaAddress, f64>>>>,
 }
 
 impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
     pub fn new(inner: IndexerReader<T>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            exchange_rates_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
+            validators_apys_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
+        }
     }
 
     /// Get a validator's APY by its address
@@ -44,7 +51,9 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         &self,
         address: &IotaAddress,
     ) -> Result<Option<f64>, IndexerError> {
-        let apys = validators_apys_map(self.get_validators_apy().await?);
+        let apys = self
+            .validators_apys_map(self.get_validators_apy().await?)
+            .await;
         Ok(apys.get(address).copied())
     }
 
@@ -261,6 +270,28 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         }
         Ok(delegated_stakes)
     }
+
+    /// Cache a map representing the validators' APYs for this epoch
+    async fn validators_apys_map(&self, apys: ValidatorApys) -> BTreeMap<IotaAddress, f64> {
+        // check if the apys are already in the cache
+        if let Some(cached_apys) = self
+            .validators_apys_cache
+            .lock()
+            .await
+            .cache_get(&apys.epoch)
+        {
+            return cached_apys.clone();
+        }
+
+        let ret = BTreeMap::from_iter(apys.apys.iter().map(|x| (x.address, x.apy)));
+        // insert the apys into the cache
+        self.validators_apys_cache
+            .lock()
+            .await
+            .cache_set(apys.epoch, ret.clone());
+
+        ret
+    }
 }
 
 fn stake_status(
@@ -292,13 +323,29 @@ fn stake_status(
 /// Cached exchange rates for validators for the given epoch, the cache size is
 /// 1, it will be cleared when the epoch changes. rates are in descending order
 /// by epoch.
-#[cached(
-    type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
-    create = "{ SizedCache::with_size(1) }",
-    convert = "{ system_state_summary.epoch }",
-    result = true
-)]
 pub async fn exchange_rates(
+    state: &GovernanceReadApi<impl R2D2Connection>,
+    system_state_summary: &IotaSystemStateSummary,
+) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
+    let epoch = system_state_summary.epoch;
+
+    let mut cache = state.exchange_rates_cache.lock().await;
+
+    // Check if the exchange rates for the current epoch are cached
+    if let Some(cached_rates) = cache.cache_get(&epoch) {
+        return Ok(cached_rates.clone());
+    }
+
+    // Cache miss: compute exchange rates
+    let exchange_rates = compute_exchange_rates(state, system_state_summary).await?;
+
+    // Store in cache
+    cache.cache_set(epoch, exchange_rates.clone());
+
+    Ok(exchange_rates)
+}
+
+pub async fn compute_exchange_rates(
     state: &GovernanceReadApi<impl R2D2Connection>,
     system_state_summary: &IotaSystemStateSummary,
 ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
@@ -382,16 +429,6 @@ pub async fn exchange_rates(
         });
     }
     Ok(exchange_rates)
-}
-
-/// Cache a map representing the validators' APYs for this epoch
-#[cached(
-    type = "SizedCache<EpochId, BTreeMap<IotaAddress, f64>>",
-    create = "{ SizedCache::with_size(1) }",
-    convert = " {apys.epoch} "
-)]
-fn validators_apys_map(apys: ValidatorApys) -> BTreeMap<IotaAddress, f64> {
-    BTreeMap::from_iter(apys.apys.iter().map(|x| (x.address, x.apy)))
 }
 
 #[async_trait]

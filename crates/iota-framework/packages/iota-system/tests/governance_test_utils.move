@@ -5,18 +5,17 @@
 #[test_only]
 module iota_system::governance_test_utils {
     use iota::address;
-    use iota::balance;
-    use iota::iota::{Self, IOTA};
+    use iota::balance::{Self, Balance};
     use iota::coin::{Self, Coin};
+    use iota::iota::{Self, IOTA};
+    use iota::system_admin_cap;
+    use iota::test_scenario::{Self, Scenario};
+    use iota::test_utils::{Self, assert_eq};
+
     use iota_system::staking_pool::{StakedIota, StakingPoolV1};
-    use iota::test_utils::assert_eq;
     use iota_system::validator::{Self, ValidatorV1};
     use iota_system::iota_system::{Self, IotaSystemState};
     use iota_system::iota_system_state_inner;
-    use iota::test_scenario::{Self, Scenario};
-    use iota::test_utils;
-    use iota::balance::Balance;
-    use iota::timelock;
 
     const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
@@ -94,7 +93,7 @@ module iota_system::governance_test_utils {
             1,   // protocol version
             0,   // chain_start_timestamp_ms
             system_parameters,
-            timelock::new_system_timelock_cap_for_testing(),
+            system_admin_cap::new_system_admin_cap_for_testing(),
             ctx,
         )
     }
