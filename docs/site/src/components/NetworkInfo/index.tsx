@@ -59,10 +59,10 @@ function Testnet(props: NetworkProps) {
           <th>Base Token</th>
           <td>{props.baseToken}</td>
         </tr>
-        <tr>
+        {props.protocol &&<tr>
           <th>Protocol</th>
           <td>{props.protocol}</td>
-        </tr>
+        </tr>}
         <tr>
           <th>HTTP REST API</th>
           <td>
