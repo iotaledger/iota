@@ -2992,7 +2992,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
             let errors: &Vec<String> = response.errors.as_ref();
             if !errors.is_empty() {
-                return Err(anyhow!("Error executing transaction: {:#?}", errors));
+                return Err(anyhow!("Error executing transaction: {errors:#?}"));
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
