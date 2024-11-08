@@ -48,6 +48,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let res = graphql_client
         .execute_to_graphql(query.to_string(), true, vec![], vec![])
         .await?;
+    anyhow::ensure!(res.errors().is_empty(), "{:?}", res.errors());
+
     let resp_body = res.response_body().data.clone().into_json()?;
     // Access a nested field
     println!(
