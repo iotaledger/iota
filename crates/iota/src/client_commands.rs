@@ -657,7 +657,7 @@ pub struct Opts {
     /// If not provided, all fields are displayed.
     /// The fields are: effects, input, events, object_changes,
     /// balance_changes.
-    #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
+    #[clap(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
     pub emit: HashSet<EmitOption>,
 }
 
@@ -2995,10 +2995,17 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 )
                 .await?;
 
-            let errors: &Vec<String> = response.errors.as_ref();
-            if !errors.is_empty() {
-                return Err(anyhow!("Error executing transaction: {errors:#?}"));
+            let effects = response.effects.as_ref().ok_or_else(|| {
+                anyhow!("Effects from IotaTransactionBlockResult should not be empty")
+            })?;
+
+            if let IotaExecutionStatus::Failure { error } = effects.status() {
+                return Err(anyhow!(
+                    "Error executing transaction '{}': {error}",
+                    response.digest
+                ));
             }
+
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
     }
@@ -3030,7 +3037,7 @@ fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptio
             show_events: opts.contains(&EmitOption::Events),
             show_object_changes: opts.contains(&EmitOption::ObjectChanges),
             show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
-            show_effects: opts.contains(&EmitOption::Effects),
+            show_effects: true,
             show_raw_effects: false,
             show_raw_input: false,
         }

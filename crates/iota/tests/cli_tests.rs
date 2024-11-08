@@ -4333,9 +4333,10 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
     if let Some(tx_block_response) = start_call_result.tx_block_response() {
         // Assert Balance Changes are present in the response
         assert!(tx_block_response.balance_changes.is_some());
+        // effects are always in the response
+        assert!(tx_block_response.effects.is_some());
 
         // Assert every other field is not present in the response
-        assert!(tx_block_response.effects.is_none());
         assert!(tx_block_response.object_changes.is_none());
         assert!(tx_block_response.events.is_none());
         assert!(tx_block_response.transaction.is_none());
