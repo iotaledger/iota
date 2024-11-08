@@ -9,6 +9,7 @@ tags: [getting-started, devnet, testnet, mainnet]
 This pages gives an overview around the different networks available in the IOTA ecosystem.
 
 import NetworkInfo from "@site/src/components/NetworkInfo/index.tsx";
+import { Networks } from '@site/src/components/constant.tsx';
 
 :::info
 In general, all endpoints are load-balanced but also subject to rate limiting. If you are developing a production-level application for IOTA, consider [setting up your own infrastructure](/developer/getting-started/local-network) to have more control and avoid any limits.
@@ -17,7 +18,7 @@ In general, all endpoints are load-balanced but also subject to rate limiting. I
 ## IOTA Mainnet
 
 :::note
-The Mainnet, Testnet, and Devnet have not yet gone live.
+The Mainnet and Devnet have not yet gone live.
 :::
 
 <NetworkInfo.L1 
@@ -30,46 +31,14 @@ The Mainnet, Testnet, and Devnet have not yet gone live.
 
 ## IOTA Testnet
 
-<NetworkInfo.Testnet  
-  baseToken="IOTA Token" 
-  protocol="protocol placeholder" 
-  httpRestApi="httpRestApi placeholder"
-  eventApi="eventApi placeholder"
-  permaNodeApi="permaNodeApi placeholder"
-/>
+<NetworkInfo.Move {...Networks['iota_testnet']}/>
 
 ## IOTA Devnet
 
-<NetworkInfo.Devnet  
-  baseToken="IOTA Token" 
-  protocol="protocol placeholder" 
-  httpRestApi="httpRestApi placeholder"
-  eventApi="eventApi placeholder"
-  permaNodeApi="permaNodeApi placeholder"
-/>
-
-## IOTA Alphanet
-
-<NetworkInfo.Move  
-    baseToken="IOTA Token" 
-    jsonRpcUrl= 'https://api.iota-rebased-alphanet.iota.cafe'
-    jsonRpcWebsocketUrl='wss://api.iota-rebased-alphanet.iota.cafe'
-    indexerRpc= 'https://indexer.iota-rebased-alphanet.iota.cafe'
-    graphqlRpc= 'https://graphql.iota-rebased-alphanet.iota.cafe'
-    faucetUrl= 'https://api.iota-rebased-alphanet.iota.cafe/gas'
-    explorerUrl= 'https://explorer.iota.cafe/?network=alphanet'
-/>
+<NetworkInfo.Move {...Networks['iota_devnet']}/>
 
 ## IOTA Localnet
 
 To create a local IOTA network, you can refer to [Local Development](/developer/getting-started/local-network) page.
 
-
-<NetworkInfo.Move  
-    baseToken="IOTA Token" 
-    jsonRpcUrl= 'http://127.0.0.1:9000'
-    jsonRpcWebsocketUrl='ws://127.0.0.1:9000'
-    indexerRpc= 'http://127.0.0.1:9124'
-    graphqlRpc= 'http://127.0.0.1:8000'
-    faucetUrl= 'http://127.0.0.1:9123/gas'
-/>
+<NetworkInfo.Move {...Networks['iota_localnet']}/>
