@@ -1,4 +1,4 @@
-name: Nightly binary build
+name: Nightly checks
 
 on:
   schedule:
@@ -197,8 +197,6 @@ jobs:
 
   e2e:
     uses: ./.github/workflows/_e2e.yml
-    with:
-      isDevelop: true
 
   execution-cut:
     uses: ./.github/workflows/_execution_cut.yml
