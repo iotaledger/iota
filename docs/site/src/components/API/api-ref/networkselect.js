@@ -33,7 +33,7 @@ const NetworkSelect = () => {
 
   return (
     <StyledEngineProvider injectFirst>
-      <div className="w-11/12">
+      <div className="w-11/12 pb-3">
         <FormControl fullWidth>
           <InputLabel
             id="network"
