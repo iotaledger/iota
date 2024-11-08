@@ -5,19 +5,19 @@ on:
     inputs:
       isRust:
         type: boolean
-        required: true
+        required: false
       isExplorer:
         type: boolean
-        required: true
+        required: false
       isTypescriptSDK:
         type: boolean
-        required: true
+        required: false
       isWallet:
         type: boolean
-        required: true
+        required: false
       isGraphQlTransport:
         type: boolean
-        required: true
+        required: false
       isDevelop:
         type: boolean
         required: true

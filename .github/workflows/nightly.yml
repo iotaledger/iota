@@ -29,11 +29,6 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
-  cargo-deny-external:
-    uses: ./.github/workflows/_cargo_deny.yml
-    with:
-      manifest-path: external-crates/move/Cargo.toml
-
   release:
     name: build release binaries
     runs-on: ${{ matrix.os }}
@@ -72,3 +67,141 @@ jobs:
         with:
           command: build
           args: --all-targets --all-features --release
+
+  test:
+    name: Test rust crates
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+        with:
+          tool: nextest
+      - name: cargo test
+        run: cargo nextest run --profile ci
+
+  test-extra:
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # Pin v4
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+        with:
+          tool: nextest
+      - name: benchmark (smoke)
+        run: |
+          cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
+      - name: doctests
+        run: |
+          cargo test --doc
+      - name: rustdoc
+        run: |
+          cargo doc --all-features --workspace --no-deps
+      - name: Install cargo-hakari, and cache the binary
+        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # pin@v3
+        with:
+          crate: cargo-hakari
+          locked: true
+      - name: Install nightly rustfmt
+        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
+      - name: iota-execution
+        run: |
+          ./scripts/execution_layer.py generate-lib
+      # Ensure there are no uncommitted changes in the repo after running tests
+      - run: scripts/changed-files.sh
+        shell: bash
+
+  simtest:
+    name: Simtest rust
+    timeout-minutes: 45
+    runs-on: [self-hosted]
+    env:
+      MSIM_WATCHDOG_TIMEOUT_MS: 60000
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+        with:
+          tool: nextest
+      - run: scripts/simtest/cargo-simtest simtest --profile ci
+      - name: check new tests for flakiness
+        run: |
+          command="scripts/simtest/stress-new-tests.sh $filters"
+
+          echo "$command"
+
+          eval ${command}
+
+  graphql-rpc:
+    name: graphql-rpc
+    timeout-minutes: 45
+    runs-on: [self-hosted]
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgrespw
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --name postgres_container
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+        with:
+          tool: nextest
+      - name: Install postgresql-client
+        run: sudo apt-get install -y postgresql-client
+      - name: Setup db
+        run: |
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
+      - run: docker restart --time 0 postgres_container
+      - run: sleep 5
+      - name: tests-requiring-postgres
+        run: |
+          cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
+          cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
+          cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
+          cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
+          cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
+          # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
+          # cargo test, on the other hand, allows tests to share state and resources by default.
+          cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime
+
+  move-tests:
+    uses: ./.github/workflows/_move_tests.yml
+
+  deny:
+    uses: ./.github/workflows/_cargo_deny.yml
+
+  deny-external:
+    uses: ./.github/workflows/_cargo_deny.yml
+    with:
+      manifest-path: external-crates/move/Cargo.toml
+
+  e2e:
+    uses: ./.github/workflows/_e2e.yml
+    with:
+      isDevelop: true
+
+  execution-cut:
+    uses: ./.github/workflows/_execution_cut.yml
+
+  split-cluster:
+    uses: ./.github/workflows/split_cluster.yml
