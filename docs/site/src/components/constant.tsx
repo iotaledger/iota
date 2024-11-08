@@ -40,6 +40,48 @@ export const Networks = {
       api: 'https://api.evm.iotaledger.net',
     },
   },
+  iota_testnet: {
+    baseToken: 'Testnet Token (no value)',
+    protocol: 'Stardust',
+    httpRestApi: 'https://api.testnet.iotaledger.net',
+    eventApi: 'wss://api.testnet.iotaledger.net:443 (MQTT 3.1, /mqtt)',
+    permaNodeApi: 'https://chronicle.testnet.iotaledger.net',
+    faucet: 'https://faucet.testnet.iotaledger.net',
+    explorer: 'https://explorer.iota.org/iota-testnet',
+    evm: {
+      chainId: '0x433',
+      chainName: 'IOTA EVM Testnet',
+      nativeCurrency: {
+        name: 'IOTA',
+        symbol: 'IOTA',
+        decimals: 18,
+      },
+      rpcUrls: [
+        'https://json-rpc.evm.testnet.iotaledger.net',
+        'wss://ws.json-rpc.evm.testnet.iotaledger.net',
+      ],
+      blockExplorerUrls: ['https://explorer.evm.testnet.iotaledger.net'],
+    },
+    evmCustom: {
+      chainAddress:
+        'tst1pzxsrr7apqkdzz633dyntmvxwtyvk029p39te5j0m33q6946h7akzv663zu',
+      aliasId:
+        '0x8d018fdd082cd10b518b4935ed8672c8cb3d450c4abcd24fdc620d16babfbb61',
+      blastApiUrls: [
+        'https://iota-testnet-evm.public.blastapi.io',
+        'wss://iota-testnet-evm.public.blastapi.io',
+        {
+          'Archive RPC':
+            'https://iota-testnet-evm.blastapi.io/e7596858-fc63-4a54-8727-b885a2af4ec8',
+        },
+      ],
+      toolkit: {
+        url: 'https://evm-toolkit.evm.testnet.iotaledger.net',
+        hasFaucet: false,
+      },
+      api: 'https://api.evm.testnet.iotaledger.net',
+    },
+  },
   iota_2_testnet: {
     baseToken: 'Testnet Token (no value)',
     protocol: 'IOTA 2.0',
@@ -122,7 +164,7 @@ export const Networks = {
     faucetUrl: 'faucetUrl placeholder',
     explorerUrl: 'explorerUrl placeholder'
   },
-  iota_testnet: {
+  iota_move_testnet: {
     baseToken: 'IOTA Token (no value)',
     jsonRpcUrl: 'https://api.iota-rebased-alphanet.iota.cafe',
     jsonRpcWebsocketUrl:'wss://api.iota-rebased-alphanet.iota.cafe',
@@ -131,7 +173,7 @@ export const Networks = {
     faucetUrl: 'https://api.iota-rebased-alphanet.iota.cafe/gas',
     explorerUrl: 'https://explorer.iota.cafe/?network=alphanet'
   },
-  iota_devnet: {
+  iota_move_devnet: {
     baseToken: 'IOTA Token (no value)',
     jsonRpcUrl: 'jsonRpcUrl placeholder',
     jsonRpcWebsocketUrl:'jsonRpcWebsocketUrl placeholder',
