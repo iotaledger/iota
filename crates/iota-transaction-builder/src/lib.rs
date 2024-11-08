@@ -269,7 +269,7 @@ impl TransactionBuilder {
     }
 
     /// Take multiple coins and send to multiple addresses following the
-    /// specified amount list.
+    /// specified amount list. The length of the vectors must be the same.
     /// Take any type of coin, including IOTA.
     /// A separate IOTA object will be used for gas payment.
     ///
