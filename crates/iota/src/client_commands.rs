@@ -2986,7 +2986,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
-            let response = client
+            let mut response = client
                 .quorum_driver_api()
                 .execute_transaction_block(
                     transaction,
@@ -2995,17 +2995,18 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 )
                 .await?;
 
+            if let Some(effects) = response.effects.as_mut() {
+                prerender_clever_errors(effects, client.read_api()).await;
+            }
             let effects = response.effects.as_ref().ok_or_else(|| {
                 anyhow!("Effects from IotaTransactionBlockResult should not be empty")
             })?;
-
             if let IotaExecutionStatus::Failure { error } = effects.status() {
                 return Err(anyhow!(
                     "Error executing transaction '{}': {error}",
                     response.digest
                 ));
             }
-
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
     }
