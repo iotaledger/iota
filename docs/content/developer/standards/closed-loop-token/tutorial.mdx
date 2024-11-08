@@ -1,0 +1,167 @@
+# CLT Tutorial: A Journey from Zero to Hero
+
+This tutorial will guide you through the process of creating a Closed Loop Token (CLT) by following a journey to create a dApp for municipalities to issue vouchers for local businesses.
+The use case is the following:
+A municipality aims to promote energy efficiency among households by distributing voucher tokens that can be exchanged for energy-efficient LED light bulbs. This initiative encourages households to reduce energy consumption, thereby contributing to environmental sustainability. 
+
+Let's dive right into it. We can start by minting a new token. Tokens are similar to coins in IOTA, but you if you have read the prior pages you already know that they can have their own rules and policies.
+But as they share similarities with coins, we can start by creating an `init` function with an OTW for our module and create a coin with a name, symbol, and description using `coin::create_currency`:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L24
+```
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L25-L33
+```
+
+As tokens are special we need to talk about the token policy here. The token policy is an object which contains a `spend_balance` and the rules we define.
+So it play an important role in the token lifecycle defining what the token owner can do and what not.
+Let's create the policy and share it as a shared object later on:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L35
+```
+
+The `new_policy` function also return a policy capability that grants as some sort of admin rights. Similar to the treasury capability. More about that later.
+After creating the token and its policy we:
+- freeze the coin metadata
+- send the treasury cap to the caller,
+- share the token policy
+- send the policy capability to the caller
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L41-L44
+```
+
+Now that we created the logic for initializing our module and creating the voucher token, the municipality could deploy the contract but not yet distribute the token. So let's implement a function to do that.
+This is quite easy, we create a `gift_voucher` with the following header:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L65-L70
+```
+
+And then mint the token and send it to the receiver:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L71-L72
+```
+
+As you can see, the `token::transfer` function returns a so called `ActionRequest`. This object can not be dropped so without passing it to another function which destroys it the contract wouldn't work.
+This means we have to confirm the transfer for which we have [multiple options](./action-request.mdx#approving-actions).
+
+In this case as the caller of the `gift_voucher` function is the municipality we can approve the action directly using our treasury capability:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L74
+```
+
+:::note Interesting to know
+
+The `ActionRequest` objects gives us the chance to get a deeper understanding of Move. 
+It represents a [Hot Potato pattern](../../iota-101/move-overview/patterns/hot-potato.mdx) where the contract can't drop the object but has to pass it to another function.
+So in this case the transfer of the token is already "done", but if we don't consume the ActionRequest in the same tx, the whole transaction will fail as Move tx are atomic.
+
+:::
+
+The municipality is now able to create a voucher and transfer it to a household. Next we need to implement a way for the household to redeem the voucher.
+This is done by creating a function `buy_ledbulb`: 
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L79-L84
+```
+
+in which we check if we have enough voucher token for a LED bulb and then transfer it to the shop:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L85-L88
+```
+
+But wait, remember that we said tokens are different from coins? With `token::spend` we again get a `ActionRequest` object which we have to approve.
+This time we can't approve with the treasury capability as the caller is the household. And even if we would have the treasury capability, 
+rememver how we learned that the treasury capability grants as admin rights? So it would confirm everything without checkint the rules. But here we actually want to make use of the policy rules feature.
+As we should only be allowed as a household to spend the voucher token for LED bulbs in a certified shop.
+
+So let's look into rules and add some to our policy.
+
+## Rules
+
+We can define our rules and the corresponding logic in the same module as the voucher token or create another module for a more modular approach.
+We are going with the later as this allows us to reuse the rules for other projects as well.
+
+So let's think about the rule(s) we need. We want houseowners to be able to spend the voucher token only in certified shops.
+But we also don't want shops to be able to spend the voucher token. They should only be allowed to send it back to the municipality.
+With that in mind let's define our rule.
+
+A [rule](rules.mdx#rule-structure) is representet as a witness - a type with a drop ability. So let's define that first:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/rules.move#L24
+```
+
+Now let's add a function to add addresses to the rule configuration:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/rules.move#L61-L75
+```
+
+First we check if the token policy already has a rule configuration. If not we create a new one with `token::add_rule_config`
+passing the rule witness, the token policy and its capability, and a new [bag](../../../references/framework/iota-framework/bag.mdx) in which we want to store the addresses.
+
+Then we can get the mutable config with our helpter function config_mut which is just a wrapper of `token::rule_config_mut`.
+And as a last step we add the address to our bag.
+
+:::note Bonus Task
+
+You could also implement additional functions to remove addresses from the rule configuration.
+
+:::
+
+Next we have to create functionality to stamp the action request if the rule is met. This is done by adding a `verify` function to the rules module:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/rules.move#L26-L56
+```
+
+Let's break it down:
+
+1) We do some basic checks and task like checking if the policy has a rule config. We get the config, sender and receiver.
+2) We split the verification into two parts: 
+    - If the action is a spend_action someone is trying to return the token to the municipality. We check if the sender is in our list. If this is true, we stamp the action request. If not we abort as we only want to allow shops to return the token.
+    - If the action is a transfer_action someone is trying to buy a LED bulb, so we check if the sender is in our list. If this is true, that means a shop is trying to spend our token. We can't allow that, so we apport and therefore never stamp the action request. We also check if the receiver is a shop.
+
+3) If we don't abort, we stamp the action request.
+
+## Back to our voucher module
+
+Now that we created the rules modules let's use it in our voucher module.
+We can import the rules like this:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L6
+```
+
+Now we need to register the rule for the needed actions in our `init` function. Just add the following lines between the policy creation and the sharing:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L37-L39
+```
+
+We are defining our rule for the default `spend` and `transfer` actions here. 
+But we could also pass any other action as a string here and make the rule work for custom functions of our module.
+
+The municipality also needs a way to register shops so we add a function for that which internally calls the `add_addresses` function from our rules module:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L48-L55
+```
+
+And now we are back to our `buy_ledbulb` function. We can now verify/stamp the action request with the rules capability:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L90
+```
+
+In this tutorial we are returning the action request. We could also approve it right away. 
+So in this case in a PTB we have to call the `token_policy::confirm_request` function afterwards which will check the request for the approval stamp and make our TX succeed.
+
+Now the shop is the owner is the owner of the voucher and the household just got a new energy-efficient LED bulb.
+
+The last thing to do is for the shop to return the voucher to the municipality. This is done by calling the `return_voucher` function:
+
+```typescript file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L97-L107
+```
+
+This is similar to the `buy_ledbulb` function where we verify the rules of the `transfer` action, but in this case we use the `spend` action.
+So the token will be consumed and the `spend_balance` will be added to the the action request. Once the action got confirmed the `spend_balance` will be added to the balance of the token policy.
+
+:::note One more thing
+
+Some observant readers might have noticed that we never specified a rule for the `gift_voucher` function. This is because the municipality is the owner of the token/treasury cap and can do whatever it wants with it.
+
+:::
+
+This is the end of our tutorial. We hope you enjoyed it and learned something new about CLTs and Move.

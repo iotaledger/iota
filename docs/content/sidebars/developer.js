@@ -218,6 +218,7 @@ const developer = [
                     'developer/standards/closed-loop-token/spending',
                     'developer/standards/closed-loop-token/rules',
                     'developer/standards/closed-loop-token/coin-token-comparison',
+                    'developer/standards/closed-loop-token/tutorial',
                 ],
             },
             'developer/standards/kiosk',
