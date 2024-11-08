@@ -5,6 +5,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
+
 jobs:
   # TODO: re-enable https://github.com/iotaledger/iota/issues/3862
   # validate-mainnet:
