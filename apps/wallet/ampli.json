@@ -10,5 +10,5 @@
   "Branch": "production",
   "Version": "1.0.0",
   "VersionId": "bc7a9c07-e259-439c-b48c-026b16a8a548",
-  "Path": "./src/ampli"
+  "Path": "./src/shared/analytics/ampli"
 }
