@@ -6,6 +6,7 @@ use std::{collections::BTreeSet, path::Path, sync::Arc};
 
 use anyhow::anyhow;
 use colored::Colorize;
+use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
 use iota_json_rpc_types::{
     IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
@@ -24,8 +25,10 @@ use tracing::warn;
 
 use crate::{IotaClient, iota_client_config::IotaClientConfig};
 
+#[derive(Getters, MutGetters)]
+#[getset(get = "pub", get_mut = "pub")]
 pub struct WalletContext {
-    pub config: PersistedConfig<IotaClientConfig>,
+    config: PersistedConfig<IotaClientConfig>,
     request_timeout: Option<std::time::Duration>,
     client: Arc<RwLock<Option<IotaClient>>>,
     max_concurrent_requests: Option<u64>,
