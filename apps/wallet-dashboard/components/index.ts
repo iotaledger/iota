@@ -9,6 +9,8 @@ export { default as Input } from './Input';
 export { default as VirtualList } from './VirtualList';
 export { default as ExternalImage } from './ExternalImage';
 export { default as Dropdown } from './Dropdown';
+export * from './PageSizeSelector';
+export * from './PaginationOptions';
 
 export * from './account-balance/AccountBalance';
 export * from './coins';
