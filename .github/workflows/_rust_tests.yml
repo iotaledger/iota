@@ -1,6 +1,6 @@
 name: Rust tests
 
-on: 
+on:
   workflow_call:
     inputs:
       changedCrates:
