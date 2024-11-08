@@ -114,7 +114,7 @@ export const Networks = {
     },
   },
   iota_move: {
-    baseToken: 'IOTA Token (no value)',
+    baseToken: 'IOTA Token',
     jsonRpcUrl: 'jsonRpcUrl placeholder',
     jsonRpcWebsocketUrl:'jsonRpcWebsocketUrl placeholder',
     indexerRpc: 'indexerRpc placeholder',
