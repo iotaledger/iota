@@ -30,7 +30,6 @@ export * from './navigation';
 export * from './network-selector';
 export * from './nft-display';
 export * from './nft-display/NftImage';
-export * from './QR';
 export * from './receipt-card';
 export * from './receipt-card/TxnAmount';
 export * from './transactions-card';

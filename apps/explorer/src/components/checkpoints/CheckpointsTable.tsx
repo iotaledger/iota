@@ -6,11 +6,12 @@ import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/ap
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Warning } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
-import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
+import { PlaceholderTable, TableCard } from '~/components/ui';
 import { DEFAULT_CHECKPOINTS_LIMIT, useGetCheckpoints } from '~/hooks/useGetCheckpoints';
 import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 import { generateCheckpointsTableColumns } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';
+import { useCursorPagination } from '@iota/core';
 
 interface CheckpointsTableProps {
     disablePagination?: boolean;

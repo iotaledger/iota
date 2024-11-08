@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import typedocSidebar from '../references/ts-sdk/api/typedoc-sidebar.cjs';
 const references = [
     {
         type: 'doc',
@@ -188,6 +189,16 @@ const references = [
                         ],
                     },
                     'references/ts-sdk/bcs',
+                    {
+                        type: 'category',
+                        label: 'API',
+                        link:{
+                          type: 'doc',
+                          id: 'references/ts-sdk/api/index',
+                        },
+                        items: typedocSidebar,
+                    },
+
                 ],
             },
         ],

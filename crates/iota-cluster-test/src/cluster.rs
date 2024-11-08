@@ -265,6 +265,7 @@ impl Cluster for LocalNewCluster {
                 fullnode_url.clone(),
                 ReaderWriterConfig::writer_mode(None),
                 data_ingestion_path.clone(),
+                None,
             )
             .await;
 
@@ -274,6 +275,7 @@ impl Cluster for LocalNewCluster {
                 fullnode_url.clone(),
                 ReaderWriterConfig::reader_mode(indexer_address.to_string()),
                 data_ingestion_path,
+                None,
             )
             .await;
         }

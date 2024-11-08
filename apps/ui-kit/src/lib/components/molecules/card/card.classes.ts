@@ -13,9 +13,9 @@ export const IMAGE_VARIANT_CLASSES: { [key in ImageShape]: string } = {
 };
 
 export const IMAGE_BG_CLASSES: { [key in ImageType]: string } = {
-    [ImageType.Placeholder]: ``,
-    [ImageType.BgSolid]: `bg-neutral-96`,
-    [ImageType.BgTransparent]: ``,
+    [ImageType.Placeholder]: '',
+    [ImageType.BgSolid]: 'bg-neutral-96 dark:bg-neutral-10',
+    [ImageType.BgTransparent]: '',
 };
 
 export const CARD_TYPE_CLASSES: Record<CardType, string> = {
