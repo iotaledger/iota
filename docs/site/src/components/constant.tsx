@@ -49,48 +49,6 @@ export const Networks = {
     explorer: 'https://explorer.iota.org/iota2-testnet',
     faucet: 'https://faucet.nova-testnet.iotaledger.net',
   },
-  iota_testnet: {
-    baseToken: 'Testnet Token (no value)',
-    protocol: 'Stardust',
-    httpRestApi: 'https://api.testnet.iotaledger.net',
-    eventApi: 'wss://api.testnet.iotaledger.net:443 (MQTT 3.1, /mqtt)',
-    permaNodeApi: 'https://chronicle.testnet.iotaledger.net',
-    faucet: 'https://faucet.testnet.iotaledger.net',
-    explorer: 'https://explorer.iota.org/iota-testnet',
-    evm: {
-      chainId: '0x433',
-      chainName: 'IOTA EVM Testnet',
-      nativeCurrency: {
-        name: 'IOTA',
-        symbol: 'IOTA',
-        decimals: 18,
-      },
-      rpcUrls: [
-        'https://json-rpc.evm.testnet.iotaledger.net',
-        'wss://ws.json-rpc.evm.testnet.iotaledger.net',
-      ],
-      blockExplorerUrls: ['https://explorer.evm.testnet.iotaledger.net'],
-    },
-    evmCustom: {
-      chainAddress:
-        'tst1pzxsrr7apqkdzz633dyntmvxwtyvk029p39te5j0m33q6946h7akzv663zu',
-      aliasId:
-        '0x8d018fdd082cd10b518b4935ed8672c8cb3d450c4abcd24fdc620d16babfbb61',
-      blastApiUrls: [
-        'https://iota-testnet-evm.public.blastapi.io',
-        'wss://iota-testnet-evm.public.blastapi.io',
-        {
-          'Archive RPC':
-            'https://iota-testnet-evm.blastapi.io/e7596858-fc63-4a54-8727-b885a2af4ec8',
-        },
-      ],
-      toolkit: {
-        url: 'https://evm-toolkit.evm.testnet.iotaledger.net',
-        hasFaucet: false,
-      },
-      api: 'https://api.evm.testnet.iotaledger.net',
-    },
-  },
   shimmer: {
     baseToken: 'Shimmer Token',
     protocol: 'Stardust',
@@ -155,67 +113,31 @@ export const Networks = {
       api: 'https://api.evm.testnet.shimmer.network',
     },
   },
-  move_testnet: {
-    baseToken: 'Testnet Token (no value)',
-    protocol: 'Stardust',
-    httpRestApi: 'https://api.testnet.shimmer.network',
-    eventApi: 'wss://api.testnet.shimmer.network:443/api/mqtt/v1 (MQTT 3.1)',
-    permaNodeApi: 'https://chronicle.testnet.shimmer.network',
-    faucet: 'https://faucet.testnet.shimmer.network',
-    explorer: 'https://explorer.shimmer.network/shimmer-testnet',
-    evm: {
-      chainId: '0x431',
-      chainName: 'ShimmerEVM Testnet',
-      nativeCurrency: {
-        name: 'Shimmer',
-        symbol: 'SMR',
-        decimals: 18,
-      },
-      rpcUrls: ['https://json-rpc.evm.testnet.shimmer.network'],
-      blockExplorerUrls: ['https://explorer.evm.testnet.shimmer.network/'],
-    },
-    evmCustom: {
-      chainAddress:
-        'rms1ppp00k5mmd2m8my8ukkp58nd3rskw6rx8l09aj35984k74uuc5u2cywn3ex',
-      aliasId:
-        '0x42f7da9bdb55b3ec87e5ac1a1e6d88e16768663fde5eca3429eb6f579cc538ac',
-      toolkit: {
-        url: 'https://evm-toolkit.evm.testnet.shimmer.network',
-        hasFaucet: true,
-      },
-      api: 'https://api.evm.testnet.shimmer.network',
-    },
+  iota_testnet: {
+    baseToken: 'IOTA Token (no value)',
+    jsonRpcUrl: 'https://api.iota-rebased-alphanet.iota.cafe',
+    jsonRpcWebsocketUrl:'wss://api.iota-rebased-alphanet.iota.cafe',
+    indexerRpc: 'https://indexer.iota-rebased-alphanet.iota.cafe',
+    graphqlRpc: 'https://graphql.iota-rebased-alphanet.iota.cafe',
+    faucetUrl: 'https://api.iota-rebased-alphanet.iota.cafe/gas',
+    explorerUrl: 'https://explorer.iota.cafe/?network=alphanet'
   },
-  move_devnet: {
-    baseToken: 'Testnet Token (no value)',
-    protocol: 'Stardust',
-    httpRestApi: 'https://api.testnet.shimmer.network',
-    eventApi: 'wss://api.testnet.shimmer.network:443/api/mqtt/v1 (MQTT 3.1)',
-    permaNodeApi: 'https://chronicle.testnet.shimmer.network',
-    faucet: 'https://faucet.testnet.shimmer.network',
-    explorer: 'https://explorer.shimmer.network/shimmer-testnet',
-    evm: {
-      chainId: '0x431',
-      chainName: 'ShimmerEVM Testnet',
-      nativeCurrency: {
-        name: 'Shimmer',
-        symbol: 'SMR',
-        decimals: 18,
-      },
-      rpcUrls: ['https://json-rpc.evm.testnet.shimmer.network'],
-      blockExplorerUrls: ['https://explorer.evm.testnet.shimmer.network/'],
-    },
-    evmCustom: {
-      chainAddress:
-        'rms1ppp00k5mmd2m8my8ukkp58nd3rskw6rx8l09aj35984k74uuc5u2cywn3ex',
-      aliasId:
-        '0x42f7da9bdb55b3ec87e5ac1a1e6d88e16768663fde5eca3429eb6f579cc538ac',
-      toolkit: {
-        url: 'https://evm-toolkit.evm.testnet.shimmer.network',
-        hasFaucet: true,
-      },
-      api: 'https://api.evm.testnet.shimmer.network',
-    },
+  iota_devnet: {
+    baseToken: 'IOTA Token (no value)',
+    jsonRpcUrl: 'jsonRpcUrl placeholder',
+    jsonRpcWebsocketUrl:'jsonRpcWebsocketUrl placeholder',
+    indexerRpc: 'indexerRpc placeholder',
+    graphqlRpc: 'graphqlRpc placeholder',
+    faucetUrl: 'faucetUrl placeholder',
+    explorerUrl: 'explorerUrl placeholder'
+  },
+  iota_localnet: {
+    baseToken:"IOTA Token", 
+    jsonRpcUrl: 'http://127.0.0.1:9000',
+    jsonRpcWebsocketUrl:'ws://127.0.0.1:9000',
+    indexerRpc: 'http://127.0.0.1:9124',
+    graphqlRpc: 'http://127.0.0.1:8000',
+    faucetUrl: 'http://127.0.0.1:9123/gas'
   },
 };
 
