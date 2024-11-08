@@ -7,7 +7,7 @@
   "Platform": "Browser",
   "Language": "TypeScript",
   "SDK": "@amplitude/analytics-browser@^1.0",
-  "Branch": "production",
+  "Branch": "main",
   "Version": "1.0.0",
   "VersionId": "bc7a9c07-e259-439c-b48c-026b16a8a548",
   "Path": "./src/shared/analytics/ampli"
