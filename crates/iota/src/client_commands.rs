@@ -3047,7 +3047,8 @@ fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
             Ok(option) => {
                 options.insert(option);
             }
-            Err(_) => return Err(format!("Invalid emit option: {}", part)), // Return error if invalid
+            Err(_) => return Err(format!("Invalid emit option: {}", part)), /* Return error if
+                                                                             * invalid */
         }
     }
 
