@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, btree_map::Entry},
+    cmp::Eq,
+    collections::{BTreeMap, HashSet, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
@@ -57,6 +58,7 @@ use iota_types::{
     move_package::UpgradeCap,
     object::Owner,
     parse_iota_type_tag,
+    quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
         SenderSignedData, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
@@ -72,6 +74,7 @@ use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
 use shared_crypto::intent::Intent;
+use strum::EnumString;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{
@@ -649,6 +652,13 @@ pub struct Opts {
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
+
+    /// Select which fields of the response to display.
+    /// If not provided, all fields are displayed.
+    /// The fields are: effects, input, events, object_changes,
+    /// balance_changes.
+    #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_option)]
+    pub emit: HashSet<EmitOption>,
 }
 
 /// Global options with gas
@@ -665,23 +675,40 @@ pub struct OptsWithGas {
 
 impl Opts {
     /// Uses the passed gas_budget for the gas budget variable and sets all
-    /// other flags to false.
+    /// other flags to false, and emit to an empty vector(defaulting to all emit
+    /// options).
     pub fn for_testing(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: HashSet::new(),
         }
     }
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// true, and sets all other flags to false.
+    /// true, and sets all other flags to false, and emit to an empty
+    /// vector(defaulting to all emit options).
     pub fn for_testing_dry_run(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: true,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: HashSet::new(),
+        }
+    }
+
+    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
+    /// false, and sets all other flags to false, and emit to the passed emit
+    /// vector.
+    pub fn for_testing_emit_options(gas_budget: u64, emit: HashSet<EmitOption>) -> Self {
+        Self {
+            gas_budget: Some(gas_budget),
+            dry_run: false,
+            serialize_unsigned_transaction: false,
+            serialize_signed_transaction: false,
+            emit,
         }
     }
 }
@@ -703,6 +730,30 @@ impl OptsWithGas {
             rest: Opts::for_testing_dry_run(gas_budget),
         }
     }
+
+    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
+    /// budget variable. Dry run is set to false, and emit to the passed emit
+    /// vector. All other flags are set to false.
+    pub fn for_testing_emit_options(
+        gas: Option<ObjectID>,
+        gas_budget: u64,
+        emit: HashSet<EmitOption>,
+    ) -> Self {
+        Self {
+            gas,
+            rest: Opts::for_testing_emit_options(gas_budget, emit),
+        }
+    }
+}
+
+#[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]
+#[strum(serialize_all = "snake_case")]
+pub enum EmitOption {
+    Effects,
+    Input,
+    Events,
+    ObjectChanges,
+    BalanceChanges,
 }
 
 #[derive(serde::Deserialize)]
@@ -2930,18 +2981,18 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
-            let mut response = context.execute_transaction_may_fail(transaction).await?;
-            if let Some(effects) = response.effects.as_mut() {
-                prerender_clever_errors(effects, client.read_api()).await;
-            }
-            let effects = response.effects.as_ref().ok_or_else(|| {
-                anyhow!("Effects from IotaTransactionBlockResult should not be empty")
-            })?;
-            if let IotaExecutionStatus::Failure { error } = effects.status() {
-                return Err(anyhow!(
-                    "Error executing transaction '{}': {error}",
-                    response.digest
-                ));
+            let response = client
+                .quorum_driver_api()
+                .execute_transaction_block(
+                    transaction,
+                    opts_from_cli(opts.emit),
+                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                )
+                .await?;
+
+            let errors: &Vec<String> = response.errors.as_ref();
+            if !errors.is_empty() {
+                return Err(anyhow!("Error executing transaction: {errors:#?}"));
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
@@ -2958,4 +3009,29 @@ pub(crate) async fn prerender_clever_errors(
             *error = rendered;
         }
     }
+}
+
+fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
+    if opts.is_empty() {
+        IotaTransactionBlockResponseOptions::new()
+            .with_effects()
+            .with_input()
+            .with_events()
+            .with_object_changes()
+            .with_balance_changes()
+    } else {
+        IotaTransactionBlockResponseOptions {
+            show_input: opts.contains(&EmitOption::Input),
+            show_events: opts.contains(&EmitOption::Events),
+            show_object_changes: opts.contains(&EmitOption::ObjectChanges),
+            show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
+            show_effects: opts.contains(&EmitOption::Effects),
+            show_raw_effects: false,
+            show_raw_input: false,
+        }
+    }
+}
+
+fn parse_emit_option(s: &str) -> Result<EmitOption, String> {
+    EmitOption::from_str(s).map_err(|_| format!("Invalid emit option: {}", s))
 }

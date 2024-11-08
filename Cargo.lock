@@ -5743,6 +5743,7 @@ dependencies = [
  "shell-words",
  "shlex",
  "signature 1.6.4",
+ "strum 0.26.3",
  "tabled",
  "tap",
  "telemetry-subscribers",
