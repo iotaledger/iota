@@ -4,13 +4,13 @@ task 1, lines 7-33:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 7174400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 7166800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 35:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 3397200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 37:
 //# view-object 2,0
@@ -41,4 +41,4 @@ task 5, lines 42-44:
 //> tto::M1::pass_through(Input(1));
 //> tto::M1::receiver(Input(0), Input(1));
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3420000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 3397200,  storage_rebate: 3397200, non_refundable_storage_fee: 0

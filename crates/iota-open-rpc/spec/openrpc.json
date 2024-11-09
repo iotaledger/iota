@@ -1242,7 +1242,6 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                  "hasPublicTransfer": true,
                   "fields": {
                     "balance": "100000000",
                     "id": {
@@ -2397,7 +2396,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2421,7 +2419,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2445,7 +2442,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2469,7 +2465,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2493,7 +2488,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -3009,7 +3003,6 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                  "hasPublicTransfer": true,
                   "fields": {
                     "balance": "10000",
                     "id": {
@@ -3109,7 +3102,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "10000",
                       "id": {
@@ -3134,7 +3126,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "20000",
                       "id": {
@@ -3695,7 +3686,6 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
-                  "hasPublicTransfer": true,
                   "fields": {}
                 }
               }
@@ -6134,7 +6124,6 @@
             "required": [
               "dataType",
               "fields",
-              "hasPublicTransfer",
               "type"
             ],
             "properties": {
@@ -6146,9 +6135,6 @@
               },
               "fields": {
                 "$ref": "#/components/schemas/MoveStruct"
-              },
-              "hasPublicTransfer": {
-                "type": "boolean"
               },
               "type": {
                 "type": "string"
@@ -10645,7 +10631,6 @@
             "required": [
               "bcsBytes",
               "dataType",
-              "hasPublicTransfer",
               "type",
               "version"
             ],
@@ -10658,9 +10643,6 @@
                 "enum": [
                   "moveObject"
                 ]
-              },
-              "hasPublicTransfer": {
-                "type": "boolean"
               },
               "type": {
                 "type": "string"

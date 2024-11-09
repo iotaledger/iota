@@ -3047,17 +3047,13 @@
       "MoveStruct": {
         "type": "object",
         "required": [
-          "contents",
-          "has_public_transfer"
+          "contents"
         ],
         "properties": {
           "contents": {
             "description": "Base64 encoded data",
             "type": "string",
             "format": "base64"
-          },
-          "has_public_transfer": {
-            "type": "boolean"
           }
         }
       },

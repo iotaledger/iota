@@ -97,7 +97,6 @@ fragment RPC_OBJECT_FIELDS on Object {
         }
     }
     asMoveObject @include(if: $showContent) {
-        hasPublicTransfer
         contents {
             data
             type {
@@ -108,7 +107,6 @@ fragment RPC_OBJECT_FIELDS on Object {
         }
     }
     asMoveObject @include(if: $showBcs) {
-        hasPublicTransfer
         contents {
             bcs
             type {
@@ -141,7 +139,6 @@ fragment RPC_MOVE_OBJECT_FIELDS on MoveObject {
             repr
         }
     }
-    hasPublicTransfer @include(if: $showContent)
     contents @include(if: $showContent) {
         data
         type {
@@ -151,7 +148,6 @@ fragment RPC_MOVE_OBJECT_FIELDS on MoveObject {
         }
     }
 
-    hasPublicTransfer @include(if: $showBcs)
     contents @include(if: $showBcs) {
         bcs
         type {
