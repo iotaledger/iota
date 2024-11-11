@@ -3,7 +3,6 @@ title: IOTA Client CLI
 description: The IOTA Client CLI provides command-level access to interact with the IOTA network.
 ---
 
-import AlphaNet from "../../_snippets/alphanet.mdx";
 import CliCheckInstall from "../../_snippets/cli-check-install.mdx";
 
 The IOTA CLI `client` command provides command-level access to interact with the IOTA network. Typical uses for `iota client` include publishing Move smart contracts, getting the information of an object, executing transactions, or managing addresses.
@@ -80,20 +79,18 @@ Use the `iota client envs` command to find the network environments set up in th
 ╭────────┬─────────────────────────────────────┬────────╮
 │ alias  │ url                                 │ active │
 ├────────┼─────────────────────────────────────┼────────┤
-│ devnet │ https://fullnode.devnet.iota.io:443 │ *      │
+│ devnet │ https://api.devnet.iota.cafe:443    │ *      │
 ╰────────┴─────────────────────────────────────┴────────╯
 ```
-
-<AlphaNet />
 
 ### Create network environment
 
 Use `client new-env` to add details for a new network environment. This example creates an environment pointer to IOTA Mainnet. Setting the `alias` value makes referencing the environment less prone to typographical errors. After running this command, IOTA updates your client.yaml file in `~/.iota/iota_config` with the new information.
 
 ```
-$ iota client new-env --alias=mainnet --rpc https://fullnode.mainnet.iota.io:443
+$ iota client new-env --alias=testnet --rpc https://api.testnet.iota.cafe:443
 
-Added new IOTA env [mainnet] to config.
+Added new IOTA env [testnet] to config.
 ```
 
 ### Set current environment
@@ -101,9 +98,9 @@ Added new IOTA env [mainnet] to config.
 Use the `iota client switch` command to change the current network. This example switches the current network to `mainnet`.
 
 ```shell
-$ iota client switch --env mainnet
+$ iota client switch --env testnet
 
-Active environment switched to [mainnet]
+Active environment switched to [testnet]
 ```
 
 If you run `iota client envs` after this command, you see the asterisk in the `active` column on the `mainnet` row of the table.
@@ -113,16 +110,16 @@ If you run `iota client envs` after this command, you see the asterisk in the `a
 Use the `iota client active-address` command to reveal the current address. The CLI uses the current active address to execute address-specific CLI commands (like `iota client objects`) when you don't provide them with a IOTA address value.
 
 ```shell
-$ iota client active-address
+iota client active-address
 0x514692f08249c3e9951234ce29074695840422564bff85e424b56de462913e0d
 ```
 
 ### Request a IOTA coin from faucet
 
-If you use one of the standard public RPCs (for example, `fullnode.testnet.iota.io:443`), you can use the `faucet` command to request gas coins. If you use a custom faucet service, then pass in the URL to the faucet using the `--url` option.
+If you use one of the standard public RPCs (for example, `api.testnet.iota.cafe:443`), you can use the `faucet` command to request gas coins. If you use a custom faucet service, then pass in the URL to the faucet using the `--url` option.
 
 ```shell
-$ iota client faucet
+iota client faucet
 Request successful. It can take up to 1 minute to get the coin. Run iota client gas to check your gas coins.
 ```
 
