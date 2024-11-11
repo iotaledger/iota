@@ -3,4 +3,3 @@
 
 export * from './sidebar';
 export * from './top-nav';
-export * from './connection-guard';
