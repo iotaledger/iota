@@ -12,13 +12,12 @@ concept in Move, as it ensures that the value is not used in multiple places at 
 However, there are use cases when we want to pass a value to a function but retain the ownership.
 This is where references come into play.
 
-To illustrate this, let's consider a simple example - an application for a metro (subway) pass. We
-will look at 4 different scenarios:
+To illustrate this, let's consider a simple example - an application for a metro (subway) pass card that can be:
 
-1. Card can be purchased at the kiosk for a fixed price
-2. Card can be shown to inspectors to prove that the passenger has a valid pass
-3. Card can be used at the turnstile to enter the metro, and spend a ride
-4. Card can be recycled once it's empty
+1. Purchased at the kiosk for a fixed price.
+2. Shown to inspectors to prove that the passenger has a valid pass.
+3. Used at the turnstile to enter the metro, and spend a ride.
+4. Recycled once it's empty.
 
 ## Layout
 {/*TODO: Add refs for constants and error constants*/}
@@ -42,7 +41,7 @@ reference to the value, not the value itself.
 ```
 
 Now the function can't take the ownership of the card, and it can't spend the rides. But it can read
-its value. Worth noting, that a signature like this makes it impossible to call the function without
+its value. It's worth noting, that a signature like this makes it impossible to call the function without
 a Card at all. This is an important property which allows the
 [Capability Pattern](./patterns/capabilities.mdx).
 
