@@ -10,7 +10,7 @@ import configProd from './configs/webpack/webpack.config.prod';
 const configMap: Record<string, () => Promise<Configuration>> = {
     development: configDev,
     production: configProd,
-    nightly: configProd
+    nightly: configProd,
 };
 
 const nodeEnv: string = process.env.NODE_ENV || '';

@@ -29,7 +29,13 @@ const IS_NIGHTLY = process.env.NODE_ENV === 'nightly';
 const IS_DEV = process.env.NODE_ENV === 'development';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
-const APP_NAME = WALLET_RC ? 'IOTA Wallet (RC)' : IS_DEV ? 'IOTA Wallet (DEV)' : IS_NIGHTLY ? 'IOTA Wallet (Nightly)' : 'IOTA Wallet';
+const APP_NAME = WALLET_RC
+    ? 'IOTA Wallet (RC)'
+    : IS_DEV
+      ? 'IOTA Wallet (DEV)'
+      : IS_NIGHTLY
+        ? 'IOTA Wallet (Nightly)'
+        : 'IOTA Wallet';
 
 dotenv.config({
     path: [resolve(SDK_ROOT, '.env'), resolve(SDK_ROOT, '.env.defaults')],
