@@ -468,7 +468,7 @@ async fn call_shared_object_contract() {
     );
 }
 
-#[ignore("Disabled due to flakiness - re-enable when failure is fixed")]
+#[ignore("Issue - https://github.com/iotaledger/iota/issues/4010")]
 #[sim_test]
 async fn access_clock_object_test() {
     let test_cluster = TestClusterBuilder::new().build().await;
