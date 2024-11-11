@@ -58,8 +58,8 @@ impl WalletClient {
 
     pub fn sign(&self, txn_data: &TransactionData, desc: &str) -> Signature {
         self.get_wallet()
-            .config
-            .keystore
+            .config()
+            .keystore()
             .sign_secure(&self.address, txn_data, Intent::iota_transaction())
             .unwrap_or_else(|e| panic!("Failed to sign transaction for {}. {}", desc, e))
     }

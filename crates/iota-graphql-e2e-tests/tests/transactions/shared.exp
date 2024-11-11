@@ -4,27 +4,27 @@ task 1, lines 7-23:
 //# publish
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 6862800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6847600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 25-26:
 //# programmable --inputs immshared(1,0)
 //> 0: P0::m::get(Input(0))
 mutated: object(0,0)
 unchanged_shared: object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, lines 28-29:
 //# programmable --inputs object(1,0)
 //> 0: P0::m::inc(Input(0))
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2272400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200,  storage_rebate: 2257200, non_refundable_storage_fee: 0
 
 task 4, lines 31-33:
 //# programmable --inputs object(1,0)
 //> 0: P0::m::get(Input(0));
 //> P0::m::inc(Input(0))
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2272400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200,  storage_rebate: 2257200, non_refundable_storage_fee: 0
 
 task 5, line 35:
 //# create-checkpoint
@@ -42,7 +42,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0x096cee4904264f75f80f37a7593a1f2526887bcf92cef717e977b936f9d7c13a",
+                  "package": "0xf40350dd9cb77160579b0e2511443ac8079495baf4a63202dc7a62b1a383a181",
                   "module": "m",
                   "functionName": "get"
                 }
@@ -55,17 +55,17 @@ Response: {
               "nodes": [
                 {
                   "__typename": "SharedObjectRead",
-                  "address": "0xa1143dedd508b6be59c1d0a6a3c5331b9867e6c2480b74c65fd5e7e9796a76c7",
+                  "address": "0xa2f6f4538016aceca519479b3992959c2bb84f2a95db0cff1415422fa499ddbe",
                   "version": 2,
-                  "digest": "7T47UKUpx3AfjwVhGSEngDRMzMyv8fvWBXKzh2TNWYgY",
+                  "digest": "53nzg2NiA6eZd4BxKfy88MmasZSGRat3313Azf266AfJ",
                   "object": {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x096cee4904264f75f80f37a7593a1f2526887bcf92cef717e977b936f9d7c13a::m::Foo"
+                          "repr": "0xf40350dd9cb77160579b0e2511443ac8079495baf4a63202dc7a62b1a383a181::m::Foo"
                         },
                         "json": {
-                          "id": "0xa1143dedd508b6be59c1d0a6a3c5331b9867e6c2480b74c65fd5e7e9796a76c7",
+                          "id": "0xa2f6f4538016aceca519479b3992959c2bb84f2a95db0cff1415422fa499ddbe",
                           "x": "0"
                         }
                       }
@@ -82,7 +82,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0x096cee4904264f75f80f37a7593a1f2526887bcf92cef717e977b936f9d7c13a",
+                  "package": "0xf40350dd9cb77160579b0e2511443ac8079495baf4a63202dc7a62b1a383a181",
                   "module": "m",
                   "functionName": "inc"
                 }
@@ -102,12 +102,12 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0x096cee4904264f75f80f37a7593a1f2526887bcf92cef717e977b936f9d7c13a",
+                  "package": "0xf40350dd9cb77160579b0e2511443ac8079495baf4a63202dc7a62b1a383a181",
                   "module": "m",
                   "functionName": "get"
                 },
                 {
-                  "package": "0x096cee4904264f75f80f37a7593a1f2526887bcf92cef717e977b936f9d7c13a",
+                  "package": "0xf40350dd9cb77160579b0e2511443ac8079495baf4a63202dc7a62b1a383a181",
                   "module": "m",
                   "functionName": "inc"
                 }

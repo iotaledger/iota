@@ -7,38 +7,38 @@ task 1, lines 7-87:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 10586800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10579200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 89-90:
 //# run P0::M::new_o
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2264800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2249600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, lines 92-93:
 //# run P0::M::new_w
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2257200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2242000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, lines 95-96:
 //# run P0::M::new_dof
 created: object(4,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 98-99:
 //# run P0::M::new_dof
 created: object(5,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, lines 102-105:
 //# run P0::M::connect --args object(2,0) object(3,0) object(4,0) object(5,0)
 created: object(6,0), object(6,1)
 mutated: object(0,1), object(2,0), object(4,0), object(5,0)
 wrapped: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 9940800,  storage_rebate: 6102800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9895200,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
 task 7, lines 107-109:
 //# view-object 2,0
@@ -68,22 +68,22 @@ Contents: P0::M::O {
 task 8, lines 111-112:
 //# run P0::M::touch_root --args object(2,0)
 mutated: object(0,1), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2568800,  storage_rebate: 2568800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2553600,  storage_rebate: 2553600, non_refundable_storage_fee: 0
 
 task 9, lines 114-115:
 //# run P0::M::touch_wrapped --args object(2,0)
 mutated: object(0,1), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2568800,  storage_rebate: 2568800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2553600,  storage_rebate: 2553600, non_refundable_storage_fee: 0
 
 task 10, lines 117-118:
 //# run P0::M::touch_inner --args object(2,0)
 mutated: object(0,1), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 3853200,  storage_rebate: 3853200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3830400,  storage_rebate: 3830400, non_refundable_storage_fee: 0
 
 task 11, lines 120-121:
 //# run P0::M::touch_outer --args object(2,0)
 mutated: object(0,1), object(2,0), object(5,0)
-gas summary: computation_cost: 1000000, storage_cost: 3853200,  storage_rebate: 3853200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3830400,  storage_rebate: 3830400, non_refundable_storage_fee: 0
 
 task 12, line 123:
 //# view-object 2,0
@@ -124,10 +124,10 @@ Response: {
           "version": 11,
           "contents": {
             "json": {
-              "id": "0x971c6d1b7d6d10a43dadfdbde2206f93bed3cdab43ec430928655906a9ddbe98",
+              "id": "0x92649202a7ed897a62d638e17c21515c6a948ac7be20cc41060455601883cd00",
               "count": "1",
               "wrapped": {
-                "id": "0xe1eb5deedaf409a49832c729642cdca5162af91de4d45340965494a12cd733ce",
+                "id": "0xe49f0faf71c339f2bbcf1348bdc3b8ba4ece961691aed1a8d9309d400ef140e5",
                 "count": "1"
               }
             }
@@ -141,10 +141,10 @@ Response: {
           "version": 10,
           "contents": {
             "json": {
-              "id": "0x971c6d1b7d6d10a43dadfdbde2206f93bed3cdab43ec430928655906a9ddbe98",
+              "id": "0x92649202a7ed897a62d638e17c21515c6a948ac7be20cc41060455601883cd00",
               "count": "1",
               "wrapped": {
-                "id": "0xe1eb5deedaf409a49832c729642cdca5162af91de4d45340965494a12cd733ce",
+                "id": "0xe49f0faf71c339f2bbcf1348bdc3b8ba4ece961691aed1a8d9309d400ef140e5",
                 "count": "1"
               }
             }
@@ -158,10 +158,10 @@ Response: {
           "version": 8,
           "contents": {
             "json": {
-              "id": "0x971c6d1b7d6d10a43dadfdbde2206f93bed3cdab43ec430928655906a9ddbe98",
+              "id": "0x92649202a7ed897a62d638e17c21515c6a948ac7be20cc41060455601883cd00",
               "count": "1",
               "wrapped": {
-                "id": "0xe1eb5deedaf409a49832c729642cdca5162af91de4d45340965494a12cd733ce",
+                "id": "0xe49f0faf71c339f2bbcf1348bdc3b8ba4ece961691aed1a8d9309d400ef140e5",
                 "count": "0"
               }
             }
@@ -175,10 +175,10 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0x971c6d1b7d6d10a43dadfdbde2206f93bed3cdab43ec430928655906a9ddbe98",
+              "id": "0x92649202a7ed897a62d638e17c21515c6a948ac7be20cc41060455601883cd00",
               "count": "0",
               "wrapped": {
-                "id": "0xe1eb5deedaf409a49832c729642cdca5162af91de4d45340965494a12cd733ce",
+                "id": "0xe49f0faf71c339f2bbcf1348bdc3b8ba4ece961691aed1a8d9309d400ef140e5",
                 "count": "0"
               }
             }
@@ -199,7 +199,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xfa4c9f80c82ecccd704a91074f7b4fbda300530a4ed604b63d48bc1372bbc6eb",
+              "id": "0x12b9cd665e2fba6d9cda7d1b651188c07f355ebb6258fab2fb07161606b4ab2a",
               "count": "0"
             }
           }
@@ -212,7 +212,7 @@ Response: {
           "version": 10,
           "contents": {
             "json": {
-              "id": "0xfa4c9f80c82ecccd704a91074f7b4fbda300530a4ed604b63d48bc1372bbc6eb",
+              "id": "0x12b9cd665e2fba6d9cda7d1b651188c07f355ebb6258fab2fb07161606b4ab2a",
               "count": "1"
             }
           }
@@ -225,7 +225,7 @@ Response: {
           "version": 10,
           "contents": {
             "json": {
-              "id": "0xfa4c9f80c82ecccd704a91074f7b4fbda300530a4ed604b63d48bc1372bbc6eb",
+              "id": "0x12b9cd665e2fba6d9cda7d1b651188c07f355ebb6258fab2fb07161606b4ab2a",
               "count": "1"
             }
           }
@@ -238,7 +238,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xfa4c9f80c82ecccd704a91074f7b4fbda300530a4ed604b63d48bc1372bbc6eb",
+              "id": "0x12b9cd665e2fba6d9cda7d1b651188c07f355ebb6258fab2fb07161606b4ab2a",
               "count": "0"
             }
           }
@@ -251,7 +251,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xfa4c9f80c82ecccd704a91074f7b4fbda300530a4ed604b63d48bc1372bbc6eb",
+              "id": "0x12b9cd665e2fba6d9cda7d1b651188c07f355ebb6258fab2fb07161606b4ab2a",
               "count": "0"
             }
           }
@@ -271,7 +271,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xe8ad127dd2eb2208688202ea18b0fba19658fc0c599362bdfa36ef248f0e4fb4",
+              "id": "0xd466bb5f3baf46598ec3550987b3993d522e10758441b170fd2a4eab5f618320",
               "count": "0"
             }
           }
@@ -284,7 +284,7 @@ Response: {
           "version": 11,
           "contents": {
             "json": {
-              "id": "0xe8ad127dd2eb2208688202ea18b0fba19658fc0c599362bdfa36ef248f0e4fb4",
+              "id": "0xd466bb5f3baf46598ec3550987b3993d522e10758441b170fd2a4eab5f618320",
               "count": "1"
             }
           }
@@ -297,7 +297,7 @@ Response: {
           "version": 7,
           "contents": {
             "json": {
-              "id": "0xe8ad127dd2eb2208688202ea18b0fba19658fc0c599362bdfa36ef248f0e4fb4",
+              "id": "0xd466bb5f3baf46598ec3550987b3993d522e10758441b170fd2a4eab5f618320",
               "count": "0"
             }
           }

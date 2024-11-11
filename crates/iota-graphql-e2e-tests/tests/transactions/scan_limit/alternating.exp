@@ -7,7 +7,7 @@ task 1, lines 9-30:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5798800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5791200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 32:
 //# create-checkpoint
@@ -17,31 +17,31 @@ task 3, line 34:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4, line 36:
 //# run Test::M1::create --args 1 @B --sender B
 created: object(4,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 5, line 38:
 //# run Test::M1::create --args 2 @A --sender A
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 40:
 //# run Test::M1::create --args 3 @B --sender B
 created: object(6,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 42:
 //# run Test::M1::create --args 4 @A --sender A
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 8, line 44:
 //# create-checkpoint
@@ -51,31 +51,31 @@ task 9, line 46:
 //# run Test::M1::create --args 100 @B --sender B
 created: object(9,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 10, line 48:
 //# run Test::M1::create --args 101 @A --sender A
 created: object(10,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 11, line 50:
 //# run Test::M1::create --args 102 @B --sender B
 created: object(11,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 12, line 52:
 //# run Test::M1::create --args 103 @A --sender A
 created: object(12,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 13, line 54:
 //# run Test::M1::create --args 104 @B --sender B
 created: object(13,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 14, line 56:
 //# create-checkpoint
@@ -96,7 +96,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "DaLawVV4UMq6hAVBBY8cobbFhwHDeFzsS3NoQrBpu6mP",
+            "digest": "EnWpFFgRUBm3LbuTfjJ6oF3RXVcnzpth6L9nn4Q18RNk",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 2
@@ -124,7 +124,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0Ijo0LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "7SduRXoRF3A6iGGFrw1QgVycjcFP9D8cLLiL6Qpsom5z",
+            "digest": "613degbde4DuvwwAZcQngGJzZkZ6GZJ9g8CwygpA1s1a",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 2
@@ -135,7 +135,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0Ijo2LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "BSrFSzzsckmsYSezXKmFhdJ2CAkrNqqv5tViaRB6B1VN",
+            "digest": "AYmLYSfPbk4sVdBLcV76UmZgPTETP7XsVCaNKHTJ5qzs",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 2
@@ -163,7 +163,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0Ijo0LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "7SduRXoRF3A6iGGFrw1QgVycjcFP9D8cLLiL6Qpsom5z",
+            "digest": "613degbde4DuvwwAZcQngGJzZkZ6GZJ9g8CwygpA1s1a",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 2
@@ -191,7 +191,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0Ijo4LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "J8BPw7KNfobSLFY4PjkW9hghBCB1xcVmYSE4bDJ6AeF",
+            "digest": "4kA8BHJRwCdE8BjFTpTfSGt9nvoii37twZRM91uxMuvi",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 3
@@ -219,7 +219,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0Ijo2LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "BSrFSzzsckmsYSezXKmFhdJ2CAkrNqqv5tViaRB6B1VN",
+            "digest": "AYmLYSfPbk4sVdBLcV76UmZgPTETP7XsVCaNKHTJ5qzs",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 2
@@ -230,7 +230,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0Ijo4LCJpIjpmYWxzZX0",
           "node": {
-            "digest": "J8BPw7KNfobSLFY4PjkW9hghBCB1xcVmYSE4bDJ6AeF",
+            "digest": "4kA8BHJRwCdE8BjFTpTfSGt9nvoii37twZRM91uxMuvi",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 3
@@ -258,7 +258,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "9mPn4RD4yHqHh57drkGEAUs6tc2znv3qFYNwkDDZwKGb",
+            "digest": "Dqi2D27TQ531EiXzEonQGrANt8kJh9w5JZ6SMtmRpm9b",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 3
@@ -286,7 +286,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9",
           "node": {
-            "digest": "9mPn4RD4yHqHh57drkGEAUs6tc2znv3qFYNwkDDZwKGb",
+            "digest": "Dqi2D27TQ531EiXzEonQGrANt8kJh9w5JZ6SMtmRpm9b",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 3

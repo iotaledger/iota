@@ -16,7 +16,7 @@ task 2, lines 18-28:
 //# publish
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 6353600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6338400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 30:
 //# create-checkpoint
@@ -30,7 +30,7 @@ Response: {
       "receivedTransactionBlocks": {
         "nodes": [
           {
-            "digest": "EPHB9RW1dJTokQN6tKjwSW195zW6XH2k2mbdMUu431aP"
+            "digest": "87R2Us8BZN1RJYEvfdLp3LrxiiVWuwJA5UeMoCeYdJ4b"
           }
         ]
       }

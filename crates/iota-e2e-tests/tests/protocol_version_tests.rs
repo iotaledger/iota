@@ -343,12 +343,6 @@ mod sim_only_tests {
         let to_wrap1 = create_obj(&cluster).await;
         let to_transfer1 = create_obj(&cluster).await;
 
-        // Instances of the type that existed before will not have public transfer
-        // despite now having store
-        assert!(!has_public_transfer(&cluster, &to_wrap0.0).await);
-        assert!(!has_public_transfer(&cluster, &to_transfer0.0).await);
-        assert!(has_public_transfer(&cluster, &to_wrap1.0).await);
-        assert!(has_public_transfer(&cluster, &to_transfer1.0).await);
         // Instances of the type that existed before and new instances are able to take
         // advantage of the newly introduced ability
         wrap_obj(&cluster, to_wrap0).await;
@@ -671,15 +665,6 @@ mod sim_only_tests {
                     .unwrap()
             })
             .await
-    }
-
-    async fn has_public_transfer(cluster: &TestCluster, object_id: &ObjectID) -> bool {
-        get_object(&cluster, object_id)
-            .await
-            .data
-            .try_as_move()
-            .unwrap()
-            .has_public_transfer()
     }
 
     #[sim_test]

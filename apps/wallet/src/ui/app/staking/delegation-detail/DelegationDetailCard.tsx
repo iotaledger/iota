@@ -192,7 +192,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                     </div>
                 </Panel>
             </div>
-            <div className="my-3.75 flex w-full gap-2.5">
+            <div className="flex w-full gap-2.5">
                 {Boolean(totalStake) && delegationId && (
                     <Button
                         type={ButtonType.Secondary}
