@@ -32,7 +32,10 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
     effects::TransactionEvents,
     event::EventID,
-    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
+    iota_system_state::{
+        IotaSystemStateTrait,
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    },
     is_system_package,
     object::{Object, ObjectRead},
 };
@@ -1734,6 +1737,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
 
     pub fn package_resolver(&self) -> PackageResolver<U> {
         self.package_resolver.clone()
+    }
+
+    pub async fn pending_active_validators(
+        &self,
+    ) -> Result<Vec<IotaValidatorSummary>, IndexerError> {
+        self.spawn_blocking(move |this| {
+            iota_types::iota_system_state::get_iota_system_state(&this)
+                .and_then(|system_state| system_state.get_pending_active_validators(&this))
+        })
+        .await
+        .map_err(Into::into)
     }
 }
 

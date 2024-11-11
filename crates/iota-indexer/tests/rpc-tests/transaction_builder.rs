@@ -829,10 +829,9 @@ async fn create_cluster_with_timelocked_iota(
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
-    let timelock_iota = unsafe {
+    let timelock_iota = {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
-            false,
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),
