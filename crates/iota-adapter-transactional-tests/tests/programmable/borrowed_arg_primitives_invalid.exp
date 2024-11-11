@@ -13,7 +13,7 @@ task 2, lines 12-13:
 //# programmable --sender B --inputs @A
 //> TransferObjects([Gas], Input(0))
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 15-16:
 //# programmable --sender A --inputs object(0,1)

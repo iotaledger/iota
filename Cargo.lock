@@ -5743,6 +5743,7 @@ dependencies = [
  "shell-words",
  "shlex",
  "signature 1.6.4",
+ "strum 0.26.3",
  "tabled",
  "tap",
  "telemetry-subscribers",
@@ -6766,6 +6767,7 @@ dependencies = [
 name = "iota-graphql-rpc-client"
 version = "0.6.0-alpha"
 dependencies = [
+ "anyhow",
  "async-graphql",
  "axum",
  "hyper 1.4.1",
@@ -6773,6 +6775,7 @@ dependencies = [
  "reqwest 0.12.7",
  "serde_json",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -7612,7 +7615,7 @@ dependencies = [
 [[package]]
 name = "iota-rust-sdk"
 version = "0.0.0"
-source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=dd7b331a5ec62fd5e810051d19f31dff90ea7e3f#dd7b331a5ec62fd5e810051d19f31dff90ea7e3f"
+source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=8c849ded4f23b557cf8bccd86e71cf05c888faaf#8c849ded4f23b557cf8bccd86e71cf05c888faaf"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7643,6 +7646,7 @@ dependencies = [
  "fastcrypto",
  "futures",
  "futures-core",
+ "getset",
  "iota-config",
  "iota-json",
  "iota-json-rpc-api",

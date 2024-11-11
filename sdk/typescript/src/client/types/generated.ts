@@ -116,7 +116,6 @@ export type IotaParsedData =
     | {
           dataType: 'moveObject';
           fields: MoveStruct;
-          hasPublicTransfer: boolean;
           type: string;
       }
     | {
@@ -1298,7 +1297,6 @@ export type RawData =
     | {
           bcsBytes: string;
           dataType: 'moveObject';
-          hasPublicTransfer: boolean;
           type: string;
           version: string;
       }

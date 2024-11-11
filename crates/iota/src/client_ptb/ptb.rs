@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashSet;
+
 use anyhow::{Error, anyhow, ensure};
 use clap::{Args, ValueHint, arg};
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
@@ -136,8 +138,8 @@ impl PTB {
                 .await
                 .map_err(|_| anyhow!("Could not find owner for gas object ID"))?,
             None => context
-                .config
-                .active_address
+                .config()
+                .active_address()
                 .ok_or_else(|| anyhow!("No active address, cannot execute PTB"))?,
         };
 
@@ -154,6 +156,7 @@ impl PTB {
                 gas_budget: program_metadata.gas_budget.map(|x| x.value),
                 serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
                 serialize_signed_transaction: program_metadata.serialize_signed_set,
+                emit: HashSet::new(),
             },
         };
 
@@ -225,8 +228,8 @@ impl PTB {
         Vec<PTBError>,
     ) {
         let starting_addresses = context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .addresses_with_alias()
             .into_iter()
             .map(|(sa, alias)| (alias.alias.clone(), AccountAddress::from(*sa)))
