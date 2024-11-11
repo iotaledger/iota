@@ -1,7 +1,7 @@
 # References
 
 In the [Ownership and Scope](./ownership-scope.mdx) section, we explained that when a value is
-passed to a function, it is _moved_ to the function's scope. This means that the function becomes
+passed to a function, the value's ownership is transferred to the function. This means that the function becomes
 the owner of the value, and the original scope (owner) can no longer use it. This is an important
 concept in Move, as it ensures that the value is not used in multiple places at the same time.
 However, there are use cases when we want to pass a value to a function but retain the ownership.
