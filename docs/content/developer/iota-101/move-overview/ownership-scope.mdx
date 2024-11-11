@@ -4,8 +4,8 @@
 This section covers the concept of variable ownership and scope in Move, not to be confused with [object ownership](../objects/object-ownership/object-ownership.mdx) in the IOTA framework.
 :::
 
-Move's ownership and scope management was inspired from [Rust](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html): Every variable in Move has a scope and an owner. The scope is the range of code where the variable
-is valid, and the owner is the scope that this variable belongs to. Once the owner scope ends, the
+Move's ownership and scope management was inspired by [Rust](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html): Every variable in Move has a scope and an owner. The scope is the range of code where the variable
+is valid, and the owner is the scope that this variable belongs to. Once the owner’s scope ends, the
 variable is dropped. This is a fundamental concept in Move, and it is important to understand how it
 works.
 
@@ -13,7 +13,7 @@ works.
 ## Ownership
 
 A variable defined in a function scope is owned by this scope. The runtime goes through the function
-scope and executes every expression and statement. Once the function scope end, the variables
+scope and executes every expression and statement. Once the function scope ends, the variables
 defined in it are dropped or deallocated.
 
 ```move
