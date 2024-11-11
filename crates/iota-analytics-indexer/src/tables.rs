@@ -29,7 +29,6 @@ pub(crate) struct CheckpointEntry {
     // gas stats
     pub(crate) total_gas_cost: i64,
     pub(crate) computation_cost: u64,
-    pub(crate) computation_cost_burned: u64,
     pub(crate) storage_cost: u64,
     pub(crate) storage_rebate: u64,
     pub(crate) non_refundable_storage_fee: u64,
@@ -88,7 +87,6 @@ pub(crate) struct TransactionEntry {
     pub(crate) gas_budget: u64,
     pub(crate) total_gas_cost: i64,
     pub(crate) computation_cost: u64,
-    pub(crate) computation_cost_burned: u64,
     pub(crate) storage_cost: u64,
     pub(crate) storage_rebate: u64,
     pub(crate) non_refundable_storage_fee: u64,
