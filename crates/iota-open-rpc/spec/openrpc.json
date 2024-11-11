@@ -104,6 +104,7 @@
                 "executedEpoch": "0",
                 "gasUsed": {
                   "computationCost": "100",
+                  "computationCostBurned": "100",
                   "storageCost": "100",
                   "storageRebate": "10",
                   "nonRefundableStorageFee": "0"
@@ -247,6 +248,7 @@
                 "executedEpoch": "0",
                 "gasUsed": {
                   "computationCost": "100",
+                  "computationCostBurned": "100",
                   "storageCost": "100",
                   "storageRebate": "10",
                   "nonRefundableStorageFee": "0"
@@ -450,6 +452,7 @@
                 "executedEpoch": "0",
                 "gasUsed": {
                   "computationCost": "100",
+                  "computationCostBurned": "100",
                   "storageCost": "100",
                   "storageRebate": "10",
                   "nonRefundableStorageFee": "0"
@@ -578,6 +581,7 @@
               "previousDigest": "6tBy8RXZKrdrB4XkMQn7J3MNG4fQCo9XcRduFFvYrL5Z",
               "epochRollingGasCostSummary": {
                 "computationCost": "0",
+                "computationCostBurned": "0",
                 "storageCost": "0",
                 "storageRebate": "0",
                 "nonRefundableStorageFee": "0"
@@ -663,6 +667,7 @@
                   "previousDigest": "8BLFxLTjWZ2KqaGc3FjR1o9aL6kbyYrmhuNfJLU1ehYt",
                   "epochRollingGasCostSummary": {
                     "computationCost": "0",
+                    "computationCostBurned": "0",
                     "storageCost": "0",
                     "storageRebate": "0",
                     "nonRefundableStorageFee": "0"
@@ -682,6 +687,7 @@
                   "previousDigest": "6Pn25cieaE62AT6BwCeBoca13AGZuneucaaTGqt3gNCo",
                   "epochRollingGasCostSummary": {
                     "computationCost": "0",
+                    "computationCostBurned": "0",
                     "storageCost": "0",
                     "storageRebate": "0",
                     "nonRefundableStorageFee": "0"
@@ -701,6 +707,7 @@
                   "previousDigest": "CnHTfdUJr1UUqwXkYUhbQjXeM16xR33UR62jE72toCis",
                   "epochRollingGasCostSummary": {
                     "computationCost": "0",
+                    "computationCostBurned": "0",
                     "storageCost": "0",
                     "storageRebate": "0",
                     "nonRefundableStorageFee": "0"
@@ -720,6 +727,7 @@
                   "previousDigest": "38fLUfuigyzLPEDrsmRhcQmhKtbEUohuFBP9NDcWBmFz",
                   "epochRollingGasCostSummary": {
                     "computationCost": "0",
+                    "computationCostBurned": "0",
                     "storageCost": "0",
                     "storageRebate": "0",
                     "nonRefundableStorageFee": "0"
@@ -2257,6 +2265,7 @@
                 "executedEpoch": "0",
                 "gasUsed": {
                   "computationCost": "100",
+                  "computationCostBurned": "100",
                   "storageCost": "100",
                   "storageRebate": "10",
                   "nonRefundableStorageFee": "0"
@@ -2631,6 +2640,7 @@
                   "executedEpoch": "0",
                   "gasUsed": {
                     "computationCost": "100",
+                    "computationCostBurned": "100",
                     "storageCost": "100",
                     "storageRebate": "10",
                     "nonRefundableStorageFee": "0"
@@ -2747,6 +2757,7 @@
                   "executedEpoch": "0",
                   "gasUsed": {
                     "computationCost": "100",
+                    "computationCostBurned": "100",
                     "storageCost": "100",
                     "storageRebate": "10",
                     "nonRefundableStorageFee": "0"
@@ -2863,6 +2874,7 @@
                   "executedEpoch": "0",
                   "gasUsed": {
                     "computationCost": "100",
+                    "computationCostBurned": "100",
                     "storageCost": "100",
                     "storageRebate": "10",
                     "nonRefundableStorageFee": "0"
@@ -7101,6 +7113,7 @@
         "type": "object",
         "required": [
           "computationCost",
+          "computationCostBurned",
           "nonRefundableStorageFee",
           "storageCost",
           "storageRebate"
@@ -7108,6 +7121,14 @@
         "properties": {
           "computationCost": {
             "description": "Cost of computation/execution",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "computationCostBurned": {
+            "description": "The burned component of the computation/execution costs",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
