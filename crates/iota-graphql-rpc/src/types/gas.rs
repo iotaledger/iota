@@ -111,6 +111,11 @@ impl GasCostSummary {
         Some(BigInt::from(self.computation_cost))
     }
 
+    /// Gas burned for executing this transactions (in NANOS).
+    async fn computation_cost_burned(&self) -> Option<BigInt> {
+        Some(BigInt::from(self.computation_cost_burned))
+    }
+
     /// Gas paid for the data stored on-chain by this transaction (in NANOS).
     async fn storage_cost(&self) -> Option<BigInt> {
         Some(BigInt::from(self.storage_cost))
