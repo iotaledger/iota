@@ -1,7 +1,7 @@
 # Docs site
 
 For more complete docs, visit the
-[IOTA TypeScript SDK docs](https://docs.iota.org/references/ts-sdk/)
+[IOTA TypeScript SDK docs](https://docs.iota.org/references/ts-sdk/typescript/)
 
 # IOTA TypeScript SDK
 
