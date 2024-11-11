@@ -3,27 +3,18 @@
 'use client';
 
 import { Notifications } from '@/components/index';
-import React, { useEffect, useState, type PropsWithChildren } from 'react';
+import React, { useEffect, type PropsWithChildren } from 'react';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import { Button } from '@iota/apps-ui-kit';
 import { redirect } from 'next/navigation';
 import { Sidebar } from './components';
 import { TopNav } from './components/top-nav/TopNav';
+import { useTheme } from '@/contexts';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
-    const [isDarkMode, setIsDarkMode] = useState(false);
     const { connectionStatus } = useCurrentWallet();
+    const { theme, toggleTheme } = useTheme();
     const account = useCurrentAccount();
-
-    const toggleDarkMode = () => {
-        setIsDarkMode(!isDarkMode);
-        if (isDarkMode) {
-            document.documentElement.classList.remove('dark');
-        } else {
-            document.documentElement.classList.add('dark');
-        }
-    };
-
     useEffect(() => {
         if (connectionStatus !== 'connected' && !account) {
             redirect('/');
@@ -36,15 +27,18 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
                 <Sidebar />
             </div>
 
-            <div className="container relative min-h-screen">
+            <div className="container relative flex min-h-screen flex-col">
                 <div className="sticky top-0">
                     <TopNav />
                 </div>
-                <div>{children}</div>
+                <div className="flex-1 py-md--rs">{children}</div>
             </div>
 
             <div className="fixed bottom-5 right-5">
-                <Button onClick={toggleDarkMode} text={isDarkMode ? 'Light Mode' : 'Dark Mode'} />
+                <Button
+                    onClick={toggleTheme}
+                    text={`${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+                />
             </div>
 
             <Notifications />

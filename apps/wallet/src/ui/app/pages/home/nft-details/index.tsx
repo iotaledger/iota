@@ -72,19 +72,26 @@ function NFTDetailsPage() {
         navigate(`/nft-transfer/${nftId}`);
     }
 
-    function formatMetaValue(value: string) {
-        if (value.includes('http')) {
+    function formatMetaValue(value: string | object) {
+        if (typeof value === 'object') {
             return {
-                value: value.startsWith('http')
-                    ? truncateString(value, 20, 8)
-                    : formatAddress(value),
-                valueLink: value,
+                value: JSON.stringify(value),
+                valueLink: undefined,
+            };
+        } else {
+            if (value.includes('http')) {
+                return {
+                    value: value.startsWith('http')
+                        ? truncateString(value, 20, 8)
+                        : formatAddress(value),
+                    valueLink: value,
+                };
+            }
+            return {
+                value: value,
+                valueLink: undefined,
             };
         }
-        return {
-            value: value,
-            valueLink: undefined,
-        };
     }
 
     return (
