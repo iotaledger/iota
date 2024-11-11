@@ -35,7 +35,7 @@ This document is focused on using Validator Tool.
       b. `active_address` is correct in `client.yaml`.
       b. `iota.keystore` contains your account key pair.
 
-   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://wiki.iota.org/devnet/build/cli-client).
+   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://docs.iota.org/references/cli/client).
 
 ```bash
 $IOTA_BINARY client
