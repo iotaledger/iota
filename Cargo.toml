@@ -169,7 +169,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "0.5.0-alpha"
+version = "0.6.0-alpha"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
@@ -417,7 +417,7 @@ iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 # core-types with json format for REST API
-iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "dd7b331a5ec62fd5e810051d19f31dff90ea7e3f", features = ["hash", "serde", "schemars"] }
+iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "d605da95029e74376f0f39a95526bb1a5c0ebd7a", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

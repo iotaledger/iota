@@ -171,6 +171,7 @@ describe('useSignAndExecuteTransaction', () => {
                 executedEpoch: 1,
                 gasUsed: {
                     computationCost: 1,
+                    computationCostBurned: 1,
                     storageCost: 1,
                     storageRebate: 1,
                     nonRefundableStorageFee: 1,

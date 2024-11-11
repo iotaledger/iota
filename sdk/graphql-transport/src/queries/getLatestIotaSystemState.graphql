@@ -12,6 +12,7 @@ query getLatestIotaSystemState {
             enabled
             gasSummary {
                 computationCost
+                computationCostBurned
                 nonRefundableStorageFee
                 storageCost
                 storageRebate

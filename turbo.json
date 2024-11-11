@@ -28,6 +28,19 @@
 				"!.next/cache/**",
 				"pkg/**"
 			]
+		},
+		"build:rc": {
+			"dependsOn": [
+				"^build"
+			],
+			"outputs": [
+				"build/**",
+				"dist/**",
+				"storybook-static/**",
+				".next/**",
+				"!.next/cache/**",
+				"pkg/**"
+			]
 		}
 	},
 	"globalEnv": [

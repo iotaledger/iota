@@ -29,6 +29,7 @@ pub(crate) struct CheckpointEntry {
     // gas stats
     pub(crate) total_gas_cost: i64,
     pub(crate) computation_cost: u64,
+    pub(crate) computation_cost_burned: u64,
     pub(crate) storage_cost: u64,
     pub(crate) storage_rebate: u64,
     pub(crate) non_refundable_storage_fee: u64,
@@ -87,6 +88,7 @@ pub(crate) struct TransactionEntry {
     pub(crate) gas_budget: u64,
     pub(crate) total_gas_cost: i64,
     pub(crate) computation_cost: u64,
+    pub(crate) computation_cost_burned: u64,
     pub(crate) storage_cost: u64,
     pub(crate) storage_rebate: u64,
     pub(crate) non_refundable_storage_fee: u64,
@@ -171,7 +173,6 @@ pub(crate) struct ObjectEntry {
     pub(crate) object_status: ObjectStatus,
     pub(crate) initial_shared_version: Option<u64>,
     pub(crate) previous_transaction: String,
-    pub(crate) has_public_transfer: bool,
     pub(crate) storage_rebate: Option<u64>,
     // raw object bytes
     // pub(crate) bcs: Vec<u8>,

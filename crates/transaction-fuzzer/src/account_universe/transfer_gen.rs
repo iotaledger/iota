@@ -29,8 +29,8 @@ use crate::{
 const GAS_UNIT_PRICE: u64 = 2;
 const DEFAULT_TRANSFER_AMOUNT: u64 = 1;
 const P2P_COMPUTE_GAS_USAGE: u64 = 1000;
-const P2P_SUCCESS_STORAGE_USAGE: u64 = 1976000;
-const P2P_FAILURE_STORAGE_USAGE: u64 = 988000;
+const P2P_SUCCESS_STORAGE_USAGE: u64 = 1976000 - 15200; // this needs to be adapted if the size of objects changes
+const P2P_FAILURE_STORAGE_USAGE: u64 = 988000 - 7600; // this needs to be adapted if the size of objects change
 const INSUFFICIENT_GAS_UNITS_THRESHOLD: u64 = 2;
 
 static PROTOCOL_CONFIG: Lazy<ProtocolConfig> =

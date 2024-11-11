@@ -74,9 +74,22 @@ impl Loader<u64> for Db {
             .await
             .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
         let governance_api = GovernanceReadApi::new(self.inner.clone());
-        let exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
+
+        let pending_validators_exchange_rate = governance_api
+            .pending_validators_exchange_rate()
+            .await
+            .map_err(|e| {
+                Error::Internal(format!(
+                    "Error fetching pending validators exchange rates. {e}"
+                ))
+            })?;
+
+        let mut exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
             .await
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
+
+        exchange_rates.extend(pending_validators_exchange_rate.into_iter());
+
         let mut results = BTreeMap::new();
 
         // The requested epoch is the epoch for which we want to compute the APY. For
