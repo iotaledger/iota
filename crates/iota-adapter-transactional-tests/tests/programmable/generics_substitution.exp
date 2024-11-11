@@ -7,7 +7,7 @@ task 1, lines 9-27:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5449200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5449200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 28-37:
 //# programmable
@@ -20,7 +20,7 @@ task 2, lines 28-37:
 //> test::m1::eat(NestedResult(4,1), NestedResult(4,0), NestedResult(4,1));
 // invalid
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, lines 38-45:
 //# programmable

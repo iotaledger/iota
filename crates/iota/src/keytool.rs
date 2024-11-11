@@ -605,14 +605,14 @@ impl KeyToolCommand {
                                 ));
                             }
                             keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
-                        },
+                        }
                         Err(_) => {
                             info!("Importing mnemonic to keystore");
                             keystore.import_from_mnemonic(
                                 &input_string,
                                 key_scheme,
                                 derivation_path,
-                                alias
+                                alias,
                             )?
                         }
                     };
@@ -621,7 +621,7 @@ impl KeyToolCommand {
                     let key = Key::from(ikp);
                     CommandOutput::Import(key)
                 }
-            }
+            },
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
                 let ikp = keystore.get_key(&address)?;
@@ -798,8 +798,7 @@ impl KeyToolCommand {
                 CommandOutput::SignKMS(SerializedSig {
                     serialized_sig_base64: serialized_sig,
                 })
-            }
-            /* Commented for now: https://github.com/iotaledger/iota/issues/1777
+            } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
                *     let msg = PersonalMessage {
                *         message: data.as_bytes().to_vec(),
@@ -1106,10 +1105,10 @@ impl KeyToolCommand {
                * e))?,                     )?; */
 
               /*                     let sig =
-               * GenericSignature::ZkLoginAuthenticator(zk.clone());               
-               * let res = sig.verify_authenticator(                         
-               * &IntentMessage::new(                             
-               * Intent::iota_transaction(),                             
+               * GenericSignature::ZkLoginAuthenticator(zk.clone());
+               * let res = sig.verify_authenticator(
+               * &IntentMessage::new(
+               * Intent::iota_transaction(),
                * tx_data.clone(),                         ),
                *                         tx_data.execution_parts().1,
                *                         cur_epoch.unwrap(),
@@ -1126,8 +1125,8 @@ impl KeyToolCommand {
                *                     }; */
 
               /*                     let sig =
-               * GenericSignature::ZkLoginAuthenticator(zk.clone());               
-               * let res = sig.verify_authenticator(                         
+               * GenericSignature::ZkLoginAuthenticator(zk.clone());
+               * let res = sig.verify_authenticator(
                * &IntentMessage::new(Intent::personal_message(), data.clone()),
                *                         (&zk).try_into()?,
                *                         cur_epoch.unwrap(),

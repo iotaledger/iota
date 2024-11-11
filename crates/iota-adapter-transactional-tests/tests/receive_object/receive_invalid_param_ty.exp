@@ -4,13 +4,13 @@ task 1, lines 7-42:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 8512000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8512000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 44:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3397200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3397200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 46:
 //# view-object 2,0
@@ -73,7 +73,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 12, line 64:
 //# run tto::M1::receiver6 --args receiving(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 13, line 66:
 //# run tto::M1::receiver6 --args 0
