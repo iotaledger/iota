@@ -8,12 +8,12 @@ Client dApp using the following tools:
 - [Vite](https://vitejs.dev/) for build tooling
 - [Radix UI](https://www.radix-ui.com/) for pre-built UI components
 - [ESLint](https://eslint.org/) for linting
-- [`@iota/dapp-kit`](https://wiki.iota.org/references/ts-sdk/dapp-kit) for
+- [`@iota/dapp-kit`](https://docs.iota.org/references/ts-sdk/dapp-kit) for
   connecting to wallets and loading data
 - [pnpm](https://pnpm.io/) for package management
 
 For a full guide on how to build this dApp from scratch, visit this
-[guide](http://wiki.iota.org/guides/developer/app-examples/e2e-counter#frontend).
+[guide](http://docs.iota.org/guides/developer/app-examples/e2e-counter#frontend).
 
 ## Deploying your Move code
 

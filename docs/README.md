@@ -1,6 +1,6 @@
 ## Overview
 
-This directory contains the assets required to build and update the [IOTA documentation](https://wiki.iota.org). The directory is split between `content` and `site`. To run the site locally, open the root directory in a terminal or console. Use a package manager to install the required modules:
+This directory contains the assets required to build and update the [IOTA documentation](https://docs.iota.org). The directory is split between `content` and `site`. To run the site locally, open the root directory in a terminal or console. Use a package manager to install the required modules:
 
 ```shell
 pnpm install
