@@ -21,3 +21,4 @@ packages:
   - "!sdk/typescript/utils"
   - "!sdk/typescript/verify"
   - "!sdk/move-bytecode-template/pkg"
+  - '!sdk/typescript/graphql/schemas/2024.11'

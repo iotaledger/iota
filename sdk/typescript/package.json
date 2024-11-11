@@ -76,9 +76,9 @@
             "import": "./dist/esm/verify/index.js",
             "require": "./dist/cjs/verify/index.js"
         },
-        "./graphql/schemas/2024.10": {
-            "import": "./dist/esm/graphql/schemas/2024.10/index.js",
-            "require": "./dist/cjs/graphql/schemas/2024.10/index.js"
+        "./graphql/schemas/2024.11": {
+            "import": "./dist/esm/graphql/schemas/2024.11/index.js",
+            "require": "./dist/cjs/graphql/schemas/2024.11/index.js"
         }
     },
     "scripts": {

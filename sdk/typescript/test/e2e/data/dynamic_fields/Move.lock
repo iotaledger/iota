@@ -22,6 +22,6 @@ name = "MoveStdlib"
 source = { local = "../../../../../../crates/iota-framework/packages/move-stdlib" }
 
 [move.toolchain-version]
-compiler-version = "0.4.0"
+compiler-version = "0.6.0-alpha"
 edition = "2024.beta"
 flavor = "iota"
