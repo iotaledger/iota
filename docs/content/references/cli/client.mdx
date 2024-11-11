@@ -210,7 +210,7 @@ Both `pay` and `transfer` have a few sister commands: `pay-iota`, `pay-all-iota`
 
 The differences between these commands are:
 - commands that end in `-iota` deal with Iota's native coin, and they use the input coints to pay for gas and for transferring IOTA or the object.
-- `pay-` commands typically deal with coins and handle coin merging for you, whereas `transfer` commands can handle the transfer of any object that has public transfer, meaning any object that has the `store` ability.
+- `pay-` commands typically deal with coins and handle (coin merging)[../../developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging.mdx] for you, whereas `transfer` commands can handle the transfer of any object that has public transfer, meaning any object that has the `store` ability.
 - `pay` commands allow you to send coins to multiple recipients, whereas `transfer` commands only accept one recipient.
 - `pay-all-iota` is a special case of `pay-iota` that offers a way to transfer the entire balance after smashing.
 - `transfer-iota` is a legacy command and has been entirely superseded by `pay-iota` or `pay-all-iota` depending on whether an amount is specified or not.

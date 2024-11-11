@@ -145,7 +145,7 @@ txb.transferObjects([mintMany[0], mintMany[1]], txb.pure(address));
 
 ## Using the Gas Coin
 
-With PTBs, you can use the gas payment coin to create coins with a specific balance using [`splitCoin`](prog-txn-blocks.mdx#splitcoins.
+With PTBs, you can use the gas payment coin to create coins with a specific balance using [`splitCoin`](prog-txn-blocks.mdx#splitcoins).
 This is useful for IOTA payments and eliminates the need for upfront coin selection. 
 You can access the gas coin in a PTB using `txb.gas`, and it's valid as input for any arguments.
 However, with `transferObjects`, `txb.gas` must be used by reference.
