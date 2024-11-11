@@ -1607,7 +1607,7 @@
                   "u64": "2"
                 },
                 "execution_version": {
-                  "u64": "0"
+                  "u64": "1"
                 },
                 "gas_model_version": {
                   "u64": "1"

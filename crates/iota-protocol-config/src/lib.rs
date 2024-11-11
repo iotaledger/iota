@@ -1526,7 +1526,7 @@ impl ProtocolConfig {
 
             gas_rounding_step: Some(1_000),
 
-            execution_version: Some(0),
+            execution_version: Some(1),
 
             // We maintain the same total size limit for events, but increase the number of
             // events that can be emitted.

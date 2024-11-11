@@ -464,8 +464,8 @@ def generate_lib(output_file: TextIO):
     Generates the contents of iota-execution/src/lib.rs to assign a numeric
     execution version for every module that implements an execution version.
 
-    Version snapshots (whose names follow the pattern `/v[0-9]+/`) are assigned
-    versions according to their names (v0 gets 0, v1 gets 1, etc).
+    Version snapshots (whose names follow the pattern `/v[1-9][0-9]*/`) are assigned
+    versions according to their names (v1 gets 1, v2 gets 2, etc).
 
     `latest` gets the next version after all version snapshots.
 
@@ -551,7 +551,7 @@ def discover_cuts():
       used to easily export the versions for features.
     - The 2nd element is the name of the module.
 
-    Snapshot cuts (with names following the pattern /latest|v[0-9]+/)
+    Snapshot cuts (with names following the pattern /latest|v[1-9][0-9]*/)
     are assigned version numbers according to their name (with latest
     getting the version one higher than the highest occupied snapshot
     version).
@@ -568,7 +568,7 @@ def discover_cuts():
     for f in src.iterdir():
         if not f.is_file() or f.stem in NOT_A_CUT:
             continue
-        elif re.match(r"latest|v[0-9]+", f.stem):
+        elif re.match(r"latest|v[1-9][0-9]*", f.stem):
             snapshots.append(f)
         else:
             features.append(f)
@@ -589,7 +589,7 @@ def discover_cuts():
     cuts = []
     if single_snapshot:
         # If there is only one snapshot it should be latest
-        cuts.append((str(0), None, "latest"))
+        cuts.append((str(1), None, "latest"))
     else:
         for snapshot in snapshots:
             mod = snapshot.stem
