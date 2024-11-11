@@ -6,7 +6,7 @@ This document is focused on using Validator Tool.
 
 ## Preparation
 
-1. Make sure you have completed all the [prerequisites](https://wiki.iota.org/devnet/build/install).
+1. Make sure you have completed all the [prerequisites](https://docs.iota.org/developer/getting-started/install-iota#prerequisites).
 
 2. Build the `iota` binary, which you will need for the genesis ceremony. This step can be done on any machine you like. It does not have to be done on the machine on which you will run the validator.
 

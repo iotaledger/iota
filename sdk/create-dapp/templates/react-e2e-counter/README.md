@@ -21,7 +21,7 @@ For a full guide on how to build this dApp from scratch, visit this
 
 Before deploying your move code, ensure that you have installed the IOTA CLI.
 You can follow the
-[IOTA installation instruction](https://wiki.iota.org/build/install) to get
+[IOTA installation instruction](https://docs.iota.org/developer/getting-started/install-iota) to get
 everything set up.
 
 This template uses `testnet` by default, so we'll need to set up a testnet

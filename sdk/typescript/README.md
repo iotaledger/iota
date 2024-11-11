@@ -126,7 +126,7 @@ await client.getCoins({
 
 For local development, you can run `cargo run --bin --with-faucet --force-regenesis` to spin up a
 local network with a local validator, a fullnode, and a faucet server. Refer to
-[this guide](https://wiki.iota.org/build/iota-local-network) for more information.
+[this guide](https://docs.iota.org/developer/getting-started/local-network) for more information.
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
@@ -172,7 +172,7 @@ await requestIotaFromFaucetV0({
 ## Writing APIs
 
 For a primer for building transactions, refer to
-[this guide](https://wiki.iota.org/build/prog-trans-ts-sdk).
+[this guide](https://docs.iota.org/references/ts-sdk/typescript/transaction-building/basics).
 
 ### Transfer Object
 
