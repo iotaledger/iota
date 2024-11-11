@@ -15,7 +15,6 @@ pub mod executor;
 pub mod verifier;
 
 mod latest;
-mod v0;
 
 #[cfg(test)]
 mod tests;
@@ -27,9 +26,7 @@ pub fn executor(
 ) -> IotaResult<Arc<dyn Executor + Send + Sync>> {
     let version = protocol_config.execution_version_as_option().unwrap_or(0);
     Ok(match version {
-        0 => Arc::new(v0::Executor::new(protocol_config, silent, enable_profiler)?),
-
-        1 => Arc::new(latest::Executor::new(
+        0 => Arc::new(latest::Executor::new(
             protocol_config,
             silent,
             enable_profiler,
@@ -47,8 +44,7 @@ pub fn verifier<'m>(
     let version = protocol_config.execution_version_as_option().unwrap_or(0);
     let config = protocol_config.verifier_config(for_signing);
     match version {
-        0 => Box::new(v0::Verifier::new(config, metrics)),
-        1 => Box::new(latest::Verifier::new(config, metrics)),
+        0 => Box::new(latest::Verifier::new(config, metrics)),
         v => panic!("Unsupported execution version {v}"),
     }
 }
