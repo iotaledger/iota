@@ -585,17 +585,22 @@ def discover_cuts():
     snapshots.sort(key=snapshot_key)
     features.sort(key=feature_key)
 
+    single_snapshot = len(snapshots) == 1
     cuts = []
-    for snapshot in snapshots:
-        mod = snapshot.stem
-        if mod != "latest":
-            cuts.append((mod[1:], None, mod))
-            continue
+    if single_snapshot:
+        # If there is only one snapshot it should be latest
+        cuts.append((str(0), None, "latest"))
+    else:
+        for snapshot in snapshots:
+            mod = snapshot.stem
+            if mod != "latest":
+                cuts.append((mod[1:], None, mod))
+                continue
 
-        # Latest gets one higher version than any other snapshot
-        # version we've assigned so far
-        ver = 1 + max(int(v) for (v, _, _) in cuts)
-        cuts.append((str(ver), None, "latest"))
+            # Latest gets one higher version than any other snapshot
+            # version we've assigned so far
+            ver = 1 + max(int(v) for (v, _, _) in cuts)
+            cuts.append((str(ver), None, "latest"))
 
     # "Feature" cuts are not intended to be used on production
     # networks, so stability is not as important for them, they are
