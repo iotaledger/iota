@@ -72,7 +72,7 @@ render(<UseReportTransactionEffectsExample/>)
 ## Arguments
 
 - `effects`: The effects of an executed transaction. This can either be the `rawEffects` returned
-  from the JSON-RPC `executeTransactionBlock` method (returned when showRawEffects is set to true),
+  from the JSON-RPC `executeTransaction` method (returned when showRawEffects is set to true),
   or the `effects.bcs` when executing with the GraphQL API.
 - `chain`: (optional) The chain identifier the transaction was executed on.
 - `account` (optional) the account that signed the transaction, defaults to the currently connected
