@@ -498,6 +498,7 @@ FullCheckpointContents:
 GasCostSummary:
   STRUCT:
     - computationCost: U64
+    - computationCostBurned: U64
     - storageCost: U64
     - storageRebate: U64
     - nonRefundableStorageFee: U64

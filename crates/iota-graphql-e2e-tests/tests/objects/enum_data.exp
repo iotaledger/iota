@@ -7,7 +7,7 @@ task 1, lines 7-55:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 10495600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10495600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 57-59:
 //# programmable --inputs @A
@@ -15,7 +15,7 @@ task 2, lines 57-59:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 3017200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3017200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 61:
 //# create-checkpoint
