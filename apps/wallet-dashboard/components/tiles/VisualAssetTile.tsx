@@ -14,7 +14,7 @@ interface AssetCardProps extends Pick<VisualAssetCardProps, 'onClick' | 'onIconC
     flexDirection?: FlexDirection;
 }
 
-export function AssetCard({
+export function VisualAssetTile({
     asset,
     onClick,
     onIconClick,

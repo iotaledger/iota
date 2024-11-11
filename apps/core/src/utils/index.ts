@@ -15,6 +15,12 @@ export * from './filterAndSortTokenBalances';
 export * from './getOwnerDisplay';
 export * from './parseAmount';
 export * from './parseObjectDetails';
+export * from './getStakeIotaByIotaId';
+export * from './getTokenStakeIotaForValidator';
+export * from './getDelegationDataByStakeId';
+export * from './api-env';
+export * from './getExplorerPaths';
+export * from './getExplorerLink';
 
 export * from './stake';
 export * from './transaction';

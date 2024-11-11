@@ -2,21 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    calculateStakeShare,
-    formatPercentageDisplay,
-    useGetDelegatedStake,
-    useGetValidatorsApy,
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-    useFormatCoin,
-} from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { useMemo } from 'react';
+import { formatPercentageDisplay, useGetStakingValidatorDetails } from '@iota/core';
 import { useSearchParams } from 'react-router-dom';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
-import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator';
 import {
     InfoBox,
     InfoBoxStyle,
@@ -26,7 +14,6 @@ import {
     TooltipPosition,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Warning } from '@iota/ui-icons';
 
 interface ValidatorFormDetailProps {
@@ -38,67 +25,29 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
     const accountAddress = useActiveAddress();
     const [searchParams] = useSearchParams();
     const stakeIdParams = searchParams.get('staked');
-    const {
-        data: system,
-        isPending: loadingValidators,
-        isError: errorValidators,
-    } = useIotaClientQuery('getLatestIotaSystemState');
 
     const {
-        data: stakeData,
-        isPending,
-        isError,
-        error,
-    } = useGetDelegatedStake({
-        address: accountAddress || '',
-        staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
-        refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+        totalStakePercentage,
+        validatorApy: { apy, isApyApproxZero },
+        totalValidatorsStake: [totalValidatorStakeFormatted, totalValidatorStakeSymbol],
+        totalStake: [totalStakeFormatted, totalStakeSymbol],
+        delegatedStakeDataResult,
+        systemDataResult,
+    } = useGetStakingValidatorDetails({
+        accountAddress,
+        validatorAddress,
+        stakeId: stakeIdParams,
+        unstake,
     });
 
-    const { data: rollingAverageApys } = useGetValidatorsApy();
+    const {
+        isLoading: isLoadingDelegatedStake,
+        isError: isDelegatedStakeErrored,
+        error: delegatedStakeError,
+    } = delegatedStakeDataResult;
+    const { isLoading: isLoadingSystemData, isError: isSystemDataErrored } = systemDataResult;
 
-    const validatorData = useMemo(() => {
-        if (!system) return null;
-        return system.activeValidators.find((av) => av.iotaAddress === validatorAddress);
-    }, [validatorAddress, system]);
-
-    //TODO: verify this is the correct validator stake balance
-    const totalValidatorStake = validatorData?.stakingPoolIotaBalance || 0;
-
-    const totalStake = useMemo(() => {
-        if (!stakeData) return 0n;
-        return unstake
-            ? getStakeIotaByIotaId(stakeData, stakeIdParams)
-            : getTokenStakeIotaForValidator(stakeData, validatorAddress);
-    }, [stakeData, stakeIdParams, unstake, validatorAddress]);
-
-    const totalValidatorsStake = useMemo(() => {
-        if (!system) return 0;
-        return system.activeValidators.reduce(
-            (acc, curr) => (acc += BigInt(curr.stakingPoolIotaBalance)),
-            0n,
-        );
-    }, [system]);
-
-    const totalStakePercentage = useMemo(() => {
-        if (!system || !validatorData) return null;
-
-        return calculateStakeShare(
-            BigInt(validatorData.stakingPoolIotaBalance),
-            BigInt(totalValidatorsStake),
-        );
-    }, [system, totalValidatorsStake, validatorData]);
-
-    const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
-        apy: null,
-    };
-    const [totalValidatorStakeFormatted, totalValidatorStakeSymbol] = useFormatCoin(
-        totalValidatorStake,
-        IOTA_TYPE_ARG,
-    );
-    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
-
-    if (isPending || loadingValidators) {
+    if (isLoadingDelegatedStake || isLoadingSystemData) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
                 <LoadingIndicator />
@@ -106,11 +55,11 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         );
     }
 
-    if (isError || errorValidators) {
+    if (isDelegatedStakeErrored || isSystemDataErrored) {
         return (
             <InfoBox
                 type={InfoBoxType.Error}
-                title={error?.message ?? 'Error loading validator data'}
+                title={delegatedStakeError?.message ?? 'Error loading validator data'}
                 icon={<Warning />}
                 style={InfoBoxStyle.Elevated}
             />
