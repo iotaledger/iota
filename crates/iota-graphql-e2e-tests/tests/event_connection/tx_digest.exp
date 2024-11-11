@@ -7,24 +7,24 @@ task 1, lines 11-27:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 4795600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 4788000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 29:
 //# run Test::M1::no_emit --sender A --args 0
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 31:
 //# run Test::M1::emit_2 --sender A --args 2
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [2, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [3, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 33:
 //# run Test::M1::emit_2 --sender B --args 4
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: B, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [4, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: B, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [5, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 5, line 35:
 //# create-checkpoint
@@ -37,19 +37,19 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "6jJ5GyPr9B7aW4NTEwGJUeWX9RT2pjnXL1by8J2Qk7xV"
+          "digest": "CmPeQ2JKFnEKeZsYz9cYU8q57Wb1fgZxpDqYq9YinuQA"
         },
         {
-          "digest": "A7J7tmEk4Kceps4eLVsZa64cajF6SpvEKRUbRN33rRDi"
+          "digest": "Cr67aCWwfbpbrQvsdhniTfA6v6wEbyTA5cwKr7MeVo6h"
         },
         {
-          "digest": "dF5dZTYwVWLpHk1YmZXxdmmNMKiG5SPcUExet74jNbK"
+          "digest": "F9dhDrsiFxBWatoDNmExL7PQQW6xBzpAj8iyqbzAagXj"
         },
         {
-          "digest": "CdAwFF4z5yJrnXiW355M5RoMJmDH8QoepxEn2RVYYUnD"
+          "digest": "EkH8TQ1xRv4Lj4wtD4kRuZrsPYP2vGKSk2mtbeENDGsn"
         },
         {
-          "digest": "3fQU9EzJK2yvix8asgCZCwv68ugGPWqxjxuhYrPvDm8n"
+          "digest": "9oZ3VdEUep1tbAAHbrACiQEPuRAwvXYU4m3TrViQSB5v"
         }
       ]
     }

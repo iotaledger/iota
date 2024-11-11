@@ -117,9 +117,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     let wallet_conf =
         PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
 
-    assert!(!wallet_conf.envs.is_empty());
+    assert!(!wallet_conf.envs().is_empty());
 
-    assert_eq!(5, wallet_conf.keystore.addresses().len());
+    assert_eq!(5, wallet_conf.keystore().addresses().len());
 
     // Genesis 2nd time should fail
     let result = IotaCommand::Genesis {
@@ -190,9 +190,9 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let wallet_conf =
         PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
 
-    assert!(!wallet_conf.envs.is_empty());
+    assert!(!wallet_conf.envs().is_empty());
 
-    assert_eq!(5, wallet_conf.keystore.addresses().len());
+    assert_eq!(5, wallet_conf.keystore().addresses().len());
 
     temp_dir.close()?;
     Ok(())
@@ -206,8 +206,8 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     // Add 3 accounts
     for _ in 0..3 {
         context
-            .config
-            .keystore
+            .config_mut()
+            .keystore_mut()
             .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
     }
 
@@ -229,8 +229,8 @@ async fn test_objects_command() -> Result<(), anyhow::Error> {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
     // Print objects owned by `address`
@@ -467,7 +467,7 @@ async fn test_custom_genesis() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let context = cluster.wallet_mut();
 
-    assert_eq!(1, context.config.keystore.addresses().len());
+    assert_eq!(1, context.config().keystore().addresses().len());
 
     // Print objects owned by `address`
     IotaClientCommands::Objects {
@@ -530,8 +530,8 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
 
@@ -2411,7 +2411,7 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
     );
 
     // Wipe all the address info
-    context.config.active_address = None;
+    context.config_mut().set_active_address(None);
 
     // Create a new address
     let os = IotaClientCommands::NewAddress {
@@ -2458,8 +2458,8 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
     // keypairs loaded from config are Ed25519
     assert_eq!(
         context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .keys()
             .iter()
             .filter(|k| k.flag() == Ed25519IotaSignature::SCHEME.flag())
@@ -2479,8 +2479,8 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
     // new keypair generated is Secp256k1
     assert_eq!(
         context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .keys()
             .iter()
             .filter(|k| k.flag() == Secp256k1IotaSignature::SCHEME.flag())
@@ -2511,7 +2511,13 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
     };
     assert_eq!(a, addr1);
 
-    let addr2 = context.config.keystore.addresses().get(1).cloned().unwrap();
+    let addr2 = context
+        .config()
+        .keystore()
+        .addresses()
+        .get(1)
+        .cloned()
+        .unwrap();
     let resp = IotaClientCommands::Switch {
         address: Some(KeyIdentity::Address(addr2)),
         env: None,
@@ -2531,8 +2537,8 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
 
     // switch back to addr1 by using its alias
     let alias1 = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&addr1)
         .unwrap();
     let resp = IotaClientCommands::Switch {
@@ -2945,8 +2951,8 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     let address1 = test_cluster.get_address_1();
     let context = &mut test_cluster.wallet;
     let alias1 = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address1)
         .unwrap();
     let client = context.get_client().await?;
@@ -3261,8 +3267,8 @@ async fn key_identity_test() {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
 
@@ -4327,9 +4333,10 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
     if let Some(tx_block_response) = start_call_result.tx_block_response() {
         // Assert Balance Changes are present in the response
         assert!(tx_block_response.balance_changes.is_some());
+        // effects are always in the response
+        assert!(tx_block_response.effects.is_some());
 
         // Assert every other field is not present in the response
-        assert!(tx_block_response.effects.is_none());
         assert!(tx_block_response.object_changes.is_none());
         assert!(tx_block_response.events.is_none());
         assert!(tx_block_response.transaction.is_none());

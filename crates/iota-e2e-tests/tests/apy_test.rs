@@ -67,8 +67,8 @@ async fn test_apy() {
     // for that address.
     test_cluster
         .wallet
-        .config
-        .keystore
+        .config_mut()
+        .keystore_mut()
         .add_key(None, IotaKeyPair::Ed25519(keypair))
         .unwrap();
 

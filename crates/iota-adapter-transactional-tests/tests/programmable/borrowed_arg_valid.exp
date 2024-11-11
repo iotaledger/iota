@@ -7,7 +7,7 @@ task 1, lines 9-25:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5388400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5380800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 27-36:
 //# programmable --inputs 0
@@ -21,7 +21,7 @@ task 2, lines 27-36:
 // mix all and borrow multiple times
 //> test::m1::multiple_copy(Input(0), Input(0), Input(0), Input(0));
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, lines 38-41:
 //# programmable
@@ -29,4 +29,4 @@ task 3, lines 38-41:
 // double borrow without copy
 //> test::m1::double_r(Result(0), Result(0))
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0

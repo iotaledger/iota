@@ -7,18 +7,18 @@ task 1, lines 7-13:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5646800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5631600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 14-17:
 //# upgrade --package V0 --upgrade-capability 1,1 --sender A
 created: object(2,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5000800,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 3, lines 19-21:
 //# run iota::package::only_additive_upgrades --args object(1,1) --sender A
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 2622000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2606800,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 4, lines 22-27:
 //# upgrade --package V1 --upgrade-capability 1,1 --sender A --policy compatible
@@ -29,18 +29,18 @@ task 5, lines 28-33:
 //# upgrade --package V1 --upgrade-capability 1,1 --sender A --policy additive
 created: object(5,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5000800,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 6, lines 34-37:
 //# upgrade --package V2 --upgrade-capability 1,1 --sender A --policy dep_only
 created: object(6,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5000800,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 7, lines 39-41:
 //# run iota::package::only_dep_upgrades --args object(1,1) --sender A
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 2622000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2606800,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 8, lines 42-47:
 //# upgrade --package V3 --upgrade-capability 1,1 --sender A --policy compatible
@@ -56,7 +56,7 @@ task 10, lines 54-59:
 //# upgrade --package V3 --upgrade-capability 1,1 --sender A --policy dep_only
 created: object(10,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5000800,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 11, lines 60-62:
 //# run iota::package::only_additive_upgrades --args object(1,1) --sender A
@@ -67,7 +67,7 @@ task 12, line 63:
 //# run iota::package::make_immutable --args object(1,1) --sender A
 mutated: object(0,0)
 deleted: object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 13, lines 65-67:
 //# view-object 1,1

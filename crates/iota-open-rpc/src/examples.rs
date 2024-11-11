@@ -1099,10 +1099,9 @@ impl RpcExampleProvider {
         let resp = IotaObjectResponse::new_with_data(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
-                    unsafe {
+                    {
                         MoveObject::new_from_execution_with_limit(
                             MoveObjectType::from(struct_tag.clone()),
-                            true,
                             SequenceNumber::from_u64(1),
                             Vec::new(),
                             5,

@@ -23,7 +23,6 @@ export function mapGraphQLObjectToRpcObject(
             ? {
                   dataType: 'moveObject' as const,
                   bcsBytes: object.asMoveObject?.contents?.bcs,
-                  hasPublicTransfer: object.asMoveObject?.hasPublicTransfer!,
                   version: object.version as unknown as string,
                   type: toShortTypeString(object.asMoveObject?.contents?.type.repr!),
               }
@@ -39,7 +38,6 @@ export function mapGraphQLObjectToRpcObject(
                 };
                 type: string;
             }),
-            hasPublicTransfer: object.asMoveObject?.hasPublicTransfer!,
         },
         digest: object.digest!,
         display: formatDisplay(object),
@@ -61,7 +59,6 @@ export function mapGraphQLMoveObjectToRpcObject(
             ? {
                   dataType: 'moveObject' as const,
                   bcsBytes: object?.contents?.bcs,
-                  hasPublicTransfer: object?.hasPublicTransfer!,
                   version: object.version as unknown as string,
                   type: toShortTypeString(object?.contents?.type.repr!),
               }
@@ -74,7 +71,6 @@ export function mapGraphQLMoveObjectToRpcObject(
                 };
                 type: string;
             }),
-            hasPublicTransfer: object?.hasPublicTransfer!,
         },
         digest: object.digest!,
         display: formatDisplay(object),
