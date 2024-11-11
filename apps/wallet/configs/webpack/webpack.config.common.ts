@@ -240,7 +240,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 Buffer: ['buffer', 'Buffer'],
             }),
             new SentryWebpackPlugin({
-                org: 'iota-foundation-h4',
+                org: 'iota-foundation-eu',
                 project: 'iota-wallet', // Sentry dev hint: use 'iota-wallet-dev' project for testing
                 include: OUTPUT_ROOT,
                 dryRun: !IS_PROD || !sentryAuthToken,
