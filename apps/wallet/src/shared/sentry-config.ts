@@ -12,8 +12,8 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 const ENABLE_SENTRY = IS_PROD;
 
 const SENTRY_DSN = IS_PROD
-    ? 'https://ca3888d99b4bb1bfd5e5466ba7cc2d8f@o1010134.ingest.us.sentry.io/4508256609697792'
-    : 'https://d80ad35fe98bd767515050181efdec38@o1010134.ingest.us.sentry.io/4508256233848832';
+    ? 'https://36e3e3c59a2e842034b2fc624103b72a@o4508279186718720.ingest.de.sentry.io/4508279958536272'
+    : 'https://36c25e34e606cac787b1536348101976@o4508279186718720.ingest.de.sentry.io/4508279960895568';
 
 export function getSentryConfig({
     integrations,
