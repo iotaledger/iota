@@ -274,7 +274,7 @@ impl TransactionBuilder {
     /// A separate IOTA object will be used for gas payment.
     ///
     /// If the recipient and sender are the same, it's effectively a
-    /// generalized version of `splitCoin` and `mergeCoin`.
+    /// generalized version of `split_coin` and `merge_coin`.
     pub async fn pay(
         &self,
         signer: IotaAddress,
