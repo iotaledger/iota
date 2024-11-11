@@ -7,19 +7,19 @@ task 1, lines 9-73:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 9682400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9682400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 75:
 //# run test::m::parent --sender A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2454800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2454800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 77-79:
 //# run test::m::child --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2272400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 80:
 //# run test::m::add_field --sender A --args object(2,0) object(3,0)
