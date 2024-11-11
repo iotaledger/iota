@@ -20,8 +20,8 @@ export function initSentry() {
     Sentry.init({
         enabled: SENTRY_ENABLED,
         dsn: import.meta.env.PROD
-            ? 'https://e4e27ccfefe0d0dc5b1ccd4b28fd8ce7@o1010134.ingest.us.sentry.io/4508257079590912'
-            : 'https://e2160952da44d9899bcb037bef100872@o1010134.ingest.us.sentry.io/4508256860045312',
+            ? 'https://ce107602e4d122f0639332c7c43fdc08@o4508279186718720.ingest.de.sentry.io/4508279962140752'
+            : 'https://c8085701fa2650fb2a090ed6aba6bc62@o4508279186718720.ingest.de.sentry.io/4508279963320400',
         environment: import.meta.env.VITE_VERCEL_ENV,
         integrations: [
             new Sentry.BrowserTracing({
