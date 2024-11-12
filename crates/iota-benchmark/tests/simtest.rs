@@ -172,11 +172,8 @@ mod test {
         test_cluster.wait_for_epoch_all_nodes(1).await;
     }
 
-    #[ignore("Disabled due to flakiness - re-enable when failure is fixed")]
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_restarts() {
-        // TODO added to invalidate a failing test seed in CI. Remove me
-        tokio::time::sleep(Duration::from_secs(1)).await;
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(4, 1000).await;
         let node_restarter = test_cluster

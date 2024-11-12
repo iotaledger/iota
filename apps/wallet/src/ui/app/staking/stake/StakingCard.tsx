@@ -19,7 +19,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-// import * as Sentry from '@sentry/react';
+import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
 import type { FormikHelpers } from 'formik';
@@ -117,9 +117,9 @@ function StakingCard() {
                     throw new Error('Failed, missing required field');
                 }
 
-                // const sentryTransaction = Sentry.startTransaction({
-                // 	name: 'stake',
-                // });
+                const sentryTransaction = Sentry.startTransaction({
+                    name: 'stake',
+                });
                 try {
                     const transactionBlock = createStakeTransaction(amount, validatorAddress);
                     const tx = await signer.signAndExecuteTransaction({
@@ -135,7 +135,7 @@ function StakingCard() {
                     });
                     return tx;
                 } finally {
-                    // sentryTransaction.finish();
+                    sentryTransaction.finish();
                 }
             },
             onSuccess: (_, { amount, validatorAddress }) => {
@@ -153,25 +153,26 @@ function StakingCard() {
                     throw new Error('Failed, missing required field.');
                 }
 
-                // const sentryTransaction = Sentry.startTransaction({
-                // 	name: 'stake',
-                // });
-                const transactionBlock = createUnstakeTransaction(stakedIotaId);
-                const tx = await signer.signAndExecuteTransaction({
-                    transactionBlock,
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
+                const sentryTransaction = Sentry.startTransaction({
+                    name: 'stake',
                 });
-                await signer.client.waitForTransaction({
-                    digest: tx.digest,
-                });
-                return tx;
-                // finally {
-                // 	sentryTransaction.finish();
-                // }
+                try {
+                    const transactionBlock = createUnstakeTransaction(stakedIotaId);
+                    const tx = await signer.signAndExecuteTransaction({
+                        transactionBlock,
+                        options: {
+                            showInput: true,
+                            showEffects: true,
+                            showEvents: true,
+                        },
+                    });
+                    await signer.client.waitForTransaction({
+                        digest: tx.digest,
+                    });
+                    return tx;
+                } finally {
+                    sentryTransaction.finish();
+                }
             },
             onSuccess: () => {
                 ampli.unstakedIota({

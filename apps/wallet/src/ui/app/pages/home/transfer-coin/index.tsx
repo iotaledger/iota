@@ -14,7 +14,7 @@ import {
     useCoinMetadata,
     useFormatCoin,
 } from '@iota/core';
-// import * as Sentry from '@sentry/react';
+import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -56,22 +56,22 @@ function TransferCoinPage() {
             if (!transaction || !signer) {
                 throw new Error('Missing data');
             }
-
-            // const sentryTransaction = Sentry.startTransaction({
-            // 	name: 'send-tokens',
-            // });
-            return signer.signAndExecuteTransaction({
-                transactionBlock: transaction,
-                options: {
-                    showInput: true,
-                    showEffects: true,
-                    showEvents: true,
-                },
+            const sentryTransaction = Sentry.startTransaction({
+                name: 'send-tokens',
             });
 
-            // finally {
-            // sentryTransaction.finish();
-            // }
+            try {
+                return signer.signAndExecuteTransaction({
+                    transactionBlock: transaction,
+                    options: {
+                        showInput: true,
+                        showEffects: true,
+                        showEvents: true,
+                    },
+                });
+            } finally {
+                sentryTransaction.finish();
+            }
         },
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['get-coins'] });
