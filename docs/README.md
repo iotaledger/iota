@@ -1,6 +1,6 @@
 ## Overview
 
-This directory contains the assets required to build and update the [IOTA documentation](https://wiki.iota.org). The directory is split between `content` and `site`. To run the site locally, open the root directory in a terminal or console. Use a package manager to install the required modules:
+This directory contains the assets required to build and update the [IOTA documentation](https://docs.iota.org). The directory is split between `content` and `site`. To run the site locally, open the root directory in a terminal or console. Use a package manager to install the required modules:
 
 ```shell
 pnpm install
@@ -38,11 +38,10 @@ If you'd like to view the Vercel preview before your changes are ready for revie
 
 IOTA is for the community. Contribute for the benefit of all.
 
-- [Docs contributing guidelines](https://wiki.iota.cafe/references/contribute/contribution-process)
-- [Repo contributing guidelines](https://wiki.iota.cafe/contribute-to-iota-repos)
-- [Style guide](https://wiki.iota.cafe/style-guide)
-- [Localization](https://wiki.iota.cafe/localize-iota-docs)
-- [Code of conduct](https://wiki.iota.cafe/code-of-conduct)
+- [Docs contributing guidelines](https://docs.iota.org/references/contribute/contribution-process)
+- [Repo contributing guidelines](https://github.com/iotaledger/iota/blob/develop/CONTRIBUTING.md)
+- [Style guide](https://docs.iota.org/style-guide)
+- [Code of conduct](https://docs.iota.org/code-of-conduct)
 
 ## License
 

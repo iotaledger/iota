@@ -1,10 +1,7 @@
-import AlphaNet from "../../../_snippets/alphanet.mdx";
-
 # Some extended examples
 
 For these examples, assume you have the following data and functions available:
 
-<AlphaNet />
 
 ```typescript
 // a constant for my type.
@@ -15,9 +12,9 @@ const otherType = `${packageId}::other_module::OtherStruct<${packageId}::other_c
 // initialize a kioskClient.
 const kioskClient = new KioskClient({
     client: new IotaClient({
-        url: getFullnodeUrl('mainnet'),
+        url: getFullnodeUrl('testnet'),
     }),
-    network: Network.MAINNET,
+    network: Network.TESTNET,
 });
 ```
 
