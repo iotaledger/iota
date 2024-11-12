@@ -60,6 +60,7 @@ const developer = [
                     },
                     'developer/iota-101/move-overview/ownership-scope',
                     'developer/iota-101/move-overview/references',
+                    'developer/iota-101/move-overview/generics',
                     {
                         type: 'category',
                         label: 'Patterns',
@@ -96,6 +97,7 @@ const developer = [
                             'developer/iota-101/objects/object-ownership/wrapped',
                         ],
                     },
+                    'developer/iota-101/objects/uid-id',
                     {
                         type: 'category',
                         label: 'Dynamic Fields',
