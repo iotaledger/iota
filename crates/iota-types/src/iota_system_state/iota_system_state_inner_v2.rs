@@ -9,7 +9,7 @@ use super::{
     AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     get_validators_from_table_vec,
-    iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorSetV1, ValidatorV1},
+    iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorV1},
     iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV2, IotaValidatorSummary,
     },
