@@ -4,10 +4,11 @@
 
 import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
 import { useIotaClientQuery, useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { useCursorPagination } from '@iota/core';
 import { Warning } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
+import { PlaceholderTable, TableCard } from '~/components/ui';
 import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 import { generateEpochsTableColumns } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';

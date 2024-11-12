@@ -1,17 +1,18 @@
 {
   "data": {
-    "epoch": 1,
-    "sequence_number": 532,
-    "network_total_transactions": 2332,
-    "content_digest": "2tKPsa73Wd5LTzLKUE13GCsM9dekswsGtq4hFdsG1WGb",
-    "previous_digest": "6yZrXpcw5B5zwEoZK5TRHoJBDJu6GjYKzqpbaVdpc8j5",
+    "epoch": 2,
+    "sequence_number": 788,
+    "network_total_transactions": 3455,
+    "content_digest": "6QxcyMHUfp1xjCohXncwvZh8MMTtbay2ALSV7jAkTtDE",
+    "previous_digest": "6NXS2BMwgYWUQ5XLY8SnWK9C84v8zGvSmsenjYZBvjG2",
     "epoch_rolling_gas_cost_summary": {
       "computationCost": "0",
+      "computationCostBurned": "0",
       "storageCost": "0",
       "storageRebate": "0",
       "nonRefundableStorageFee": "0"
     },
-    "timestamp_ms": 1730201217234,
+    "timestamp_ms": 1731087214937,
     "checkpoint_commitments": [],
     "end_of_epoch_data": {
       "nextEpochCommittee": [
@@ -36,7 +37,7 @@
       "epochCommitments": [
         {
           "ECMHLiveObjectSetDigest": {
-            "digest": "Cx7QDKwottqp4bs2eP5pL4XApGvopmXB1KmpYAZY1Gf5"
+            "digest": "ATtMurTEvHDssU9MWeXjzETxJ5kqbouX2nb3eUx1XTTD"
           }
         }
       ],
@@ -48,8 +49,8 @@
     ]
   },
   "auth_signature": {
-    "epoch": 1,
-    "signature": "tx6eEhYvWH0wOk2yiuZmpzelWbIRLpVz4D8IN5iz1HVeQXClzEqVSlgQpnAkDMil",
+    "epoch": 2,
+    "signature": "iLCTx09dJtXuYa5USgQebPw5Lk6EOI4PmCo7wG35YWND8LC2tj0HPnenTvWHH6Ih",
     "signers_map": [
       58,
       48,
@@ -67,11 +68,11 @@
       0,
       0,
       0,
+      0,
+      0,
       1,
       0,
       2,
-      0,
-      3,
       0
     ]
   }

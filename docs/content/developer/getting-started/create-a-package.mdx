@@ -101,7 +101,7 @@ for the dependencies.
 <Tabs groupId="toml-style">
 <TabItem label="Inline" value="inline">
 
-```move
+```toml
 [dependencies]
 iota = { override = true, git = "", subdir = "crates/iota-framework/packages/iota-framework", rev = "testnet" }
 MyPackage = { local = "../my-package" }
@@ -109,7 +109,7 @@ MyPackage = { local = "../my-package" }
 
 </TabItem>
 <TabItem label="Multiline" value="multiline">
-```move
+```toml
 [dependencies.iota]
 override = true
 git = "https://github.com/iotaledger/iota.git"

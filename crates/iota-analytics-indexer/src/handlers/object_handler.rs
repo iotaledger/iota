@@ -131,7 +131,6 @@ impl ObjectHandler {
                 object_status: ObjectStatus::Deleted,
                 initial_shared_version: None,
                 previous_transaction: checkpoint_transaction.transaction.digest().base58_encode(),
-                has_public_transfer: false,
                 storage_rebate: None,
                 bcs: None,
                 coin_type: None,
@@ -155,9 +154,6 @@ impl ObjectHandler {
         state: &mut State,
     ) -> Result<()> {
         let move_obj_opt = object.data.try_as_move();
-        let has_public_transfer = move_obj_opt
-            .map(|o| o.has_public_transfer())
-            .unwrap_or(false);
         let move_struct = if let Some((tag, contents)) = object
             .struct_tag()
             .and_then(|tag| object.data.try_as_move().map(|mo| (tag, mo.contents())))
@@ -194,7 +190,6 @@ impl ObjectHandler {
                 .expect("Object must be in output objects"),
             initial_shared_version: initial_shared_version(object),
             previous_transaction: object.previous_transaction.base58_encode(),
-            has_public_transfer,
             storage_rebate: Some(object.storage_rebate),
             bcs: Some(Base64::encode(bcs::to_bytes(object).unwrap())),
             coin_type: object.coin_type_maybe().map(|t| t.to_string()),
