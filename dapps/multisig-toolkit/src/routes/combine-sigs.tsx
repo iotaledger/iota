@@ -232,7 +232,7 @@ export default function MultiSigCombineSignatureGenerator() {
                     <CardHeader>
                         <CardTitle>IOTA MultiSig Address</CardTitle>
                         <CardDescription>
-                            https://wiki.iota.org/testnet/learn/cryptography/iota-multisig
+                            https://docs.iota.org/developer/cryptography/transaction-auth/multisig
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -249,7 +249,7 @@ export default function MultiSigCombineSignatureGenerator() {
                     <CardHeader>
                         <CardTitle>IOTA MultiSig Combined Address</CardTitle>
                         <CardDescription>
-                            https://wiki.iota.org/testnet/learn/cryptography/iota-multisig
+                            https://docs.iota.org/developer/cryptography/transaction-auth/multisig
                         </CardDescription>
                     </CardHeader>
                     <CardContent>

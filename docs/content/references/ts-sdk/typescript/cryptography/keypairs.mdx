@@ -1,8 +1,4 @@
-import AlphaNet from "../../../../_snippets/alphanet.mdx";
-
 # Key pairs
-
-<AlphaNet/>
 
 The IOTA TypeScript SDK provides `Keypair` classes that handle logic for signing and verification
 using the cryptographic key pairs associated with a IOTA address.
@@ -136,7 +132,7 @@ import { verifyPersonalMessageSignature } from '@iota/iota-sdk/verify';
 
 const publicKey = await verifyPersonalMessageSignature(message, zkSignature, {
     client: new IotaGraphQLClient({
-        url: 'https://iota-testnet.iota.org/graphql',
+        url: 'https://graphql.testnet.iota.cafe',
     }),
 });
 ```

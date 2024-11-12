@@ -51,10 +51,6 @@ pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 pub struct MoveObject {
     /// The type of this object. Immutable
     pub(crate) type_: MoveObjectType,
-    /// DEPRECATED this field is no longer used to determine whether a tx can
-    /// transfer this object. Instead, it is always calculated from the
-    /// objects type when loaded in execution
-    pub(crate) has_public_transfer: bool,
     /// Number that increases each time a tx takes this object as a mutable
     /// input This is a lamport timestamp, not a sequentially increasing
     /// version
@@ -69,47 +65,29 @@ pub const ID_END_INDEX: usize = ObjectID::LENGTH;
 
 impl MoveObject {
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
-    /// `contents` `has_public_transfer` is determined by the abilities of
-    /// the `type_`, but resolving the abilities requires the compiled
-    /// modules of the `type_: StructTag`. In other words,
-    /// `has_public_transfer` will be the same for all objects of the same
-    /// `type_`.
-    ///
-    /// # Safety
-    ///
-    /// This function should ONLY be called if has_public_transfer has been
-    /// determined by the type_. Yes, this is a bit of an abuse of the
-    /// `unsafe` marker, but bad things will happen if this is inconsistent
-    pub unsafe fn new_from_execution(
+    /// `contents`.
+    pub fn new_from_execution(
         type_: MoveObjectType,
-        has_public_transfer: bool,
         version: SequenceNumber,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<Self, ExecutionError> {
         Self::new_from_execution_with_limit(
             type_,
-            has_public_transfer,
             version,
             contents,
             protocol_config.max_move_object_size(),
         )
     }
 
-    /// # Safety
-    /// This function should ONLY be called if has_public_transfer has been
-    /// determined by the type_
-    pub unsafe fn new_from_execution_with_limit(
+    /// Creates a new Move object of type `type_` with BCS encoded bytes in
+    /// `contents`. It allows to set a `max_move_object_size` for that.
+    pub fn new_from_execution_with_limit(
         type_: MoveObjectType,
-        has_public_transfer: bool,
         version: SequenceNumber,
         contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<Self, ExecutionError> {
-        // coins should always have public transfer, as they always should have store.
-        // Thus, type_ == GasCoin::type_() ==> has_public_transfer
-        // TODO: think this can be generalized to is_coin
-        debug_assert!(!type_.is_gas_coin() || has_public_transfer);
         if contents.len() as u64 > max_move_object_size {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::MoveObjectTooBig {
@@ -120,7 +98,6 @@ impl MoveObject {
         }
         Ok(Self {
             type_,
-            has_public_transfer,
             version,
             contents,
         })
@@ -128,10 +105,9 @@ impl MoveObject {
 
     pub fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
-        unsafe {
+        {
             Self::new_from_execution_with_limit(
                 GasCoin::type_().into(),
-                true,
                 version,
                 GasCoin::new(id, value).to_bcs_bytes(),
                 256,
@@ -147,10 +123,9 @@ impl MoveObject {
         value: u64,
     ) -> Self {
         // unwrap safe because coins are always smaller than the max object size
-        unsafe {
+        {
             Self::new_from_execution_with_limit(
                 coin_type,
-                true,
                 version,
                 GasCoin::new(id, value).to_bcs_bytes(),
                 256,
@@ -165,10 +140,6 @@ impl MoveObject {
 
     pub fn is_type(&self, s: &StructTag) -> bool {
         self.type_.is(s)
-    }
-
-    pub fn has_public_transfer(&self) -> bool {
-        self.has_public_transfer
     }
 
     pub fn id(&self) -> ObjectID {
@@ -359,9 +330,8 @@ impl MoveObject {
     pub fn object_size_for_gas_metering(&self) -> usize {
         let serialized_type_tag_size =
             bcs::serialized_size(&self.type_).expect("Serializing type tag should not fail");
-        // + 1 for 'has_public_transfer'
         // + 8 for `version`
-        self.contents.len() + serialized_type_tag_size + 1 + 8
+        self.contents.len() + serialized_type_tag_size + 8
     }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
@@ -936,7 +906,6 @@ impl Object {
     pub fn immutable_with_id_for_testing(id: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
-            has_public_transfer: true,
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -970,7 +939,6 @@ impl Object {
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
-            has_public_transfer: true,
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, gas).to_bcs_bytes(),
         });
@@ -986,7 +954,6 @@ impl Object {
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
         let data = Data::Move(MoveObject {
             type_: TreasuryCap::type_(struct_tag).into(),
-            has_public_transfer: true,
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
         });
@@ -1002,7 +969,6 @@ impl Object {
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
         let data = Data::Move(MoveObject {
             type_: CoinMetadata::type_(struct_tag).into(),
-            has_public_transfer: true,
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&metadata).expect("Failed to serialize"),
         });
@@ -1018,7 +984,6 @@ impl Object {
     pub fn with_object_owner_for_testing(id: ObjectID, owner: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
-            has_public_transfer: true,
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -1043,7 +1008,6 @@ impl Object {
     ) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
-            has_public_transfer: true,
             version,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -1247,17 +1211,17 @@ fn test_object_digest_and_serialized_format() {
     let bytes = bcs::to_bytes(&o).unwrap();
 
     assert_eq!(bytes, [
-        0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0,
+        0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0
+        0, 0, 0, 0, 0
     ]);
 
     let objref = format!("{:?}", o.compute_object_reference());
     assert_eq!(
         objref,
-        "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#59tZq65HVqZjUyNtD7BCGLTD87N5cpayYwEFrtwR4aMz)"
+        "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
     );
 }
 

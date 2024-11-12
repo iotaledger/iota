@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, btree_map::Entry},
+    cmp::Eq,
+    collections::{BTreeMap, HashSet, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
@@ -57,6 +58,7 @@ use iota_types::{
     move_package::UpgradeCap,
     object::Owner,
     parse_iota_type_tag,
+    quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
         SenderSignedData, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
@@ -72,6 +74,7 @@ use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
 use shared_crypto::intent::Intent;
+use strum::EnumString;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{
@@ -649,6 +652,13 @@ pub struct Opts {
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
+
+    /// Select which fields of the response to display.
+    /// If not provided, all fields are displayed.
+    /// The fields are: effects, input, events, object_changes,
+    /// balance_changes.
+    #[clap(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
+    pub emit: HashSet<EmitOption>,
 }
 
 /// Global options with gas
@@ -665,23 +675,40 @@ pub struct OptsWithGas {
 
 impl Opts {
     /// Uses the passed gas_budget for the gas budget variable and sets all
-    /// other flags to false.
+    /// other flags to false, and emit to an empty vector(defaulting to all emit
+    /// options).
     pub fn for_testing(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: HashSet::new(),
         }
     }
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// true, and sets all other flags to false.
+    /// true, and sets all other flags to false, and emit to an empty
+    /// vector(defaulting to all emit options).
     pub fn for_testing_dry_run(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: true,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: HashSet::new(),
+        }
+    }
+
+    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
+    /// false, and sets all other flags to false, and emit to the passed emit
+    /// vector.
+    pub fn for_testing_emit_options(gas_budget: u64, emit: HashSet<EmitOption>) -> Self {
+        Self {
+            gas_budget: Some(gas_budget),
+            dry_run: false,
+            serialize_unsigned_transaction: false,
+            serialize_signed_transaction: false,
+            emit,
         }
     }
 }
@@ -703,6 +730,30 @@ impl OptsWithGas {
             rest: Opts::for_testing_dry_run(gas_budget),
         }
     }
+
+    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
+    /// budget variable. Dry run is set to false, and emit to the passed emit
+    /// vector. All other flags are set to false.
+    pub fn for_testing_emit_options(
+        gas: Option<ObjectID>,
+        gas_budget: u64,
+        emit: HashSet<EmitOption>,
+    ) -> Self {
+        Self {
+            gas,
+            rest: Opts::for_testing_emit_options(gas_budget, emit),
+        }
+    }
+}
+
+#[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]
+#[strum(serialize_all = "snake_case")]
+pub enum EmitOption {
+    Effects,
+    Input,
+    Events,
+    ObjectChanges,
+    BalanceChanges,
 }
 
 #[derive(serde::Deserialize)]
@@ -734,7 +785,7 @@ impl IotaClientCommands {
                     profile_output,
                     config_objects: None,
                 };
-                let rpc = context.config.get_active_env()?.rpc.clone();
+                let rpc = context.config().get_active_env()?.rpc().clone();
                 let _command_result =
                     iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
@@ -756,7 +807,7 @@ impl IotaClientCommands {
                     config_objects: None,
                 };
 
-                let rpc = context.config.get_active_env()?.rpc.clone();
+                let rpc = context.config().get_active_env()?.rpc().clone();
                 let _command_result =
                     iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
@@ -773,7 +824,7 @@ impl IotaClientCommands {
                     num_tasks: 16,
                     persist_path: None,
                 };
-                let rpc = context.config.get_active_env()?.rpc.clone();
+                let rpc = context.config().get_active_env()?.rpc().clone();
                 let _command_result =
                     iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
@@ -791,7 +842,7 @@ impl IotaClientCommands {
                     terminate_early,
                     max_tasks: 16,
                 };
-                let rpc = context.config.get_active_env()?.rpc.clone();
+                let rpc = context.config().get_active_env()?.rpc().clone();
                 let _command_result =
                     iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
@@ -801,8 +852,8 @@ impl IotaClientCommands {
             IotaClientCommands::Addresses { sort_by_alias } => {
                 let active_address = context.active_address()?;
                 let mut addresses: Vec<(String, IotaAddress)> = context
-                    .config
-                    .keystore
+                    .config()
+                    .keystore()
                     .addresses_with_alias()
                     .into_iter()
                     .map(|(address, alias)| (alias.alias.to_string(), *address))
@@ -932,9 +983,9 @@ impl IotaClientCommands {
                     None
                 };
                 let env_alias = context
-                    .config
+                    .config()
                     .get_active_env()
-                    .map(|e| e.alias.clone())
+                    .map(|e| e.alias().clone())
                     .ok();
                 let upgrade_result = upgrade_package(
                     client.read_api(),
@@ -1448,16 +1499,19 @@ impl IotaClientCommands {
                 derivation_path,
                 word_length,
             } => {
-                let (address, phrase, scheme) = context.config.keystore.generate_and_add_new_key(
-                    key_scheme,
-                    alias.clone(),
-                    derivation_path,
-                    word_length,
-                )?;
+                let (address, phrase, scheme) = context
+                    .config_mut()
+                    .keystore_mut()
+                    .generate_and_add_new_key(
+                        key_scheme,
+                        alias.clone(),
+                        derivation_path,
+                        word_length,
+                    )?;
 
                 let alias = match alias {
                     Some(x) => x,
-                    None => context.config.keystore.get_alias_by_address(&address)?,
+                    None => context.config().keystore().get_alias_by_address(&address)?,
                 };
 
                 IotaClientCommandResult::NewAddress(NewAddressOutput {
@@ -1483,12 +1537,12 @@ impl IotaClientCommands {
                 let url = if let Some(url) = url {
                     url
                 } else {
-                    let active_env = context.config.get_active_env();
+                    let active_env = context.config().get_active_env();
 
                     if let Ok(env) = active_env {
-                        let network = match env.rpc.as_str() {
-                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.io/v1/gas",
-                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.io/v1/gas",
+                        let network = match env.rpc().as_str() {
+                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.cafe/v1/gas",
+                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.cafe/v1/gas",
                             IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
                                 "http://127.0.0.1:9123/gas"
                             }
@@ -1564,17 +1618,17 @@ impl IotaClientCommands {
 
                 if let Some(address) = address {
                     let address = get_identity_address(Some(address), context)?;
-                    if !context.config.keystore.addresses().contains(&address) {
+                    if !context.config().keystore().addresses().contains(&address) {
                         return Err(anyhow!("Address {} not managed by wallet", address));
                     }
-                    context.config.active_address = Some(address);
+                    context.config_mut().set_active_address(address);
                     addr = Some(address.to_string());
                 }
 
                 if let Some(ref env) = env {
-                    Self::switch_env(&mut context.config, env)?;
+                    Self::switch_env(context.config_mut(), env)?;
                 }
-                context.config.save()?;
+                context.config().save()?;
                 IotaClientCommandResult::Switch(SwitchResponse { address: addr, env })
             }
             IotaClientCommands::ActiveAddress => {
@@ -1626,30 +1680,32 @@ impl IotaClientCommands {
                 ws,
                 basic_auth,
             } => {
-                if context.config.envs.iter().any(|env| env.alias == alias) {
+                if context
+                    .config()
+                    .envs()
+                    .iter()
+                    .any(|env| env.alias() == &alias)
+                {
                     return Err(anyhow!(
                         "Environment config with name [{alias}] already exists."
                     ));
                 }
-                let env = IotaEnv {
-                    alias,
-                    rpc,
-                    ws,
-                    basic_auth,
-                };
+                let env = IotaEnv::new(alias, rpc)
+                    .with_ws(ws)
+                    .with_basic_auth(basic_auth);
 
                 // Check urls are valid and server is reachable
                 env.create_rpc_client(None, None).await?;
-                context.config.envs.push(env.clone());
-                context.config.save()?;
+                context.config_mut().add_env(env.clone());
+                context.config().save()?;
                 IotaClientCommandResult::NewEnv(env)
             }
             IotaClientCommands::ActiveEnv => {
-                IotaClientCommandResult::ActiveEnv(context.config.active_env.clone())
+                IotaClientCommandResult::ActiveEnv(context.config().active_env().clone())
             }
             IotaClientCommands::Envs => IotaClientCommandResult::Envs(
-                context.config.envs.clone(),
-                context.config.active_env.clone(),
+                context.config().envs().clone(),
+                context.config().active_env().clone(),
             ),
             IotaClientCommands::VerifySource {
                 package_path,
@@ -1707,7 +1763,7 @@ impl IotaClientCommands {
             config.get_env(&env).is_some(),
             "Environment config not found for [{env:?}], add new environment config using the `iota client new-env` command."
         );
-        config.active_env = env;
+        config.set_active_env(env);
         Ok(())
     }
 }
@@ -2162,14 +2218,14 @@ impl Display for IotaClientCommandResult {
                 write!(writer, "{}", env.as_deref().unwrap_or("None"))?;
             }
             IotaClientCommandResult::NewEnv(env) => {
-                writeln!(writer, "Added new Iota env [{}] to config.", env.alias)?;
+                writeln!(writer, "Added new Iota env [{}] to config.", env.alias())?;
             }
             IotaClientCommandResult::Envs(envs, active) => {
                 let mut builder = TableBuilder::default();
                 builder.set_header(["alias", "url", "active"]);
                 for env in envs {
-                    builder.push_record(vec![env.alias.clone(), env.rpc.clone(), {
-                        if Some(env.alias.as_str()) == active.as_deref() {
+                    builder.push_record(vec![env.alias().clone(), env.rpc().clone(), {
+                        if Some(env.alias().as_str()) == active.as_deref() {
                             "*".to_string()
                         } else {
                             "".to_string()
@@ -2918,7 +2974,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             tx_data,
         ))
     } else {
-        let signature = context.config.keystore.sign_secure(
+        let signature = context.config().keystore().sign_secure(
             &tx_data.sender(),
             &tx_data,
             Intent::iota_transaction(),
@@ -2930,7 +2986,15 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
-            let mut response = context.execute_transaction_may_fail(transaction).await?;
+            let mut response = client
+                .quorum_driver_api()
+                .execute_transaction_block(
+                    transaction,
+                    opts_from_cli(opts.emit),
+                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                )
+                .await?;
+
             if let Some(effects) = response.effects.as_mut() {
                 prerender_clever_errors(effects, client.read_api()).await;
             }
@@ -2958,4 +3022,43 @@ pub(crate) async fn prerender_clever_errors(
             *error = rendered;
         }
     }
+}
+
+fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
+    if opts.is_empty() {
+        IotaTransactionBlockResponseOptions::new()
+            .with_effects()
+            .with_input()
+            .with_events()
+            .with_object_changes()
+            .with_balance_changes()
+    } else {
+        IotaTransactionBlockResponseOptions {
+            show_input: opts.contains(&EmitOption::Input),
+            show_events: opts.contains(&EmitOption::Events),
+            show_object_changes: opts.contains(&EmitOption::ObjectChanges),
+            show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
+            show_effects: true,
+            show_raw_effects: false,
+            show_raw_input: false,
+        }
+    }
+}
+
+fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
+    let mut options = HashSet::new();
+
+    // Split the input string by commas and try to parse each part
+    for part in s.split(',') {
+        let part = part.trim(); // Trim whitespace
+        match EmitOption::from_str(part) {
+            Ok(option) => {
+                options.insert(option);
+            }
+            Err(_) => return Err(format!("Invalid emit option: {}", part)), /* Return error if
+                                                                             * invalid */
+        }
+    }
+
+    Ok(options)
 }

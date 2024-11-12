@@ -18,7 +18,7 @@ const references = [
             id: 'references/iota-api',
         },
         items: [
-            /*{
+            {
 				type: 'category',
 				label: 'GraphQL',
 				link: {
@@ -31,7 +31,7 @@ const references = [
 						dirName: 'references/iota-api/iota-graphql/reference',
 					},
 				],
-			},*/
+			},
             {
                 type: 'link',
                 label: 'JSON-RPC',
@@ -339,25 +339,6 @@ const references = [
                 label: 'Rust',
                 href: 'https://docs.rs/identity_iota/latest/identity_iota/index.html',
                 description: 'IOTA Identity Rust Documentation',
-            },
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Expert topics',
-        items: [
-            {
-                type: 'category',
-                label: 'Execution Architecture',
-                link: {
-                    type: 'doc',
-                    id: 'references/execution-architecture/execution-layer',
-                },
-                items: [
-                    'references/execution-architecture/iota-execution',
-                    'references/execution-architecture/adapter',
-                    'references/execution-architecture/natives',
-                ],
             },
         ],
     },

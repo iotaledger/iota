@@ -140,7 +140,7 @@ task 2, lines 57-67:
 //# publish --upgradeable --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5981200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5966000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 69:
 //# create-checkpoint
@@ -155,7 +155,7 @@ task 5, lines 73-97:
 Response: {
   "data": {
     "object": {
-      "address": "0x6fb64d985225b4ac8b1ee9c17cad1327db14cf5adfba72714bfa6d847f45f996",
+      "address": "0x416f86a3ae5c3eae593a2f345346265988d2d4a5a981c9635e506ccdb5417d5b",
       "asMovePackage": {
         "module": {
           "datatypes": {
@@ -190,7 +190,7 @@ task 6, lines 99-144:
 Response: {
   "data": {
     "object": {
-      "address": "0x6fb64d985225b4ac8b1ee9c17cad1327db14cf5adfba72714bfa6d847f45f996",
+      "address": "0x416f86a3ae5c3eae593a2f345346265988d2d4a5a981c9635e506ccdb5417d5b",
       "asMovePackage": {
         "module": {
           "datatypes": {

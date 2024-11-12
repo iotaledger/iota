@@ -1,5 +1,4 @@
 import Beta from '@site/../content/_snippets/iota-oop-beta.mdx'
-import AlphaNet from "../../../../_snippets/alphanet.mdx";
 
 # End-to-End Examples
 
@@ -27,15 +26,13 @@ account's coins.
 Here is the code that creates the coins by splitting a single coin 20 times and transferring the new
 coins to your address:
 
-<AlphaNet />
-
 ```ts
 import { IotaClient } from '@iota/iota-sdk/client/';
 import type { IotaObjectRef, IotaObjectResponse } from '@iota/iota-sdk/client/';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
 const client = new IotaClient({
-    url: 'https://fullnode.testnet.iota.io:443',
+    url: 'https://api.testnet.iota.cafe:443',
 });
 
 const objectId: string = '<your-coin-object-id>'; // A

@@ -226,7 +226,6 @@ fn examine_object(
                 for other_obj in other_object_map.values() {
                     println!("{:#?}", other_obj.type_());
                     println!("{:?}", other_obj.version());
-                    println!("Has Public Transfer: {}\n", other_obj.has_public_transfer());
                 }
                 print_divider("Other");
             }

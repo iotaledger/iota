@@ -1,4 +1,5 @@
-import AlphaNet from "../../../_snippets/alphanet.mdx";
+import NetworkInfo from "@site/src/components/NetworkInfo/index.tsx";
+import { Networks } from '@site/src/components/constant.tsx';
 
 # IOTA TypeScript SDK Quick Start
 
@@ -13,21 +14,26 @@ npm i @iota/iota-sdk
 
 ## Network locations
 
-<AlphaNet/>
-
 The following table lists the locations for IOTA networks.
 
-| Network | Full node                             | faucet                                |
-| ------- | ------------------------------------- | ------------------------------------- |
-| local   | `http://127.0.0.1:9000` (default)     | `http://127.0.0.1:9123/gas` (default) |
-| Devnet  | `https://fullnode.devnet.iota.io:443`  | `https://faucet.iota-rebased-alphanet.iota.cafe/gas`    |
-| Testnet | - | - |
-| Mainnet | - | - |
+## IOTA Testnet
+
+<NetworkInfo.Move {...Networks['iota_move_testnet']}/>
+
+## IOTA Devnet
+
+<NetworkInfo.Move {...Networks['iota_move_devnet']}/>
+
+## IOTA Localnet
+
+To create a local IOTA network, you can refer to [Local Development](/developer/getting-started/local-network) page.
+
+<NetworkInfo.Move {...Networks['iota_localnet']}/>
 
 :::warning
 
 Use dedicated nodes/shared services rather than public endpoints for production apps. The public
-endpoints maintained by the IOTA Foundation (`fullnode.<NETWORK>.iota.io:443`) are rate-limited, and support
+endpoints maintained by the IOTA Foundation (`api.<NETWORK>.iota.cafe:443`) are rate-limited, and support
 only 100 requests per 30 seconds or so. Do not use public endpoints in production applications with
 high traffic volume.
 
