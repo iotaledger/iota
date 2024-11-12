@@ -77,7 +77,6 @@ path = "examples/utils.rs"
 crate-type = ["staticlib"]
 
 # Read API folder
-
 [[example]]
 name = "checkpoints"
 path = "examples/read_api/checkpoints.rs"
@@ -115,7 +114,6 @@ name = "transactions_with_options"
 path = "examples/read_api/transactions_with_options.rs"
 
 # Transaction builder folder
-
 [[example]]
 name = "batch_tx"
 path = "examples/transaction_builder/batch_tx.rs"
