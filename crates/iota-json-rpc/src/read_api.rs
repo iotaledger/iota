@@ -788,12 +788,14 @@ impl ReadApiServer for ReadApi {
 
             temp_response.checkpoint_seq = self
                 .transaction_kv_store
-                .deprecated_get_transaction_checkpoint(digest)
+                .multi_get_transaction_checkpoint(&[digest])
                 .await
                 .map_err(|e| {
                     error!("Failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
                     Error::from(e)
-                })?;
+                })?
+                .pop()
+                .flatten();
 
             if let Some(checkpoint_seq) = &temp_response.checkpoint_seq {
                 let kv_store = self.transaction_kv_store.clone();
@@ -1362,6 +1364,17 @@ fn convert_to_response(
         response.transaction = Some(tx_block);
     }
 
+    if opts.show_raw_effects {
+        let raw_effects = cache
+            .effects
+            .as_ref()
+            .map(bcs::to_bytes)
+            .transpose()
+            .map_err(|e| anyhow!("Failed to serialize raw effects with error: {e}"))?
+            .unwrap_or_default();
+        response.raw_effects = raw_effects;
+    }
+
     if opts.show_effects && cache.effects.is_some() {
         let effects = cache.effects.unwrap().try_into().map_err(|e| {
             anyhow!(
@@ -1386,6 +1399,7 @@ fn convert_to_response(
     if opts.show_object_changes {
         response.object_changes = cache.object_changes;
     }
+
     Ok(response)
 }
 

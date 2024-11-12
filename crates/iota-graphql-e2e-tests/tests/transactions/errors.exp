@@ -4,7 +4,7 @@ task 1, lines 7-12:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3663200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3655600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 14-15:
 //# programmable
@@ -25,7 +25,7 @@ Response: {
         {
           "effects": {
             "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x75b88d24bad02784e123bdb2f308a999d9bcb9e7aaefb8bc8f4c148e72ba8c5a::m::boom' (instruction 1), abort code: 42"
+            "errors": "Error in 1st command, from '0xb7d000e6ce024756ce5f7f7a50dc9ab34f9727d72b0ff528917b08087360bfed::m::boom' (instruction 1), abort code: 42"
           }
         }
       ]
@@ -54,7 +54,7 @@ Response: {
         {
           "effects": {
             "status": "FAILURE",
-            "errors": "Error in 3rd command, from '0x75b88d24bad02784e123bdb2f308a999d9bcb9e7aaefb8bc8f4c148e72ba8c5a::m::boom' (instruction 1), abort code: 42"
+            "errors": "Error in 3rd command, from '0xb7d000e6ce024756ce5f7f7a50dc9ab34f9727d72b0ff528917b08087360bfed::m::boom' (instruction 1), abort code: 42"
           }
         }
       ]

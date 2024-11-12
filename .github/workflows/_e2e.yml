@@ -99,6 +99,14 @@ jobs:
           path: apps/explorer/playwright-report/
           retention-days: 30
 
+      - name: Build Kiosk
+        if: inputs.isRust || inputs.isTypescriptSDK
+        run: pnpm turbo --filter=@iota/kiosk build
+
+      - name: Run Kiosk e2e tests
+        if: inputs.isRust || inputs.isTypescriptSDK
+        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
+
       - name: Run Local net
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 

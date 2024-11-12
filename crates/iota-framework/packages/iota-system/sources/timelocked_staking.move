@@ -107,8 +107,8 @@ module iota_system::timelocked_staking {
         assert!(timelocked_balance.is_locked(ctx), ETimeLockShouldNotBeExpired);
 
         // Unpack the time-locked balance.
-        let sys_timelock_cap = iota_system.load_system_timelock_cap();
-        let (balance, expiration_timestamp_ms, label) = timelock::system_unpack(sys_timelock_cap, timelocked_balance);
+        let sys_admin_cap = iota_system.load_iota_system_admin_cap();
+        let (balance, expiration_timestamp_ms, label) = timelock::system_unpack(sys_admin_cap, timelocked_balance);
 
         // Stake the time-locked balance.
         let staked_iota = iota_system.request_add_stake_non_entry(
@@ -181,8 +181,8 @@ module iota_system::timelocked_staking {
         let principal = withdraw_stake.split(principal);
 
         // Pack and return a time-locked balance, and the reward.
-        let sys_timelock_cap = iota_system.load_system_timelock_cap();
-        (timelock::system_pack(sys_timelock_cap, principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
+        let sys_admin_cap = iota_system.load_iota_system_admin_cap();
+        (timelock::system_pack(sys_admin_cap, principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
     }
 
     // === TimelockedStakedIota balance functions ===

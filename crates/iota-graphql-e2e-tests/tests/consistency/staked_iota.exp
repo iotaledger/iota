@@ -21,15 +21,15 @@ task 2, lines 21-23:
 //> TransferObjects([Result(0)], Input(1))
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 25:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [49, 170, 24, 91, 48, 51, 59, 190, 186, 64, 208, 42, 198, 226, 201, 28, 175, 76, 24, 236, 175, 216, 35, 217, 155, 5, 253, 225, 16, 3, 242, 32, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [145, 201, 73, 32, 135, 23, 121, 37, 7, 101, 40, 103, 216, 99, 155, 51, 118, 111, 115, 220, 44, 253, 144, 143, 80, 103, 133, 240, 58, 235, 137, 202, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(3,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 14523600,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14500800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 4, line 27:
 //# create-checkpoint
@@ -45,15 +45,15 @@ task 6, lines 31-33:
 //> TransferObjects([Result(0)], Input(1))
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 35:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(6,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [49, 170, 24, 91, 48, 51, 59, 190, 186, 64, 208, 42, 198, 226, 201, 28, 175, 76, 24, 236, 175, 216, 35, 217, 155, 5, 253, 225, 16, 3, 242, 32, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [145, 201, 73, 32, 135, 23, 121, 37, 7, 101, 40, 103, 216, 99, 155, 51, 118, 111, 115, 220, 44, 253, 144, 143, 80, 103, 133, 240, 58, 235, 137, 202, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(7,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(6,0)
-gas summary: computation_cost: 1000000, storage_cost: 14523600,  storage_rebate: 14219600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14500800,  storage_rebate: 14196800, non_refundable_storage_fee: 0
 
 task 8, line 37:
 //# create-checkpoint
@@ -109,13 +109,13 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IAQrAZOt5Tzb2RJIfSxa7ZKgeo4PBwtgbBIDXKYNuoPLBAAAAAAAAAA=",
+            "cursor": "ICY/+FbG+Hqd34UX7O+7VLiMXKC/bqtTKAZwQ4YiyetzBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
           },
           {
-            "cursor": "IJrDd+d17c/WP+y988FjFenwhf7ri3M2an2ad/goKgRVBAAAAAAAAAA=",
+            "cursor": "IPEp6dbnEicrkwynNujLy5/Voas64Cc5Ta7ruT5oQNbTBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -161,7 +161,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IJrDd+d17c/WP+y988FjFenwhf7ri3M2an2ad/goKgRVAwAAAAAAAAA=",
+            "cursor": "IPEp6dbnEicrkwynNujLy5/Voas64Cc5Ta7ruT5oQNbTAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -183,7 +183,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IAQrAZOt5Tzb2RJIfSxa7ZKgeo4PBwtgbBIDXKYNuoPLAwAAAAAAAAA=",
+            "cursor": "ICY/+FbG+Hqd34UX7O+7VLiMXKC/bqtTKAZwQ4YiyetzAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

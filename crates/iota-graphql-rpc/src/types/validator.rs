@@ -10,7 +10,7 @@ use async_graphql::{
     *,
 };
 use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
-use iota_json_rpc::governance_api::average_apy_from_exchange_rates;
+use iota_json_rpc::governance_api::median_apy_from_exchange_rates;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
@@ -74,9 +74,22 @@ impl Loader<u64> for Db {
             .await
             .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
         let governance_api = GovernanceReadApi::new(self.inner.clone());
-        let exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
+
+        let pending_validators_exchange_rate = governance_api
+            .pending_validators_exchange_rate()
+            .await
+            .map_err(|e| {
+                Error::Internal(format!(
+                    "Error fetching pending validators exchange rates. {e}"
+                ))
+            })?;
+
+        let mut exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
             .await
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
+
+        exchange_rates.extend(pending_validators_exchange_rate.into_iter());
+
         let mut results = BTreeMap::new();
 
         // The requested epoch is the epoch for which we want to compute the APY. For
@@ -388,7 +401,7 @@ impl Validator {
             .iter()
             .map(|(_, exchange_rate)| exchange_rate);
 
-        let avg_apy = Some(average_apy_from_exchange_rates(rates));
+        let avg_apy = Some(median_apy_from_exchange_rates(rates));
 
         Ok(avg_apy.map(|x| (x * 10000.0) as u64))
     }

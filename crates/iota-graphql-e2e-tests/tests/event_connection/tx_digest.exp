@@ -7,24 +7,24 @@ task 1, lines 11-27:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 4795600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4788000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 29:
 //# run Test::M1::no_emit --sender A --args 0
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 31:
 //# run Test::M1::emit_2 --sender A --args 2
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [2, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [3, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 33:
 //# run Test::M1::emit_2 --sender B --args 4
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: B, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [4, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: B, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [5, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 5, line 35:
 //# create-checkpoint
@@ -37,19 +37,19 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "4pDtmR9vkzE8azKseWj5VXQQiz7616KJAGftpBncdmnF"
+          "digest": "CmPeQ2JKFnEKeZsYz9cYU8q57Wb1fgZxpDqYq9YinuQA"
         },
         {
-          "digest": "HUi3tvRsCvbSjuhnFvniVBSd9s74cnLkMmg7r39tUciy"
+          "digest": "Cr67aCWwfbpbrQvsdhniTfA6v6wEbyTA5cwKr7MeVo6h"
         },
         {
-          "digest": "G3D18M1UjMxG2anS67U9iiKNzT8vEpohY85LNcvaQoZR"
+          "digest": "F9dhDrsiFxBWatoDNmExL7PQQW6xBzpAj8iyqbzAagXj"
         },
         {
-          "digest": "GzkLZu91TX1CQKpAPmUMVUBETfuK48NjhYt9ikD4bSwh"
+          "digest": "EkH8TQ1xRv4Lj4wtD4kRuZrsPYP2vGKSk2mtbeENDGsn"
         },
         {
-          "digest": "2Wn17H19KQAHB8f9XhdP16DVKdZhEt1e3o7nWK6fAVMS"
+          "digest": "9oZ3VdEUep1tbAAHbrACiQEPuRAwvXYU4m3TrViQSB5v"
         }
       ]
     }
@@ -61,7 +61,24 @@ task 7, lines 46-58:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6MywiZSI6MCwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "2"
+            }
+          }
+        },
+        {
+          "cursor": "eyJ0eCI6MywiZSI6MSwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "3"
+            }
+          }
+        }
+      ]
     }
   }
 }
@@ -91,7 +108,24 @@ task 10, lines 93-105:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6NCwiZSI6MCwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "4"
+            }
+          }
+        },
+        {
+          "cursor": "eyJ0eCI6NCwiZSI6MSwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "5"
+            }
+          }
+        }
+      ]
     }
   }
 }
@@ -101,7 +135,16 @@ task 11, lines 107-119:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6NCwiZSI6MSwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "5"
+            }
+          }
+        }
+      ]
     }
   }
 }
@@ -111,7 +154,24 @@ task 12, lines 122-134:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6MywiZSI6MCwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "2"
+            }
+          }
+        },
+        {
+          "cursor": "eyJ0eCI6MywiZSI6MSwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "3"
+            }
+          }
+        }
+      ]
     }
   }
 }
@@ -121,7 +181,16 @@ task 13, lines 136-149:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6MywiZSI6MCwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "2"
+            }
+          }
+        }
+      ]
     }
   }
 }
@@ -141,7 +210,24 @@ task 15, lines 169-181:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6NCwiZSI6MCwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "4"
+            }
+          }
+        },
+        {
+          "cursor": "eyJ0eCI6NCwiZSI6MSwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "5"
+            }
+          }
+        }
+      ]
     }
   }
 }
@@ -151,7 +237,16 @@ task 16, lines 183-195:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6NCwiZSI6MCwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "4"
+            }
+          }
+        }
+      ]
     }
   }
 }
@@ -161,7 +256,24 @@ task 17, lines 197-210:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6MywiZSI6MCwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "2"
+            }
+          }
+        },
+        {
+          "cursor": "eyJ0eCI6MywiZSI6MSwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "3"
+            }
+          }
+        }
+      ]
     }
   }
 }
@@ -171,7 +283,24 @@ task 18, lines 212-225:
 Response: {
   "data": {
     "events": {
-      "edges": []
+      "edges": [
+        {
+          "cursor": "eyJ0eCI6NCwiZSI6MCwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "4"
+            }
+          }
+        },
+        {
+          "cursor": "eyJ0eCI6NCwiZSI6MSwiYyI6MX0",
+          "node": {
+            "json": {
+              "new_value": "5"
+            }
+          }
+        }
+      ]
     }
   }
 }
