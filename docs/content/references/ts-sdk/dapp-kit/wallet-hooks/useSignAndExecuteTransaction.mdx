@@ -38,39 +38,39 @@ function withProviders(
 
 const UseSignAndExecuteTransactionExample = withProviders(() => {
     const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-	const [digest, setDigest] = useState('');
-	const currentAccount = useCurrentAccount();
+    const [digest, setDigest] = useState('');
+    const currentAccount = useCurrentAccount();
 
-	return (
-		<div style={{ padding: 20 }}>
-			<ConnectButton />
-			{currentAccount && (
-				<>
-					<div>
-						<button
-							onClick={() => {
-								signAndExecuteTransaction(
-									{
-										transaction: new Transaction(),
-										chain: 'iota:devnet',
-									},
-									{
-										onSuccess: (result) => {
-											console.log('executed transaction', result);
-											setDigest(result.digest);
-										},
-									},
-								);
-							}}
-						>
-							Sign and execute transaction
-						</button>
-					</div>
-					<div>Digest: {digest}</div>
-				</>
-			)}
-		</div>
-	);
+    return (
+        <div style={{ padding: 20 }}>
+            <ConnectButton />
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={() => {
+                                signAndExecuteTransaction(
+                                    {
+                                        transaction: new Transaction(),
+                                        chain: 'iota:devnet',
+                                    },
+                                    {
+                                        onSuccess: (result) => {
+                                            console.log('executed transaction', result);
+                                            setDigest(result.digest);
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            Sign and execute transaction
+                        </button>
+                    </div>
+                    <div>Digest: {digest}</div>
+                </>
+            )}
+        </div>
+    );
 });
 
 render(<UseSignAndExecuteTransactionExample/>)
@@ -83,62 +83,62 @@ you can pass a custom `execute` function.
 
 ```ts
 import {
-	ConnectButton,
-	useIotaClient,
-	useCurrentAccount,
-	useSignAndExecuteTransaction,
+    ConnectButton,
+    useIotaClient,
+    useCurrentAccount,
+    useSignAndExecuteTransaction,
 } from '@iota/dapp-kit';
 import { useState } from 'react';
 
 function MyComponent() {
-	const client = useIotaClient();
-	const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction({
-		execute: async ({ bytes, signature }) =>
-			await client.executeTransactionBlock({
-				transactionBlock: bytes,
-				signature,
-				options: {
-					// Raw effects are required so the effects can be reported back to the wallet
-					showRawEffects: true,
-					// Select additional data to return
-					showObjectChanges: true,
-				},
-			}),
-	});
+    const client = useIotaClient();
+    const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction({
+        execute: async ({ bytes, signature }) =>
+            await client.executeTransactionBlock({
+                transactionBlock: bytes,
+                signature,
+                options: {
+                    // Raw effects are required so the effects can be reported back to the wallet
+                    showRawEffects: true,
+                    // Select additional data to return
+                    showObjectChanges: true,
+                },
+            }),
+    });
 
-	const [digest, setDigest] = useState('');
-	const currentAccount = useCurrentAccount();
+    const [digest, setDigest] = useState('');
+    const currentAccount = useCurrentAccount();
 
-	return (
-		<div style={{ padding: 20 }}>
-			<ConnectButton />
-			{currentAccount && (
-				<>
-					<div>
-						<button
-							onClick={() => {
-								signAndExecuteTransaction(
-									{
-										transaction: new Transaction(),
-										chain: 'iota:devnet',
-									},
-									{
-										onSuccess: (result) => {
-											console.log('object changes', result.objectChanges);
-											setDigest(result.digest);
-										},
-									},
-								);
-							}}
-						>
-							Sign and execute transaction
-						</button>
-					</div>
-					<div>Digest: {digest}</div>
-				</>
-			)}
-		</div>
-	);
+    return (
+        <div style={{ padding: 20 }}>
+            <ConnectButton />
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={() => {
+                                signAndExecuteTransaction(
+                                    {
+                                        transaction: new Transaction(),
+                                        chain: 'iota:devnet',
+                                    },
+                                    {
+                                        onSuccess: (result) => {
+                                            console.log('object changes', result.objectChanges);
+                                            setDigest(result.digest);
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            Sign and execute transaction
+                        </button>
+                    </div>
+                    <div>Digest: {digest}</div>
+                </>
+            )}
+        </div>
+    );
 }
 ```
 

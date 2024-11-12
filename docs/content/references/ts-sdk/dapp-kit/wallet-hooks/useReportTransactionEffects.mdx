@@ -39,31 +39,31 @@ function withProviders(
 }
 
 function UseReportTransactionEffectsExample() {
-	const { mutateAsync: reportTransactionEffects } = useReportTransactionEffects();
-	const [signature, setSignature] = useState('');
-	const client = useSuiClient();
-	const currentAccount = useCurrentAccount();
+    const { mutateAsync: reportTransactionEffects } = useReportTransactionEffects();
+    const [signature, setSignature] = useState('');
+    const client = useSuiClient();
+    const currentAccount = useCurrentAccount();
 
-	return (
-		<div style={{ padding: 20 }}>
-			<ConnectButton />
-			{currentAccount && (
-				<>
-					<div>
-						<button
-							onClick={async () => {
-								const { effects } = await executePreSignedTransaction();
-								reportTransactionEffects({ effects });
-							}}
-						>
-							Sign empty transaction
-						</button>
-					</div>
-					<div>Signature: {signature}</div>
-				</>
-			)}
-		</div>
-	);
+    return (
+        <div style={{ padding: 20 }}>
+            <ConnectButton />
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={async () => {
+                                const { effects } = await executePreSignedTransaction();
+                                reportTransactionEffects({ effects });
+                            }}
+                        >
+                            Sign empty transaction
+                        </button>
+                    </div>
+                    <div>Signature: {signature}</div>
+                </>
+            )}
+        </div>
+    );
 }
 
 render(<UseReportTransactionEffectsExample/>)

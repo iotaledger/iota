@@ -96,19 +96,19 @@ const mint = async () => {
 ```typescript
 // A sample function that borrows an item from kiosk and levels it up.
 const levelUp = async (object) => {
-	const tx = new Transaction();
+    const tx = new Transaction();
 
-	new KioskTransaction({ kioskClient, transaction: tx, cap })
+    new KioskTransaction({ kioskClient, transaction: tx, cap })
         .borrowTx(object, (item) => {
-			tx.moveCall({
+            tx.moveCall({
                 target: '0xMyGame::hero::level_up',
                 arguments: [item],
             });
         })
         .finalize();
 
-	// Sign and execute transaction.
-	await signAndExecuteTransaction({ tx: tx });
+    // Sign and execute transaction.
+    await signAndExecuteTransaction({ tx: tx });
 };
 
 levelUp({

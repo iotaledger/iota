@@ -32,8 +32,8 @@ async function mintMyCoin(address: string) {
     // Choose the first kiosk for simplicity. We could have extra logic here (e.g. let the user choose, pick a personal one, etc).
     const cap = kioskOwnerCaps[0];
 
-	const tx = new Transaction();
-	const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
+    const tx = new Transaction();
+    const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
     // We're mixing the logic here. If the cap is undefined, we create a new kiosk.
     if (!cap) kioskTx.create();

@@ -75,9 +75,9 @@ passed the `TransactionDataBuilder` instance of the transaction.
 const transaction = new Transaction();
 
 transaction.addSerializationPlugin(async (transactionData, buildOptions, next) => {
-	// Modify the data before running other serialization steps
-	await next();
-	// Modify the data after running other serialization steps
+    // Modify the data before running other serialization steps
+    await next();
+    // Modify the data after running other serialization steps
 });
 ```
 
@@ -99,35 +99,35 @@ at transaction effects of previous transactions) is not covered in this example.
 
 ```typescript
 import {
-	BuildTransactionOptions,
-	Transaction,
-	TransactionDataBuilder,
+    BuildTransactionOptions,
+    Transaction,
+    TransactionDataBuilder,
 } from '@iota/iota-sdk/transactions';
 
 const objectCache = new Map<string, { objectId: string; version: string; digest: string }>();
 
 function simpleObjectCachePlugin(
-	transactionData: TransactionDataBuilder,
-	_options: BuildTransactionOptions,
-	next: () => Promise<void>,
+    transactionData: TransactionDataBuilder,
+    _options: BuildTransactionOptions,
+    next: () => Promise<void>,
 ) {
-	for (const input of transactionData.inputs) {
-		if (!input.UnresolvedObject) continue;
+    for (const input of transactionData.inputs) {
+        if (!input.UnresolvedObject) continue;
 
-		const cached = objectCache.get(input.UnresolvedObject.objectId);
+        const cached = objectCache.get(input.UnresolvedObject.objectId);
 
-		if (!cached) continue;
+        if (!cached) continue;
 
-		if (cached.version && !input.UnresolvedObject.version) {
-			input.UnresolvedObject.version = cached.version;
-		}
+        if (cached.version && !input.UnresolvedObject.version) {
+            input.UnresolvedObject.version = cached.version;
+        }
 
-		if (cached.digest && !input.UnresolvedObject.digest) {
-			input.UnresolvedObject.digest = cached.digest;
-		}
-	}
+        if (cached.digest && !input.UnresolvedObject.digest) {
+            input.UnresolvedObject.digest = cached.digest;
+        }
+    }
 
-	return next();
+    return next();
 }
 
 // Example usage of the build plugin
@@ -148,12 +148,12 @@ import { Commands, Transaction } from '@iota/iota-sdk/transactions';
 const transaction = new Transaction();
 
 transaction.add(
-	Commands.Intent({
-		name: 'TransferToSender',
-		inputs: {
-			objects: [transaction.object(someId)],
-		},
-	}),
+    Commands.Intent({
+        name: 'TransferToSender',
+        inputs: {
+            objects: [transaction.object(someId)],
+        },
+    }),
 );
 ```
 
@@ -165,16 +165,16 @@ current transaction instance. This allows us to create a helper that automatical
 import { Commands, Transaction, TransactionObjectInput } from '@iota/iota-sdk/transactions';
 
 function transferToSender(objects: TransactionObjectInput[]) {
-	return (tx: Transaction) => {
-		tx.add(
-			Commands.Intent({
-				name: 'TransferToSender',
-				inputs: {
-					objects: objects.map((obj) => tx.object(obj)),
-				},
-			}),
-		);
-	};
+    return (tx: Transaction) => {
+        tx.add(
+            Commands.Intent({
+                name: 'TransferToSender',
+                inputs: {
+                    objects: objects.map((obj) => tx.object(obj)),
+                },
+            }),
+        );
+    };
 }
 
 const transaction = new Transaction();
@@ -195,43 +195,43 @@ const transaction = new Transaction();
 transaction.addIntentResolver('TransferToSender', resolveTransferToSender);
 
 async function resolveTransferToSender(
-	transactionData: TransactionDataBuilder,
-	buildOptions: BuildTransactionOptions,
-	next: () => Promise<void>,
+    transactionData: TransactionDataBuilder,
+    buildOptions: BuildTransactionOptions,
+    next: () => Promise<void>,
 ) {
-	if (!transactionData.sender) {
-		throw new Error('Sender must be set to resolve TransferToSender');
-	}
+    if (!transactionData.sender) {
+        throw new Error('Sender must be set to resolve TransferToSender');
+    }
 
-	// Add an input that references the sender's address
-	const addressInput = Inputs.Pure(bcs.Address.serialize(transactionData.sender));
-	transactionData.inputs.push(addressInput);
-	// Get the index of the input to use when adding the TransferObjects command
-	const addressIndex = transactionData.inputs.length - 1;
+    // Add an input that references the sender's address
+    const addressInput = Inputs.Pure(bcs.Address.serialize(transactionData.sender));
+    transactionData.inputs.push(addressInput);
+    // Get the index of the input to use when adding the TransferObjects command
+    const addressIndex = transactionData.inputs.length - 1;
 
-	for (const [index, transaction] of transactionData.commands.entries()) {
-		if (transaction.$kind !== '$Intent' || transaction.$Intent.name !== 'TransferToSender') {
-			continue;
-		}
+    for (const [index, transaction] of transactionData.commands.entries()) {
+        if (transaction.$kind !== '$Intent' || transaction.$Intent.name !== 'TransferToSender') {
+            continue;
+        }
 
-		// This will replace the intent command with the correct TransferObjects command
-		transactionData.replaceCommand(index, [
-			Commands.TransferObjects(
-				// The inputs for intents are not currently typed, so we need to cast to the correct type here
-				transaction.$Intent.inputs.objects as Extract<
-					TransactionObjectArgument,
-					{ $kind: 'Input' }
-				>,
-				// This is a CallArg referencing the addressInput we added above
-				{
-					Input: addressIndex,
-				},
-			),
-		]);
-	}
+        // This will replace the intent command with the correct TransferObjects command
+        transactionData.replaceCommand(index, [
+            Commands.TransferObjects(
+                // The inputs for intents are not currently typed, so we need to cast to the correct type here
+                transaction.$Intent.inputs.objects as Extract<
+                    TransactionObjectArgument,
+                    { $kind: 'Input' }
+                >,
+                // This is a CallArg referencing the addressInput we added above
+                {
+                    Input: addressIndex,
+                },
+            ),
+        ]);
+    }
 
-	// Plugins always need to call next() to continue the build process
-	return next();
+    // Plugins always need to call next() to continue the build process
+    return next();
 }
 ```
 
@@ -242,18 +242,18 @@ automatically when our `transferToSender` helper is called:
 import { Commands, Transaction, TransactionObjectInput } from '@iota/iota-sdk/transactions';
 
 function transferToSender(objects: TransactionObjectInput[]) {
-	return (tx: Transaction) => {
-		// As long as we are adding the same function reference, it will only be added once
-		tx.addIntentResolver('TransferToSender', resolveTransferToSender);
-		tx.add(
-			Commands.Intent({
-				name: 'TransferToSender',
-				inputs: {
-					objects: objects.map((obj) => tx.object(obj)),
-				},
-			}),
-		);
-	};
+    return (tx: Transaction) => {
+        // As long as we are adding the same function reference, it will only be added once
+        tx.addIntentResolver('TransferToSender', resolveTransferToSender);
+        tx.add(
+            Commands.Intent({
+                name: 'TransferToSender',
+                inputs: {
+                    objects: objects.map((obj) => tx.object(obj)),
+                },
+            }),
+        );
+    };
 }
 
 const transaction = new Transaction();

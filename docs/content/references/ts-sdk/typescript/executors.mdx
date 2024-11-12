@@ -37,8 +37,8 @@ import { SerialTransactionExecutor } from '@iota/iota-sdk/transactions';
 const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
 const executor = new SerialTransactionExecutor({
-	client,
-	signer: yourKeyPair,
+    client,
+    signer: yourKeyPair,
 });
 
 const tx1 = new Transaction();
@@ -49,8 +49,8 @@ const [coin2] = tx2.splitCoins(tx2.gas, [1]);
 tx2.transferObjects([coin2], address2);
 
 const [{ digest: digest1 }, { digest: digest2 }] = await Promise.all([
-	executor.executeTransaction(tx1),
-	executor.executeTransaction(tx2),
+    executor.executeTransaction(tx1),
+    executor.executeTransaction(tx2),
 ]);
 ```
 
@@ -110,8 +110,8 @@ import { ParallelTransactionExecutor } from '@iota/iota-sdk/transactions';
 const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
 const executor = new ParallelTransactionExecutor({
-	client,
-	signer: yourKeyPair,
+    client,
+    signer: yourKeyPair,
 });
 
 const tx1 = new Transaction();
@@ -122,8 +122,8 @@ const [coin2] = tx2.splitCoins(tx2.gas, [1]);
 tx2.transferObjects([coin2], address2);
 
 const [{ digest: digest1 }, { digest: digest2 }] = await Promise.all([
-	executor.executeTransaction(tx1),
-	executor.executeTransaction(tx2),
+    executor.executeTransaction(tx1),
+    executor.executeTransaction(tx2),
 ]);
 ```
 

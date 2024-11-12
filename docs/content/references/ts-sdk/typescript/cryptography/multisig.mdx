@@ -142,7 +142,7 @@ const multisigAddress = multiSigPublicKey.toIotaAddress();
 const zkLoginSig = getZkLoginSignature({
     inputs: zkLoginInputs,
     maxEpoch: '2',
-	userSignature: fromBase64(ephemeralSig),
+    userSignature: fromBase64(ephemeralSig),
 });
 
 // a valid multisig with just the zklogin signature.

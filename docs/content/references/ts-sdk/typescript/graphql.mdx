@@ -18,21 +18,21 @@ import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
 import { graphql } from '@iota/iota-sdk/graphql/schemas/2024.4';
 
 const gqlClient = new IotaGraphQLClient({
-	url: 'https://iota-testnet.mystenlabs.com/graphql',
+    url: 'https://iota-testnet.mystenlabs.com/graphql',
 });
 
 const chainIdentifierQuery = graphql(`
-	query {
-		chainIdentifier
-	}
+    query {
+        chainIdentifier
+    }
 `);
 
 async function getChainIdentifier() {
-	const result = await gqlClient.query({
-		query: chainIdentifierQuery,
-	});
+    const result = await gqlClient.query({
+        query: chainIdentifierQuery,
+    });
 
-	return result.data?.chainIdentifier;
+    return result.data?.chainIdentifier;
 }
 ```
 
@@ -51,22 +51,22 @@ to your query are properly typed.
 
 ```typescript
 const getIotansName = graphql(`
-	query getIotaName($address: IotaAddress!) {
-		address(address: $address) {
-			defaultIotansName
-		}
-	}
+    query getIotaName($address: IotaAddress!) {
+        address(address: $address) {
+            defaultIotansName
+        }
+    }
 `);
 
 async function getDefaultIotansName(address: string) {
-	const result = await gqlClient.query({
-		query: getIotansName,
-		variables: {
-			address,
-		},
-	});
+    const result = await gqlClient.query({
+        query: getIotansName,
+        variables: {
+            address,
+        },
+    });
 
-	return result.data?.address?.defaultIotansName;
+    return result.data?.address?.defaultIotansName;
 }
 ```
 
@@ -80,14 +80,14 @@ work with the majority of popular GraphQL clients to provide queries that are au
 import { useQuery } from '@apollo/client';
 
 const chainIdentifierQuery = graphql(`
-	query {
-		chainIdentifier
-	}
+    query {
+        chainIdentifier
+    }
 `);
 
 function ChainIdentifier() {
-	const { loading, error, data } = useQuery(getPokemonsQuery);
+    const { loading, error, data } = useQuery(getPokemonsQuery);
 
-	return <div>{data?.chainIdentifier}</div>;
+    return <div>{data?.chainIdentifier}</div>;
 }
 ```

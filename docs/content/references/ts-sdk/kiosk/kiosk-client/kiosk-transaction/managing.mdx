@@ -198,7 +198,7 @@ kioskTx
             itemType,
         },
         (item) => {
-			tx.moveCall({
+            tx.moveCall({
                 target: '0xMyGame::hero::level_up',
                 arguments: [item],
             });

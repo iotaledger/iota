@@ -49,10 +49,10 @@ You can use the `purchaseAndResolve` function to support a custom rule.
 ```typescript
 const kioskClient = new KioskClient({...});
 const myCustomRule = {
-		rule: `0xMyRuleAddress::game_rule::Rule`,
-		packageId: `0xMyRuleAddress`,
+        rule: `0xMyRuleAddress::game_rule::Rule`,
+        packageId: `0xMyRuleAddress`,
         // The resolving function. This is called when calling the `purchaseAndResolve`.
-		resolveRuleFunction: (params: RuleResolvingParams) => {
+        resolveRuleFunction: (params: RuleResolvingParams) => {
             // By knowing the params we have here, we can extract the variables we need to resolve this rule.
             const { transaction, itemType, packageId, extraArgs } = params;
             const { gamePass } = extraArgs;
@@ -75,13 +75,13 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 await kioskTx.purchaseAndResolve({
-	itemType: item.itemType,
-	itemId: item.itemId,
-	price: item.price,
-	sellerKiosk: item.sellerKiosk,
-	extraArgs: {
-		gamePass: '0xMyGamePassObjectId'
-	}
+    itemType: item.itemType,
+    itemId: item.itemId,
+    price: item.price,
+    sellerKiosk: item.sellerKiosk,
+    extraArgs: {
+        gamePass: '0xMyGamePassObjectId'
+    }
 });
 
 kioskTx.finalize();
@@ -93,7 +93,7 @@ await signAndExecuteTransaction({ tx: tx });
 ```typescript
 // For reference, here's the RuleResolvingParams contents.
 type RuleResolvingParams = {
-	transaction: Transaction;
+    transaction: Transaction;
     itemType: string;
     itemId: string;
     price: string;
