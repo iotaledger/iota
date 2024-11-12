@@ -305,7 +305,7 @@ impl IotaValidatorCommand {
             } => {
                 let dir = std::env::current_dir()?;
                 let authority_key_file_name = dir.join("authority.key");
-                let account_key = match context.config.keystore.get_key(&iota_address)? {
+                let account_key = match context.config().keystore().get_key(&iota_address)? {
                     IotaKeyPair::Ed25519(account_key) => IotaKeyPair::Ed25519(account_key.copy()),
                     _ => panic!(
                         "Other account key types supported yet, please use Ed25519 keys for now."
@@ -565,7 +565,7 @@ impl IotaValidatorCommand {
                     "Starting bridge committee registration for Iota validator: {address}, with bridge public key: {} and url: {}",
                     ecdsa_keypair.public, bridge_authority_url
                 );
-                let iota_rpc_url = &context.config.get_active_env().unwrap().rpc;
+                let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
                 let bridge = bridge_client
                     .get_mutable_bridge_object_arg_must_succeed()
@@ -626,7 +626,7 @@ impl IotaValidatorCommand {
                     validator_address,
                     print_unsigned_transaction_only,
                 )?;
-                let iota_rpc_url = &context.config.get_active_env().unwrap().rpc;
+                let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
                 let committee_members = bridge_client
                     .get_bridge_summary()
@@ -927,8 +927,8 @@ async fn call_0x5(
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
     let signature =
         context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
     let transaction = Transaction::from_data(tx_data, vec![signature]);
     let iota_client = context.get_client().await?;

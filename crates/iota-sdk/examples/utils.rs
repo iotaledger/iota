@@ -260,14 +260,15 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 
     if !wallet_conf.exists() {
         let keystore = FileBasedKeystore::new(&keystore_path)?;
-        let mut client_config = IotaClientConfig::new(keystore.into());
+        let mut client_config = IotaClientConfig::new(keystore);
 
         client_config.add_env(IotaEnv::testnet());
         client_config.add_env(IotaEnv::devnet());
         client_config.add_env(IotaEnv::localnet());
 
-        if client_config.active_env.is_none() {
-            client_config.active_env = client_config.envs.first().map(|env| env.alias.clone());
+        if client_config.active_env().is_none() {
+            client_config
+                .set_active_env(client_config.envs().first().map(|env| env.alias().clone()));
         }
 
         client_config.save(&wallet_conf)?;
@@ -289,7 +290,7 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
         keystore.generate_and_add_new_key(ED25519, None, None, None)?;
     }
 
-    client_config.active_address = Some(default_active_address);
+    client_config.set_active_address(default_active_address);
     client_config.save(&wallet_conf)?;
 
     let wallet = WalletContext::new(&wallet_conf, std::time::Duration::from_secs(60), None)?;
