@@ -78,11 +78,11 @@ jobs:
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
 
       - name: Build apps-backend
-        if: inputs.isAppsBackend
+        if: inputs.isAppsBackend || inputs.isDevelop
         run: pnpm --filter apps-backend build
 
       - name: Run apps-backend e2e tests
-        if: inputs.isAppsBackend
+        if: inputs.isAppsBackend || inputs.isDevelop
         run: pnpm --filter apps-backend test:e2e
 
       - name: Build explorer
