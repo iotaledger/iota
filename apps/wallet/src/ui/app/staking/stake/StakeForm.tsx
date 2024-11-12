@@ -67,8 +67,6 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
-    const shouldShowInsufficientRemainingFundsWarning =
-        maxTokenFormatted >= values.amount && !hasEnoughRemaingBalance;
 
     return (
         <Form
@@ -97,7 +95,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     );
                 }}
             </Field>
-            {shouldShowInsufficientRemainingFundsWarning ? (
+            {!hasEnoughRemaingBalance ? (
                 <InfoBox
                     type={InfoBoxType.Error}
                     supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."

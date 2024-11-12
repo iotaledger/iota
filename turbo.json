@@ -50,7 +50,8 @@
 		"DEFAULT_NETWORK",
 		"IOTA_NETWORKS",
 		"RC_VERSION",
-		"APPS_BACKEND"
+		"APPS_BACKEND",
+		"SENTRY_AUTH_TOKEN"
 	],
 	"globalDependencies": [
 		".eslintrc.js",
