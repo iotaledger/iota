@@ -9,6 +9,7 @@ env:
   DEFAULT_NETWORK: ${{ secrets.WALLET_PROD_DEFAULT_NETWORK }}
   IOTA_NETWORKS: ${{ secrets.WALLET_PROD_IOTA_NETWORKS }}
   APPS_BACKEND: ${{ secrets.WALLET_PROD_APPS_BACKEND }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.TOOLING_SENTRY_AUTH_TOKEN }}
 
 jobs:
   wallet-prod-build:
