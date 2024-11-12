@@ -9,6 +9,9 @@ on:
       isExplorer:
         type: boolean
         required: false
+      isAppsBackend:
+        type: boolean
+        required: false
       isTypescriptSDK:
         type: boolean
         required: false
@@ -70,6 +73,14 @@ jobs:
       - name: Run RPC/GraphQL compatibility e2e tests
         if: inputs.isGraphQlTransport || inputs.isRust || github.ref_name == 'develop'
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
+
+      - name: Build apps-backend
+        if: inputs.isAppsBackend || github.ref_name == 'develop'
+        run: pnpm --filter apps-backend build
+
+      - name: Run apps-backend e2e tests
+        if: inputs.isAppsBackend || github.ref_name == 'develop'
+        run: pnpm --filter apps-backend test:e2e
 
       - name: Build explorer
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || github.ref_name == 'develop'

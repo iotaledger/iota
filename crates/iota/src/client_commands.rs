@@ -657,7 +657,7 @@ pub struct Opts {
     /// If not provided, all fields are displayed.
     /// The fields are: effects, input, events, object_changes,
     /// balance_changes.
-    #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_option)]
+    #[clap(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
     pub emit: HashSet<EmitOption>,
 }
 
@@ -1541,8 +1541,8 @@ impl IotaClientCommands {
 
                     if let Ok(env) = active_env {
                         let network = match env.rpc().as_str() {
-                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.io/v1/gas",
-                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.io/v1/gas",
+                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.cafe/v1/gas",
+                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.cafe/v1/gas",
                             IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
                                 "http://127.0.0.1:9123/gas"
                             }
@@ -2986,7 +2986,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
-            let response = client
+            let mut response = client
                 .quorum_driver_api()
                 .execute_transaction_block(
                     transaction,
@@ -2995,9 +2995,17 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 )
                 .await?;
 
-            let errors: &Vec<String> = response.errors.as_ref();
-            if !errors.is_empty() {
-                return Err(anyhow!("Error executing transaction: {errors:#?}"));
+            if let Some(effects) = response.effects.as_mut() {
+                prerender_clever_errors(effects, client.read_api()).await;
+            }
+            let effects = response.effects.as_ref().ok_or_else(|| {
+                anyhow!("Effects from IotaTransactionBlockResult should not be empty")
+            })?;
+            if let IotaExecutionStatus::Failure { error } = effects.status() {
+                return Err(anyhow!(
+                    "Error executing transaction '{}': {error}",
+                    response.digest
+                ));
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
@@ -3030,13 +3038,27 @@ fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptio
             show_events: opts.contains(&EmitOption::Events),
             show_object_changes: opts.contains(&EmitOption::ObjectChanges),
             show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
-            show_effects: opts.contains(&EmitOption::Effects),
+            show_effects: true,
             show_raw_effects: false,
             show_raw_input: false,
         }
     }
 }
 
-fn parse_emit_option(s: &str) -> Result<EmitOption, String> {
-    EmitOption::from_str(s).map_err(|_| format!("Invalid emit option: {}", s))
+fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
+    let mut options = HashSet::new();
+
+    // Split the input string by commas and try to parse each part
+    for part in s.split(',') {
+        let part = part.trim(); // Trim whitespace
+        match EmitOption::from_str(part) {
+            Ok(option) => {
+                options.insert(option);
+            }
+            Err(_) => return Err(format!("Invalid emit option: {}", part)), /* Return error if
+                                                                             * invalid */
+        }
+    }
+
+    Ok(options)
 }
