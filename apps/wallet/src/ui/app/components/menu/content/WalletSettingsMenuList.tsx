@@ -28,6 +28,7 @@ import {
     CardType,
     ImageType,
 } from '@iota/apps-ui-kit';
+import { ampli } from '_src/shared/analytics/ampli';
 
 function MenuList() {
     const navigate = useNavigate();
@@ -46,7 +47,7 @@ function MenuList() {
     const logoutMutation = useMutation({
         mutationKey: ['logout', 'clear wallet'],
         mutationFn: async () => {
-            // ampli.client.reset();
+            ampli.client.reset();
             queryClient.cancelQueries();
             queryClient.clear();
             await persister.removeClient();

@@ -32,9 +32,9 @@ export async function initAmplitude() {
 }
 
 export function getUrlWithDeviceId(url: URL) {
-    // const amplitudeDeviceId = ampli.client.getDeviceId();
-    // if (amplitudeDeviceId) {
-    // 	url.searchParams.append('deviceId', amplitudeDeviceId);
-    // }
+    const amplitudeDeviceId = ampli.client.getDeviceId();
+    if (amplitudeDeviceId) {
+        url.searchParams.append('deviceId', amplitudeDeviceId);
+    }
     return url;
 }
