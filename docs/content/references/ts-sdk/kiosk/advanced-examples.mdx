@@ -1,32 +1,29 @@
-import AlphaNet from "../../../_snippets/alphanet.mdx";
-
 # Some extended examples
 
 For these examples, assume you have the following data and functions available:
 
-<AlphaNet />
 
 ```typescript
-// a constant for bullshark's type.
-const bullsharkType = `${packageId}::iotafrens::IotaFren<${packageId}::bullshark::Bullshark>`;
-// a constant for capy's type.
-const capyType = `${packageId}::iotafrens::IotaFren<${packageId}::capy::Capy>`;
+// a constant for my type.
+const myType = `${packageId}::my_module::MyStruct<${packageId}::my_coin_module::MyCoin>`;
+// a constant for another type.
+const otherType = `${packageId}::other_module::OtherStruct<${packageId}::other_coin_module::OtherCoin>`;
 
 // initialize a kioskClient.
 const kioskClient = new KioskClient({
     client: new IotaClient({
-        url: getFullnodeUrl('mainnet'),
+        url: getFullnodeUrl('testnet'),
     }),
-    network: Network.MAINNET,
+    network: Network.TESTNET,
 });
 ```
 
-## Minting a IotaFren
+## Minting a MyCoin
 
-This example demonstrates how to mint a IotaFren.
+This example demonstrates how to mint a MyCoin.
 
 ```typescript
-async function mintFren(address: string) {
+async function mintMyCoin(address: string) {
     const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address });
 
     // Choose the first kiosk for simplicity. We could have extra logic here (e.g. let the user choose, pick a personal one, etc).
@@ -38,11 +35,11 @@ async function mintFren(address: string) {
     // We're mixing the logic here. If the cap is undefined, we create a new kiosk.
     if (!cap) kioskTx.create();
 
-    // Let's mint a capy here into the kiosk (either a new or an existing one).
+    // Let's mint a MyCoin here into the kiosk (either a new or an existing one).
     txb.moveCall({
-        target: `${packageId}::iotafrens::mint_app::mint`,
+        target: `${packageId}::my_module::mint_app::mint`,
         arguments: [kioskTx.getKiosk(), kioskTx.getKioskCap()],
-        typeArguments: [capyType],
+        typeArguments: [myType],
     });
 
     // If we don't have a cap, that means we create a new kiosk for the user in this flow.
@@ -55,47 +52,47 @@ async function mintFren(address: string) {
 }
 ```
 
-## Mixing two Iotafrens
+## Mixing two MyCoins
 
-This example demonstrates how to use the Kiosk SDK to mix two `bullsharks`.
+This example demonstrates how to use the Kiosk SDK to mix two `MyCoins`.
 
 ```typescript
-// We're mixing two frens.
-async function mixFrens(firstFrenObjectId: string, secondFrenObjectId: string, cap: KioskOwnerCap) {
+// We're mixing two coins.
+async function mixMyCoins(firstCoinObjectId: string, secondCoinObjectId: string, cap: KioskOwnerCap) {
     const txb = new TransactionBlock();
     const kioskTx = new KioskTransaction({ transactionBlock: txb, kioskClient, cap });
 
-    // borrow both frens.
-    const [fren1, promise1] = kioskTx.borrow({
-        itemType: bullsharkType,
-        itemId: firstFrenObjectId.
+    // borrow both coins.
+    const [coin1, promise1] = kioskTx.borrow({
+        itemType: myType,
+        itemId: firstCoinObjectId.
     });
 
-    const [fren2, promise2] = kioskTx.borrow({
-        itemType: bullsharkType,
-        itemId: secondFrenObjectId.
+    const [coin2, promise2] = kioskTx.borrow({
+        itemType: myType,
+        itemId: secondCoinObjectId.
     });
 
     // Let's call the mix function. We skip any payment related stuff here.
     txb.moveCall({
         target: `${packageId}::mix_app::mix`,
         arguments: [
-            fren1,
-            fren2,
+            coin1,
+            coin2,
             kioskTx.getKiosk(),
             kioskTx.getKioskCap(),
         ]
-        typeArguments: [bullsharkType],
+        typeArguments: [myType],
     });
 
     kioskTx.return({
-        itemType: bullsharkType,
-        item: fren1,
+        itemType: myType,
+        item: coin1,
         promise: promise1
     })
     .return({
-        itemType: bullsharkType,
-        item: fren2,
+        itemType: myType,
+        item: coin2,
         promise: promise2
     }).finalize();
 

@@ -7,7 +7,7 @@ task 1, lines 7-28:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5798800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5791200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 30:
 //# create-checkpoint
@@ -17,31 +17,31 @@ task 3, line 32:
 //# run Test::M1::create --args 0 @B --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4, line 34:
 //# run Test::M1::create --args 1 @B --sender A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 36:
 //# run Test::M1::create --args 2 @B --sender A
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 38:
 //# run Test::M1::create --args 3 @B --sender A
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 40:
 //# run Test::M1::create --args 4 @B --sender A
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 8, line 42:
 //# create-checkpoint
@@ -51,31 +51,31 @@ task 9, line 44:
 //# run Test::M1::create --args 100 @B --sender A
 created: object(9,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 10, line 46:
 //# run Test::M1::create --args 101 @B --sender A
 created: object(10,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 11, line 48:
 //# run Test::M1::create --args 102 @B --sender A
 created: object(11,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 12, line 50:
 //# run Test::M1::create --args 103 @B --sender A
 created: object(12,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 13, line 52:
 //# run Test::M1::create --args 104 @B --sender A
 created: object(13,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 14, line 54:
 //# create-checkpoint
@@ -94,7 +94,7 @@ Response: {
       },
       "nodes": [
         {
-          "digest": "DnEG8FVjCxcuvDeaqRbGDepf4dAFHEUPUfuKXoBgNVPq",
+          "digest": "ABweY1pDPKFhZX77kk48ofYU9KpAvXHBZUYyPK8JZf8p",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -102,7 +102,7 @@ Response: {
           }
         },
         {
-          "digest": "65DSnzKiePBU187otXJCRQxvfdiF7zow5o9CgKZJEM2p",
+          "digest": "8v4rn79YoSv3Drbkqbz8ttsX7EJDPEoDNbvLXpZnNXvE",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -110,7 +110,7 @@ Response: {
           }
         },
         {
-          "digest": "2KwcwgpuDJzFRN3d6tsACZk8rxpELMkkdraoA1C9HtX8",
+          "digest": "DeaCABc78S9mn6vSdNcNpabxYuazUfc1gsb87KMKbcyk",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -118,7 +118,7 @@ Response: {
           }
         },
         {
-          "digest": "J6n5bKEKVG2fTQnPfwYEx519PVm6cVRaJ555EL2n4VFH",
+          "digest": "6YBm7aNbGN3XrFBmateAnVZ1tCdi2sattswFEHJztyrB",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -126,7 +126,7 @@ Response: {
           }
         },
         {
-          "digest": "5k29tRfQ68Fg87G7vjq4nR7cuXjguUTZDvaQZ4Yriv6d",
+          "digest": "Gb2DhrKwqpXxHGt7q8XN5arTdGHf1fBKu8h8a86KYWR7",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -134,7 +134,7 @@ Response: {
           }
         },
         {
-          "digest": "H5ksb5gvCnf6CgJfwymnrMkGGfDfTcCUtUdb4B5NWCAn",
+          "digest": "DigC9u79Qh7rJB9jkthYucTwZmrrnB9j9Ggf7r8wZZYZ",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -142,7 +142,7 @@ Response: {
           }
         },
         {
-          "digest": "5akTvsZxyaD8qPy4USdysxAH4SKoDjGJmshRpDyQip98",
+          "digest": "CMWP39HwdMdEhgHh54EonhUkmG3B5xTBdsxy493DfAxa",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -150,7 +150,7 @@ Response: {
           }
         },
         {
-          "digest": "6Eg258qqgGs9AUKnJFUFJQSu4Uk2XCJZZu8gVga3XM3T",
+          "digest": "k7uqYEVDRKmcSV51NiyNASiTM6SnrFGSV4DmvWvPt2R",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -158,7 +158,7 @@ Response: {
           }
         },
         {
-          "digest": "426m3vv35dULKjnid7roTUQjYs3PZ4hrs14f1AW1Rrkg",
+          "digest": "3FjYZKGUcbVYqHKSvzPuWJBTBtZHQMkVC6e23dPBLkxy",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -166,7 +166,7 @@ Response: {
           }
         },
         {
-          "digest": "8BwgFuaepUNC7fQbsGds9zrSFKRiRUAVn3ws5vuha5hf",
+          "digest": "9c34rk4iWpmURFjPQNXCHCTFZXXwYwDXgBKn22q674jE",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -191,7 +191,7 @@ Response: {
       },
       "nodes": [
         {
-          "digest": "DnEG8FVjCxcuvDeaqRbGDepf4dAFHEUPUfuKXoBgNVPq",
+          "digest": "ABweY1pDPKFhZX77kk48ofYU9KpAvXHBZUYyPK8JZf8p",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -199,7 +199,7 @@ Response: {
           }
         },
         {
-          "digest": "65DSnzKiePBU187otXJCRQxvfdiF7zow5o9CgKZJEM2p",
+          "digest": "8v4rn79YoSv3Drbkqbz8ttsX7EJDPEoDNbvLXpZnNXvE",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -207,7 +207,7 @@ Response: {
           }
         },
         {
-          "digest": "2KwcwgpuDJzFRN3d6tsACZk8rxpELMkkdraoA1C9HtX8",
+          "digest": "DeaCABc78S9mn6vSdNcNpabxYuazUfc1gsb87KMKbcyk",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -215,7 +215,7 @@ Response: {
           }
         },
         {
-          "digest": "J6n5bKEKVG2fTQnPfwYEx519PVm6cVRaJ555EL2n4VFH",
+          "digest": "6YBm7aNbGN3XrFBmateAnVZ1tCdi2sattswFEHJztyrB",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -223,7 +223,7 @@ Response: {
           }
         },
         {
-          "digest": "5k29tRfQ68Fg87G7vjq4nR7cuXjguUTZDvaQZ4Yriv6d",
+          "digest": "Gb2DhrKwqpXxHGt7q8XN5arTdGHf1fBKu8h8a86KYWR7",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -231,7 +231,7 @@ Response: {
           }
         },
         {
-          "digest": "H5ksb5gvCnf6CgJfwymnrMkGGfDfTcCUtUdb4B5NWCAn",
+          "digest": "DigC9u79Qh7rJB9jkthYucTwZmrrnB9j9Ggf7r8wZZYZ",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -239,7 +239,7 @@ Response: {
           }
         },
         {
-          "digest": "5akTvsZxyaD8qPy4USdysxAH4SKoDjGJmshRpDyQip98",
+          "digest": "CMWP39HwdMdEhgHh54EonhUkmG3B5xTBdsxy493DfAxa",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -247,7 +247,7 @@ Response: {
           }
         },
         {
-          "digest": "6Eg258qqgGs9AUKnJFUFJQSu4Uk2XCJZZu8gVga3XM3T",
+          "digest": "k7uqYEVDRKmcSV51NiyNASiTM6SnrFGSV4DmvWvPt2R",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -255,7 +255,7 @@ Response: {
           }
         },
         {
-          "digest": "426m3vv35dULKjnid7roTUQjYs3PZ4hrs14f1AW1Rrkg",
+          "digest": "3FjYZKGUcbVYqHKSvzPuWJBTBtZHQMkVC6e23dPBLkxy",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -263,7 +263,7 @@ Response: {
           }
         },
         {
-          "digest": "8BwgFuaepUNC7fQbsGds9zrSFKRiRUAVn3ws5vuha5hf",
+          "digest": "9c34rk4iWpmURFjPQNXCHCTFZXXwYwDXgBKn22q674jE",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -311,7 +311,7 @@ Response: {
       },
       "nodes": [
         {
-          "digest": "DnEG8FVjCxcuvDeaqRbGDepf4dAFHEUPUfuKXoBgNVPq",
+          "digest": "ABweY1pDPKFhZX77kk48ofYU9KpAvXHBZUYyPK8JZf8p",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -319,7 +319,7 @@ Response: {
           }
         },
         {
-          "digest": "65DSnzKiePBU187otXJCRQxvfdiF7zow5o9CgKZJEM2p",
+          "digest": "8v4rn79YoSv3Drbkqbz8ttsX7EJDPEoDNbvLXpZnNXvE",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -327,7 +327,7 @@ Response: {
           }
         },
         {
-          "digest": "2KwcwgpuDJzFRN3d6tsACZk8rxpELMkkdraoA1C9HtX8",
+          "digest": "DeaCABc78S9mn6vSdNcNpabxYuazUfc1gsb87KMKbcyk",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -335,7 +335,7 @@ Response: {
           }
         },
         {
-          "digest": "J6n5bKEKVG2fTQnPfwYEx519PVm6cVRaJ555EL2n4VFH",
+          "digest": "6YBm7aNbGN3XrFBmateAnVZ1tCdi2sattswFEHJztyrB",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -343,7 +343,7 @@ Response: {
           }
         },
         {
-          "digest": "5k29tRfQ68Fg87G7vjq4nR7cuXjguUTZDvaQZ4Yriv6d",
+          "digest": "Gb2DhrKwqpXxHGt7q8XN5arTdGHf1fBKu8h8a86KYWR7",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -351,7 +351,7 @@ Response: {
           }
         },
         {
-          "digest": "H5ksb5gvCnf6CgJfwymnrMkGGfDfTcCUtUdb4B5NWCAn",
+          "digest": "DigC9u79Qh7rJB9jkthYucTwZmrrnB9j9Ggf7r8wZZYZ",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -359,7 +359,7 @@ Response: {
           }
         },
         {
-          "digest": "5akTvsZxyaD8qPy4USdysxAH4SKoDjGJmshRpDyQip98",
+          "digest": "CMWP39HwdMdEhgHh54EonhUkmG3B5xTBdsxy493DfAxa",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -367,7 +367,7 @@ Response: {
           }
         },
         {
-          "digest": "6Eg258qqgGs9AUKnJFUFJQSu4Uk2XCJZZu8gVga3XM3T",
+          "digest": "k7uqYEVDRKmcSV51NiyNASiTM6SnrFGSV4DmvWvPt2R",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -375,7 +375,7 @@ Response: {
           }
         },
         {
-          "digest": "426m3vv35dULKjnid7roTUQjYs3PZ4hrs14f1AW1Rrkg",
+          "digest": "3FjYZKGUcbVYqHKSvzPuWJBTBtZHQMkVC6e23dPBLkxy",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -383,7 +383,7 @@ Response: {
           }
         },
         {
-          "digest": "8BwgFuaepUNC7fQbsGds9zrSFKRiRUAVn3ws5vuha5hf",
+          "digest": "9c34rk4iWpmURFjPQNXCHCTFZXXwYwDXgBKn22q674jE",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -431,7 +431,7 @@ Response: {
       },
       "nodes": [
         {
-          "digest": "DnEG8FVjCxcuvDeaqRbGDepf4dAFHEUPUfuKXoBgNVPq",
+          "digest": "ABweY1pDPKFhZX77kk48ofYU9KpAvXHBZUYyPK8JZf8p",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -439,7 +439,7 @@ Response: {
           }
         },
         {
-          "digest": "65DSnzKiePBU187otXJCRQxvfdiF7zow5o9CgKZJEM2p",
+          "digest": "8v4rn79YoSv3Drbkqbz8ttsX7EJDPEoDNbvLXpZnNXvE",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -447,7 +447,7 @@ Response: {
           }
         },
         {
-          "digest": "2KwcwgpuDJzFRN3d6tsACZk8rxpELMkkdraoA1C9HtX8",
+          "digest": "DeaCABc78S9mn6vSdNcNpabxYuazUfc1gsb87KMKbcyk",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -455,7 +455,7 @@ Response: {
           }
         },
         {
-          "digest": "J6n5bKEKVG2fTQnPfwYEx519PVm6cVRaJ555EL2n4VFH",
+          "digest": "6YBm7aNbGN3XrFBmateAnVZ1tCdi2sattswFEHJztyrB",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -463,7 +463,7 @@ Response: {
           }
         },
         {
-          "digest": "5k29tRfQ68Fg87G7vjq4nR7cuXjguUTZDvaQZ4Yriv6d",
+          "digest": "Gb2DhrKwqpXxHGt7q8XN5arTdGHf1fBKu8h8a86KYWR7",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 2
@@ -471,7 +471,7 @@ Response: {
           }
         },
         {
-          "digest": "H5ksb5gvCnf6CgJfwymnrMkGGfDfTcCUtUdb4B5NWCAn",
+          "digest": "DigC9u79Qh7rJB9jkthYucTwZmrrnB9j9Ggf7r8wZZYZ",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -479,7 +479,7 @@ Response: {
           }
         },
         {
-          "digest": "5akTvsZxyaD8qPy4USdysxAH4SKoDjGJmshRpDyQip98",
+          "digest": "CMWP39HwdMdEhgHh54EonhUkmG3B5xTBdsxy493DfAxa",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -487,7 +487,7 @@ Response: {
           }
         },
         {
-          "digest": "6Eg258qqgGs9AUKnJFUFJQSu4Uk2XCJZZu8gVga3XM3T",
+          "digest": "k7uqYEVDRKmcSV51NiyNASiTM6SnrFGSV4DmvWvPt2R",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -495,7 +495,7 @@ Response: {
           }
         },
         {
-          "digest": "426m3vv35dULKjnid7roTUQjYs3PZ4hrs14f1AW1Rrkg",
+          "digest": "3FjYZKGUcbVYqHKSvzPuWJBTBtZHQMkVC6e23dPBLkxy",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -503,7 +503,7 @@ Response: {
           }
         },
         {
-          "digest": "8BwgFuaepUNC7fQbsGds9zrSFKRiRUAVn3ws5vuha5hf",
+          "digest": "9c34rk4iWpmURFjPQNXCHCTFZXXwYwDXgBKn22q674jE",
           "effects": {
             "checkpoint": {
               "sequenceNumber": 3
@@ -592,7 +592,7 @@ Response: {
         {
           "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
           "node": {
-            "digest": "DnEG8FVjCxcuvDeaqRbGDepf4dAFHEUPUfuKXoBgNVPq",
+            "digest": "ABweY1pDPKFhZX77kk48ofYU9KpAvXHBZUYyPK8JZf8p",
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 2

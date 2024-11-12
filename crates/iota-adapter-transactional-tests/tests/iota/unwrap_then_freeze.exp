@@ -7,13 +7,13 @@ task 1, lines 10-39:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 6946400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6938800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 41:
 //# run test::object_basics::create --args 10 @A
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2371200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 43:
 //# view-object 2,0
@@ -33,14 +33,14 @@ task 4, line 45:
 created: object(4,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2637200,  storage_rebate: 1398400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2622000,  storage_rebate: 1390800, non_refundable_storage_fee: 0
 
 task 5, line 47:
 //# run test::object_basics::unwrap_and_freeze --args object(4,0) --sender A
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 2637200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2371200,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 6, line 49:
 //# view-object 2,0

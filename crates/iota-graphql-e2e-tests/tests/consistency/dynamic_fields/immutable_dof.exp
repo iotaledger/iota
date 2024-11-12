@@ -7,43 +7,43 @@ task 1, lines 21-69:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 8770400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8762800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 71:
 //# run Test::M1::parent --sender A --args @A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 73:
 //# run Test::M1::child --sender A --args @A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 75:
 //# run Test::M1::child --sender A --args @A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 77:
 //# run Test::M1::add_child --sender A --args object(2,0) object(3,0) 42
 created: object(5,0)
 mutated: object(0,0), object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6034400,  storage_rebate: 3587200, non_refundable_storage_fee: 0
 
 task 6, line 79:
 //# run Test::M1::add_nested_child --sender A --args object(2,0) 42 object(4,0) 420
 created: object(6,0)
 mutated: object(0,0), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6034400,  storage_rebate: 3587200, non_refundable_storage_fee: 0
 
 task 7, line 81:
 //# run Test::M1::reclaim_and_freeze_child --sender A --args object(2,0) 42
 mutated: object(0,0), object(2,0), object(3,0)
 deleted: object(5,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3587200,  storage_rebate: 6034400, non_refundable_storage_fee: 0
 
 task 8, line 83:
 //# create-checkpoint
@@ -58,11 +58,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x7213d8b54baa510ebfbe8f8c80900a9645f88d5c3316950c3ff20c6c9c41b10e",
+              "address": "0xbbc2cee5f76e38917236d2524b3ef426edbbc25ef9ffbd6e9778dcffafe96f96",
               "version": 5,
               "contents": {
                 "json": {
-                  "id": "0x7213d8b54baa510ebfbe8f8c80900a9645f88d5c3316950c3ff20c6c9c41b10e",
+                  "id": "0xbbc2cee5f76e38917236d2524b3ef426edbbc25ef9ffbd6e9778dcffafe96f96",
                   "count": "0"
                 }
               },
@@ -86,11 +86,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x7213d8b54baa510ebfbe8f8c80900a9645f88d5c3316950c3ff20c6c9c41b10e",
+              "address": "0xbbc2cee5f76e38917236d2524b3ef426edbbc25ef9ffbd6e9778dcffafe96f96",
               "version": 5,
               "contents": {
                 "json": {
-                  "id": "0x7213d8b54baa510ebfbe8f8c80900a9645f88d5c3316950c3ff20c6c9c41b10e",
+                  "id": "0xbbc2cee5f76e38917236d2524b3ef426edbbc25ef9ffbd6e9778dcffafe96f96",
                   "count": "0"
                 }
               },
@@ -98,11 +98,11 @@ Response: {
                 "nodes": [
                   {
                     "value": {
-                      "address": "0x14e0fbb3261eb9c70e262159994b0ab0808675ad1a02a226461b16e9349d5a28",
+                      "address": "0x1981177a65ae90d094e5512584c97af55b294aef0b77794b1c6757b6ce2a5897",
                       "version": 6,
                       "contents": {
                         "json": {
-                          "id": "0x14e0fbb3261eb9c70e262159994b0ab0808675ad1a02a226461b16e9349d5a28",
+                          "id": "0x1981177a65ae90d094e5512584c97af55b294aef0b77794b1c6757b6ce2a5897",
                           "count": "0"
                         }
                       }
@@ -145,7 +145,7 @@ Response: {
     "object": {
       "owner": {
         "parent": {
-          "address": "0xae88d15fa632e40b9289a65f52d3d882bb05fd692a07db3e47012fff03ed48d4"
+          "address": "0x261b91955dcf2f276c60d8f04a8c5bfcad92a423111b88925f9df1300715e318"
         }
       },
       "dynamicFields": {
@@ -175,11 +175,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x14e0fbb3261eb9c70e262159994b0ab0808675ad1a02a226461b16e9349d5a28",
+              "address": "0x1981177a65ae90d094e5512584c97af55b294aef0b77794b1c6757b6ce2a5897",
               "version": 6,
               "contents": {
                 "json": {
-                  "id": "0x14e0fbb3261eb9c70e262159994b0ab0808675ad1a02a226461b16e9349d5a28",
+                  "id": "0x1981177a65ae90d094e5512584c97af55b294aef0b77794b1c6757b6ce2a5897",
                   "count": "0"
                 }
               }
@@ -203,11 +203,11 @@ Response: {
         "nodes": [
           {
             "value": {
-              "address": "0x14e0fbb3261eb9c70e262159994b0ab0808675ad1a02a226461b16e9349d5a28",
+              "address": "0x1981177a65ae90d094e5512584c97af55b294aef0b77794b1c6757b6ce2a5897",
               "version": 6,
               "contents": {
                 "json": {
-                  "id": "0x14e0fbb3261eb9c70e262159994b0ab0808675ad1a02a226461b16e9349d5a28",
+                  "id": "0x1981177a65ae90d094e5512584c97af55b294aef0b77794b1c6757b6ce2a5897",
                   "count": "0"
                 }
               }

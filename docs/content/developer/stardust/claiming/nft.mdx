@@ -24,15 +24,16 @@ similar to the process for [`Basic Outputs`](basic.mdx).
 The first step in claiming your NFT is to retrieve the `NftOutput` object that you intend to claim.
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/nft-output-claim.ts#L24-L44
+```
+
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L56-L80
 ```
-
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-
-Coming soon
 
 </TabItem>
 </Tabs>
@@ -48,15 +49,16 @@ representing the [`OTW`](../../iota-101/move-overview/one-time-witness.mdx) used
 
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/nft-output-claim.ts#L46-L66
+```
+
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L82-L107
 ```
-
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-
-Coming soon
 
 </TabItem>
 </Tabs>
@@ -69,15 +71,16 @@ along with the `Bag` keys to iterate over the extracted native tokens.
 The primary goal of this process is to extract the `Nft` object from the `NftOutput`.
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/nft-output-claim.ts#L68-L120
+```
+
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L109-L175
 ```
-
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-
-Coming soon
 
 </TabItem>
 </Tabs>
@@ -109,15 +112,16 @@ You can then create a PTB that extracts the Stardust `Nft` from an `NftOutput` a
 This method uses the metadata from the Stardust `Nft` to mint a new NFT.
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/nft-migration.ts#L39-L85
+```
+
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L77-L137
 ```
-
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-
-Coming soon
 
 </TabItem>
 </Tabs>

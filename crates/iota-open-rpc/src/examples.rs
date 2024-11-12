@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    ops::Range,
-    str::FromStr,
-};
+use std::{collections::BTreeMap, ops::Range, str::FromStr};
 
 use fastcrypto::traits::EncodeDecodeBase64;
 use iota_json::IotaJsonValue;
@@ -672,6 +668,7 @@ impl RpcExampleProvider {
                     modified_at_versions: vec![],
                     gas_used: GasCostSummary {
                         computation_cost: 100,
+                        computation_cost_burned: 100,
                         storage_cost: 100,
                         storage_rebate: 10,
                         non_refundable_storage_fee: 0,
@@ -785,7 +782,6 @@ impl RpcExampleProvider {
             coin_type: "0x2::iota::IOTA".to_string(),
             coin_object_count: 15,
             total_balance: 3000000000,
-            locked_balance: HashMap::new(),
         };
         Examples::new("iotax_getAllBalances", vec![ExamplePairing::new(
             "Gets all balances for the address in the request.",
@@ -834,7 +830,6 @@ impl RpcExampleProvider {
             coin_type: coin_type.clone(),
             coin_object_count: 15,
             total_balance: 15,
-            locked_balance: HashMap::new(),
         };
 
         Examples::new("iotax_getBalance", vec![ExamplePairing::new(
@@ -938,7 +933,7 @@ impl RpcExampleProvider {
             "Returns the argument types for the package and function the request provides.",
             vec![
                 ("package", json!(ObjectID::new(self.rng.gen()))),
-                ("module", json!("iotafrens".to_string())),
+                ("module", json!("my_module".to_string())),
                 ("function", json!("mint".to_string())),
             ],
             json!(result),
@@ -1105,10 +1100,9 @@ impl RpcExampleProvider {
         let resp = IotaObjectResponse::new_with_data(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
-                    unsafe {
+                    {
                         MoveObject::new_from_execution_with_limit(
                             MoveObjectType::from(struct_tag.clone()),
-                            true,
                             SequenceNumber::from_u64(1),
                             Vec::new(),
                             5,

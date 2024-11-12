@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import typedocSidebar from '../references/ts-sdk/api/typedoc-sidebar.cjs';
 const references = [
     {
         type: 'doc',
@@ -17,7 +18,7 @@ const references = [
             id: 'references/iota-api',
         },
         items: [
-            /*{
+            {
 				type: 'category',
 				label: 'GraphQL',
 				link: {
@@ -30,7 +31,7 @@ const references = [
 						dirName: 'references/iota-api/iota-graphql/reference',
 					},
 				],
-			},*/
+			},
             {
                 type: 'link',
                 label: 'JSON-RPC',
@@ -188,6 +189,16 @@ const references = [
                         ],
                     },
                     'references/ts-sdk/bcs',
+                    {
+                        type: 'category',
+                        label: 'API',
+                        link:{
+                          type: 'doc',
+                          id: 'references/ts-sdk/api/index',
+                        },
+                        items: typedocSidebar,
+                    },
+
                 ],
             },
         ],
@@ -325,25 +336,6 @@ const references = [
                 label: 'Rust',
                 href: 'https://docs.rs/identity_iota/latest/identity_iota/index.html',
                 description: 'IOTA Identity Rust Documentation',
-            },
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Expert topics',
-        items: [
-            {
-                type: 'category',
-                label: 'Execution Architecture',
-                link: {
-                    type: 'doc',
-                    id: 'references/execution-architecture/execution-layer',
-                },
-                items: [
-                    'references/execution-architecture/iota-execution',
-                    'references/execution-architecture/adapter',
-                    'references/execution-architecture/natives',
-                ],
             },
         ],
     },

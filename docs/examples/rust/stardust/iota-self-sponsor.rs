@@ -40,7 +40,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Setup the temporary file based keystore
     let mut keystore = setup_keystore()?;
 
-    // For this example we need to derive addresses that are not at different
+    // For this example we need to derive addresses that are at different
     // indexes and coin_types, one for sponsoring with IOTA coin type and one for
     // claiming the Basic Output with Iota coin type.
     let sponsor_derivation_path =
@@ -55,7 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Some(sponsor_derivation_path),
         None,
     )?;
-    println!("Sponsor address: {sponsor:?}");
+    println!("Sponsor address: {sponsor}");
 
     // Derive the address of the sender
     let sender = keystore.import_from_mnemonic(
@@ -64,7 +64,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Some(sender_derivation_path),
         None,
     )?;
-    println!("Sender address: {sender:?}");
+    println!("Sender address: {sender}");
 
     // This object id was fetched manually. It refers to a Basic Output object that
     // contains some Native Tokens.
@@ -83,7 +83,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("Basic output not found"))?;
     let basic_output_object_ref = basic_output_object.object_ref();
 
-    // Create a PTB to for claiming the assets of a basic output for the sender
+    // Create a PTB to claim the assets related to the basic output.
     let pt = {
         // Init the builder
         let mut builder = ProgrammableTransactionBuilder::new();

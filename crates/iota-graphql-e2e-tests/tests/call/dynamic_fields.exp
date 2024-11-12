@@ -7,25 +7,25 @@ task 1, lines 14-53:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 8329600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8322000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 55:
 //# run Test::m::create_obj --sender A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2219200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 57:
 //# run Test::m::add_df --sender A --args object(2,0)
 created: object(3,0), object(3,1), object(3,2)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 6536000,  storage_rebate: 2234400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6498000,  storage_rebate: 2219200, non_refundable_storage_fee: 0
 
 task 4, line 59:
 //# run Test::m::add_dof --sender A --args object(2,0)
 created: object(4,0), object(4,1)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 5928000,  storage_rebate: 2234400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5897600,  storage_rebate: 2219200, non_refundable_storage_fee: 0
 
 task 5, line 61:
 //# create-checkpoint
@@ -38,6 +38,20 @@ Response: {
     "object": {
       "dynamicFields": {
         "nodes": [
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
+              "__typename": "MoveValue"
+            }
+          },
           {
             "name": {
               "type": {
@@ -61,20 +75,6 @@ Response: {
                 "Bool": false
               },
               "bcs": "AA=="
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
             },
             "value": {
               "__typename": "MoveValue"
@@ -105,7 +105,7 @@ task 7, line 88:
 created: object(7,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2485200,  storage_rebate: 2234400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000,  storage_rebate: 2219200, non_refundable_storage_fee: 0
 
 task 8, line 90:
 //# create-checkpoint
@@ -118,6 +118,20 @@ Response: {
     "object": {
       "dynamicFields": {
         "nodes": [
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
+              "__typename": "MoveValue"
+            }
+          },
           {
             "name": {
               "type": {
@@ -141,20 +155,6 @@ Response: {
                 "Bool": false
               },
               "bcs": "AA=="
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
             },
             "value": {
               "__typename": "MoveValue"
@@ -190,6 +190,24 @@ Response: {
           {
             "name": {
               "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
+              "bcs": "AAAAAAAAAAA=",
+              "data": {
+                "Number": "0"
+              },
+              "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
                 "repr": "vector<u8>"
               },
               "data": {
@@ -219,24 +237,6 @@ Response: {
               "bcs": "AgAAAAAAAAA=",
               "data": {
                 "Number": "2"
-              },
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
-            },
-            "value": {
-              "bcs": "AAAAAAAAAAA=",
-              "data": {
-                "Number": "0"
               },
               "__typename": "MoveValue"
             }
