@@ -58,6 +58,7 @@ const developer = [
                             'developer/iota-101/move-overview/package-upgrades/custom-policies',
                         ],
                     },
+                    'developer/iota-101/move-overview/generics',
                     {
                         type: 'category',
                         label: 'Patterns',

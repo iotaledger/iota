@@ -223,6 +223,8 @@ const references = [
             },
             'references/move/move-toml',
             'references/move/move-lock',
+            'references/move/abilities',
+            'references/move/generics',
             {
                 type: 'link',
                 label: 'Move Language (GitHub)',
