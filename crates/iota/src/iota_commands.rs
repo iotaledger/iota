@@ -535,7 +535,7 @@ impl IotaCommand {
                     client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 let rgp = context.get_reference_gas_price().await?;
-                let rpc_url = &context.config.get_active_env()?.rpc;
+                let rpc_url = context.config().get_active_env()?.rpc();
                 println!("rpc_url: {}", rpc_url);
                 let iota_bridge_client = IotaBridgeClient::new(rpc_url).await?;
                 let bridge_arg = iota_bridge_client
@@ -756,6 +756,7 @@ async fn start(
             fullnode_url.clone(),
             ReaderWriterConfig::writer_mode(None),
             data_ingestion_path.clone(),
+            None,
         )
         .await;
         info!("Indexer in writer mode started");
@@ -766,6 +767,7 @@ async fn start(
             fullnode_url.clone(),
             ReaderWriterConfig::reader_mode(indexer_address.to_string()),
             data_ingestion_path,
+            None,
         )
         .await;
         info!("Indexer in reader mode started");
@@ -826,20 +828,13 @@ async fn start(
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
             let address: IotaAddress = kp.public().into();
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
-            IotaClientConfig {
-                keystore,
-                envs: vec![IotaEnv {
-                    alias: "localnet".to_string(),
-                    rpc: fullnode_url,
-                    ws: None,
-                    basic_auth: None,
-                }],
-                active_address: Some(address),
-                active_env: Some("localnet".to_string()),
-            }
-            .persisted(config_dir.join(IOTA_CLIENT_CONFIG).as_path())
-            .save()
-            .unwrap();
+            IotaClientConfig::new(keystore)
+                .with_envs([IotaEnv::new("localnet", fullnode_url)])
+                .with_active_address(address)
+                .with_active_env("localnet".to_string())
+                .persisted(config_dir.join(IOTA_CLIENT_CONFIG).as_path())
+                .save()
+                .unwrap();
         }
         let faucet_wal = config_dir.join("faucet.wal");
         let simple_faucet = SimpleFaucet::new(
@@ -1115,11 +1110,11 @@ async fn genesis(
     let mut client_config = if client_path.exists() {
         PersistedConfig::read(&client_path)?
     } else {
-        IotaClientConfig::new(keystore.into())
+        IotaClientConfig::new(keystore)
     };
 
-    if client_config.active_address.is_none() {
-        client_config.active_address = active_address;
+    if client_config.active_address().is_none() {
+        client_config.set_active_address(active_address);
     }
 
     // On windows, using 0.0.0.0 will usually yield in an networking error. This
@@ -1131,20 +1126,18 @@ async fn genesis(
         } else {
             fullnode_config.json_rpc_address.ip().to_string()
         };
-    client_config.add_env(IotaEnv {
-        alias: "localnet".to_string(),
-        rpc: format!(
+    client_config.add_env(IotaEnv::new(
+        "localnet",
+        format!(
             "http://{}:{}",
             localnet_ip,
             fullnode_config.json_rpc_address.port()
         ),
-        ws: None,
-        basic_auth: None,
-    });
+    ));
     client_config.add_env(IotaEnv::devnet());
 
-    if client_config.active_env.is_none() {
-        client_config.active_env = client_config.envs.first().map(|env| env.alias.clone());
+    if client_config.active_env().is_none() {
+        client_config.set_active_env(client_config.envs().first().map(|env| env.alias().clone()));
     }
 
     client_config.save(&client_path)?;
@@ -1160,12 +1153,7 @@ async fn prompt_if_no_config(
     // Prompt user for connect to devnet fullnode if config does not exist.
     if !wallet_conf_path.exists() {
         let env = match std::env::var_os("IOTA_CONFIG_WITH_RPC_URL") {
-            Some(v) => Some(IotaEnv {
-                alias: "custom".to_string(),
-                rpc: v.into_string().unwrap(),
-                ws: None,
-                basic_auth: None,
-            }),
+            Some(v) => Some(IotaEnv::new("custom", v.into_string().unwrap())),
             None => {
                 if accept_defaults {
                     print!(
@@ -1199,12 +1187,7 @@ async fn prompt_if_no_config(
                         } else {
                             alias
                         };
-                        IotaEnv {
-                            alias,
-                            rpc: url,
-                            ws: None,
-                            basic_auth: None,
-                        }
+                        IotaEnv::new(alias, url)
                     })
                 } else {
                     None
@@ -1237,15 +1220,13 @@ async fn prompt_if_no_config(
                 scheme.to_string()
             );
             println!("Secret Recovery Phrase : [{phrase}]");
-            let alias = env.alias.clone();
-            IotaClientConfig {
-                keystore,
-                envs: vec![env],
-                active_address: Some(new_address),
-                active_env: Some(alias),
-            }
-            .persisted(wallet_conf_path)
-            .save()?;
+            let alias = env.alias().clone();
+            IotaClientConfig::new(keystore)
+                .with_envs([env])
+                .with_active_address(new_address)
+                .with_active_env(alias)
+                .persisted(wallet_conf_path)
+                .save()?;
         }
     }
     Ok(())

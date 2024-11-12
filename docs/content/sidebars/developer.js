@@ -29,6 +29,7 @@ const developer = [
             'developer/getting-started/coffee-example',
         ],
     },
+    'developer/network-overview',
     {
         type: 'category',
         label: 'IOTA 101',

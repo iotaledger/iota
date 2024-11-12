@@ -47,7 +47,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
     event::Event,
-    gas_coin::{GAS, GasCoin},
+    gas_coin::{GAS, GasCoin, STARDUST_TOTAL_SUPPLY_NANOS},
     governance::StakedIota,
     id::UID,
     in_memory_storage::InMemoryStorage,
@@ -64,6 +64,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME},
     stardust::stardust_to_iota_address,
+    system_admin_cap::IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
         timelocked_staked_iota::TimelockedStakedIota,
@@ -283,6 +284,8 @@ impl Builder {
     fn resolve_token_distribution_schedule(&mut self) -> TokenDistributionSchedule {
         let validator_addresses = self.validators.values().map(|v| v.info.iota_address());
         let token_distribution_schedule = self.token_distribution_schedule.take();
+        let stardust_total_supply_nanos =
+            self.migration_sources.len() as u64 * STARDUST_TOTAL_SUPPLY_NANOS;
         if self.genesis_stake.is_empty() {
             token_distribution_schedule.unwrap_or_else(|| {
                 TokenDistributionSchedule::new_for_validators_with_default_allocation(
@@ -295,10 +298,14 @@ impl Builder {
                 schedule
             } else {
                 self.genesis_stake
-                    .extend_token_distribution_schedule_without_migration(schedule)
+                    .extend_token_distribution_schedule_without_migration(
+                        schedule,
+                        stardust_total_supply_nanos,
+                    )
             }
         } else {
-            self.genesis_stake.to_token_distribution_schedule()
+            self.genesis_stake
+                .to_token_distribution_schedule(stardust_total_supply_nanos)
         }
     }
 
@@ -1470,11 +1477,11 @@ pub fn generate_genesis_system_object(
             vec![pre_minted_supply],
         );
 
-        // Step 5: Create System Timelock Cap.
-        let system_timelock_cap = builder.programmable_move_call(
+        // Step 5: Create System Admin Cap.
+        let system_admin_cap = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("timelock").to_owned(),
-            ident_str!("new_system_timelock_cap").to_owned(),
+            IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME.to_owned(),
+            ident_str!("new_system_admin_cap").to_owned(),
             vec![],
             vec![],
         );
@@ -1493,7 +1500,7 @@ pub fn generate_genesis_system_object(
         .map(|a| builder.input(a))
         .collect::<anyhow::Result<_, _>>()?;
         arguments.append(&mut call_arg_arguments);
-        arguments.push(system_timelock_cap);
+        arguments.push(system_admin_cap);
         builder.programmable_move_call(
             IOTA_SYSTEM_ADDRESS.into(),
             ident_str!("genesis").to_owned(),

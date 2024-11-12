@@ -77,7 +77,7 @@ task 2, lines 41-45:
 //# publish --upgradeable --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5183200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5168000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 47:
 //# create-checkpoint
@@ -95,19 +95,19 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x148ca7092f2fe315b8f103c9f9a1cdfee22af26dd5aef1f9c00204d1136ed4e4",
+                    "address": "0x0d5aebe6f12ff71a237457c35211f4c584b2223a4f2702affa8d58975bc149c9",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x8279e1e8a30dc799b6c3cd8482321111defcba714eaa185808396fdb8462e758",
+                    "address": "0x807e4a90bae0ebd4b5726bf685fedcd12877ab1a0feb7b67ecdc648e270356d4",
                     "asMovePackage": {
                       "module": {
                         "function": {
                           "module": {
                             "package": {
-                              "address": "0x8279e1e8a30dc799b6c3cd8482321111defcba714eaa185808396fdb8462e758"
+                              "address": "0x807e4a90bae0ebd4b5726bf685fedcd12877ab1a0feb7b67ecdc648e270356d4"
                             }
                           },
                           "name": "f",
@@ -140,7 +140,7 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "address": "0xa136f167f12fbf24760882e6b239f6b13e0670bd451476d11382f4a89da6a5b9",
+                    "address": "0xc69f1954c6d13e3630075f462966e06d9f05fec29846d3d781026187e5411431",
                     "asMovePackage": null
                   }
                 }
@@ -157,7 +157,7 @@ task 5, lines 89-94:
 //# upgrade --package P0 --upgrade-capability 2,0 --sender A
 created: object(5,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 5418800,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5403600,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 6, line 96:
 //# create-checkpoint
@@ -175,25 +175,25 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x148ca7092f2fe315b8f103c9f9a1cdfee22af26dd5aef1f9c00204d1136ed4e4",
+                    "address": "0x0d5aebe6f12ff71a237457c35211f4c584b2223a4f2702affa8d58975bc149c9",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0xa136f167f12fbf24760882e6b239f6b13e0670bd451476d11382f4a89da6a5b9",
+                    "address": "0xc69f1954c6d13e3630075f462966e06d9f05fec29846d3d781026187e5411431",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0xe886932731b9ae676f7ae5fca52870cb50d437c9061864923d850659ce3d88f8",
+                    "address": "0xe57e6628d5170a1fc4209c1f4cf1cfb8bcf42f6874ab8f90fda217600741f46a",
                     "asMovePackage": {
                       "module": {
                         "f": {
                           "module": {
                             "package": {
-                              "address": "0xe886932731b9ae676f7ae5fca52870cb50d437c9061864923d850659ce3d88f8"
+                              "address": "0xe57e6628d5170a1fc4209c1f4cf1cfb8bcf42f6874ab8f90fda217600741f46a"
                             }
                           },
                           "name": "f",
@@ -223,7 +223,7 @@ Response: {
                         "g": {
                           "module": {
                             "package": {
-                              "address": "0xe886932731b9ae676f7ae5fca52870cb50d437c9061864923d850659ce3d88f8"
+                              "address": "0xe57e6628d5170a1fc4209c1f4cf1cfb8bcf42f6874ab8f90fda217600741f46a"
                             }
                           },
                           "name": "g",

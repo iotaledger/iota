@@ -13,9 +13,14 @@ export default function Quiz(_questions) {
   const [showScore, setShowScore] = useState(false);
   const [score, setScore] = useState(0);
   const [clicked, setClicked] = useState(-1);
+  const [isAnswered, setIsAnswered] = useState(false);
 
   const handleAnswerOptionClick = (isCorrect, index) => {
+    if (isAnswered) return;
+
     setClicked(index);
+    setIsAnswered(true)
+
     if (isCorrect) {
       setScore(score + 1);
     }
@@ -28,6 +33,7 @@ export default function Quiz(_questions) {
         setShowScore(true);
       }
       setClicked(-1);
+      setIsAnswered(false);
     }, 1000);
   };
 
@@ -35,6 +41,7 @@ export default function Quiz(_questions) {
     setShowScore(false);
     setScore(0);
     setCurrentQuestion(0);
+    setIsAnswered(false); 
   };
 
   return (
@@ -74,7 +81,7 @@ export default function Quiz(_questions) {
                       clicked === index && !answerOption.isCorrect
                         ? 'button--danger'
                         : ''
-                    }`}
+                      } ${isAnswered ? 'button--disabled' : ''}`}
                     key={'answer-' + index}
                     onClick={() =>
                       handleAnswerOptionClick(answerOption.isCorrect, index)
