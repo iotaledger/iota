@@ -11,15 +11,13 @@ import { a11yLight, vs2015 } from "react-syntax-highlighter/dist/esm/styles/hljs
 SyntaxHighlighter.registerLanguage("json", js);
 
 const Examples = (props) => {
-  const [light, setLight] = useState(true);
+  const theme = localStorage.getItem("theme");
+  const [light, setLight] = useState(theme === "light" ? true : false);
 
   useEffect(() => {
     const checkTheme = () => {
       const theme = localStorage.getItem("theme");
-
-      if (theme !== "light") {
-        setLight(false);
-      }
+      setLight(theme === "light" ? true : false);
     };
 
     window.addEventListener("storage", checkTheme);
@@ -65,9 +63,17 @@ const Examples = (props) => {
           <p className="font-bold mt-4 text-iota-gray-80 dark:text-iota-gray-50">
             Request
           </p>
-          <SyntaxHighlighter language={js} style={light ? a11yLight : vs2015}>
+          <SyntaxHighlighter
+            language="js"
+            style={light ? a11yLight : vs2015}
+            customStyle={{
+              ...(light ? { boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.1)' } : {}),
+              padding: '15px'
+            }}
+          >
             {stringRequest}
-          </SyntaxHighlighter>
+          </SyntaxHighlighter>  
+
         </div>
       )}
       {examples[0].result.value && (
@@ -75,7 +81,12 @@ const Examples = (props) => {
           <p className="font-bold mt-6 text-iota-gray-80 dark:text-iota-gray-50">
             Response
           </p>
-          <SyntaxHighlighter language={js} style={light ? a11yLight : vs2015}>
+          <SyntaxHighlighter 
+            language={js} 
+            style={light ? a11yLight : vs2015} customStyle={{
+              ...(light ? { boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.1)' } : {}),
+              padding: '15px'
+            }}>
             {JSON.stringify(response, null, 2)}
           </SyntaxHighlighter>
         </div>
