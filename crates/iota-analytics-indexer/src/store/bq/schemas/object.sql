@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS chaindata.OBJECT
     object_status          STRING        NOT NULL,
     initial_shared_version INT64,
     previous_transaction   STRING        NOT NULL,
-    has_public_transfer    BOOL          NOT NULL,
     storage_rebate         NUMERIC(20, 0)         NOT NULL,
     bcs                    STRING        NOT NULL,
     coin_type              STRING,
