@@ -248,6 +248,10 @@ const config = {
             label: "References",
             to: "references",
           },
+          {
+            type: 'custom-WalletConnectButton',
+            position: 'right',
+          }
         ],
       },
       footer: {

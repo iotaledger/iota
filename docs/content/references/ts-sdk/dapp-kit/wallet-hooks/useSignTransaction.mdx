@@ -1,0 +1,52 @@
+# useSignTransaction
+
+Use the `useSignTransaction` hook to prompt the user to sign a transaction with their
+wallet.
+
+```ts live
+function UseSignTransactionExample() {
+    const { mutate: signTransaction } = useSignTransaction();
+    const [signature, setSignature] = useState('');
+    const currentAccount = useCurrentAccount();
+
+    return (
+        <div style={{ padding: 20 }}>
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={() => {
+                                signTransaction(
+                                    {
+                                        transaction: new Transaction(),
+                                        chain: 'iota:devnet',
+                                    },
+                                    {
+                                        onSuccess: (result) => {
+                                            console.log('signed message', result);
+                                            setSignature(result.signature);
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            Sign empty transaction
+                        </button>
+                    </div>
+                    <div>Signature: {signature}</div>
+                </>
+            )}
+        </div>
+    );
+}
+```
+
+## Arguments
+
+-   `transaction`: The transaction to sign.
+-   `chain`: (optional) The chain identifier the transaction should be signed for.
+
+## Result
+
+-   `signature`: The signature of the message, as a Base64-encoded `string`.
+-   `bytes`: The serialized transaction bytes, as a a Base64-encoded `string`.

@@ -1,0 +1,51 @@
+# useSignAndExecuteTransaction
+
+Use the `useSignAndExecuteTransaction` hook to prompt the user to sign and execute a
+transaction with their wallet.
+
+```ts live
+function UseSignAndExecuteTransactionExample() {
+    const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const [digest, setDigest] = useState('');
+    const currentAccount = useCurrentAccount();
+
+    return (
+        <div style={{ padding: 20 }}>
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={() => {
+                                signAndExecuteTransaction(
+                                    {
+                                        transaction: new Transaction(),
+                                        chain: 'iota:devnet',
+                                    },
+                                    {
+                                        onSuccess: (result) => {
+                                            console.log('executed transaction', result);
+                                            setDigest(result.digest);
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            Sign and execute transaction
+                        </button>
+                    </div>
+                    <div>Digest: {digest}</div>
+                </>
+            )}
+        </div>
+    );
+}
+```
+
+## Arguments
+
+-   `transaction`: The transaction to sign and execute.
+-   `chain`: (optional) The chain identifier the transaction should be signed for.
+
+In addition to these options, you can also pass any options that the
+[IotaClient.signAndExecuteTransaction](../../typescript/iota-client.mdx#signandexecutetransaction)
+method accepts.
