@@ -7,19 +7,19 @@ task 1, lines 7-26:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5570800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5563200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 28:
 //# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 30:
 //# run Test::M1::create --args 0 @validator_0
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 32:
 //# view-object 0,0
@@ -69,7 +69,7 @@ Checkpoint created: 4
 task 8, line 40:
 //# view-checkpoint
 CheckpointSummary { epoch: 0, seq: 4, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 3000000, storage_cost: 10176400, storage_rebate: 1976000, non_refundable_storage_fee: 0 }}
+            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 3000000, computation_cost_burned: 3000000, storage_cost: 10138400, storage_rebate: 1960800, non_refundable_storage_fee: 0 }}
 
 task 9, line 42:
 //# advance-epoch 6
@@ -77,8 +77,8 @@ Epoch advanced: 5
 
 task 10, line 44:
 //# view-checkpoint
-CheckpointSummary { epoch: 5, seq: 10, content_digest: 4ZuQEfEAd6oU7FYh83WHHE7DYdPeZVndW5q6ZMx45KLX,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 5, seq: 10, content_digest: Ee6ZUSAsovYRwYFDNkWyii9fVgYaAmL9kcdgDwnDQ5if,
+            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
 
 task 11, lines 46-51:
 //# run-graphql
@@ -97,7 +97,7 @@ Checkpoint created: 11
 task 13, line 55:
 //# view-checkpoint
 CheckpointSummary { epoch: 6, seq: 11, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
 
 task 14, lines 57-62:
 //# run-graphql
@@ -114,11 +114,11 @@ task 15, lines 64-69:
 Headers: {
     "content-type": "application/json",
     "content-length": "157",
-    "x-iota-rpc-version": "0.5.0-testing-no-sha",
+    "x-iota-rpc-version": "0.7.0-testing-no-sha",
     "vary": "origin, access-control-request-method, access-control-request-headers",
     "access-control-allow-origin": "*",
 }
-Service version: 0.5.0-testing-no-sha
+Service version: 0.7.0-testing-no-sha
 Response: {
   "data": {
     "checkpoint": {
@@ -140,7 +140,7 @@ Response: {
 task 16, line 71:
 //# view-checkpoint
 CheckpointSummary { epoch: 6, seq: 11, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
 
 task 17, lines 73-76:
 //# advance-epoch
@@ -155,8 +155,8 @@ Response: {
         "edges": [
           {
             "node": {
-              "address": "0x5a14fc3eeb9ef468b4bba415d7817c339b1f9ea7f3d59f3f48c3eefe31322856",
-              "digest": "44MBwuUjBiBgkR19RgE9AmznyHtwiW8CWKtvXWf4RwRd",
+              "address": "0xeb65a9b4c043abdf3e0fefa3047fb5ea8ecb9d0239477624d1fd55d67d229891",
+              "digest": "GpfNenBbHNc3zUKfsAGEkiDsryUtvSSDN3k55eAAKsVv",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -182,8 +182,8 @@ Response: {
         "edges": [
           {
             "node": {
-              "address": "0x5a14fc3eeb9ef468b4bba415d7817c339b1f9ea7f3d59f3f48c3eefe31322856",
-              "digest": "44MBwuUjBiBgkR19RgE9AmznyHtwiW8CWKtvXWf4RwRd",
+              "address": "0xeb65a9b4c043abdf3e0fefa3047fb5ea8ecb9d0239477624d1fd55d67d229891",
+              "digest": "GpfNenBbHNc3zUKfsAGEkiDsryUtvSSDN3k55eAAKsVv",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -197,8 +197,26 @@ Response: {
         "edges": [
           {
             "node": {
+              "address": "0x0133ca00247f984c7280ea2aa1dac2630055ced0d5080825a0d9cdddf523f4f6",
+              "digest": "7Ye4pTNg8MB1KWaRyz1cT4WdiNKB3MxaMJ1tgxgDbkfS",
+              "owner": {
+                "__typename": "AddressOwner"
+              }
+            }
+          },
+          {
+            "node": {
+              "address": "0x0ef04a70a5215989129b276c3ada1b43a2772169b1db5e157b40743e1ecac0ad",
+              "digest": "A1Gp7sqj3AeNUYBq8SScjGZJv2Hp9cuvJ1W4V7KZswDy",
+              "owner": {
+                "__typename": "AddressOwner"
+              }
+            }
+          },
+          {
+            "node": {
               "address": "0x26bf0f03edd09bb3f862e13cec014d17c26dd739d2563d9c704aa8d206301df2",
-              "digest": "4H2vETP8tgjQtjRPjrWQ8vaAh2vTzCnCaLrrS5AdsxYW",
+              "digest": "9LoSY4zTcsU3iZkaXK3vreVgQnNFBmuuTmxhbHXGoTju",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -207,7 +225,7 @@ Response: {
           {
             "node": {
               "address": "0x3442446f02377d1025b211e51564e4f1c9a46845ccad733beeb06180d3f66c31",
-              "digest": "D8THNropCzbESMMWVCGG2cZUXgncpCXeavpPFtKZrbEh",
+              "digest": "BAdieXDoeWexinDjhx69GEu3cKKiXc7XeEZg21cvymTp",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -216,7 +234,43 @@ Response: {
           {
             "node": {
               "address": "0x3c88cad5799a8da0467b8456a7429a97e7c141cfcf25f02faf51aa8cb4840461",
-              "digest": "D9pBCyFBxMdgt4vFo3hiikbxZtdxUHKSBx6hZC9cgjis",
+              "digest": "Bg4vTzDaxxRmzHqKjRfv895zdc85Hv27xVu9ErR1Utsi",
+              "owner": {
+                "__typename": "AddressOwner"
+              }
+            }
+          },
+          {
+            "node": {
+              "address": "0x4bf4927b5491f5611d4cb83ada18d95c1bf6cc73320a5aa10b521e74a62016d2",
+              "digest": "mVvbS2vkuQrnRW1FsBjXjpNSdR92fJiRXXyUNdnmb67",
+              "owner": {
+                "__typename": "AddressOwner"
+              }
+            }
+          },
+          {
+            "node": {
+              "address": "0x51e8ad8999fd29749b8afed87b965adbd781deb08b2f5325e4cf4e5528e17a7f",
+              "digest": "GgbrysrMW9XnKr2MvsxenrnShDgZ47J4adpwcnL23bdG",
+              "owner": {
+                "__typename": "AddressOwner"
+              }
+            }
+          },
+          {
+            "node": {
+              "address": "0x6139a8d91e9662934040407da8832dabd0f1b4e8ed9a79a6f0075fff7477e1f3",
+              "digest": "BtL1usVLMKgswweuB6wv7bddgVb4pV1ASmNEEvgiPcB1",
+              "owner": {
+                "__typename": "AddressOwner"
+              }
+            }
+          },
+          {
+            "node": {
+              "address": "0x7d569ebee60b485b12152a96d76cc7ed6ad521146ad4bd3fd62d12e4c2cae76b",
+              "digest": "P1Me6uRFcWqjHeNx41oAa4nVQYmYpYpwUk67vd8osjZ",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -225,16 +279,7 @@ Response: {
           {
             "node": {
               "address": "0x847c914d647e7387d7cea4db5ad8fefeffe66773635804a991dfd4385fab6a97",
-              "digest": "DUFZgANfmmUyusdii2XCjReFg3ykzwqBvfrDvpoVfHVR",
-              "owner": {
-                "__typename": "AddressOwner"
-              }
-            }
-          },
-          {
-            "node": {
-              "address": "0xa0da8cea0e7a9e94a4b096c721ace35248af587e73adb78967a73dd8cb094565",
-              "digest": "BKx9UC6pSCazyJGJ35WKqEvZXZx3kajuNAnawW4rCNLP",
+              "digest": "J5mrwkf2RT8qVNjyg9abkJMQWXZEu8PKphBAkPSG3REF",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -243,16 +288,7 @@ Response: {
           {
             "node": {
               "address": "0xa79cc544021a721176cdc4497728ec35a5311b8ff0aa293a5d29c0d32cb56056",
-              "digest": "ANJa65mKP7tZx6GoA82GzBuandC7oTV4a9fk9n8wPbov",
-              "owner": {
-                "__typename": "AddressOwner"
-              }
-            }
-          },
-          {
-            "node": {
-              "address": "0xac9c2e11aebecd35b4cb15802ca6ad5e64d320204149187ba646a16d07a4934d",
-              "digest": "RrVubtgNdy7wNADnkTDbTpRgRpzYdnjQtLfn1GjUkL8",
+              "digest": "DU399Yt1piD6iDhMYJ4kywMaorf3rTdW1zUsE7bsB7nX",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -261,43 +297,7 @@ Response: {
           {
             "node": {
               "address": "0xb21c0b03871456040643740e238d03bde38de240d7b17055f4670777a19f07b8",
-              "digest": "6q7rM2bckwW5W8QiM3T5VWCtEf2MjCX7G51UiwgHCDnL",
-              "owner": {
-                "__typename": "AddressOwner"
-              }
-            }
-          },
-          {
-            "node": {
-              "address": "0xbf1922ccfb654506f4104ce832ff2e7887af43de81c01bd22d28c2ff4eae4d44",
-              "digest": "9YrG9BE2ekkibLeL2x1vGaABj7ZqdrdNArqFaR1yWBwb",
-              "owner": {
-                "__typename": "AddressOwner"
-              }
-            }
-          },
-          {
-            "node": {
-              "address": "0xe0036db16e72b25a175f7cf03c360669e80e1d44c2e4fdeab59eced4d3d8650c",
-              "digest": "Fbm95u1WFstG2dhEuK6sBnhWmYDtZMgc8LhUihh7y83w",
-              "owner": {
-                "__typename": "AddressOwner"
-              }
-            }
-          },
-          {
-            "node": {
-              "address": "0xebf199fc588a2ab72281d94e0cbd957f87b75c056b677ada8341962c22abbed9",
-              "digest": "ApypQoSQXYpfee5Ji6YEnBJxWDts2Pmo1anNwviVTPaL",
-              "owner": {
-                "__typename": "AddressOwner"
-              }
-            }
-          },
-          {
-            "node": {
-              "address": "0xfadf3d2a466a0f7279368bfdc9b19bf093ec52b6abd5ac51df4ffabbaa48e2e2",
-              "digest": "ELBFcj1EbKJ9tUyoggRHXDUuvBa7e6HmboxkxXD4d4Rv",
+              "digest": "H6FaahQNYfKavippZbge7xHzox29vRPqAaCMuUWnYmCz",
               "owner": {
                 "__typename": "AddressOwner"
               }
@@ -355,19 +355,19 @@ task 22, line 178:
 //# run Test::M1::create --args 0 @A --gas-price 999
 created: object(22,0)
 mutated: object(0,1)
-gas summary: computation_cost: 999000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 999000, computation_cost_burned: 999000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 23, line 180:
 //# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(23,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 24, line 182:
 //# run Test::M1::create --args 0 @A --gas-price 235
 created: object(24,0)
 mutated: object(0,1)
-gas summary: computation_cost: 235000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 235000, computation_cost_burned: 235000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 25, lines 184-189:
 //# run-graphql
@@ -375,7 +375,7 @@ Response: {
   "data": {
     "serviceConfig": {
       "availableVersions": [
-        "0.5"
+        "0.7"
       ]
     }
   }

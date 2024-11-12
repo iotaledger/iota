@@ -4,7 +4,7 @@ task 1, lines 7-32:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 6019200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6011600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 34:
 //# create-checkpoint
@@ -22,24 +22,24 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x2da8747fe6350b4147ffcf8488e97671c13a3f9b1c3f9694f86f0c85c7a6353f",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0xdbd3bc7c79bf4076dbe2ee9e0ba66ff1dfc6e5fab8d651c9349be0bf915f4f88",
+                    "address": "0x3a391c29453c2e07af1eb0befd50b903f0cc1609df8826e1a79d3e1eceab6481",
                     "asMovePackage": {
                       "module": {
                         "name": "m",
                         "package": {
-                          "address": "0xdbd3bc7c79bf4076dbe2ee9e0ba66ff1dfc6e5fab8d651c9349be0bf915f4f88"
+                          "address": "0x3a391c29453c2e07af1eb0befd50b903f0cc1609df8826e1a79d3e1eceab6481"
                         },
                         "fileFormatVersion": 6,
-                        "bytes": "oRzrCwYAAAAIAQAGAgYKAxARBCEEBSUfB0QkCGhADKgBMAAGAQMBBQEADAEAAQIBAgAABAABAQIAAgIBAAEHBQEBAAIEAAYCAwYLAAEJAAEDAQYLAAEIAQABCQABBgsAAQkAAQgBBENvaW4ESU9UQQNiYXIEY29pbgNmb28EaW90YQFtBXZhbHVl29O8fHm/QHbb4u6eC6Zv8d/G5fq41lHJNJvgv5FfT4gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgABAAADBQsBOAALABYCAQEAAAMIBioAAAAAAAAACgA4AQYrAAAAAAAAAAsAOAEYAgA=",
-                        "disassembly": "// Move bytecode v6\nmodule dbd3bc7c79bf4076dbe2ee9e0ba66ff1dfc6e5fab8d651c9349be0bf915f4f88.m {\nuse 0000000000000000000000000000000000000000000000000000000000000002::coin;\nuse 0000000000000000000000000000000000000000000000000000000000000002::iota;\n\n\n\n\n\n\npublic foo<Ty0: drop>(Arg0: u64, Arg1: &Coin<Ty0>): u64 {\nB0:\n\t0: MoveLoc[1](Arg1: &Coin<Ty0>)\n\t1: Call coin::value<Ty0>(&Coin<Ty0>): u64\n\t2: MoveLoc[0](Arg0: u64)\n\t3: Add\n\t4: Ret\n\n}\npublic bar(Arg0: &Coin<IOTA>): u64 {\nB0:\n\t0: LdU64(42)\n\t1: CopyLoc[0](Arg0: &Coin<IOTA>)\n\t2: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t3: LdU64(43)\n\t4: MoveLoc[0](Arg0: &Coin<IOTA>)\n\t5: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t6: Mul\n\t7: Ret\n\n}\n}"
+                        "bytes": "oRzrCwYAAAAIAQAGAgYKAxARBCEEBSUfB0QkCGhADKgBMAAGAQMBBQEADAEAAQIBAgAABAABAQIAAgIBAAEHBQEBAAIEAAYCAwYLAAEJAAEDAQYLAAEIAQABCQABBgsAAQkAAQgBBENvaW4ESU9UQQNiYXIEY29pbgNmb28EaW90YQFtBXZhbHVlOjkcKUU8LgevHrC+/VC5A/DMFgnfiCbhp50+Hs6rZIEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgABAAADBQsBOAALABYCAQEAAAMIBioAAAAAAAAACgA4AQYrAAAAAAAAAAsAOAEYAgA=",
+                        "disassembly": "// Move bytecode v6\nmodule 3a391c29453c2e07af1eb0befd50b903f0cc1609df8826e1a79d3e1eceab6481.m {\nuse 0000000000000000000000000000000000000000000000000000000000000002::coin;\nuse 0000000000000000000000000000000000000000000000000000000000000002::iota;\n\n\n\n\n\n\npublic foo<Ty0: drop>(Arg0: u64, Arg1: &Coin<Ty0>): u64 {\nB0:\n\t0: MoveLoc[1](Arg1: &Coin<Ty0>)\n\t1: Call coin::value<Ty0>(&Coin<Ty0>): u64\n\t2: MoveLoc[0](Arg0: u64)\n\t3: Add\n\t4: Ret\n\n}\npublic bar(Arg0: &Coin<IOTA>): u64 {\nB0:\n\t0: LdU64(42)\n\t1: CopyLoc[0](Arg0: &Coin<IOTA>)\n\t2: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t3: LdU64(43)\n\t4: MoveLoc[0](Arg0: &Coin<IOTA>)\n\t5: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t6: Mul\n\t7: Ret\n\n}\n}"
                       }
                     }
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0xf22e2f7e20b84f57fdcf1f44c79c321533b922fa9488c23556356ae3f906b0bb",
+                    "asMovePackage": null
                   }
                 }
               ]
@@ -63,13 +63,7 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x2da8747fe6350b4147ffcf8488e97671c13a3f9b1c3f9694f86f0c85c7a6353f",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0xdbd3bc7c79bf4076dbe2ee9e0ba66ff1dfc6e5fab8d651c9349be0bf915f4f88",
+                    "address": "0x3a391c29453c2e07af1eb0befd50b903f0cc1609df8826e1a79d3e1eceab6481",
                     "asMovePackage": {
                       "all": {
                         "edges": [
@@ -139,6 +133,12 @@ Response: {
                       }
                     }
                   }
+                },
+                {
+                  "outputState": {
+                    "address": "0xf22e2f7e20b84f57fdcf1f44c79c321533b922fa9488c23556356ae3f906b0bb",
+                    "asMovePackage": null
+                  }
                 }
               ]
             }
@@ -161,13 +161,7 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x2da8747fe6350b4147ffcf8488e97671c13a3f9b1c3f9694f86f0c85c7a6353f",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0xdbd3bc7c79bf4076dbe2ee9e0ba66ff1dfc6e5fab8d651c9349be0bf915f4f88",
+                    "address": "0x3a391c29453c2e07af1eb0befd50b903f0cc1609df8826e1a79d3e1eceab6481",
                     "asMovePackage": {
                       "prefix": {
                         "edges": [
@@ -278,6 +272,12 @@ Response: {
                         }
                       }
                     }
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0xf22e2f7e20b84f57fdcf1f44c79c321533b922fa9488c23556356ae3f906b0bb",
+                    "asMovePackage": null
                   }
                 }
               ]

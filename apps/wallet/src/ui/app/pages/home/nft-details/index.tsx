@@ -7,7 +7,7 @@ import { Collapsible } from '_app/shared/collapse';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
+import { isAssetTransferable, useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -24,10 +24,7 @@ function NFTDetailsPage() {
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
     const { data: objectData, isPending: isNftLoading } = useOwnedNFT(nftId || '', accountAddress);
-    const isTransferable =
-        !!objectData &&
-        objectData.content?.dataType === 'moveObject' &&
-        objectData.content?.hasPublicTransfer;
+    const isTransferable = isAssetTransferable(objectData);
     const { nftFields, fileExtensionType, filePath } = useNFTBasicData(objectData);
     const address = useActiveAddress();
     const { data } = useGetKioskContents(address);

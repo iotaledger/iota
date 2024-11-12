@@ -4,37 +4,37 @@ task 1, lines 7-20:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5168000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 22-23:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, lines 25-26:
 //# run Test::M1::create --args 1 @A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, lines 28-29:
 //# run Test::M1::create --args 2 @A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 31-32:
 //# run Test::M1::create --args 3 @A
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, lines 34-35:
 //# run Test::M1::create --args 4 @A
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 37:
 //# create-checkpoint
@@ -48,19 +48,19 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IAtX50fqxe9lE/0KbsFXzRXYkmqZSXFONhH8fIQOkY79AQAAAAAAAAA="
+            "cursor": "IAXGOxelPyat2ktykI7yExbqPi0zGAJwpEL4QOtk4i5JAQAAAAAAAAA="
           },
           {
-            "cursor": "IBRvcym3o3lAi+fkn+rKvWhxII5VBEmbPN3EvfzcjW6xAQAAAAAAAAA="
+            "cursor": "IIhXgyfJmpDjfYgKcvjwnz8XljbqK8kWTshmtGAa1JcrAQAAAAAAAAA="
           },
           {
-            "cursor": "IGlwdnMK4Q5cUYCFiQuJjb9C6sq6CBnmSM4Cv6f4JPFHAQAAAAAAAAA="
+            "cursor": "IIuOKDIL3ox4W0vwl9Iys+UJ+hOhYIxg9QXA1kvE02x1AQAAAAAAAAA="
           },
           {
-            "cursor": "IHjvmz1Xhf4Pu+w59JIFoXHQq7nzrlx62fyrVNQbyGUBAQAAAAAAAAA="
+            "cursor": "IKaEPeEks1/XBPKzfdNHH89Pmqm8lXcmxDqL2W0EAEsyAQAAAAAAAAA="
           },
           {
-            "cursor": "IOziwiP8CYItF9V8oDdjwywGT6P6iY8ubkh4SRbhG5MxAQAAAAAAAAA="
+            "cursor": "ILL8PT6CGnkMV6rhl3RwEvqsdGHGUNh5XsuxI1STMnrZAQAAAAAAAAA="
           }
         ]
       }
@@ -76,10 +76,10 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IAtX50fqxe9lE/0KbsFXzRXYkmqZSXFONhH8fIQOkY79AQAAAAAAAAA="
+            "cursor": "IAXGOxelPyat2ktykI7yExbqPi0zGAJwpEL4QOtk4i5JAQAAAAAAAAA="
           },
           {
-            "cursor": "IBRvcym3o3lAi+fkn+rKvWhxII5VBEmbPN3EvfzcjW6xAQAAAAAAAAA="
+            "cursor": "IIhXgyfJmpDjfYgKcvjwnz8XljbqK8kWTshmtGAa1JcrAQAAAAAAAAA="
           }
         ]
       }
@@ -95,52 +95,52 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IAtX50fqxe9lE/0KbsFXzRXYkmqZSXFONhH8fIQOkY79AQAAAAAAAAA=",
+            "cursor": "IAXGOxelPyat2ktykI7yExbqPi0zGAJwpEL4QOtk4i5JAQAAAAAAAAA=",
             "node": {
-              "address": "0x0b57e747eac5ef6513fd0a6ec157cd15d8926a9949714e3611fc7c840e918efd"
+              "address": "0x05c63b17a53f26adda4b72908ef21316ea3e2d33180270a442f840eb64e22e49"
             }
           },
           {
-            "cursor": "IBRvcym3o3lAi+fkn+rKvWhxII5VBEmbPN3EvfzcjW6xAQAAAAAAAAA=",
+            "cursor": "IIhXgyfJmpDjfYgKcvjwnz8XljbqK8kWTshmtGAa1JcrAQAAAAAAAAA=",
             "node": {
-              "address": "0x146f7329b7a379408be7e49feacabd6871208e5504499b3cddc4bdfcdc8d6eb1"
+              "address": "0x88578327c99a90e37d880a72f8f09f3f179636ea2bc9164ec866b4601ad4972b"
             }
           },
           {
-            "cursor": "IGlwdnMK4Q5cUYCFiQuJjb9C6sq6CBnmSM4Cv6f4JPFHAQAAAAAAAAA=",
+            "cursor": "IIuOKDIL3ox4W0vwl9Iys+UJ+hOhYIxg9QXA1kvE02x1AQAAAAAAAAA=",
             "node": {
-              "address": "0x697076730ae10e5c518085890b898dbf42eacaba0819e648ce02bfa7f824f147"
+              "address": "0x8b8e28320bde8c785b4bf097d232b3e509fa13a1608c60f505c0d64bc4d36c75"
             }
           },
           {
-            "cursor": "IHjvmz1Xhf4Pu+w59JIFoXHQq7nzrlx62fyrVNQbyGUBAQAAAAAAAAA=",
+            "cursor": "IKaEPeEks1/XBPKzfdNHH89Pmqm8lXcmxDqL2W0EAEsyAQAAAAAAAAA=",
             "node": {
-              "address": "0x78ef9b3d5785fe0fbbec39f49205a171d0abb9f3ae5c7ad9fcab54d41bc86501"
+              "address": "0xa6843de124b35fd704f2b37dd3471fcf4f9aa9bc957726c43a8bd96d04004b32"
             }
           },
           {
-            "cursor": "IOziwiP8CYItF9V8oDdjwywGT6P6iY8ubkh4SRbhG5MxAQAAAAAAAAA=",
+            "cursor": "ILL8PT6CGnkMV6rhl3RwEvqsdGHGUNh5XsuxI1STMnrZAQAAAAAAAAA=",
             "node": {
-              "address": "0xece2c223fc09822d17d57ca03763c32c064fa3fa898f2e6e48784916e11b9331"
+              "address": "0xb2fc3d3e821a790c57aae197747012faac7461c650d8795ecbb1235493327ad9"
             }
           }
         ]
       }
     },
     "obj_3_0": {
-      "address": "0x697076730ae10e5c518085890b898dbf42eacaba0819e648ce02bfa7f824f147"
+      "address": "0x88578327c99a90e37d880a72f8f09f3f179636ea2bc9164ec866b4601ad4972b"
     },
     "obj_5_0": {
-      "address": "0x0b57e747eac5ef6513fd0a6ec157cd15d8926a9949714e3611fc7c840e918efd"
+      "address": "0xa6843de124b35fd704f2b37dd3471fcf4f9aa9bc957726c43a8bd96d04004b32"
     },
     "obj_6_0": {
-      "address": "0x146f7329b7a379408be7e49feacabd6871208e5504499b3cddc4bdfcdc8d6eb1"
+      "address": "0xb2fc3d3e821a790c57aae197747012faac7461c650d8795ecbb1235493327ad9"
     },
     "obj_4_0": {
-      "address": "0x78ef9b3d5785fe0fbbec39f49205a171d0abb9f3ae5c7ad9fcab54d41bc86501"
+      "address": "0x8b8e28320bde8c785b4bf097d232b3e509fa13a1608c60f505c0d64bc4d36c75"
     },
     "obj_2_0": {
-      "address": "0xece2c223fc09822d17d57ca03763c32c064fa3fa898f2e6e48784916e11b9331"
+      "address": "0x05c63b17a53f26adda4b72908ef21316ea3e2d33180270a442f840eb64e22e49"
     }
   }
 }
@@ -153,10 +153,7 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IBRvcym3o3lAi+fkn+rKvWhxII5VBEmbPN3EvfzcjW6xAQAAAAAAAAA="
-          },
-          {
-            "cursor": "IGlwdnMK4Q5cUYCFiQuJjb9C6sq6CBnmSM4Cv6f4JPFHAQAAAAAAAAA="
+            "cursor": "ILL8PT6CGnkMV6rhl3RwEvqsdGHGUNh5XsuxI1STMnrZAQAAAAAAAAA="
           }
         ]
       }
@@ -172,7 +169,7 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IOziwiP8CYItF9V8oDdjwywGT6P6iY8ubkh4SRbhG5MxAQAAAAAAAAA="
+            "cursor": "IKaEPeEks1/XBPKzfdNHH89Pmqm8lXcmxDqL2W0EAEsyAQAAAAAAAAA="
           }
         ]
       }
@@ -188,10 +185,7 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IAtX50fqxe9lE/0KbsFXzRXYkmqZSXFONhH8fIQOkY79AQAAAAAAAAA="
-          },
-          {
-            "cursor": "IBRvcym3o3lAi+fkn+rKvWhxII5VBEmbPN3EvfzcjW6xAQAAAAAAAAA="
+            "cursor": "IAXGOxelPyat2ktykI7yExbqPi0zGAJwpEL4QOtk4i5JAQAAAAAAAAA="
           }
         ]
       }
@@ -207,15 +201,15 @@ Response: {
       "objects": {
         "edges": [
           {
-            "cursor": "IHjvmz1Xhf4Pu+w59JIFoXHQq7nzrlx62fyrVNQbyGUBAQAAAAAAAAA=",
+            "cursor": "IKaEPeEks1/XBPKzfdNHH89Pmqm8lXcmxDqL2W0EAEsyAQAAAAAAAAA=",
             "node": {
-              "address": "0x78ef9b3d5785fe0fbbec39f49205a171d0abb9f3ae5c7ad9fcab54d41bc86501"
+              "address": "0xa6843de124b35fd704f2b37dd3471fcf4f9aa9bc957726c43a8bd96d04004b32"
             }
           },
           {
-            "cursor": "IOziwiP8CYItF9V8oDdjwywGT6P6iY8ubkh4SRbhG5MxAQAAAAAAAAA=",
+            "cursor": "ILL8PT6CGnkMV6rhl3RwEvqsdGHGUNh5XsuxI1STMnrZAQAAAAAAAAA=",
             "node": {
-              "address": "0xece2c223fc09822d17d57ca03763c32c064fa3fa898f2e6e48784916e11b9331"
+              "address": "0xb2fc3d3e821a790c57aae197747012faac7461c650d8795ecbb1235493327ad9"
             }
           }
         ]

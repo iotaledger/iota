@@ -80,7 +80,7 @@ pub async fn update_lock_file(
         )
     };
     let install_dir = install_dir.unwrap_or(PathBuf::from("."));
-    let env = context.config.get_active_env().context(
+    let env = context.config().get_active_env().context(
         "Could not resolve environment from active wallet context. \
          Try ensure `iota client active-env` is valid.",
     )?;
@@ -89,7 +89,7 @@ pub async fn update_lock_file(
     match command {
         LockCommand::Publish => lock_file::schema::update_managed_address(
             &mut lock,
-            &env.alias,
+            env.alias(),
             lock_file::schema::ManagedAddressUpdate::Published {
                 chain_id: chain_identifier,
                 original_id: original_id.to_string(),
@@ -97,7 +97,7 @@ pub async fn update_lock_file(
         ),
         LockCommand::Upgrade => lock_file::schema::update_managed_address(
             &mut lock,
-            &env.alias,
+            env.alias(),
             lock_file::schema::ManagedAddressUpdate::Upgraded {
                 latest_id: original_id.to_string(),
                 version: version.into(),

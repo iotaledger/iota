@@ -57,8 +57,8 @@ async fn _split_coins_equally(
         .await?;
 
     let signature = wallet
-        .config
-        .keystore
+        .config()
+        .keystore()
         .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
         .unwrap();
     let tx = Transaction::from_data(tx_data, vec![signature]);
@@ -112,8 +112,8 @@ async fn _merge_coins(gas_coin: &str, mut wallet: WalletContext) -> Result<(), a
             .pay_iota(active_address, coin_vector, target, target_amount, 1000000)
             .await?;
         let signature = wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
             .unwrap();
         let tx = Transaction::from_data(tx_data, vec![signature]);

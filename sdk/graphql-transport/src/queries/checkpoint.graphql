@@ -45,6 +45,7 @@ fragment RPC_Checkpoint_Fields on Checkpoint {
 
     rollingGasSummary {
         computationCost
+        computationCostBurned
         storageCost
         storageRebate
         nonRefundableStorageFee

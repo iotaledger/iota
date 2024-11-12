@@ -8,9 +8,9 @@ import '@fontsource-variable/red-hat-mono';
 import { ErrorBoundary } from '_components';
 import { initAppType } from '_redux/slices/app';
 import { AppType, getFromLocationSearch } from '_redux/slices/app/AppType';
-// import { initAmplitude } from '_src/shared/analytics/amplitude';
+import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
-// import initSentry from '_src/ui/app/helpers/sentry';
+import initSentry from '_src/ui/app/helpers/sentry';
 import store from '_store';
 import { thunkExtras } from '_store/thunk-extras';
 import { KioskClientProvider } from '@iota/core';
@@ -123,7 +123,7 @@ function AppWrapper() {
 
 (async () => {
     await init();
-    // initSentry();
-    // initAmplitude();
+    initSentry();
+    initAmplitude();
     renderApp();
 })();

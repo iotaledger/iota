@@ -41,7 +41,6 @@ query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
                                             layout
                                         }
                                     }
-                                    hasPublicTransfer
                                 }
                             }
                         }

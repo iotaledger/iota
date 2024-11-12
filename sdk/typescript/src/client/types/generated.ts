@@ -29,9 +29,6 @@ export interface AddressMetrics {
 export interface Balance {
     coinObjectCount: number;
     coinType: string;
-    lockedBalance: {
-        [key: string]: string;
-    };
     totalBalance: string;
 }
 export interface BalanceChange {
@@ -119,7 +116,6 @@ export type IotaParsedData =
     | {
           dataType: 'moveObject';
           fields: MoveStruct;
-          hasPublicTransfer: boolean;
           type: string;
       }
     | {
@@ -391,6 +387,8 @@ export type ExecutionStatus = {
 export interface GasCostSummary {
     /** Cost of computation/execution */
     computationCost: string;
+    /** The burned component of the computation/execution costs */
+    computationCostBurned: string;
     /** The fee for the rebate. The portion of the storage rebate kept by the system. */
     nonRefundableStorageFee: string;
     /** Storage cost, it's the sum of all storage cost for all objects created or mutated. */
@@ -1301,7 +1299,6 @@ export type RawData =
     | {
           bcsBytes: string;
           dataType: 'moveObject';
-          hasPublicTransfer: boolean;
           type: string;
           version: string;
       }

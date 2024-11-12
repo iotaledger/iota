@@ -186,6 +186,7 @@ impl TransactionBuilder {
         Ok(TransactionKind::programmable(builder.finish()))
     }
 
+    /// Transfer an object to the specified recipient address.
     pub async fn transfer_object(
         &self,
         signer: IotaAddress,
@@ -232,6 +233,8 @@ impl TransactionBuilder {
         TransactionKind::programmable(pt)
     }
 
+    /// Transfer IOTA from the provided coin object to the recipient address.
+    /// The provided coin object is also used for the gas payment.
     pub async fn transfer_iota(
         &self,
         signer: IotaAddress,
@@ -264,6 +267,14 @@ impl TransactionBuilder {
         let pt = builder.finish();
         Ok(TransactionKind::programmable(pt))
     }
+
+    /// Take multiple coins and send to multiple addresses following the
+    /// specified amount list. The length of the vectors must be the same.
+    /// Take any type of coin, including IOTA.
+    /// A separate IOTA object will be used for gas payment.
+    ///
+    /// If the recipient and sender are the same, it's effectively a
+    /// generalized version of `split_coin` and `merge_coin`.
     pub async fn pay(
         &self,
         signer: IotaAddress,
@@ -304,10 +315,11 @@ impl TransactionBuilder {
         Ok(obj_refs)
     }
 
-    /// Construct a transaction kind for the PayIota transaction type
+    /// Construct a transaction kind for the PayIota transaction type.
     ///
     /// Use this function together with tx_data_for_dry_run or tx_data
-    /// for maximum reusability
+    /// for maximum reusability.
+    /// The length of the vectors must be the same.
     pub fn pay_iota_tx_kind(
         &self,
         recipients: Vec<IotaAddress>,
@@ -320,6 +332,15 @@ impl TransactionBuilder {
         Ok(tx_kind)
     }
 
+    /// Take multiple IOTA coins and send to multiple addresses following the
+    /// specified amount list. The length of the vectors must be the same.
+    /// Only takes IOTA coins and does not require a gas coin object.
+    ///
+    /// The first IOTA coin object input will be used for gas payment, so the
+    /// balance of this IOTA coin has to be equal to or greater than the gas
+    /// budget.
+    /// The total IOTA coin balance input must be sufficient to cover both the
+    /// gas budget and the amounts to be transferred.
     pub async fn pay_iota(
         &self,
         signer: IotaAddress,
@@ -356,6 +377,16 @@ impl TransactionBuilder {
         TransactionKind::programmable(pt)
     }
 
+    /// Take multiple IOTA coins and send them to one recipient, after gas
+    /// payment deduction. After the transaction, strictly zero of the IOTA
+    /// coins input will be left under the sender’s address.
+    ///
+    /// The first IOTA coin object input will be used for gas payment, so the
+    /// balance of this IOTA coin has to be equal or greater than the gas
+    /// budget.
+    /// A sender can transfer all their IOTA coins to another
+    /// address with strictly zero IOTA left in one transaction via this
+    /// transaction type.
     pub async fn pay_all_iota(
         &self,
         signer: IotaAddress,
@@ -405,6 +436,7 @@ impl TransactionBuilder {
         Ok(TransactionKind::programmable(pt))
     }
 
+    /// Call a move function from a published package.
     pub async fn move_call(
         &self,
         signer: IotaAddress,
@@ -614,6 +646,7 @@ impl TransactionBuilder {
         Ok(TransactionKind::programmable(pt))
     }
 
+    /// Publish a new move package.
     pub async fn publish(
         &self,
         sender: IotaAddress,
@@ -704,6 +737,7 @@ impl TransactionBuilder {
         Ok(TransactionKind::programmable(pt))
     }
 
+    /// Upgrade an existing move package.
     pub async fn upgrade(
         &self,
         sender: IotaAddress,
@@ -1006,6 +1040,7 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Add stake to a validator's staking pool using multiple IOTA coins.
     pub async fn request_add_stake(
         &self,
         signer: IotaAddress,
@@ -1074,6 +1109,7 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Withdraw stake from a validator's staking pool.
     pub async fn request_withdraw_stake(
         &self,
         signer: IotaAddress,
@@ -1102,6 +1138,7 @@ impl TransactionBuilder {
         )
     }
 
+    /// Add stake to a validator's staking pool using a timelocked IOTA coin.
     pub async fn request_add_timelocked_stake(
         &self,
         signer: IotaAddress,
@@ -1150,6 +1187,7 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Withdraw timelocked stake from a validator's staking pool.
     pub async fn request_withdraw_timelocked_stake(
         &self,
         signer: IotaAddress,
@@ -1185,6 +1223,8 @@ impl TransactionBuilder {
             .map(|(oref, _)| oref)
     }
 
+    /// Helper function to get the latest ObjectRef (ObjectID, SequenceNumber,
+    /// ObjectDigest) and ObjectType for a provided ObjectID.
     async fn get_object_ref_and_type(
         &self,
         object_id: ObjectID,
