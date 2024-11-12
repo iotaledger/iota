@@ -408,23 +408,23 @@ To learn more about the capabilities pattern, see [The Move Book](https://move-b
 
 ## Deployment
 
-The deployment of the contract is done the admnin which is a [multi-sig]((../cryptography/transaction-auth/multisig.mdx)) address. Navigate to the [`publish.sh`](/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps to deploy the contract. 
+The deployment of the contract is done by the admin, which is a [multi-sig](/developer/cryptography/transaction-auth/multisig) address. Navigate to the [`publish.sh`](/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps to deploy the contract.  
 
 ### 1. Create the `.env` File
 You need to create a `.env` file that contains important environment variables required for the deployment. Here's an example of what the .env file should look like:
 
 ```env
 # Add Iota network url
-IOTA_NETWORK="iota-network-url-here"
+IOTA_NETWORK="iota-network-url"
 
 # Add faucet link
-IOTA_FAUCET="iota-network-faucet-link-here"
+IOTA_FAUCET="iota-network-faucet-link"
 
 # Path to move package
 MOVE_PACKAGE_PATH=.
 ```
 
-Replace `iota-network-url-here` and `iota-network-faucet-link-here` with the IOTA network URL and faucet for tokens.
+Replace `iota-network-url` and `iota-network-faucet-url` with the IOTA network URL and faucet for tokens.
 
 ### 2.  Run the [`publish.sh`](/examples/move/reviews_rating/publish.sh) Script
 The `publish.sh` script automates the process of deploying a Move contract to the IOTA Alphanet. Here’s how you can run it:
