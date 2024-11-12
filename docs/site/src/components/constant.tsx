@@ -166,21 +166,21 @@ export const Networks = {
   },
   iota_move_testnet: {
     baseToken: 'IOTA Token (no value)',
-    jsonRpcUrl: 'https://api.iota-rebased-alphanet.iota.cafe',
-    jsonRpcWebsocketUrl:'wss://api.iota-rebased-alphanet.iota.cafe',
-    indexerRpc: 'https://indexer.iota-rebased-alphanet.iota.cafe',
-    graphqlRpc: 'https://graphql.iota-rebased-alphanet.iota.cafe',
-    faucetUrl: 'https://api.iota-rebased-alphanet.iota.cafe/gas',
-    explorerUrl: 'https://explorer.iota.cafe/?network=alphanet'
+    jsonRpcUrl: 'https://api.testnet.iota.cafe',
+    jsonRpcWebsocketUrl:'wss://api.testnet.iota.cafe',
+    indexerRpc: 'https://indexer.testnet.iota.cafe',
+    graphqlRpc: 'https://graphql.testnet.iota.cafe',
+    faucetUrl: 'https://faucet.testnet.iota.cafe',
+    explorerUrl: 'https://explorer.iota.cafe/?network=testnet'
   },
   iota_move_devnet: {
     baseToken: 'IOTA Token (no value)',
-    jsonRpcUrl: 'jsonRpcUrl placeholder',
-    jsonRpcWebsocketUrl:'jsonRpcWebsocketUrl placeholder',
-    indexerRpc: 'indexerRpc placeholder',
-    graphqlRpc: 'graphqlRpc placeholder',
-    faucetUrl: 'faucetUrl placeholder',
-    explorerUrl: 'explorerUrl placeholder'
+    jsonRpcUrl: 'https://api.devnet.iota.cafe',
+    jsonRpcWebsocketUrl:'wss://api.devnet.iota.cafe',
+    indexerRpc: 'https://indexer.devnet.iota.cafe',
+    graphqlRpc: 'https://graphql.devnet.iota.cafe',
+    faucetUrl: 'https://faucet.devnet.iota.cafe',
+    explorerUrl: 'https://explorer.iota.cafe/?network=devnet'
   },
   iota_localnet: {
     baseToken:"IOTA Token", 
