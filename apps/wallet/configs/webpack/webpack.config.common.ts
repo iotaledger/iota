@@ -25,10 +25,17 @@ const CONFIGS_ROOT = resolve(PROJECT_ROOT, 'configs');
 const SRC_ROOT = resolve(PROJECT_ROOT, 'src');
 const OUTPUT_ROOT = resolve(PROJECT_ROOT, 'dist');
 const TS_CONFIGS_ROOT = resolve(CONFIGS_ROOT, 'ts');
+const IS_NIGHTLY = process.env.NODE_ENV === 'nightly';
 const IS_DEV = process.env.NODE_ENV === 'development';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
-const APP_NAME = WALLET_RC ? 'IOTA Wallet (RC)' : IS_DEV ? 'IOTA Wallet (DEV)' : 'IOTA Wallet';
+const APP_NAME = WALLET_RC
+    ? 'IOTA Wallet (RC)'
+    : IS_DEV
+      ? 'IOTA Wallet (DEV)'
+      : IS_NIGHTLY
+        ? 'IOTA Wallet (Nightly)'
+        : 'IOTA Wallet';
 
 dotenv.config({
     path: [resolve(SDK_ROOT, '.env'), resolve(SDK_ROOT, '.env.defaults')],
@@ -227,13 +234,14 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 'process.env.DEFAULT_NETWORK': JSON.stringify(process.env.DEFAULT_NETWORK),
                 'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
                 'process.env.APPS_BACKEND': JSON.stringify(process.env.APPS_BACKEND),
+                'process.env.SENTRY_AUTH_TOKEN': JSON.stringify(process.env.SENTRY_AUTH_TOKEN),
             }),
             new ProvidePlugin({
                 Buffer: ['buffer', 'Buffer'],
             }),
             new SentryWebpackPlugin({
-                org: 'iota-foundation',
-                project: 'wallet',
+                org: 'iota-foundation-eu',
+                project: 'iota-wallet', // Sentry dev hint: use 'iota-wallet-dev' project for testing
                 include: OUTPUT_ROOT,
                 dryRun: !IS_PROD || !sentryAuthToken,
                 authToken: sentryAuthToken,

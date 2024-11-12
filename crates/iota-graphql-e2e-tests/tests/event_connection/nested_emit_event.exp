@@ -7,13 +7,13 @@ task 1, lines 11-38:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 6095200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6087600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 40:
 //# run Test::M3::yeet --sender A --args 2
 events: Event { package_id: Test, transaction_module: Identifier("M3"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [2, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 42:
 //# create-checkpoint
@@ -30,7 +30,7 @@ Response: {
             "name": "M3"
           },
           "type": {
-            "repr": "0x99b61e0b8d77de3f661ca7da3c101c458f54effd266f7e0850f25c7f43bac694::M1::EventA"
+            "repr": "0x4ce60f0572bedc153aaa9b5515c1f8364b76fead9bd0c01dc9e5c8c39846d156::M1::EventA"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -56,7 +56,7 @@ Response: {
             "name": "M3"
           },
           "type": {
-            "repr": "0x99b61e0b8d77de3f661ca7da3c101c458f54effd266f7e0850f25c7f43bac694::M1::EventA"
+            "repr": "0x4ce60f0572bedc153aaa9b5515c1f8364b76fead9bd0c01dc9e5c8c39846d156::M1::EventA"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
@@ -102,7 +102,7 @@ Response: {
             "name": "M3"
           },
           "type": {
-            "repr": "0x99b61e0b8d77de3f661ca7da3c101c458f54effd266f7e0850f25c7f43bac694::M1::EventA"
+            "repr": "0x4ce60f0572bedc153aaa9b5515c1f8364b76fead9bd0c01dc9e5c8c39846d156::M1::EventA"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"

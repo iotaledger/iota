@@ -9,8 +9,15 @@ use std::os::windows::fs::FileExt;
 #[cfg(not(msim))]
 use std::str::FromStr;
 use std::{
-    collections::BTreeSet, env, fmt::Write, fs::read_dir, io::Read, net::SocketAddr, path::PathBuf,
-    str, thread, time::Duration,
+    collections::{BTreeSet, HashSet},
+    env,
+    fmt::Write,
+    fs::read_dir,
+    io::Read,
+    net::SocketAddr,
+    path::PathBuf,
+    str, thread,
+    time::Duration,
 };
 
 use expect_test::expect;
@@ -18,7 +25,7 @@ use expect_test::expect;
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
     client_commands::{
-        IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
+        EmitOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
         estimate_gas_budget,
     },
     client_ptb::ptb::PTB,
@@ -110,9 +117,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     let wallet_conf =
         PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
 
-    assert!(!wallet_conf.envs.is_empty());
+    assert!(!wallet_conf.envs().is_empty());
 
-    assert_eq!(5, wallet_conf.keystore.addresses().len());
+    assert_eq!(5, wallet_conf.keystore().addresses().len());
 
     // Genesis 2nd time should fail
     let result = IotaCommand::Genesis {
@@ -183,9 +190,9 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let wallet_conf =
         PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
 
-    assert!(!wallet_conf.envs.is_empty());
+    assert!(!wallet_conf.envs().is_empty());
 
-    assert_eq!(5, wallet_conf.keystore.addresses().len());
+    assert_eq!(5, wallet_conf.keystore().addresses().len());
 
     temp_dir.close()?;
     Ok(())
@@ -199,8 +206,8 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     // Add 3 accounts
     for _ in 0..3 {
         context
-            .config
-            .keystore
+            .config_mut()
+            .keystore_mut()
             .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
     }
 
@@ -222,8 +229,8 @@ async fn test_objects_command() -> Result<(), anyhow::Error> {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
     // Print objects owned by `address`
@@ -460,7 +467,7 @@ async fn test_custom_genesis() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let context = cluster.wallet_mut();
 
-    assert_eq!(1, context.config.keystore.addresses().len());
+    assert_eq!(1, context.config().keystore().addresses().len());
 
     // Print objects owned by `address`
     IotaClientCommands::Objects {
@@ -523,8 +530,8 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
 
@@ -2113,6 +2120,10 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     // Purposely add a conflicting `published-at` address to the Move manifest.
     lines.insert(idx + 1, "published-at = \"0xbad\"".to_string());
     let new = lines.join("\n");
+
+    #[cfg(target_os = "windows")]
+    move_toml.seek_write(new.as_bytes(), 0).unwrap();
+    #[cfg(not(target_os = "windows"))]
     move_toml.write_at(new.as_bytes(), 0).unwrap();
 
     // Create a new build config for the upgrade. Initialize its lock file to the
@@ -2400,7 +2411,7 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
     );
 
     // Wipe all the address info
-    context.config.active_address = None;
+    context.config_mut().set_active_address(None);
 
     // Create a new address
     let os = IotaClientCommands::NewAddress {
@@ -2447,8 +2458,8 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
     // keypairs loaded from config are Ed25519
     assert_eq!(
         context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .keys()
             .iter()
             .filter(|k| k.flag() == Ed25519IotaSignature::SCHEME.flag())
@@ -2468,8 +2479,8 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
     // new keypair generated is Secp256k1
     assert_eq!(
         context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .keys()
             .iter()
             .filter(|k| k.flag() == Secp256k1IotaSignature::SCHEME.flag())
@@ -2500,7 +2511,13 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
     };
     assert_eq!(a, addr1);
 
-    let addr2 = context.config.keystore.addresses().get(1).cloned().unwrap();
+    let addr2 = context
+        .config()
+        .keystore()
+        .addresses()
+        .get(1)
+        .cloned()
+        .unwrap();
     let resp = IotaClientCommands::Switch {
         address: Some(KeyIdentity::Address(addr2)),
         env: None,
@@ -2520,8 +2537,8 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
 
     // switch back to addr1 by using its alias
     let alias1 = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&addr1)
         .unwrap();
     let resp = IotaClientCommands::Switch {
@@ -2934,8 +2951,8 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     let address1 = test_cluster.get_address_1();
     let context = &mut test_cluster.wallet;
     let alias1 = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address1)
         .unwrap();
     let client = context.get_client().await?;
@@ -2965,6 +2982,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -2979,6 +2997,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -2994,6 +3013,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -3247,8 +3267,8 @@ async fn key_identity_test() {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
 
@@ -3845,6 +3865,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -4238,5 +4259,154 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
     // here
     std::env::set_current_dir(current_dir)?;
     std::fs::remove_dir_all(package_name)?;
+    Ok(())
+}
+
+#[sim_test]
+async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
+    // Publish the package
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("dummy_modules_upgrade");
+    let build_config = BuildConfig::new_for_testing().config;
+    let resp = IotaClientCommands::Publish {
+        package_path: package_path.clone(),
+        build_config,
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+    }
+    .execute(context)
+    .await?;
+
+    let effects = match resp {
+        IotaClientCommandResult::TransactionBlock(response) => response.effects.unwrap(),
+        _ => panic!("Expected TransactionBlock response"),
+    };
+
+    let package = effects
+        .created()
+        .iter()
+        .find(|refe| matches!(refe.owner, Owner::Immutable))
+        .unwrap();
+
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            HashSet::from([EmitOption::BalanceChanges]),
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        // Assert Balance Changes are present in the response
+        assert!(tx_block_response.balance_changes.is_some());
+        // effects are always in the response
+        assert!(tx_block_response.effects.is_some());
+
+        // Assert every other field is not present in the response
+        assert!(tx_block_response.object_changes.is_none());
+        assert!(tx_block_response.events.is_none());
+        assert!(tx_block_response.transaction.is_none());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
+    // Make another call, this time with multiple emit args
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            HashSet::from([
+                EmitOption::BalanceChanges,
+                EmitOption::Effects,
+                EmitOption::ObjectChanges,
+            ]),
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    start_call_result.print(true);
+
+    // Assert Balance Changes, effects and object changes are present in the
+    // response
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        assert!(tx_block_response.balance_changes.is_some());
+        assert!(tx_block_response.effects.is_some());
+        assert!(tx_block_response.object_changes.is_some());
+        assert!(tx_block_response.events.is_none());
+        assert!(tx_block_response.transaction.is_none());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
+    // Make another call, this time with no emit args. This should return the full
+    // response
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            HashSet::new(),
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    // Assert all fields are present in the response
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        assert!(tx_block_response.balance_changes.is_some());
+        assert!(tx_block_response.effects.is_some());
+        assert!(tx_block_response.object_changes.is_some());
+        assert!(tx_block_response.events.is_some());
+        assert!(tx_block_response.transaction.is_some());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
     Ok(())
 }

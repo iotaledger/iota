@@ -72,7 +72,7 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
     const refetchInterval = paused || !pollingTxnTableEnabled ? undefined : REFETCH_INTERVAL;
     // TODO remove network check when querying transactions with TransactionKind filter is fixed on devnet and testnet
     /*const [network] = useNetwork();
-    const isTransactionKindFilterEnabled = Network.MAINNET === network || Network.LOCAL === network;
+    const isTransactionKindFilterEnabled = Network.Mainnet === network || Network.Localnet === network;
     const [showSystemTransactions, setShowSystemTransaction] = useState(
         !isTransactionKindFilterEnabled,
     );

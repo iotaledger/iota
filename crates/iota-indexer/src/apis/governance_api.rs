@@ -170,6 +170,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         let rates = exchange_rates(self, &system_state_summary)
             .await?
             .into_iter()
+            .chain(self.pending_validators_exchange_rate().await?.into_iter())
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -292,6 +293,73 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
 
         ret
     }
+
+    // Get validator exchange rates
+    async fn validator_exchange_rates(
+        &self,
+        tables: Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>,
+    ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
+        if tables.is_empty() {
+            return Ok(vec![]);
+        };
+
+        let mut exchange_rates = vec![];
+        // Get exchange rates for each validator
+        for (address, pool_id, exchange_rates_id, exchange_rates_size, active) in tables {
+            let mut rates = vec![];
+            for df in self
+                .inner
+                .get_dynamic_fields_raw_in_blocking_task(
+                    exchange_rates_id,
+                    None,
+                    exchange_rates_size as usize,
+                )
+                .await?
+            {
+                let dynamic_field = df
+                    .to_dynamic_field::<EpochId, PoolTokenExchangeRate>()
+                    .ok_or_else(|| iota_types::error::IotaError::ObjectDeserialization {
+                        error: "dynamic field malformed".to_owned(),
+                    })?;
+
+                rates.push((dynamic_field.name, dynamic_field.value));
+            }
+
+            rates.sort_by(|(a, _), (b, _)| a.cmp(b).reverse());
+
+            exchange_rates.push(ValidatorExchangeRates {
+                address,
+                pool_id,
+                active,
+                rates,
+            });
+        }
+        Ok(exchange_rates)
+    }
+
+    /// Check if there is any pending validator and get its exchange rates
+    pub async fn pending_validators_exchange_rate(
+        &self,
+    ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
+        // Try to find for any pending active validator
+        let tables = self
+            .inner
+            .pending_active_validators()
+            .await?
+            .into_iter()
+            .map(|pending_active_validator| {
+                (
+                    pending_active_validator.iota_address,
+                    pending_active_validator.staking_pool_id,
+                    pending_active_validator.exchange_rates_id,
+                    pending_active_validator.exchange_rates_size,
+                    false,
+                )
+            })
+            .collect::<Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>>();
+
+        self.validator_exchange_rates(tables).await
+    }
 }
 
 fn stake_status(
@@ -397,38 +465,7 @@ pub async fn compute_exchange_rates(
         ));
     }
 
-    let mut exchange_rates = vec![];
-    // Get exchange rates for each validator
-    for (address, pool_id, exchange_rates_id, exchange_rates_size, active) in tables {
-        let mut rates = vec![];
-        for df in state
-            .inner
-            .get_dynamic_fields_raw_in_blocking_task(
-                exchange_rates_id,
-                None,
-                exchange_rates_size as usize,
-            )
-            .await?
-        {
-            let dynamic_field = df
-                .to_dynamic_field::<EpochId, PoolTokenExchangeRate>()
-                .ok_or_else(|| iota_types::error::IotaError::ObjectDeserialization {
-                    error: "dynamic field malformed".to_owned(),
-                })?;
-
-            rates.push((dynamic_field.name, dynamic_field.value));
-        }
-
-        rates.sort_by(|(a, _), (b, _)| a.cmp(b).reverse());
-
-        exchange_rates.push(ValidatorExchangeRates {
-            address,
-            pool_id,
-            active,
-            rates,
-        });
-    }
-    Ok(exchange_rates)
+    state.validator_exchange_rates(tables).await
 }
 
 #[async_trait]
