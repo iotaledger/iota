@@ -18,7 +18,7 @@ const config = {
   favicon: "/icons/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://docs.iota.io",
+  url: "https://docs.iota.org",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -192,7 +192,7 @@ const config = {
       typesense: {
         // Replace this with the name of your index/collection.
         // It should match the "index_name" entry in the scraper's "config.json" file.
-        typesenseCollectionName: 'IOTADocs_1724878003',
+        typesenseCollectionName: 'IOTADocs',
         typesenseServerConfig: {
           nodes: [
             {
@@ -270,7 +270,7 @@ const config = {
       prism: {
         theme: themes.vsLight,
         darkTheme: themes.vsDark,
-        additionalLanguages: ["rust", "typescript", "toml", "solidity"],
+        additionalLanguages: ["rust", "typescript", "solidity"],
       },
     }),
 };

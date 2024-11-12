@@ -54,7 +54,7 @@ async fn pay_with_gas_budget(budget: u64) -> TransactionIdentifierResponseResult
     let sender = test_cluster.get_address_0();
     let recipient = test_cluster.get_address_1();
     let client = test_cluster.wallet.get_client().await.unwrap();
-    let keystore = &test_cluster.wallet.config.keystore;
+    let keystore = test_cluster.wallet.config().keystore();
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
