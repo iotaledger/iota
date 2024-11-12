@@ -3,11 +3,9 @@ title: Introducing Move 2024
 description: New features are becoming available to Move in 2024. These features are opt-in, so existing code will continue to function as expected. If you want to use these features in code you've already written, however, there are some steps you must take and breaking changes to be aware of to migrate to Move 2024.
 ---
 
-New features for Move are becoming available in 2024, a part of the aptly titled "Move 2024" edition. Many of these changes are enhancements to the source language, affecting the compiler without requiring any changes to the binary representation published on chain.
+IOTA launches with the "Move 2024.beta" edition, bringing enhanced features to improve both the writing and readability of Move code. These updates enhance the source language and affect the compiler, without impacting the on-chain binary representation. This enables a smooth experience with all new language improvements.
 
-The primary goal of these changes is to make Move easier to write, and hopefully easier to read. The relatively few breaking changes introduced to the source language are to better position Move to handle future advancements.
-
-Existing code will continue to compile, even with the addition of these new features. And because these features are opt-in, you can write your packages with the new features, even if your dependencies do not. Opting to take advantage of the new features in your current modules, however, does introduce some breaking changes.
+The primary goal of these "Move 2024.beta" edition changes is to make Move easier to write, and hopefully easier to read. The relatively few breaking changes introduced to the source language are to better position Move to handle future advancements.
 
 This document highlights some new features to try out and shows how to use them in your existing modules.
 
@@ -18,6 +16,14 @@ Please, provide any feedback or report any issues you encounter via [GitHub](htt
 :::
 
 ## New features
+
+:::info
+
+Below are examples of how to rewrite some legacy code in the Move 2024 edition. 
+If you find legacy code in the Move examples and would like to rewrite it based on Move 2024, refer to these examples
+
+:::
+
 
 Here is a brief overview of some of the new features in Move 2024.
 
@@ -348,8 +354,6 @@ that they will ease the development and usage of macros significantly.
 
 ## Breaking changes {#breaking-changes}
 
-Breaking changes are, unfortunately, a growing pain in Move 2024. We anticipate these changes to be minimally invasive and have provided a migration script to automate them in most cases. In addition, these changes pave the way for new features still to come in Move 2024.
-
 ### Datatype visibility requirements
 
 Currently, all structs in Move are, by convention, public: any other module or package can import them and refer to them by type. To make this clearer, Move 2024 requires that all structs be declared with the `public` keyword. For example,
@@ -426,7 +430,7 @@ module pkg::a {
 
 ### New keywords
 
-Looking toward the future, Move 2024 Beta adds the following keywords to the language: `enum`, `for`, `match`, `mut`, and `type`. The compiler, unfortunately, now produces parsing errors when it finds these in other positions. This is a necessary change as the language matures. If you perform automatic migration, the migration tool renames these as `enum` and so on, rewriting the code to use these escaped forms.
+Looking toward the future, Move 2024 Beta adds the following keywords to the language: `enum`, `for`, `match`, `mut`, and `type`. The compiler, unfortunately, now produces parsing errors when it finds these in other positions. This is a necessary change as the language matures.
 
 ### Revised paths and namespaces
 
@@ -449,7 +453,6 @@ use iota_system::iota_system;
                              // ^ note `::` here
 ```
 
-The migration script attempts to remediate naming errors using global qualification when possible.
 
 ## Follow along
 
