@@ -8313,6 +8313,7 @@
           "referenceGasPrice",
           "safeMode",
           "safeModeComputationRewards",
+          "safeModeComputationRewardsBurned",
           "safeModeNonRefundableStorageFee",
           "safeModeStorageCharges",
           "safeModeStorageRebates",
@@ -8479,6 +8480,14 @@
           },
           "safeModeComputationRewards": {
             "description": "Amount of computation rewards accumulated (and not yet distributed) during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeComputationRewardsBurned": {
+            "description": "Amount of burned computation rewards accumulated during safe mode.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"

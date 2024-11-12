@@ -202,6 +202,7 @@ mod checked {
         trace!(
             tx_digest = ?transaction_digest,
             computation_gas_cost = gas_cost_summary.computation_cost,
+            computation_gas_cost_burned = gas_cost_summary.computation_cost_burned,
             storage_gas_cost = gas_cost_summary.storage_cost,
             storage_gas_rebate = gas_cost_summary.storage_rebate,
             "Finished execution of transaction with status {:?}",

@@ -68,7 +68,7 @@ async fn basic_read_cmd_snapshot_tests() -> Result<(), anyhow::Error> {
         // 0x3b5121a0603ef7ab4cb57827fceca17db3338ef2cd76126cc1523b681df27cee --bcs", // valid
         // object BCS
         "iota client object 0x0000000000000000000000000000000000000000000000000000000000000000", /* non-existent object */
-        "iota client tx-block 5zibcom3dMckjyN16ygFwr5XNa9Exi1MmY3BQs984x1N", // valid tx digest
+        "iota client tx-block ExTKJHhBYg9mFfC1DS1XCxB6Yy5NGhoKrsFqvHw3SHE2", // valid tx digest
         "iota client tx-block 11111111111111111111111111111111",             /* non-existent tx
                                                                               * digest */
     ];

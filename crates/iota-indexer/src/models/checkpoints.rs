@@ -36,6 +36,7 @@ pub struct StoredCheckpoint {
     pub timestamp_ms: i64,
     pub total_gas_cost: i64,
     pub computation_cost: i64,
+    pub computation_cost_burned: i64,
     pub storage_cost: i64,
     pub storage_rebate: i64,
     pub non_refundable_storage_fee: i64,
@@ -75,6 +76,7 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
             timestamp_ms: c.timestamp_ms as i64,
             total_gas_cost: c.total_gas_cost,
             computation_cost: c.computation_cost as i64,
+            computation_cost_burned: c.computation_cost_burned as i64,
             storage_cost: c.storage_cost as i64,
             storage_rebate: c.storage_rebate as i64,
             non_refundable_storage_fee: c.non_refundable_storage_fee as i64,
@@ -203,9 +205,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             end_of_epoch_data,
             epoch_rolling_gas_cost_summary: GasCostSummary {
                 computation_cost: checkpoint.computation_cost as u64,
-                // TODO_FIXED_BASE_FEE: update computation cost burned in checkpoint to be used
-                // here in issue #3122
-                computation_cost_burned: checkpoint.computation_cost as u64,
+                computation_cost_burned: checkpoint.computation_cost_burned as u64,
                 storage_cost: checkpoint.storage_cost as u64,
                 storage_rebate: checkpoint.storage_rebate as u64,
                 non_refundable_storage_fee: checkpoint.non_refundable_storage_fee as u64,

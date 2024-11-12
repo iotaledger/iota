@@ -316,6 +316,7 @@ async fn test_computation_oog_storage_ok_single_gas_coin() -> IotaResult {
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
+            assert!(summary.computation_cost_burned > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
             assert_eq!(summary.storage_cost, summary.storage_rebate);
@@ -344,6 +345,7 @@ async fn test_computation_oog_storage_ok_multi_gas_coins() -> IotaResult {
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
+            assert!(summary.computation_cost_burned > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
             assert_eq!(summary.non_refundable_storage_fee, 0);
@@ -373,6 +375,7 @@ async fn test_computation_oog_storage_ok_computation_is_entire_budget() -> IotaR
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
+            assert!(summary.computation_cost_burned > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
             assert_eq!(summary.storage_cost, summary.storage_rebate);
@@ -404,6 +407,7 @@ async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
+            assert!(summary.computation_cost_burned > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
             assert_eq!(summary.storage_cost, summary.storage_rebate);
@@ -435,6 +439,7 @@ async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage();
             assert!(summary.computation_cost > 0);
+            assert!(summary.computation_cost_burned > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
             assert_eq!(summary.non_refundable_storage_fee, 0);
@@ -466,6 +471,7 @@ async fn test_computation_ok_storage_oog_computation_is_entire_budget() -> IotaR
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
+            assert!(summary.computation_cost_burned > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
             assert_eq!(summary.storage_cost, summary.storage_rebate);
@@ -504,6 +510,7 @@ async fn test_native_transfer_sufficient_gas() -> IotaResult {
     let gas_cost = effects.gas_cost_summary();
     assert!(gas_cost.net_gas_usage() as u64 > *MIN_GAS_BUDGET_PRE_RGP);
     assert!(gas_cost.computation_cost > 0);
+    assert!(gas_cost.computation_cost_burned > 0);
     assert!(gas_cost.storage_cost > 0);
     // Removing genesis object does not have rebate.
     assert_eq!(gas_cost.storage_rebate, 0);

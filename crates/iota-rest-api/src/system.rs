@@ -122,6 +122,10 @@ pub struct SystemStateSummary {
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub safe_mode_computation_rewards: u64,
+    /// Amount of burned computation rewards accumulated during safe mode.
+    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
+    #[schemars(with = "crate::_schemars::U64")]
+    pub safe_mode_computation_rewards_burned: u64,
     /// Amount of storage rebates accumulated (and not yet burned) during safe
     /// mode.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
@@ -444,6 +448,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             safe_mode,
             safe_mode_storage_charges,
             safe_mode_computation_rewards,
+            safe_mode_computation_rewards_burned,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
@@ -481,6 +486,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             safe_mode,
             safe_mode_storage_charges,
             safe_mode_computation_rewards,
+            safe_mode_computation_rewards_burned,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,

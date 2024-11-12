@@ -451,6 +451,7 @@ pub struct IotaSystemStateV1 {
     pub safe_mode: bool,
     pub safe_mode_storage_charges: Balance,
     pub safe_mode_computation_rewards: Balance,
+    pub safe_mode_computation_rewards_burned: Balance,
     pub safe_mode_storage_rebates: u64,
     pub safe_mode_non_refundable_storage_fee: u64,
     pub epoch_start_timestamp_ms: u64,
@@ -494,6 +495,9 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             .deposit_for_safe_mode(params.storage_charge);
         self.safe_mode_storage_rebates += params.storage_rebate;
         self.safe_mode_computation_rewards
+            .deposit_for_safe_mode(params.computation_charge);
+        // In protocol version 1 all computation costs are burned.
+        self.safe_mode_computation_rewards_burned
             .deposit_for_safe_mode(params.computation_charge);
         self.safe_mode_non_refundable_storage_fee += params.non_refundable_storage_fee;
         self.epoch_start_timestamp_ms = params.epoch_start_timestamp_ms;
@@ -628,6 +632,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             safe_mode,
             safe_mode_storage_charges,
             safe_mode_computation_rewards,
+            safe_mode_computation_rewards_burned,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
@@ -647,6 +652,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             safe_mode,
             safe_mode_storage_charges: safe_mode_storage_charges.value(),
             safe_mode_computation_rewards: safe_mode_computation_rewards.value(),
+            safe_mode_computation_rewards_burned: safe_mode_computation_rewards_burned.value(),
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,

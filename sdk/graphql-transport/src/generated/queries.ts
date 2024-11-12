@@ -1553,7 +1553,7 @@ export type GasCostSummary = {
   __typename?: 'GasCostSummary';
   /** Gas paid for executing this transaction (in NANOS). */
   computationCost?: Maybe<Scalars['BigInt']['output']>;
-  /** Gas burned for executing this transactions (in NANOS). */
+  /** Gas burned for executing this transaction (in NANOS). */
   computationCostBurned?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Part of storage cost that is not reclaimed when data created by this

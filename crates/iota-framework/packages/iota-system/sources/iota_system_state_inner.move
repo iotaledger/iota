@@ -99,6 +99,7 @@ module iota_system::iota_system_state_inner {
         safe_mode: bool,
         safe_mode_storage_charges: Balance<IOTA>,
         safe_mode_computation_rewards: Balance<IOTA>,
+        safe_mode_computation_rewards_burned: Balance<IOTA>,
         safe_mode_storage_rebates: u64,
         safe_mode_non_refundable_storage_fee: u64,
 
@@ -168,6 +169,7 @@ module iota_system::iota_system_state_inner {
             safe_mode: false,
             safe_mode_storage_charges: balance::zero(),
             safe_mode_computation_rewards: balance::zero(),
+            safe_mode_computation_rewards_burned: balance::zero(),
             safe_mode_storage_rebates: 0,
             safe_mode_non_refundable_storage_fee: 0,
             epoch_start_timestamp_ms,
