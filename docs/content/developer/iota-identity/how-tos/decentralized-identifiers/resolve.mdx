@@ -12,7 +12,7 @@ tags:
 
 DID resolution is the process of fetching and decoding a [DID Document](https://www.w3.org/TR/did-core/#dfn-did-documents) corresponding to a given [DID](https://www.w3.org/TR/did-core/#dfn-decentralized-identifiers).
 The [IOTA Identity framework](https://github.com/iotaledger/identity.rs) supports resolving DID Documents that are
-stored on the IOTA and Shimmer networks and enables users to plug in handlers for additional methods.
+stored on an IOTA network and enables users to plug in handlers for additional methods.
 
 This is similar to, but not to be confused with,
 the [W3C DID Resolution specification](https://w3c-ccg.github.io/did-resolution/),
@@ -33,33 +33,42 @@ The following examples demonstrate how to resolve an IOTA DID Document from its 
 
 Once you have configured a `Resolver` with a `Client`, it will resolve
 IOTA DID Documents according to the read procedure defined in the [IOTA DID Method Specification](../../../../references/iota-identity/iota-did-method-spec.mdx#read).
-It fetches the latest [Alias Output](../../../../references/iota-identity/iota-did-method-spec.mdx#alias-output) from the network specified in the DID (see [DID Format](../../../../references/iota-identity/iota-did-method-spec.mdx#did-format)),
+It fetches the the `Identity` from the network specified in the DID (see [DID Format](../../../../references/iota-identity/iota-did-method-spec.mdx#did-format)),
 then extracts and validates the DID Document from it.
 
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust
-use identity_iota::iota::IotaDID;
+use examples_kinesis::create_kinesis_did_document;
+use examples_kinesis::get_client_and_create_account;
+
+use examples_kinesis::get_memstorage;
 use identity_iota::iota::IotaDocument;
-use identity_iota::resolver::Resolver;
-use iota_sdk::client::Client;
+use identity_iota::prelude::Resolver;
 
+/// Demonstrates how to resolve an existing DID
 #[tokio::main]
-async fn main() -> anyhow::Result<()>{
-  // Configure a client for the Shimmer testnet "rms".
-  let node_url = "https://api.testnet.shimmer.network/";
-  let client = Client::builder()
-    .with_primary_node(node_url, None)?
-    .finish()?;
+async fn main() -> anyhow::Result<()> {
+  // create new client to interact with chain and get funded account with keys
+  let storage = get_memstorage()?;
+  let identity_client = get_client_and_create_account(&storage).await?;
+  // create new DID document and publish it
+  let (document, _) = create_kinesis_did_document(&identity_client, &storage).await?;
 
-  // Construct a resolver using the client.
+  let did = document.id().clone();
+
+  // We will be using a `Resolver` to resolve the DID Document.
   let mut resolver = Resolver::<IotaDocument>::new();
-  resolver.attach_iota_handler(client);
 
-  // Parse the DID and resolve its DID Document.
-  let did = IotaDID::parse("did:iota:rms:0x7b48b06232b8a1e7a31c314cab1ceedb84e2e9dd2b1fae79b67eaa4595f15e47")?;
-  let document: IotaDocument = resolver.resolve(&did).await?;
+  // We need to register a handler that can resolve IOTA DIDs.
+  // This convenience method only requires us to provide a client.
+  resolver.attach_kinesis_iota_handler((*identity_client).clone());
+
+  let resolver_document: IotaDocument = resolver.resolve(&did).await.unwrap();
+
+  // Client and Resolver resolve to the same document.
+  assert_eq!(client_document, resolver_document);
 
   Ok(())
 }
@@ -101,23 +110,25 @@ You can also use the `Client` directly to resolve individual DIDs from its confi
 <TabItem value="rust" label="Rust">
 
 ```rust
-use identity_iota::iota::IotaDID;
+use examples_kinesis::create_kinesis_did_document;
+use examples_kinesis::get_client_and_create_account;
+use examples_kinesis::get_memstorage;
+
 use identity_iota::iota::IotaDocument;
-use identity_iota::iota::IotaIdentityClientExt;
-use iota_sdk::client::Client;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()>{
-  // Configure a client for the Shimmer testnet "rms".
-  let node_url = "https://api.testnet.shimmer.network/";
-  let client = Client::builder()
-    .with_primary_node(node_url, None)?
-    .finish()?;
+  let storage = get_memstorage()?;
+  let identity_client = get_client_and_create_account(&storage).await?;
+  // create new DID document and publish it
+  let (document, _) = create_kinesis_did_document(&identity_client, &storage).await?;
 
-  // Parse the DID and resolve its DID Document.
-  let did = IotaDID::parse("did:iota:rms:0x7b48b06232b8a1e7a31c314cab1ceedb84e2e9dd2b1fae79b67eaa4595f15e47")?;
-  let document: IotaDocument = client.resolve_did(&did).await?;
-  Ok(())
+  let did = document.id().clone();
+
+  // We can resolve a `IotaDID` to bytes via client.
+  // Resolve the associated `Identity Object` and extract the DID document from it.
+  let client_document: IotaDocument = identity_client.resolve_did(&did).await?;
+  println!("Client resolved DID Document: {client_document:#}");
 }
 ```
 
