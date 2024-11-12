@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export const ToS_LINK = 'https://www.iota.org/terms-of-use';
-export const PRIVACY_POLICY_LINK = 'https://www.iota.org/privacy-policy';
+export const ToS_LINK = 'https://www.iota.org/iota-wallet-tos';
 export const FAQ_LINK = 'https://docs.iota.org/about-iota/iota-wallet/FAQ ';
 
 // number of epochs before earning
