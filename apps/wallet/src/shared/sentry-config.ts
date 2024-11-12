@@ -8,12 +8,12 @@ import Browser from 'webextension-polyfill';
 const WALLET_VERSION = Browser.runtime.getManifest().version;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-// NOTE: If you want to enable sentry in dev, you can tweak this value:
+// Sentry dev hint: If you want to enable sentry in dev, you can tweak this value:
 const ENABLE_SENTRY = IS_PROD;
 
 const SENTRY_DSN = IS_PROD
-    ? 'https://e52a4e5c90224fe0800cc96aa2570581@o1314142.ingest.sentry.io/6761112'
-    : 'https://d1022411f6284cab9660146f3aa514d2@o1314142.ingest.sentry.io/4504697974751232';
+    ? 'https://36e3e3c59a2e842034b2fc624103b72a@o4508279186718720.ingest.de.sentry.io/4508279958536272'
+    : 'https://36c25e34e606cac787b1536348101976@o4508279186718720.ingest.de.sentry.io/4508279960895568';
 
 export function getSentryConfig({
     integrations,
@@ -27,8 +27,8 @@ export function getSentryConfig({
         tracesSampler: IS_PROD ? tracesSampler : () => 1,
         allowUrls: IS_PROD
             ? [
-                  'ehndjpedolgphielnhnpnkomdhgpaaei', // chrome beta
-                  'opcgpfmipidbgpenhmajoajpbobppdil', // chrome prod
+                  'nlmllpflpelpannpijhhnbhekpbpejch', // chrome rc
+                  'iidjkmdceolghepehaaddojmnjnkkija', // chrome prod
               ]
             : undefined,
     };
