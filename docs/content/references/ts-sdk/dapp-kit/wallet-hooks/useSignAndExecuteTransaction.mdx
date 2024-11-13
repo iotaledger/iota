@@ -11,7 +11,7 @@ function withProviders(
     // Work around server-side pre-rendering
     const queryClient = new QueryClient();
     const networks = {
-        mainnet: { url: getFullnodeUrl('mainnet') },
+        mainnet: { url: getFullnodeUrl('testnet') },
     };
 
     return () => {
@@ -52,7 +52,6 @@ const UseSignAndExecuteTransactionExample = withProviders(() => {
                                 signAndExecuteTransaction(
                                     {
                                         transaction: new Transaction(),
-                                        chain: 'iota:devnet',
                                     },
                                     {
                                         onSuccess: (result) => {
@@ -120,7 +119,6 @@ function MyComponent() {
                                 signAndExecuteTransaction(
                                     {
                                         transaction: new Transaction(),
-                                        chain: 'iota:devnet',
                                     },
                                     {
                                         onSuccess: (result) => {

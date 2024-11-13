@@ -51,7 +51,6 @@ function UseSignTransactionExample() {
                             onClick={async () => {
                                 const { bytes, signature, reportTransactionEffects } = await signTransaction({
                                     transaction: new Transaction(),
-                                    chain: 'iota:devnet',
                                 });
 
                                 const executeResult = await client.executeTransactionBlock({

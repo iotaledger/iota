@@ -84,7 +84,7 @@ function createPaymenttx(recipient: string): Transaction {
 }
 // Define your admin keypair and client
 const ADMIN_SECRET_KEY: string = '<your-address-secret-key>';
-const adminPrivateKeyArray = Uint8Array.from(Array.from(fromBase64(ADMIN_SECRET_KEY)));
+const adminPrivateKeyArray = Uint8Array.from(Array.from(fromB64(ADMIN_SECRET_KEY)));
 const adminKeypair = Ed25519Keypair.fromSecretKey(adminPrivateKeyArray.slice(1));
 
 const client = new IotaClient({

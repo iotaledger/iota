@@ -41,7 +41,7 @@ function withProviders(
 function UseReportTransactionEffectsExample() {
     const { mutateAsync: reportTransactionEffects } = useReportTransactionEffects();
     const [signature, setSignature] = useState('');
-    const client = useSuiClient();
+    const client = useIotaClient();
     const currentAccount = useCurrentAccount();
 
     return (
