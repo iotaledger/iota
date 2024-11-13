@@ -24,6 +24,7 @@ mod compatibility_tests {
                 .map(|package| (*package.id(), package.genesis_object()))
                 .collect();
             for cur_package in BuiltInFramework::iter_system_packages() {
+                println!("checking {:?}", cur_package.id());
                 if compare_system_package(
                     &old_framework_store,
                     cur_package.id(),
