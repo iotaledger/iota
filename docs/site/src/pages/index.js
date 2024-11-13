@@ -152,7 +152,7 @@ export default function Home() {
             >
               IOTA ecosystem directory
             </Link>
-            <Link className={styles.cardLink} to="https://blog.iota.io/">
+            <Link className={styles.cardLink} to="https://blog.iota.org//">
               IOTA blog
             </Link>
             <Link

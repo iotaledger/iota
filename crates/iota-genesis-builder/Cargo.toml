@@ -40,14 +40,14 @@ tracing.workspace = true
 tracing-subscriber = "0.3"
 
 # internal dependencies
-iota-adapter-v0 = { path = "../../iota-execution/v0/iota-adapter/" }
+iota-adapter-latest = { path = "../../iota-execution/latest/iota-adapter/" }
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-framework.workspace = true
 iota-framework-snapshot.workspace = true
 iota-genesis-common.workspace = true
 iota-move-build.workspace = true
-iota-move-natives-v0 = { path = "../../iota-execution/v0/iota-move-natives" }
+iota-move-natives-latest = { path = "../../iota-execution/latest/iota-move-natives" }
 iota-protocol-config.workspace = true
 iota-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"] }
 iota-types.workspace = true
@@ -55,7 +55,7 @@ move-binary-format.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
-move-vm-runtime-v0 = { path = "../../external-crates/move/move-execution/v0/crates/move-vm-runtime" }
+move-vm-runtime-latest = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
 shared-crypto.workspace = true
 
 [target.'cfg(msim)'.dependencies]

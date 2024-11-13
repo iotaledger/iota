@@ -31,7 +31,7 @@ iota-types = { workspace = true, features = ["test-utils"] }
 [dev-dependencies]
 # external dependencies
 ed25519-consensus.workspace = true
-fastcrypto = { workspace = true }
+fastcrypto.workspace = true
 more-asserts.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }

@@ -180,9 +180,3 @@ iota-move-natives-latest:
   - "iota-execution/latest/iota-move-natives/**"
 iota-verifier-latest:
   - "iota-execution/latest/iota-verifier/**"
-iota-adapter-v0:
-  - "iota-execution/v0/iota-adapter/**"
-iota-move-natives-v0:
-  - "iota-execution/v0/iota-move-natives/**"
-iota-verifier-v0:
-  - "iota-execution/v0/iota-verifier/**"

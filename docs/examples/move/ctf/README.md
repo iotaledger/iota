@@ -2,7 +2,7 @@
 
 ## Trying the Challenges
 
-The challneges are already deployed on the IOTA alphanet. To get started, you need to start with reading the [CTF introduction](../../docs/content/developer/iota-move-ctf/introduction.mdx), follow its steps to interact with the challenges, and capture the flags.
+The challenges are already deployed on the IOTA Testnet. To get started, you need to start with reading the [CTF introduction](../../docs/content/developer/iota-move-ctf/introduction.mdx), follow its steps to interact with the challenges, and capture the flags.
 
 ## Deploying the challneges yourself (Not Required)
 
