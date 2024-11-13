@@ -46,7 +46,19 @@ const developer = [
                     'developer/iota-101/move-overview/strings',
                     'developer/iota-101/move-overview/collections',
                     'developer/iota-101/move-overview/init',
+                    'developer/iota-101/move-overview/visibility',
                     'developer/iota-101/move-overview/entry-functions',
+                    {
+                        type: 'category',
+                        label: 'Structs and Abilities',
+                        items: [
+                            'developer/iota-101/move-overview/structs-and-abilities/struct',
+                            'developer/iota-101/move-overview/structs-and-abilities/copy',
+                            'developer/iota-101/move-overview/structs-and-abilities/drop',
+                            'developer/iota-101/move-overview/structs-and-abilities/key',
+                            'developer/iota-101/move-overview/structs-and-abilities/store',
+                        ],
+                    },
                     'developer/iota-101/move-overview/one-time-witness',
                     {
                         type: 'category',
@@ -58,6 +70,8 @@ const developer = [
                             'developer/iota-101/move-overview/package-upgrades/custom-policies',
                         ],
                     },
+                    'developer/iota-101/move-overview/ownership-scope',
+                    'developer/iota-101/move-overview/references',
                     'developer/iota-101/move-overview/generics',
                     {
                         type: 'category',
