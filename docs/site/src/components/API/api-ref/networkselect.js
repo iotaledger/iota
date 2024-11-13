@@ -6,13 +6,20 @@ import React, { useState, useEffect } from "react";
 import { Select, MenuItem, FormControl, InputLabel } from "@mui/material";
 import { StyledEngineProvider } from "@mui/material/styles";
 
-const NETWORKS = ["Devnet", "Testnet", "Mainnet"];
+const NETWORKS = ["Devnet", "Testnet"];
 
 const NetworkSelect = () => {
   const [selection, setSelection] = useState(() => {
-    // Attempt to access localStorage, default to 'mainnet' if not set
-    const network = typeof window !== "undefined" ? localStorage.getItem("RPC") : null;
-    return network !== null ? network : "mainnet";
+
+    if (ExecutionEnvironment.canUseDOM) {
+      const network = localStorage.getItem("RPC");
+      if (network === null) {
+        return "testnet";
+      }
+      return localStorage.getItem("RPC");
+    } else {
+      return "testnet";
+    }
   });
 
   useEffect(() => {
@@ -33,18 +40,18 @@ const NetworkSelect = () => {
           <InputLabel
             id="network"
             className="dark:text-white"
-          >{`RPC: https://fullnode.${selection.toLowerCase()}.iota.io:443`}</InputLabel>
+          >{`RPC: https://api.${selection.toLowerCase()}.iota.cafe:443`}</InputLabel>
           <Select
             label-id="network"
             id="network-select"
             value={selection}
-            label={`RPC: https://fullnode.${selection.toLowerCase()}.iota.io:443`}
+            label={`RPC: https://api.${selection.toLowerCase()}.iota.cafe:443`}
             onChange={handleChange}
             className="dark:text-white dark:bg-iota-ghost-dark"
           >
             <MenuItem value="devnet">{NETWORKS[0]}</MenuItem>
             <MenuItem value="testnet">{NETWORKS[1]}</MenuItem>
-            <MenuItem value="mainnet">{NETWORKS[2]}</MenuItem>
+            {/*<MenuItem value="mainnet">{NETWORKS[2]}</MenuItem>*/}
           </Select>
         </FormControl>
       </div>

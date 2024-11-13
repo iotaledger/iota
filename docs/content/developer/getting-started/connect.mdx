@@ -4,7 +4,7 @@ tags: [ explanation, mainnet, testnet, devnet, cli, setup, install, getting-star
 ---
 
 import DataWipe from "../../_snippets/data-wipe.mdx";
-import AlphaNet from "../../_snippets/alphanet.mdx";
+import MainnetRunsStardust from '../../_snippets/mainnet-runs-stardust.mdx';
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/connect.json';
 
@@ -26,9 +26,9 @@ IOTA provides the [IOTA command line interface (CLI)](/references/cli/client.mdx
 
 You can use the [CLI](iota-environment.mdx#iota-cli) or [SDKs](iota-environment.mdx#iota-sdks) to send transactions and
 read requests from using the [JSON-RPC](../../references/iota-api/json-rpc-format.mdx) and the following
-endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443`.
+endpoint: `https://api.<IOTA-NETWORK-VERSION>.iota.cafe:443`.
 
-<AlphaNet />
+<MainnetRunsStardust />
 
 ## Environment Set Up
 
@@ -80,8 +80,6 @@ IOTA Full node server URL (Defaults to IOTA Testnet if not specified) :
 
 If you want to connect to the [Testnet](#testnet), you can simply press `Enter`.
 
-<AlphaNet />
-
 If not, specify your desired node URL. If you choose to add a custom URL, you should also add an alias for ease of
 access:
 
@@ -125,10 +123,8 @@ iota client envs
 The command outputs the available environment aliases, with `(active)` denoting the currently active network.
 ```sh
 localnet => http://0.0.0.0:9000 (active)
-alphanet => https://api.iota-rebased-alphanet.iota.cafe:443
+testnet => https://https://api.testnet.iota.cafe:443
 ```
-
-<AlphaNet />
 
 You can add a new environment using the `iota client new` command. You should specify and `alias` and `rpc` URL, for
 example:
@@ -151,12 +147,6 @@ iota client switch --env <EnvAlias>
 
 ## IOTA Networks
 
-### Alphanet
-
-A temporary network while still in early development, used before public launch of IOTA Rebased. Will be replaced by the Testnet afterwards.
-
-<AlphaNet />
-
 ### Devnet
 
 The latest stable release. As such, it has the latest features that were tested in the `development` branch of the
@@ -171,7 +161,7 @@ test your software in real-world conditions.
 
 :::info Testnet node validators
 
-The IOTA Alphanet, Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation.
+The IOTA Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation.
 
 :::
 

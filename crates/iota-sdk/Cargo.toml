@@ -75,8 +75,8 @@ path = "examples/json_rpc_errors.rs"
 name = "utils"
 path = "examples/utils.rs"
 crate-type = ["staticlib"]
-# Read API folder
 
+# Read API folder
 [[example]]
 name = "checkpoints"
 path = "examples/read_api/checkpoints.rs"

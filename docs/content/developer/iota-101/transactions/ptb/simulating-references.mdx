@@ -1,0 +1,153 @@
+---
+description: Discover how to simulate references in IOTA's programmable transaction blocks using the borrow module.
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/simulating-references.json';
+
+# Simulating References in IOTA PTBs
+
+In IOTA, all on-chain data is represented as [objects](../../objects/object-model.mdx).
+When developing Move packages for the IOTA network, you often need to manipulate these objects using the IOTA API.
+Typically, the API functions require you to provide an object by reference.
+
+References are fundamental in Move programming and IOTA development.
+Most IOTA API functionalities accept objects as references, which enhances security and asset safety in smart contracts.
+
+However, there are two primary ways to interact with an object:
+
+- **By Value:** You have complete ownership of the object, allowing you to destroy it, wrap it (if it has the `store` ability), or transfer it to another address.
+- **By Reference:** You access the object's data without owning it, limiting operations to those defined by the module that provides the object. This method prevents you from destroying or transferring the object. References come in two forms:
+  - **Mutable Reference (`&mut`):** Allows you to modify the object according to the API but not destroy or transfer it.
+  - **Immutable Reference (`&`):** Provides read-only access to the object's data, further restricting operations.
+
+Currently, [programmable transaction blocks (PTBs)](programmable-transaction-blocks) in IOTA do not support
+using object references returned from transaction commands.
+While you can use input objects, objects created within the PTB, or objects returned by value,
+you cannot use a reference returned by a transaction command in subsequent calls.
+This limitation hinders certain common patterns in Move.
+
+## Solving with the Borrow Module
+
+The IOTA framework offers a [borrow module](../../../../references/framework/iota-framework/borrow.mdx) to address this reference limitation.
+This module allows you to access an object by value while preventing it from being destroyed, transferred, or wrapped.
+It introduces a `Referent` object that wraps the target object you wish to reference. 
+Using the [hot potato pattern](../../move-overview/patterns/hot-potato.mdx) through a `Borrow` instance, you can retrieve the wrapped object by value and ensure it is returned to the `Referent` within the same PTB.
+The `Borrow` instance ensures the returned object is the same as the one retrieved.
+
+### Example Usage
+
+Consider a module `a_module` that defines an `Asset` object and a function `use_asset`:
+
+```rust
+module a_module {
+    struct Asset has key, store {
+        … // some data
+    }
+
+    public fun use_asset(asset: &Asset) {
+        …. // some code
+    }
+}
+```
+
+The `use_asset` function accepts an immutable reference to `Asset`, which is common in API definitions.
+
+Now, imagine another module `another_module` that utilizes this asset:
+
+```rust
+module another_module {
+    struct AssetManager has key {
+        asset: Asset,
+    }
+
+    public fun get_asset(manager: &AssetManager): &Asset {
+        &manager.asset
+    }
+}
+```
+
+Here, `AssetManager` holds a reference to `Asset` from `a_module`.
+You might write a function to retrieve the asset by reference and pass it to `use_asset`:
+
+```rust
+fun do_something(manager: &AssetManager) {
+    let asset = another_module::get_asset(manager);
+    a_module::use_asset(asset);
+}
+```
+
+However, in PTBs, this pattern is invalid because you cannot use references returned by functions in subsequent calls. To work around this, you can modify `another_module` to use the borrow module:
+
+```rust
+module another_module {
+    struct AssetManager has key {
+        asset: Referent<Asset>,
+    }
+
+    public fun get_asset(manager: &mut AssetManager): (Asset, Borrow) {
+        borrow::borrow(&mut manager.asset)
+    }
+
+
+    public fun return_asset(
+        manager: &mut AssetManager,
+        asset: Asset,
+        b: Borrow) {
+            borrow::put_back(&mut manager.asset, asset, b)
+    }
+}
+```
+
+With these changes, you can retrieve the asset, use it, and then return it within the PTB.
+
+## Important Considerations
+
+The `Borrow` object is crucial for maintaining the integrity of the borrow module's guarantees.
+Defined as `struct Borrow { ref: address, obj: ID }`, it cannot be dropped or stored elsewhere,
+ensuring it is consumed within the same transaction (the hot potato pattern).
+This structure ensures you cannot keep the retrieved object or swap it with another, maintaining consistency.
+
+:::caution
+
+Using `Referent` requires explicit changes to your codebase and can be intrusive.
+Carefully consider this approach when designing your solution.
+
+:::
+
+While support for references in PTBs is forthcoming, using the borrow module is a temporary workaround.
+Be mindful of the implications and plan for a transition to a more natural reference pattern in the future.
+
+Additionally, the `Referent` model necessitates the use of mutable references and returns objects by value,
+which can significantly impact API design.
+Exercise caution in how you expose objects and logic in your modules.
+
+## Practical Example
+
+Expanding on the earlier example, here's how you might write a PTB that calls `use_asset`:
+
+```rust
+// Initialize the PTB
+const txb = new TransactionBlock();
+// Load the assetManager
+const assetManager = txb.object(assetManagerId); 
+// Retrieve the asset
+const [asset, borrow] = txb.moveCall({ 
+    target: "0xaddr1::another_module::get_asset",
+    arguments: [ assetManager ],
+});
+
+// Use the asset
+txb.moveCall({
+    target: "0xaddr2::a_module::use_asset",
+    arguments: [ asset ],
+});
+
+// Return the asset
+txb.moveCall({
+    target: "0xaddr1::another_module::return_asset",
+    arguments: [ assetManager, asset, borrow ],
+});
+...
+```
+
+<Quiz questions={questions} />
