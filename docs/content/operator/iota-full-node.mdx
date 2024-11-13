@@ -112,12 +112,10 @@ Open a terminal or console to the `iota` directory you downloaded in the previou
 1. Make a copy of the [Full node YAML template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml):
     `cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml`
 1. Download the genesis blob for the network to use:
+    - [Devnet genesis blob](https://dbfiles.iota-rebased-devnet.iota.cafe/genesis.blob):
+        `curl -fLJO https://dbfiles.iota-rebased-devnet.iota.cafe/genesis.blob`
     - [Testnet genesis blob](https://dbfiles.iota-rebased-testnet.iota.cafe/genesis.blob):
         `curl -fLJO https://dbfiles.iota-rebased-testnet.iota.cafe/genesis.blob`
-    - [Testnet genesis blob](https://github.com/iotaledger/iota/TODO):
-        `curl -fLJO TODO`
-    - [Mainnet genesis blob](https://github.com/iotaledger/iota/TODO):
-        `curl -fLJO TODO`
 1. For Devnet or Testnet: Edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append the following to the end of the current configuration:
 
     <Tabs groupId="network">
