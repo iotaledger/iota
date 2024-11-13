@@ -63,7 +63,7 @@ resolves to
 
 ### Macro Functions
 
-Higher-order functions (such as `map`, `filter`, `fold`, `for_each`, etc) are useful in many languages for concisely transforming collections. Move does not have lambdas (or closures or function pointers), which makes defining these sorts of operations impossible.
+Higher-order functions (such as `map,` `filter,` `fold,` `for_each,` etc.) are useful in many languages for concisely transforming collections. Move does not have lambdas, closures, or function pointers, making defining these operations impossible.
 Macro functions will allow for Move to mimic these sort of operations, without supporting the behavior at runtime. The body of the macro mimicking the "higher-order function" will get inlined at each call site. And the call site can provide a "lambda" that will be substituted in as the macro is expanded. For example
 
 ```move
