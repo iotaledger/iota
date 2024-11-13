@@ -45,8 +45,8 @@ impl EventApi {
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default()
-    ///         .ws_url("wss://rpc.mainnet.iota.io:443")
-    ///         .build("https://fullnode.mainnet.iota.io:443")
+    ///         .ws_url("wss://api.mainnet.iota.cafe")
+    ///         .build("https://api.mainnet.iota.cafe")
     ///         .await?;
     ///     let mut subscribe_all = iota
     ///         .event_api()

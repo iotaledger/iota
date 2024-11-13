@@ -38,9 +38,9 @@ struct FaucetResponse {
     error: Option<String>,
 }
 
-// const IOTA_FAUCET_BASE_URL: &str = "https://faucet.devnet.iota.io"; // devnet faucet
+// const IOTA_FAUCET_BASE_URL: &str = "https://faucet.devnet.iota.cafe"; // devnet faucet
 
-pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.io"; // testnet faucet
+pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.cafe"; // testnet faucet
 
 // if you use the `iota start` subcommand and use the local network; if it does
 // not work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
