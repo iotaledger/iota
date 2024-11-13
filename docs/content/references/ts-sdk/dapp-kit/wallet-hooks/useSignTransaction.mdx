@@ -35,7 +35,7 @@ function withProviders(
     };
 }
 
-function MyComponent() {
+function UseSignTransactionExample() {
     const { mutateAsync: signTransaction } = useSignTransaction();
     const [signature, setSignature] = useState('');
     const client = useIotaClient();
