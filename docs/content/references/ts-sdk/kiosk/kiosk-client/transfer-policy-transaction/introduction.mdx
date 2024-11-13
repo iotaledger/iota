@@ -41,7 +41,7 @@ tpTx
     // .removePersonalKioskRule()
 
 // Sign and execute transaction.
-await signAndExecuteTransaction({tx: tx});
+await signAndExecuteTransaction({tx});
 ```
 
 ## Creating a new transfer policy
@@ -71,5 +71,5 @@ tpTx.addLockRule()
     .shareAndTransferCap('address_to_transfer_cap_to');
 
 // Sign and execute transaction.
-await signAndExecuteTransaction({ tx: tx });
+await signAndExecuteTransaction({ tx });
 ```

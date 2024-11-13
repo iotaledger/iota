@@ -43,7 +43,7 @@ kioskTx
 kioskTx.finalize();
 
 // Sign and execute transaction.
-await signAndExecuteTransaction({tx: tx});
+await signAndExecuteTransaction({tx});
 ```
 
 ## Creating a new kiosk
@@ -75,7 +75,7 @@ kioskTx.shareAndTransferCap('0xMyAddress');
 kioskTx.finalize();
 
 // Sign and execute transaction.
-await signAndExecuteTransaction({tx: tx});
+await signAndExecuteTransaction({tx});
 ```
 
 ## Creating a new personal kiosk
@@ -101,5 +101,5 @@ kioskTx
     .finalize(); // finalize is always our last call.
 
 // Sign and execute transaction.
-await signAndExecuteTransaction({tx: tx});
+await signAndExecuteTransaction({tx});
 ```

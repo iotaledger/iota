@@ -48,7 +48,7 @@ async function mintMyCoin(address: string) {
     kioskTx.finalize();
 
     // sign and execute transaction.
-    await signAndExecuteTransaction({ tx: tx });
+    await signAndExecuteTransaction({ tx });
 }
 ```
 
@@ -97,6 +97,6 @@ async function mixMyCoins(firstCoinObjectId: string, secondCoinObjectId: string,
     }).finalize();
 
     // sign and execute transaction.
-    await signAndExecuteTransaction({ tx: tx });
+    await signAndExecuteTransaction({ tx });
 }
 ```

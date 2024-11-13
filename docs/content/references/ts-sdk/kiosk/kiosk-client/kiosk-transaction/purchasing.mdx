@@ -34,7 +34,7 @@ await kioskTx.purchaseAndResolve({
 kioskTx.finalize();
 
 // Sign and execute transaction.
-await signAndExecuteTransaction({ tx: tx });
+await signAndExecuteTransaction({ tx });
 ```
 
 > The function queries for a TransferPolicy for that item, and if a policy is found, it
@@ -87,7 +87,7 @@ await kioskTx.purchaseAndResolve({
 kioskTx.finalize();
 
 // Sign and execute transaction.
-await signAndExecuteTransaction({ tx: tx });
+await signAndExecuteTransaction({ tx });
 ```
 
 ```typescript

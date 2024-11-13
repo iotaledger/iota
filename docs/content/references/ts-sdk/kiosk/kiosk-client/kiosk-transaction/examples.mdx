@@ -52,7 +52,7 @@ const mint = async () => {
     kioskTx.finalize();
 
     // Sign and execute transaction.
-    await signAndExecuteTransaction({ tx: tx });
+    await signAndExecuteTransaction({ tx });
 }
 ```
 
@@ -87,7 +87,7 @@ const mint = async () => {
     kioskTx.finalize();
 
     // Sign and execute transaction.
-    await signAndExecuteTransaction({ tx: tx });
+    await signAndExecuteTransaction({ tx });
 }
 ```
 
@@ -108,7 +108,7 @@ const levelUp = async (object) => {
         .finalize();
 
     // Sign and execute transaction.
-    await signAndExecuteTransaction({ tx: tx });
+    await signAndExecuteTransaction({ tx });
 };
 
 levelUp({
