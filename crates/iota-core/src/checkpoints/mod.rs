@@ -1910,6 +1910,14 @@ impl CheckpointAggregator {
                     current
                         .summary
                         .report_checkpoint_age_ms(&self.metrics.last_certified_checkpoint_age_ms);
+                    let now = chrono::Utc::now().timestamp_millis() as u64;
+                    println!(
+                        "Certified checkpoint {:#?} slowness {:#?} cp_ts {:#?} certified_ts {:#?}",
+                        current.summary.sequence_number,
+                        now - current.summary.timestamp_ms,
+                        current.summary.timestamp_ms,
+                        now,
+                    );
                     result.push(summary.into_inner());
                     self.current = None;
                     continue 'outer;

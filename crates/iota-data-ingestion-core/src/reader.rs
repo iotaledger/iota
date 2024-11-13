@@ -93,6 +93,16 @@ impl CheckpointReader {
             }
             checkpoints.push(checkpoint);
         }
+        let now = chrono::Utc::now().timestamp_millis() as u64;
+        for checkpoint in &checkpoints {
+            println!(
+                "Remote fetched checkpoint {:#?} from {:#?} timestamp: {:#?} slowness: {:#?}",
+                checkpoint.checkpoint_summary.sequence_number,
+                checkpoint.checkpoint_summary.timestamp_ms,
+                now,
+                now - checkpoint.checkpoint_summary.timestamp_ms,
+            );
+        }
         Ok(checkpoints)
     }
 
@@ -151,7 +161,18 @@ impl CheckpointReader {
         backoff.multiplier = 1.0;
         loop {
             match Self::remote_fetch_checkpoint_internal(store, checkpoint_number).await {
-                Ok(data) => return Ok(data),
+                Ok(data) => {
+                    let now = chrono::Utc::now().timestamp_millis() as u64;
+                    let checkpoint = &data.0;
+                    println!(
+                        "Remote fetched checkpoint {:#?} from {:#?} timestamp: {:#?} slowness: {:#?}",
+                        checkpoint.checkpoint_summary.sequence_number,
+                        checkpoint.checkpoint_summary.timestamp_ms,
+                        now,
+                        now - checkpoint.checkpoint_summary.timestamp_ms,
+                    );
+                    return Ok(data);
+                }
                 Err(err) => match backoff.next_backoff() {
                     Some(duration) => {
                         if !err.to_string().contains("404") {
@@ -241,7 +262,14 @@ impl CheckpointReader {
     }
 
     async fn sync(&mut self) -> Result<()> {
-        let backoff = backoff::ExponentialBackoff::default();
+        let backoff = backoff::ExponentialBackoff {
+            initial_interval: Duration::from_millis(1),
+            randomization_factor: 0.1,
+            multiplier: 1.0,
+            max_interval: Duration::from_secs(10),
+            max_elapsed_time: None,
+            ..Default::default()
+        };
         let mut checkpoints = backoff::future::retry(backoff, || async {
             self.read_local_files().await.map_err(|err| {
                 info!("transient local read error {:?}", err);
@@ -252,6 +280,7 @@ impl CheckpointReader {
 
         let mut read_source: &str = "local";
         if self.remote_store_url.is_some()
+            // && false
             && (checkpoints.is_empty()
                 || checkpoints[0].checkpoint_summary.sequence_number
                     > self.current_checkpoint_number)

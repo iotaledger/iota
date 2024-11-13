@@ -48,6 +48,36 @@ scrape_configs:
         labels:
           host: client3
           network: local
+  - job_name: "Indexer_sync"
+    static_configs:
+      - targets: ["172.17.0.1:9181"]
+        labels:
+          host: indexer_sync
+          network: local
+  - job_name: "Indexer_rpc"
+    static_configs:
+      - targets: ["172.17.0.1:9182"]
+        labels:
+          host: indexer_rpc
+          network: local
+  - job_name: "Indexer_graphql"
+    static_configs:
+      - targets: ["172.17.0.1:9183"]
+        labels:
+          host: indexer_graphql
+          network: local
+  - job_name: "Indexer_metrics"
+    static_configs:
+      - targets: ["172.17.0.1:9184"]
+        labels:
+          host: indexer_metrics
+          network: local   
+  - job_name: "One_of_nodes"
+    static_configs:
+      - targets: ["127.0.0.1:36201"]
+        labels:
+          host: node_local
+          network: local 
   - job_name: "tempo"
     static_configs:
       - targets: ["tempo:3200"]

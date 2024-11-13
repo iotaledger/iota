@@ -120,6 +120,15 @@ where
     T: R2D2Connection + 'static,
 {
     async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+        let now = chrono::Utc::now().timestamp_millis() as u64;
+        println!(
+            "Processing checkpoint {:#?} from {:#?} timestamp: {:#?} slowness: {:#?}",
+            checkpoint.checkpoint_summary.sequence_number,
+            checkpoint.checkpoint_summary.timestamp_ms,
+            now,
+            now - checkpoint.checkpoint_summary.timestamp_ms,
+        );
+
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
             .set(checkpoint.checkpoint_summary.sequence_number as i64);
@@ -288,6 +297,15 @@ where
     ) -> Result<CheckpointDataToCommit, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
         info!(checkpoint_seq, "Indexing checkpoint data blob");
+
+        let now = chrono::Utc::now().timestamp_millis() as u64;
+        println!(
+            "Indexing checkpoint {:#?} from {:#?} timestamp: {:#?} slowness: {:#?}",
+            checkpoint_seq,
+            data.checkpoint_summary.timestamp_ms,
+            now,
+            now - data.checkpoint_summary.timestamp_ms,
+        );
 
         // Index epoch
         let epoch = Self::index_epoch(state, &data).await?;

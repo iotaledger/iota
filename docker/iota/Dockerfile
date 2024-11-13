@@ -35,7 +35,7 @@ COPY external-crates external-crates
 COPY docs docs
 
 # TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin iota --features ${CARGO_BUILD_FEATURES:=default}
+RUN --mount=type=ssh cargo build -j2 --profile ${PROFILE} --bin iota --features ${CARGO_BUILD_FEATURES:=default}
 RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota ./
 
 # Production Image

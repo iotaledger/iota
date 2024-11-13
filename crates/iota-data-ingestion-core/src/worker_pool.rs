@@ -128,6 +128,15 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     }
                 }
                 Some(checkpoint) = checkpoint_receiver.recv() => {
+                    let now = chrono::Utc::now().timestamp_millis() as u64;
+                    println!(
+                        "Received checkpoint {:#?} from {:#?} timestamp: {:#?} slowness: {:#?}",
+                        checkpoint.checkpoint_summary.sequence_number,
+                        checkpoint.checkpoint_summary.timestamp_ms,
+                        now,
+                        now - checkpoint.checkpoint_summary.timestamp_ms,
+                    );
+
                     let sequence_number = checkpoint.checkpoint_summary.sequence_number;
                     if sequence_number < current_checkpoint_number {
                         continue;

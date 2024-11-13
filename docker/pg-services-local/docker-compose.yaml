@@ -26,7 +26,7 @@ services:
     expose:
       - 9000
     ports:
-      - "127.0.0.1:9000:9000"
+      - "0.0.0.0:9000:9000"
       - "127.0.0.1:9123:9123"
     healthcheck:
       test: "curl -f http://local-network:9000/api/v1/"
@@ -60,7 +60,7 @@ services:
       - --client-metric-port=9181
       - --reset-db
     ports:
-      - "127.0.0.1:9181:9181/tcp"
+      - "0.0.0.0:9181:9181/tcp"
     depends_on:
       - local-network
       - postgres
@@ -85,7 +85,7 @@ services:
       - --rpc-server-port=9000
     ports:
       - "127.0.0.1:9005:9000/tcp"
-      - "127.0.0.1:9182:9181/tcp"
+      - "0.0.0.0:9182:9181/tcp"
     depends_on:
       - local-network
       - postgres
@@ -110,7 +110,7 @@ services:
       - --client-metric-port=9181
       - --analytical-worker
     ports:
-      - "127.0.0.1:9184:9181/tcp"
+      - "0.0.0.0:9184:9181/tcp"
     depends_on:
       - local-network
       - postgres
@@ -145,7 +145,7 @@ services:
       - --ide-title="Iota GraphQL Service"
     ports:
       - "127.0.0.1:8000:8000/tcp"
-      - "127.0.0.1:9183:9181/tcp"
+      - "0.0.0.0:9183:9181/tcp"
     depends_on:
       local-network:
         condition: service_healthy

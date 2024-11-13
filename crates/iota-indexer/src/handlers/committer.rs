@@ -118,6 +118,11 @@ async fn commit_checkpoints<S>(
     let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
     let last_checkpoint_seq = checkpoint_batch.last().as_ref().unwrap().sequence_number;
 
+    let checkpoint_seqs_and_ts: Vec<(u64, u64)> = checkpoint_batch
+        .iter()
+        .map(|cp| (cp.sequence_number, cp.timestamp_ms))
+        .collect();
+
     let guard = metrics.checkpoint_db_commit_latency.start_timer();
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
@@ -207,6 +212,18 @@ async fn commit_checkpoints<S>(
         last_checkpoint_seq,
         tx_count,
     );
+
+    let now = chrono::Utc::now().timestamp_millis() as u64;
+    for (cp_seq, cp_ts) in checkpoint_seqs_and_ts {
+        println!(
+            "Committed checkpoint {:#?} from {:#?} timestamp: {:#?} slowness: {:#?}",
+            cp_seq,
+            cp_ts,
+            now,
+            now - cp_ts,
+        );
+    }
+
     metrics
         .latest_tx_checkpoint_sequence_number
         .set(last_checkpoint_seq as i64);

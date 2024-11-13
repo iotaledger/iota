@@ -24,12 +24,20 @@ module basics::counter {
     }
 
     /// Create and share a Counter object.
-    public fun create(ctx: &mut TxContext) {
+    public fun create_public(ctx: &mut TxContext) {
         transfer::share_object(Counter {
             id: object::new(ctx),
             owner: tx_context::sender(ctx),
             value: 0
         })
+    }
+
+    public fun create_private(ctx: &mut TxContext) {
+        transfer::transfer(Counter {
+            id: object::new(ctx),
+            owner: tx_context::sender(ctx),
+            value: 0
+        }, ctx.sender())
     }
 
     /// Increment a counter by 1.

@@ -1,0 +1,731 @@
+
+running 14 tests
+test custom_tests::test_hit_the_hive_private_indexer ... Got coins!
+Got coins!
+Got coins!
+Publish result: 0xd90bcfb70131cc3dca393444035e5910ef3587f8a7ca50f018694cdd6af24411
+Object 0xb602346849bb217b1a7a9d5697f28c2132438d3016e937d49cd8db73cda71e68 exists in get_object endpoint
+Got tx block elapsed: 1.929276388s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 287.962428ms
+Test: test_hit_the_hive_private_indexer request_start_ts: 1733323515289 Tx_cp: 6045047 cp_ts: 1733323515531 checkpoint created after: 242 started waiting after: 870 Wait Elapsed: 2217 Total request time: 3087
+Object 0xab7bf0ce7f8577d5c66595caf7d7d0132987553e08133cdde32482b6ac78d6c3 exists in get_object endpoint
+Got tx block elapsed: 1.925858815s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 276.017179ms
+Test: test_hit_the_hive_private_indexer request_start_ts: 1733323520827 Tx_cp: 6045070 cp_ts: 1733323521011 checkpoint created after: 184 started waiting after: 976 Wait Elapsed: 2202 Total request time: 3178
+Object 0xc0018d1e733c3433c850579fc7f4aaaed042c32e767f7c8f04470ca90e1e8ef3 exists in get_object endpoint
+Got tx block elapsed: 1.887933309s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 260.431171ms
+Test: test_hit_the_hive_private_indexer request_start_ts: 1733323526624 Tx_cp: 6045095 cp_ts: 1733323526978 checkpoint created after: 354 started waiting after: 1008 Wait Elapsed: 2148 Total request time: 3156
+Object 0xdc5ae27ce84b7efe961c5b002e2a0a01bd44f021608cc4928198aed2cd6a3998 exists in get_object endpoint
+Got tx block elapsed: 1.878639442s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 255.109108ms
+Test: test_hit_the_hive_private_indexer request_start_ts: 1733323532623 Tx_cp: 6045120 cp_ts: 1733323532941 checkpoint created after: 318 started waiting after: 901 Wait Elapsed: 2134 Total request time: 3035
+Object 0x29063d0d3a543f538465cc5c83401f93ad07156099b9bfca594a73ad62532bec exists in get_object endpoint
+Got tx block elapsed: 1.834187903s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 281.570207ms
+Test: test_hit_the_hive_private_indexer request_start_ts: 1733323538452 Tx_cp: 6045145 cp_ts: 1733323538783 checkpoint created after: 331 started waiting after: 1158 Wait Elapsed: 2116 Total request time: 3274
+Object 0x27de87dba4d6db428b89a66e58b24aef8418cfecdcaac4e9d217c647ebd88c61 exists in get_object endpoint
+Got tx block elapsed: 1.822130987s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 275.490687ms
+Test: test_hit_the_hive_private_indexer request_start_ts: 1733323544230 Tx_cp: 6045169 cp_ts: 1733323544648 checkpoint created after: 418 started waiting after: 941 Wait Elapsed: 2098 Total request time: 3039
+Object 0x4882004376990b63e2150fda47feaf2a4c151c89278bd06809cae4c3468a5b32 exists in get_object endpoint
+Got tx block elapsed: 1.856401809s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 262.579727ms
+Test: test_hit_the_hive_private_indexer request_start_ts: 1733323549950 Tx_cp: 6045192 cp_ts: 1733323550273 checkpoint created after: 323 started waiting after: 902 Wait Elapsed: 2119 Total request time: 3021
+Object 0xf0063000e6f777bf2def77bf2a94ae79b2084a2545a941892fe29678aa73b15b exists in get_object endpoint
+Got tx block elapsed: 1.97981109s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 274.593529ms
+Test: test_hit_the_hive_private_indexer request_start_ts: 1733323555611 Tx_cp: 6045215 cp_ts: 1733323555965 checkpoint created after: 354 started waiting after: 954 Wait Elapsed: 2254 Total request time: 3208
+ok
+test custom_tests::test_hit_the_hive_private_node ... Got coins!
+Got coins!
+Got coins!
+Publish result: 0xb61e41905541943991a2e390e3a6677dcb812bfbac495701000dce6c27d28466
+Object 0x30cd3ee469269b333e25624aa39823083fe997a69f3f37d7a207e0295fe0477f exists in get_object endpoint
+Got tx block elapsed: 93.027462ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 279.16233ms
+Test: test_hit_the_hive_private_node request_start_ts: 1733323565004 Tx_cp: 6045254 cp_ts: 1733323565267 checkpoint created after: 263 started waiting after: 793 Wait Elapsed: 372 Total request time: 1165
+Object 0x050f992fc1c62ce5d526636d59d1f092291865d25ae5db79f506a47e47e0437a exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 87.106301ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 350.743524ms
+Test: test_hit_the_hive_private_node request_start_ts: 1733323567222 Tx_cp: 6045263 cp_ts: 1733323567491 checkpoint created after: 269 started waiting after: 710 Wait Elapsed: 438 Total request time: 1148
+Object 0xd7f7fc355831868a46d04a2503f751ce1dcb06e4f4d7b62451d171fc8a8710cd exists in get_object endpoint
+Got tx block elapsed: 533.834529ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 310.915198ms
+Test: test_hit_the_hive_private_node request_start_ts: 1733323569257 Tx_cp: 6045272 cp_ts: 1733323569665 checkpoint created after: 408 started waiting after: 1147 Wait Elapsed: 844 Total request time: 1991
+Object 0x1e7a1a1bb1502098ce2bd676af95998e4140124cff4497e266206ef1bcfe4812 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 79.30874ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 238.234383ms
+Test: test_hit_the_hive_private_node request_start_ts: 1733323572347 Tx_cp: 6045284 cp_ts: 1733323572613 checkpoint created after: 266 started waiting after: 773 Wait Elapsed: 317 Total request time: 1090
+Object 0x64e8b6e2d2a7dd7e13698b7b1dcb45b74167ba44599bf1025450ba9f6f82fb35 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 106.092701ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 202.114091ms
+Test: test_hit_the_hive_private_node request_start_ts: 1733323574315 Tx_cp: 6045292 cp_ts: 1733323574522 checkpoint created after: 207 started waiting after: 615 Wait Elapsed: 308 Total request time: 923
+Object 0xcba5b3e4eb6516fd0901073c9948e73c894a350cc7f039c47a00620f924733da exists in get_object endpoint
+Got tx block elapsed: 98.136664ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 189.484045ms
+Test: test_hit_the_hive_private_node request_start_ts: 1733323575994 Tx_cp: 6045299 cp_ts: 1733323576250 checkpoint created after: 256 started waiting after: 555 Wait Elapsed: 288 Total request time: 843
+Object 0xadf4e6fbcfa2dc4f20b69e88e18e314f0908d65f4c9b93d9113e9da21caf5a64 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 89.209792ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 340.08608ms
+Test: test_hit_the_hive_private_node request_start_ts: 1733323577727 Tx_cp: 6045306 cp_ts: 1733323577988 checkpoint created after: 261 started waiting after: 895 Wait Elapsed: 430 Total request time: 1325
+Object 0x0cc1615d5a64e4e913c492f6791a93140c183a6660a067ff8b3fc984108998c8 exists in get_object endpoint
+Got tx block elapsed: 91.551181ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 249.634493ms
+Test: test_hit_the_hive_private_node request_start_ts: 1733323579945 Tx_cp: 6045315 cp_ts: 1733323580139 checkpoint created after: 194 started waiting after: 668 Wait Elapsed: 341 Total request time: 1009
+ok
+test custom_tests::test_hit_the_hive_public_indexer ... Got coins!
+Got coins!
+Got coins!
+Publish result: 0x4387bd48be6677637700dd8e2cc09ee8a02336eb0572800446da4fc10341fdb2
+Object 0x1e2c99909dc3e1139c2f631f98f5535602e98f0ef3d139a08b9c475893f95745 exists in get_object endpoint
+Got tx block elapsed: 1.926242896s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 523.520561ms
+Test: test_hit_the_hive_public_indexer request_start_ts: 1733323585981 Tx_cp: 6045340 cp_ts: 1733323586184 checkpoint created after: 203 started waiting after: 950 Wait Elapsed: 2450 Total request time: 3400
+Object 0xa894bab2e3d03a0e62e1b565f7ac83105b00c40b72e139e1818e9ff8d2bcd256 exists in get_object endpoint
+Got tx block elapsed: 1.831537406s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 343.224294ms
+Test: test_hit_the_hive_public_indexer request_start_ts: 1733323592072 Tx_cp: 6045366 cp_ts: 1733323592421 checkpoint created after: 349 started waiting after: 1814 Wait Elapsed: 2175 Total request time: 3989
+Object 0x670eda4fd163748ef37509f5d0ce5a8ba6203a4c3791e90204108a073524fa31 exists in get_object endpoint
+Got tx block elapsed: 2.136764263s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 315.581126ms
+Test: test_hit_the_hive_public_indexer request_start_ts: 1733323598624 Tx_cp: 6045393 cp_ts: 1733323598952 checkpoint created after: 328 started waiting after: 1511 Wait Elapsed: 2452 Total request time: 3963
+Object 0x28b39e642f1748c5157a6179d1998a6de9f9b2f95da548a0eca3e60f3d0be9c9 exists in get_object endpoint
+Got tx block elapsed: 1.78776739s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 300.705211ms
+Test: test_hit_the_hive_public_indexer request_start_ts: 1733323605529 Tx_cp: 6045421 cp_ts: 1733323605809 checkpoint created after: 280 started waiting after: 1440 Wait Elapsed: 2089 Total request time: 3529
+Object 0x04b5e92037fc50aa1a7beaf61163367d245a30dc1a514bb80a21d7ccede943c4 exists in get_object endpoint
+Got tx block elapsed: 1.931578937s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 300.053639ms
+Test: test_hit_the_hive_public_indexer request_start_ts: 1733323611776 Tx_cp: 6045447 cp_ts: 1733323612100 checkpoint created after: 324 started waiting after: 1362 Wait Elapsed: 2232 Total request time: 3594
+Object 0x7b2123dab454b70cad2a4f30c5b578be65c149f77cc52cef23c262bf4f754576 exists in get_object endpoint
+Got tx block elapsed: 1.870866818s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 285.808928ms
+Test: test_hit_the_hive_public_indexer request_start_ts: 1733323617982 Tx_cp: 6045474 cp_ts: 1733323618617 checkpoint created after: 635 started waiting after: 1666 Wait Elapsed: 2157 Total request time: 3823
+Object 0xcacb4dc0aba48d07313a430a5473ea736d5d37ad7d69a30a7b3824b9815c7897 exists in get_object endpoint
+Got tx block elapsed: 1.892293123s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 408.515263ms
+Test: test_hit_the_hive_public_indexer request_start_ts: 1733323624486 Tx_cp: 6045499 cp_ts: 1733323624813 checkpoint created after: 327 started waiting after: 2711 Wait Elapsed: 2301 Total request time: 5012
+Object 0x31aa04cacfc711dbd8ad4781e7c3a2841b8e67fa4c18c6f3ce3a8c4cc9692fd6 exists in get_object endpoint
+Got tx block elapsed: 1.855050784s
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 347.075333ms
+Test: test_hit_the_hive_public_indexer request_start_ts: 1733323632255 Tx_cp: 6045531 cp_ts: 1733323632590 checkpoint created after: 335 started waiting after: 1643 Wait Elapsed: 2202 Total request time: 3845
+ok
+test custom_tests::test_hit_the_hive_public_node ... Got coins!
+Got coins!
+Got coins!
+Publish result: 0x428eab35d732b4268d5931f7d642beee7144f6c8c09a29781127f6d8bc6d0c74
+Couldn't construct tx bytes, retrying
+Object 0x141edae5bea2229c4a0621a1f6c75c246d2b9114b055e2cb7fe5304cc4ec2e3d exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 96.568219ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 267.955214ms
+Test: test_hit_the_hive_public_node request_start_ts: 1733323642174 Tx_cp: 6045572 cp_ts: 1733323642581 checkpoint created after: 407 started waiting after: 1035 Wait Elapsed: 364 Total request time: 1399
+Object 0x4d9bc296d289cfa8974d84332b65d87579cf14605c50574a98f2fb669bb0ec9d exists in get_object endpoint
+Got tx block elapsed: 130.965678ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 364.330405ms
+Test: test_hit_the_hive_public_node request_start_ts: 1733323644350 Tx_cp: 6045580 cp_ts: 1733323644550 checkpoint created after: 200 started waiting after: 1178 Wait Elapsed: 496 Total request time: 1674
+Object 0xe5ff70f630f7caa67f80c8ea60b35222cf523dd14c3aac461d5fcf51ac960a92 exists in get_object endpoint
+Got tx block elapsed: 101.773889ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 274.630706ms
+Test: test_hit_the_hive_public_node request_start_ts: 1733323647035 Tx_cp: 6045591 cp_ts: 1733323647285 checkpoint created after: 250 started waiting after: 846 Wait Elapsed: 376 Total request time: 1222
+Object 0x8cae11489b40e607b0e449880e46b6b7831f813f7189b3cd37999a73cf931c11 exists in get_object endpoint
+Got tx block elapsed: 108.913004ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 257.243987ms
+Test: test_hit_the_hive_public_node request_start_ts: 1733323649094 Tx_cp: 6045600 cp_ts: 1733323649513 checkpoint created after: 419 started waiting after: 812 Wait Elapsed: 367 Total request time: 1179
+Object 0x79decb578a2f0f4944967115135f21775ce7ee3a346cc198526004c929af7f55 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 75.99776ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 271.585759ms
+Test: test_hit_the_hive_public_node request_start_ts: 1733323651189 Tx_cp: 6045609 cp_ts: 1733323651664 checkpoint created after: 475 started waiting after: 1039 Wait Elapsed: 347 Total request time: 1386
+Object 0xb9e14b2fc26364b2d14dba0d107fcb66e2aefe6f93122348d3d77f76c205eb7c exists in get_object endpoint
+Got tx block elapsed: 71.283689ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 264.472492ms
+Test: test_hit_the_hive_public_node request_start_ts: 1733323653339 Tx_cp: 6045617 cp_ts: 1733323653574 checkpoint created after: 235 started waiting after: 881 Wait Elapsed: 336 Total request time: 1217
+Object 0xd757f6dc7f63a3eb1bddb45f4cb44b6187d57db0df49d0f9423f27de18eeaa38 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 117.330385ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 420.601197ms
+Test: test_hit_the_hive_public_node request_start_ts: 1733323655423 Tx_cp: 6045626 cp_ts: 1733323655731 checkpoint created after: 308 started waiting after: 858 Wait Elapsed: 538 Total request time: 1396
+Object 0xefc0d28578d9a27d045567f912c4b26862c577b200d046fceb9136d54baed4bd exists in get_object endpoint
+Got tx block elapsed: 121.266238ms
+Waiting for 2002 objs
+Waiting on all tx effects elapsed: 308.147109ms
+Test: test_hit_the_hive_public_node request_start_ts: 1733323657730 Tx_cp: 6045636 cp_ts: 1733323658057 checkpoint created after: 327 started waiting after: 912 Wait Elapsed: 430 Total request time: 1342
+ok
+test custom_tests::test_increment_counter_private_fullnode ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Publish result: 0x04a8faa42c7c7cd300879ebce32084c15a90078a17c28092285cdae8db685ed4
+Object 0x0ee7da2c17c53ccb62618d8f269639b459cb7396136f7d6cde7bb7fb89e22eae exists in get_object endpoint
+Got tx block elapsed: 369.162883ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 89.63252ms
+Test: test_increment_counter_private_fullnode request_start_ts: 1733324144322 Tx_cp: 6047642 cp_ts: 1733324144740 checkpoint created after: 418 started waiting after: 261 Wait Elapsed: 459 Total request time: 720
+Object 0xb339b9d51bd688a4ef49444861a561893b89814fa4d6984238a5f19c9d32be86 exists in get_object endpoint
+Got tx block elapsed: 277.96923ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 132.508785ms
+Test: test_increment_counter_private_fullnode request_start_ts: 1733324145989 Tx_cp: 6047648 cp_ts: 1733324146225 checkpoint created after: 236 started waiting after: 195 Wait Elapsed: 410 Total request time: 605
+Object 0x937a477a1ebaeaf2d35218cf5eefe7003ce516d3afab8131b3bb7d1868340d49 exists in get_object endpoint
+Got tx block elapsed: 272.006343ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 97.689892ms
+Test: test_increment_counter_private_fullnode request_start_ts: 1733324147603 Tx_cp: 6047655 cp_ts: 1733324147902 checkpoint created after: 299 started waiting after: 205 Wait Elapsed: 369 Total request time: 574
+Object 0x18695e1ec613e7ddc44472f0feac6e5da35aeab4d269d9475d4af3ed1f57ab2d exists in get_object endpoint
+Got tx block elapsed: 220.046656ms
+Waiting for 2 objs
+Not all objs ready, waiting...
+Waiting on all tx effects elapsed: 194.65999ms
+Test: test_increment_counter_private_fullnode request_start_ts: 1733324148895 Tx_cp: 6047661 cp_ts: 1733324149321 checkpoint created after: 426 started waiting after: 233 Wait Elapsed: 415 Total request time: 648
+Object 0x2fc45a48ef17242e0746104e41dae81d9b0b3da1f0c5f5b42ae88eb8fdb773ea exists in get_object endpoint
+Got tx block elapsed: 224.842297ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 73.465992ms
+Test: test_increment_counter_private_fullnode request_start_ts: 1733324150300 Tx_cp: 6047666 cp_ts: 1733324150542 checkpoint created after: 242 started waiting after: 204 Wait Elapsed: 299 Total request time: 503
+Object 0xc2749f9f49ea08f4c132f42bef78daea24a3e0b1a3cceb4b6e56fe868f2df4b6 exists in get_object endpoint
+Got tx block elapsed: 221.114358ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 74.133512ms
+Test: test_increment_counter_private_fullnode request_start_ts: 1733324151600 Tx_cp: 6047671 cp_ts: 1733324151781 checkpoint created after: 181 started waiting after: 238 Wait Elapsed: 295 Total request time: 533
+Object 0xf59fd1b7ded6668fc37d2e5f3b171b9c3261655a37d1c2a3315243a825b385aa exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 225.582017ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 72.670536ms
+Test: test_increment_counter_private_fullnode request_start_ts: 1733324153005 Tx_cp: 6047677 cp_ts: 1733324153272 checkpoint created after: 267 started waiting after: 246 Wait Elapsed: 299 Total request time: 545
+Object 0x55ab53a56d9b2330ddbe95ebfaf83028dc2da75d16a572da0c1c200237d1bd8f exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 234.555261ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 76.783499ms
+Test: test_increment_counter_private_fullnode request_start_ts: 1733324154425 Tx_cp: 6047683 cp_ts: 1733324154694 checkpoint created after: 269 started waiting after: 203 Wait Elapsed: 311 Total request time: 514
+ok
+test custom_tests::test_increment_counter_private_indexer ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Publish result: 0x5d800e0bfcf65d275124247c4b090d3299fd65e32ed11da70f915989eb39d473
+Object 0xe89450bfad7d1f70ae8eafdddc3ebd6dec5a989170e329dc69876494bf2995a3 exists in get_object endpoint
+Got tx block elapsed: 3.74527061s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 46.8297ms
+Test: test_increment_counter_private_indexer request_start_ts: 1733324761182 Tx_cp: 6050188 cp_ts: 1733324761555 checkpoint created after: 373 started waiting after: 190 Wait Elapsed: 3793 Total request time: 3983
+Object 0xb929c459d41233574f25e55111cfaf12ffcb878d664aecebf6b7a4025640cae9 exists in get_object endpoint
+Got tx block elapsed: 3.629784049s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 47.242574ms
+Test: test_increment_counter_private_indexer request_start_ts: 1733324767764 Tx_cp: 6050217 cp_ts: 1733324768589 checkpoint created after: 825 started waiting after: 190 Wait Elapsed: 3677 Total request time: 3867
+Object 0x87ef401436b64d70288fc180266e0c923e33abe3701f4adfc6619bb3c4970b21 exists in get_object endpoint
+Got tx block elapsed: 3.734803621s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.20659ms
+Test: test_increment_counter_private_indexer request_start_ts: 1733324774317 Tx_cp: 6050243 cp_ts: 1733324774692 checkpoint created after: 375 started waiting after: 179 Wait Elapsed: 3780 Total request time: 3959
+Object 0x79c61b23d219dbb7440a99485a36d827f1ec65fe416401e6e73d48cfb4dd9d92 exists in get_object endpoint
+Got tx block elapsed: 3.721664996s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.250633ms
+Test: test_increment_counter_private_indexer request_start_ts: 1733324780977 Tx_cp: 6050270 cp_ts: 1733324781300 checkpoint created after: 323 started waiting after: 186 Wait Elapsed: 3767 Total request time: 3953
+Object 0xcd507cf907ff11f3c4eed56d720df178f88605bce9577af698c502fdd4975a29 exists in get_object endpoint
+Got tx block elapsed: 3.767325184s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.168647ms
+Test: test_increment_counter_private_indexer request_start_ts: 1733324787583 Tx_cp: 6050297 cp_ts: 1733324787848 checkpoint created after: 265 started waiting after: 190 Wait Elapsed: 3811 Total request time: 4001
+Object 0xbd590b57cfb26a12e3aa1caa73a84662bc7a10c5c0bc224c9da71a179e99d29d exists in get_object endpoint
+Got tx block elapsed: 3.728913766s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 55.619976ms
+Test: test_increment_counter_private_indexer request_start_ts: 1733324794289 Tx_cp: 6050325 cp_ts: 1733324794558 checkpoint created after: 269 started waiting after: 177 Wait Elapsed: 3785 Total request time: 3962
+Object 0xb2e66bd8f0d0f8fce17d7ce55c1fa2a6ff58a3e2cac714a0054be84ad61397db exists in get_object endpoint
+Got tx block elapsed: 3.697362417s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 41.490289ms
+Test: test_increment_counter_private_indexer request_start_ts: 1733324800918 Tx_cp: 6050352 cp_ts: 1733324801089 checkpoint created after: 171 started waiting after: 188 Wait Elapsed: 3739 Total request time: 3927
+Object 0x57f826b3e6a8b6d41890dc2b1ab317cec4e8ac9e50bce27130e51d6c0b15ae89 exists in get_object endpoint
+Got tx block elapsed: 3.692573141s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 46.862047ms
+Test: test_increment_counter_private_indexer request_start_ts: 1733324807297 Tx_cp: 6050379 cp_ts: 1733324807696 checkpoint created after: 399 started waiting after: 183 Wait Elapsed: 3739 Total request time: 3922
+ok
+test custom_tests::test_increment_counter_public_fullnode ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Publish result: 0x87f0189ac553ff7bc07ce9d7574584bbb31035e1ce6e8618d05c6c470dbb79d9
+Object 0x2b504cf3be04fd7f5be79d22f86524ea059f07f12419a0ff9b7e88e0f5ed98c7 exists in get_object endpoint
+Got tx block elapsed: 114.040848ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 99.331316ms
+Test: test_increment_counter_public_fullnode request_start_ts: 1733325359269 Tx_cp: 6052643 cp_ts: 1733325359493 checkpoint created after: 224 started waiting after: 479 Wait Elapsed: 214 Total request time: 693
+Object 0x628eca1a5de1b9cf16a516c4cd5cc9eb683ec47375185995f66d874acd46ae9a exists in get_object endpoint
+Got tx block elapsed: 112.315645ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 86.57772ms
+Test: test_increment_counter_public_fullnode request_start_ts: 1733325360903 Tx_cp: 6052650 cp_ts: 1733325361222 checkpoint created after: 319 started waiting after: 530 Wait Elapsed: 199 Total request time: 729
+Object 0x91c724ed2f25edad01690e9158109aa0e8dcf576f7962da776fe41318c21ad4c exists in get_object endpoint
+Got tx block elapsed: 259.0898ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 112.463948ms
+Test: test_increment_counter_public_fullnode request_start_ts: 1733325362552 Tx_cp: 6052657 cp_ts: 1733325362925 checkpoint created after: 373 started waiting after: 496 Wait Elapsed: 372 Total request time: 868
+Object 0xb133c2e83fe56bc3c524a6c22fc99584fd1ab850c59b09a4ac20606666076042 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 119.685834ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 87.906331ms
+Test: test_increment_counter_public_fullnode request_start_ts: 1733325364410 Tx_cp: 6052664 cp_ts: 1733325364641 checkpoint created after: 231 started waiting after: 603 Wait Elapsed: 208 Total request time: 811
+Object 0x8ae6598abbb4523c98ac02bb14d6a8d5559c2f0113327bdeb1cdb47e63e796b7 exists in get_object endpoint
+Got tx block elapsed: 589.395486ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 93.197433ms
+Test: test_increment_counter_public_fullnode request_start_ts: 1733325366237 Tx_cp: 6052674 cp_ts: 1733325367134 checkpoint created after: 897 started waiting after: 977 Wait Elapsed: 683 Total request time: 1660
+Object 0x0398e53aaa2a18fc2766d9b99bdc9a16a423d06d9f87abc95411aef0814257f0 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 93.259064ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 109.332082ms
+Test: test_increment_counter_public_fullnode request_start_ts: 1733325368872 Tx_cp: 6052682 cp_ts: 1733325369083 checkpoint created after: 211 started waiting after: 540 Wait Elapsed: 203 Total request time: 743
+Object 0x5334fa3b041dad2c9f95c93d835aecd5c7cf8abe65b0c211146ee528320377dd exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 111.601674ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 100.022333ms
+Test: test_increment_counter_public_fullnode request_start_ts: 1733325370457 Tx_cp: 6052689 cp_ts: 1733325370777 checkpoint created after: 320 started waiting after: 596 Wait Elapsed: 212 Total request time: 808
+Object 0x7a5a2e208b62dce4a663a3e034b19e3b8a0d8c1dfa12bf4fbe27924770389824 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 102.258988ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 72.985808ms
+Test: test_increment_counter_public_fullnode request_start_ts: 1733325372237 Tx_cp: 6052696 cp_ts: 1733325372456 checkpoint created after: 219 started waiting after: 502 Wait Elapsed: 176 Total request time: 678
+ok
+test custom_tests::test_increment_counter_public_indexer ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Publish result: 0x1304ace78252f4985a687e96bdfd141163bede1cfc465026ad916e8f3fc37f33
+Object 0x92966f2d8a7f4b088cc43b21749ea143fe484529e0f131ea678ade85ce575486 exists in get_object endpoint
+Got tx block elapsed: 3.837853576s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.372298ms
+Test: test_increment_counter_public_indexer request_start_ts: 1733325918389 Tx_cp: 6054943 cp_ts: 1733325918518 checkpoint created after: 129 started waiting after: 367 Wait Elapsed: 3884 Total request time: 4251
+Object 0xaa056d70836648304a677eb47ec821041145eeab1dbfb223ad90e7b1a0b1edf2 exists in get_object endpoint
+Got tx block elapsed: 3.888991344s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 48.183137ms
+Test: test_increment_counter_public_indexer request_start_ts: 1733325925204 Tx_cp: 6054972 cp_ts: 1733325925419 checkpoint created after: 215 started waiting after: 361 Wait Elapsed: 3938 Total request time: 4299
+Object 0xee0e05d396bbe576d2d28f0709b4d5c85dbbd244809e19f211713ee75c8977bc exists in get_object endpoint
+Got tx block elapsed: 3.641784021s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.079219ms
+Test: test_increment_counter_public_indexer request_start_ts: 1733325932055 Tx_cp: 6055001 cp_ts: 1733325932403 checkpoint created after: 348 started waiting after: 410 Wait Elapsed: 3686 Total request time: 4096
+Object 0x1d8451658e3084abb5b8631f731cc8d4dbfcd6413ccf96289c6c1642d7340397 exists in get_object endpoint
+Got tx block elapsed: 3.696889297s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.981598ms
+Test: test_increment_counter_public_indexer request_start_ts: 1733325938960 Tx_cp: 6055029 cp_ts: 1733325939267 checkpoint created after: 307 started waiting after: 434 Wait Elapsed: 3743 Total request time: 4177
+Object 0x8dba8f586e97306190c65a861d060456f2faaedd226c72ded69842d24f8654d9 exists in get_object endpoint
+Got tx block elapsed: 3.78692908s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 43.526473ms
+Test: test_increment_counter_public_indexer request_start_ts: 1733325945950 Tx_cp: 6055058 cp_ts: 1733325946241 checkpoint created after: 291 started waiting after: 505 Wait Elapsed: 3830 Total request time: 4335
+Object 0x1ee7ffb09ef74c34bcb50137c6496893585cc361dda35b9303a4710f7fff8389 exists in get_object endpoint
+Got tx block elapsed: 1.841293369s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 51.106326ms
+Test: test_increment_counter_public_indexer request_start_ts: 1733325952695 Tx_cp: 6055085 cp_ts: 1733325952857 checkpoint created after: 162 started waiting after: 520 Wait Elapsed: 1892 Total request time: 2412
+Object 0x4a91eea23746bdbcf8c0e3d5f143093214a221b2017ef6e15ac633770c3c4e38 exists in get_object endpoint
+Got tx block elapsed: 3.774783984s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.298463ms
+Test: test_increment_counter_public_indexer request_start_ts: 1733325957684 Tx_cp: 6055106 cp_ts: 1733325957907 checkpoint created after: 223 started waiting after: 471 Wait Elapsed: 3820 Total request time: 4291
+Object 0x7c0ede8f54f445f4c55cad4fc636910d2cea93ed412bda2f6062381a4c255a83 exists in get_object endpoint
+Got tx block elapsed: 3.787110647s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.664057ms
+Test: test_increment_counter_public_indexer request_start_ts: 1733325964739 Tx_cp: 6055135 cp_ts: 1733325965009 checkpoint created after: 270 started waiting after: 456 Wait Elapsed: 3831 Total request time: 4287
+ok
+test custom_tests::test_numerous_increments_counter_private_fullnode ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Publish result: 0x395aa7c0fee57e063d604f59748cc0ae68277670e560e7a901de9306c97cf96b
+Couldn't construct tx bytes, retrying
+Object 0x3392b884b75dd6c71c7804d0dadae5a9b2053562db5f537697394b10fdd86393 exists in get_object endpoint
+Got tx block elapsed: 263.238415ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 79.319489ms
+Test: test_numerous_increments_counter_private_fullnode request_start_ts: 1733326516612 Tx_cp: 6057405 cp_ts: 1733326517242 checkpoint created after: 630 started waiting after: 611 Wait Elapsed: 343 Total request time: 954
+Object 0x1c9db74a3b2048f8333b485a8cad15b72395a1cbffd74ccbef5b118569ca328b exists in get_object endpoint
+Got tx block elapsed: 213.293839ms
+Waiting for 2 objs
+Not all objs ready, waiting...
+Waiting on all tx effects elapsed: 179.347408ms
+Test: test_numerous_increments_counter_private_fullnode request_start_ts: 1733326518698 Tx_cp: 6057413 cp_ts: 1733326519214 checkpoint created after: 516 started waiting after: 461 Wait Elapsed: 393 Total request time: 854
+Object 0x3ff33436a89b63bb3eedeb10bc52c8ff1666392b8cefac0a44fff7b893e52dcf exists in get_object endpoint
+Got tx block elapsed: 220.534165ms
+Waiting for 2 objs
+Not all objs ready, waiting...
+Waiting on all tx effects elapsed: 177.065165ms
+Test: test_numerous_increments_counter_private_fullnode request_start_ts: 1733326520676 Tx_cp: 6057421 cp_ts: 1733326521196 checkpoint created after: 520 started waiting after: 449 Wait Elapsed: 397 Total request time: 846
+Object 0x2f8080dfda3b46201dbf088cbd3eb2b9cd05caa52229dce9f46222617f313f4e exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 92.073361ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 73.356672ms
+Test: test_numerous_increments_counter_private_fullnode request_start_ts: 1733326522955 Tx_cp: 6057430 cp_ts: 1733326523366 checkpoint created after: 411 started waiting after: 992 Wait Elapsed: 166 Total request time: 1158
+Object 0x4d6f763e6b99b18e4aa023fdc9deedde6725d77c73a9379eeef533dd5d09d47d exists in get_object endpoint
+Got tx block elapsed: 284.275828ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 121.348524ms
+Test: test_numerous_increments_counter_private_fullnode request_start_ts: 1733326525325 Tx_cp: 6057440 cp_ts: 1733326525824 checkpoint created after: 499 started waiting after: 506 Wait Elapsed: 406 Total request time: 912
+Object 0x64a46bcbaa07409767be34ea7ec25dab9aeb6e131e3752992a582dc5a19283b2 exists in get_object endpoint
+Got tx block elapsed: 102.709392ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 79.363809ms
+Test: test_numerous_increments_counter_private_fullnode request_start_ts: 1733326527480 Tx_cp: 6057449 cp_ts: 1733326528051 checkpoint created after: 571 started waiting after: 1051 Wait Elapsed: 183 Total request time: 1234
+Object 0xe342a280c4bb97df7b64f635e775511d1c83d4f1980a9b5358c11c9c936bef7c exists in get_object endpoint
+Got tx block elapsed: 126.440471ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 85.623283ms
+Test: test_numerous_increments_counter_private_fullnode request_start_ts: 1733326529895 Tx_cp: 6057458 cp_ts: 1733326530258 checkpoint created after: 363 started waiting after: 542 Wait Elapsed: 212 Total request time: 754
+Object 0x830ebb5e17ca01f91cbfcae7b45e214356ef73bd080a444bcb394656e770aef6 exists in get_object endpoint
+Got tx block elapsed: 259.844697ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 87.936212ms
+Test: test_numerous_increments_counter_private_fullnode request_start_ts: 1733326531972 Tx_cp: 6057466 cp_ts: 1733326532345 checkpoint created after: 373 started waiting after: 448 Wait Elapsed: 348 Total request time: 796
+ok
+test custom_tests::test_numerous_increments_counter_private_indexer ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Publish result: 0x6785f3041ec4dd57a2829c7799879df50ca9a0cb887fc1d91ebe36cbd3a1d1a4
+Object 0x6566873b40a47f57446b52abb4c05c4186138cfe90f5086931cbded8fd2c06ef exists in get_object endpoint
+Got tx block elapsed: 3.781102328s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.312076ms
+Test: test_numerous_increments_counter_private_indexer request_start_ts: 1733327139483 Tx_cp: 6059928 cp_ts: 1733327139951 checkpoint created after: 468 started waiting after: 470 Wait Elapsed: 3826 Total request time: 4296
+Object 0x3da7278721ece9bcc44aede5fe2ae499e4213487aa68f0539a9af996bdaaa37e exists in get_object endpoint
+Got tx block elapsed: 3.66487792s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 47.044951ms
+Test: test_numerous_increments_counter_private_indexer request_start_ts: 1733327146843 Tx_cp: 6059957 cp_ts: 1733327147183 checkpoint created after: 340 started waiting after: 463 Wait Elapsed: 3712 Total request time: 4175
+Object 0x0f790c9e04e9c44e16e4919f0943a939e33fa2f53b12297ca68caea1892085ff exists in get_object endpoint
+Got tx block elapsed: 3.714713899s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 46.356328ms
+Test: test_numerous_increments_counter_private_indexer request_start_ts: 1733327154149 Tx_cp: 6059987 cp_ts: 1733327154667 checkpoint created after: 518 started waiting after: 502 Wait Elapsed: 3761 Total request time: 4263
+Object 0x8963ebf46234176c51cbe3dae4facc0b6fe2a561f49b900a2e11706b12ac56c7 exists in get_object endpoint
+Got tx block elapsed: 3.72941089s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.817063ms
+Test: test_numerous_increments_counter_private_indexer request_start_ts: 1733327161412 Tx_cp: 6060015 cp_ts: 1733327161765 checkpoint created after: 353 started waiting after: 504 Wait Elapsed: 3775 Total request time: 4279
+Object 0x7caaf3116d6525a587de31517a434bf5448306da5ceaeb26969aa2fdd62b6a90 exists in get_object endpoint
+Got tx block elapsed: 3.838483937s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.779477ms
+Test: test_numerous_increments_counter_private_indexer request_start_ts: 1733327168958 Tx_cp: 6060045 cp_ts: 1733327169379 checkpoint created after: 421 started waiting after: 530 Wait Elapsed: 3884 Total request time: 4414
+Object 0x8dbce692c022062dd6b1c04d5fbf5c001e5943d5552b5e4d9281f578977817a9 exists in get_object endpoint
+Got tx block elapsed: 3.648620389s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 48.220673ms
+Test: test_numerous_increments_counter_private_indexer request_start_ts: 1733327176632 Tx_cp: 6060077 cp_ts: 1733327177143 checkpoint created after: 511 started waiting after: 533 Wait Elapsed: 3697 Total request time: 4230
+Object 0xca63bb7172db5bb6e047c2c2eda4ea82a9ae1083a153f3f41c28df6e2f89ddbb exists in get_object endpoint
+Got tx block elapsed: 1.914060362s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 42.617435ms
+Test: test_numerous_increments_counter_private_indexer request_start_ts: 1733327184597 Tx_cp: 6060109 cp_ts: 1733327184880 checkpoint created after: 283 started waiting after: 1049 Wait Elapsed: 1957 Total request time: 3006
+Object 0xc82b7457aeae467480e4833cfc33831bfc8faea17d44f2cc289c2c2b0cdb68fb exists in get_object endpoint
+Got tx block elapsed: 3.844729152s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.578518ms
+Test: test_numerous_increments_counter_private_indexer request_start_ts: 1733327190827 Tx_cp: 6060135 cp_ts: 1733327191354 checkpoint created after: 527 started waiting after: 774 Wait Elapsed: 3889 Total request time: 4663
+ok
+test custom_tests::test_numerous_increments_counter_public_fullnode ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Publish result: 0xee5b05466c1c4be802dfef1e60f1eaffb596ecc606c3cd9a497658697f1d38ed
+Couldn't construct tx bytes, retrying
+Object 0x9c31f1a42a5cd543f3d7185d96278e60169801b4fb5c0ceabe336a128d42257a exists in get_object endpoint
+Got tx block elapsed: 98.770296ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 91.551897ms
+Test: test_numerous_increments_counter_public_fullnode request_start_ts: 1733327743385 Tx_cp: 6062348 cp_ts: 1733327743837 checkpoint created after: 452 started waiting after: 663 Wait Elapsed: 190 Total request time: 853
+Object 0x689f4973ca17c15ca5855d5d117800b8e95e1f3d13ecd98a83f20663c64aae74 exists in get_object endpoint
+Got tx block elapsed: 133.512148ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 77.937085ms
+Test: test_numerous_increments_counter_public_fullnode request_start_ts: 1733327745448 Tx_cp: 6062356 cp_ts: 1733327745849 checkpoint created after: 401 started waiting after: 704 Wait Elapsed: 211 Total request time: 915
+Object 0x2a0b3f17bbc0c9c5c710971eb9f7f12dc8caea74179be25b61f51c0dcbec9eca exists in get_object endpoint
+Got tx block elapsed: 114.442463ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 98.264758ms
+Test: test_numerous_increments_counter_public_fullnode request_start_ts: 1733327747639 Tx_cp: 6062365 cp_ts: 1733327748062 checkpoint created after: 423 started waiting after: 720 Wait Elapsed: 212 Total request time: 932
+Object 0x811130328e22d89532a8559854534393056c7ddc2e3d25383dbca40be146fce0 exists in get_object endpoint
+Couldn't construct tx bytes, retrying
+Got tx block elapsed: 86.723277ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 115.695293ms
+Test: test_numerous_increments_counter_public_fullnode request_start_ts: 1733327750223 Tx_cp: 6062376 cp_ts: 1733327750788 checkpoint created after: 565 started waiting after: 913 Wait Elapsed: 202 Total request time: 1115
+Object 0x28b2bda55a1c844417ddef1b629aeb2d393a0ffa8d7d7875d0dba8ac78ae1c54 exists in get_object endpoint
+Got tx block elapsed: 86.489538ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 107.380391ms
+Test: test_numerous_increments_counter_public_fullnode request_start_ts: 1733327752526 Tx_cp: 6062385 cp_ts: 1733327753024 checkpoint created after: 498 started waiting after: 859 Wait Elapsed: 194 Total request time: 1053
+Object 0x0041366d43aa340b63c038e1ec2b976b2f9f8a45fd757c6d990d44219fe2cdea exists in get_object endpoint
+Got tx block elapsed: 76.056761ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 107.338835ms
+Test: test_numerous_increments_counter_public_fullnode request_start_ts: 1733327754771 Tx_cp: 6062394 cp_ts: 1733327755195 checkpoint created after: 424 started waiting after: 943 Wait Elapsed: 183 Total request time: 1126
+Object 0xd95907f8ca43f52b55b23ca4ec386a655dbf405d4c1bd348bfc7b77c6f2d5d75 exists in get_object endpoint
+Got tx block elapsed: 116.421474ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 90.779802ms
+Test: test_numerous_increments_counter_public_fullnode request_start_ts: 1733327757164 Tx_cp: 6062404 cp_ts: 1733327757588 checkpoint created after: 424 started waiting after: 861 Wait Elapsed: 207 Total request time: 1068
+Object 0x5d896e9a10e1fccd2a7c0bdebfce1f00fbad24c4b213090b77c65dbd31cfb635 exists in get_object endpoint
+Got tx block elapsed: 122.917277ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 96.920577ms
+Test: test_numerous_increments_counter_public_fullnode request_start_ts: 1733327759674 Tx_cp: 6062415 cp_ts: 1733327760194 checkpoint created after: 520 started waiting after: 808 Wait Elapsed: 220 Total request time: 1028
+ok
+test custom_tests::test_numerous_increments_counter_public_indexer ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Publish result: 0xb54c8650aab854ac023fee4a2147de3650e690a117678ca3d58af40a958b89c3
+Object 0x0acdcb77ac09d29947c5dec4d0b53c42d17c3ccb6b3a4db95d747b1d79493397 exists in get_object endpoint
+Got tx block elapsed: 1.883968841s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.864309ms
+Test: test_numerous_increments_counter_public_indexer request_start_ts: 1733328367126 Tx_cp: 6064914 cp_ts: 1733328367471 checkpoint created after: 345 started waiting after: 751 Wait Elapsed: 1929 Total request time: 2680
+Object 0x62596a9435b4681fa6bac23685787cefa02c09c7766ac298db1aa5d2f660ca96 exists in get_object endpoint
+Got tx block elapsed: 1.922573062s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 41.755684ms
+Test: test_numerous_increments_counter_public_indexer request_start_ts: 1733328373047 Tx_cp: 6064939 cp_ts: 1733328373516 checkpoint created after: 469 started waiting after: 748 Wait Elapsed: 1965 Total request time: 2713
+Object 0xa0cdcf2356be292b7a96a21d5d791d0a04f563c464e6cc14855ed016d77c5ee3 exists in get_object endpoint
+Got tx block elapsed: 1.799241075s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 48.106297ms
+Test: test_numerous_increments_counter_public_indexer request_start_ts: 1733328378937 Tx_cp: 6064963 cp_ts: 1733328379332 checkpoint created after: 395 started waiting after: 833 Wait Elapsed: 1848 Total request time: 2681
+Object 0x0ceae794a1d03a73ac1b216b61d90599c4382f4886cee2f7ab5918c80979a878 exists in get_object endpoint
+Got tx block elapsed: 1.826633909s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.647756ms
+Test: test_numerous_increments_counter_public_indexer request_start_ts: 1733328385829 Tx_cp: 6064991 cp_ts: 1733328386167 checkpoint created after: 338 started waiting after: 1279 Wait Elapsed: 1872 Total request time: 3151
+Object 0xc1a906f4b1ff9506322f833a3ec464a7ab2f146141a90937de30a0c8d63b48a3 exists in get_object endpoint
+Got tx block elapsed: 1.93130523s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.774296ms
+Test: test_numerous_increments_counter_public_indexer request_start_ts: 1733328392218 Tx_cp: 6065017 cp_ts: 1733328392484 checkpoint created after: 266 started waiting after: 922 Wait Elapsed: 1977 Total request time: 2899
+Object 0x226722109037b4602f20359925e4562fadbaaa62b3d3b3bfbf6ea3651355d5d4 exists in get_object endpoint
+Got tx block elapsed: 1.917764364s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 43.693807ms
+Test: test_numerous_increments_counter_public_indexer request_start_ts: 1733328398356 Tx_cp: 6065045 cp_ts: 1733328399247 checkpoint created after: 891 started waiting after: 1352 Wait Elapsed: 1962 Total request time: 3314
+Object 0x8a594a95f8ba872debdff4a4e7632cca1a2b93cadccd1743f41aa017ecce3230 exists in get_object endpoint
+Got tx block elapsed: 1.835069001s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.374403ms
+Test: test_numerous_increments_counter_public_indexer request_start_ts: 1733328404893 Tx_cp: 6065070 cp_ts: 1733328405353 checkpoint created after: 460 started waiting after: 938 Wait Elapsed: 1880 Total request time: 2818
+Object 0x9530cc97bec49a753ac0f6fa24489aced48c99e629f83ee9135af018d227402b exists in get_object endpoint
+Got tx block elapsed: 1.82514761s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 51.909204ms
+Test: test_numerous_increments_counter_public_indexer request_start_ts: 1733328411016 Tx_cp: 6065095 cp_ts: 1733328411410 checkpoint created after: 394 started waiting after: 799 Wait Elapsed: 1877 Total request time: 2676
+ok
+test custom_tests::test_transfer_object_fullnode ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Got tx block elapsed: 516.704802ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 122.903882ms
+Test: test_transfer_object_fullnode request_start_ts: 1733329271861 Tx_cp: 6068637 cp_ts: 1733329272216 checkpoint created after: 355 started waiting after: 319 Wait Elapsed: 639 Total request time: 958
+Got tx block elapsed: 292.968682ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 126.440462ms
+Test: test_transfer_object_fullnode request_start_ts: 1733329273265 Tx_cp: 6068642 cp_ts: 1733329273451 checkpoint created after: 186 started waiting after: 246 Wait Elapsed: 419 Total request time: 665
+Got tx block elapsed: 306.068871ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 110.64059ms
+Test: test_transfer_object_fullnode request_start_ts: 1733329274329 Tx_cp: 6068647 cp_ts: 1733329274693 checkpoint created after: 364 started waiting after: 270 Wait Elapsed: 417 Total request time: 687
+Got tx block elapsed: 234.426535ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 94.177362ms
+Test: test_transfer_object_fullnode request_start_ts: 1733329275444 Tx_cp: 6068651 cp_ts: 1733329275679 checkpoint created after: 235 started waiting after: 294 Wait Elapsed: 329 Total request time: 623
+Got tx block elapsed: 256.90388ms
+Waiting for 2 objs
+Not all objs ready, waiting...
+Waiting on all tx effects elapsed: 216.088725ms
+Test: test_transfer_object_fullnode request_start_ts: 1733329276485 Tx_cp: 6068656 cp_ts: 1733329276848 checkpoint created after: 363 started waiting after: 253 Wait Elapsed: 473 Total request time: 726
+Got tx block elapsed: 283.301719ms
+Waiting for 2 objs
+Not all objs ready, waiting...
+Waiting on all tx effects elapsed: 219.37835ms
+Couldn't get tx from API
+Test: test_transfer_object_fullnode request_start_ts: 1733329277585 Tx_cp: 6068662 cp_ts: 1733329278282 checkpoint created after: 697 started waiting after: 258 Wait Elapsed: 503 Total request time: 761
+Got tx block elapsed: 238.749248ms
+Waiting for 2 objs
+Not all objs ready, waiting...
+Waiting on all tx effects elapsed: 243.668806ms
+Test: test_transfer_object_fullnode request_start_ts: 1733329278861 Tx_cp: 6068666 cp_ts: 1733329279276 checkpoint created after: 415 started waiting after: 261 Wait Elapsed: 483 Total request time: 744
+Got tx block elapsed: 256.911944ms
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 122.304433ms
+Test: test_transfer_object_fullnode request_start_ts: 1733329280014 Tx_cp: 6068670 cp_ts: 1733329280274 checkpoint created after: 260 started waiting after: 265 Wait Elapsed: 379 Total request time: 644
+ok
+test custom_tests::test_transfer_object_indexer ... Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Faucet throttle, waiting some time before requesting again...
+Got coins!
+Got coins!
+Got tx block elapsed: 3.812511471s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.240278ms
+Test: test_transfer_object_indexer request_start_ts: 1733384814389 Tx_cp: 6295625 cp_ts: 1733384815012 checkpoint created after: 623 started waiting after: 244 Wait Elapsed: 3857 Total request time: 4101
+Got tx block elapsed: 3.923088986s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.584527ms
+Test: test_transfer_object_indexer request_start_ts: 1733384820603 Tx_cp: 6295651 cp_ts: 1733384821271 checkpoint created after: 668 started waiting after: 212 Wait Elapsed: 3968 Total request time: 4180
+Got tx block elapsed: 3.821861088s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 43.673864ms
+Test: test_transfer_object_indexer request_start_ts: 1733384826827 Tx_cp: 6295676 cp_ts: 1733384827406 checkpoint created after: 579 started waiting after: 205 Wait Elapsed: 3866 Total request time: 4071
+Got tx block elapsed: 3.831710646s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.987677ms
+Test: test_transfer_object_indexer request_start_ts: 1733384832943 Tx_cp: 6295701 cp_ts: 1733384833641 checkpoint created after: 698 started waiting after: 207 Wait Elapsed: 3877 Total request time: 4084
+Got tx block elapsed: 3.820414282s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.614826ms
+Test: test_transfer_object_indexer request_start_ts: 1733384839096 Tx_cp: 6295726 cp_ts: 1733384839790 checkpoint created after: 694 started waiting after: 204 Wait Elapsed: 3865 Total request time: 4069
+Got tx block elapsed: 3.813274457s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 43.740862ms
+Test: test_transfer_object_indexer request_start_ts: 1733384845239 Tx_cp: 6295751 cp_ts: 1733384845883 checkpoint created after: 644 started waiting after: 206 Wait Elapsed: 3857 Total request time: 4063
+Got tx block elapsed: 3.873895411s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 44.756835ms
+Test: test_transfer_object_indexer request_start_ts: 1733384851378 Tx_cp: 6295776 cp_ts: 1733384852168 checkpoint created after: 790 started waiting after: 202 Wait Elapsed: 3919 Total request time: 4121
+Got tx block elapsed: 3.980855329s
+Waiting for 2 objs
+Waiting on all tx effects elapsed: 45.092228ms
+Test: test_transfer_object_indexer request_start_ts: 1733384857520 Tx_cp: 6295800 cp_ts: 1733384858202 checkpoint created after: 682 started waiting after: 203 Wait Elapsed: 4026 Total request time: 4229
+ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6364.18s
+

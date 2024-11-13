@@ -149,7 +149,23 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
             .multi_get_transaction_blocks(vec![digest], options)
             .await?;
 
-        let txn = txn.pop().ok_or_else(|| {
+        let txn = txn.pop();
+        if txn.is_some() {
+            let cp_seq = txn.as_ref().unwrap().checkpoint.unwrap();
+            let tx_ts = txn.as_ref().unwrap().timestamp_ms.unwrap();
+            let now = chrono::Utc::now().timestamp_millis() as u64;
+            println!(
+                "Returning tx {} from cp {:#?} from {:#?} timestamp: {:#?} slowness: {:#?}",
+                digest,
+                cp_seq,
+                tx_ts,
+                now,
+                now - tx_ts,
+            );
+        }
+        let txn = txn.ok_or_else(|| {
+            let now = chrono::Utc::now().timestamp_millis() as u64;
+            println!("Transaction {} not found, ts: {:#?}", digest, now);
             IndexerError::InvalidArgument(format!("Transaction {digest} not found"))
         })?;
 

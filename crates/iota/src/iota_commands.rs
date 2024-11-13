@@ -652,7 +652,7 @@ async fn start(
     let config = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
     let network_config_path = config.clone().join(IOTA_NETWORK_CONFIG);
 
-    let mut swarm_builder = Swarm::builder();
+    let mut swarm_builder = Swarm::builder().with_data_ingestion_dir("/tmp/foo/".into());
 
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.

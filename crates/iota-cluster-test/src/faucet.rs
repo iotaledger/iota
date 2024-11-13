@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use fastcrypto::encoding::{Encoding, Hex};
@@ -64,7 +64,7 @@ pub struct RemoteFaucetClient {
 }
 
 impl RemoteFaucetClient {
-    fn new(url: String) -> Self {
+    pub fn new(url: String) -> Self {
         info!("Use remote faucet: {}", url);
         Self { remote_url: url }
     }
@@ -85,23 +85,34 @@ impl FaucetClient for RemoteFaucetClient {
             _ => "".to_string(),
         };
 
-        let response = reqwest::Client::new()
-            .post(&gas_url)
-            .header("Authorization", auth_header)
-            .json(&map)
-            .send()
-            .await
-            .unwrap_or_else(|e| panic!("Failed to talk to remote faucet {:?}: {:?}", gas_url, e));
-        let full_bytes = response.bytes().await.unwrap();
-        let faucet_response: FaucetResponse = serde_json::from_slice(&full_bytes)
-            .map_err(|e| anyhow::anyhow!("json deser failed with bytes {:?}: {e}", full_bytes))
-            .unwrap();
+        loop {
+            let response = reqwest::Client::new()
+                .post(&gas_url)
+                .header("Authorization", auth_header.clone())
+                .json(&map)
+                .send()
+                .await
+                .unwrap_or_else(|e| {
+                    panic!("Failed to talk to remote faucet {:?}: {:?}", gas_url, e)
+                });
+            let full_bytes = response.bytes().await.unwrap();
+            if *full_bytes == *b"Too Many Requests" {
+                println!("Faucet throttle, waiting some time before requesting again...");
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                continue;
+            }
+            let faucet_response: FaucetResponse = serde_json::from_slice(&full_bytes)
+                .map_err(|e| anyhow::anyhow!("json deser failed with bytes {:?}: {e}", full_bytes))
+                .unwrap();
 
-        if let Some(error) = faucet_response.error {
-            panic!("Failed to get gas tokens with error: {}", error)
-        };
+            if let Some(error) = faucet_response.error {
+                panic!("Failed to get gas tokens with error: {}", error)
+            };
 
-        faucet_response
+            println!("Got coins!");
+
+            return faucet_response;
+        }
     }
     async fn batch_request_iota_coins(&self, request_address: IotaAddress) -> BatchFaucetResponse {
         let gas_url = format!("{}/v1/gas", self.remote_url);

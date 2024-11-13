@@ -5,23 +5,28 @@ use std::{
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, OnceLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use diesel::PgConnection;
+use iota_cluster_test::faucet::RemoteFaucetClient;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_indexer::{
     IndexerConfig,
+    db::{ConnectionPoolConfig, new_connection_pool_with_config},
     errors::IndexerError,
     indexer::Indexer,
+    metrics::IndexerMetrics,
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{ReaderWriterConfig, start_test_indexer},
 };
-use iota_json_rpc_api::ReadApiClient;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_json_rpc_api::{CoinReadApiClient, MoveUtilsClient, ReadApiClient};
+use iota_json_rpc_types::{
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+};
 use iota_metrics::init_metrics;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
 };
 use jsonrpsee::{
@@ -143,6 +148,30 @@ pub async fn start_test_cluster_with_read_write_indexer(
     (cluster, pg_store, rpc_client)
 }
 
+pub async fn connect_to_remote_node_and_indexer() -> (HttpClient, HttpClient, RemoteFaucetClient) {
+    let registry = prometheus::Registry::default();
+    init_metrics(&registry);
+
+    let testnet_addresses = (
+        "https://api.testnet.iota.cafe",
+        "https://indexer.testnet.iota.cafe",
+        "https://faucet.testnet.iota.cafe",
+    );
+
+    let local_addresses = (
+        "http://localhost:9000",
+        "http://localhost:9005",
+        "http://localhost:9123",
+    );
+
+    let addresses = local_addresses;
+    let node_rpc_client = HttpClientBuilder::default().build(addresses.0).unwrap();
+    let indexer_rpc_client = HttpClientBuilder::default().build(addresses.1).unwrap();
+    let faucet = RemoteFaucetClient::new(addresses.2.into());
+
+    (node_rpc_client, indexer_rpc_client, faucet)
+}
+
 fn get_indexer_db_url(database_name: Option<&str>) -> String {
     database_name.map_or_else(
         || format!("{POSTGRES_URL}/{DEFAULT_DB}"),
@@ -193,7 +222,8 @@ pub async fn indexer_wait_for_object(
     client: &HttpClient,
     object_id: ObjectID,
     sequence_number: SequenceNumber,
-) {
+) -> i32 {
+    let mut waits_count = 0;
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let Ok(obj_res) = client.get_object(object_id, None).await else {
@@ -202,40 +232,201 @@ pub async fn indexer_wait_for_object(
 
             if obj_res
                 .data
-                .map(|obj| obj.version == sequence_number)
+                .map(|obj| obj.version >= sequence_number)
                 .unwrap_or_default()
             {
+                println!("Object {} exists in get_object endpoint", object_id);
                 break;
             }
 
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            waits_count += 1;
         }
     })
     .await
     .expect("Timeout waiting for indexer to catchup to given object's sequence number");
+    waits_count
+}
+
+/// Wait for the indexer to catch up to the given object sequence number
+pub async fn indexer_multi_wait_for_object(
+    client: &HttpClient,
+    object_ids: Vec<ObjectID>,
+    sequence_numbers: Vec<SequenceNumber>,
+) -> i32 {
+    let mut waits_count = 0;
+    let ids_chunks = object_ids.chunks(50);
+    let seqnums_chunks = sequence_numbers.chunks(50);
+    tokio::time::timeout(Duration::from_secs(30), async {
+        let mut futures = vec![];
+        for (id_chunk, seqnum_chunk) in ids_chunks.into_iter().zip(seqnums_chunks) {
+            futures.push(indexer_multi_wait_for_object_chunk(
+                client,
+                id_chunk.into(),
+                seqnum_chunk.into(),
+            ));
+        }
+        futures::future::join_all(futures).await;
+    })
+    .await
+    .expect("Timeout waiting for indexer to catchup to given object's sequence number");
+    waits_count
+}
+
+/// Wait for the indexer to catch up to the given object sequence number
+pub async fn indexer_multi_wait_for_object_chunk(
+    client: &HttpClient,
+    object_ids: Vec<ObjectID>,
+    sequence_numbers: Vec<SequenceNumber>,
+) -> i32 {
+    let mut waits_count = 0;
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let resp = client.multi_get_objects(object_ids.clone(), None).await;
+            let Ok(obj_res) = resp else {
+                println!("Err: {:#?}", resp);
+                continue;
+            };
+
+            if obj_res.len() != object_ids.len() {
+                println!("Wrong len: {:#?} vs {:#?}", obj_res.len(), object_ids.len());
+                continue;
+            }
+
+            if obj_res
+                .iter()
+                .zip(object_ids.clone())
+                .zip(sequence_numbers.clone())
+                .all(|((obj_res, obj_id), seq_num)| {
+                    obj_res.data.is_some()
+                        && obj_res.data.as_ref().unwrap().object_id == obj_id
+                        && obj_res.data.as_ref().unwrap().version >= seq_num
+                })
+            {
+                break;
+            } else {
+                println!("Not all objs ready, waiting...",);
+            }
+
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            waits_count += 1;
+        }
+    })
+    .await
+    .expect("Timeout waiting for indexer to catchup to given object's sequence number");
+    waits_count
 }
 
 pub async fn indexer_wait_for_transaction(
-    tx_digest: TransactionDigest,
-    pg_store: &PgIndexerStore<PgConnection>,
-    indexer_client: &HttpClient,
-) {
+    tx_res: &IotaTransactionBlockResponse,
+    client: &HttpClient,
+) -> i32 {
+    let mut waits_count = 0;
+    let now = Instant::now();
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
-            if let Ok(tx) = indexer_client
-                .get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new()))
+            if let Ok(tx) = client
+                .get_transaction_block(
+                    tx_res.digest,
+                    Some(IotaTransactionBlockResponseOptions::new()),
+                )
                 .await
             {
-                if let Some(checkpoint) = tx.checkpoint {
-                    indexer_wait_for_checkpoint(pg_store, checkpoint).await;
+                println!("Got tx block elapsed: {:#?}", now.elapsed());
+                if let Some(obj_changes) = &tx_res.object_changes {
+                    let now = Instant::now();
+                    let mut objs_to_wait_on: Vec<(ObjectID, SequenceNumber)> = Vec::new();
+                    for obj in obj_changes {
+                        match obj {
+                            ObjectChange::Created {
+                                object_id, version, ..
+                            } => {
+                                objs_to_wait_on.push((*object_id, *version));
+                            }
+                            ObjectChange::Transferred {
+                                object_id, version, ..
+                            } => {
+                                objs_to_wait_on.push((*object_id, *version));
+                            }
+                            ObjectChange::Mutated {
+                                object_id, version, ..
+                            } => {
+                                objs_to_wait_on.push((*object_id, *version));
+                            }
+                            ObjectChange::Published { package_id, .. } => {
+                                println!("Waiting for pkg Publish");
+                                indexer_wait_for_package(*package_id, client).await;
+                            }
+                            ObjectChange::Deleted { .. } => {
+                                panic!("Not implemented");
+                            }
+                            ObjectChange::Wrapped { .. } => {
+                                panic!("Not implemented");
+                            }
+                        }
+                    }
+
+                    println!("Waiting for {} objs", objs_to_wait_on.len());
+                    indexer_multi_wait_for_object(
+                        client,
+                        objs_to_wait_on.iter().map(|e| e.0).collect(),
+                        objs_to_wait_on.iter().map(|e| e.1).collect(),
+                    )
+                    .await;
+
+                    println!("Waiting on all tx effects elapsed: {:#?}", now.elapsed());
                     break;
                 }
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            waits_count += 1;
         }
     })
     .await
     .expect("Timeout waiting for indexer to catchup to given transaction");
+    waits_count
+}
+
+pub async fn indexer_wait_for_package(package_id: ObjectID, indexer_client: &HttpClient) -> i32 {
+    let mut waits_count = 0;
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if let Ok(tx) = indexer_client
+                .get_normalized_move_modules_by_package(package_id)
+                .await
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            waits_count += 1;
+        }
+    })
+    .await
+    .expect("Timeout waiting for indexer to index given package");
+    waits_count
+}
+
+pub async fn indexer_wait_for_coins(
+    indexer_client: &HttpClient,
+    owner: &IotaAddress,
+    coins_cnt: u32,
+) -> i32 {
+    let mut waits_count = 0;
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let now = chrono::Utc::now().timestamp_millis() as u64;
+            if let Ok(coins) = indexer_client.get_coins(*owner, None, None, None).await {
+                if coins.data.len() >= coins_cnt as usize {
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            waits_count += 1;
+        }
+    })
+    .await
+    .expect("Timeout waiting for coins");
+    waits_count
 }
 
 /// Start an Indexer instance in `Read` mode
