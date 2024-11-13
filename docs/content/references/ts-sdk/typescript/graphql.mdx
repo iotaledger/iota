@@ -50,17 +50,32 @@ The `graphql` also detects variables used by your query, and will ensure that th
 to your query are properly typed.
 
 ```typescript
-const getIotansName = graphql(`
-    query getIotaName($address: IotaAddress!) {
-        address(address: $address) {
-            defaultIotansName
+const queryTransactionBalanceChanges = graphql(`
+    query ($address: IOTAAddress!) {
+        transactionBlocks(filter: {
+            function: "0x3::iota_system::request_add_stake"
+            signAddress: $address
+        }) {
+            nodes {
+                digest
+                effects {
+                    balanceChanges {
+                        nodes {
+                            owner {
+                                address
+                            }
+                            amount
+                        }
+                    }
+                }
+            }
         }
     }
 `);
 
-async function getDefaultIotansName(address: string) {
+async function getTransactionBalanceChanges(address: string) {
     const result = await gqlClient.query({
-        query: getIotansName,
+        query: queryTransactionBalanceChanges,
         variables: {
             address,
         },
