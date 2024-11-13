@@ -68,8 +68,11 @@ jobs:
           command: build
           args: --all-targets --all-features --release
 
-  test:
+  tests:
     uses: ./.github/workflows/_rust_tests.yml
+
+  external-tests:
+    uses: ./.github/workflows/_external_rust_tests.yml
 
   move-tests:
     uses: ./.github/workflows/_move_tests.yml
