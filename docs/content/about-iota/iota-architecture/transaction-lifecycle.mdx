@@ -116,7 +116,7 @@ A checkpoint contains a list of transactions and is signed by a majority of vali
 
 Before sending back an effects certificate, a full node might execute the transaction locally if the request asks it to. This is more important for high-frequency applications like gaming but can add unnecessary delay for simple transactions like buying coffee. The `WaitForLocalExecution` parameter requests this local execution, while you can use the `WaitForEffects` parameter for a quicker response.
 
-Additionally, when any app builds a transaction, the full node is usually in charge of choosing the object that is used to pay for the transaction's gas. Since gas is paid in IOTA, which is a shared object, if the full node is not up-to-date, it could potentially lead to an invalid transaction or even a [client equivocation](../../developer/iota-101/transactions/sponsored-transactions.mdx#potential-risks-using-sponsored-transactions). You can avoid this unwanted behavior by sending the `WaitForLocalExecution` parameter.
+Additionally, when any app builds a transaction, the full node is usually in charge of choosing the object that is used to pay for the transaction's gas. Since gas is paid in IOTA, which is a shared object, if the full node is not up-to-date, it could potentially lead to an invalid transaction or even a [client equivocation](../../developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions.mdx#risk-considerations). You can avoid this unwanted behavior by sending the `WaitForLocalExecution` parameter.
 
 ### Epoch Change
 
@@ -129,4 +129,5 @@ If your wallet app crashes during a transaction, it stores the signed transactio
 The wallet app can query the full node with the `getTransactionBlock` method to check if the transaction is finalized. If the response contains transaction details, it is finalized. If the response is `None`, the transaction may need to be resubmitted. This ensures that the coffee shop's full node will eventually recognize the transaction once it's included in a checkpoint and update the coffee shop's balance.
 
 ## Quizzes
+
 <Quiz questions={questions} />

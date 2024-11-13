@@ -4,7 +4,6 @@ tags: [ typescript, sdk, getting-started, install]
 ---
 
 import InfoPnpmRequired from "../../_snippets/info-pnpm-required.mdx";
-import AlphaNet from "../../_snippets/alphanet.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/client-tssdk.json';
 
@@ -97,7 +96,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 	</React.StrictMode>,
 );
 ```
-<AlphaNet />
 
 ### `IotaClientProvider`
 
@@ -113,7 +111,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const queryClient = new QueryClient();
 const networks = {
 	devnet: { url: getFullnodeUrl('devnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+	testnet: { url: getFullnodeUrl('testnet') },
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -142,7 +140,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const queryClient = new QueryClient();
 const networks = {
 	devnet: { url: getFullnodeUrl('devnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    testnet: { url: getFullnodeUrl('testnet') },
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

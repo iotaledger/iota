@@ -1,5 +1,7 @@
-# About IOTA
+import NotAvailableOnTestnet from '../_snippets/not-available-on-testnet.mdx';
+import MainnetRunsStardust from '../_snippets/mainnet-runs-stardust.mdx';
 
+# About IOTA
 
 The IOTA ecosystem enables programmability in both [Layer 1](#layer-1) and [Layer 2](#layer-2) using [Move](#move) and [EVM/Solidity](#evm) smart contracts respectively.
 
@@ -31,7 +33,10 @@ While the Move compiler catches many development mistakes, smart contracts can s
 
 #### IOTA Mainnet
 
-The IOTA Mainnet processes production transaction blocks. The IOTA Mainnet's tokens have a real-world value, so we recommend that you use the IOTA Testnet or Devnet to develop your application.
+<MainnetRunsStardust />
+
+The [IOTA Mainnet](https://wiki.iota.org/build/networks-endpoints/#iota) processes production transaction blocks. The IOTA Mainnet's tokens have a real-world value, so we recommend that you use the IOTA Testnet or Devnet to develop your application.
+
 
 #### IOTA Testnet
 
@@ -45,11 +50,13 @@ The IOTA Devnet is used to develop new features. You can use this network to cod
 
 ### EVM
 
+<NotAvailableOnTestnet />
+
 [EVM](https://ethereum.org/en/developers/docs/evm/) stands for "Ethereum Virtual Machine" and is currently the tried and tested virtual machine running most smart contract networks.
 
 [Solidity](https://soliditylang.org/) is the programming language of choice for the EVM. It was created for this specific purpose.
 
-The main benefit of using EVM/Solidity is its sheer amount of resources from years of development. The [IOTA Smart Contracts](../developer/iota-evm/introduction.mdx) implementation is fully compatible with these resources, allowing you to leverage all existing EVM developer tools for developing on the IOTA EVM. Any contracts you've previously written can be deployed on IOTA Smart Contracts without modification.
+The main benefit of using EVM/Solidity is its sheer amount of resources from years of development. The [IOTA Smart Contracts](https://wiki.iota.org/isc/introduction/) implementation is fully compatible with these resources, allowing you to leverage all existing EVM developer tools for developing on the IOTA EVM. Any contracts you've previously written can be deployed on IOTA Smart Contracts without modification.
 
 Keep in mind that while EVM has become a standard for smart contract execution on L2s, 
 it is not inherently designed for the unique features and capabilities of L1s like Move smart contracts. 
@@ -64,6 +71,8 @@ IOTA EVM and Shimmer EVM are two distinct Layer 2 EVMs
 running on top of the [IOTA Mainnet](./tokenomics/iota-token.mdx).
 
 #### IOTA EVM Testnet
+
+<NotAvailableOnTestnet/>
 
 IOTA EVM Testnet is the Layer 2 EVM running on top of the IOTA Testnet network. This network is subject to occasional resets (no data retention), usually announced with a one-week grace period.
 
