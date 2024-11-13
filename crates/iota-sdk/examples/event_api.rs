@@ -36,8 +36,8 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Query events ***\n ");
 
     let ws = IotaClientBuilder::default()
-        .ws_url("wss://rpc.testnet.iota.io:443")
-        .build("https://fullnode.testnet.iota.io:443")
+        .ws_url("wss://api.testnet.iota.cafe")
+        .build("https://api.testnet.iota.cafe")
         .await?;
     println!("WS version {:?}", ws.api_version());
 

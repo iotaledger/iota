@@ -19,11 +19,11 @@ use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // Iota testnet -- https://fullnode.testnet.iota.io:443
+    // Iota testnet -- https://api.testnet.iota.cafe
     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
     println!("Iota testnet version: {}", iota_testnet.api_version());
 
-     // Iota devnet -- https://fullnode.devnet.iota.io:443
+     // Iota devnet -- https://api.devnet.iota.cafe
     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
     println!("Iota devnet version: {}", iota_devnet.api_version());
 
@@ -53,7 +53,7 @@ There are several files ending in `_api.rs` which provide code examples of the c
 
 ### Prerequisites
 
-Unless otherwise specified, most of these examples assume `Rust` and `cargo` are installed, and that there is an available internet connection. The examples connect to the IOTA testnet (`https://fullnode.testnet.iota.io:443`) and execute different APIs using the active address from the local wallet. If there is no local wallet, it will create one, generate two addresses, set one of them to be active, and it will request 1 IOTA from the testnet faucet for the active address.
+Unless otherwise specified, most of these examples assume `Rust` and `cargo` are installed, and that there is an available internet connection. The examples connect to the IOTA testnet (`https://api.testnet.iota.cafe`) and execute different APIs using the active address from the local wallet. If there is no local wallet, it will create one, generate two addresses, set one of them to be active, and it will request 1 IOTA from the testnet faucet for the active address.
 
 ### Running the existing examples
 
@@ -74,11 +74,11 @@ In the root folder of the `iota` repository (or in the `iota-sdk` crate folder),
 The `IotaClientBuilder` struct provides a connection to the JSON-RPC server that you use for all read-only operations. The default URLs to connect to the IOTA network are:
 
 - Local: http://127.0.0.1:9000
-- Devnet: https://fullnode.devnet.iota.io:443
-- Testnet: https://fullnode.testnet.iota.io:443
-- Mainnet: https://fullnode.mainnet.iota.io:443
+- Devnet: https://api.devnet.iota.cafe
+- Testnet: https://api.testnet.iota.cafe
+- Mainnet: https://api.mainnet.iota.cafe
 
-For all available servers, see [here](TODO: https://github.com/iotaledger/iota/issues/1614).
+For all available servers, see [here](https://docs.iota.org/developer/network-overview).
 
 For running a local IOTA network, please follow [this guide](https://docs.iota.org/developer/getting-started/install-iota) for installing IOTA and [this guide](https://docs.iota.org/developer/getting-started/local-network#start-a-local-network) for starting the local IOTA network.
 
@@ -96,11 +96,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let iota_local = IotaClientBuilder::default().build_localnet().await?;
     println!("IOTA local network version: {}", iota_local.api_version());
 
-    // IOTA devnet -- https://fullnode.devnet.iota.io:443
+    // IOTA devnet -- https://api.devnet.iota.cafe
     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
     println!("IOTA devnet version: {}", iota_devnet.api_version());
 
-    // IOTA testnet -- https://fullnode.testnet.iota.io:443
+    // IOTA testnet -- https://api.testnet.iota.cafe
     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
     println!("IOTA testnet version: {}", iota_testnet.api_version());
 

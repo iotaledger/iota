@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The Iota Rust SDK
+//! The IOTA Rust SDK
 //!
 //! It aims at providing a similar SDK functionality like the one existing for
 //! [TypeScript](https://github.com/iotaledger/iota/tree/main/sdk/typescript/).
-//! Iota Rust SDK builds on top of the [JSON RPC API](https://docs.iota.io/iota-jsonrpc)
+//! IOTA Rust SDK builds on top of the [JSON RPC API](https://docs.iota.org/iota-api-ref)
 //! and therefore many of the return types are the ones specified in
 //! [iota_types].
 //!
