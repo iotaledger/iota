@@ -105,16 +105,6 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
-    "iota-adapter-v0" = rec {
-      packageId = "iota-adapter-v0";
-      build = internal.buildRustCrateWithFeatures {
-        packageId = "iota-adapter-v0";
-      };
-
-      # Debug support which might change between releases.
-      # File a bug if you depend on any for non-debug work!
-      debug = internal.debugCrate { inherit packageId; };
-    };
     "iota-analytics-indexer" = rec {
       packageId = "iota-analytics-indexer";
       build = internal.buildRustCrateWithFeatures {
@@ -585,16 +575,6 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
-    "iota-move-natives-v0" = rec {
-      packageId = "iota-move-natives-v0";
-      build = internal.buildRustCrateWithFeatures {
-        packageId = "iota-move-natives-v0";
-      };
-
-      # Debug support which might change between releases.
-      # File a bug if you depend on any for non-debug work!
-      debug = internal.debugCrate { inherit packageId; };
-    };
     "iota-network" = rec {
       packageId = "iota-network";
       build = internal.buildRustCrateWithFeatures {
@@ -746,9 +726,9 @@ rec {
       debug = internal.debugCrate { inherit packageId; };
     };
     "iota-sdk" = rec {
-      packageId = "iota-sdk 0.5.0-alpha";
+      packageId = "iota-sdk 0.7.0-alpha";
       build = internal.buildRustCrateWithFeatures {
-        packageId = "iota-sdk 0.5.0-alpha";
+        packageId = "iota-sdk 0.7.0-alpha";
       };
 
       # Debug support which might change between releases.
@@ -959,16 +939,6 @@ rec {
       packageId = "iota-verifier-transactional-tests";
       build = internal.buildRustCrateWithFeatures {
         packageId = "iota-verifier-transactional-tests";
-      };
-
-      # Debug support which might change between releases.
-      # File a bug if you depend on any for non-debug work!
-      debug = internal.debugCrate { inherit packageId; };
-    };
-    "iota-verifier-v0" = rec {
-      packageId = "iota-verifier-v0";
-      build = internal.buildRustCrateWithFeatures {
-        packageId = "iota-verifier-v0";
       };
 
       # Debug support which might change between releases.
@@ -2030,6 +2000,27 @@ rec {
           "default" = [ "std" ];
         };
         resolvedDefaultFeatures = [ "backtrace" "default" "std" ];
+      };
+      "approx" = rec {
+        crateName = "approx";
+        version = "0.5.1";
+        edition = "2015";
+        sha256 = "1ilpv3dgd58rasslss0labarq7jawxmivk17wsh8wmkdm3q15cfa";
+        authors = [
+          "Brendan Zabarauskas <bjzaba@yahoo.com.au>"
+        ];
+        dependencies = [
+          {
+            name = "num-traits";
+            packageId = "num-traits";
+            usesDefaultFeatures = false;
+          }
+        ];
+        features = {
+          "default" = [ "std" ];
+          "num-complex" = [ "dep:num-complex" ];
+        };
+        resolvedDefaultFeatures = [ "default" "std" ];
       };
       "arbitrary" = rec {
         crateName = "arbitrary";
@@ -7420,7 +7411,7 @@ rec {
       };
       "bin-version" = rec {
         crateName = "bin-version";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -7573,7 +7564,7 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools 0.10.5";
+            packageId = "itertools 0.12.1";
             usesDefaultFeatures = false;
           }
           {
@@ -12924,7 +12915,7 @@ rec {
       };
       "docs-examples" = rec {
         crateName = "docs-examples";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -12950,7 +12941,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "move-binary-format";
@@ -19941,7 +19932,7 @@ rec {
       };
       "iota" = rec {
         crateName = "iota";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -20114,7 +20105,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-source-validation";
@@ -20238,6 +20229,11 @@ rec {
           {
             name = "signature";
             packageId = "signature 1.6.4";
+          }
+          {
+            name = "strum";
+            packageId = "strum 0.26.3";
+            features = [ "derive" ];
           }
           {
             name = "tabled";
@@ -20469,7 +20465,7 @@ rec {
       };
       "iota-adapter-transactional-tests" = rec {
         crateName = "iota-adapter-transactional-tests";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -20492,119 +20488,9 @@ rec {
         ];
 
       };
-      "iota-adapter-v0" = rec {
-        crateName = "iota-adapter-v0";
-        version = "0.1.0";
-        edition = "2021";
-        # We can't filter paths with references in Nix 2.4
-        # See https://github.com/NixOS/nix/issues/5410
-        src = if ((lib.versionOlder builtins.nixVersion "2.4pre20211007") || (lib.versionOlder "2.5" builtins.nixVersion ))
-          then lib.cleanSourceWith { filter = sourceFilter;  src = ./iota-execution/v0/iota-adapter; }
-          else ./iota-execution/v0/iota-adapter;
-        libName = "iota_adapter_v0";
-        authors = [
-          "IOTA Foundation <info@iota.org>"
-        ];
-        dependencies = [
-          {
-            name = "anyhow";
-            packageId = "anyhow";
-            features = [ "backtrace" ];
-          }
-          {
-            name = "bcs";
-            packageId = "bcs";
-          }
-          {
-            name = "iota-macros";
-            packageId = "iota-macros";
-          }
-          {
-            name = "iota-metrics";
-            packageId = "iota-metrics";
-          }
-          {
-            name = "iota-move-natives-v0";
-            packageId = "iota-move-natives-v0";
-            rename = "iota-move-natives";
-          }
-          {
-            name = "iota-protocol-config";
-            packageId = "iota-protocol-config";
-          }
-          {
-            name = "iota-types";
-            packageId = "iota-types";
-          }
-          {
-            name = "iota-verifier-v0";
-            packageId = "iota-verifier-v0";
-            rename = "iota-verifier";
-          }
-          {
-            name = "leb128";
-            packageId = "leb128";
-          }
-          {
-            name = "move-binary-format";
-            packageId = "move-binary-format";
-          }
-          {
-            name = "move-bytecode-utils";
-            packageId = "move-bytecode-utils";
-          }
-          {
-            name = "move-bytecode-verifier-meter";
-            packageId = "move-bytecode-verifier-meter";
-          }
-          {
-            name = "move-bytecode-verifier-v0";
-            packageId = "move-bytecode-verifier-v0";
-            rename = "move-bytecode-verifier";
-          }
-          {
-            name = "move-core-types";
-            packageId = "move-core-types";
-          }
-          {
-            name = "move-vm-config";
-            packageId = "move-vm-config";
-          }
-          {
-            name = "move-vm-profiler";
-            packageId = "move-vm-profiler";
-          }
-          {
-            name = "move-vm-runtime-v0";
-            packageId = "move-vm-runtime-v0";
-            rename = "move-vm-runtime";
-          }
-          {
-            name = "move-vm-types";
-            packageId = "move-vm-types";
-          }
-          {
-            name = "parking_lot";
-            packageId = "parking_lot 0.12.3";
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" "rc" ];
-          }
-          {
-            name = "tracing";
-            packageId = "tracing";
-          }
-        ];
-        features = {
-          "gas-profiler" = [ "iota-types/gas-profiler" "move-vm-config/gas-profiler" "move-vm-profiler/gas-profiler" "move-vm-runtime/gas-profiler" "move-vm-types/gas-profiler" ];
-        };
-        resolvedDefaultFeatures = [ "gas-profiler" ];
-      };
       "iota-analytics-indexer" = rec {
         crateName = "iota-analytics-indexer";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -20822,7 +20708,7 @@ rec {
       };
       "iota-analytics-indexer-derive" = rec {
         crateName = "iota-analytics-indexer-derive";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -20853,7 +20739,7 @@ rec {
       };
       "iota-archival" = rec {
         crateName = "iota-archival";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -20993,7 +20879,7 @@ rec {
       };
       "iota-authority-aggregation" = rec {
         crateName = "iota-authority-aggregation";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -21030,7 +20916,7 @@ rec {
       };
       "iota-aws-orchestrator" = rec {
         crateName = "iota-aws-orchestrator";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -21161,7 +21047,7 @@ rec {
       };
       "iota-benchmark" = rec {
         crateName = "iota-benchmark";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -21268,7 +21154,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-simulator";
@@ -21374,7 +21260,7 @@ rec {
       };
       "iota-bridge" = rec {
         crateName = "iota-bridge";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -21476,7 +21362,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-test-transaction-builder";
@@ -21600,7 +21486,7 @@ rec {
       };
       "iota-bridge-cli" = rec {
         crateName = "iota-bridge-cli";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -21658,7 +21544,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-types";
@@ -21709,7 +21595,7 @@ rec {
       };
       "iota-bridge-indexer" = rec {
         crateName = "iota-bridge-indexer";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -21790,7 +21676,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-types";
@@ -21842,7 +21728,7 @@ rec {
       };
       "iota-cluster-test" = rec {
         crateName = "iota-cluster-test";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -21930,7 +21816,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-swarm";
@@ -22015,7 +21901,7 @@ rec {
       };
       "iota-common" = rec {
         crateName = "iota-common";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -22052,7 +21938,7 @@ rec {
       };
       "iota-config" = rec {
         crateName = "iota-config";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -22166,7 +22052,7 @@ rec {
       };
       "iota-core" = rec {
         crateName = "iota-core";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -22623,7 +22509,7 @@ rec {
       };
       "iota-cost" = rec {
         crateName = "iota-cost";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -22945,7 +22831,7 @@ rec {
       };
       "iota-data-ingestion" = rec {
         crateName = "iota-data-ingestion";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -23099,7 +22985,7 @@ rec {
       };
       "iota-data-ingestion-core" = rec {
         crateName = "iota-data-ingestion-core";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -23212,7 +23098,7 @@ rec {
       };
       "iota-e2e-tests" = rec {
         crateName = "iota-e2e-tests";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -23345,7 +23231,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-simulator";
@@ -23460,7 +23346,7 @@ rec {
       };
       "iota-enum-compat-util" = rec {
         crateName = "iota-enum-compat-util";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -23498,16 +23384,8 @@ rec {
             packageId = "iota-adapter-latest";
           }
           {
-            name = "iota-adapter-v0";
-            packageId = "iota-adapter-v0";
-          }
-          {
             name = "iota-move-natives-latest";
             packageId = "iota-move-natives-latest";
-          }
-          {
-            name = "iota-move-natives-v0";
-            packageId = "iota-move-natives-v0";
           }
           {
             name = "iota-protocol-config";
@@ -23520,10 +23398,6 @@ rec {
           {
             name = "iota-verifier-latest";
             packageId = "iota-verifier-latest";
-          }
-          {
-            name = "iota-verifier-v0";
-            packageId = "iota-verifier-v0";
           }
           {
             name = "move-binary-format";
@@ -23539,10 +23413,6 @@ rec {
             packageId = "move-bytecode-verifier-meter";
           }
           {
-            name = "move-bytecode-verifier-v0";
-            packageId = "move-bytecode-verifier-v0";
-          }
-          {
             name = "move-vm-config";
             packageId = "move-vm-config";
           }
@@ -23550,10 +23420,6 @@ rec {
             name = "move-vm-runtime";
             packageId = "move-vm-runtime";
             rename = "move-vm-runtime-latest";
-          }
-          {
-            name = "move-vm-runtime-v0";
-            packageId = "move-vm-runtime-v0";
           }
         ];
         devDependencies = [
@@ -23628,7 +23494,7 @@ rec {
       };
       "iota-faucet" = rec {
         crateName = "iota-faucet";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -23705,7 +23571,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-types";
@@ -23797,7 +23663,7 @@ rec {
       };
       "iota-framework" = rec {
         crateName = "iota-framework";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -23886,7 +23752,7 @@ rec {
       };
       "iota-framework-snapshot" = rec {
         crateName = "iota-framework-snapshot";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -23951,7 +23817,7 @@ rec {
       };
       "iota-framework-tests" = rec {
         crateName = "iota-framework-tests";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -24027,7 +23893,7 @@ rec {
       };
       "iota-genesis-builder" = rec {
         crateName = "iota-genesis-builder";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -24080,8 +23946,8 @@ rec {
             packageId = "fs_extra";
           }
           {
-            name = "iota-adapter-v0";
-            packageId = "iota-adapter-v0";
+            name = "iota-adapter-latest";
+            packageId = "iota-adapter-latest";
           }
           {
             name = "iota-config";
@@ -24108,8 +23974,8 @@ rec {
             packageId = "iota-move-build";
           }
           {
-            name = "iota-move-natives-v0";
-            packageId = "iota-move-natives-v0";
+            name = "iota-move-natives-latest";
+            packageId = "iota-move-natives-latest";
           }
           {
             name = "iota-protocol-config";
@@ -24151,8 +24017,9 @@ rec {
             packageId = "move-package";
           }
           {
-            name = "move-vm-runtime-v0";
-            packageId = "move-vm-runtime-v0";
+            name = "move-vm-runtime";
+            packageId = "move-vm-runtime";
+            rename = "move-vm-runtime-latest";
           }
           {
             name = "packable";
@@ -24266,7 +24133,7 @@ rec {
       };
       "iota-genesis-common" = rec {
         crateName = "iota-genesis-common";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -24299,7 +24166,7 @@ rec {
       };
       "iota-graphql-config" = rec {
         crateName = "iota-graphql-config";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -24326,7 +24193,7 @@ rec {
       };
       "iota-graphql-e2e-tests" = rec {
         crateName = "iota-graphql-e2e-tests";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -24370,7 +24237,7 @@ rec {
       };
       "iota-graphql-rpc" = rec {
         crateName = "iota-graphql-rpc";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -24536,7 +24403,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-swarm-config";
@@ -24726,7 +24593,7 @@ rec {
       };
       "iota-graphql-rpc-client" = rec {
         crateName = "iota-graphql-rpc-client";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -24773,11 +24640,22 @@ rec {
             packageId = "thiserror";
           }
         ];
+        devDependencies = [
+          {
+            name = "anyhow";
+            packageId = "anyhow";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "macros" "rt-multi-thread" ];
+          }
+        ];
 
       };
       "iota-graphql-rpc-headers" = rec {
         crateName = "iota-graphql-rpc-headers";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -24800,7 +24678,7 @@ rec {
       };
       "iota-indexer" = rec {
         crateName = "iota-indexer";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -24921,7 +24799,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-transaction-builder";
@@ -24977,11 +24855,6 @@ rec {
             name = "serde";
             packageId = "serde";
             features = [ "derive" "rc" ];
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-            features = [ "preserve_order" ];
           }
           {
             name = "serde_with";
@@ -25044,12 +24917,25 @@ rec {
             packageId = "iota-swarm-config";
           }
           {
+            name = "iota-test-transaction-builder";
+            packageId = "iota-test-transaction-builder";
+          }
+          {
             name = "rand";
             packageId = "rand 0.8.5";
           }
           {
+            name = "serde_json";
+            packageId = "serde_json";
+            features = [ "preserve_order" ];
+          }
+          {
             name = "simulacrum";
             packageId = "simulacrum";
+          }
+          {
+            name = "test-cluster";
+            packageId = "test-cluster";
           }
         ];
         features = {
@@ -25059,11 +24945,11 @@ rec {
           "mysql-feature" = [ "diesel/mysql" "diesel/mysql_backend" "dep:mysqlclient-sys" ];
           "postgres-feature" = [ "diesel/postgres" "diesel/postgres_backend" ];
         };
-        resolvedDefaultFeatures = [ "bundled-mysql" "default" "diesel" "mysql-feature" "pg_integration" "postgres-feature" ];
+        resolvedDefaultFeatures = [ "bundled-mysql" "default" "diesel" "mysql-feature" "pg_integration" "postgres-feature" "shared_test_runtime" ];
       };
       "iota-indexer-builder" = rec {
         crateName = "iota-indexer-builder";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -25119,7 +25005,7 @@ rec {
       };
       "iota-json" = rec {
         crateName = "iota-json";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -25198,7 +25084,7 @@ rec {
       };
       "iota-json-rpc" = rec {
         crateName = "iota-json-rpc";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -25362,6 +25248,10 @@ rec {
             packageId = "signature 1.6.4";
           }
           {
+            name = "statrs";
+            packageId = "statrs";
+          }
+          {
             name = "tap";
             packageId = "tap";
           }
@@ -25421,7 +25311,7 @@ rec {
       };
       "iota-json-rpc-api" = rec {
         crateName = "iota-json-rpc-api";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -25491,7 +25381,7 @@ rec {
       };
       "iota-json-rpc-tests" = rec {
         crateName = "iota-json-rpc-tests";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -25572,7 +25462,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-simulator";
@@ -25639,7 +25529,7 @@ rec {
       };
       "iota-json-rpc-types" = rec {
         crateName = "iota-json-rpc-types";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -25761,7 +25651,7 @@ rec {
       };
       "iota-keys" = rec {
         crateName = "iota-keys";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -25835,7 +25725,7 @@ rec {
       };
       "iota-light-client" = rec {
         crateName = "iota-light-client";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -25903,7 +25793,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-types";
@@ -25941,7 +25831,7 @@ rec {
       };
       "iota-macros" = rec {
         crateName = "iota-macros";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -25974,7 +25864,7 @@ rec {
       };
       "iota-metric-checker" = rec {
         crateName = "iota-metric-checker";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -26068,7 +25958,7 @@ rec {
       };
       "iota-metrics" = rec {
         crateName = "iota-metrics";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -26157,7 +26047,7 @@ rec {
       };
       "iota-move" = rec {
         crateName = "iota-move";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -26326,7 +26216,7 @@ rec {
       };
       "iota-move-build" = rec {
         crateName = "iota-move-build";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -26412,7 +26302,7 @@ rec {
       };
       "iota-move-lsp" = rec {
         crateName = "iota-move-lsp";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -26531,96 +26421,9 @@ rec {
         ];
 
       };
-      "iota-move-natives-v0" = rec {
-        crateName = "iota-move-natives-v0";
-        version = "0.1.0";
-        edition = "2021";
-        # We can't filter paths with references in Nix 2.4
-        # See https://github.com/NixOS/nix/issues/5410
-        src = if ((lib.versionOlder builtins.nixVersion "2.4pre20211007") || (lib.versionOlder "2.5" builtins.nixVersion ))
-          then lib.cleanSourceWith { filter = sourceFilter;  src = ./iota-execution/v0/iota-move-natives; }
-          else ./iota-execution/v0/iota-move-natives;
-        libName = "iota_move_natives_v0";
-        authors = [
-          "IOTA Foundation <info@iota.org>"
-        ];
-        dependencies = [
-          {
-            name = "bcs";
-            packageId = "bcs";
-          }
-          {
-            name = "better_any";
-            packageId = "better_any";
-          }
-          {
-            name = "fastcrypto";
-            packageId = "fastcrypto";
-          }
-          {
-            name = "fastcrypto-vdf";
-            packageId = "fastcrypto-vdf";
-            features = [ "experimental" ];
-          }
-          {
-            name = "fastcrypto-zkp";
-            packageId = "fastcrypto-zkp";
-            rename = "fastcrypto-zkp";
-          }
-          {
-            name = "indexmap";
-            packageId = "indexmap 2.5.0";
-            features = [ "serde" ];
-          }
-          {
-            name = "iota-protocol-config";
-            packageId = "iota-protocol-config";
-          }
-          {
-            name = "iota-types";
-            packageId = "iota-types";
-          }
-          {
-            name = "move-binary-format";
-            packageId = "move-binary-format";
-          }
-          {
-            name = "move-core-types";
-            packageId = "move-core-types";
-          }
-          {
-            name = "move-stdlib-natives-v0";
-            packageId = "move-stdlib-natives-v0";
-            rename = "move-stdlib-natives";
-          }
-          {
-            name = "move-vm-runtime-v0";
-            packageId = "move-vm-runtime-v0";
-            rename = "move-vm-runtime";
-          }
-          {
-            name = "move-vm-types";
-            packageId = "move-vm-types";
-          }
-          {
-            name = "rand";
-            packageId = "rand 0.8.5";
-            features = [ "small_rng" ];
-          }
-          {
-            name = "smallvec";
-            packageId = "smallvec";
-          }
-          {
-            name = "tracing";
-            packageId = "tracing";
-          }
-        ];
-
-      };
       "iota-network" = rec {
         crateName = "iota-network";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -26786,7 +26589,7 @@ rec {
       };
       "iota-network-stack" = rec {
         crateName = "iota-network-stack";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -26878,7 +26681,7 @@ rec {
       };
       "iota-node" = rec {
         crateName = "iota-node";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -27089,7 +26892,7 @@ rec {
       };
       "iota-open-rpc" = rec {
         crateName = "iota-open-rpc";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27186,7 +26989,7 @@ rec {
       };
       "iota-open-rpc-macros" = rec {
         crateName = "iota-open-rpc-macros";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27229,7 +27032,7 @@ rec {
       };
       "iota-package-dump" = rec {
         crateName = "iota-package-dump";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27297,7 +27100,7 @@ rec {
       };
       "iota-package-management" = rec {
         crateName = "iota-package-management";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27319,7 +27122,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-types";
@@ -27350,7 +27153,7 @@ rec {
       };
       "iota-package-resolver" = rec {
         crateName = "iota-package-resolver";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27441,7 +27244,7 @@ rec {
       };
       "iota-proc-macros" = rec {
         crateName = "iota-proc-macros";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27478,7 +27281,7 @@ rec {
       };
       "iota-protocol-config" = rec {
         crateName = "iota-protocol-config";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27534,7 +27337,7 @@ rec {
       };
       "iota-protocol-config-macros" = rec {
         crateName = "iota-protocol-config-macros";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27565,7 +27368,7 @@ rec {
       };
       "iota-replay" = rec {
         crateName = "iota-replay";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27636,7 +27439,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-storage";
@@ -27750,7 +27553,7 @@ rec {
       };
       "iota-rest-api" = rec {
         crateName = "iota-rest-api";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -27875,7 +27678,7 @@ rec {
       };
       "iota-rosetta" = rec {
         crateName = "iota-rosetta";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -27960,7 +27763,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-swarm-config";
@@ -28037,7 +27840,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "rand";
@@ -28067,7 +27870,7 @@ rec {
       };
       "iota-rpc-loadgen" = rec {
         crateName = "iota-rpc-loadgen";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -28120,7 +27923,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-types";
@@ -28177,8 +27980,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "ssh://git@github.com/iotaledger/iota-rust-sdk.git";
-          rev = "dd7b331a5ec62fd5e810051d19f31dff90ea7e3f";
-          sha256 = "14p6z42n640v5jgrl76ww3d8b297hdf1bfixabi9728px324zaxh";
+          rev = "d605da95029e74376f0f39a95526bb1a5c0ebd7a";
+          sha256 = "1xn49a84nlwplkgr1njcb62gig8ccdzqlr2m5xs0khx15ss18ac8";
         };
         libName = "iota_rust_sdk";
         authors = [
@@ -28267,9 +28070,9 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "hash" "schemars" "serde" ];
       };
-      "iota-sdk 0.5.0-alpha" = rec {
+      "iota-sdk 0.7.0-alpha" = rec {
         crateName = "iota-sdk";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -28317,6 +28120,10 @@ rec {
           {
             name = "futures-core";
             packageId = "futures-core";
+          }
+          {
+            name = "getset";
+            packageId = "getset";
           }
           {
             name = "iota-config";
@@ -28689,7 +28496,7 @@ rec {
       };
       "iota-simulator" = rec {
         crateName = "iota-simulator";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -28775,7 +28582,7 @@ rec {
       };
       "iota-single-node-benchmark" = rec {
         crateName = "iota-single-node-benchmark";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -28921,7 +28728,7 @@ rec {
       };
       "iota-snapshot" = rec {
         crateName = "iota-snapshot";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -29035,7 +28842,7 @@ rec {
       };
       "iota-source-validation" = rec {
         crateName = "iota-source-validation";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -29077,7 +28884,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-types";
@@ -29167,7 +28974,7 @@ rec {
       };
       "iota-source-validation-service" = rec {
         crateName = "iota-source-validation-service";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -29232,7 +29039,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-source-validation";
@@ -29342,7 +29149,7 @@ rec {
       };
       "iota-storage" = rec {
         crateName = "iota-storage";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -29589,7 +29396,7 @@ rec {
       };
       "iota-surfer" = rec {
         crateName = "iota-surfer";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -29710,7 +29517,7 @@ rec {
       };
       "iota-swarm" = rec {
         crateName = "iota-swarm";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -29805,7 +29612,7 @@ rec {
       };
       "iota-swarm-config" = rec {
         crateName = "iota-swarm-config";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -29915,7 +29722,7 @@ rec {
       };
       "iota-test-transaction-builder" = rec {
         crateName = "iota-test-transaction-builder";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -29941,7 +29748,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-types";
@@ -29960,7 +29767,7 @@ rec {
       };
       "iota-tls" = rec {
         crateName = "iota-tls";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -30053,7 +29860,7 @@ rec {
       };
       "iota-tool" = rec {
         crateName = "iota-tool";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -30155,7 +29962,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-snapshot";
@@ -30239,7 +30046,7 @@ rec {
       };
       "iota-transaction-builder" = rec {
         crateName = "iota-transaction-builder";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -30296,7 +30103,7 @@ rec {
       };
       "iota-transaction-checks" = rec {
         crateName = "iota-transaction-checks";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -30346,7 +30153,7 @@ rec {
       };
       "iota-transactional-test-runner" = rec {
         crateName = "iota-transactional-test-runner";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -30544,7 +30351,7 @@ rec {
       };
       "iota-types" = rec {
         crateName = "iota-types";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -30906,7 +30713,7 @@ rec {
       };
       "iota-upgrade-compatibility-transactional-tests" = rec {
         crateName = "iota-upgrade-compatibility-transactional-tests";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -30956,7 +30763,7 @@ rec {
       };
       "iota-util-mem" = rec {
         crateName = "iota-util-mem";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -31033,7 +30840,7 @@ rec {
       };
       "iota-util-mem-derive" = rec {
         crateName = "iota-util-mem-derive";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -31118,7 +30925,7 @@ rec {
       };
       "iota-verifier-transactional-tests" = rec {
         crateName = "iota-verifier-transactional-tests";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -31137,60 +30944,6 @@ rec {
           {
             name = "iota-transactional-test-runner";
             packageId = "iota-transactional-test-runner";
-          }
-        ];
-
-      };
-      "iota-verifier-v0" = rec {
-        crateName = "iota-verifier-v0";
-        version = "0.1.0";
-        edition = "2021";
-        # We can't filter paths with references in Nix 2.4
-        # See https://github.com/NixOS/nix/issues/5410
-        src = if ((lib.versionOlder builtins.nixVersion "2.4pre20211007") || (lib.versionOlder "2.5" builtins.nixVersion ))
-          then lib.cleanSourceWith { filter = sourceFilter;  src = ./iota-execution/v0/iota-verifier; }
-          else ./iota-execution/v0/iota-verifier;
-        libName = "iota_verifier_v0";
-        authors = [
-          "IOTA Foundation <info@iota.org>"
-        ];
-        dependencies = [
-          {
-            name = "iota-protocol-config";
-            packageId = "iota-protocol-config";
-          }
-          {
-            name = "iota-types";
-            packageId = "iota-types";
-          }
-          {
-            name = "move-abstract-interpreter-v0";
-            packageId = "move-abstract-interpreter-v0";
-            rename = "move-abstract-interpreter";
-          }
-          {
-            name = "move-abstract-stack";
-            packageId = "move-abstract-stack";
-          }
-          {
-            name = "move-binary-format";
-            packageId = "move-binary-format";
-          }
-          {
-            name = "move-bytecode-utils";
-            packageId = "move-bytecode-utils";
-          }
-          {
-            name = "move-bytecode-verifier-meter";
-            packageId = "move-bytecode-verifier-meter";
-          }
-          {
-            name = "move-core-types";
-            packageId = "move-core-types";
-          }
-          {
-            name = "move-vm-config";
-            packageId = "move-vm-config";
           }
         ];
 
@@ -33138,7 +32891,7 @@ rec {
           }
           {
             name = "windows-targets";
-            packageId = "windows-targets 0.48.5";
+            packageId = "windows-targets 0.52.6";
             target = { target, features }: (target."windows" or false);
           }
         ];
@@ -33820,6 +33573,36 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" ];
       };
+      "matrixmultiply" = rec {
+        crateName = "matrixmultiply";
+        version = "0.3.9";
+        edition = "2018";
+        sha256 = "06msav241ybxvsqfwm4hfmb1pbws71v0inhmyk0i0vg9wc8vk04k";
+        authors = [
+          "bluss"
+          "R. Janis Goldschmidt"
+        ];
+        dependencies = [
+          {
+            name = "rawpointer";
+            packageId = "rawpointer";
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "autocfg";
+            packageId = "autocfg";
+          }
+        ];
+        features = {
+          "default" = [ "std" ];
+          "num_cpus" = [ "dep:num_cpus" ];
+          "once_cell" = [ "dep:once_cell" ];
+          "thread-tree" = [ "dep:thread-tree" ];
+          "threading" = [ "thread-tree" "std" "once_cell" "num_cpus" ];
+        };
+        resolvedDefaultFeatures = [ "default" "std" ];
+      };
       "md-5" = rec {
         crateName = "md-5";
         version = "0.10.6";
@@ -34496,33 +34279,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" ];
       };
-      "move-abstract-interpreter-v0" = rec {
-        crateName = "move-abstract-interpreter-v0";
-        version = "0.1.0";
-        edition = "2021";
-        # We can't filter paths with references in Nix 2.4
-        # See https://github.com/NixOS/nix/issues/5410
-        src = if ((lib.versionOlder builtins.nixVersion "2.4pre20211007") || (lib.versionOlder "2.5" builtins.nixVersion ))
-          then lib.cleanSourceWith { filter = sourceFilter;  src = ./external-crates/move/move-execution/v0/crates/move-abstract-interpreter; }
-          else ./external-crates/move/move-execution/v0/crates/move-abstract-interpreter;
-        libName = "move_abstract_interpreter_v0";
-        authors = [
-          "The Move Contributors"
-        ];
-        dependencies = [
-          {
-            name = "move-binary-format";
-            packageId = "move-binary-format";
-          }
-          {
-            name = "move-bytecode-verifier-meter";
-            packageId = "move-bytecode-verifier-meter";
-          }
-        ];
-        features = {
-        };
-        resolvedDefaultFeatures = [ "default" ];
-      };
       "move-abstract-stack" = rec {
         crateName = "move-abstract-stack";
         version = "0.0.1";
@@ -34919,57 +34675,6 @@ rec {
           }
         ];
 
-      };
-      "move-bytecode-verifier-v0" = rec {
-        crateName = "move-bytecode-verifier-v0";
-        version = "0.1.0";
-        edition = "2021";
-        # We can't filter paths with references in Nix 2.4
-        # See https://github.com/NixOS/nix/issues/5410
-        src = if ((lib.versionOlder builtins.nixVersion "2.4pre20211007") || (lib.versionOlder "2.5" builtins.nixVersion ))
-          then lib.cleanSourceWith { filter = sourceFilter;  src = ./external-crates/move/move-execution/v0/crates/move-bytecode-verifier; }
-          else ./external-crates/move/move-execution/v0/crates/move-bytecode-verifier;
-        libName = "move_bytecode_verifier_v0";
-        authors = [
-          "IOTA Foundation <info@iota.org>"
-        ];
-        dependencies = [
-          {
-            name = "move-abstract-interpreter";
-            packageId = "move-abstract-interpreter";
-          }
-          {
-            name = "move-abstract-stack";
-            packageId = "move-abstract-stack";
-          }
-          {
-            name = "move-binary-format";
-            packageId = "move-binary-format";
-          }
-          {
-            name = "move-borrow-graph";
-            packageId = "move-borrow-graph";
-          }
-          {
-            name = "move-bytecode-verifier-meter";
-            packageId = "move-bytecode-verifier-meter";
-          }
-          {
-            name = "move-core-types";
-            packageId = "move-core-types";
-          }
-          {
-            name = "move-vm-config";
-            packageId = "move-vm-config";
-          }
-          {
-            name = "petgraph";
-            packageId = "petgraph 0.5.1";
-          }
-        ];
-        features = {
-        };
-        resolvedDefaultFeatures = [ "default" ];
       };
       "move-bytecode-viewer" = rec {
         crateName = "move-bytecode-viewer";
@@ -36407,58 +36112,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "testing" ];
       };
-      "move-stdlib-natives-v0" = rec {
-        crateName = "move-stdlib-natives-v0";
-        version = "0.1.1";
-        edition = "2021";
-        # We can't filter paths with references in Nix 2.4
-        # See https://github.com/NixOS/nix/issues/5410
-        src = if ((lib.versionOlder builtins.nixVersion "2.4pre20211007") || (lib.versionOlder "2.5" builtins.nixVersion ))
-          then lib.cleanSourceWith { filter = sourceFilter;  src = ./external-crates/move/move-execution/v0/crates/move-stdlib-natives; }
-          else ./external-crates/move/move-execution/v0/crates/move-stdlib-natives;
-        libName = "move_stdlib_natives_v0";
-        authors = [
-          "IOTA Foundation <info@iota.org>"
-        ];
-        dependencies = [
-          {
-            name = "hex";
-            packageId = "hex";
-          }
-          {
-            name = "move-binary-format";
-            packageId = "move-binary-format";
-          }
-          {
-            name = "move-core-types";
-            packageId = "move-core-types";
-          }
-          {
-            name = "move-vm-runtime-v0";
-            packageId = "move-vm-runtime-v0";
-            rename = "move-vm-runtime";
-          }
-          {
-            name = "move-vm-types";
-            packageId = "move-vm-types";
-          }
-          {
-            name = "sha2";
-            packageId = "sha2 0.9.9";
-          }
-          {
-            name = "sha3";
-            packageId = "sha3 0.9.1";
-          }
-          {
-            name = "smallvec";
-            packageId = "smallvec";
-          }
-        ];
-        features = {
-        };
-        resolvedDefaultFeatures = [ "default" ];
-      };
       "move-symbol-pool" = rec {
         crateName = "move-symbol-pool";
         version = "0.1.0";
@@ -36867,84 +36520,6 @@ rec {
           "gas-profiler" = [ "move-vm-config/gas-profiler" "move-vm-types/gas-profiler" "move-vm-profiler/gas-profiler" ];
         };
         resolvedDefaultFeatures = [ "default" "gas-profiler" "testing" ];
-      };
-      "move-vm-runtime-v0" = rec {
-        crateName = "move-vm-runtime-v0";
-        version = "0.1.0";
-        edition = "2021";
-        # We can't filter paths with references in Nix 2.4
-        # See https://github.com/NixOS/nix/issues/5410
-        src = if ((lib.versionOlder builtins.nixVersion "2.4pre20211007") || (lib.versionOlder "2.5" builtins.nixVersion ))
-          then lib.cleanSourceWith { filter = sourceFilter;  src = ./external-crates/move/move-execution/v0/crates/move-vm-runtime; }
-          else ./external-crates/move/move-execution/v0/crates/move-vm-runtime;
-        libName = "move_vm_runtime_v0";
-        authors = [
-          "IOTA Foundation <info@iota.org>"
-        ];
-        dependencies = [
-          {
-            name = "better_any";
-            packageId = "better_any";
-          }
-          {
-            name = "fail";
-            packageId = "fail";
-          }
-          {
-            name = "move-binary-format";
-            packageId = "move-binary-format";
-          }
-          {
-            name = "move-bytecode-verifier-v0";
-            packageId = "move-bytecode-verifier-v0";
-            rename = "move-bytecode-verifier";
-          }
-          {
-            name = "move-core-types";
-            packageId = "move-core-types";
-          }
-          {
-            name = "move-vm-config";
-            packageId = "move-vm-config";
-          }
-          {
-            name = "move-vm-profiler";
-            packageId = "move-vm-profiler";
-          }
-          {
-            name = "move-vm-types";
-            packageId = "move-vm-types";
-          }
-          {
-            name = "once_cell";
-            packageId = "once_cell";
-          }
-          {
-            name = "parking_lot";
-            packageId = "parking_lot 0.11.2";
-          }
-          {
-            name = "smallvec";
-            packageId = "smallvec";
-          }
-          {
-            name = "tracing";
-            packageId = "tracing";
-          }
-        ];
-        devDependencies = [
-          {
-            name = "move-binary-format";
-            packageId = "move-binary-format";
-            features = [ "fuzzing" ];
-          }
-        ];
-        features = {
-          "failpoints" = [ "fail/failpoints" ];
-          "fuzzing" = [ "move-vm-types/fuzzing" ];
-          "gas-profiler" = [ "move-vm-config/gas-profiler" "move-vm-types/gas-profiler" "move-vm-profiler/gas-profiler" ];
-        };
-        resolvedDefaultFeatures = [ "default" "gas-profiler" ];
       };
       "move-vm-test-utils" = rec {
         crateName = "move-vm-test-utils";
@@ -37558,6 +37133,162 @@ rec {
         libName = "naive_timer";
         authors = [
           "Runji Wang <wangrunji0408@163.com>"
+        ];
+
+      };
+      "nalgebra" = rec {
+        crateName = "nalgebra";
+        version = "0.32.6";
+        edition = "2018";
+        sha256 = "1r033ciacblmkif5njlhprfp0k59spjv54cqsyggb1is0bg1fp3v";
+        authors = [
+          "Sébastien Crozet <developer@crozet.re>"
+        ];
+        dependencies = [
+          {
+            name = "approx";
+            packageId = "approx";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "matrixmultiply";
+            packageId = "matrixmultiply";
+            optional = true;
+          }
+          {
+            name = "nalgebra-macros";
+            packageId = "nalgebra-macros";
+            optional = true;
+          }
+          {
+            name = "num-complex";
+            packageId = "num-complex";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "num-rational";
+            packageId = "num-rational";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "num-traits";
+            packageId = "num-traits";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "rand";
+            packageId = "rand 0.8.5";
+            rename = "rand-package";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "rand_distr";
+            packageId = "rand_distr";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "simba";
+            packageId = "simba";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "typenum";
+            packageId = "typenum";
+          }
+        ];
+        features = {
+          "alga" = [ "dep:alga" ];
+          "arbitrary" = [ "quickcheck" ];
+          "bytemuck" = [ "dep:bytemuck" ];
+          "compare" = [ "matrixcompare-core" ];
+          "convert-bytemuck" = [ "bytemuck" ];
+          "convert-glam014" = [ "glam014" ];
+          "convert-glam015" = [ "glam015" ];
+          "convert-glam016" = [ "glam016" ];
+          "convert-glam017" = [ "glam017" ];
+          "convert-glam018" = [ "glam018" ];
+          "convert-glam019" = [ "glam019" ];
+          "convert-glam020" = [ "glam020" ];
+          "convert-glam021" = [ "glam021" ];
+          "convert-glam022" = [ "glam022" ];
+          "convert-glam023" = [ "glam023" ];
+          "convert-glam024" = [ "glam024" ];
+          "convert-glam025" = [ "glam025" ];
+          "convert-glam027" = [ "glam027" ];
+          "convert-mint" = [ "mint" ];
+          "cuda" = [ "cust_core" "simba/cuda" ];
+          "cust_core" = [ "dep:cust_core" ];
+          "debug" = [ "approx/num-complex" "rand" ];
+          "default" = [ "std" "macros" ];
+          "glam014" = [ "dep:glam014" ];
+          "glam015" = [ "dep:glam015" ];
+          "glam016" = [ "dep:glam016" ];
+          "glam017" = [ "dep:glam017" ];
+          "glam018" = [ "dep:glam018" ];
+          "glam019" = [ "dep:glam019" ];
+          "glam020" = [ "dep:glam020" ];
+          "glam021" = [ "dep:glam021" ];
+          "glam022" = [ "dep:glam022" ];
+          "glam023" = [ "dep:glam023" ];
+          "glam024" = [ "dep:glam024" ];
+          "glam025" = [ "dep:glam025" ];
+          "glam027" = [ "dep:glam027" ];
+          "io" = [ "pest" "pest_derive" ];
+          "libm" = [ "simba/libm" ];
+          "libm-force" = [ "simba/libm_force" ];
+          "macros" = [ "nalgebra-macros" ];
+          "matrixcompare-core" = [ "dep:matrixcompare-core" ];
+          "matrixmultiply" = [ "dep:matrixmultiply" ];
+          "mint" = [ "dep:mint" ];
+          "nalgebra-macros" = [ "dep:nalgebra-macros" ];
+          "pest" = [ "dep:pest" ];
+          "pest_derive" = [ "dep:pest_derive" ];
+          "proptest" = [ "dep:proptest" ];
+          "proptest-support" = [ "proptest" ];
+          "quickcheck" = [ "dep:quickcheck" ];
+          "rand" = [ "rand-no-std" "rand-package/std" "rand-package/std_rng" "rand_distr" ];
+          "rand-no-std" = [ "rand-package" ];
+          "rand-package" = [ "dep:rand-package" ];
+          "rand_distr" = [ "dep:rand_distr" ];
+          "rayon" = [ "dep:rayon" ];
+          "rkyv" = [ "dep:rkyv" ];
+          "rkyv-safe-deser" = [ "rkyv-serialize" "rkyv/validation" ];
+          "rkyv-serialize" = [ "rkyv-serialize-no-std" "rkyv/std" "rkyv/validation" ];
+          "rkyv-serialize-no-std" = [ "rkyv/size_32" ];
+          "serde" = [ "dep:serde" ];
+          "serde-serialize" = [ "serde-serialize-no-std" "serde/std" ];
+          "serde-serialize-no-std" = [ "serde" "num-complex/serde" ];
+          "std" = [ "matrixmultiply" "simba/std" ];
+        };
+        resolvedDefaultFeatures = [ "default" "macros" "matrixmultiply" "nalgebra-macros" "rand" "rand-no-std" "rand-package" "rand_distr" "std" ];
+      };
+      "nalgebra-macros" = rec {
+        crateName = "nalgebra-macros";
+        version = "0.2.2";
+        edition = "2018";
+        sha256 = "1z6v9phhr1hwzyyblf792128lxfv1hy1sxl4cvikihcgmxr56ji5";
+        procMacro = true;
+        libName = "nalgebra_macros";
+        authors = [
+          "Andreas Longva"
+          "Sébastien Crozet <developer@crozet.re>"
+        ];
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2 1.0.86";
+          }
+          {
+            name = "quote";
+            packageId = "quote 1.0.37";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.77";
+            features = [ "full" ];
+          }
         ];
 
       };
@@ -43006,7 +42737,7 @@ rec {
       };
       "prometheus-closure-metric" = rec {
         crateName = "prometheus-closure-metric";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -43292,7 +43023,7 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools 0.10.5";
+            packageId = "itertools 0.13.0";
             usesDefaultFeatures = false;
             features = [ "use_alloc" ];
           }
@@ -43373,7 +43104,7 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools 0.10.5";
+            packageId = "itertools 0.13.0";
           }
           {
             name = "proc-macro2";
@@ -44082,6 +43813,44 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "getrandom" "std" ];
       };
+      "rand_distr" = rec {
+        crateName = "rand_distr";
+        version = "0.4.3";
+        edition = "2018";
+        sha256 = "0cgfwg3z0pkqhrl0x90c77kx70r6g9z4m6fxq9v0h2ibr2dhpjrj";
+        authors = [
+          "The Rand Project Developers"
+        ];
+        dependencies = [
+          {
+            name = "num-traits";
+            packageId = "num-traits";
+            usesDefaultFeatures = false;
+            features = [ "libm" ];
+          }
+          {
+            name = "rand";
+            packageId = "rand 0.8.5";
+            usesDefaultFeatures = false;
+          }
+        ];
+        devDependencies = [
+          {
+            name = "rand";
+            packageId = "rand 0.8.5";
+            usesDefaultFeatures = false;
+            features = [ "std_rng" "std" "small_rng" ];
+          }
+        ];
+        features = {
+          "alloc" = [ "rand/alloc" ];
+          "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
+          "serde1" = [ "serde" "rand/serde1" ];
+          "std" = [ "alloc" "rand/std" ];
+          "std_math" = [ "num-traits/std" ];
+        };
+      };
       "rand_hc" = rec {
         crateName = "rand_hc";
         version = "0.2.0";
@@ -44199,6 +43968,16 @@ rec {
           "serialize" = [ "serde" "serde_derive" ];
           "termimad" = [ "dep:termimad" ];
         };
+      };
+      "rawpointer" = rec {
+        crateName = "rawpointer";
+        version = "0.2.1";
+        edition = "2015";
+        sha256 = "1qy1qvj17yh957vhffnq6agq0brvylw27xgks171qrah75wmg8v0";
+        authors = [
+          "bluss"
+        ];
+
       };
       "rayon" = rec {
         crateName = "rayon";
@@ -47633,6 +47412,26 @@ rec {
           "no-panic" = [ "dep:no-panic" ];
         };
       };
+      "safe_arch" = rec {
+        crateName = "safe_arch";
+        version = "0.7.2";
+        edition = "2018";
+        sha256 = "12hljs7r9ag3qx20sy04k76znznjl35ka9z7ph99dp4g042hcin3";
+        authors = [
+          "Lokathor <zefria@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "bytemuck";
+            packageId = "bytemuck";
+            optional = true;
+          }
+        ];
+        features = {
+          "bytemuck" = [ "dep:bytemuck" ];
+        };
+        resolvedDefaultFeatures = [ "bytemuck" "default" ];
+      };
       "salsa20" = rec {
         crateName = "salsa20";
         version = "0.10.2";
@@ -49235,7 +49034,7 @@ rec {
       };
       "shared-crypto" = rec {
         crateName = "shared-crypto";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -49483,6 +49282,63 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "digest" "rand_core" "std" ];
       };
+      "simba" = rec {
+        crateName = "simba";
+        version = "0.8.1";
+        edition = "2018";
+        sha256 = "1bnf7ainywmaz2z67ss1q0bjwccf80c50c50r6hlpay69z4hf586";
+        authors = [
+          "sebcrozet <developer@crozet.re>"
+        ];
+        dependencies = [
+          {
+            name = "approx";
+            packageId = "approx";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "num-complex";
+            packageId = "num-complex";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "num-traits";
+            packageId = "num-traits";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "paste";
+            packageId = "paste";
+          }
+          {
+            name = "wide";
+            packageId = "wide";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+        ];
+        features = {
+          "cordic" = [ "dep:cordic" ];
+          "cuda" = [ "cuda_std" "cust_core" ];
+          "cuda_std" = [ "dep:cuda_std" ];
+          "cust_core" = [ "dep:cust_core" ];
+          "decimal" = [ "dep:decimal" ];
+          "default" = [ "std" ];
+          "fixed" = [ "dep:fixed" ];
+          "libm" = [ "num-traits/libm" ];
+          "libm_force" = [ "dep:libm_force" ];
+          "packed_simd" = [ "dep:packed_simd" ];
+          "partial_fixed_point_support" = [ "fixed" "cordic" ];
+          "rand" = [ "dep:rand" ];
+          "rkyv" = [ "dep:rkyv" ];
+          "rkyv-serialize" = [ "rkyv" ];
+          "serde" = [ "dep:serde" ];
+          "serde_serialize" = [ "serde" "fixed/serde" ];
+          "std" = [ "wide/std" ];
+          "wide" = [ "dep:wide" ];
+        };
+        resolvedDefaultFeatures = [ "std" "wide" ];
+      };
       "simd-adler32" = rec {
         crateName = "simd-adler32";
         version = "0.3.7";
@@ -49602,7 +49458,7 @@ rec {
       };
       "simulacrum" = rec {
         crateName = "simulacrum";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -50690,6 +50546,35 @@ rec {
           "proc_static_assertions_next" = [ "dep:proc_static_assertions_next" ];
         };
       };
+      "statrs" = rec {
+        crateName = "statrs";
+        version = "0.17.1";
+        edition = "2018";
+        sha256 = "0mbjasnlh7xqa1rvq48xffqxnc53hgjlgqjd0ifa58068rza15zn";
+        authors = [
+          "Michael Ma"
+        ];
+        dependencies = [
+          {
+            name = "approx";
+            packageId = "approx";
+          }
+          {
+            name = "nalgebra";
+            packageId = "nalgebra";
+            features = [ "rand" ];
+          }
+          {
+            name = "num-traits";
+            packageId = "num-traits";
+          }
+          {
+            name = "rand";
+            packageId = "rand 0.8.5";
+          }
+        ];
+
+      };
       "string_cache" = rec {
         crateName = "string_cache";
         version = "0.8.7";
@@ -51748,7 +51633,7 @@ rec {
       };
       "telemetry-subscribers" = rec {
         crateName = "telemetry-subscribers";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         crateBin = [
           {
@@ -51991,7 +51876,7 @@ rec {
       };
       "test-cluster" = rec {
         crateName = "test-cluster";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -52072,7 +51957,7 @@ rec {
           }
           {
             name = "iota-sdk";
-            packageId = "iota-sdk 0.5.0-alpha";
+            packageId = "iota-sdk 0.7.0-alpha";
           }
           {
             name = "iota-simulator";
@@ -54783,7 +54668,7 @@ rec {
       };
       "transaction-fuzzer" = rec {
         crateName = "transaction-fuzzer";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -55137,7 +55022,7 @@ rec {
           }
           {
             name = "rand";
-            packageId = "rand 0.7.3";
+            packageId = "rand 0.8.5";
             optional = true;
           }
           {
@@ -55160,7 +55045,7 @@ rec {
       };
       "typed-store" = rec {
         crateName = "typed-store";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -55293,7 +55178,7 @@ rec {
       };
       "typed-store-derive" = rec {
         crateName = "typed-store-derive";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -55328,7 +55213,7 @@ rec {
       };
       "typed-store-error" = rec {
         crateName = "typed-store-error";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -55354,7 +55239,7 @@ rec {
       };
       "typed-store-workspace-hack" = rec {
         crateName = "typed-store-workspace-hack";
-        version = "0.5.0-alpha";
+        version = "0.7.0-alpha";
         edition = "2021";
         # We can't filter paths with references in Nix 2.4
         # See https://github.com/NixOS/nix/issues/5410
@@ -57028,6 +56913,31 @@ rec {
           "web-sys" = [ "dep:web-sys" ];
         };
         resolvedDefaultFeatures = [ "default" "web" "web-sys" ];
+      };
+      "wide" = rec {
+        crateName = "wide";
+        version = "0.7.28";
+        edition = "2018";
+        sha256 = "142nhlz08wnq8vvqyn6lykhnqh45394gh2c03w1j55hypyazja5q";
+        authors = [
+          "Lokathor <zefria@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "bytemuck";
+            packageId = "bytemuck";
+          }
+          {
+            name = "safe_arch";
+            packageId = "safe_arch";
+            features = [ "bytemuck" ];
+          }
+        ];
+        features = {
+          "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
+        };
+        resolvedDefaultFeatures = [ "std" ];
       };
       "widestring" = rec {
         crateName = "widestring";
