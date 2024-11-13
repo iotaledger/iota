@@ -47,9 +47,9 @@ Using the new SDK, you can build the same transaction as follows:
 /// You need to do this only once and re-use it in the application.
 const kioskClient = new KioskClient({
     client: new IotaClient({
-        url: getFullnodeUrl('mainnet'),
+        url: getFullnodeUrl('testnet'),
     }),
-    network: Network.MAINNET,
+    network: Network.TESTNET,
 });
 
 const placeAndListToKiosk = async () => {
@@ -102,9 +102,9 @@ Using the new SDK, you can build the same transaction as follows:
 /// You need to do this only once and re-use it in the application.
 const kioskClient = new KioskClient({
     client: new IotaClient({
-        url: getFullnodeUrl('mainnet'),
+        url: getFullnodeUrl('testnet'),
     }),
-    network: Network.MAINNET,
+    network: Network.TESTNET,
 });
 
 const placeAndListToKiosk = async () => {
@@ -129,7 +129,7 @@ import { queryTransferPolicy, purchaseAndResolvePolicies, place, testnetEnvironm
 import { IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient(
-  url: 'https://fullnode.testnet.iota.io:443',
+  url: 'https://api.testnet.iota.cafe:443',
 );
 
 // The kiosk we're purchasing from.
@@ -192,9 +192,9 @@ Using the new SDK, you can build the same transaction as follows:
 /// You need to do this only once and re-use it in the application.
 const kioskClient = new KioskClient({
     client: new IotaClient({
-        url: getFullnodeUrl('mainnet'),
+        url: getFullnodeUrl('testnet'),
     }),
-    network: Network.MAINNET,
+    network: Network.TESTNET,
 });
 
 // An Item as returned from `kioskClient.getKiosk()` call.
@@ -288,9 +288,9 @@ On the new SDK, the same transaction can be built as follows:
 /// You need to do this only once and re-use it in the application.
 const kioskClient = new KioskClient({
     client: new IotaClient({
-        url: getFullnodeUrl('mainnet'),
+        url: getFullnodeUrl('testnet'),
     }),
-    network: Network.MAINNET,
+    network: Network.TESTNET,
 });
 
 const adjustPolicy = async () => {

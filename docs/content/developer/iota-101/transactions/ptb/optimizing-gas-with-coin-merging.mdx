@@ -1,0 +1,64 @@
+---
+description: Learn how to manage multiple IOTA coins by combining them to pay gas fees efficiently.
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging.json';
+
+# Optimizing Gas Fees with Coin Merging
+
+In the IOTA blockchain, every transaction incurs a gas fee that must be paid for successful execution.
+Coin merging allows you to pay this gas fee using multiple coins combined into one,
+rather than relying on a single coin.
+This method is particularly useful when you have several coins with small denominations or wish
+to reduce the number of individual IOTA coins in your account.
+Coin merging enhances coin management, especially when used with the `GasCoin` argument in [programmable transaction blocks (PTBs)](programmable-transaction-blocks).
+
+## How Coin Merging Works
+
+When you include multiple coins to cover the gas fee in a transaction,
+IOTA automatically merges them into a single coin during execution. 
+This merging occurs regardless of the individual coin amounts or the specified gas budget,
+as long as it falls within the allowed gas limits.
+The gas fee is then deducted from this combined coin,
+even if the transaction fails to execute (for example, due to an execution error).
+This means that after the transaction, the coins you provided for gas remain merged.
+
+Coin merging is an efficient strategy for managing your coins by consolidating smaller amounts into a single coin.
+You can use this merged coin not only to pay for gas fees but also for other operations within the same transaction.
+For instance, you can merge multiple coins to cover the gas fee for a PTB,
+and then have that PTB withdraw from the `GasCoin`.
+PTBs offer a special argument that references the coin used for gas payment after the gas fee has been deducted,
+allowing you to transfer the remaining IOTA to another address.
+Since coin merging happens automatically when you supply multiple gas coins,
+you can combine coin management with other transactions seamlessly.
+
+It's important to note that IOTA sets a maximum limit of 256 coins that can be merged in a single PTB.
+If you attempt to merge more than this number, the transaction will not be processed.
+Additionally, during the merging process, all coins except the first one are deleted.
+This deletion often results in a storage rebate due to the removal of coin objects.
+While you cannot use this rebate to pay for the current transaction's gas fee,
+as it isn't credited until after execution,
+it may result in a refund after the transaction completes.
+The refund and any remaining balance after deducting the gas fee will reside in the first coin
+you provided in the transaction.
+
+## Unexpected Refunds When Running Out of Gas
+
+Because coins are merged regardless of whether a transaction succeeds,
+storage rebates can lead to scenarios where a transaction runs out of gas but still results in a net refund.
+For example, suppose you have a transaction `T` with a gas budget of `5000`,
+and you provide coins `C1`, `C2`, `C3`, `C4`, and `C5` with values `1000`, `2000`, `3000`,
+`4000`, and `5000` respectively to pay for gas.
+If each deleted coin object provides a storage rebate of `2000`,
+and the actual gas fee for executing `T` exceeds the `5000` gas budget (causing `T` to run out of gas), the execution status will be `OutOfGas`.
+
+After execution, the balance of coin `C1` would be calculated as:
+
+- Initial total coin value: `1000 + 2000 + 3000 + 4000 + 5000 = 15,000`
+- Gas fee deducted: `-5000`
+- Storage rebate from deleted coins: `2000 * 4 = 8000` (since four coins were deleted)
+- Final balance: `15,000 - 5000 + 8000 = 18,000`
+
+In this case, even though the transaction failed due to insufficient gas, you receive a net refund of `3000` (since you end up with `18,000` in `C1`).
+
+<Quiz questions={questions} />
