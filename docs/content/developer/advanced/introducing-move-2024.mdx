@@ -113,7 +113,7 @@ public fun unwrap_some<T>(option: Option<T>): T {
 
 Move will add support for basic high-level enums that have similar visibility rules to structs in Move today; the enumeration type is publicly visible, just like struct types, but the variants of the enumeration are not public, much like fields. However, we plan to add public variants in the future. Similarly, enumerations cannot be recursive at release, but we plan to support this in the future.
 
-### public(package) {#public-package}
+### public(package)
 
 `friend` declarations, and the associated `public(friend)` visibility modifiers, are deprecated. In their place is the `public(package)` visibility modifier, which allows calling functions only within the same package where they are defined.
 
