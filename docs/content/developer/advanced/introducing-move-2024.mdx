@@ -147,7 +147,7 @@ struct Wrapper1 has copy, drop, store (u64)
 struct Wrapper2(u64) has copy, drop, store;
 ```
 
-### Nested `use` and standard library defaults
+### Nested `use` and Standard Library Defaults
 
 You can now nest `use` aliases for more conciseness.
 
@@ -165,7 +165,7 @@ use iota::transfer;
 use iota::tx_context::{Self, TxContext};
 ```
 
-### Automatic referencing in equality
+### Automatic Referencing in Equality
 
 Equality operations, `==` and `!=`, now automatically borrow if one side is a reference and the other is not. For example,
 
@@ -185,7 +185,7 @@ fun check(x: u64, r: &u64): bool {
 
 This automatic borrowing can occur on either side of `==` and `!=`.
 
-### Loop labels
+### Loop Labels
 
 When nesting loops, it can be convenient to break to the outer loop. For example,
 
@@ -219,7 +219,7 @@ let mut j = 0;
     i = i + 1;
 }
 ```
-### Type inference holes `_` on type annotations
+### Type Inference Holes `_` On Type Annotations
 
 With type directed programming, often you need to annotate a variable declaration or provide type arguments. But, sometimes you really only need to annotate on specific type, but the other types can be inferred. `_` will be added to allow that type to still be inferred, even when other parts of the type are annotated. For example
 
@@ -236,7 +236,7 @@ dynamic_field::borrow_mut<_, Coin<IOTA>>(&mut id, owner)
 where the `_` would be inferred as `address`
 
 
-### `break` with value
+### `break` With Value
 
 It's now possible to `break` with a value from a `loop`. For example,
 
@@ -263,7 +263,8 @@ let item = 'outer: loop {
     if (i == 10) break option::none();
 };
 ```
-### Named blocks with enhanced control flow operations
+
+### Named Blocks With Enhanced Control Flow Operations
 
 Move 2024 supports naming `loop`, `while`, and normal blocks, allowing for more-complex control
 flow.
@@ -291,7 +292,7 @@ while (...loop_condition...) {
 }
 ```
 
-Now we can directly name the outer loop and break it all at once:
+Now, you can directly name the outer loop and break it all at once:
 
 ```move
 let mut terminate_loop = false;
@@ -310,7 +311,7 @@ while (...loop_condition...) 'outer: {
 }
 ```
 
-This will immediately break to the outer loop, allowing us more-precise control flow when we'd like
+This will immediately break to the outer loop, allowing more precise control flow when you'd like
 to escape from loops.
 
 This feature also works with normal loop forms, including breaks with values:
@@ -350,9 +351,9 @@ While we do not expect programmers to use named blocks with return in everyday c
 that they will ease the development and usage of macros significantly.
 
 
-## Breaking changes {#breaking-changes}
+## Breaking Changes
 
-### Datatype visibility requirements
+### Datatype Visibility Requirements
 
 Currently, all structs in Move are, by convention, public: any other module or package can import them and refer to them by type. To make this clearer, Move 2024 requires that all structs be declared with the `public` keyword. For example:
 
@@ -366,7 +367,7 @@ public struct S { x: u64 }
 
 Any non-public struct produces an error at this time, though the Move team is working on new visibility options for future releases.
 
-### Mutability requirements
+### Mutability Requirements
 
 Previously, all variables in Move were implicitly mutable. For example:
 
