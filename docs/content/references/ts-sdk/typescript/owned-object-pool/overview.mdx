@@ -14,7 +14,7 @@ benefit of the lower latency those objects provide. On top of that, they are imp
 completely avoid because the transaction's gas coin is an owned object.
 
 Finally, the situation is exacerbated by
-[gas smashing](../../../../developer/iota-101/transactions/gas-smashing.mdx) and the IOTA TypeScript SDK's
+[coin-merging](../../../../developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging.mdx) and the IOTA TypeScript SDK's
 default coin selection logic, which uses all the `0x2::coin::Coin<0x2::iota::IOTA>` objects owned by
 an address for every transaction's gas payment. These defaults make sending transactions from your
 wallet straightforward (doing so automatically cleans up coin dust), but means that developers
