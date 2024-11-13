@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from "react";
 import { Select, MenuItem, FormControl, InputLabel } from "@mui/material";
 import { StyledEngineProvider } from "@mui/material/styles";
+import ExecutionEnvironment from "@docusaurus/ExecutionEnvironment";
 
 const NETWORKS = ["Devnet", "Testnet"];
 
