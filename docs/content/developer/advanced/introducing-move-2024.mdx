@@ -80,8 +80,8 @@ The "lambdas" additionally will support control flow through break and return.
 
 ### Enums
 
-Enumerations allow you to define a single type that may hold multiple different shapes of data. Unlike structs which always have the same fields, enums can have different fields depending on the variant of the enum. For example, `enum Option<T> { None, Some(T) }` the variant None has no fields and the variant Some has a single field of type `T`.
-Move will allow destructuring enums using match expressions. Some examples of enums in Move are the following:
+Enumerations allow you to define a single type that may hold multiple different shapes of data. Unlike structs, which always have the same fields, enums can have different fields depending on the variant of the enum. For example, in `enum Option<T> { None, Some(T) }`, the variant None has no fields, and the variant Some has a single field of type `T`.
+Move allows destructuring enums using match expressions. Some examples of enums in Move are the following:
 
 ```move
 public enum Color {
