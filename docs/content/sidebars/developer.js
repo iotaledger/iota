@@ -312,6 +312,7 @@ const developer = [
             id: 'developer/advanced',
         },
         items: [
+            'developer/advanced/introducing-move-2024',
             'developer/advanced/iota-repository',
             'developer/advanced/custom-indexer',
             'developer/advanced/onchain-randomness',

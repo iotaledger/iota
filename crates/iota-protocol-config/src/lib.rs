@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{
-    RwLock,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    cell::RefCell,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use clap::*;
@@ -1083,14 +1083,16 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        if let Some(override_fn) = &*CONFIG_OVERRIDE.read().unwrap() {
-            warn!(
-                "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
-            );
-            override_fn(version, ret)
-        } else {
-            ret
-        }
+        CONFIG_OVERRIDE.with(|ovr| {
+            if let Some(override_fn) = &*ovr.borrow() {
+                warn!(
+                    "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
+                );
+                override_fn(version, ret)
+            } else {
+                ret
+            }
+        })
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -1708,10 +1710,12 @@ impl ProtocolConfig {
     pub fn apply_overrides_for_testing(
         override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
     ) -> OverrideGuard {
-        let mut option = CONFIG_OVERRIDE.write().unwrap();
-        assert!(option.is_none(), "config override already present");
-        *option = Some(Box::new(override_fn));
-        OverrideGuard
+        CONFIG_OVERRIDE.with(|ovr| {
+            let mut cur = ovr.borrow_mut();
+            assert!(cur.is_none(), "config override already present");
+            *cur = Some(Box::new(override_fn));
+            OverrideGuard
+        })
     }
 }
 
@@ -1760,7 +1764,9 @@ impl ProtocolConfig {
 
 type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
 
-static CONFIG_OVERRIDE: RwLock<Option<Box<OverrideFn>>> = RwLock::new(None);
+thread_local! {
+    static CONFIG_OVERRIDE: RefCell<Option<Box<OverrideFn>>> = const { RefCell::new(None) };
+}
 
 #[must_use]
 pub struct OverrideGuard;
@@ -1768,7 +1774,9 @@ pub struct OverrideGuard;
 impl Drop for OverrideGuard {
     fn drop(&mut self) {
         info!("restoring override fn");
-        *CONFIG_OVERRIDE.write().unwrap() = None;
+        CONFIG_OVERRIDE.with(|ovr| {
+            *ovr.borrow_mut() = None;
+        });
     }
 }
 
