@@ -41,25 +41,6 @@ const references = [
     },
     {
         type: 'category',
-        label: 'IOTA CLI',
-        link: {
-            type: 'doc',
-            id: 'references/cli',
-        },
-        items: [
-            'references/cli/client',
-            'references/cli/ptb',
-            'references/cli/console',
-            'references/cli/keytool',
-            'references/cli/move',
-            'references/cli/validator',
-            'references/cli/ceremony',
-            'references/cli/cheatsheet',
-        ],
-    },
-    'references/rust-sdk',
-    {
-        type: 'category',
         label: 'Move',
         link: {
             type: 'doc',
