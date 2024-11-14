@@ -18,6 +18,7 @@ tracing.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
+anyhow.workspace = true
 
 [dev-dependencies]
 # external dependencies
