@@ -1,0 +1,177 @@
+---
+description: Frequently asked question about IOTA Rebased, Move and the IOTA Rebased Proposal.
+---
+# FAQs
+
+## 1. How does the MoveVM improve security and developer experience?
+
+MoveVM offers:
+
+- **Resource-Oriented Programming:** Secure and flexible asset management.
+- **Strong Data Abstraction:** Simplifies resource management tasks.
+- **Static Verification:** Detects errors before code execution, enhancing security.
+- **Formal Verification Support:** Allows rigorous validation of smart contract logic.
+- **Improved Developer Experience:** Reduces bugs and vulnerabilities through strict typing.
+
+## 2. How can I participate in the testnet and provide feedback?
+
+To participate:
+
+- **Join the Public Testnet:** Access the IOTA Rebased public testnet to explore new features.
+- **Provide Feedback:** Use dedicated channels on the [IOTA Discord](https://discord.iota.org/) server or [GitHub](https://github.com/iotaledger/iota) to report issues.
+
+## 3. What are the hardware requirements for validators?
+
+[Validators](https://docs.iota.org/operator/validator-operation/validator-tasks) are expected to have:
+
+- **RAM:** 128 GB
+- **CPU:** 24-core processor
+- **Storage:** 4 TB
+- **Network Uplink:** 1 Gbps
+- **Minimum Stake:** 2 million IOTAs (can be achieved through delegation)
+
+## 4. What happens to the existing IOTA EVM?
+
+The [IOTA EVM](https://wiki.iota.org/isc/introduction/) on Layer 2 will:
+
+- **Continue Operating:** It will eventually run alongside the new IOTA Rebased Layer 1.
+- **Integration Plans:** Future plans include integrating EVM capabilities directly into Layer 1.
+- **Temporary Pause During Upgrade:** The EVM chain will be paused and upgraded but will resume normal operations
+  afterward.
+
+## 5. What are the key features introduced with IOTA Rebased?
+
+Key features include:
+
+- **L1 Smart Contracts:** Smart contract capabilities directly on the Layer 1 network using MoveVM.
+- **[Delegated Proof of Stake (dPoS)](./tokenomics/proof-of-stake.mdx):** A fully decentralized network governed by validators and stakers.
+- **[Enhanced Tokenomics](./tokenomics//tokenomics.mdx):** Staking rewards, transaction fees with fee-burning, and storage deposits.
+- **[Improved Security and Performance](./iota-architecture/iota-security.mdx):** Resilient [consensus](./iota-architecture/consensus.mdx) mechanisms, fairer gas pricing, and dynamic validator selection.
+
+## 6. Why is IOTA moving to the MoveVM and an object-based architecture?
+
+The shift to the MoveVM and an object-based architecture is designed to:
+
+- **Enhance Flexibility and Programmability:** Allow complex applications to be written via smart contracts directly on L1.
+- **Support Advanced Use Cases:** Enable sophisticated financial instruments, decentralized exchanges, and intricate supply chain systems.
+- **Improve Security:** Leverage MoveVM features like resource-oriented programming and static verification to enhance security.
+- **Simplify Development:** Provide strong data abstraction capabilities and support for formal verification, improving the developer experience.
+
+## 7. How will the tokenomics change under the IOTA Rebased proposal?
+
+The new tokenomics model includes:
+
+- **[Staking Rewards](./tokenomics/validators-staking.mdx):** Validators and delegators receive newly minted IOTA tokens as rewards (approximately 767,000 IOTAs per epoch), resulting in an initial annual inflation rate of about 6%.
+- **[Transaction Fees](./tokenomics/gas-in-iota.mdx):** Small fees are charged on transactions (around 0.005 IOTA for an average transaction) and are burned to create deflationary pressure.
+- **[Storage Deposits](./tokenomics/gas-in-iota.mdx#storage-units):** A redeemable deposit is required for storage, similar to the storage deposit system used in IOTA Stardust.
+
+## 8. How does staking work in the new tokenomics model?
+
+Staking involves:
+
+- **[Delegation to Validators](./tokenomics/validators-staking.mdx):** Token holders can delegate their tokens to validators to help secure the network.
+- **[Earning Rewards](./tokenomics/validators-staking.mdx#validator-pool-rewards):** Both validators and their delegators receive staking rewards from newly minted tokens.
+- **Proportional Distribution:** Rewards are distributed based on the amount of stake and validator commissions.
+
+## 9. How will the new fee-burning mechanism work?
+
+The fee-burning mechanism:
+
+- **Burns Transaction Fees:** Collected fees are burned, reducing the overall token supply.
+- **Deflationary Effect:** Increased network usage leads to more fees burned, creating deflationary pressure.
+- **Supply Dynamics:** The mechanism balances inflation from staking rewards and deflation from fee burning.
+
+## 10. How will the introduction of transaction fees affect users?
+
+Transaction fees are minimal and serve as a congestion control mechanism:
+
+- **Low Fees:** Approximately 0.005 IOTA per average transaction.
+- **Fee Burning:** Fees are burned to reduce the total supply, creating deflationary pressure.
+- **Staking Rewards Offset Fees:** Users can earn staking rewards that may exceed the cost of transaction fees.
+- **Sponsored Transactions:** Developers can cover transaction fees on behalf of users, allowing for feeless user experiences.
+
+## 11. How will this affect current token holders?
+
+For current token holders:
+
+- **Balances Maintained:** All balances will be migrated to the new network without loss.
+- **Same Private Keys:** Users can access their tokens using their existing private keys in the new IOTA Wallet.
+- **[Staking Opportunities](./about-iota/tokenomics/validators-staking):** Token holders can participate in staking or delegation to earn rewards.
+
+## 12. Will there be any migration steps for users?
+
+No manual migration is needed:
+
+- **Seamless Transition:** The [migration process](../developer/stardust/stardust-migration.mdx) is designed to be automatic.
+- **New Wallet Access:** Users will need to use the new [IOTA Wallet](./iota-wallet/getting-started.mdx) and can import their existing mnemonics or private keys.
+
+## 13. Will transaction fees impact the feeless nature of IOTA?
+
+Yes, but:
+
+- **Minimal Impact:** Fees are very low and designed as a congestion control mechanism.
+- **Net Gain for Users:** Staking rewards can offset transaction fees, potentially resulting in more tokens than before.
+- **Sponsored Transactions:** Developers can sponsor fees, allowing users to transact without holding IOTA tokens.
+
+## 14. How will the governance vote work?
+
+The governance vote allows IOTA token holders to decide on the proposed upgrade:
+
+- **Announcement Phase:** The proposal is announced, and the community is informed.
+- **Voting Open Phase (7 days):** Voters cast their ballots before counting begins.
+- **Counting Phase (7 days):** Votes accumulate over time; each IOTA token accumulates voting power at a rate of 0.01 votes per milestone.
+- **Quorum Requirement:** A minimum of 5% of the circulating supply must participate for the vote to be valid.
+- **Outcome Determination:** The option with the majority of votes prevails.
+
+## 15. What happens if the proposal is accepted?
+
+If accepted:
+
+- **Mainnet Upgrade:** The IOTA network will transition to the new IOTA Rebased protocol after thorough testing and audits.
+- **Network Transition:** A final snapshot of the current network will migrate balances to the new network on a 1:1 basis.
+- **IOTA EVM Chain Upgrade:** The IOTA EVM Layer 2 chain will be temporarily paused and upgraded to integrate with the new ledger.
+- **Wallet Transition:** The IOTA Firefly wallet will be discontinued. Users can access their holdings with the new IOTA Wallet using the same private keys.
+- **Token Continuity:** No token migration is necessary; tokens will be available immediately after the launch.
+
+## 16. What happens if the proposal is rejected?
+
+If rejected:
+
+- **Current Operations Continue:** The IOTA network will continue operating as it currently does.
+- **Future Decisions:** The IOTA Foundation will decide on future development paths and how to proceed with network improvements.
+
+## 17. What is the IOTA Rebased proposal?
+
+The IOTA Rebased proposal is a significant upgrade to the IOTA protocol that aims to enhance the network's capabilities by:
+
+- **Transitioning to an Object-Based Architecture:** Moving away from the current UTXO model to an object-based ledger.
+- **Introducing the Move Virtual Machine (MoveVM):** Implementing MoveVM to enable Layer 1 (L1) smart contract capabilities.
+- **Establishing Full Decentralization:** Adopting a delegated proof-of-stake (dPoS) system with validators and stakers to secure the network.
+- **Updating Tokenomics:** Introducing staking rewards, transaction fees, and a fee-burning mechanism to create a dynamic supply.
+
+## 18. What is the future roadmap for IOTA?
+
+The future roadmap includes:
+
+- **Protocol Refinements:** Enhancements like resilient consensus mechanisms and fairer gas pricing.
+- **Multi-VM Ledger:** Transitioning to support multiple virtual machines, including EVM, on Layer 1.
+- **Tooling and Products:** Developing new wallets, SDKs, CLI tools, and identity solutions.
+- **Mainnet Launch Timeline:** A potential launch in early 2025 after thorough testing and audits.
+
+## 19. Why is IOTA making this change now?
+
+The change addresses:
+
+- **Market Demands:** There's a clear need for Layer 1 programmability and smart contracts to meet modern application requirements.
+- **Technological Evolution:** The new architecture allows for faster, more secure, and scalable solutions.
+- **Avoiding Delays:** Continuing with the current roadmap would require additional years of research and development with uncertain outcomes.
+
+## 20. Where can I find more information and stay updated?
+
+Stay informed by:
+
+- **Visiting Official Resources:** Visit the official [IOTA Foundation Blog](https://blog.iota.org/) for regular updated.
+- **Joining Community Channels:** Engage with the IOTA community on [Discord](https://discord.iota.org/),
+  [YouTube](https://www.youtube.com/c/iotafoundation), [X](https://www.twitter.com/iota/) and [GitHub](https://www.github.com/iotaledger/).
+- **Following Announcements:** Keep an eye on official blog posts and updates from the IOTA Foundation.
+
