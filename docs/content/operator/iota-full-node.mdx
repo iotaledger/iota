@@ -111,32 +111,43 @@ Open a terminal or console to the `iota` directory you downloaded in the previou
 1. Install the required prerequisites.
 1. Make a copy of the [Full node YAML template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml):
     `cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml`
-1. Download the genesis blob for the network to use:
-    - [Devnet genesis blob](https://dbfiles.iota-rebased-devnet.iota.cafe/genesis.blob):
-        `curl -fLJO https://dbfiles.iota-rebased-devnet.iota.cafe/genesis.blob`
-    - [Testnet genesis blob](https://dbfiles.iota-rebased-testnet.iota.cafe/genesis.blob):
-        `curl -fLJO https://dbfiles.iota-rebased-testnet.iota.cafe/genesis.blob`
-1. For Devnet or Testnet: Edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append the following to the end of the current configuration:
+
+1. Download the genesis and migration blob for the network to use:
+    - [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
+        `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
+    - [Devnet genesis blob](https://dbfiles.devnet.iota.cafe/genesis.blob):
+        `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
+    - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
+        `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
+    - [Mainnet genesis blob](https://github.com/iotaledger/iota/TODO):
+        `curl -fLJO TODO`
+    - [Mainnet migration blob](https://github.com/iotaledger/iota/TODO):
+        `curl -fLJO TODO`
+1. For Testnet or Devnet: Edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append the following to the end of the current configuration:
 
     <Tabs groupId="network">
+
+    <TabItem label="Testnet" value="testnet">
+
+    ```yaml
+    p2p-config:
+      seed-peers:
+        - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
+          peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
+        - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
+          peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
+    ```
+    </TabItem>
 
     <TabItem label="Devnet" value="devnet">
 
     ```yaml
     p2p-config:
       seed-peers:
-        - address: /dns/access-0.r.iota-rebased-devnet.iota.cafe/udp/8084
-          peer-id: 10cbea76ea5ec3f7ee827f0c11f612f0059949127876dd964b09304bf8808d18
-    ```
-
-    </TabItem>
-    <TabItem label="Testnet" value="testnet">
-
-    ```yaml
-    p2p-config:
-      seed-peers:
-        - address: TODO # Example: /dns/yto-tnt-ssfn-01.testnet.iota.cafe/udp/8084
-          peer-id: TODO # Example: 2ed53564d5581ded9b6773970ac2f1c84d39f9edf01308ff5a1ffe09b1add7b3
+        - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
+          peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
+        - address: /dns/access-1.r.devnet.iota.cafe/udp/8084
+          peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
     ```
 
     </TabItem>
@@ -151,7 +162,10 @@ Open a terminal or console to the `iota` directory you downloaded in the previou
     genesis:
         genesis-file-location: "/iota-fullnode/genesis.blob"
     ```
-
+1. Update the  `migration-tx-data-path` with the path to the migration.blob
+    ```yaml
+    migration-tx-data-path: "/opt/iota/config/migration.blob"
+    ```
 ### Compiling the node
 
 Run the following command to compile the `iota-node`.
@@ -215,9 +229,9 @@ If you followed the instructions for Building from Source, use the following ste
     ```shell
     cd iota
     ```
-1. Remove the database and 'genesis.blob' file:
+1. Remove the database, 'genesis.blob' and 'migration.blob' file:
     ```shell
-    rm -r iotadb genesis.blob
+    rm -r iotadb genesis.blob migration.blob
     ```
 1. Fetch the source from the latest release:
     ```shell
@@ -227,14 +241,13 @@ If you followed the instructions for Building from Source, use the following ste
     ```shell
     git checkout -B <BRANCH-NAME> --track upstream/<BRANCH-NAME>
     ```
-1. Download the latest genesis blob:
-    - [Devnet genesis blob](https://github.com/iotaledger/iota):
-        ```shell
-        curl -fLJO TODO
-        ```
-    - [Testnet genesis blob](https://github.com/iotaledger/iota):
-        ```shell
-        curl -fLJO TODO
+1. Download the latest genesis and migration blob:
+    - [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
+        `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
+    - [Devnet genesis blob](https://dbfiles.devnet.iota.cafe/genesis.blob):
+        `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
+    - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
+        `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
         ```
 1. Update your `fullnode.yaml` configuration file, if needed.
 1. Recompile your IOTA Full node with the same command as in [Compiling the node](#compiling-the-node):
