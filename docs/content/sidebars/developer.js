@@ -57,6 +57,7 @@ const developer = [
                 label: 'Typescript SDK',
                 href: '/references/ts-sdk/typescript',
             },
+            'developer/iota-101/using-events',
         ],
     },
     {
@@ -106,6 +107,7 @@ const developer = [
                     'developer/iota-101/move-overview/patterns/id-pointer',
                 ],
             },
+            'developer/iota-101/access-time',
             'developer/iota-101/move-overview/conventions',
         ],
     },
@@ -212,8 +214,6 @@ const developer = [
         label: 'NFT',
         items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft'],
     },
-    'developer/iota-101/using-events',
-    'developer/iota-101/access-time',
     {
         type: 'category',
         label: 'Cryptography',
