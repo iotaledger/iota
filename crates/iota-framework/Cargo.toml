@@ -15,6 +15,7 @@ serde.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+anyhow.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
