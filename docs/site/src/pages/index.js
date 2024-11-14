@@ -99,7 +99,7 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="./developer/move-overview"
+              to="./developer/move-overview/move-overview"
             >
               Move
             </Link>
