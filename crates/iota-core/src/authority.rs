@@ -4250,7 +4250,7 @@ impl AuthorityState {
             let modules = framework_injection::get_override_modules(system_package.id(), self.name)
                 .unwrap_or(modules);
 
-            let Some(obj_ref) = iota_framework::compare_system_package(
+            let Ok(obj_ref) = iota_framework::compare_system_package(
                 &self.get_object_store(),
                 system_package.id(),
                 &modules,
