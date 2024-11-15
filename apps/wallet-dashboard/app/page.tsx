@@ -8,12 +8,18 @@ import { useEffect } from 'react';
 import { redirect } from 'next/navigation';
 import { IotaLogoWeb } from '@iota/ui-icons';
 import { HOMEPAGE_ROUTE } from '@/lib/constants/routes.constants';
+import { Theme, useTheme } from '@iota/core';
 
 function HomeDashboardPage(): JSX.Element {
+    const { theme } = useTheme();
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
 
     const CURRENT_YEAR = new Date().getFullYear();
+    const videoSrc =
+        theme === Theme.Dark
+            ? 'https://files.iota.org/media/tooling/wallet-dashboard-welcome-dark.mp4'
+            : 'https://files.iota.org/media/tooling/wallet-dashboard-welcome-light.mp4';
 
     useEffect(() => {
         if (connectionStatus === 'connected' && account) {
@@ -23,18 +29,15 @@ function HomeDashboardPage(): JSX.Element {
 
     return (
         <main className="flex h-screen">
-            <div className="hidden sm:flex md:w-1/4">
+            <div className="relative hidden sm:flex md:w-1/3">
                 <video
                     autoPlay
                     muted
                     loop
-                    className="h-full w-full object-cover"
+                    className="absolute right-0 top-0 h-full w-full min-w-fit object-cover"
                     disableRemotePlayback
                 >
-                    <source
-                        src="https://files.iota.org/media/tooling/wallet-dashboard-welcome.mp4"
-                        type="video/mp4"
-                    />
+                    <source src={videoSrc} type="video/mp4" />
                 </video>
             </div>
             <div className="flex h-full w-full flex-col items-center justify-between p-md sm:p-2xl">
