@@ -29,14 +29,14 @@ async function mintMyCoin(address: string) {
     // Choose the first kiosk for simplicity. We could have extra logic here (e.g. let the user choose, pick a personal one, etc).
     const cap = kioskOwnerCaps[0];
 
-    const txb = new TransactionBlock();
-    const kioskTx = new KioskTransaction({ transactionBlock: txb, kioskClient, cap });
+    const tx = new Transaction();
+    const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
     // We're mixing the logic here. If the cap is undefined, we create a new kiosk.
     if (!cap) kioskTx.create();
 
     // Let's mint a MyCoin here into the kiosk (either a new or an existing one).
-    txb.moveCall({
+    tx.moveCall({
         target: `${packageId}::my_module::mint_app::mint`,
         arguments: [kioskTx.getKiosk(), kioskTx.getKioskCap()],
         typeArguments: [myType],
@@ -47,8 +47,8 @@ async function mintMyCoin(address: string) {
 
     kioskTx.finalize();
 
-    // sign and execute transaction block.
-    await signAndExecuteTransactionBlock({ tx: txb });
+    // sign and execute transaction.
+    await signAndExecuteTransaction({ tx });
 }
 ```
 
@@ -59,8 +59,8 @@ This example demonstrates how to use the Kiosk SDK to mix two `MyCoins`.
 ```typescript
 // We're mixing two coins.
 async function mixMyCoins(firstCoinObjectId: string, secondCoinObjectId: string, cap: KioskOwnerCap) {
-    const txb = new TransactionBlock();
-    const kioskTx = new KioskTransaction({ transactionBlock: txb, kioskClient, cap });
+    const tx = new Transaction();
+    const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
     // borrow both coins.
     const [coin1, promise1] = kioskTx.borrow({
@@ -74,7 +74,7 @@ async function mixMyCoins(firstCoinObjectId: string, secondCoinObjectId: string,
     });
 
     // Let's call the mix function. We skip any payment related stuff here.
-    txb.moveCall({
+    tx.moveCall({
         target: `${packageId}::mix_app::mix`,
         arguments: [
             coin1,
@@ -96,7 +96,7 @@ async function mixMyCoins(firstCoinObjectId: string, secondCoinObjectId: string,
         promise: promise2
     }).finalize();
 
-    // sign and execute transaction block.
-    await signAndExecuteTransactionBlock({ tx: txb });
+    // sign and execute transaction.
+    await signAndExecuteTransaction({ tx });
 }
 ```

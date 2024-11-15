@@ -108,6 +108,7 @@ const config = {
         intentionallyNotExported: [],
       },
     ],
+    'plugin-image-zoom'
   ],
   presets: [
     [
@@ -272,6 +273,14 @@ const config = {
         darkTheme: themes.vsDark,
         additionalLanguages: ["rust", "typescript", "solidity"],
       },
+      imageZoom: {
+        selector: '.markdown img',
+        // Optional medium-zoom options
+        // see: https://www.npmjs.com/package/medium-zoom#options
+        options: {
+          background: 'rgba(0, 0, 0, 0.6)',
+        },
+      }
     }),
 };
 
