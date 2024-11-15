@@ -12,6 +12,7 @@ services:
     volumes:
       - ./fullnode-template.yaml:/opt/iota/config/fullnode.yaml:ro
       - ./genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./migration.blob:/opt/iota/config/migration.blob:ro
       - ./iotadb:/opt/iota/db:rw
     command: [
       "/opt/iota/bin/iota-node",
