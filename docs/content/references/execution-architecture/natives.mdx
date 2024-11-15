@@ -2,6 +2,7 @@
 title: Natives & Object Runtime
 description: This document describes the object runtime and native functions flow.
 ---
+import ThemedImage from '@theme/ThemedImage';
 
 ## IOTA Move Natives
 
@@ -16,7 +17,14 @@ pub fn all_natives(silent: bool) -> NativeFunctionTable
 Contains all registered native functions.
 The resulting NativeFunctionTable object contains information about all the native functions that can be called from a Move contract.
 
-![Native functions](/img/concepts/execution-architecture/native-fns-flow.svg)
+<ThemedImage
+    alt='Native functions'
+    sources={{
+    light: '/img/concepts/execution-architecture/native-fns-flow.svg',
+    dark: '/img/concepts/execution-architecture/dark/native-fns-flow.svg',
+}}
+/>
+
 
 ## Object runtime
 

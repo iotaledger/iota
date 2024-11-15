@@ -12,7 +12,7 @@ that can be shared (for instance, via GitHub) with the validators.
 Typing `iota genesis-ceremony --help` into your terminal or console displays the following information on available commands.
 
 ```shell
-Create an Iota Genesis Ceremony with multiple remote validators
+Create an IOTA Genesis Ceremony with multiple remote validators
 
 Usage: iota genesis-ceremony [OPTIONS] <COMMAND>
 
@@ -89,19 +89,19 @@ iota genesis-ceremony add-validator \
 ```yaml
 info:
   name: validator0
-  account-address: 0xae12525173c83e472daf8c30e80ec6e220675c329029fe81dcae9bb3e53d4aef
-  authority-key: l5SIw1DYpic0kkkKDQm5NuLxWhzICh2WymxnVCutKkIzsaJx8u71qWdvRzN7QoRqEsGONoGpkCu8VbRFp0+prU/lTzeozmJTeou5JmW8JWSIZ1aLrZ41+vKluYoV2tVB
-  protocol-key: bjoiPMq9KY38ug6fwYKLIz/uPegBrghszVphlEHbX4c=
-  network-key: lMg+5fuSD/E65lxbk6bqB1QWPuVsxGAUIQWHEmSKJWg=
+  account-address: "0x3906e94925f3622aaf35a4b7462fa0f22fa6a9c5df160c07e050ca1ff0bf55bb"
+  authority-key: tNswfm+q76ecEQwe6OkR/lnBOcQnt4dnlQozhMEhQ+4eQ4+JoDX+3J0RMVUUT1P6AMue5TJApqa0a5TguBAvYrDjdJs8NDaGU2aJsb1/HQ7UKCL5IiEnFSLAOO12HszU
+  protocol-key: E7uErkWEg6ac1MWMHHEYmDJ6mTk0Pd2QNV9H0feXSiI=
+  network-key: E7uErkWEg6ac1MWMHHEYmDJ6mTk0Pd2QNV9H0feXSiI=
   gas-price: 1000
   commission-rate: 200
   network-address: /ip4/127.0.0.1/tcp/38189/http
   p2p-address: /ip4/127.0.0.1/udp/34523
   primary-address: /ip4/127.0.0.1/udp/38603
   description: validator0
-  image-url: https://www.iota.org/favicon.png
-  project-url: https://www.iota.org
-proof_of_possession: iOnFPnGqbXbQGhI3H4bokzt2FRuWb/VzEWq4/k7xiKIz8JGDJdZvwC+56fqz534f
+  image-url: "https://www.iota.org/favicon.png"
+  project-url: "https://www.iota.org"
+proof_of_possession: pk+5HoByE1fuHjkDVHOaKxazKnHLEOYf9IoDP9+C5eeG06Ji30Y9lXCHmB/swVdf
 ```
 
 </details>
@@ -120,7 +120,7 @@ iota genesis-ceremony list-validators
 ```shell
 Validator Name Account Address
 -------------- ------------------------------------------------------------------
-validator0     0xae12525173c83e472daf8c30e80ec6e220675c329029fe81dcae9bb3e53d4aef
+validator0     0x3906e94925f3622aaf35a4b7462fa0f22fa6a9c5df160c07e050ca1ff0bf55bb
 validator1     0xba55e3ce221bb7edfbbef4d59b68893f5550b6302a9456b738ad8cf06919be0c
 ```
 
@@ -176,7 +176,7 @@ iota genesis-ceremony examine-genesis-checkpoint
 Each validator must sign the created checkpoint before finalizing the genesis blob.
 
 ```shell
-iota genesis-ceremony verify-and-sign --key-file validator.key
+iota genesis-ceremony verify-and-sign --key-file authority.key
 ```
 
 ### Finalize the Genesis blob
