@@ -8,8 +8,11 @@ on:
         required: false
         default: "./Cargo.toml"
 
+env:
+  MANIFEST_PATH: ${{ inputs.manifest-path || './Cargo.toml' }}
+
 concurrency:
-  group: cargo-deny-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: cargo-deny-$MANIFEST_PATH-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -17,10 +20,10 @@ jobs:
     name: cargo deny (bans, licenses, sources)
     runs-on: [self-hosted]
     steps:
-      - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check bans licenses sources
+      - run: cargo deny --manifest-path $MANIFEST_PATH check bans licenses sources
 
   advisories:
     name: cargo deny (advisories)
     runs-on: [self-hosted]
     steps:
-      - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check advisories
+      - run: cargo deny --manifest-path $MANIFEST_PATH check advisories
