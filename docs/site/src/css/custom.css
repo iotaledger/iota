@@ -123,31 +123,31 @@
   color: white;
 }
 /** navbar overrides */
-[data-theme="light"] .menu__link {
-  color: #525860;
+[data-theme="light"] .clean-btn:hover {
+    background-color: #525860;
 }
 
-[data-theme="light"] .menu__link--active {
-  font-weight: bold;
-  color: #525860;
-}
 [data-theme="dark"] .menu__link--active {
   font-weight: bold;
   color: white;
 }
+
+@media (min-width: 769px) {
+  [data-theme="light"] .menu__link--active{
+    font-weight: bold;
+    color: var(--ifm-menu-color);
+  }
+}
+@media (max-width: 768px) {
 .navbar-sidebar,
-.menu__link {
-  color: rgba(255, 255, 255, 0.7);
-}
+  .menu__link {
+    color: rgba(255, 255, 255, 0.7);
+  }
 
-[data-theme="light"] .menu__link--active {
-  font-weight: bold;
-  color: #525860;
-}
-
-[data-theme="light"] .menu__link--active {
-  font-weight: bold;
-  color: #525860;
+  [data-theme="light"] .menu__link--active {
+    font-weight: bold;
+    color: white;
+  }
 }
 
 [data-theme="light"] .pagination-nav__label {
