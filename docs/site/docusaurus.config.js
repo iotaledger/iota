@@ -242,6 +242,10 @@ const config = {
             to: "developer",
           },
           {
+            label: "TS SDK",
+            to: "references/ts-sdk/typescript/",
+          },
+          {
             label: "Node Operators",
             to: "operator",
           },
