@@ -35,7 +35,7 @@ The first line of the module defines the module's name and the package it belong
 
 Move's [object model](../iota-101/objects/object-model.mdx) allows for code reuse. You can use types and functions declared in other modules, even if they belong to different packages.
 
-In this example, the module imports from the `object`, `transfer`, and `tx_context` modules from the `iota` package, which was defined as a [package dependency](create-a-package.mdx#dependencies).
+In this example, the module imports from the `object`, `transfer`, and `tx_context` modules from the `iota` package, which was defined as a [package dependency](create-a-package.mdx#dependencies). The module does not need to import them explicitly, because the compiler provides these `use` statements by default.
 
 ## Struct Declarations
 
