@@ -1,7 +1,9 @@
-# useSignTransactionBlock
+# `useReportTransactionEffects`
 
-Use the `useSignTransactionBlock` hook to prompt the user to sign a transaction block with their
-wallet.
+Use the `useReportTransactionEffects` hook can be used to report the effects of a transaction to the
+connected wallet. The `useSignAndExecuteTransaction` hook automatically reports effects, and the
+`useSignTransaction` hook provides a `reportTransactionEffects` callback to report effects manually,
+so this hook is only needed when using a non-standard flow for executing transactions.
 
 ```ts live noInline
 function withProviders(
@@ -36,9 +38,10 @@ function withProviders(
     };
 }
 
-const UseSignTransactionBlockExample = withProviders(() => {
-    const { mutate: signTransactionBlock } = useSignTransactionBlock();
+function UseReportTransactionEffectsExample() {
+    const { mutateAsync: reportTransactionEffects } = useReportTransactionEffects();
     const [signature, setSignature] = useState('');
+    const client = useIotaClient();
     const currentAccount = useCurrentAccount();
 
     return (
@@ -48,22 +51,12 @@ const UseSignTransactionBlockExample = withProviders(() => {
                 <>
                     <div>
                         <button
-                            onClick={() => {
-                                signTransactionBlock(
-                                    {
-                                        transactionBlock: new TransactionBlock(),
-                                        chain: 'iota:devnet',
-                                    },
-                                    {
-                                        onSuccess: (result) => {
-                                            console.log('signed message', result);
-                                            setSignature(result.signature);
-                                        },
-                                    },
-                                );
+                            onClick={async () => {
+                                const { effects } = await executePreSignedTransaction();
+                                reportTransactionEffects({ effects });
                             }}
                         >
-                            Sign empty transaction block
+                            Sign empty transaction
                         </button>
                     </div>
                     <div>Signature: {signature}</div>
@@ -71,17 +64,16 @@ const UseSignTransactionBlockExample = withProviders(() => {
             )}
         </div>
     );
-});
+}
 
-render(<UseSignTransactionBlockExample/>)
+render(<UseReportTransactionEffectsExample/>)
 ```
 
 ## Arguments
 
--   `transactionBlock`: The transaction block to sign.
--   `chain`: (optional) The chain identifier the transaction block should be signed for.
-
-## Result
-
--   `signature`: The signature of the message, as a Base64-encoded `string`.
--   `transactionBlockBytes`: The serialized transaction bytes, as a a Base64-encoded `string`.
+- `effects`: The effects of an executed transaction. This can either be the `rawEffects` returned
+  from the JSON-RPC `executeTransaction` method (returned when showRawEffects is set to true),
+  or the `effects.bcs` when executing with the GraphQL API.
+- `chain`: (optional) The chain identifier the transaction was executed on.
+- `account` (optional) the account that signed the transaction, defaults to the currently connected
+  account
