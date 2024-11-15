@@ -1,0 +1,41 @@
+
+import ChallengeVerifier  from '@site/src/components/CTF/ctf-verifier';
+
+
+
+
+# Challenge 1: Checkin
+
+In this first challenge, your task is to interact with a basic Move contract. The contract defines a `Flag` object, which you need to retrieve by calling a specific function.
+
+The contract mints a new flag and transfers it to your account. Your goal is to [call the function](../getting-started/publish.mdx#accessing-your-package), capture the flag, and then submit the object ID to verify your success.
+
+This challenge is designed to be an easy introduction, guiding you through the process of interacting with the blockchain, calling functions, and understanding the basics of flag capture.
+
+
+## Deployed Contract Address:
+```
+Package: 0xce9b1471301ffaf1453297cca008a68ce851b6a9ba9ab241c357c346177903f3
+```
+
+## Contracts
+### `checkin.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_1/sources/checkin.move
+```
+
+
+## Related Articles
+
+In this challenge, you must use the IOTA CLI to interact with the blockchain. This set of articles will help you set up your environment and call a deployed contract:
+
+- [Installing IOTA CLI](../getting-started/install-iota.mdx)
+- [Connecting an IOTA Network](../getting-started/connect.mdx)
+- [Get IOTA coins](../getting-started/get-coins.mdx)
+- [Accessing Your Package](../getting-started/publish.mdx#accessing-your-package)
+
+
+Good luck in capturing your first flag!
+
+
+
+<ChallengeVerifier expectedObjectType="0xce9b1471301ffaf1453297cca008a68ce851b6a9ba9ab241c357c346177903f3::checkin::Flag" />

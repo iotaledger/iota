@@ -1,4 +1,4 @@
-This crate provides the IOTA Rust SDK, containing APIs to interact with the IOTA network. Auto-generated documentation for this crate is [here](https://github.com/iotaledger/iota/iota_sdk/index.html).
+This crate provides the IOTA Rust SDK, containing APIs to interact with the IOTA network. Auto-generated documentation for this crate is [here](https://iotaledger.github.io/iota/iota_sdk/index.html).
 
 ## Getting started
 
@@ -19,11 +19,11 @@ use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // Iota testnet -- https://fullnode.testnet.iota.io:443
+    // Iota testnet -- https://api.testnet.iota.cafe
     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
     println!("Iota testnet version: {}", iota_testnet.api_version());
 
-     // Iota devnet -- https://fullnode.devnet.iota.io:443
+     // Iota devnet -- https://api.devnet.iota.cafe
     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
     println!("Iota devnet version: {}", iota_devnet.api_version());
 
@@ -53,13 +53,13 @@ There are several files ending in `_api.rs` which provide code examples of the c
 
 ### Prerequisites
 
-Unless otherwise specified, most of these examples assume `Rust` and `cargo` are installed, and that there is an available internet connection. The examples connect to the IOTA testnet (`https://fullnode.testnet.iota.io:443`) and execute different APIs using the active address from the local wallet. If there is no local wallet, it will create one, generate two addresses, set one of them to be active, and it will request 1 IOTA from the testnet faucet for the active address.
+Unless otherwise specified, most of these examples assume `Rust` and `cargo` are installed, and that there is an available internet connection. The examples connect to the IOTA testnet (`https://api.testnet.iota.cafe`) and execute different APIs using the active address from the local wallet. If there is no local wallet, it will create one, generate two addresses, set one of them to be active, and it will request 1 IOTA from the testnet faucet for the active address.
 
 ### Running the existing examples
 
 In the root folder of the `iota` repository (or in the `iota-sdk` crate folder), you can individually run examples using the command `cargo run --example filename` (without `.rs` extension). For example:
 
-- `cargo run --example iota_client` -- this one requires a local Iota network running (see [#Connecting to Iota Network](https://wiki.iota.cafe/developer/getting-started/local-network#start-the-local-network). If you do not have a local Iota network running, please skip this example.
+- `cargo run --example iota_client` -- this one requires a local Iota network running (see [#Connecting to Iota Network](https://docs.iota.org/developer/getting-started/local-network#start-a-local-network). If you do not have a local Iota network running, please skip this example.
 - `cargo run --example coin_read_api`
 - `cargo run --example event_api` -- note that this will subscribe to a stream and thus the program will not terminate unless forced (Ctrl+C)
 - `cargo run --example governance_api`
@@ -74,13 +74,13 @@ In the root folder of the `iota` repository (or in the `iota-sdk` crate folder),
 The `IotaClientBuilder` struct provides a connection to the JSON-RPC server that you use for all read-only operations. The default URLs to connect to the IOTA network are:
 
 - Local: http://127.0.0.1:9000
-- Devnet: https://fullnode.devnet.iota.io:443
-- Testnet: https://fullnode.testnet.iota.io:443
-- Mainnet: https://fullnode.mainnet.iota.io:443
+- Devnet: https://api.devnet.iota.cafe
+- Testnet: https://api.testnet.iota.cafe
+- Mainnet: https://api.mainnet.iota.cafe
 
-For all available servers, see [here](TODO: https://github.com/iotaledger/iota/issues/1614).
+For all available servers, see [here](https://docs.iota.org/developer/network-overview).
 
-For running a local IOTA network, please follow [this guide](https://wiki.iota.cafe/developer/getting-started/iota-install) for installing IOTA and [this guide](https://wiki.iota.cafe/developer/getting-started/local-network#start-the-local-network) for starting the local IOTA network.
+For running a local IOTA network, please follow [this guide](https://docs.iota.org/developer/getting-started/install-iota) for installing IOTA and [this guide](https://docs.iota.org/developer/getting-started/local-network#start-a-local-network) for starting the local IOTA network.
 
 ```rust
 use iota_sdk::IotaClientBuilder;
@@ -96,11 +96,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let iota_local = IotaClientBuilder::default().build_localnet().await?;
     println!("IOTA local network version: {}", iota_local.api_version());
 
-    // IOTA devnet -- https://fullnode.devnet.iota.io:443
+    // IOTA devnet -- https://api.devnet.iota.cafe
     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
     println!("IOTA devnet version: {}", iota_devnet.api_version());
 
-    // IOTA testnet -- https://fullnode.testnet.iota.io:443
+    // IOTA testnet -- https://api.testnet.iota.cafe
     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
     println!("IOTA testnet version: {}", iota_testnet.api_version());
 
@@ -141,15 +141,15 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
 
 1. Prepare the environment
 
-   1. Install `iota` binary following the [IOTA installation](https://wiki.iota.cafe/developer/getting-started/iota-install) docs.
-   1. [Connect to IOTA Devnet](https://wiki.iota.cafe/developer/getting-started/connect).
-   1. [Make sure you have two addresses with gas](https://wiki.iota.cafe/developer/getting-started/get-address) by using the `new-address` command to create new addresses:
+   1. Install `iota` binary following the [IOTA installation](https://docs.iota.org/developer/getting-started/install-iota) docs.
+   1. [Connect to IOTA Devnet](https://docs.iota.org/developer/getting-started/connect).
+   1. [Make sure you have two addresses with gas](https://docs.iota.org/developer/getting-started/get-address) by using the `new-address` command to create new addresses:
       ```shell
       iota client new-address ed25519
       ```
       You must specify the key scheme, one of `ed25519` or `secp256k1` or `secp256r1`.
       You can skip this step if you are going to play with a friend. :)
-   1. [Request IOTA tokens](https://wiki.iota.cafe/developer/getting-started/get-coins) for all addresses that will be used to join the game.
+   1. [Request IOTA tokens](https://docs.iota.org/developer/getting-started/get-coins) for all addresses that will be used to join the game.
 
 2. Publish the move contract
 

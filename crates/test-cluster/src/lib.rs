@@ -70,7 +70,7 @@ use iota_types::{
         get_bridge, get_bridge_obj_initial_shared_version,
     },
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{IotaKeyPair, KeypairTraits, ToFromBytes},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, ToFromBytes, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -79,6 +79,7 @@ use iota_types::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     message_envelope::Message,
+    messages_grpc::HandleCertificateRequestV1,
     object::Object,
     quorum_driver_types::ExecuteTransactionRequestType,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -87,6 +88,7 @@ use iota_types::{
         CertifiedTransaction, ObjectArg, Transaction, TransactionData, TransactionDataAPI,
         TransactionKind,
     },
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     core::RpcResult,
@@ -124,13 +126,18 @@ impl FullNodeHandle {
     }
 }
 
+struct Faucet {
+    address: IotaAddress,
+    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>,
+}
+
 pub struct TestCluster {
     pub swarm: Swarm,
     pub wallet: WalletContext,
     pub fullnode_handle: FullNodeHandle,
-
     pub bridge_authority_keys: Option<Vec<BridgeAuthorityKeyPair>>,
     pub bridge_server_ports: Option<Vec<u16>>,
+    faucet: Option<Faucet>,
 }
 
 impl TestCluster {
@@ -755,7 +762,14 @@ impl TestCluster {
                 })
                 .map(|client| {
                     let cert = certificate.clone();
-                    async move { client.handle_certificate_v2(cert, None).await }
+                    async move {
+                        client
+                            .handle_certificate_v1(
+                                HandleCertificateRequestV1::new(cert).with_events(),
+                                None,
+                            )
+                            .await
+                    }
                 })
                 .collect();
 
@@ -778,9 +792,9 @@ impl TestCluster {
         let mut all_events = HashMap::new();
         for reply in replies {
             let effects = reply.signed_effects.into_data();
+            let events = reply.events.unwrap_or_default();
             all_effects.insert(effects.digest(), effects);
-            all_events.insert(reply.events.digest(), reply.events);
-            // reply.fastpath_input_objects is unused.
+            all_events.insert(events.digest(), events);
         }
         assert_eq!(all_effects.len(), 1);
         assert_eq!(all_events.len(), 1);
@@ -790,7 +804,7 @@ impl TestCluster {
         ))
     }
 
-    /// This call sends some funds from the seeded address to the funding
+    /// This call sends some funds from the seeded faucet address to the funding
     /// address for the given amount and returns the gas object ref. This
     /// is useful to construct transactions from the funding address.
     pub async fn fund_address_and_return_gas(
@@ -799,20 +813,46 @@ impl TestCluster {
         amount: Option<u64>,
         funding_address: IotaAddress,
     ) -> ObjectRef {
-        let context = &self.wallet;
-        let (sender, gas) = context.get_one_gas_object().await.unwrap().unwrap();
-        let tx = context.sign_transaction(
-            &TestTransactionBuilder::new(sender, gas, rgp)
-                .transfer_iota(amount, funding_address)
-                .build(),
-        );
-        context.execute_transaction_must_succeed(tx).await;
+        let Faucet { address, keypair } = &self
+            .faucet
+            .as_ref()
+            .expect("Faucet not initialized: incompatible with `NetworkConfig`.");
 
-        context
-            .get_one_gas_object_owned_by_address(funding_address)
+        let keypair = &*keypair.lock().await;
+
+        let gas_ref = *self
+            .wallet
+            .get_gas_objects_owned_by_address(*address, None)
             .await
             .unwrap()
+            .first()
+            .unwrap();
+
+        let tx_data = TestTransactionBuilder::new(*address, gas_ref, rgp)
+            .transfer_iota(amount, funding_address)
+            .build();
+
+        let signed_transaction = to_sender_signed_transaction(tx_data, keypair);
+
+        let response = self
+            .iota_client()
+            .quorum_driver_api()
+            .execute_transaction_block(
+                signed_transaction,
+                IotaTransactionBlockResponseOptions::new().with_effects(),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await
+            .unwrap();
+
+        response
+            .effects
             .unwrap()
+            .created()
+            .first()
+            .unwrap()
+            .reference
+            .to_object_ref()
     }
 
     pub async fn transfer_iota_must_exceed(
@@ -1265,6 +1305,24 @@ impl TestClusterBuilder {
     }
 
     pub async fn build(mut self) -> TestCluster {
+        // We can add a faucet account to the `GenesisConfig` if there was no
+        // `NetworkConfig` provided. Only either a `GenesisConfig` or a
+        // `NetworkConfig` can be used to configure and build the cluster.
+        let faucet = self.network_config.is_none().then(|| {
+            let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
+            let accounts = &mut self.get_or_init_genesis_config().accounts;
+            accounts.push(AccountConfig {
+                address: Some(faucet_address),
+                gas_amounts: vec![DEFAULT_GAS_AMOUNT],
+            });
+            Faucet {
+                address: faucet_address,
+                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
+                    faucet_keypair,
+                ))),
+            }
+        });
+
         // All test clusters receive a continuous stream of random JWKs.
         // If we later use zklogin authenticated transactions in tests we will need to
         // supply valid JWKs as well.
@@ -1305,13 +1363,8 @@ impl TestClusterBuilder {
         let fullnode_handle =
             FullNodeHandle::new(fullnode.get_node_handle().unwrap(), json_rpc_address).await;
 
-        wallet_conf.envs.push(IotaEnv {
-            alias: "localnet".to_string(),
-            rpc: fullnode_handle.rpc_url.clone(),
-            ws: None,
-            basic_auth: None,
-        });
-        wallet_conf.active_env = Some("localnet".to_string());
+        wallet_conf.add_env(IotaEnv::new("localnet", fullnode_handle.rpc_url.clone()));
+        wallet_conf.set_active_env(Some("localnet".to_string()));
 
         wallet_conf
             .persisted(&working_dir.join(IOTA_CLIENT_CONFIG))
@@ -1327,6 +1380,7 @@ impl TestClusterBuilder {
             fullnode_handle,
             bridge_authority_keys: None,
             bridge_server_ports: None,
+            faucet,
         }
     }
 
@@ -1603,13 +1657,9 @@ impl TestClusterBuilder {
         let active_address = keystore.addresses().first().cloned();
 
         // Create wallet config with stated authorities port
-        IotaClientConfig {
-            keystore: Keystore::from(FileBasedKeystore::new(&keystore_path)?),
-            envs: Default::default(),
-            active_address,
-            active_env: Default::default(),
-        }
-        .save(wallet_path)?;
+        IotaClientConfig::new(FileBasedKeystore::new(&keystore_path)?)
+            .with_active_address(active_address)
+            .save(wallet_path)?;
 
         // Return network handle
         Ok(swarm)

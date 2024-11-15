@@ -3,7 +3,6 @@ title: IOTA Exchange Integration Guide
 description: Learn the primary tasks necessary to integrate IOTA, the token native to the IOTA network, into a cryptocurrency exchange.
 ---
 
-import AlphaNet from "../../_snippets/alphanet.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/exchange-intergration/exchange-integration.json';
 
@@ -99,10 +98,9 @@ You can track balance changes by calling `iotax_getBalance` at predefined interv
 
 The following bash example demonstrates how to use `iotax_getBalance` for address `0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3`. If you use a network other than Devnet, replace the value for `rpc` with the URL to the appropriate Full node.
 
-<AlphaNet />
 
 ```bash
-rpc="https://fullnode.devnet.iota.org:443"
+rpc="https://api.devnet.iota.cafe:443"
 address="0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3"
 data="{\"jsonrpc\": \"2.0\", \"method\": \"iotax_getBalance\", \"id\": 1, \"params\": [\"$address\"]}"
 curl -X POST -H 'Content-type: application/json' --data-raw "$data" $rpc
@@ -115,16 +113,13 @@ The response is a JSON object that includes the `totalBalance` for the address:
   "result":{
      "coinType":"0x2::iota::IOTA",
      "coinObjectCount":40,
-     "totalBalance":10000000000,
-     "lockedBalance":{}
+     "totalBalance":10000000000
   },
   "id":1
 }
 ```
 
 ### Using Rust
-
-<AlphaNet />
 
 The following example demonstrates using `iotax_getBalance` in Rust:
 ```rust
@@ -135,7 +130,7 @@ use iota_sdk::IotaClientBuilder;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
    let iota = IotaClientBuilder::default().build(
-      "https://fullnode.devnet.iota.org:443",
+      "https://api.devnet.iota.cafe:443",
    ).await.unwrap();
    let address = IotaAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
    let objects = iota.coin_read_api().get_balance(address, None).await?;

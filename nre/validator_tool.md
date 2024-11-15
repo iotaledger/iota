@@ -6,7 +6,7 @@ This document is focused on using Validator Tool.
 
 ## Preparation
 
-1. Make sure you have completed all the [prerequisites](https://wiki.iota.org/devnet/build/install).
+1. Make sure you have completed all the [prerequisites](https://docs.iota.org/developer/getting-started/install-iota#prerequisites).
 
 2. Build the `iota` binary, which you will need for the genesis ceremony. This step can be done on any machine you like. It does not have to be done on the machine on which you will run the validator.
 
@@ -35,7 +35,7 @@ This document is focused on using Validator Tool.
       b. `active_address` is correct in `client.yaml`.
       b. `iota.keystore` contains your account key pair.
 
-   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://wiki.iota.org/devnet/build/cli-client).
+   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://docs.iota.org/references/cli/client).
 
 ```bash
 $IOTA_BINARY client
@@ -263,4 +263,30 @@ iota client call --package 0x3 --module iota_system --function request_add_stake
 
 ```bash
 iota validator join-committee
+```
+
+#### Combined
+
+First terminal:
+
+```bash
+iota start --force-regenesis --with-faucet --faucet-amount 2600000000000000
+```
+
+Second terminal after the faucet is up:
+
+```bash
+iota client switch --env localnet
+iota client faucet --url http://127.0.0.1:9123/gas
+sleep 2 
+iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
+iota validator become-candidate validator.info
+sleep 2
+coinObjectId=$(iota client gas --json | jq '.[0].gasCoinId')
+validatorAddress=$(iota client active-address)
+iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
+sleep 2
+iota validator join-committee
+sleep 2
+iota validator display-metadata
 ```

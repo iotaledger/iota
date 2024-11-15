@@ -95,7 +95,7 @@ import { WebSocket } from 'ws';
 
 new IotaClient({
     transport: new IotaHTTPTransport({
-        url: getFullnodeUrl('mainnet'),
+        url: getFullnodeUrl('testnet'),
         // The typescript definitions may not match perfectly, casting to never avoids these minor incompatibilities
         WebSocketConstructor: WebSocket as never,
     }),

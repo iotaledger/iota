@@ -7,7 +7,7 @@ import { Collapsible } from '_app/shared/collapse';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
+import { isAssetTransferable, useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -24,10 +24,7 @@ function NFTDetailsPage() {
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
     const { data: objectData, isPending: isNftLoading } = useOwnedNFT(nftId || '', accountAddress);
-    const isTransferable =
-        !!objectData &&
-        objectData.content?.dataType === 'moveObject' &&
-        objectData.content?.hasPublicTransfer;
+    const isTransferable = isAssetTransferable(objectData);
     const { nftFields, fileExtensionType, filePath } = useNFTBasicData(objectData);
     const address = useActiveAddress();
     const { data } = useGetKioskContents(address);
@@ -61,30 +58,38 @@ function NFTDetailsPage() {
     const isPending = isNftLoading || isPendingDisplay || isGuardLoading;
 
     function handleMoreAboutKiosk() {
-        window.open('https://wiki.iota.org/', '_blank');
+        window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
     }
 
     function handleMarketplace() {
-        window.open('https://wiki.iota.org/', '_blank');
+        // TODO: https://github.com/iotaledger/iota/issues/4024
+        window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
     }
 
     function handleSend() {
         navigate(`/nft-transfer/${nftId}`);
     }
 
-    function formatMetaValue(value: string) {
-        if (value.includes('http')) {
+    function formatMetaValue(value: string | object) {
+        if (typeof value === 'object') {
             return {
-                value: value.startsWith('http')
-                    ? truncateString(value, 20, 8)
-                    : formatAddress(value),
-                valueLink: value,
+                value: JSON.stringify(value),
+                valueLink: undefined,
+            };
+        } else {
+            if (value.includes('http')) {
+                return {
+                    value: value.startsWith('http')
+                        ? truncateString(value, 20, 8)
+                        : formatAddress(value),
+                    valueLink: value,
+                };
+            }
+            return {
+                value: value,
+                valueLink: undefined,
             };
         }
-        return {
-            value: value,
-            valueLink: undefined,
-        };
     }
 
     return (

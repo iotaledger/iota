@@ -1,6 +1,11 @@
 name: Rust tests
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      changedCrates:
+        type: string
+        required: false
 
 concurrency:
   group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -21,21 +26,8 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
-  changes:
-    runs-on: [self-hosted]
-    outputs:
-      components: ${{ steps.filter.outputs.changes }}
-    steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
-        id: filter
-        with:
-          list-files: "json"
-          filters: .github/crates-filters.yml
-
   test:
     name: Test rust crates
-    needs: changes
     if: (!cancelled())
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
@@ -50,7 +42,7 @@ jobs:
           tool: nextest
       - name: cargo test
         run: |
-          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+          array=(${{ inputs.changedCrates }})
 
           result=""
 
@@ -72,8 +64,7 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
-    # Temporarily disabled until the nightly build bug is resolved
-    if: (!cancelled() && false)
+    if: (!cancelled())
     strategy:
       matrix:
         flags: ["--all-features", "--no-default-features"]
@@ -127,7 +118,6 @@ jobs:
 
   simtest:
     name: Simtest rust
-    needs: changes
     timeout-minutes: 45
     runs-on: [self-hosted]
     env:
@@ -139,7 +129,7 @@ jobs:
           tool: nextest
       - name: setup filter
         run: |
-          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+          array=(${{ inputs.changedCrates }})
 
           result=""
 
@@ -244,3 +234,6 @@ jobs:
           cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
           cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
           cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
+          # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
+          # cargo test, on the other hand, allows tests to share state and resources by default.
+          cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime

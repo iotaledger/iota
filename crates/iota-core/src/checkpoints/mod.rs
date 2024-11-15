@@ -42,8 +42,8 @@ use iota_types::{
     },
     message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequestV2,
-        CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSignatureMessage,
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
+        CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
         CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData,
         FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint,
         VerifiedCheckpointContents,
@@ -1104,13 +1104,13 @@ impl CheckpointBuilder {
 
         let _scope = monitored_scope("CheckpointBuilder::causal_sort");
         let mut sorted: Vec<TransactionEffects> = Vec::with_capacity(unsorted.len() + 1);
-        if let Some((ccp_digest, ccp_effects)) = consensus_commit_prologue {
+        if let Some((_ccp_digest, ccp_effects)) = consensus_commit_prologue {
             #[cfg(debug_assertions)]
             {
                 // When consensus_commit_prologue is extracted, it should not be included in the
                 // `unsorted`.
                 for tx in unsorted.iter() {
-                    assert!(tx.transaction_digest() != &ccp_digest);
+                    assert!(tx.transaction_digest() != &_ccp_digest);
                 }
             }
             sorted.push(ccp_effects);
@@ -1445,11 +1445,16 @@ impl CheckpointBuilder {
                     )
                     .await?;
 
+                // The system epoch info event can be `None` in case if the `advance_epoch`
+                // Move function call failed and was executed in the safe mode.
+                // In this case, the tokens supply should be unchanged.
+                //
                 // SAFETY: The number of minted and burnt tokens easily fit into an i64 and due
                 // to those small numbers, no overflows will occur during conversion or
                 // subtraction.
-                let epoch_supply_change = system_epoch_info_event.minted_tokens_amount as i64
-                    - system_epoch_info_event.burnt_tokens_amount as i64;
+                let epoch_supply_change = system_epoch_info_event.map_or(0, |event| {
+                    event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
+                });
 
                 let committee = system_state_obj
                     .get_current_epoch_committee()
@@ -1554,6 +1559,8 @@ impl CheckpointBuilder {
             // sum only when we are within the same epoch
             GasCostSummary::new(
                 previous_gas_costs.computation_cost + current_gas_costs.computation_cost,
+                previous_gas_costs.computation_cost_burned
+                    + current_gas_costs.computation_cost_burned,
                 previous_gas_costs.storage_cost + current_gas_costs.storage_cost,
                 previous_gas_costs.storage_rebate + current_gas_costs.storage_rebate,
                 previous_gas_costs.non_refundable_storage_fee
@@ -1574,7 +1581,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1)> {
+    ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEventV1>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(
@@ -1957,9 +1964,9 @@ impl CheckpointSignatureAggregator {
                 Err(())
             }
             InsertResult::QuorumReached(cert) => {
-                // It is not guaranteed that signature.authority == narwhal_cert.author, but we
-                // do verify the signature so we know that the author signed the
-                // message at some point.
+                // It is not guaranteed that signature.authority == consensus_cert.author, but
+                // we do verify the signature so we know that the author signed
+                // the message at some point.
                 if their_digest != self.digest {
                     self.metrics.remote_checkpoint_forks.inc();
                     warn!(
@@ -2078,12 +2085,12 @@ async fn diagnose_split_brain(
             let client = network_clients
                 .get(&validator)
                 .expect("Failed to get network client");
-            let request = CheckpointRequestV2 {
+            let request = CheckpointRequest {
                 sequence_number: Some(local_summary.sequence_number),
                 request_content: true,
                 certified: false,
             };
-            client.handle_checkpoint_v2(request)
+            client.handle_checkpoint(request)
         })
         .collect::<Vec<_>>();
 
@@ -2094,17 +2101,17 @@ async fn diagnose_split_brain(
         .zip(digest_name_pair)
         .filter_map(|(response, (digest, name))| match response {
             Ok(response) => match response {
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: Some(CheckpointSummaryResponse::Pending(summary)),
                     contents: Some(contents),
                 } => Some((*name, *digest, summary, contents)),
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: Some(CheckpointSummaryResponse::Certified(_)),
                     contents: _,
                 } => {
                     panic!("Expected pending checkpoint, but got certified checkpoint");
                 }
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: None,
                     contents: _,
                 } => {
@@ -2114,7 +2121,7 @@ async fn diagnose_split_brain(
                     );
                     None
                 }
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: _,
                     contents: None,
                 } => {
@@ -2462,28 +2469,28 @@ mod tests {
             state.clone(),
             d(1),
             vec![d(2), d(3)],
-            GasCostSummary::new(11, 12, 11, 1),
+            GasCostSummary::new(11, 11, 12, 11, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(2),
             vec![d(3), d(4)],
-            GasCostSummary::new(21, 22, 21, 1),
+            GasCostSummary::new(21, 21, 22, 21, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(3),
             vec![],
-            GasCostSummary::new(31, 32, 31, 1),
+            GasCostSummary::new(31, 31, 32, 31, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(4),
             vec![],
-            GasCostSummary::new(41, 42, 41, 1),
+            GasCostSummary::new(41, 41, 42, 41, 1),
         );
         for i in [5, 6, 7, 10, 11, 12, 13] {
             commit_cert_for_test(
@@ -2491,7 +2498,7 @@ mod tests {
                 state.clone(),
                 d(i),
                 vec![],
-                GasCostSummary::new(41, 42, 41, 1),
+                GasCostSummary::new(41, 41, 42, 41, 1),
             );
         }
         for i in [15, 16, 17] {
@@ -2500,7 +2507,7 @@ mod tests {
                 state.clone(),
                 d(i),
                 vec![],
-                GasCostSummary::new(51, 52, 51, 1),
+                GasCostSummary::new(51, 51, 52, 51, 1),
             );
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
@@ -2566,7 +2573,7 @@ mod tests {
         assert_eq!(c1s.sequence_number, 0);
         assert_eq!(
             c1s.epoch_rolling_gas_cost_summary,
-            GasCostSummary::new(41, 42, 41, 1)
+            GasCostSummary::new(41, 41, 42, 41, 1)
         );
 
         assert_eq!(c2t, vec![d(3), d(2), d(1)]);
@@ -2574,7 +2581,7 @@ mod tests {
         assert_eq!(c2s.sequence_number, 1);
         assert_eq!(
             c2s.epoch_rolling_gas_cost_summary,
-            GasCostSummary::new(104, 108, 104, 4)
+            GasCostSummary::new(104, 104, 108, 104, 4)
         );
 
         // Pending at index 2 had 4 transactions, and we configured 3 transactions max.

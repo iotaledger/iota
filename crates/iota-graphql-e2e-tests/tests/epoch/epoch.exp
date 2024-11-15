@@ -17,15 +17,15 @@ task 3, lines 13-15:
 //> TransferObjects([Result(0)], Input(1))
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4, lines 17-19:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [135, 213, 224, 32, 91, 207, 0, 187, 34, 183, 14, 41, 167, 78, 77, 75, 138, 89, 173, 167, 170, 11, 38, 100, 45, 178, 245, 162, 113, 72, 177, 240, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [145, 201, 73, 32, 135, 23, 121, 37, 7, 101, 40, 103, 216, 99, 155, 51, 118, 111, 115, 220, 44, 253, 144, 143, 80, 103, 133, 240, 58, 235, 137, 202, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(4,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 14523600,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14500800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 5, line 20:
 //# create-checkpoint
@@ -42,7 +42,7 @@ task 7, lines 25-29:
 // TODO: Short term hack to get around indexer epoch issue
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 8, line 30:
 //# create-checkpoint
@@ -67,27 +67,27 @@ Response: {
           ]
         },
         "validatorCandidatesSize": 0,
-        "inactivePoolsId": "0x847b4f25419bcc012e269b2586a54b663d563de25024075481eb96e3ee8c3e0d"
+        "inactivePoolsId": "0x48b495a9f2c67e307895dec692c61488d4a82e2a1219fc6d8a2f56b5adb66dce"
       },
       "totalGasFees": "1000000",
       "totalStakeRewards": "767000000000000",
-      "fundSize": "14523600",
-      "fundInflow": "1976000",
-      "fundOutflow": "988000",
-      "netInflow": "988000",
+      "fundSize": "14500800",
+      "fundInflow": "1960800",
+      "fundOutflow": "980400",
+      "netInflow": "980400",
       "transactionBlocks": {
         "nodes": [
           {
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             },
-            "digest": "93Nc7AV6A8XVKLh2r9VPCjAQwoVbuiEGSqUwGBCAKee5"
+            "digest": "7SJtdFybBPY6aTpoRw4y1Z7vShCUUGqqJUDmL5o64CDu"
           },
           {
             "kind": {
               "__typename": "EndOfEpochTransaction"
             },
-            "digest": "GdHpubgoMKFW1anUij9fC3ThQYSs9VQNTvDdmuQFu3aM"
+            "digest": "9P5t7GdBVgLofELfhVpgeTJ4JoRP3TWYWZfBWrZwrcyV"
           }
         ]
       }

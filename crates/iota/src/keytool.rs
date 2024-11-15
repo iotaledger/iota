@@ -4,8 +4,7 @@
 
 use std::{
     fmt::{Debug, Display, Formatter},
-    fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -120,13 +119,14 @@ pub enum KeyToolCommand {
         word_length: Option<String>,
     },
     /// Add a new key to Iota CLI Keystore using either the input mnemonic
-    /// phrase or a Bech32 encoded 33-byte `flag || privkey` starting with
-    /// "iotaprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
-    /// and an optional derivation path, default to m/44'/4218'/0'/0'/0' for
-    /// ed25519 or m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0
-    /// for secp256r1. Supports mnemonic phrase of word length 12, 15,
-    /// 18, 21, 24. Set an alias for the key with the --alias flag. If no alias
-    /// is provided, the tool will automatically generate one.
+    /// phrase, a Bech32 encoded 33-byte `flag || privkey` starting with
+    /// "iotaprivkey" or a seed, the key scheme flag {ed25519 | secp256k1 |
+    /// secp256r1} and an optional derivation path, default to
+    /// m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0 for secp256k1
+    /// or m/74'/4218'/0'/0/0 for secp256r1. Supports mnemonic phrase of
+    /// word length 12, 15, 18, 21, 24. Set an alias for the key with the
+    /// --alias flag. If no alias is provided, the tool will automatically
+    /// generate one.
     Import {
         /// Sets an alias for this address. The alias must start with a letter
         /// and can contain only letters, digits, hyphens (-), or underscores
@@ -150,12 +150,6 @@ pub enum KeyToolCommand {
         #[clap(long, short = 's')]
         sort_by_alias: bool,
     },
-    /// This reads the content at the provided file path. The accepted format
-    /// is a Bech32 encoded [enum IotaKeyPair] or `type AuthorityKeyPair`
-    /// (Base64 encoded `privkey`). This prints out the account keypair as
-    /// Base64 encoded `flag || privkey`, the network keypair, protocol
-    /// keypair, authority keypair as Base64 encoded `privkey`.
-    LoadKeypair { file: PathBuf },
     /// To MultiSig Iota Address. Pass in a list of all public keys `flag || pk`
     /// in Base64. See `keytool list` for example public keys.
     MultiSigAddress {
@@ -220,11 +214,6 @@ pub enum KeyToolCommand {
         #[clap(long)]
         base64pk: String,
     },
-    /// This takes a bech32 encoded [enum IotaKeyPair]. It outputs the keypair
-    /// into a file at the current directory where the address is the
-    /// filename, and prints out its Iota address, Base64 encoded public
-    /// key, the key scheme, and the key scheme flag.
-    Unpack { keypair: String },
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // /// Given the max_epoch, generate an OAuth url, ask user to paste the
     // /// redirect with id_token, call salt server, then call the prover server,
@@ -358,15 +347,6 @@ pub struct ExportedKey {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct KeypairData {
-    account_keypair: String,
-    network_keypair: Option<String>,
-    protocol_keypair: Option<String>,
-    key_scheme: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MultiSigAddress {
     multisig_address: String,
     multisig: Vec<MultiSigOutput>,
@@ -456,7 +436,6 @@ pub enum CommandOutput {
     Import(Key),
     Export(ExportedKey),
     List(Vec<Key>),
-    LoadKeypair(KeypairData),
     MultiSigAddress(MultiSigAddress),
     MultiSigCombinePartialSig(MultiSigCombinePartialSig),
     Show(Key),
@@ -608,37 +587,41 @@ impl KeyToolCommand {
                 input_string,
                 key_scheme,
                 derivation_path,
-            } => {
-                if Hex::decode(&input_string).is_ok() {
-                    return Err(anyhow!(
-                        "Iota Keystore and Iota Wallet no longer support importing 
-                    private key as Hex, if you are sure your private key is encoded in Hex, use 
-                    `iota keytool convert $HEX` to convert first then import the Bech32 encoded 
-                    private key starting with `iotaprivkey`."
-                    ));
+            } => match IotaKeyPair::decode(&input_string) {
+                Ok(ikp) => {
+                    info!("Importing Bech32 encoded private key to keystore");
+                    let key = Key::from(&ikp);
+                    keystore.add_key(alias, ikp)?;
+                    CommandOutput::Import(key)
                 }
+                Err(_) => {
+                    let iota_address = match Hex::decode(&input_string.replace("0x", "")) {
+                        Ok(seed) => {
+                            info!("Importing seed to keystore");
+                            if seed.len() != 64 {
+                                return Err(anyhow!(
+                                    "Invalid seed length: {}, only 64 byte seeds are supported",
+                                    seed.len()
+                                ));
+                            }
+                            keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
+                        }
+                        Err(_) => {
+                            info!("Importing mnemonic to keystore");
+                            keystore.import_from_mnemonic(
+                                &input_string,
+                                key_scheme,
+                                derivation_path,
+                                alias,
+                            )?
+                        }
+                    };
 
-                match IotaKeyPair::decode(&input_string) {
-                    Ok(ikp) => {
-                        info!("Importing Bech32 encoded private key to keystore");
-                        let key = Key::from(&ikp);
-                        keystore.add_key(alias, ikp)?;
-                        CommandOutput::Import(key)
-                    }
-                    Err(_) => {
-                        info!("Importing mnemonics to keystore");
-                        let iota_address = keystore.import_from_mnemonic(
-                            &input_string,
-                            key_scheme,
-                            derivation_path,
-                            alias,
-                        )?;
-                        let ikp = keystore.get_key(&iota_address)?;
-                        let key = Key::from(ikp);
-                        CommandOutput::Import(key)
-                    }
+                    let ikp = keystore.get_key(&iota_address)?;
+                    let key = Key::from(ikp);
+                    CommandOutput::Import(key)
                 }
-            }
+            },
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
                 let ikp = keystore.get_key(&address)?;
@@ -664,44 +647,6 @@ impl KeyToolCommand {
                     keys.sort_unstable();
                 }
                 CommandOutput::List(keys)
-            }
-            KeyToolCommand::LoadKeypair { file } => {
-                let output = match read_keypair_from_file(&file) {
-                    Ok(keypair) => {
-                        // Account keypair is encoded with the key scheme flag {},
-                        // and network and protocol keypair are not.
-                        let network_protocol_keypair = match &keypair {
-                            IotaKeyPair::Ed25519(kp) => kp.encode_base64(),
-                            IotaKeyPair::Secp256k1(kp) => kp.encode_base64(),
-                            IotaKeyPair::Secp256r1(kp) => kp.encode_base64(),
-                        };
-                        KeypairData {
-                            account_keypair: keypair.encode_base64(),
-                            network_keypair: Some(network_protocol_keypair.clone()),
-                            protocol_keypair: Some(network_protocol_keypair),
-                            key_scheme: keypair.public().scheme().to_string(),
-                        }
-                    }
-                    Err(_) => {
-                        // Authority keypair file is not stored with the flag, it will try read as
-                        // BLS keypair..
-                        match read_authority_keypair_from_file(&file) {
-                            Ok(keypair) => KeypairData {
-                                account_keypair: keypair.encode_base64(),
-                                network_keypair: None,
-                                protocol_keypair: None,
-                                key_scheme: SignatureScheme::BLS12381.to_string(),
-                            },
-                            Err(e) => {
-                                return Err(anyhow!(format!(
-                                    "Failed to read keypair at path {:?} err: {:?}",
-                                    file, e
-                                )));
-                            }
-                        }
-                    }
-                };
-                CommandOutput::LoadKeypair(output)
             }
             KeyToolCommand::MultiSigAddress {
                 threshold,
@@ -853,16 +798,6 @@ impl KeyToolCommand {
                 CommandOutput::SignKMS(SerializedSig {
                     serialized_sig_base64: serialized_sig,
                 })
-            }
-            KeyToolCommand::Unpack { keypair } => {
-                let key = Key::from(
-                    &IotaKeyPair::decode(&keypair)
-                        .map_err(|_| anyhow!("Invalid Bech32 encoded keypair"))?,
-                );
-                let path_str = format!("{}.key", key.iota_address).to_lowercase();
-                let path = Path::new(&path_str);
-                fs::write(path, keypair)?;
-                CommandOutput::Show(key)
             } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
                *     let msg = PersonalMessage {
@@ -1170,10 +1105,10 @@ impl KeyToolCommand {
                * e))?,                     )?; */
 
               /*                     let sig =
-               * GenericSignature::ZkLoginAuthenticator(zk.clone());               
-               * let res = sig.verify_authenticator(                         
-               * &IntentMessage::new(                             
-               * Intent::iota_transaction(),                             
+               * GenericSignature::ZkLoginAuthenticator(zk.clone());
+               * let res = sig.verify_authenticator(
+               * &IntentMessage::new(
+               * Intent::iota_transaction(),
                * tx_data.clone(),                         ),
                *                         tx_data.execution_parts().1,
                *                         cur_epoch.unwrap(),
@@ -1190,8 +1125,8 @@ impl KeyToolCommand {
                *                     }; */
 
               /*                     let sig =
-               * GenericSignature::ZkLoginAuthenticator(zk.clone());               
-               * let res = sig.verify_authenticator(                         
+               * GenericSignature::ZkLoginAuthenticator(zk.clone());
+               * let res = sig.verify_authenticator(
                * &IntentMessage::new(Intent::personal_message(), data.clone()),
                *                         (&zk).try_into()?,
                *                         cur_epoch.unwrap(),

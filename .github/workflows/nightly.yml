@@ -1,4 +1,4 @@
-name: Nightly binary build
+name: Nightly checks
 
 on:
   schedule:
@@ -67,3 +67,29 @@ jobs:
         with:
           command: build
           args: --all-targets --all-features --release
+
+  tests:
+    uses: ./.github/workflows/_rust_tests.yml
+
+  external-tests:
+    uses: ./.github/workflows/_external_rust_tests.yml
+
+  move-tests:
+    uses: ./.github/workflows/_move_tests.yml
+
+  deny:
+    uses: ./.github/workflows/_cargo_deny.yml
+
+  deny-external:
+    uses: ./.github/workflows/_cargo_deny.yml
+    with:
+      manifest-path: external-crates/move/Cargo.toml
+
+  e2e:
+    uses: ./.github/workflows/_e2e.yml
+
+  execution-cut:
+    uses: ./.github/workflows/_execution_cut.yml
+
+  split-cluster:
+    uses: ./.github/workflows/split_cluster.yml

@@ -3,11 +3,6 @@ resolver = "2"
 
 members = [
   "crates/*",
-  "move-execution/v0/crates/bytecode-verifier-tests",
-  "move-execution/v0/crates/move-abstract-interpreter",
-  "move-execution/v0/crates/move-bytecode-verifier",
-  "move-execution/v0/crates/move-stdlib-natives",
-  "move-execution/v0/crates/move-vm-runtime",
   # "move-execution/$CUT/crates/bytecode-verifier-tests",
   # "move-execution/$CUT/crates/move-abstract-interpreter",
   # "move-execution/$CUT/crates/move-bytecode-verifier",

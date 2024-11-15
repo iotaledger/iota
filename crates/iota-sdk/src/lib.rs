@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The Iota Rust SDK
+//! The IOTA Rust SDK
 //!
 //! It aims at providing a similar SDK functionality like the one existing for
 //! [TypeScript](https://github.com/iotaledger/iota/tree/main/sdk/typescript/).
-//! Iota Rust SDK builds on top of the [JSON RPC API](https://docs.iota.io/iota-jsonrpc)
+//! IOTA Rust SDK builds on top of the [JSON RPC API](https://docs.iota.org/iota-api-ref)
 //! and therefore many of the return types are the ones specified in
 //! [iota_types].
 //!
@@ -26,7 +26,7 @@
 //!
 //! # Usage
 //! The main way to interact with the API is through the [IotaClientBuilder],
-//! which returns a [IotaClient] object from which the user can access the
+//! which returns an [IotaClient] object from which the user can access the
 //! various APIs.
 //!
 //! ## Getting Started
@@ -34,14 +34,14 @@
 //! folder of your Rust project.
 //!
 //! The main building block for the Iota Rust SDK is the [IotaClientBuilder],
-//! which provides a simple and straightforward way of connecting to a Iota
+//! which provides a simple and straightforward way of connecting to an Iota
 //! network and having access to the different available APIs.
 //!
-//! A simple example that connects to a running Iota local network,
-//! the Iota devnet, and the Iota testnet is shown below.
+//! Below is a simple example which connects to a running Iota local network,
+//! devnet, and testnet.
 //! To successfully run this program, make sure to spin up a local
 //! network with a local validator, a fullnode, and a faucet server
-//! (see [here](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk/README.md#prerequisites) for more information).
+//! (see [the README](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk/README.md#prerequisites) for more information).
 //!
 //! ```rust,no_run
 //! use iota_sdk::IotaClientBuilder;
@@ -71,7 +71,7 @@
 //! ## Examples
 //!
 //! For detailed examples, please check the APIs docs and the examples folder
-//! in the [main repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
+//! in the [repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
 
 pub mod apis;
 pub mod error;
@@ -118,16 +118,16 @@ pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
 pub const IOTA_LOCAL_NETWORK_URL_0: &str = "http://0.0.0.0:9000";
 pub const IOTA_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:5003/gas";
-pub const IOTA_DEVNET_URL: &str = "https://fullnode.devnet.iota.io:443";
-pub const IOTA_TESTNET_URL: &str = "https://fullnode.testnet.iota.io:443";
+pub const IOTA_DEVNET_URL: &str = "https://api.devnet.iota.cafe";
+pub const IOTA_TESTNET_URL: &str = "https://api.testnet.iota.cafe";
 
-/// A Iota client builder for connecting to the Iota network
+/// Builder for creating an [IotaClient] for connecting to the Iota network.
 ///
-/// By default the `maximum concurrent requests` is set to 256 and
-/// the `request timeout` is set to 60 seconds. These can be adjusted using the
-/// `max_concurrent_requests` function, and the `request_timeout` function.
-/// If you use the WebSocket, consider setting the `ws_ping_interval` field to a
-/// value of your choice to prevent the inactive WS subscription being
+/// By default `maximum concurrent requests` is set to 256 and `request timeout`
+/// is set to 60 seconds. These can be adjusted using
+/// [`Self::max_concurrent_requests()`], and the [`Self::request_timeout()`].
+/// If you use the WebSocket, consider setting `ws_ping_interval`
+/// appropriately to prevent an inactive WS subscription being
 /// disconnected due to proxy timeout.
 ///
 /// # Examples
@@ -195,8 +195,8 @@ impl IotaClientBuilder {
         self
     }
 
-    /// Returns a [IotaClient] object connected to the Iota network running at
-    /// the URI provided.
+    /// Return an [IotaClient] object connected to the Iota network accessable
+    /// via the provided URI.
     ///
     /// # Examples
     ///
@@ -285,7 +285,7 @@ impl IotaClientBuilder {
         })
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the local
+    /// Returns an [IotaClient] object that is ready to interact with the local
     /// development network (by default it expects the Iota network to be
     /// up and running at `127.0.0.1:9000`).
     ///
@@ -308,7 +308,7 @@ impl IotaClientBuilder {
         self.build(IOTA_LOCAL_NETWORK_URL).await
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the Iota
+    /// Returns an [IotaClient] object that is ready to interact with the Iota
     /// devnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead..
@@ -330,7 +330,7 @@ impl IotaClientBuilder {
         self.build(IOTA_DEVNET_URL).await
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the Iota
+    /// Returns an [IotaClient] object that is ready to interact with the Iota
     /// testnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
@@ -399,12 +399,12 @@ impl IotaClientBuilder {
     }
 }
 
-/// IotaClient is the basic type that provides all the necessary abstractions
-/// for interacting with the Iota network.
+/// Provides all the necessary abstractions for interacting with the Iota
+/// network.
 ///
 /// # Usage
 ///
-/// Use [IotaClientBuilder] to build a [IotaClient].
+/// Use [IotaClientBuilder] to build an [IotaClient].
 ///
 /// # Examples
 ///

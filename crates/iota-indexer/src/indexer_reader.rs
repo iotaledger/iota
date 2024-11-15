@@ -32,7 +32,10 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
     effects::TransactionEvents,
     event::EventID,
-    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
+    iota_system_state::{
+        IotaSystemStateTrait,
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    },
     is_system_package,
     object::{Object, ObjectRead},
 };
@@ -60,7 +63,7 @@ use crate::{
     },
     schema::{
         address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
-        objects_snapshot, transactions,
+        objects_snapshot, packages, transactions,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -1506,10 +1509,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_network_metrics(&self) -> IndexerResult<NetworkMetrics> {
-        let metrics = run_query!(&self.pool, |conn| {
+        let mut metrics = run_query!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
+        if metrics.total_packages == -1 {
+            // this implies that the estimate is not available in the db
+            // so we fallback to the more expensive count query
+            metrics.total_packages = run_query!(&self.pool, |conn| {
+                packages::dsl::packages.count().get_result::<i64>(conn)
+            })?;
+        }
         Ok(metrics.into())
     }
 
@@ -1734,6 +1744,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
 
     pub fn package_resolver(&self) -> PackageResolver<U> {
         self.package_resolver.clone()
+    }
+
+    pub async fn pending_active_validators(
+        &self,
+    ) -> Result<Vec<IotaValidatorSummary>, IndexerError> {
+        self.spawn_blocking(move |this| {
+            iota_types::iota_system_state::get_iota_system_state(&this)
+                .and_then(|system_state| system_state.get_pending_active_validators(&this))
+        })
+        .await
+        .map_err(Into::into)
     }
 }
 

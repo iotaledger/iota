@@ -7,13 +7,13 @@ task 1, lines 15-46:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 7828000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7820400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 48:
 //# run Test::M1::parent --sender A --args @A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 50:
 //# view-object 2,0
@@ -32,7 +32,7 @@ task 4, line 52:
 //# run Test::M1::add_df --sender A --args object(2,0)
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 8664000,  storage_rebate: 2302800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8626000,  storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 5, line 54:
 //# view-object 2,0
@@ -50,7 +50,7 @@ Contents: Test::M1::Parent {
 task 6, line 56:
 //# run Test::M1::mutate_parent --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 7, line 58:
 //# view-object 2,0
@@ -78,18 +78,18 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IELBJuoqbljOwtDZvYNmHAhFckzJMAyIckHHx4VWEQmAAQAAAAAAAAA=",
+            "cursor": "IAbc6C6Kc64uFzGgwo7ZbNDAvqJCXM7FCORnt+FWoN4yAQAAAAAAAAA=",
             "node": {
               "name": {
-                "bcs": "A2RmMw=="
+                "bcs": "A2RmMQ=="
               },
               "value": {
-                "json": "df3"
+                "json": "df1"
               }
             }
           },
           {
-            "cursor": "IE50PYtWegIrApc+e7eCSzFWzucYLDr5EFXOGSku7+5JAQAAAAAAAAA=",
+            "cursor": "IFTGRZmDK4S0lztr3Y3wG1eww8SpX12G7JGr845f5P5sAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
@@ -100,13 +100,13 @@ Response: {
             }
           },
           {
-            "cursor": "IHV1hfusMCdIxYwdoOX894dzfghsSphPFaIm4ekstxexAQAAAAAAAAA=",
+            "cursor": "IMknIBul3WNc9Xq/FWOan+uMZOaR67vleBT738wHRB1dAQAAAAAAAAA=",
             "node": {
               "name": {
-                "bcs": "A2RmMQ=="
+                "bcs": "A2RmMw=="
               },
               "value": {
-                "json": "df1"
+                "json": "df3"
               }
             }
           }
@@ -154,8 +154,8 @@ Contents: Test::M1::Parent {
 
 task 11, line 114:
 //# run Test::M1::mutate_df1 --sender A --args object(2,0)
-mutated: object(0,0), object(2,0), object(4,2)
-gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4423200, non_refundable_storage_fee: 0
+mutated: object(0,0), object(2,0), object(4,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4461200,  storage_rebate: 4400400, non_refundable_storage_fee: 0
 
 task 12, line 116:
 //# view-object 2,0
@@ -173,7 +173,7 @@ Contents: Test::M1::Parent {
 task 13, line 118:
 //# run Test::M1::mutate_parent --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 14, line 120:
 //# view-object 2,0
@@ -201,18 +201,18 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IELBJuoqbljOwtDZvYNmHAhFckzJMAyIckHHx4VWEQmAAgAAAAAAAAA=",
+            "cursor": "IAbc6C6Kc64uFzGgwo7ZbNDAvqJCXM7FCORnt+FWoN4yAgAAAAAAAAA=",
             "node": {
               "name": {
-                "bcs": "A2RmMw=="
+                "bcs": "A2RmMQ=="
               },
               "value": {
-                "json": "df3"
+                "json": "df1_mutated"
               }
             }
           },
           {
-            "cursor": "IE50PYtWegIrApc+e7eCSzFWzucYLDr5EFXOGSku7+5JAgAAAAAAAAA=",
+            "cursor": "IFTGRZmDK4S0lztr3Y3wG1eww8SpX12G7JGr845f5P5sAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
@@ -223,13 +223,13 @@ Response: {
             }
           },
           {
-            "cursor": "IHV1hfusMCdIxYwdoOX894dzfghsSphPFaIm4ekstxexAgAAAAAAAAA=",
+            "cursor": "IMknIBul3WNc9Xq/FWOan+uMZOaR67vleBT738wHRB1dAgAAAAAAAAA=",
             "node": {
               "name": {
-                "bcs": "A2RmMQ=="
+                "bcs": "A2RmMw=="
               },
               "value": {
-                "json": "df1_mutated"
+                "json": "df3"
               }
             }
           }

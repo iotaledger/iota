@@ -40,15 +40,6 @@ export const Networks = {
       api: 'https://api.evm.iotaledger.net',
     },
   },
-  iota_2_testnet: {
-    baseToken: 'Testnet Token (no value)',
-    protocol: 'IOTA 2.0',
-    httpRestApi: 'https://api.nova-testnet.iotaledger.net/',
-    eventApi: 'wss://api.nova-testnet.iotaledger.net:443 (MQTT 3.1, /mqtt)',
-    permaNodeApi: 'https://chronicle.nova-testnet.iotaledger.net',
-    explorer: 'https://explorer.iota.org/iota2-testnet',
-    faucet: 'https://faucet.nova-testnet.iotaledger.net',
-  },
   iota_testnet: {
     baseToken: 'Testnet Token (no value)',
     protocol: 'Stardust',
@@ -90,6 +81,15 @@ export const Networks = {
       },
       api: 'https://api.evm.testnet.iotaledger.net',
     },
+  },
+  iota_2_testnet: {
+    baseToken: 'Testnet Token (no value)',
+    protocol: 'IOTA 2.0',
+    httpRestApi: 'https://api.nova-testnet.iotaledger.net/',
+    eventApi: 'wss://api.nova-testnet.iotaledger.net:443 (MQTT 3.1, /mqtt)',
+    permaNodeApi: 'https://chronicle.nova-testnet.iotaledger.net',
+    explorer: 'https://explorer.iota.org/iota2-testnet',
+    faucet: 'https://faucet.nova-testnet.iotaledger.net',
   },
   shimmer: {
     baseToken: 'Shimmer Token',
@@ -155,6 +155,41 @@ export const Networks = {
       api: 'https://api.evm.testnet.shimmer.network',
     },
   },
+  iota_move: {
+    baseToken: 'IOTA Token',
+    jsonRpcUrl: 'jsonRpcUrl placeholder',
+    jsonRpcWebsocketUrl:'jsonRpcWebsocketUrl placeholder',
+    indexerRpc: 'indexerRpc placeholder',
+    graphqlRpc: 'graphqlRpc placeholder',
+    faucetUrl: 'faucetUrl placeholder',
+    explorerUrl: 'explorerUrl placeholder'
+  },
+  iota_move_testnet: {
+    baseToken: 'IOTA Token (no value)',
+    jsonRpcUrl: 'https://api.testnet.iota.cafe',
+    jsonRpcWebsocketUrl:'wss://api.testnet.iota.cafe',
+    indexerRpc: 'https://indexer.testnet.iota.cafe',
+    graphqlRpc: 'https://graphql.testnet.iota.cafe',
+    faucetUrl: 'https://faucet.testnet.iota.cafe',
+    explorerUrl: 'https://explorer.iota.cafe/?network=testnet'
+  },
+  iota_move_devnet: {
+    baseToken: 'IOTA Token (no value)',
+    jsonRpcUrl: 'https://api.devnet.iota.cafe',
+    jsonRpcWebsocketUrl:'wss://api.devnet.iota.cafe',
+    indexerRpc: 'https://indexer.devnet.iota.cafe',
+    graphqlRpc: 'https://graphql.devnet.iota.cafe',
+    faucetUrl: 'https://faucet.devnet.iota.cafe',
+    explorerUrl: 'https://explorer.iota.cafe/?network=devnet'
+  },
+  iota_localnet: {
+    baseToken:"IOTA Token", 
+    jsonRpcUrl: 'http://127.0.0.1:9000',
+    jsonRpcWebsocketUrl:'ws://127.0.0.1:9000',
+    indexerRpc: 'http://127.0.0.1:9124',
+    graphqlRpc: 'http://127.0.0.1:8000',
+    faucetUrl: 'http://127.0.0.1:9123/gas'
+  },
 };
 
 export interface Toolkit {
@@ -192,3 +227,12 @@ export interface NetworkProps {
     api?: string;
   };
 }
+
+export interface  MoveProps {
+  jsonRpcUrl: string;
+  jsonRpcWebsocketUrl: string;
+  indexerRpc: string;
+  graphqlRpc: string;
+  faucetUrl: string;
+  explorerUrl?: string;
+};

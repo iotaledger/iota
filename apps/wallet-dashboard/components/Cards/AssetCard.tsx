@@ -5,38 +5,37 @@
 
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import React from 'react';
-import { Box, ExternalImage } from '@/components/index';
 import { useGetNFTMeta } from '@iota/core';
 import { FlexDirection } from '@/lib/ui/enums';
+import { VisualAssetCard, VisualAssetType, type VisualAssetCardProps } from '@iota/apps-ui-kit';
 
-interface AssetCardProps {
+interface AssetCardProps extends Pick<VisualAssetCardProps, 'onClick' | 'onIconClick' | 'icon'> {
     asset: IotaObjectData;
     flexDirection?: FlexDirection;
 }
 
-function AssetCard({ asset, flexDirection }: AssetCardProps): React.JSX.Element {
+export function AssetCard({
+    asset,
+    onClick,
+    onIconClick,
+    icon,
+}: AssetCardProps): React.JSX.Element | null {
     const { data: nftMeta } = useGetNFTMeta(asset.objectId);
+
+    if (!asset.display || !nftMeta || !nftMeta.imageUrl) {
+        return null;
+    }
+
     return (
-        <Box>
-            <div className={`flex ${flexDirection} w-full gap-2`}>
-                {asset.display && nftMeta && nftMeta.imageUrl && (
-                    <ExternalImage
-                        src={nftMeta.imageUrl}
-                        alt={nftMeta.name ?? asset.display.data?.name}
-                        width={80}
-                        height={80}
-                        className="object-cover"
-                    />
-                )}
-                <div>
-                    <p>Digest: {asset.digest}</p>
-                    <p>Object ID: {asset.objectId}</p>
-                    {asset.type ? <p>Type: {asset.type}</p> : null}
-                    <p>Version: {asset.version}</p>
-                </div>
-            </div>
-        </Box>
+        <VisualAssetCard
+            assetSrc={nftMeta?.imageUrl ?? asset?.display?.data?.imageUrl ?? ''}
+            assetTitle={nftMeta?.name ?? asset?.display?.data?.name}
+            assetType={VisualAssetType.Image}
+            altText={nftMeta?.name ?? (asset?.display?.data?.name || 'NFT')}
+            isHoverable
+            icon={icon}
+            onClick={onClick}
+            onIconClick={onIconClick}
+        />
     );
 }
-
-export default AssetCard;

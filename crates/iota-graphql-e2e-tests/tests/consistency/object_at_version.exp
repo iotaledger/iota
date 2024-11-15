@@ -7,13 +7,13 @@ task 1, lines 20-57:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 7014800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7007200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 59:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 61:
 //# create-checkpoint
@@ -29,7 +29,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x8c1a40e2608492f92365d5bd1edc6388bcf2769244597f1e19caa1b0a00513da",
+            "id": "0xc9cc2d86cf85f0448da63718fd5e7d0e47f4a707561d2f1ddcb46eabc0dcf382",
             "value": "0"
           }
         }
@@ -41,7 +41,7 @@ Response: {
 task 5, line 78:
 //# run Test::M1::update --sender A --args object(2,0) 1
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 1314800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 1307200, non_refundable_storage_fee: 0
 
 task 6, line 80:
 //# create-checkpoint
@@ -57,7 +57,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x8c1a40e2608492f92365d5bd1edc6388bcf2769244597f1e19caa1b0a00513da",
+            "id": "0xc9cc2d86cf85f0448da63718fd5e7d0e47f4a707561d2f1ddcb46eabc0dcf382",
             "value": "1"
           }
         }
@@ -69,7 +69,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x8c1a40e2608492f92365d5bd1edc6388bcf2769244597f1e19caa1b0a00513da",
+            "id": "0xc9cc2d86cf85f0448da63718fd5e7d0e47f4a707561d2f1ddcb46eabc0dcf382",
             "value": "0"
           }
         }
@@ -83,7 +83,7 @@ task 8, line 110:
 created: object(8,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2553600,  storage_rebate: 2302800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2538400,  storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 9, line 112:
 //# create-checkpoint
@@ -104,7 +104,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x8c1a40e2608492f92365d5bd1edc6388bcf2769244597f1e19caa1b0a00513da",
+            "id": "0xc9cc2d86cf85f0448da63718fd5e7d0e47f4a707561d2f1ddcb46eabc0dcf382",
             "value": "1"
           }
         }
@@ -118,7 +118,7 @@ task 11, line 142:
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(8,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2553600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2538400, non_refundable_storage_fee: 0
 
 task 12, line 144:
 //# create-checkpoint
@@ -134,7 +134,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x8c1a40e2608492f92365d5bd1edc6388bcf2769244597f1e19caa1b0a00513da",
+            "id": "0xc9cc2d86cf85f0448da63718fd5e7d0e47f4a707561d2f1ddcb46eabc0dcf382",
             "value": "1"
           }
         }
@@ -151,7 +151,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x8c1a40e2608492f92365d5bd1edc6388bcf2769244597f1e19caa1b0a00513da",
+            "id": "0xc9cc2d86cf85f0448da63718fd5e7d0e47f4a707561d2f1ddcb46eabc0dcf382",
             "value": "0"
           }
         }
@@ -164,7 +164,7 @@ task 14, line 186:
 //# run Test::M1::delete --sender A --args object(2,0)
 mutated: object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2302800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 15, line 188:
 //# create-checkpoint
@@ -205,7 +205,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x8c1a40e2608492f92365d5bd1edc6388bcf2769244597f1e19caa1b0a00513da",
+            "id": "0xc9cc2d86cf85f0448da63718fd5e7d0e47f4a707561d2f1ddcb46eabc0dcf382",
             "value": "1"
           }
         }
@@ -222,7 +222,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x8c1a40e2608492f92365d5bd1edc6388bcf2769244597f1e19caa1b0a00513da",
+            "id": "0xc9cc2d86cf85f0448da63718fd5e7d0e47f4a707561d2f1ddcb46eabc0dcf382",
             "value": "0"
           }
         }

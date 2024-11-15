@@ -29,9 +29,6 @@ export interface AddressMetrics {
 export interface Balance {
     coinObjectCount: number;
     coinType: string;
-    lockedBalance: {
-        [key: string]: string;
-    };
     totalBalance: string;
 }
 export interface BalanceChange {
@@ -119,7 +116,6 @@ export type IotaParsedData =
     | {
           dataType: 'moveObject';
           fields: MoveStruct;
-          hasPublicTransfer: boolean;
           type: string;
       }
     | {
@@ -228,7 +224,7 @@ export interface EndOfEpochInfo {
     epochEndTimestamp: string;
     lastCheckpointId: string;
     mintedTokensAmount: string;
-    /** existing fields from `SystemEpochInfoEvent` (without epoch) */
+    /** existing fields from `SystemEpochInfoEventV1` (without epoch) */
     protocolVersion: string;
     referenceGasPrice: string;
     storageCharge: string;
@@ -391,6 +387,8 @@ export type ExecutionStatus = {
 export interface GasCostSummary {
     /** Cost of computation/execution */
     computationCost: string;
+    /** The burned component of the computation/execution costs */
+    computationCostBurned: string;
     /** The fee for the rebate. The portion of the storage rebate kept by the system. */
     nonRefundableStorageFee: string;
     /** Storage cost, it's the sum of all storage cost for all objects created or mutated. */
@@ -690,6 +688,11 @@ export interface IotaSystemStateSummary {
      * epoch to go above this.
      */
     maxValidatorCount: string;
+    /**
+     * Minimum number of active validators at any moment. We do not allow the number of validators in any
+     * epoch to go under this.
+     */
+    minValidatorCount: string;
     /** Lower-bound on the amount of stake required to become a validator. */
     minValidatorJoiningStake: string;
     /** ID of the object that contains the list of new validators that will join at the end of the epoch. */
@@ -1296,7 +1299,6 @@ export type RawData =
     | {
           bcsBytes: string;
           dataType: 'moveObject';
-          hasPublicTransfer: boolean;
           type: string;
           version: string;
       }
@@ -1479,7 +1481,7 @@ export type IotaTransactionBlockKind =
       } /** A transaction which updates global authenticator state */
     | {
           epoch: string;
-          kind: 'AuthenticatorStateUpdate';
+          kind: 'AuthenticatorStateUpdateV1';
           new_active_jwks: IotaActiveJwk[];
           round: string;
       } /** A transaction which updates global randomness state */

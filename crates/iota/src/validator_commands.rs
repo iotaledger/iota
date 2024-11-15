@@ -43,6 +43,7 @@ use iota_types::{
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
         generate_proof_of_possession, get_authority_key_pair,
     },
+    dynamic_field::Field,
     iota_system_state::{
         iota_system_state_inner_v1::{UnverifiedValidatorOperationCap, ValidatorV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
@@ -304,7 +305,7 @@ impl IotaValidatorCommand {
             } => {
                 let dir = std::env::current_dir()?;
                 let authority_key_file_name = dir.join("authority.key");
-                let account_key = match context.config.keystore.get_key(&iota_address)? {
+                let account_key = match context.config().keystore().get_key(&iota_address)? {
                     IotaKeyPair::Ed25519(account_key) => IotaKeyPair::Ed25519(account_key.copy()),
                     _ => panic!(
                         "Other account key types supported yet, please use Ed25519 keys for now."
@@ -564,7 +565,7 @@ impl IotaValidatorCommand {
                     "Starting bridge committee registration for Iota validator: {address}, with bridge public key: {} and url: {}",
                     ecdsa_keypair.public, bridge_authority_url
                 );
-                let iota_rpc_url = &context.config.get_active_env().unwrap().rpc;
+                let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
                 let bridge = bridge_client
                     .get_mutable_bridge_object_arg_must_succeed()
@@ -625,7 +626,7 @@ impl IotaValidatorCommand {
                     validator_address,
                     print_unsigned_transaction_only,
                 )?;
-                let iota_rpc_url = &context.config.get_active_env().unwrap().rpc;
+                let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
                 let committee_members = bridge_client
                     .get_bridge_summary()
@@ -926,8 +927,8 @@ async fn call_0x5(
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
     let signature =
         context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
     let transaction = Transaction::from_data(tx_data, vec![signature]);
     let iota_client = context.get_client().await?;
@@ -1108,16 +1109,13 @@ async fn display_metadata(
     json: bool,
 ) -> anyhow::Result<()> {
     match get_validator_summary(client, validator_address).await? {
-        None => println!(
-            "{} is not an active or pending Validator.",
-            validator_address
-        ),
+        None => println!("{validator_address} is not an active or pending Validator"),
         Some((status, info)) => {
-            println!("{}'s valdiator status: {:?}", validator_address, status);
+            println!("{validator_address}'s validator status: {status:?}");
             if json {
                 println!("{}", serde_json::to_string_pretty(&info)?);
             } else {
-                println!("{:#?}", info);
+                println!("{info:#?}");
             }
         }
     }
@@ -1149,20 +1147,15 @@ async fn get_pending_candidate_summary(
         // included.
         let object_id = resp.object_id()?;
         let bcs = resp.move_object_bcs().ok_or_else(|| {
+            anyhow::anyhow!("Object {object_id} does not exist or does not return bcs bytes",)
+        })?;
+        let field = bcs::from_bytes::<Field<u64, ValidatorV1>>(bcs).map_err(|e| {
             anyhow::anyhow!(
-                "Object {} does not exist or does not return bcs bytes",
-                object_id
+                "Can't convert bcs bytes of object {object_id} to Field<u64, ValidatorV1>: {e}",
             )
         })?;
-        let val = bcs::from_bytes::<ValidatorV1>(bcs).map_err(|e| {
-            anyhow::anyhow!(
-                "Can't convert bcs bytes of object {} to ValidatorV1: {}",
-                object_id,
-                e,
-            )
-        })?;
-        if val.verified_metadata().iota_address == validator_address {
-            return Ok(Some(val));
+        if field.value.verified_metadata().iota_address == validator_address {
+            return Ok(Some(field.value));
         }
     }
     Ok(None)

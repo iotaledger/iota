@@ -8,8 +8,7 @@
 //! doesn't) check if it has coins and request coins from the faucet if there
 //! aren't any. If there is no wallet, it will create a wallet and two
 //! addresses, set one address as active, and add 1 IOTA to the active address.
-//! By default, the example will use the Iota testnet network (fullnode.testnet.
-//! iota.io:443).
+//! By default, the example will use the IOTA testnet network (https://api.testnet.iota.cafe).
 //!
 //! cargo run --example coin_read_api
 

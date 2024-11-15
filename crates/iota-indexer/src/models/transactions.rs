@@ -268,18 +268,15 @@ impl StoredTransaction {
             None
         };
 
-        let effects = if options.show_effects {
-            let effects = self.try_into_iota_transaction_effects()?;
-            Some(effects)
-        } else {
-            None
-        };
+        let effects = options
+            .show_effects
+            .then(|| self.try_into_iota_transaction_effects())
+            .transpose()?;
 
-        let raw_transaction = if options.show_raw_input {
-            self.raw_transaction
-        } else {
-            Vec::new()
-        };
+        let raw_transaction = options
+            .show_raw_input
+            .then_some(self.raw_transaction)
+            .unwrap_or_default();
 
         let events = if options.show_events {
             let events = {
@@ -446,6 +443,11 @@ impl StoredTransaction {
             None
         };
 
+        let raw_effects = options
+            .show_raw_effects
+            .then_some(self.raw_effects)
+            .unwrap_or_default();
+
         Ok(IotaTransactionBlockResponse {
             digest: tx_digest,
             transaction,
@@ -458,7 +460,7 @@ impl StoredTransaction {
             checkpoint: Some(self.checkpoint_sequence_number as u64),
             confirmed_local_execution: None,
             errors: vec![],
-            raw_effects: self.raw_effects,
+            raw_effects,
         })
     }
 

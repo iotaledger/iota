@@ -343,12 +343,6 @@ mod sim_only_tests {
         let to_wrap1 = create_obj(&cluster).await;
         let to_transfer1 = create_obj(&cluster).await;
 
-        // Instances of the type that existed before will not have public transfer
-        // despite now having store
-        assert!(!has_public_transfer(&cluster, &to_wrap0.0).await);
-        assert!(!has_public_transfer(&cluster, &to_transfer0.0).await);
-        assert!(has_public_transfer(&cluster, &to_wrap1.0).await);
-        assert!(has_public_transfer(&cluster, &to_transfer1.0).await);
         // Instances of the type that existed before and new instances are able to take
         // advantage of the newly introduced ability
         wrap_obj(&cluster, to_wrap0).await;
@@ -673,15 +667,6 @@ mod sim_only_tests {
             .await
     }
 
-    async fn has_public_transfer(cluster: &TestCluster, object_id: &ObjectID) -> bool {
-        get_object(&cluster, object_id)
-            .await
-            .data
-            .try_as_move()
-            .unwrap()
-            .has_public_transfer()
-    }
-
     #[sim_test]
     async fn test_framework_compatible_upgrade_no_protocol_version() {
         ProtocolConfig::poison_get_for_min_version();
@@ -895,7 +880,7 @@ mod sim_only_tests {
             system_state.system_state_version(),
             IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1
         );
-        assert!(matches!(system_state, IotaSystemState::SimTestShallowV2(_)));
+        assert!(matches!(system_state, IotaSystemState::SimTestShallowV1(_)));
     }
 
     #[sim_test]
@@ -948,7 +933,7 @@ mod sim_only_tests {
             system_state.system_state_version(),
             IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1
         );
-        if let IotaSystemState::SimTestDeepV2(inner) = system_state {
+        if let IotaSystemState::SimTestDeepV1(inner) = system_state {
             // Make sure we have 1 inactive validator for latter testing.
             assert_eq!(inner.validators.inactive_validators.size, 1);
             get_validator_from_table(
@@ -963,7 +948,7 @@ mod sim_only_tests {
             )
             .unwrap();
         } else {
-            panic!("Expecting SimTestDeepV2 type");
+            panic!("Expecting SimTestDeepV1 type");
         }
     }
 

@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.4.0"
+    "version": "0.7.0-alpha"
   },
   "methods": [
     {
@@ -104,6 +104,7 @@
                 "executedEpoch": "0",
                 "gasUsed": {
                   "computationCost": "100",
+                  "computationCostBurned": "100",
                   "storageCost": "100",
                   "storageRebate": "10",
                   "nonRefundableStorageFee": "0"
@@ -247,6 +248,7 @@
                 "executedEpoch": "0",
                 "gasUsed": {
                   "computationCost": "100",
+                  "computationCostBurned": "100",
                   "storageCost": "100",
                   "storageRebate": "10",
                   "nonRefundableStorageFee": "0"
@@ -450,6 +452,7 @@
                 "executedEpoch": "0",
                 "gasUsed": {
                   "computationCost": "100",
+                  "computationCostBurned": "100",
                   "storageCost": "100",
                   "storageRebate": "10",
                   "nonRefundableStorageFee": "0"
@@ -578,6 +581,7 @@
               "previousDigest": "6tBy8RXZKrdrB4XkMQn7J3MNG4fQCo9XcRduFFvYrL5Z",
               "epochRollingGasCostSummary": {
                 "computationCost": "0",
+                "computationCostBurned": "0",
                 "storageCost": "0",
                 "storageRebate": "0",
                 "nonRefundableStorageFee": "0"
@@ -663,6 +667,7 @@
                   "previousDigest": "8BLFxLTjWZ2KqaGc3FjR1o9aL6kbyYrmhuNfJLU1ehYt",
                   "epochRollingGasCostSummary": {
                     "computationCost": "0",
+                    "computationCostBurned": "0",
                     "storageCost": "0",
                     "storageRebate": "0",
                     "nonRefundableStorageFee": "0"
@@ -682,6 +687,7 @@
                   "previousDigest": "6Pn25cieaE62AT6BwCeBoca13AGZuneucaaTGqt3gNCo",
                   "epochRollingGasCostSummary": {
                     "computationCost": "0",
+                    "computationCostBurned": "0",
                     "storageCost": "0",
                     "storageRebate": "0",
                     "nonRefundableStorageFee": "0"
@@ -701,6 +707,7 @@
                   "previousDigest": "CnHTfdUJr1UUqwXkYUhbQjXeM16xR33UR62jE72toCis",
                   "epochRollingGasCostSummary": {
                     "computationCost": "0",
+                    "computationCostBurned": "0",
                     "storageCost": "0",
                     "storageRebate": "0",
                     "nonRefundableStorageFee": "0"
@@ -720,6 +727,7 @@
                   "previousDigest": "38fLUfuigyzLPEDrsmRhcQmhKtbEUohuFBP9NDcWBmFz",
                   "epochRollingGasCostSummary": {
                     "computationCost": "0",
+                    "computationCostBurned": "0",
                     "storageCost": "0",
                     "storageRebate": "0",
                     "nonRefundableStorageFee": "0"
@@ -883,7 +891,7 @@
             },
             {
               "name": "module",
-              "value": "iotafrens"
+              "value": "my_module"
             },
             {
               "name": "function",
@@ -1242,7 +1250,6 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                  "hasPublicTransfer": true,
                   "fields": {
                     "balance": "100000000",
                     "id": {
@@ -1297,7 +1304,6 @@
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
-                "authority_capabilities_v2": true,
                 "bridge": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "enable_group_ops_native_function_msm": true,
@@ -1604,7 +1610,7 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "8"
+                  "u64": "1"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
@@ -1767,9 +1773,6 @@
                 },
                 "max_accumulated_txn_cost_per_object_in_mysticeti_commit": {
                   "u64": "10"
-                },
-                "max_accumulated_txn_cost_per_object_in_narwhal_commit": {
-                  "u64": "100"
                 },
                 "max_age_of_jwk_in_epochs": {
                   "u64": "1"
@@ -2262,6 +2265,7 @@
                 "executedEpoch": "0",
                 "gasUsed": {
                   "computationCost": "100",
+                  "computationCostBurned": "100",
                   "storageCost": "100",
                   "storageRebate": "10",
                   "nonRefundableStorageFee": "0"
@@ -2401,7 +2405,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2425,7 +2428,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2449,7 +2451,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2473,7 +2474,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2497,7 +2497,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "100000000",
                       "id": {
@@ -2641,6 +2640,7 @@
                   "executedEpoch": "0",
                   "gasUsed": {
                     "computationCost": "100",
+                    "computationCostBurned": "100",
                     "storageCost": "100",
                     "storageRebate": "10",
                     "nonRefundableStorageFee": "0"
@@ -2757,6 +2757,7 @@
                   "executedEpoch": "0",
                   "gasUsed": {
                     "computationCost": "100",
+                    "computationCostBurned": "100",
                     "storageCost": "100",
                     "storageRebate": "10",
                     "nonRefundableStorageFee": "0"
@@ -2873,6 +2874,7 @@
                   "executedEpoch": "0",
                   "gasUsed": {
                     "computationCost": "100",
+                    "computationCostBurned": "100",
                     "storageCost": "100",
                     "storageRebate": "10",
                     "nonRefundableStorageFee": "0"
@@ -3013,7 +3015,6 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                  "hasPublicTransfer": true,
                   "fields": {
                     "balance": "10000",
                     "id": {
@@ -3113,7 +3114,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "10000",
                       "id": {
@@ -3138,7 +3138,6 @@
                   "content": {
                     "dataType": "moveObject",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
                     "fields": {
                       "balance": "20000",
                       "id": {
@@ -3196,8 +3195,7 @@
               {
                 "coinType": "0x2::iota::IOTA",
                 "coinObjectCount": 15,
-                "totalBalance": "3000000000",
-                "lockedBalance": {}
+                "totalBalance": "3000000000"
               }
             ]
           }
@@ -3374,8 +3372,7 @@
             "value": {
               "coinType": "0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC",
               "coinObjectCount": 15,
-              "totalBalance": "15",
-              "lockedBalance": {}
+              "totalBalance": "15"
             }
           }
         }
@@ -3701,7 +3698,6 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
-                  "hasPublicTransfer": true,
                   "fields": {}
                 }
               }
@@ -5743,7 +5739,6 @@
         "required": [
           "coinObjectCount",
           "coinType",
-          "lockedBalance",
           "totalBalance"
         ],
         "properties": {
@@ -5754,12 +5749,6 @@
           },
           "coinType": {
             "type": "string"
-          },
-          "lockedBalance": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/BigInt_for_uint128"
-            }
           },
           "totalBalance": {
             "$ref": "#/components/schemas/BigInt_for_uint128"
@@ -6147,7 +6136,6 @@
             "required": [
               "dataType",
               "fields",
-              "hasPublicTransfer",
               "type"
             ],
             "properties": {
@@ -6159,9 +6147,6 @@
               },
               "fields": {
                 "$ref": "#/components/schemas/MoveStruct"
-              },
-              "hasPublicTransfer": {
-                "type": "boolean"
               },
               "type": {
                 "type": "string"
@@ -7128,6 +7113,7 @@
         "type": "object",
         "required": [
           "computationCost",
+          "computationCostBurned",
           "nonRefundableStorageFee",
           "storageCost",
           "storageRebate"
@@ -7135,6 +7121,14 @@
         "properties": {
           "computationCost": {
             "description": "Cost of computation/execution",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "computationCostBurned": {
+            "description": "The burned component of the computation/execution costs",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -8310,6 +8304,7 @@
           "iotaTotalSupply",
           "iotaTreasuryCapId",
           "maxValidatorCount",
+          "minValidatorCount",
           "minValidatorJoiningStake",
           "pendingActiveValidatorsId",
           "pendingActiveValidatorsSize",
@@ -8417,6 +8412,14 @@
           },
           "maxValidatorCount": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "minValidatorCount": {
+            "description": "Minimum number of active validators at any moment. We do not allow the number of validators in any epoch to go under this.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -10649,7 +10652,6 @@
             "required": [
               "bcsBytes",
               "dataType",
-              "hasPublicTransfer",
               "type",
               "version"
             ],
@@ -10662,9 +10664,6 @@
                 "enum": [
                   "moveObject"
                 ]
-              },
-              "hasPublicTransfer": {
-                "type": "boolean"
               },
               "type": {
                 "type": "string"

@@ -739,6 +739,9 @@ protocol_version
 system_state_version
 	public(package) fun
 	0x3::iota_system_state_inner
+iota_system_admin_cap
+	public(package) fun
+	0x3::iota_system_state_inner
 genesis_system_state_version
 	public(package) fun
 	0x3::iota_system_state_inner
@@ -886,6 +889,9 @@ pool_exchange_rates
 active_validator_addresses
 	public fun
 	0x3::iota_system
+load_iota_system_admin_cap
+	public(package) fun
+	0x3::iota_system
 advance_epoch
 	fun
 	0x3::iota_system
@@ -897,9 +903,6 @@ load_system_state_mut
 	0x3::iota_system
 load_inner_maybe_upgrade
 	fun
-	0x3::iota_system
-load_system_timelock_cap
-	public(package) fun
 	0x3::iota_system
 validator_voting_powers
 	fun
@@ -1933,9 +1936,6 @@ TreasuryCap
 DenyCapV1
 	public struct
 	0x2::coin
-CurrencyCreated
-	public struct
-	0x2::coin
 total_supply
 	public fun
 	0x2::coin
@@ -2051,9 +2051,6 @@ get_description
 	public fun
 	0x2::coin
 get_icon_url
-	public fun
-	0x2::coin
-supply
 	public fun
 	0x2::coin
 CoinManager
@@ -2611,13 +2608,7 @@ has_access
 uid_mut_as_owner
 	public fun
 	0x2::kiosk
-set_allow_extensions
-	public fun
-	0x2::kiosk
 uid
-	public fun
-	0x2::kiosk
-uid_mut
 	public fun
 	0x2::kiosk
 owner
@@ -2770,27 +2761,6 @@ destroy_empty
 drop
 	public fun
 	0x2::linked_table
-max
-	public fun
-	0x2::math
-min
-	public fun
-	0x2::math
-diff
-	public fun
-	0x2::math
-pow
-	public fun
-	0x2::math
-sqrt
-	public fun
-	0x2::math
-sqrt_u128
-	public fun
-	0x2::math
-divide_and_round_up
-	public fun
-	0x2::math
 ObjectBag
 	public struct
 	0x2::object_bag
@@ -2873,9 +2843,6 @@ split_and_transfer
 	public entry fun
 	0x2::pay
 divide_and_keep
-	public entry fun
-	0x2::pay
-join
 	public entry fun
 	0x2::pay
 join_vec
@@ -3028,6 +2995,12 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
+IotaSystemAdminCap
+	public struct
+	0x2::system_admin_cap
+new_system_admin_cap
+	fun
+	0x2::system_admin_cap
 Table
 	public struct
 	0x2::table
@@ -3103,9 +3076,6 @@ swap_remove
 TimeLock
 	public struct
 	0x2::timelock
-SystemTimelockCap
-	public struct
-	0x2::timelock
 lock
 	public fun
 	0x2::timelock
@@ -3173,9 +3143,6 @@ transfer
 	fun
 	0x2::timelock
 check_expiration_timestamp_ms
-	fun
-	0x2::timelock
-new_system_timelock_cap
 	fun
 	0x2::timelock
 Token

@@ -184,14 +184,6 @@ impl IotaTransactionBlockResponseOptions {
         }
     }
 
-    #[deprecated(
-        since = "1.33.0",
-        note = "Balance and object changes no longer require local execution"
-    )]
-    pub fn require_local_execution(&self) -> bool {
-        self.show_balance_changes || self.show_object_changes
-    }
-
     pub fn require_input(&self) -> bool {
         self.show_input || self.show_raw_input || self.show_object_changes
     }
