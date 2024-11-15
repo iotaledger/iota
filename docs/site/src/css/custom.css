@@ -133,6 +133,7 @@
 }
 
 @media (min-width: 769px) {
+  [data-theme="light"] .menu__link:hover,
   [data-theme="light"] .menu__link--active{
     font-weight: bold;
     color: var(--ifm-menu-color);
@@ -143,7 +144,12 @@
   .menu__link {
     color: rgba(255, 255, 255, 0.7);
   }
-
+  
+  [data-theme="light"] .menu__list-item-collapsible:hover,
+    
+  [data-theme="light"] .menu__link:hover{
+    background-color: #525860;
+  }
   [data-theme="light"] .menu__link--active {
     font-weight: bold;
     color: white;
