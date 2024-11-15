@@ -49,6 +49,7 @@
     "hast-util-is-element": "^1.1.0",
     "lodash": "^4.17.21",
     "markdown-to-jsx": "^7.4.7",
+    "plugin-image-zoom": "github:flexanalytics/plugin-image-zoom",
     "postcss": "^8.4.31",
     "prism-react-renderer": "^2.3.1",
     "prismjs": "^1.29.0",
