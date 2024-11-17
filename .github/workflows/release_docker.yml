@@ -75,6 +75,12 @@ jobs:
           private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
           private-key-name: github-ppk
 
+      - name: Get git revision and build date
+        id: git-info
+        run: |
+          echo "GIT_REVISION=$(git describe --always --abbrev=12 --dirty --exclude '*')" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
+
       - name: Build and push Docker image for iota-node
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # pin@v6
         with:
@@ -85,6 +91,9 @@ jobs:
           tags: ${{ steps.meta-node.outputs.tags }}
           push: true
           pull: true
+          build-args: |
+            GIT_REVISION=${{ env.GIT_REVISION }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
 
   build-iota-indexer:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_indexer == 'true' || github.event_name == 'release'
@@ -134,6 +143,12 @@ jobs:
           private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
           private-key-name: github-ppk
 
+      - name: Get git revision and build date
+        id: git-info
+        run: |
+          echo "GIT_REVISION=$(git describe --always --abbrev=12 --dirty --exclude '*')" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
+
       - name: Build and push Docker image for iota-indexer
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # pin@v6
         with:
@@ -144,6 +159,9 @@ jobs:
           tags: ${{ steps.meta-indexer.outputs.tags }}
           push: true
           pull: true
+          build-args: |
+            GIT_REVISION=${{ env.GIT_REVISION }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
 
   build-iota-tools:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_tools == 'true' || github.event_name == 'release'
@@ -193,6 +211,12 @@ jobs:
           private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
           private-key-name: github-ppk
 
+      - name: Get git revision and build date
+        id: git-info
+        run: |
+          echo "GIT_REVISION=$(git describe --always --abbrev=12 --dirty --exclude '*')" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
+
       - name: Build and push Docker image for iota-tools
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # pin@v6
         with:
@@ -203,6 +227,9 @@ jobs:
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
           pull: true
+          build-args: |
+            GIT_REVISION=${{ env.GIT_REVISION }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
 
   build-iota-graphql-rpc:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_graphql_rpc == 'true' || github.event_name == 'release'
@@ -252,6 +279,12 @@ jobs:
           private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
           private-key-name: github-ppk
 
+      - name: Get git revision and build date
+        id: git-info
+        run: |
+          echo "GIT_REVISION=$(git describe --always --abbrev=12 --dirty --exclude '*')" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
+
       - name: Build and push Docker image for iota-graphql-rpc
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # pin@v6
         with:
@@ -262,3 +295,6 @@ jobs:
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
           pull: true
+          build-args: |
+            GIT_REVISION=${{ env.GIT_REVISION }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
