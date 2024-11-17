@@ -87,7 +87,7 @@ jobs:
           ssh: default
           context: .
           file: docker/iota-node/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ steps.meta-node.outputs.tags }}
           push: true
           pull: true
@@ -155,7 +155,7 @@ jobs:
           ssh: default
           context: .
           file: docker/iota-indexer/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ steps.meta-indexer.outputs.tags }}
           push: true
           pull: true
@@ -223,7 +223,7 @@ jobs:
           ssh: default
           context: .
           file: docker/iota-tools/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
           pull: true
@@ -291,7 +291,7 @@ jobs:
           ssh: default
           context: .
           file: docker/iota-graphql-rpc/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
           pull: true
