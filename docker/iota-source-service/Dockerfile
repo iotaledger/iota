@@ -5,7 +5,7 @@ ENV GIT_REVISION=$GIT_REVISION
 
 RUN apt-get update && apt-get install -y cmake clang
 
-FROM chef AS builder 
+FROM chef AS builder
 
 # Build application
 COPY Cargo.toml Cargo.lock ./

@@ -27,8 +27,7 @@ echo
 export DOCKER_BUILDKIT=1
 export SOURCE_DATE_EPOCH=1
 
-# TODO: Remove "--ssh default" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-docker build --ssh default -f "$DOCKERFILE" "$REPO_ROOT" \
+docker build -f "$DOCKERFILE" "$REPO_ROOT" \
 	--build-arg PROFILE="$PROFILE" \
 	--platform "$PLATFORM" \
 	--output type=oci,rewrite-timestamp=true,force-compression=true,tar=false,dest=$OCI_OUTPUT/canary,name=canary \
