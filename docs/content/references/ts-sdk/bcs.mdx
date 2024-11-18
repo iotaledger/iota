@@ -19,7 +19,7 @@ npm i @iota/bcs
 import { bcs } from '@iota/bcs';
 
 // define UID as a 32-byte array, then add a transform to/from hex strings
-const UID = bcs.array(32, bcs.u8()).transform({
+const UID = bcs.fixedArray(32, bcs.u8()).transform({
     input: (id: string) => fromHex(id),
     output: (id) => toHex(id),
 });
@@ -124,10 +124,10 @@ const nullOption = bcs.option(bcs.string()).serialize(null).toBytes();
 
 // Enum
 const MyEnum = bcs.enum('MyEnum', {
-	NoType: null,
-	Int: bcs.u8(),
-	String: bcs.string(),
-	Array: bcs.array(3, bcs.u8()),
+    NoType: null,
+    Int: bcs.u8(),
+    String: bcs.string(),
+    Array: bcs.array(3, bcs.u8()),
 });
 
 const noTypeEnum = MyEnum.serialize({ NoType: null }).toBytes();
@@ -137,8 +137,8 @@ const arrayEnum = MyEnum.serialize({ Array: [1, 2, 3] }).toBytes();
 
 // Struct
 const MyStruct = bcs.struct('MyStruct', {
-	id: bcs.u8(),
-	name: bcs.string(),
+    id: bcs.u8(),
+    name: bcs.string(),
 });
 
 const struct = MyStruct.serialize({ id: 1, name: 'name' }).toBytes();
@@ -147,10 +147,15 @@ const struct = MyStruct.serialize({ id: 1, name: 'name' }).toBytes();
 const tuple = bcs.tuple([bcs.u8(), bcs.string()]).serialize([1, 'name']).toBytes();
 
 // Map
-const map = bcs.map(bcs.u8(), bcs.string()).serialize(.toBytes()[
-	[1, 'one'],
-	[2, 'two'],
-]);
+const map = bcs
+    .map(bcs.u8(), bcs.string())
+    .serialize(
+        new Map([
+            [1, 'one'],
+            [2, 'two'],
+        ]),
+    )
+    .toBytes();
 
 // Parsing data back into original types
 
@@ -191,10 +196,10 @@ import { bcs, BcsType } from '@iota/bcs';
 
 // The T typescript generic is a placeholder for the typescript type of the generic value
 // The T argument will be the bcs type passed in when creating a concrete instance of the Container type
-function Container<T>(T: BcsType<T>) {
-	return bcs.struct('Container<T>', {
-		contents: T,
-	}),
+function Container<T extends BcsType<any>>(T: T) {
+    return bcs.struct('Container<T>', {
+        contents: T,
+    }),
 }
 
 // When serializing, we have to pass the type to use for `T`
@@ -205,25 +210,25 @@ const U8Container = Container(bcs.u8());
 const bytes = U8Container.serialize({ contents: 100 }).toBytes();
 
 // Using multiple generics
-function VecMap<K, V>(K: BcsType<K>, V: BcsType<V>) {
-	// You can use the names of the generic params in the type name to
-	return bcs.struct(
-		// You can use the names of the generic params to give your type a more useful name
-		`VecMap<${K.name}, ${V.name}>`,
-		{
-			keys: bcs.vector(K),
-			values: bcs.vector(V),
-		}
-	)
+function VecMap<K extends BcsType<any>, V extends BcsType<any>>(K: K, V: V) {
+    // You can use the names of the generic params in the type name to
+    return bcs.struct(
+        // You can use the names of the generic params to give your type a more useful name
+        `VecMap<${K.name}, ${V.name}>`,
+        {
+            keys: bcs.vector(K),
+            values: bcs.vector(V),
+        }
+    )
 }
 
 // To serialize VecMap, we can use:
 VecMap(bcs.string(), bcs.string())
-	.serialize({
-		keys: ['key1', 'key2', 'key3'],
-		values: ['value1', 'value2', 'value3'],
-	})
-	.toBytes();
+    .serialize({
+        keys: ['key1', 'key2', 'key3'],
+        values: ['value1', 'value2', 'value3'],
+    })
+    .toBytes();
 ```
 
 ## Transforms
@@ -239,8 +244,8 @@ array. To handle this, you can use the `transform` API to map between the two fo
 ```ts
 const Address = bcs.bytes(32).transform({
     // To change the input type, you need to provide a type definition for the input
-    input: (val: string) => fromHEX(val),
-    output: (val) => toHEX(val),
+    input: (val: string) => fromHex(val),
+    output: (val) => toHex(val),
 });
 
 const serialized = Address.serialize('0x000000...').toBytes();

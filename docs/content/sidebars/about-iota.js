@@ -56,5 +56,6 @@ const aboutIota = [
             'about-iota/iota-wallet/FAQ',
         ],
     },
+    'about-iota/FAQ',
 ];
 module.exports = aboutIota;
