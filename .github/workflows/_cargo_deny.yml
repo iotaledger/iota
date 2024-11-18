@@ -9,7 +9,7 @@ on:
         default: "./Cargo.toml"
 
 concurrency:
-  group: cargo-deny-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: cargo-deny-${{ inputs.manifest-path || './Cargo.toml' }}-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

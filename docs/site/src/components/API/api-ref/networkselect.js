@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState, useEffect } from "react";
-import ExecutionEnvironment from "@docusaurus/ExecutionEnvironment";
 import { Select, MenuItem, FormControl, InputLabel } from "@mui/material";
 import { StyledEngineProvider } from "@mui/material/styles";
+import ExecutionEnvironment from "@docusaurus/ExecutionEnvironment";
 
 const NETWORKS = ["Devnet", "Testnet"];
 
 const NetworkSelect = () => {
   const [selection, setSelection] = useState(() => {
+
     if (ExecutionEnvironment.canUseDOM) {
       const network = localStorage.getItem("RPC");
       if (network === null) {
@@ -23,8 +24,10 @@ const NetworkSelect = () => {
   });
 
   useEffect(() => {
-    localStorage.setItem("RPC", selection);
-    window.dispatchEvent(new Event("storage"));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("RPC", selection);
+      window.dispatchEvent(new Event("storage"));
+    }
   }, [selection]);
 
   const handleChange = (e) => {
@@ -33,7 +36,7 @@ const NetworkSelect = () => {
 
   return (
     <StyledEngineProvider injectFirst>
-      <div className="w-11/12">
+      <div className="w-11/12 pb-3">
         <FormControl fullWidth>
           <InputLabel
             id="network"

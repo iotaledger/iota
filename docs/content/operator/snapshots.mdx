@@ -48,7 +48,7 @@ To restore from a RocksDB snapshot, follow these steps:
 1. Place the snapshot into the directory that the `db-config` value points to in your `fullnode.yaml` file. For example, if the `db-config` value points to `/opt/iota/db/authorities_db/full_node_db` and you want to restore from epoch 10, then copy the snapshot to the directory with this command:
 
    You can use the aws cli (provided you have credentials to associate with the download):
-   `aws s3 cp s3://<BUCKET_NAME>/epoch_10 /opt/iota/db/authorities_db/full_node_db/live --recursive --request-payer`.
+   `aws s3 cp s3://<BUCKET_NAME>/epoch_10 /opt/iota/db/authorities_db/full_node_db/live --recursive`.
    
    An alternative is to use `iota-tool` to copy the files:
    ```shell
@@ -59,20 +59,18 @@ To restore from a RocksDB snapshot, follow these steps:
        --skip-indexes \
        --no-sign-request
    ```
-   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.iota.cafe).
+   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.rebased.iota.org).
    - `--latest`: Rather than explicitly passing a epoch via `--epoch`, you can pass the `--latest` flag, which will automatically select the latest snapshot`
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.
    - `--no-sign-request`: If set, `--snapshot-bucket` and `--snapshot-bucket-type` are ignored, and Cloudflare R2 is used.
    - `--snapshot-bucket`: Source snapshot bucket name, eg `iota-mainnet-snapshots`. This cannot be used with `--no-sign-request`.
-   - `--snapshot-bucket-type`: Snapshot bucket type. GCS and S3 currently supported. This cannot be used with `--no-sign-request`.
+   - `--snapshot-bucket-type`: Snapshot bucket type. S3 currently supported. This cannot be used with `--no-sign-request`.
    - `--skip-indexes`: Skips downloading the very large `indexes/` dir, used by jsonrpc on the fullnode.
 
    The following environment variables are used if `--no-sign-request` is not set:
    * *AWS*: `AWS_SNAPSHOT_ACCESS_KEY_ID`, `AWS_SNAPSHOT_SECRET_ACCESS_KEY`, `AWS_SNAPSHOT_REGION`
-   * *GCS*: `GCS_SNAPSHOT_SERVICE_ACCOUNT_FILE_PATH`
-   * *AZURE*: `AZURE_SNAPSHOT_STORAGE_ACCOUNT`, `AZURE_SNAPSHOT_STORAGE_ACCESS_KEY`
-   * 
+    
 1. When using `iota-tool download-db-snapshot` the database is copied to the location you pass to `--path`, in a directory named `epoch_[NUM]`. Move this directory to the `live/` Full node database directory, for example `/opt/iota/db/authorities_db/full_node_db/live`.
 1. Make sure you update the ownership of the downloaded directory to the `iota` user (or whichever linux user you run `iota-node` as):
    
@@ -99,41 +97,32 @@ The following steps can be used to restore a node from a Formal snapshot:
         --network <NETWORK> --snapshot-bucket <BUCKET-NAME> --snapshot-bucket-type <TYPE> \
         --path <PATH-TO-NODE-DB> --num-parallel-downloads 50 --no-sign-request
    ```
-   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.iota.cafe).
+   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.rebased.iota.org).
    - `--genesis`: The path to the location of the network's `genesis.blob`.
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.
    - `--no-sign-request`: If set, `--snapshot-bucket` and `--snapshot-bucket-type` are ignored, and Cloudflare R2 is used.
    - `--snapshot-bucket`: Source snapshot bucket name, eg `iota-mainnet-snapshots`. This cannot be used with `--no-sign-request`.
-   - `--snapshot-bucket-type`: Snapshot bucket type. GCS and S3 currently supported. This cannot be used with `--no-sign-request`.
+   - `--snapshot-bucket-type`: Snapshot bucket type. S3 currently supported. This cannot be used with `--no-sign-request`.
 
    The following environment variables are used if `--no-sign-request` is not set:
    * *AWS*: `AWS_SNAPSHOT_ACCESS_KEY_ID`, `AWS_SNAPSHOT_SECRET_ACCESS_KEY`, `AWS_SNAPSHOT_REGION`
-   * *GCS*: `GCS_SNAPSHOT_SERVICE_ACCOUNT_FILE_PATH`
-   * *AZURE*: `AZURE_SNAPSHOT_STORAGE_ACCOUNT`, `AZURE_SNAPSHOT_STORAGE_ACCESS_KEY`
 
 
 ## IOTA Foundation managed snapshots
 
 The IOTA Foundation hosts two tiers of snapshot storage access. **High throughput, Requester Pays enabled buckets**, and **free, permissionless buckets**.
 
-**High throughput, Requester Pays enabled buckets:**
-* GCS and S3 are both setup with requester pays. This means that you'll need to provide a set of valid AWS/GCP credentials when downloading from these buckets.
-[Requester Pays](https://cloud.google.com/storage/docs/requester-pays) means you are charged for the egress costs of pulling the snapshot data.
-* If you are looking for the best download speeds, we recommend using the S3 buckets with [transfer acceleration](https://aws.amazon.com/s3/transfer-acceleration/) enabled.
-
 **Free, permissionless buckets:**
 * These are currently hosted on Cloudflare R2, currently only in North America, but we plan on adding more regions soon.
 * Since the bucket is open to the internet, there's no need to provide any cloud credentials.
 
 ### Bucket Names
+
 **S3**
-Testnet: `s3://iota-testnet-snapshots/`, `s3://iota-testnet-formal/`
+Testnet: `s3://iota-rebased-testnet-snapshots/`, `s3://iota-rebased-testnet-formal/`
+Devnet: `s3://iota-rebased-devnet-snapshots/`,  `s3://iota-rebased-devnet-formal/`
 
-**GCS**
-Testnet: `gs://iota-testnet-snapshots/`, `gs://iota-testnet-formal/`
-
-![IOTA Managed Snapshots](/img/operator/snapshots/iota-cloud-snapshots.png "A diagram that shows the current architecture of iota snapshot availability")
 
 ## Enabling snapshots
 
@@ -179,6 +168,6 @@ Add an entry to the config file for `state-snapshot-write-config`. Using Amazon'
        aws-region: "<BUCKET-REGION>"
        object-store-connection-limit: 200
    ```
-The configuration settings shown in the example are specific to AWS S3, but GCS, Azure Storage, and Cloudflare R2 are all supported.
+The configuration settings shown in the example are specific to AWS S3.
 
 <Quiz questions={questions} />
