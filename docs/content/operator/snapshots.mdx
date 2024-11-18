@@ -48,7 +48,7 @@ To restore from a RocksDB snapshot, follow these steps:
 1. Place the snapshot into the directory that the `db-config` value points to in your `fullnode.yaml` file. For example, if the `db-config` value points to `/opt/iota/db/authorities_db/full_node_db` and you want to restore from epoch 10, then copy the snapshot to the directory with this command:
 
    You can use the aws cli (provided you have credentials to associate with the download):
-   `aws s3 cp s3://<BUCKET_NAME>/epoch_10 /opt/iota/db/authorities_db/full_node_db/live --recursive --request-payer`.
+   `aws s3 cp s3://<BUCKET_NAME>/epoch_10 /opt/iota/db/authorities_db/full_node_db/live --recursive`.
    
    An alternative is to use `iota-tool` to copy the files:
    ```shell
@@ -112,10 +112,6 @@ The following steps can be used to restore a node from a Formal snapshot:
 ## IOTA Foundation managed snapshots
 
 The IOTA Foundation hosts two tiers of snapshot storage access. **High throughput, Requester Pays enabled buckets**, and **free, permissionless buckets**.
-
-**High throughput, Requester Pays enabled buckets:**
-* S3 are both setup with requester pays. This means that you'll need to provide a set of valid AWS credentials when downloading from these buckets.
-* If you are looking for the best download speeds, we recommend using the S3 buckets with [transfer acceleration](https://aws.amazon.com/s3/transfer-acceleration/) enabled.
 
 **Free, permissionless buckets:**
 * These are currently hosted on Cloudflare R2, currently only in North America, but we plan on adding more regions soon.
