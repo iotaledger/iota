@@ -144,11 +144,22 @@
   .menu__link {
     color: rgba(255, 255, 255, 0.7);
   }
-  
-  [data-theme="light"] .menu__list-item-collapsible:hover,
-      [data-theme="light"] .menu__link--active {
+
+  [data-theme="light"] .menu__list-item-collapsible--active,
+  [data-theme="light"] .menu__link--active {
     font-weight: bold;
     color: white;
+  }
+
+  [data-theme="light"] .menu__list-item-collapsible:hover,
+  [data-theme="light"] .menu__link:hover{
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+  }
+  [data-theme="light"] .menu__link:after,
+  [data-theme="light"] .menu__caret:before{
+    filter: invert(100%);
+
   }
 }
 
