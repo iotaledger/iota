@@ -45,7 +45,7 @@ jobs:
         id: meta-node
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
         with:
-          images: docker-registry.iota.org/iota-node
+          images: iotaledger/iota-node
           # mapping semver tags to networks
           # v{MAJOR}.{MINOR}.{PATCH}-alpha -> alphanet
           # v{MAJOR}.{MINOR}.{PATCH}-beta -> devnet
@@ -104,7 +104,7 @@ jobs:
         id: meta-indexer
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
         with:
-          images: docker-registry.iota.org/iota-indexer
+          images: iotaledger/iota-indexer
           # mapping semver tags to networks
           # v{MAJOR}.{MINOR}.{PATCH}-alpha -> alphanet
           # v{MAJOR}.{MINOR}.{PATCH}-beta -> devnet
@@ -163,7 +163,7 @@ jobs:
         id: meta-tools
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
         with:
-          images: docker-registry.iota.org/iota-tools
+          images: iotaledger/iota-tools
           # mapping semver tags to networks
           # v{MAJOR}.{MINOR}.{PATCH}-alpha -> alphanet
           # v{MAJOR}.{MINOR}.{PATCH}-beta -> devnet
@@ -222,7 +222,7 @@ jobs:
         id: meta-tools
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
         with:
-          images: docker-registry.iota.org/iota-graphql-rpc
+          images: iotaledger/iota-graphql-rpc
           # mapping semver tags to networks
           # v{MAJOR}.{MINOR}.{PATCH}-alpha -> alphanet
           # v{MAJOR}.{MINOR}.{PATCH}-beta -> devnet
