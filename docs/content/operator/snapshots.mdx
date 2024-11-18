@@ -59,7 +59,7 @@ To restore from a RocksDB snapshot, follow these steps:
        --skip-indexes \
        --no-sign-request
    ```
-   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.iota.cafe).
+   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.rebased.iota.org).
    - `--latest`: Rather than explicitly passing a epoch via `--epoch`, you can pass the `--latest` flag, which will automatically select the latest snapshot`
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.
@@ -99,7 +99,7 @@ The following steps can be used to restore a node from a Formal snapshot:
         --network <NETWORK> --snapshot-bucket <BUCKET-NAME> --snapshot-bucket-type <TYPE> \
         --path <PATH-TO-NODE-DB> --num-parallel-downloads 50 --no-sign-request
    ```
-   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.iota.cafe).
+   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.rebased.iota.org).
    - `--genesis`: The path to the location of the network's `genesis.blob`.
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.
