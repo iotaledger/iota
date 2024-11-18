@@ -362,7 +362,7 @@ To get the current valid `Cap` object's ID of a validator, use the Iota Client C
 setting the holder as the active address.
 
 <!-- Will be fixed by issue 1867. -->
-<!-- Or go to the [explorer](https://explorer.iota.cafe/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
+<!-- Or go to the [explorer](https://explorer.rebased.iota.org/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
 
 ### Updating the Gas Price Survey Quote
 
