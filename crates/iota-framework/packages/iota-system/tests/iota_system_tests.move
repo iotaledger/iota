@@ -14,7 +14,7 @@ module iota_system::iota_system_tests {
     use iota_system::iota_system::IotaSystemState;
     use iota_system::iota_system_state_inner;
     use iota_system::validator::{Self, ValidatorV1};
-    use iota_system::validator_set;
+    use iota_system::validator_set_v2 as validator_set;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota::balance;
     use iota::test_utils::assert_eq;
@@ -120,7 +120,7 @@ module iota_system::iota_system_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = ::iota_system::validator_set::EInvalidCap)]
+    #[expected_failure(abort_code = validator_set::EInvalidCap)]
     fun test_report_validator_by_stakee_revoked() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
@@ -146,7 +146,7 @@ module iota_system::iota_system_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = ::iota_system::validator_set::EInvalidCap)]
+    #[expected_failure(abort_code = validator_set::EInvalidCap)]
     fun test_set_reference_gas_price_by_stakee_revoked() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;

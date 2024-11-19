@@ -55,7 +55,7 @@ module iota_system::iota_system {
     use iota::vec_map::VecMap;
 
     #[test_only] use iota::balance;
-    #[test_only] use iota_system::validator_set::ValidatorSetV2 as ValidatorSetLatest;
+    #[test_only] use iota_system::validator_set_v2::ValidatorSet as ValidatorSetLatest;
     #[test_only] use iota::vec_set::VecSet;
 
     public struct IotaSystemState has key {

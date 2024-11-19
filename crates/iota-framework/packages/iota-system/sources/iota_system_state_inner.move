@@ -8,7 +8,8 @@ module iota_system::iota_system_state_inner {
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::system_admin_cap::IotaSystemAdminCap;
     use iota_system::validator::{Self, ValidatorV1};
-    use iota_system::validator_set::{Self, ValidatorSetV1, ValidatorSetV2};
+    use iota_system::validator_set::{Self, ValidatorSetV1};
+    use iota_system::validator_set_v2::ValidatorSet;
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::storage_fund::{Self, StorageFundV1};
     use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota};
@@ -227,7 +228,7 @@ module iota_system::iota_system_state_inner {
         ctx: &mut TxContext,
     ): IotaSystemStateV1 {
         let validators = validator_set::new(validators, ctx);
-        let reference_gas_price = validators.derive_reference_gas_price_v1();
+        let reference_gas_price = validators.derive_reference_gas_price();
         // This type is fixed as it's created at genesis. It should not be updated during type upgrade.
         let system_state = IotaSystemStateV1 {
             epoch: 0,
@@ -949,7 +950,7 @@ module iota_system::iota_system_state_inner {
         let mut voting_powers = vec_map::empty();
         while (!vector::is_empty(&active_validators)) {
             let validator = vector::pop_back(&mut active_validators);
-            let voting_power = validator_set::validator_voting_power(&self.validators, validator);
+            let voting_power = self.validators.validator_voting_power(validator);
             vec_map::insert(&mut voting_powers, validator, voting_power);
         };
         voting_powers
