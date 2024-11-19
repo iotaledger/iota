@@ -5,12 +5,12 @@
 module reviews_rating::service {
     use std::string::String;
 
-    use iota::balance::{Self, Balance};
+    use iota::balance::Balance;
     use iota::clock::Clock;
-    use iota::coin::{Self, Coin};
+    use iota::coin::Coin;
     use iota::dynamic_field as df;
     use iota::iota::IOTA;
-    use iota::object_table::{Self, ObjectTable};
+    use iota::object_table::ObjectTable;
     
     use reviews_rating::moderator::{Moderator};
     use reviews_rating::review::{Self, Review};
@@ -83,10 +83,9 @@ module reviews_rating::service {
     public fun upvote(
         service: &mut Service,
         review_id: ID,
-        upvoter: address,
-        ctx: &mut TxContext
+        _upvoter: address,
     ) {
-        let mut review = service.reviews.borrow_mut(review_id);
+        let review = service.reviews.borrow_mut(review_id);
         let total_score = review.upvote();
         service.reorder(review_id, total_score);
     }
