@@ -18,5 +18,5 @@ index c0829bc1b6..4007f97d66 100644
  include_dir = "0.7.3"
 +
 +[patch.crates-io]
-+tokio = { git = "https://github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb" }
-+futures-timer = { git = "https://github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb" }
++tokio = { git = "https://github.com/iotaledger/iota-sim.git", rev = "f16ef50ba7d874fe1f0960f248f6c651a634d6a5" }
++futures-timer = { git = "https://github.com/iotaledger/iota-sim.git", rev = "f16ef50ba7d874fe1f0960f248f6c651a634d6a5" }
