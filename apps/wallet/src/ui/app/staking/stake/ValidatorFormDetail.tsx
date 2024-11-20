@@ -123,14 +123,14 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                 <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
                         keyText="Staking APY"
-                        tooltipPosition={TooltipPosition.Right}
+                        tooltipPosition={TooltipPosition.Bottom}
                         tooltipText="Annualized percentage yield based on past validator performance. Future APY may vary"
                         value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
                         fullwidth
                     />
                     <KeyValueInfo
                         keyText="Stake Share"
-                        tooltipPosition={TooltipPosition.Right}
+                        tooltipPosition={TooltipPosition.Bottom}
                         tooltipText="Stake percentage managed by this validator."
                         value={formatPercentageDisplay(totalStakePercentage)}
                         fullwidth
@@ -139,15 +139,15 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         <>
                             <KeyValueInfo
                                 keyText="Total Staked"
-                                tooltipPosition={TooltipPosition.Right}
-                                tooltipText="Stake percentage managed by this validator."
+                                tooltipPosition={TooltipPosition.Bottom}
+                                tooltipText="The full amount of IOTA staked by this validator and delegators for network validation and rewards."
                                 value={totalValidatorStakeFormatted}
                                 supportingLabel={totalValidatorStakeSymbol}
                                 fullwidth
                             />
                             <KeyValueInfo
                                 keyText="Your Staked IOTA"
-                                tooltipPosition={TooltipPosition.Right}
+                                tooltipPosition={TooltipPosition.Bottom}
                                 tooltipText="Your current staked balance."
                                 value={totalStakeFormatted}
                                 supportingLabel={totalStakeSymbol}
