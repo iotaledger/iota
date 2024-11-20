@@ -412,7 +412,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     }
 
     #[instrument(level = "trace", skip_all)]
-    async fn deprecated_get_transaction_checkpoint(
+    async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
@@ -435,7 +435,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     }
 
     #[instrument(level = "trace", skip_all)]
-    async fn multi_get_transaction_checkpoint(
+    async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {

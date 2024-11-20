@@ -318,27 +318,27 @@ impl ExecutionCacheCommit for ProxyCache {
 }
 
 impl CheckpointCache for ProxyCache {
-    fn deprecated_get_transaction_checkpoint(
+    fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        delegate_method!(self.deprecated_get_transaction_checkpoint(digest))
+        delegate_method!(self.get_transaction_perpetual_checkpoint(digest))
     }
 
-    fn deprecated_multi_get_transaction_checkpoint(
+    fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-        delegate_method!(self.deprecated_multi_get_transaction_checkpoint(digests))
+        delegate_method!(self.multi_get_transactions_perpetual_checkpoints(digests))
     }
 
-    fn deprecated_insert_finalized_transactions(
+    fn insert_finalized_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
         epoch: EpochId,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult {
-        delegate_method!(self.deprecated_insert_finalized_transactions(digests, epoch, sequence))
+        delegate_method!(self.insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence))
     }
 }
 

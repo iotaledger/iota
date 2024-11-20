@@ -1457,9 +1457,7 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .executed_transactions_to_checkpoint
-            .multi_get(digests)?
-            .into_iter()
-            .collect())
+            .multi_get(digests)?)
     }
 
     // For each id in objects_to_init, return the next version for that id as

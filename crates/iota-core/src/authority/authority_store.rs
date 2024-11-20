@@ -541,8 +541,8 @@ impl AuthorityStore {
         Ok(result)
     }
 
-    // DEPRECATED -- use function of same name in AuthorityPerEpochStore
-    pub fn deprecated_insert_finalized_transactions(
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn insert_finalized_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
         epoch: EpochId,
@@ -561,8 +561,8 @@ impl AuthorityStore {
         Ok(())
     }
 
-    // DEPRECATED -- use function of same name in AuthorityPerEpochStore
-    pub fn deprecated_get_transaction_checkpoint(
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
@@ -572,17 +572,15 @@ impl AuthorityStore {
             .get(digest)?)
     }
 
-    // DEPRECATED -- use function of same name in AuthorityPerEpochStore
-    pub fn deprecated_multi_get_transaction_checkpoint(
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
         Ok(self
             .perpetual_tables
             .executed_transactions_to_checkpoint
-            .multi_get(digests)?
-            .into_iter()
-            .collect())
+            .multi_get(digests)?)
     }
 
     /// Returns true if there are no objects in the database

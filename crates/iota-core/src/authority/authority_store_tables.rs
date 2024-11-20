@@ -102,10 +102,10 @@ pub struct AuthorityPerpetualTables {
     #[default_options_override_fn = "events_table_default_config"]
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
 
-    /// DEPRECATED in favor of the table of the same name in
-    /// authority_per_epoch_store. Please do not add new
-    /// accessors/callsites. When transaction is executed via checkpoint
-    /// executor, we store association here
+    /// Epoch and checkpoint of transactions finalized by checkpoint
+    /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
+    /// Note, there is a table with the same name in
+    /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
@@ -356,8 +356,6 @@ impl AuthorityPerpetualTables {
         Ok(self.effects.get(&effect_digest)?)
     }
 
-    // DEPRECATED as the backing table has been moved to authority_per_epoch_store.
-    // Please do not add new accessors/callsites.
     pub fn get_checkpoint_sequence_number(
         &self,
         digest: &TransactionDigest,

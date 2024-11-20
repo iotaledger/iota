@@ -3147,15 +3147,6 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    fn get_transaction_checkpoint_sequence(
-        &self,
-        digest: &TransactionDigest,
-        epoch_store: &AuthorityPerEpochStore,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        epoch_store.get_transaction_checkpoint(digest)
-    }
-
-    #[instrument(level = "trace", skip_all)]
     pub fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
@@ -3171,7 +3162,7 @@ impl AuthorityState {
         digest: &TransactionDigest,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Option<VerifiedCheckpoint>> {
-        let checkpoint = self.get_transaction_checkpoint_sequence(digest, epoch_store)?;
+        let checkpoint = epoch_store.get_transaction_checkpoint(digest)?;
         let Some(checkpoint) = checkpoint else {
             return Ok(None);
         };
@@ -4986,12 +4977,12 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
-    async fn deprecated_get_transaction_checkpoint(
+    async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         self.get_checkpoint_cache()
-            .deprecated_get_transaction_checkpoint(&digest)
+            .get_transaction_perpetual_checkpoint(&digest)
             .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
     }
 
@@ -5005,13 +4996,13 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .map_err(Into::into)
     }
 
-    async fn multi_get_transaction_checkpoint(
+    async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         let res = self
             .get_checkpoint_cache()
-            .deprecated_multi_get_transaction_checkpoint(digests)?;
+            .multi_get_transactions_perpetual_checkpoints(digests)?;
 
         Ok(res
             .into_iter()
