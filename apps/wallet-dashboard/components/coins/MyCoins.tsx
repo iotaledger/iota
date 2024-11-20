@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-import { CoinItem } from '@/components';
+import { CoinItem, SendTokenDialog } from '@/components';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import {
     COINS_QUERY_REFETCH_INTERVAL,
@@ -19,7 +19,6 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { RecognizedBadge } from '@iota/ui-icons';
-import SendCoinDialog from '../Dialogs/SendToken/SendTokenDialog';
 
 enum TokenCategory {
     All = 'All',
@@ -130,7 +129,7 @@ function MyCoins(): React.JSX.Element {
                 </div>
             </div>
             {selectedCoin && activeAccountAddress && (
-                <SendCoinDialog
+                <SendTokenDialog
                     activeAddress={activeAccountAddress}
                     coin={selectedCoin}
                     open={isSendTokenDialogOpen}
