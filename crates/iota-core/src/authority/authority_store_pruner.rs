@@ -269,6 +269,10 @@ impl AuthorityStorePruner {
 
         perpetual_batch.delete_batch(&perpetual_db.transactions, transactions.iter())?;
         perpetual_batch.delete_batch(&perpetual_db.executed_effects, transactions.iter())?;
+        perpetual_batch.delete_batch(
+            &perpetual_db.executed_transactions_to_checkpoint,
+            transactions,
+        )?;
 
         let mut effect_digests = vec![];
         for effects in effects_to_prune {

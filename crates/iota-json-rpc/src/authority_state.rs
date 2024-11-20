@@ -29,7 +29,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
     bridge::Bridge,
-    committee::Committee,
+    committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
@@ -222,6 +222,16 @@ pub trait StateRead: Send + Sync {
         &self,
         digest: CheckpointDigest,
     ) -> StateReadResult<VerifiedCheckpoint>;
+
+    fn deprecated_multi_get_transaction_checkpoint(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
+
+    fn deprecated_get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>>;
 
     fn multi_get_checkpoint_by_sequence_number(
         &self,
@@ -532,6 +542,24 @@ impl StateRead for AuthorityState {
         digest: CheckpointDigest,
     ) -> StateReadResult<VerifiedCheckpoint> {
         Ok(self.get_verified_checkpoint_summary_by_digest(digest)?)
+    }
+
+    fn deprecated_multi_get_transaction_checkpoint(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+        Ok(self
+            .get_checkpoint_cache()
+            .deprecated_multi_get_transaction_checkpoint(digests)?)
+    }
+
+    fn deprecated_get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+        Ok(self
+            .get_checkpoint_cache()
+            .deprecated_get_transaction_checkpoint(digest)?)
     }
 
     fn multi_get_checkpoint_by_sequence_number(

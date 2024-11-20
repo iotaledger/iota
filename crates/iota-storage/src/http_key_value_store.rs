@@ -412,6 +412,17 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     }
 
     #[instrument(level = "trace", skip_all)]
+    async fn deprecated_get_transaction_checkpoint(
+        &self,
+        digest: TransactionDigest,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        let key = Key::TxToCheckpoint(digest);
+        self.fetch(key).await.map(|maybe| {
+            maybe.and_then(|bytes| deser::<_, CheckpointSequenceNumber>(&key, bytes.as_ref()))
+        })
+    }
+
+    #[instrument(level = "trace", skip_all)]
     async fn get_object(
         &self,
         object_id: ObjectID,
