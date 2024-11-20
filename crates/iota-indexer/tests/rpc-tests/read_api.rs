@@ -8,6 +8,7 @@ use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
+use iota_protocol_config::MAX_PROTOCOL_VERSION;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::TransactionDigest,
@@ -1099,7 +1100,10 @@ fn get_protocol_config() {
 
         assert_eq!(fullnode_protocol_config, indexer_protocol_config);
 
-        let indexer_protocol_config = client.get_protocol_config(Some(1u64.into())).await.unwrap();
+        let indexer_protocol_config = client
+            .get_protocol_config(Some(MAX_PROTOCOL_VERSION.into()))
+            .await
+            .unwrap();
 
         assert_eq!(fullnode_protocol_config, indexer_protocol_config);
     });
@@ -1122,7 +1126,7 @@ fn get_protocol_config_invalid_protocol_version() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Unsupported protocol version requested. Min supported: 1, max supported: 1"}"#,
+            &format!(r#"{{"code":-32603,"message":"Unsupported protocol version requested. Min supported: 1, max supported: {MAX_PROTOCOL_VERSION}"}}"#),
         ));
     });
 }
