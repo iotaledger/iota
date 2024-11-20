@@ -9,20 +9,8 @@ import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { NotificationType } from '@/stores/notificationStore';
 import { useGetAllCoins } from '@iota/core';
 import { Dialog, DialogBody, DialogContent, DialogPosition, Header } from '@iota/apps-ui-kit';
-
-export interface FormDataValues {
-    amount: string;
-    to: string;
-    isPayAllIota: boolean;
-    gasBudgetEst: string;
-}
-
-export const INITIAL_VALUES: FormDataValues = {
-    to: '',
-    amount: '',
-    isPayAllIota: false,
-    gasBudgetEst: '',
-};
+import { FormDataValues } from './interfaces';
+import { INITIAL_VALUES } from './constants';
 
 interface SendCoinPopupProps {
     coin: CoinBalance;
@@ -122,7 +110,7 @@ function SendTokenDialogBody({
     );
 }
 
-function SendTokenDialog(props: SendCoinPopupProps): React.JSX.Element {
+export function SendTokenDialog(props: SendCoinPopupProps): React.JSX.Element {
     return (
         <Dialog open={props.open} onOpenChange={props.setOpen}>
             <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>
@@ -131,5 +119,3 @@ function SendTokenDialog(props: SendCoinPopupProps): React.JSX.Element {
         </Dialog>
     );
 }
-
-export default SendTokenDialog;

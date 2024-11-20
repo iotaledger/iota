@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { FormDataValues } from '../SendTokenDialog';
 import { Button } from '@/components';
+import { FormDataValues } from '../interfaces';
 
 interface ReviewValuesFormProps {
     formData: FormDataValues;
@@ -13,7 +13,7 @@ interface ReviewValuesFormProps {
     onBack: () => void;
 }
 
-function ReviewValuesFormView({
+export function ReviewValuesFormView({
     formData: { amount, to, gasBudgetEst },
     senderAddress,
     error,
@@ -42,4 +42,3 @@ function ReviewValuesFormView({
         </div>
     );
 }
-export default ReviewValuesFormView;

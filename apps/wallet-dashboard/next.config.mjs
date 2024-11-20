@@ -14,7 +14,7 @@ const nextConfig = {
     },
     images: {
         // Remove this domain when fetching data
-        domains: ['d315pvdvxi2gex.cloudfront.net', 'd122fl2kiki5hg.cloudfront.net'],
+        domains: ['d315pvdvxi2gex.cloudfront.net'],
     },
 };
 

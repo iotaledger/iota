@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CoinBalance, CoinMetadata, CoinStruct } from '@iota/iota-sdk/client';
-import { FormDataValues, INITIAL_VALUES } from '../SendTokenDialog';
 import {
     AddressInput,
     CoinFormat,
@@ -32,6 +31,8 @@ import { Form, Formik, FormikProps } from 'formik';
 import { Exclamation } from '@iota/ui-icons';
 import { UseQueryResult } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { FormDataValues } from '../interfaces';
+import { INITIAL_VALUES } from '../constants';
 
 interface EnterValuesFormProps {
     coin: CoinBalance;
@@ -143,7 +144,7 @@ function FormInputs({
     );
 }
 
-function EnterValuesFormView({
+export function EnterValuesFormView({
     coin,
     activeAddress,
     setFormData,
@@ -268,5 +269,3 @@ function EnterValuesFormView({
         </div>
     );
 }
-
-export default EnterValuesFormView;
