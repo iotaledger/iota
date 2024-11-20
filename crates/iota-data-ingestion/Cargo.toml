@@ -42,6 +42,3 @@ telemetry-subscribers.workspace = true
 # external dependencies
 rand.workspace = true
 tempfile.workspace = true
-
-# internal dependencies
-iota-types = { workspace = true, features = ["test-utils"] }

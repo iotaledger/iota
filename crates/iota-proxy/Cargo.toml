@@ -54,8 +54,5 @@ mime = "0.3"
 serde_json.workspace = true
 tower.workspace = true
 
-# internal dependencies
-iota-types = { workspace = true, features = ["test-utils"] }
-
 [build-dependencies]
 prost-build = "0.13.1"
