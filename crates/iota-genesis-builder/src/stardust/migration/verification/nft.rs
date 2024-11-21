@@ -15,6 +15,7 @@ use iota_types::{
     stardust::output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
 };
 
+use super::util::TokensAmountCounter;
 use crate::stardust::migration::{
     executor::FoundryLedgerData,
     verification::{
@@ -34,7 +35,7 @@ pub(super) fn verify_nft_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
 ) -> anyhow::Result<()> {
     let created_output_obj = created_objects.output().and_then(|id| {
         storage
@@ -91,7 +92,7 @@ pub(super) fn verify_nft_output(
         created_output.balance.value(),
         output.amount()
     );
-    *total_value += created_output.balance.value();
+    tokens_counter.update_total_value_for_iota(created_output.balance.value());
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(
@@ -100,6 +101,7 @@ pub(super) fn verify_nft_output(
         created_output.native_tokens,
         created_objects.native_tokens().ok(),
         storage,
+        tokens_counter,
     )?;
 
     // Storage Deposit Return Unlock Condition
