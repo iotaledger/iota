@@ -5,7 +5,7 @@ module nft_marketplace::nft_marketplace {
         kiosk::{Kiosk, KioskOwnerCap, purchase},
         kiosk_extension,
         bag,
-        transfer_policy::{Self, TransferPolicy, TransferRequest, TransferPolicyCap, has_rule},
+        transfer_policy::{Self, TransferPolicy, TransferRequest, TransferPolicyCap, has_rule, get_rule},
         clock::Clock,
         coin::{Self, Coin},
         balance::{Self, Balance},
@@ -17,7 +17,8 @@ module nft_marketplace::nft_marketplace {
     use kiosk::kiosk_lock_rule::Rule as LockRule;
     // use kiosk::floor_price_rule::Rule as FloorPriceRule;
     // use kiosk::personal_kiosk_rule::Rule as PersonalRule;
-    // use kiosk::royalty_rule::Rule as RoyaltyRule;
+    use kiosk::royalty_rule::Rule as RoyaltyRule;
+    use kiosk::royalty_rule;
     // use kiosk::witness_rule::Rule as WitnessRule;
 
     // === Errors ===
@@ -28,6 +29,7 @@ module nft_marketplace::nft_marketplace {
     const ERentingPeriodNotOver: u64 = 4;
     const EObjectNotExist: u64 = 5;
     const ETotalPriceOverflow: u64 = 6;
+    const EInvalidRoyaltiesAmount: u64 = 7;
 
     // === Constants ===
     const PERMISSIONS: u128 = 11;
@@ -95,6 +97,13 @@ module nft_marketplace::nft_marketplace {
         policy_cap: TransferPolicyCap<T>
     }
 
+    /// A shared object that should be minted by every creator.
+    public struct RoyaltyTP<phantom T> has key, store {
+        id: UID,
+        transfer_policy: TransferPolicy<T>,
+        policy_cap: TransferPolicyCap<T>
+    }
+
     // === Public Functions ===
 
     /// Enables someone to install the Marketplace extension in their Kiosk.
@@ -137,6 +146,9 @@ module nft_marketplace::nft_marketplace {
         transfer::share_object(rental_policy);
     }
 
+    public fun setup_royalties<T: key + store>(policy: &mut TransferPolicy<T>, cap: &TransferPolicyCap<T>, amount_bp: u16, min_amount: u64, ctx: &mut TxContext) {
+        royalty_rule::add<T>( policy, cap, amount_bp, min_amount);
+    }
     /// Enables someone to list an asset within the Marketplace extension's Bag,
     /// creating a Bag entry with the asset's ID as the key and a Rentable wrapper object as the value.
     /// Requires the existance of a ProtectedTP which can only be created by the creator of type T.
@@ -201,14 +213,21 @@ module nft_marketplace::nft_marketplace {
         };
     }
 
-    /// Buy listed item
-    public fun buy<T: key + store>(kiosk: &mut Kiosk, item_id: object::ID, payment: Coin<IOTA>): (T, TransferRequest<T>){
-        purchase(kiosk, item_id, payment)
-    }
-
-    /// Confirm the TransferRequest
-    public fun confirm_request<T: key + store>(policy: &TransferPolicy<T>, req: TransferRequest<T>) {
-        transfer_policy::confirm_request(policy, req);
+    /// Buy listed item and pay royalties if needed
+    public fun buy<T: key + store>(kiosk: &mut Kiosk, policy: &mut TransferPolicy<T>, item_id: object::ID, mut payment: Coin<IOTA>, mut royalties: Option<Coin<IOTA>>, ctx: &mut TxContext) {
+        let mut fee_amount = 0;
+        let payment_value = payment.value();
+        let (item, mut transfer_request) = purchase(kiosk, item_id, payment);
+        if (policy.has_rule<T, RoyaltyRule>()) { 
+            let royalties = royalties.destroy_some();
+            fee_amount = royalty_rule::fee_amount(policy, payment_value);
+            assert!(fee_amount == royalties.value(), EInvalidRoyaltiesAmount);
+            royalty_rule::pay(policy, &mut transfer_request, royalties);
+        } else{
+            royalties.destroy_none();
+        };
+        transfer_policy::confirm_request(policy, transfer_request);
+        transfer::public_transfer<T>(item, ctx.sender());
     }
 
     /// This enables individuals to rent a listed Rentable.
