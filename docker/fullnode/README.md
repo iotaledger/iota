@@ -1,6 +1,6 @@
-# Use Docker to Run a Iota Full node Locally
+# Use Docker to Run an IOTA Full Node Locally
 
-Follow the steps in this Readme to install and configure a Iota Full node for testing locally using Docker. The instructions were validated on the following operating system/processor combinations:
+Use this guide to install and configure an IOTA Full Node locally using Docker for testing. These instructions are valid for the following operating system and processor combinations:
 
 - Linux/AMD64
 - Darwin/AMD64
@@ -8,91 +8,129 @@ Follow the steps in this Readme to install and configure a Iota Full node for te
 
 ## Prerequisites
 
-- [Install Docker](https://docs.docker.com/get-docker/)
-- [Install Docker Compose](https://docs.docker.com/compose/install/)
-- Download the Full node [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/docker/fullnode/docker-compose.yaml) file.
+Before you begin, ensure you have the following:
 
-## Configure Iota Full node
+- [Docker](https://docs.docker.com/get-docker/) installed.
+- [Docker Compose](https://docs.docker.com/compose/install/) installed.
+- Download the full node [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/docker/fullnode/docker-compose.yaml) file.
 
-Download the latest version of the Iota Full node configuration file [fullnode-template.yaml](https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template.yaml). Use the following command to download the file:
+## Configure the IOTA Full Node
+
+Download the latest version of the IOTA Full Node configuration file [fullnode-template.yaml](https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template.yaml). You can use the following command to download the file:
 
 ```shell
 wget https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template.yaml
 ```
 
-To ensure you add the appropriate peers for your full node, please refer to the instructions provided at the following link:
-https://docs.iota.org/operator/iota-full-node#set-up-from-source and proceed with step 4.
+### Add Peers
 
-### Download the Iota genesis blob
+For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append
+the following to the end of the current configuration:
 
-The genesis blob contains the information that defined the Iota network configuration. Before you can start the Full node, you need to download the most recent file to ensure compatibility with the version of Iota you use.
+#### Devnet
 
-To download the appropriate genesis.blob file, please refer to the instructions provided at the following link:
-https://docs.iota.org/operator/iota-full-node#set-up-from-source. and proceed with step 3.
+```yaml
+p2p-config:
+    seed-peers:
+    - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
+        peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
+    - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
+        peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
+```
 
-## Start your Iota Full node
+#### Tesnet
 
-Run the following command to start the Iota fullnode in Docker:
+```yaml
+p2p-config:
+    seed-peers:
+    - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
+        peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
+    - address: /dns/access-1.r.devnet.iota.cafe/udp/8084
+        peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
+```
+
+### Download the IOTA Genesis Blob
+
+The genesis blob defines the IOTA network configuration. Before starting the Full Node, download the latest `genesis.blob` file to ensure compatibility with your version of IOTA.
+
+- [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
+    `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
+- [Devnet genesis blob](https://dbfiles.devnet.iota.cafe/genesis.blob):
+    `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
+- [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
+    `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
+- [Mainnet genesis blob](https://github.com/iotaledger/iota/TODO):
+    `curl -fLJO TODO`
+- [Mainnet migration blob](https://github.com/iotaledger/iota/TODO):
+    `curl -fLJO TODO`
+
+## Start Your IOTA Full Node
+
+Run the following command to start the IOTA Full Node in Docker:
 
 ```shell
 docker compose up
 ```
 
-**Important:** The commands in this document assume you use Docker Compose V2. The `docker compose` command uses a dash (`docker-compose`) in Docker Compose V1. If you use Docker Compose V1, replace the space in each `docker compose` command with a dash (`docker-compose`). For more information, see [Docker Compose V2](https://docs.docker.com/compose/#compose-v2-and-the-new-docker-compose-command).
+**Important:** These commands assume you are using Docker Compose V2. In Docker Compose V1, the `docker compose` command uses a dash (`docker-compose`). If you use Docker Compose V1, replace the space in each `docker compose` command with a dash (`docker-compose`). For more information, see [Docker Compose V2](https://docs.docker.com/compose/#compose-v2-and-the-new-docker-compose-command).
 
-## Test the Iota Full node
 
-After the Full node starts you can test the JSON-RPC interfaces.
+## Stop the Full Node
 
-## View activity on your local Full node with Iota Explorer
-
-Iota Explorer supports connecting to a local network. To view activity on your local Full node, open the URL: [https://explorer.iota.org/?network=local](https://explorer.iota.org/?network=local).
-
-You can also change the network that Iota Explorer connects to by select it in the Iota Explorer interface.
-
-### Stop the Full node
-
-Run the following command to stop the Full node when you finish using it:
+Run the following command to stop the Full Node when you finish using it:
 
 ```shell
 docker compose stop
 ```
 
+## Test the IOTA Full Node
+
+After the Full Node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
+
 ## Troubleshooting
 
-If you encounter errors or your Full node stops working, run the commands in the following section to resolve the issue.
+If you encounter errors or your Full Node stops working, run the commands in the following section to resolve the issue.
 
-### Start the Full node in detached mode
+### Start the Full Node in Detached Mode
 
-First, try starting the Full node in detached mode:
+First, try starting the Full Node in detached mode:
 
 ```shell
 docker compose up -d
 ```
 
-### Reset the environment
+### Reset the Environment
 
-If you continue to see issues, stop the Full node (`docker compose stop`) and delete the Docker container and volume. Then run the following command to start a new instance of the Full node using the same genesis blob.
+If you continue to see issues, stop the Full Node (`docker compose stop`) and delete the Docker container and volume. Then run the following command to start a new instance of the Full Node using the same genesis blob:
 
 ```shell
 docker compose down --volumes
 ```
 
-### Stats (CPU/MEM USAGE %)
+## Monitoring
 
-To view usage details for the Full node running in Docker, run the following command:
+### View Activity on Your Local Full Node with IOTA Explorer
+
+The IOTA Explorer supports connecting to any network as long as it has `https` enabled. To view activity on your local
+Full Node, open the URL: [hhttps://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select Custom
+RPC URL from the network dropdown in the top right.
+
+
+### View Resource Usage (CPU and Memory)
+
+To view resource usage details for the Full Node running in Docker, run the following command:
 
 ```shell
 docker stats
 ```
 
-This command shows a live data stream of the Docker container resource usage, such as CPU and memory. To view data for all containers, use the following command:
+This command shows a live data stream of the Docker container's resource usage, such as CPU and memory. To view data for all containers, use the following command:
 
 ```shell
 docker stats -a
 ```
 
-### Inspect the state of a running Full node
+### Inspect the State of a Running Full Node
 
 Get the running container ID:
 
@@ -112,9 +150,9 @@ Inspect the database:
 ls -la iotadb/
 ```
 
-### Investigate local RPC connectivity issues
+### Investigate Local RPC Connectivity Issues
 
-Update the `json-rpc-address` in the Full node config to listen on all addresses:
+Update the `json-rpc-address` in the Full Node config to listen on all addresses:
 
 ```shell
 sed -i 's/127.0.0.1/0.0.0.0/' fullnode-template.yaml
@@ -124,21 +162,3 @@ sed -i 's/127.0.0.1/0.0.0.0/' fullnode-template.yaml
 -json-rpc-address: "127.0.0.1:9000"
 +json-rpc-address: "0.0.0.0:9000"
 ```
-
-### Install wget and curl
-
-Download each package. For example, on macOS use [homebrew](https://brew.sh/):
-
-`brew install wget curl`
-
-### Learn more about Iota
-
-- https://docs.iota.io/learn
-
-### Learn more about building and running a Full node from source code
-
-- https://docs.iota.io/build/fullnode
-
-### Learn more about Docker Compose
-
-- https://docs.docker.com/compose/gettingstarted/
