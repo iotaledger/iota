@@ -19,7 +19,7 @@ The Identity Object's unique ID is used to derive the actual DID of the DID Docu
 ## Identity's Access Control
 
 An `Identity` is a shared object and is thus accessible by anyone. For this reason, it is of paramount importance to 
-limit the use of an `Identity`'s APIs - expecially its mutable ones - to only the intended actors.
+limit the use of an `Identity`'s APIs - especially its mutable ones - to only the intended actors.
 
 ### Controllers and `ControllerCap`
 
@@ -30,7 +30,7 @@ _the entity allowed to make changes to an `Identity`_.
 In order to allow a broader range of actors to act as an `Identity`'s controller - e.g. an `Identity` controlling another `Identity` -
 a controller is identified through its **controller capability** `ControllerCap`.
 A `ControllerCap` is a _Move_ object that acts as a blind token, allowing anyone who presents it to the corresponding `Identity` to access
-the `Identity`'s APIs that are only invokable by its controllers.
+the `Identity`'s APIs that are only invocable by its controllers.
 
 ### Voting power and threshold
 
