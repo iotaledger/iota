@@ -33,14 +33,41 @@ export interface CoinIconProps {
     coinType: string;
     size?: ImageIconSize;
     rounded?: boolean;
+    hasCoinWrapper?: boolean;
 }
 
-export function CoinIcon({ coinType, size = ImageIconSize.Full, rounded }: CoinIconProps) {
+export function CoinIcon({
+    coinType,
+    size = ImageIconSize.Full,
+    rounded,
+    hasCoinWrapper,
+}: CoinIconProps) {
+    const Component = hasCoinWrapper ? CoinIconWrapper : React.Fragment;
+    const coinWrapperProps = hasCoinWrapper ? { hasBorder: true, size: ImageIconSize.Large } : {};
+
     return coinType === IOTA_TYPE_ARG ? (
-        <div className={cx(size, 'text-neutral-10')}>
-            <IotaLogoMark className="h-full w-full" />
-        </div>
+        <Component {...coinWrapperProps}>
+            <div className={cx(size, 'text-neutral-10')}>
+                <IotaLogoMark className="h-full w-full" />
+            </div>
+        </Component>
     ) : (
         <NonIotaCoin rounded={rounded} size={size} coinType={coinType} />
+    );
+}
+type CoinIconWrapperProps = React.PropsWithChildren<Pick<CoinIconProps, 'size'>> & {
+    hasBorder?: boolean;
+};
+export function CoinIconWrapper({ children, size, hasBorder }: CoinIconWrapperProps) {
+    return (
+        <div
+            className={cx(
+                size,
+                hasBorder && 'border border-shader-neutral-light-8',
+                'flex items-center justify-center rounded-full bg-neutral-100',
+            )}
+        >
+            {children}
+        </div>
     );
 }

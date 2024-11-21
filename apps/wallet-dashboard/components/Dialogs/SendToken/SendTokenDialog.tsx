@@ -36,18 +36,14 @@ function SendTokenDialogBody({
 
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
 
-    const {
-        mutateAsync: signAndExecuteTransaction,
-        error,
-        isPending,
-    } = useSignAndExecuteTransaction();
+    const { mutateAsync: signAndExecuteTransaction, isPending } = useSignAndExecuteTransaction();
 
     const { data: transaction } = useSendCoinTransaction(
         coinsData || [],
         selectedCoin?.coinType,
         activeAddress,
         formData.to,
-        formData.amount,
+        formData.formattedAmount,
         selectedCoin?.totalBalance === formData.amount,
     );
 
@@ -63,10 +59,13 @@ function SendTokenDialogBody({
                     setOpen(false);
                     addNotification('Transfer transaction has been sent');
                 })
-                .catch(() => {
-                    addNotification('Transfer transaction was not sent', NotificationType.Error);
-                });
+                .catch(handleTransactionError);
         }
+    }
+
+    function handleTransactionError() {
+        setOpen(false);
+        addNotification('There was an error with the transaction', NotificationType.Error);
     }
 
     function onNext(): void {
@@ -82,6 +81,7 @@ function SendTokenDialogBody({
             <Header
                 title={step === FormStep.EnterValues ? 'Send' : 'Review & Send'}
                 onClose={() => setOpen(false)}
+                onBack={step === FormStep.ReviewValues ? onBack : undefined}
             />
             <div className="h-full [&>div]:h-full">
                 <DialogBody>
@@ -92,16 +92,16 @@ function SendTokenDialogBody({
                             setSelectedCoin={setSelectedCoin}
                             onNext={onNext}
                             setFormData={setFormData}
+                            initialFormValues={formData}
                         />
                     )}
                     {step === FormStep.ReviewValues && (
                         <ReviewValuesFormView
                             formData={formData}
-                            onBack={onBack}
                             executeTransfer={handleTransfer}
                             senderAddress={activeAddress}
-                            error={error?.message}
                             isPending={isPending}
+                            coinType={selectedCoin.coinType}
                         />
                     )}
                 </DialogBody>

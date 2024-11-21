@@ -12,6 +12,7 @@ export default {
         './pages/**/*.{js,ts,jsx,tsx,mdx}',
         './components/**/*.{js,ts,jsx,tsx,mdx}',
         './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}',
+        './../core/src/components/**/*.{js,jsx,ts,tsx}',
     ],
     darkMode: 'class',
     theme: {

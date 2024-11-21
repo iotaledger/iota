@@ -36,6 +36,7 @@ import { INITIAL_VALUES } from '../constants';
 interface EnterValuesFormProps {
     coin: CoinBalance;
     activeAddress: string;
+    initialFormValues: FormDataValues;
     setFormData: React.Dispatch<React.SetStateAction<FormDataValues>>;
     setSelectedCoin: React.Dispatch<React.SetStateAction<CoinBalance>>;
     onNext: () => void;
@@ -144,6 +145,7 @@ export function EnterValuesFormView({
     setFormData,
     setSelectedCoin,
     onNext,
+    initialFormValues,
 }: EnterValuesFormProps): JSX.Element {
     // Get all coins of the type
     const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(
@@ -206,7 +208,8 @@ export function EnterValuesFormView({
 
         const data = {
             to,
-            amount: formattedAmount,
+            amount,
+            formattedAmount,
             coins,
             coinIds: coinsIDs,
             gasBudgetEst,
@@ -228,11 +231,7 @@ export function EnterValuesFormView({
             />
 
             <Formik
-                initialValues={{
-                    amount: '',
-                    to: '',
-                    gasBudgetEst: '',
-                }}
+                initialValues={initialFormValues}
                 validationSchema={validationSchemaStepOne}
                 enableReinitialize
                 validateOnChange={false}
