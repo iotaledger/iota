@@ -424,7 +424,9 @@ impl TransactionKeyValueStore {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
-        self.inner.multi_get_transactions_perpetual_checkpoints(digests).await
+        self.inner
+            .multi_get_transactions_perpetual_checkpoints(digests)
+            .await
     }
 }
 

@@ -338,7 +338,9 @@ impl CheckpointCache for ProxyCache {
         epoch: EpochId,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult {
-        delegate_method!(self.insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence))
+        delegate_method!(
+            self.insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
+        )
     }
 }
 
