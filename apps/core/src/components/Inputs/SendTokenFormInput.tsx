@@ -63,8 +63,8 @@ export function SendTokenFormInput({
 
     // gasBudgetEstimation should change when the amount above changes
     useEffect(() => {
-        setFieldValue('gasBudgetEst', formattedGasBudgetEstimation, false);
-    }, [formattedGasBudgetEstimation, setFieldValue, values.amount]);
+        setFieldValue('gasBudgetEst', gasBudgetEstimation, false);
+    }, [gasBudgetEstimation, setFieldValue, values.amount]);
 
     return (
         <Input
