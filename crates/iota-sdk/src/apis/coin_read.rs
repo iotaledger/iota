@@ -18,7 +18,7 @@ use crate::{
     error::{Error, IotaRpcResult},
 };
 
-/// Defines methods that retrieve information from the Iota network regarding
+/// Defines methods that retrieve information from the IOTA network regarding
 /// the coins owned by an address.
 #[derive(Debug, Clone)]
 pub struct CoinReadApi {
