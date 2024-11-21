@@ -28,14 +28,16 @@ interface ReviewValuesFormProps {
     isPending: boolean;
     executeTransfer: () => void;
     coinType: string;
+    isPayAllIota?: boolean;
 }
 
 export function ReviewValuesFormView({
-    formData: { amount, to, formattedAmount, isPayAllIota, gasBudgetEst },
+    formData: { amount, to, formattedAmount, gasBudgetEst },
     senderAddress,
     isPending,
     executeTransfer,
     coinType,
+    isPayAllIota,
 }: ReviewValuesFormProps): JSX.Element {
     const [formatAmount, symbol] = useFormatCoin(formattedAmount, coinType);
     return (

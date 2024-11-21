@@ -7,6 +7,5 @@ export const INITIAL_VALUES: FormDataValues = {
     to: '',
     amount: '',
     formattedAmount: '',
-    isPayAllIota: false,
     gasBudgetEst: '',
 };
