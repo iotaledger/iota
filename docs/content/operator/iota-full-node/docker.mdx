@@ -1,8 +1,8 @@
 ---
-description: Operate an IOTA Full node to validate blockchain activities, like transactions, checkpoints, and epoch changes.
+description: Learn how to set up an IOTA Full node using docker.
 ---
 import Quiz from '@site/src/components/Quiz';
-import questions from '/json/node-operators/iota-full-node.json';
+import questions from '/json/node-operators/iota-full-node/node-setup.json';
 import Docker from './../../../../docker/fullnode/README.md';
 import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
 import NodeHardwareRequirements from './../../_snippets/node-hardware-requirements.mdx'
@@ -14,3 +14,5 @@ import NodeHardwareRequirements from './../../_snippets/node-hardware-requiremen
 <NodeHardwareRequirements/ >
 
 <Docker />
+
+<Quiz questions={questions} />

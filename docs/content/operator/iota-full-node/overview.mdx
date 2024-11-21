@@ -2,10 +2,11 @@
 title: Overview
 description: Operate an IOTA Full node to validate blockchain activities, like transactions, checkpoints, and epoch changes.
 ---
-
 import Quiz from '@site/src/components/Quiz';
-import questions from '/json/node-operators/iota-full-node.json';
+import questions from '/json/node-operators/iota-full-node/overview.json';
 import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
+
+# Overview
 
 <WarningAdvanced />
 
@@ -44,3 +45,5 @@ Validator nodes store only the latest transactions on the frontier of the object
 ## Set Up a Full Node
 
 You can set up your IOTA Full Node [using Docker](docker.mdx) or [build it from source](source.mdx).
+
+<Quiz questions={questions} />
