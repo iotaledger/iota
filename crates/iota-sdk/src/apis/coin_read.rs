@@ -18,8 +18,8 @@ use crate::{
     error::{Error, IotaRpcResult},
 };
 
-/// Defines methods that retrieve information from the
-/// Iota network regarding the coins owned by an address.
+/// Defines methods that retrieve information from the Iota network regarding
+/// the coins owned by an address.
 #[derive(Debug, Clone)]
 pub struct CoinReadApi {
     api: Arc<RpcClient>,
@@ -30,8 +30,8 @@ impl CoinReadApi {
         Self { api }
     }
 
-    /// Get coins for the given address filtered by coin type. Results are
-    /// paginated.
+    /// Get coins for the given address filtered by coin type.
+    /// Results are paginated.
     ///
     /// The coin type defaults to `0x2::iota::IOTA`.
     ///
@@ -68,6 +68,7 @@ impl CoinReadApi {
             .get_coins(owner, coin_type.into(), cursor.into(), limit.into())
             .await?)
     }
+
     /// Get all the coins for the given address regardless of coin type.
     /// Results are paginated.
     ///
@@ -103,8 +104,8 @@ impl CoinReadApi {
             .await?)
     }
 
-    /// Get the coins for the given address filtered by coin type. Returns a
-    /// stream.
+    /// Get the coins for the given address filtered by coin type.
+    /// Returns a stream.
     ///
     /// The coin type defaults to `0x2::iota::IOTA`.
     ///
@@ -268,8 +269,8 @@ impl CoinReadApi {
         Ok(self.api.http.get_all_balances(owner).await?)
     }
 
-    /// Get the coin metadata (name, symbol, description, decimals, etc.) for
-    /// a given coin type.
+    /// Get the coin metadata (name, symbol, description, decimals, etc.) for a
+    /// given coin type.
     ///
     /// # Examples
     ///
