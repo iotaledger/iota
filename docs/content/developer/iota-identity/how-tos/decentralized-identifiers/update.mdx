@@ -90,6 +90,30 @@ Before you can update anything, you will need to [create an Identity](./create.m
 ```
 
 </TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```js
+    const client = new Client({
+        primaryNode: API_ENDPOINT,
+        localPow: true,
+    });
+    const didClient = new IotaIdentityClient(client);
+
+    // Generate a random mnemonic for our wallet.
+    const secretManager: MnemonicSecretManager = {
+        mnemonic: Utils.generateMnemonic(),
+    };
+
+    // Creates a new wallet and identity (see "0_create_did" example).
+    const storage: Storage = new Storage(new JwkMemStore(), new KeyIdMemStore());
+    let { document, fragment } = await createDid(
+        client,
+        secretManager,
+        storage,
+    );
+```
+
+</TabItem>
 </Tabs>
 
 This creates and publishes an Identity object containing a DID Document with one verification method.
@@ -136,6 +160,20 @@ This creates and publishes an Identity object containing a DID Document with one
       MethodScope::VerificationMethod,
     )
     .await?;
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```js
+// Insert a new Ed25519 verification method in the DID document.
+await document.generateMethod(
+    storage,
+    JwkMemStore.ed25519KeyType(),
+    JwsAlgorithm.EdDSA,
+    '#key-2',
+    MethodScope.VerificationMethod(),
+);
 ```
 
 </TabItem>
@@ -189,6 +227,17 @@ You can attach verification relationships to a verification method by referencin
 <TabItem value="rust" label="Rust">
 
 ```rust
+// Attach a new method relationship to the inserted method.
+document.attach_method_relationship(
+  &document.id().to_url().join(format!("#{fragment_2}"))?,
+  MethodRelationship::Authentication,
+)?;
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```js
 // Attach a new method relationship to the inserted method.
 document.attach_method_relationship(
   &document.id().to_url().join(format!("#{fragment_2}"))?,
@@ -262,6 +311,20 @@ You can also add custom properties can to a service by setting `properties`:
 ```
 
 </TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```js
+  // Add a new Service.
+  const service: Service = new Service({
+      id: did.join("#linked-domain"),
+      type: "LinkedDomains",
+      serviceEndpoint: "https://iota.org/",
+  });
+  document.insertService(service);
+  document.setMetadataUpdated(Timestamp.nowUTC());
+```
+
+</TabItem>
 </Tabs>
 
 The updated Document with the newly created service looks as follows.
@@ -328,6 +391,15 @@ document.purge_method(&storage, &original_method).await.unwrap();
 ```
 
 </TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```js
+// Remove a verification method.
+let originalMethod = document.resolveMethod(fragment) as VerificationMethod;
+await document.purgeMethod(storage, originalMethod?.id());
+```
+
+</TabItem>
 </Tabs>
 
 This removes the original verification method with the fragment `key-1`.
@@ -375,6 +447,13 @@ This removes the original verification method with the fragment `key-1`.
 
 ```rust reference
 https://github.com/iotaledger/identity.rs/blob/v1.3.0/examples/0_basic/1_update_did.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/v1.3.0/bindings/wasm/examples/src/0_basic/1_update_did.ts
 ```
 
 </TabItem>
