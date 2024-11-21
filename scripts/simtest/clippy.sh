@@ -1,6 +1,5 @@
 #!/bin/bash -e
-# Copyright (c) Mysten Labs, Inc.
-# Modifications Copyright (c) 2024 IOTA Stiftung
+# Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # verify that git repo is clean
