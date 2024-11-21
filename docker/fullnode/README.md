@@ -54,15 +54,15 @@ p2p-config:
 The genesis blob defines the IOTA network configuration. Before starting the Full Node, download the latest `genesis.blob` file to ensure compatibility with your version of IOTA.
 
 - [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
-    `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
+  `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
 - [Devnet genesis blob](https://dbfiles.devnet.iota.cafe/genesis.blob):
-    `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
+  `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
 - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
-    `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
+  `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
 - [Mainnet genesis blob](https://github.com/iotaledger/iota/TODO):
-    `curl -fLJO TODO`
+  `curl -fLJO TODO`
 - [Mainnet migration blob](https://github.com/iotaledger/iota/TODO):
-    `curl -fLJO TODO`
+  `curl -fLJO TODO`
 
 ## Start Your IOTA Full Node
 
@@ -73,7 +73,6 @@ docker compose up
 ```
 
 **Important:** These commands assume you are using Docker Compose V2. In Docker Compose V1, the `docker compose` command uses a dash (`docker-compose`). If you use Docker Compose V1, replace the space in each `docker compose` command with a dash (`docker-compose`). For more information, see [Docker Compose V2](https://docs.docker.com/compose/#compose-v2-and-the-new-docker-compose-command).
-
 
 ## Stop the Full Node
 
@@ -114,7 +113,6 @@ docker compose down --volumes
 The IOTA Explorer supports connecting to any network as long as it has `https` enabled. To view activity on your local
 Full Node, open the URL: [hhttps://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select Custom
 RPC URL from the network dropdown in the top right.
-
 
 ### View Resource Usage (CPU and Memory)
 
