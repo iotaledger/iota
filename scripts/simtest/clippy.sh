@@ -18,4 +18,4 @@ export SIMTEST_STATIC_INIT_MOVE=$root_dir"/examples/move/basics"
 cargo ci-clippy
 
 # remove the patch
-git checkout .cargo/config Cargo.toml Cargo.lock
+git checkout .cargo/config.toml Cargo.toml Cargo.lock
