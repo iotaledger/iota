@@ -17,6 +17,7 @@ export interface SendTokenInputProps {
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
+    isPayAllIota: boolean;
 }
 
 export function SendTokenFormInput({
@@ -28,15 +29,17 @@ export function SendTokenFormInput({
     onActionClick,
     isMaxActionDisabled,
     name,
+    isPayAllIota,
 }: SendTokenInputProps) {
     const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
+
     const gasBudgetEstimation = useGasBudgetEstimation({
         coinDecimals,
         coins: coins ?? [],
         activeAddress,
         to: to,
         amount: values.amount,
-        isPayAllIota: values.isPayAllIota,
+        isPayAllIota,
     });
 
     const [field, meta, helpers] = useField<string>(name);
@@ -64,7 +67,7 @@ export function SendTokenFormInput({
             placeholder="0.00"
             label="Send Amount"
             suffix={` ${symbol}`}
-            prefix={values.isPayAllIota ? '~ ' : undefined}
+            prefix={isPayAllIota ? '~ ' : undefined}
             allowNegative={false}
             errorMessage={errorMessage}
             amountCounter={!errorMessage ? (coins ? gasBudgetEstimation : '--') : undefined}

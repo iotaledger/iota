@@ -30,7 +30,6 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, Formik, FormikProps } from 'formik';
 import { Exclamation } from '@iota/ui-icons';
 import { UseQueryResult } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { FormDataValues } from '../interfaces';
 import { INITIAL_VALUES } from '../constants';
 
@@ -77,11 +76,11 @@ function FormInputs({
     coins,
     queryResult,
 }: FormInputsProps): React.JSX.Element {
-    const newPayIotaAll =
+    const isPayAllIota =
         parseAmount(values.amount, coinDecimals) === coinBalance && coinType === IOTA_TYPE_ARG;
 
     const hasEnoughBalance =
-        values.isPayAllIota ||
+        isPayAllIota ||
         iotaBalance >
             parseAmount(values.gasBudgetEst, coinDecimals) +
                 parseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', coinDecimals);
@@ -94,12 +93,6 @@ function FormInputs({
         parseAmount(values.amount, coinDecimals) === coinBalance ||
         queryResult.isPending ||
         !coinBalance;
-
-    useEffect(() => {
-        if (values.isPayAllIota !== newPayIotaAll) {
-            setFieldValue('isPayAllIota', newPayIotaAll);
-        }
-    }, [values.isPayAllIota, newPayIotaAll, setFieldValue]);
 
     return (
         <div className="flex h-full w-full flex-col">
@@ -123,6 +116,7 @@ function FormInputs({
                         activeAddress={activeAddress}
                         onActionClick={onMaxTokenButtonClick}
                         isMaxActionDisabled={isMaxActionDisabled}
+                        isPayAllIota={isPayAllIota}
                     />
                     <AddressInput name="to" placeholder="Enter Address" />
                 </div>
@@ -193,7 +187,6 @@ export function EnterValuesFormView({
     );
 
     const formattedTokenBalance = tokenBalance.replace(/,/g, '');
-    const initAmountBig = parseAmount('', coinDecimals);
 
     if (coinsBalanceIsPending || coinsIsPending || iotaCoinsIsPending) {
         return (
@@ -203,7 +196,7 @@ export function EnterValuesFormView({
         );
     }
 
-    async function handleFormSubmit({ to, amount, isPayAllIota, gasBudgetEst }: FormDataValues) {
+    async function handleFormSubmit({ to, amount, gasBudgetEst }: FormDataValues) {
         if (!coins || !iotaCoins) return;
         const coinsIDs = [...coins]
             .sort((a, b) => Number(b.balance) - Number(a.balance))
@@ -214,7 +207,6 @@ export function EnterValuesFormView({
         const data = {
             to,
             amount: formattedAmount,
-            isPayAllIota,
             coins,
             coinIds: coinsIDs,
             gasBudgetEst,
@@ -239,10 +231,6 @@ export function EnterValuesFormView({
                 initialValues={{
                     amount: '',
                     to: '',
-                    isPayAllIota:
-                        !!initAmountBig &&
-                        initAmountBig === coinBalance &&
-                        coin.coinType === IOTA_TYPE_ARG,
                     gasBudgetEst: '',
                 }}
                 validationSchema={validationSchemaStepOne}

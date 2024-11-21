@@ -17,7 +17,7 @@ import {
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, Formik } from 'formik';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import {
     InfoBox,
@@ -32,7 +32,6 @@ import { Exclamation } from '@iota/ui-icons';
 const INITIAL_VALUES = {
     to: '',
     amount: '',
-    isPayAllIota: false,
     gasBudgetEst: '',
 };
 
@@ -41,7 +40,6 @@ export type FormValues = typeof INITIAL_VALUES;
 export type SubmitProps = {
     to: string;
     amount: string;
-    isPayAllIota: boolean;
     coinIds: string[];
     coins: CoinStruct[];
     gasBudgetEst: string;
@@ -100,9 +98,8 @@ export function SendTokenForm({
 
     // remove the comma from the token balance
     const formattedTokenBalance = tokenBalance.replace(/,/g, '');
-    const initAmountBig = parseAmount(initialAmount, coinDecimals);
 
-    async function handleFormSubmit({ to, amount, isPayAllIota, gasBudgetEst }: FormValues) {
+    async function handleFormSubmit({ to, amount, gasBudgetEst }: FormValues) {
         if (!coins || !iotaCoins) return;
         const coinsIDs = [...coins]
             .sort((a, b) => Number(b.balance) - Number(a.balance))
@@ -111,7 +108,6 @@ export function SendTokenForm({
         const data = {
             to,
             amount,
-            isPayAllIota,
             coins,
             coinIds: coinsIDs,
             gasBudgetEst,
@@ -132,10 +128,6 @@ export function SendTokenForm({
                 initialValues={{
                     amount: initialAmount,
                     to: initialTo,
-                    isPayAllIota:
-                        !!initAmountBig &&
-                        initAmountBig === coinBalance &&
-                        coinType === IOTA_TYPE_ARG,
                     gasBudgetEst: '',
                 }}
                 validationSchema={validationSchemaStepOne}
@@ -145,12 +137,12 @@ export function SendTokenForm({
                 onSubmit={handleFormSubmit}
             >
                 {({ isValid, isSubmitting, setFieldValue, values, submitForm }) => {
-                    const newPayIotaAll =
+                    const isPayAllIota =
                         parseAmount(values.amount, coinDecimals) === coinBalance &&
                         coinType === IOTA_TYPE_ARG;
 
                     const hasEnoughBalance =
-                        values.isPayAllIota ||
+                        isPayAllIota ||
                         iotaBalance >
                             parseAmount(values.gasBudgetEst, coinDecimals) +
                                 parseAmount(
@@ -166,12 +158,6 @@ export function SendTokenForm({
                         parseAmount(values?.amount, coinDecimals) === coinBalance ||
                         queryResult.isPending ||
                         !coinBalance;
-
-                    useEffect(() => {
-                        if (values.isPayAllIota !== newPayIotaAll) {
-                            setFieldValue('isPayAllIota', newPayIotaAll);
-                        }
-                    }, [values.isPayAllIota, newPayIotaAll, setFieldValue]);
 
                     return (
                         <div className="flex h-full w-full flex-col">
@@ -194,6 +180,7 @@ export function SendTokenForm({
                                         coins={coins ?? []}
                                         onActionClick={onMaxTokenButtonClick}
                                         isMaxActionDisabled={isMaxActionDisabled}
+                                        isPayAllIota={isPayAllIota}
                                     />
                                     <AddressInput name="to" placeholder="Enter Address" />
                                 </div>

@@ -4,7 +4,7 @@
 
 import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
-import { GAS_SYMBOL, parseAmount, useCoinMetadata } from '@iota/core';
+import { parseAmount, useCoinMetadata } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 
@@ -61,11 +61,7 @@ export function PreviewTransfer({
                 />
 
                 <Divider />
-                <KeyValueInfo
-                    keyText={'Est. Gas Fees'}
-                    value={`${gasBudget} ${GAS_SYMBOL}`}
-                    fullwidth
-                />
+                <KeyValueInfo keyText={'Est. Gas Fees'} value={`${gasBudget}`} fullwidth />
             </div>
         </div>
     );
