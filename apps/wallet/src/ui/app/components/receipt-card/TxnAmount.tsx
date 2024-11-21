@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinIcon, useFormatCoin, ImageIconSize } from '@iota/core';
+import { useFormatCoin, ImageIconSize, CoinIcon } from '@iota/core';
 import {
     Card,
     CardAction,

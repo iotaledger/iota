@@ -3,3 +3,4 @@
 
 export * from './CoinIcon';
 export * from './CoinSelector';
+export * from './CoinItem';

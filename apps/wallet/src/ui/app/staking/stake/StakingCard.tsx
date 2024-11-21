@@ -35,9 +35,16 @@ import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
-import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonType,
+    CardType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
-import { Loader } from '@iota/ui-icons';
+import { Info, Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -94,10 +101,7 @@ function StakingCard() {
     );
 
     const queryClient = useQueryClient();
-    const delegationId =
-        stakeData?.status === 'Unstaked' || stakeData?.status === 'Active'
-            ? stakeData?.stakedIotaId
-            : undefined;
+    const delegationId = stakeData?.stakedIotaId;
 
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
@@ -191,7 +195,7 @@ function StakingCard() {
                 let txDigest;
                 if (unstake) {
                     // check for delegation data
-                    if (!stakeData || !stakeIotaIdParams || stakeData.status === 'Pending') {
+                    if (!stakeData || !stakeIotaIdParams) {
                         return;
                     }
                     response = await unStakeTokenMutateAsync({
@@ -303,6 +307,16 @@ function StakingCard() {
                                         coinBalance={coinBalance}
                                         coinType={coinType}
                                         epoch={system?.epoch}
+                                    />
+                                )}
+                            </div>
+                            <div className="pt-sm">
+                                {unstake && Number(iotaEarned) == 0 && (
+                                    <InfoBox
+                                        supportingText="You have not earned any rewards yet"
+                                        icon={<Info />}
+                                        type={InfoBoxType.Default}
+                                        style={InfoBoxStyle.Elevated}
                                     />
                                 )}
                             </div>
