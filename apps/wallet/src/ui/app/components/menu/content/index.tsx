@@ -16,6 +16,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { AutoLockAccounts } from './AutoLockAccounts';
 import { NetworkSettings } from './NetworkSettings';
 import WalletSettingsMenuList from './WalletSettingsMenuList';
+import { ThemeSettings } from './ThemeSettings';
 
 const CLOSE_KEY_CODES: string[] = ['Escape'];
 
@@ -49,6 +50,7 @@ function MenuContent() {
                         <Route path="/" element={<WalletSettingsMenuList />} />
                         <Route path="/network" element={<NetworkSettings />} />
                         <Route path="/auto-lock" element={<AutoLockAccounts />} />
+                        <Route path="/theme" element={<ThemeSettings />} />
                         <Route path="*" element={<Navigate to={menuHomeUrl} replace={true} />} />
                     </Routes>
                 </MainLocationContext.Provider>
