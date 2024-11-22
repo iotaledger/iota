@@ -4,8 +4,7 @@
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { DarkMode, LightMode } from '@iota/ui-icons';
 import { useEffect, useLayoutEffect } from 'react';
-import { useTheme } from '~/hooks';
-import { Theme } from '~/lib/ui';
+import { useTheme, Theme } from '@iota/core';
 
 const ICON_MAP: Record<Theme, (props: React.SVGProps<SVGSVGElement>) => JSX.Element> = {
     [Theme.Light]: LightMode,
