@@ -144,7 +144,7 @@ export function SendTokenForm({
                     const hasEnoughBalance =
                         isPayAllIota ||
                         iotaBalance >
-                            parseAmount(values.gasBudgetEst, coinDecimals) +
+                            BigInt(values.gasBudgetEst ?? '0') +
                                 parseAmount(
                                     coinType === IOTA_TYPE_ARG ? values.amount : '0',
                                     coinDecimals,
