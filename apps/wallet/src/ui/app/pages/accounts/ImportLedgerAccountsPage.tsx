@@ -86,8 +86,11 @@ export function ImportLedgerAccountsPage() {
     }
 
     function selectAllAccounts() {
-        if (ledgerAccounts) {
+        const areAllAccountsSelected = numSelectedAccounts === numImportableAccounts;
+        if (ledgerAccounts && !areAllAccountsSelected) {
             setSelectedLedgerAccounts(new Set(ledgerAccounts.map((acc) => acc.address)));
+        } else if (areAllAccountsSelected) {
+            setSelectedLedgerAccounts(new Set());
         }
     }
 
