@@ -52,6 +52,10 @@ ignore = [
   "RUSTSEC-2023-0049",
   # difference is unmaintained
   "RUSTSEC-2020-0095",
+  # derivative is unmaintained
+  "RUSTSEC-2024-0388",
+  # instant is unmaintained
+  "RUSTSEC-2024-0384",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -231,7 +235,7 @@ allow-git = [
   "https://github.com/iotaledger/tokio-madsim-fork.git",
   "https://github.com/nextest-rs/datatest-stable.git",
   "https://github.com/zhiburt/tabled.git",
-  "ssh://git@github.com/iotaledger/iota-rust-sdk.git",
+  "https://github.com/iotaledger/iota-rust-sdk.git",
   "https://github.com/bmwill/openapiv3.git",
   "https://github.com/bmwill/axum-server.git",
 ]

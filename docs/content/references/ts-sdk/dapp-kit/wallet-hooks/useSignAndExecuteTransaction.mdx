@@ -1,0 +1,151 @@
+# `useSignAndExecuteTransaction`
+
+Use the `useSignAndExecuteTransaction` hook to prompt the user to sign and execute a transaction
+with their wallet.
+
+```ts live noInline
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        mainnet: { url: getFullnodeUrl('testnet') },
+    };
+
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+const UseSignAndExecuteTransactionExample = withProviders(() => {
+    const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const [digest, setDigest] = useState('');
+    const currentAccount = useCurrentAccount();
+
+    return (
+        <div style={{ padding: 20 }}>
+            <ConnectButton />
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={() => {
+                                signAndExecuteTransaction(
+                                    {
+                                        transaction: new Transaction(),
+                                    },
+                                    {
+                                        onSuccess: (result) => {
+                                            console.log('executed transaction', result);
+                                            setDigest(result.digest);
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            Sign and execute transaction
+                        </button>
+                    </div>
+                    <div>Digest: {digest}</div>
+                </>
+            )}
+        </div>
+    );
+});
+
+render(<UseSignAndExecuteTransactionExample/>)
+```
+
+## Return additional data, or execute through GraphQL
+
+To customize how transactions are executed, and what data is returned when executing a transaction,
+you can pass a custom `execute` function.
+
+```ts
+import {
+    ConnectButton,
+    useIotaClient,
+    useCurrentAccount,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
+import { useState } from 'react';
+
+function MyComponent() {
+    const client = useIotaClient();
+    const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction({
+        execute: async ({ bytes, signature }) =>
+            await client.executeTransactionBlock({
+                transactionBlock: bytes,
+                signature,
+                options: {
+                    // Raw effects are required so the effects can be reported back to the wallet
+                    showRawEffects: true,
+                    // Select additional data to return
+                    showObjectChanges: true,
+                },
+            }),
+    });
+
+    const [digest, setDigest] = useState('');
+    const currentAccount = useCurrentAccount();
+
+    return (
+        <div style={{ padding: 20 }}>
+            <ConnectButton />
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={() => {
+                                signAndExecuteTransaction(
+                                    {
+                                        transaction: new Transaction(),
+                                    },
+                                    {
+                                        onSuccess: (result) => {
+                                            console.log('object changes', result.objectChanges);
+                                            setDigest(result.digest);
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            Sign and execute transaction
+                        </button>
+                    </div>
+                    <div>Digest: {digest}</div>
+                </>
+            )}
+        </div>
+    );
+}
+```
+
+## Arguments
+
+- `transaction`: The transaction to sign and execute.
+- `chain`: (optional) The chain identifier the transaction should be signed for.
+- `execute`: (optional) A custom function to execute the transaction
+
+In addition to these options, you can also pass any options that the
+[IotaClient.signAndExecuteTransaction](../../api/client/classes/IotaClient.md#signandexecutetransaction)
+method accepts.

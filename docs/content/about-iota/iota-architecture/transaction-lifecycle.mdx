@@ -1,11 +1,18 @@
 import Quiz from '@site/src/components/Quiz';
 import {questions} from '../../../site/static/json/about-iota/iota-architecture/transaction-lifecycle.json';
+import ThemedImage from '@theme/ThemedImage';
 
 # Transaction Life Cycle
 
 ## High-level Overview
 
-![Transaction life cycle](/img/about-iota/iota-architecture/txn-lifecycle.png)
+<ThemedImage
+    alt='Native functions'
+    sources={{
+    light: '/img/about-iota/iota-architecture/TransactionLifeCycle.svg',
+    dark: '/img/about-iota/iota-architecture/dark/TransactionLifeCycle.svg',
+    }}
+/>
 
 1. **Create a Transaction**: A user [submits](#submission) a transaction and signs it with a private key. The transaction can affect objects owned by the user, as well as [shared objects](../../developer/iota-101/objects/object-ownership/shared.mdx).
 

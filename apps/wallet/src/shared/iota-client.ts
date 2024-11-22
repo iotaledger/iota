@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import networkEnv from '_src/background/NetworkEnv';
-import { type NetworkEnvType } from '_src/shared/api-env';
-import { SentryHttpTransport } from '@iota/core';
+import { type NetworkEnvType, SentryHttpTransport } from '@iota/core';
 import { getNetwork, Network, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
 
 const iotaClientPerNetwork = new Map<string, IotaClient>();

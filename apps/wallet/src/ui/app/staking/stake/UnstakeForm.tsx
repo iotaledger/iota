@@ -8,13 +8,13 @@ import {
     useFormatCoin,
     useGetTimeBeforeEpochNumber,
     useTimeAgo,
+    GAS_SYMBOL,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form } from 'formik';
 import { useMemo } from 'react';
 
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
-import { GAS_SYMBOL } from '../../redux/slices/iota-objects/Coin';
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 
 export interface StakeFromProps {

@@ -3,6 +3,7 @@ title: Migration Process
 description: Explains how IOTA assets are handled during migration
 ---
 import MigrationWarning from '../../_snippets/migration-warning.mdx';
+import ThemedImage from '@theme/ThemedImage';
 
 <MigrationWarning/ >
 
@@ -116,7 +117,13 @@ which they can be identified as vesting reward objects.
 
 The full decision graph (without the vesting reward output case) is depicted here (with `coin` being `IOTA`):
 
-![Stardust on Move Migration Graph](/img/guides/developer/advanced/stardust-on-move/stardust-on-move-migration-graph.svg)
+<ThemedImage
+alt='Stardust on Move Migration Graph'
+sources={{
+light: '/img/guides/developer/advanced/stardust-on-move/stardust-on-move-migration-graph.svg',
+dark: '/img/guides/developer/advanced/stardust-on-move/dark/stardust-on-move-migration-graph.svg',
+}}
+/>
 
 ## Alias Outputs
 
