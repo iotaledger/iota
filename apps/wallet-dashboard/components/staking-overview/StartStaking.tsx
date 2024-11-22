@@ -3,17 +3,21 @@
 
 import { Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
 import { Theme, useTheme } from '@/contexts';
-import { useState } from 'react';
 import { StakeDialog } from '../Dialogs';
-import { StakeDialogView } from '../Dialogs/Staking/StakeDialog';
+import { useStakeDialog } from '../Dialogs/Staking/hooks/useStakeDialog';
 
 export function StartStaking() {
     const { theme } = useTheme();
-    const [isDialogStakeOpen, setIsDialogStakeOpen] = useState(false);
-
-    function handleNewStake() {
-        setIsDialogStakeOpen(true);
-    }
+    const {
+        isDialogStakeOpen,
+        stakeDialogView,
+        setStakeDialogView,
+        selectedStake,
+        selectedValidator,
+        setSelectedValidator,
+        handleCloseStakeDialog,
+        handleNewStake,
+    } = useStakeDialog();
 
     const videoSrc =
         theme === Theme.Dark
@@ -51,11 +55,17 @@ export function StartStaking() {
                     ></video>
                 </div>
             </div>
-            <StakeDialog
-                isOpen={isDialogStakeOpen}
-                handleClose={() => setIsDialogStakeOpen(false)}
-                view={StakeDialogView.SelectValidator}
-            />
+            {isDialogStakeOpen && stakeDialogView && (
+                <StakeDialog
+                    stakedDetails={selectedStake}
+                    isOpen={isDialogStakeOpen}
+                    handleClose={handleCloseStakeDialog}
+                    view={stakeDialogView}
+                    setView={setStakeDialogView}
+                    selectedValidator={selectedValidator}
+                    setSelectedValidator={setSelectedValidator}
+                />
+            )}
         </Panel>
     );
 }

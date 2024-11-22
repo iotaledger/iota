@@ -22,7 +22,7 @@ export function useStakeTxnInfo(startEpoch?: string | number) {
     });
     const stakedRewardsStartEpoch =
         timeBeforeStakeRewardsStarts > 0
-            ? `${timeBeforeStakeRewardsStartsAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsStartsAgo}`
+            ? `in ${timeBeforeStakeRewardsStartsAgo}`
             : startEpoch
               ? `Epoch #${Number(startEarningRewardsEpoch)}`
               : '--';
@@ -37,7 +37,7 @@ export function useStakeTxnInfo(startEpoch?: string | number) {
     });
     const timeBeforeStakeRewardsRedeemableAgoDisplay =
         timeBeforeStakeRewardsRedeemable > 0
-            ? `${timeBeforeStakeRewardsRedeemableAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsRedeemableAgo}`
+            ? `in ${timeBeforeStakeRewardsRedeemableAgo}`
             : startEpoch
               ? `Epoch #${Number(redeemableRewardsEpoch)}`
               : '--';
