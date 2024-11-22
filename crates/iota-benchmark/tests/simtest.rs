@@ -569,7 +569,7 @@ mod test {
                     .collect()
             })
             .unwrap_or_else(|_| vec![]);
-        assert!(checkpoint_files.len() > 0);
+        assert!(!checkpoint_files.is_empty());
         let bytes = std::fs::read(checkpoint_files.first().unwrap()).unwrap();
 
         let _checkpoint: CheckpointData =
@@ -792,11 +792,7 @@ mod test {
             return false; // don't fail ineligible nodes
         }
         let mut rng = thread_rng();
-        if rng.gen_range(0.0..1.0) < probability {
-            true
-        } else {
-            false
-        }
+        rng.gen_range(0.0..1.0) < probability
     }
 
     async fn build_test_cluster(
@@ -901,7 +897,7 @@ mod test {
         let bank = BenchmarkBank::new(proxy.clone(), primary_coin);
         let system_state_observer = {
             let mut system_state_observer = SystemStateObserver::new(proxy.clone());
-            if let Ok(_) = system_state_observer.state.changed().await {
+            if system_state_observer.state.changed().await.is_ok() {
                 info!(
                     "Got the new state (reference gas price and/or protocol config) from system state object"
                 );

@@ -1698,18 +1698,12 @@ impl CheckpointBuilder {
         let ccps = root_txs
             .iter()
             .filter_map(|tx| {
-                if let Some(tx) = tx {
-                    if matches!(
+                tx.as_ref().filter(|tx| {
+                    matches!(
                         tx.transaction_data().kind(),
                         TransactionKind::ConsensusCommitPrologueV1(_)
-                    ) {
-                        Some(tx)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                    )
+                })
             })
             .collect::<Vec<_>>();
 
@@ -1724,22 +1718,20 @@ impl CheckpointBuilder {
             .multi_get_transaction_blocks(
                 &sorted
                     .iter()
-                    .map(|tx| tx.transaction_digest().clone())
+                    .map(|tx| *tx.transaction_digest())
                     .collect::<Vec<_>>(),
             )
             .unwrap();
 
-        if ccps.len() == 0 {
+        if ccps.is_empty() {
             // If there is no consensus commit prologue transaction in the roots, then there
             // should be no consensus commit prologue transaction in the
             // checkpoint.
-            for tx in txs.iter() {
-                if let Some(tx) = tx {
-                    assert!(!matches!(
-                        tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologueV1(_)
-                    ));
-                }
+            for tx in txs.iter().flatten() {
+                assert!(!matches!(
+                    tx.transaction_data().kind(),
+                    TransactionKind::ConsensusCommitPrologueV1(_)
+                ));
             }
         } else {
             // If there is one consensus commit prologue, it must be the first one in the
@@ -1751,13 +1743,11 @@ impl CheckpointBuilder {
 
             assert_eq!(ccps[0].digest(), txs[0].as_ref().unwrap().digest());
 
-            for tx in txs.iter().skip(1) {
-                if let Some(tx) = tx {
-                    assert!(!matches!(
-                        tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologueV1(_)
-                    ));
-                }
+            for tx in txs.iter().skip(1).flatten() {
+                assert!(!matches!(
+                    tx.transaction_data().kind(),
+                    TransactionKind::ConsensusCommitPrologueV1(_)
+                ));
             }
         }
     }
