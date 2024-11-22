@@ -46,7 +46,7 @@ $ cargo nextest run --features pg_integration
 
 The e2e tests focus on validating the behavior and consistency of GraphQL queries against indexer DB.
 
-Coverage for the `Query` entrypoint:
+Following `Query` entrypoints are used in the tests:
 
 - [x] chain_identifier (returns `String`)
 - [x] available_range (returns `AvailableRange`)
@@ -56,7 +56,7 @@ Coverage for the `Query` entrypoint:
 - [x] object (returns `Object`)
 - [x] package (returns `MovePackage`)
 - [x] address (returns `Address`)
-- [] type_ (returns `MoveType`)
+- [x] type_ (returns `MoveType`)
 - [x] epoch (returns `Epoch`)
 - [x] checkpoint (returns `Checkpoint`)
 - [x] transaction_block (returns `TransactionBlock`)
@@ -68,9 +68,9 @@ Coverage for the `Query` entrypoint:
 - [x] packages (returns a page of `Package`s)
 - [x] protocol_config (returns `ProtocolConfigs`)
 - [x] coin_metadata (returns `CoinMetadata`)
-- [] verify_zklogin_signature
+- [] verify_zklogin_signature (returns `ZkLoginVerifyResult`)
 
-Coverage for possible dynamic queries:
+Coverage for the possible dynamic queries:
 
 `AvailableRange`
 - [x] first
@@ -98,10 +98,17 @@ Coverage for possible dynamic queries:
 
 `Owner`
 - [x] address
-- [x] objects
-- [] balance
+- [x] objects (handled by `OwnerImpl`)
+  - `ObjectFilter`
+    - [x] `type_`
+    - [] `owner`
+    - [] `object_ids`
+    - [] `object_keys`
+- [x] balance
+  - [x] `ExactTypeFilter`
 - [] balances
 - [x] coins
+  - [x] `ExactTypeFilter`
 - [] staked_iotas
 - [] as_address
 - [x] as_object
@@ -117,9 +124,16 @@ Coverage for possible dynamic queries:
 `Object`
 - [x] address
 - [] objects
+  - `ObjectFilter`
+    - [] `type_`
+    - [] `owner`
+    - [] `object_ids`
+    - [] `object_keys`
 - [x] balance
+  - [x] `ExactTypeFilter`
 - [] balances
 - [x] coins
+  - [x] `ExactTypeFilter`
 - [x] staked_iotas
 - [x] version
 - [x] status
@@ -139,9 +153,16 @@ Coverage for possible dynamic queries:
 `MovePackage`
 - [] address (handled by `Object`)
 - [] objects (handled by `Object`)
+  - `ObjectFilter`
+    - [] `type_`
+    - [] `owner`
+    - [] `object_ids`
+    - [] `object_keys`
 - [] balance (handled by `Object`)
+  - `ExactTypeFilter`
 - [] balances (handled by `Object`)
 - [] coins (handled by `Object`)
+   - `ExactTypeFilter`
 - [] staked_iotas (handled by `Object`)
 - [] version (handled by `Object`)
 - [] status (handled by `Object`)
@@ -153,6 +174,9 @@ Coverage for possible dynamic queries:
 - [] bcs (handled by `Object`)
 - [x] package_at_version
 - [x] package_versions
+  - `MovePackageVersionFilter`
+    - [x] after_version
+    - [x] before_version
 - [x] latest_package
 - [x] module
 - [x] modules
@@ -163,11 +187,29 @@ Coverage for possible dynamic queries:
 `Address`
 - [x] address
 - [x] objects
+  - `ObjectFilter`
+    - [x] `type_`
+    - [] `owner`
+    - [] `object_ids`
+    - [] `object_keys`
 - [] balance
+  - [] `ExactTypeFilter`
 - [] balances
 - [x] coins
+  - [x] `ExactTypeFilter`
 - [x] staked_iotas
 - [] transaction_blocks
+  - [] `TransactionBlockFilter`
+    - [] `function`
+    - [] `kind`
+    - [] `after_checkpoint`
+    - [] `at_checkpoint`
+    - [] `before_checkpoint`
+    - [] `sign_address`
+    - [] `recv_address`
+    - [] `input_object`
+    - [] `changed_object`
+    - [] `transaction_ids`
 
 `MoveType`
 - [] repr
