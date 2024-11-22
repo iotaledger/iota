@@ -85,6 +85,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
     return (
         <CollapsibleCard
             title="Balance Changes"
+            isTransparentPanel
             footer={
                 owner ? (
                     <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
