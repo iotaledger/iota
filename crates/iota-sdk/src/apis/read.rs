@@ -43,7 +43,8 @@ impl ReadApi {
         Self { api }
     }
 
-    /// Get the objects owned by the given address. Results are paginated.
+    /// Get the objects owned by the given address.
+    /// Results are paginated.
     ///
     /// Note that if the address owns more than
     /// [`QUERY_MAX_RESULT_LIMIT`](iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT)
@@ -83,8 +84,8 @@ impl ReadApi {
             .await?)
     }
 
-    /// Get the dynamic fields owned by the given [ObjectID]. Results are
-    /// paginated.
+    /// Get the dynamic fields owned by the given [ObjectID].
+    /// Results are paginated.
     ///
     /// If the field is a dynamic field, this method returns the ID of the Field
     /// object, which contains both the name and the value.
@@ -155,9 +156,9 @@ impl ReadApi {
     /// Get a parsed past object and version for the provided object ID.
     ///
     /// An object's version increases when the object is mutated, though it is
-    /// not guaranteed that it increases always by 1. A past object can be
-    /// used to understand how the object changed over time, i.e. what was
-    /// the total balance at a specific version.
+    /// not guaranteed that it increases always by 1. A past object can be used
+    /// to understand how the object changed over time, i.e. what was the total
+    /// balance at a specific version.
     ///
     /// # Examples
     ///
@@ -217,8 +218,8 @@ impl ReadApi {
 
     /// Get a list of parsed past objects.
     ///
-    /// See [Self::try_get_parsed_past_object] for more
-    /// details about past objects.
+    /// See [Self::try_get_parsed_past_object] for more details about past
+    /// objects.
     ///
     /// # Examples
     ///
@@ -468,7 +469,8 @@ impl ReadApi {
             .await?)
     }
 
-    /// Get filtered transaction blocks information. Results are paginated.
+    /// Get filtered transaction blocks information.
+    /// Results are paginated.
     pub async fn query_transaction_blocks(
         &self,
         query: IotaTransactionBlockResponseQuery,
@@ -483,8 +485,8 @@ impl ReadApi {
             .await?)
     }
 
-    /// Get the first four bytes of the chain's genesis checkpoint digest in
-    /// hex format.
+    /// Get the first four bytes of the chain's genesis checkpoint digest in hex
+    /// format.
     pub async fn get_chain_identifier(&self) -> IotaRpcResult<String> {
         Ok(self.api.http.get_chain_identifier().await?)
     }
@@ -494,7 +496,8 @@ impl ReadApi {
         Ok(self.api.http.get_checkpoint(id).await?)
     }
 
-    /// Return a list of checkpoints. Results are paginated.
+    /// Return a list of checkpoints.
+    /// Results are paginated.
     pub async fn get_checkpoints(
         &self,
         cursor: impl Into<Option<BigInt<u64>>>,
@@ -508,8 +511,7 @@ impl ReadApi {
             .await?)
     }
 
-    /// Get the sequence number of the latest checkpoint that has been
-    /// executed.
+    /// Get the sequence number of the latest checkpoint that has been executed.
     pub async fn get_latest_checkpoint_sequence_number(
         &self,
     ) -> IotaRpcResult<CheckpointSequenceNumber> {
@@ -585,7 +587,7 @@ impl ReadApi {
     }
 
     // TODO(devx): we can probably cache this given an epoch
-    /// Get the reference gas pric.
+    /// Get the reference gas price.
     pub async fn get_reference_gas_price(&self) -> IotaRpcResult<u64> {
         Ok(*self.api.http.get_reference_gas_price().await?)
     }
@@ -593,10 +595,9 @@ impl ReadApi {
     /// Dry run a transaction block given the provided transaction data.
     ///
     /// This simulates running the transaction, including all standard checks,
-    /// without actually running it. This is useful for estimating the gas
-    /// fees of a transaction before executing it. You can also use it to
-    /// identify any side-effects of a transaction before you execute it on
-    /// the network.
+    /// without actually running it. This is useful for estimating the gas fees
+    /// of a transaction before executing it. You can also use it to identify
+    /// any side-effects of a transaction before you execute it on the network.
     pub async fn dry_run_transaction_block(
         &self,
         tx: TransactionData,

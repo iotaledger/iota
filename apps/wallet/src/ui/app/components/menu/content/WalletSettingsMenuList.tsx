@@ -4,7 +4,6 @@
 
 import { useNextMenuUrl, Overlay } from '_components';
 import { useAppSelector } from '_hooks';
-import { getCustomNetwork } from '_src/shared/api-env';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
@@ -29,7 +28,7 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useTheme } from '@iota/core';
+import { useTheme, getCustomNetwork } from '@iota/core';
 
 function MenuList() {
     const { theme } = useTheme();

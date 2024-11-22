@@ -10,12 +10,12 @@ import {
     useFormatCoin,
     useGetTimeBeforeEpochNumber,
     useTimeAgo,
+    ImageIcon,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ImageIcon } from '../../shared/image-icon';
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
 

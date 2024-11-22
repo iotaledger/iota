@@ -3,28 +3,18 @@
 'use client';
 
 import { Notifications } from '@/components/index';
-import React, { useEffect, type PropsWithChildren } from 'react';
-import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
+import React, { type PropsWithChildren } from 'react';
 import { Button } from '@iota/apps-ui-kit';
-import { redirect } from 'next/navigation';
-import { Sidebar } from './components';
-import { TopNav } from './components/top-nav/TopNav';
+import { Sidebar, TopNav } from './components';
 import { Theme, useTheme } from '@iota/core';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
-    const { connectionStatus } = useCurrentWallet();
     const { theme, setTheme } = useTheme();
 
     const toggleTheme = () => {
         const newTheme = theme === Theme.Light ? Theme.Dark : Theme.Light;
         setTheme(newTheme);
     };
-    const account = useCurrentAccount();
-    useEffect(() => {
-        if (connectionStatus !== 'connected' && !account) {
-            redirect('/');
-        }
-    }, [connectionStatus, account]);
 
     return (
         <div className="h-full">
