@@ -65,3 +65,7 @@ runs:
             - "kiosk/**"
             - "nre/**"
             - "iota-execution/**"
+          isMoveAutoFormatter:
+            - "external-crates/move/crates/move-analyzer/prettier-plugin/**"
+          isMoveIDE:
+            - "external-crates/move/crates/move-analyzer/**"
