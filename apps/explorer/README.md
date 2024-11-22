@@ -19,7 +19,7 @@ $ pnpm install
 To start the explorer dev server, you can run the following command:
 
 ```
-pnpm explorer dev
+pnpm run dev
 ```
 
 This will start the dev server on port 3000, which should be accessible on http://localhost:3000/
