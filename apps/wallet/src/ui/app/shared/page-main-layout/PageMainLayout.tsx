@@ -64,7 +64,7 @@ export function PageMainLayout({
                 />
             ) : null}
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
-                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100">
+                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100 dark:bg-neutral-6">
                     <main
                         className={cn('flex w-full flex-grow flex-col', {
                             'p-5': bottomNavEnabled && isHomePage,
@@ -109,7 +109,9 @@ function LeftContent({
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="shrink-0 text-title-sm text-neutral-10">{accountName}</span>
+            <span className="shrink-0 text-title-sm text-neutral-10 dark:text-neutral-92">
+                {accountName}
+            </span>
         </Link>
     );
 }

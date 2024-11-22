@@ -23,7 +23,12 @@ function IconLink({ to, icon, disabled = false, text }: IconLinkProps) {
             tabIndex={disabled ? -1 : undefined}
         >
             <div className={cl(disabled ? 'text-gray-60' : 'text-hero-dark')}>{icon}</div>
-            <span className={cl('text-body-sm', disabled ? 'opacity-60' : 'text-neutral-10')}>
+            <span
+                className={cl(
+                    'text-body-sm',
+                    disabled ? 'opacity-60' : 'text-neutral-10 dark:text-neutral-92',
+                )}
+            >
                 {text}
             </span>
         </Link>

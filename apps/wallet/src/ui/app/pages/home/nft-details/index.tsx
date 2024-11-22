@@ -125,7 +125,7 @@ function NFTDetailsPage() {
                                     </div>
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col gap-xxxs">
-                                            <span className="text-title-lg text-neutral-10">
+                                            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
                                                 {nftDisplayData?.name}
                                             </span>
                                             {nftDisplayData?.description ? (

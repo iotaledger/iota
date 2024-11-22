@@ -103,7 +103,9 @@ function DisconnectApp({
                                 />
                             ) : (
                                 <SummaryListItem
-                                    icon={<CircleEmitter className="h-5 w-5 text-neutral-10" />}
+                                    icon={
+                                        <CircleEmitter className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                    }
                                     text={
                                         connectedAccounts[0]
                                             ? formatAddress(connectedAccounts[0])

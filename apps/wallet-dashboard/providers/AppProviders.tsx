@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { growthbook } from '@/lib/utils';
 import { Popup } from '@/components/Popup';
 import { Toaster } from 'react-hot-toast';
-import { ThemeProvider } from '@/contexts';
+import { ThemeProvider } from '@iota/core';
 
 growthbook.init();
 
@@ -36,7 +36,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                             },
                         ]}
                     >
-                        <ThemeProvider>
+                        <ThemeProvider appId="dashboard">
                             <PopupProvider>
                                 {children}
                                 <Toaster
