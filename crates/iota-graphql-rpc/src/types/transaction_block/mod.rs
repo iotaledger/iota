@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    future::Future,
+};
 
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
 use connection::Edge;
@@ -442,63 +445,65 @@ impl Loader<DigestKey> for Db {
     type Value = TransactionBlock;
     type Error = Error;
 
-    async fn load(
+    fn load(
         &self,
         keys: &[DigestKey],
-    ) -> Result<HashMap<DigestKey, TransactionBlock>, Error> {
-        use transactions::dsl as tx;
-        use tx_digests::dsl as ds;
+    ) -> impl Future<Output = Result<HashMap<DigestKey, TransactionBlock>, Error>> + Send {
+        async move {
+            use transactions::dsl as tx;
+            use tx_digests::dsl as ds;
 
-        let digests: Vec<_> = keys.iter().map(|k| k.digest.to_vec()).collect();
+            let digests: Vec<_> = keys.iter().map(|k| k.digest.to_vec()).collect();
 
-        let transactions: Vec<StoredTransaction> = self
-            .execute(move |conn| {
-                conn.results(move || {
-                    let join = ds::tx_sequence_number.eq(tx::tx_sequence_number);
+            let transactions: Vec<StoredTransaction> = self
+                .execute(move |conn| {
+                    conn.results(move || {
+                        let join = ds::tx_sequence_number.eq(tx::tx_sequence_number);
 
-                    tx::transactions
-                        .inner_join(ds::tx_digests.on(join))
-                        .select(StoredTransaction::as_select())
-                        .filter(ds::tx_digest.eq_any(digests.clone()))
+                        tx::transactions
+                            .inner_join(ds::tx_digests.on(join))
+                            .select(StoredTransaction::as_select())
+                            .filter(ds::tx_digest.eq_any(digests.clone()))
+                    })
                 })
-            })
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
+                .await
+                .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
 
-        let transaction_digest_to_stored: BTreeMap<_, _> = transactions
-            .into_iter()
-            .map(|mut tx| {
-                if tx.is_genesis() {
-                    tx = tx.set_genesis_large_object_as_inner_data(&self.inner.get_pool())?;
+            let transaction_digest_to_stored: BTreeMap<_, _> = transactions
+                .into_iter()
+                .map(|mut tx| {
+                    if tx.is_genesis() {
+                        tx = tx.set_genesis_large_object_as_inner_data(&self.inner.get_pool())?;
+                    }
+                    Ok((tx.transaction_digest.clone(), tx))
+                })
+                .collect::<Result<BTreeMap<_, _>, Error>>()?;
+
+            let mut results = HashMap::new();
+            for key in keys {
+                let Some(stored) = transaction_digest_to_stored
+                    .get(key.digest.as_slice())
+                    .cloned()
+                else {
+                    continue;
+                };
+
+                // Filter by key's checkpoint viewed at here. Doing this in memory because it
+                // should be quite rare that this query actually filters something,
+                // but encoding it in SQL is complicated.
+                if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                    continue;
                 }
-                Ok((tx.transaction_digest.clone(), tx))
-            })
-            .collect::<Result<BTreeMap<_, _>, Error>>()?;
 
-        let mut results = HashMap::new();
-        for key in keys {
-            let Some(stored) = transaction_digest_to_stored
-                .get(key.digest.as_slice())
-                .cloned()
-            else {
-                continue;
-            };
-
-            // Filter by key's checkpoint viewed at here. Doing this in memory because it
-            // should be quite rare that this query actually filters something,
-            // but encoding it in SQL is complicated.
-            if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
-                continue;
+                let inner = TransactionBlockInner::try_from(stored)?;
+                results.insert(*key, TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at: key.checkpoint_viewed_at,
+                });
             }
 
-            let inner = TransactionBlockInner::try_from(stored)?;
-            results.insert(*key, TransactionBlock {
-                inner,
-                checkpoint_viewed_at: key.checkpoint_viewed_at,
-            });
+            Ok(results)
         }
-
-        Ok(results)
     }
 }
 

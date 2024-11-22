@@ -851,16 +851,16 @@ dependencies = [
 
 [[package]]
 name = "async-graphql"
-version = "7.0.1"
+version = "7.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b16926f97f683ff3b47b035cc79622f3d6a374730b07a5d9051e81e88b5f1904"
+checksum = "0ba6d24703c5adc5ba9116901b92ee4e4c0643c01a56c4fd303f3818638d7449"
 dependencies = [
  "async-graphql-derive",
  "async-graphql-parser",
  "async-graphql-value",
  "async-stream",
  "async-trait",
- "base64 0.13.1",
+ "base64 0.22.1",
  "bytes",
  "chrono",
  "fast_chemail",
@@ -871,12 +871,12 @@ dependencies = [
  "handlebars",
  "http 1.1.0",
  "indexmap 2.5.0",
- "lru 0.7.8",
+ "lru",
  "mime",
  "multer",
  "num-traits",
  "once_cell",
- "opentelemetry 0.21.0",
+ "opentelemetry 0.25.0",
  "pin-project-lite",
  "regex",
  "serde",
@@ -891,9 +891,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-axum"
-version = "7.0.1"
+version = "7.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de3415c9dbaf54397292da0bb81a907e2b989661ce068e4ccfebac33dc9e245e"
+checksum = "e9aa80e171205c6d562057fd5a49167c8fbe61f7db2bed6540f6d4f2234d7ff2"
 dependencies = [
  "async-graphql",
  "async-trait",
@@ -909,26 +909,26 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-derive"
-version = "7.0.1"
+version = "7.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6a7349168b79030e3172a620f4f0e0062268a954604e41475eff082380fe505"
+checksum = "a94c2d176893486bd37cd1b6defadd999f7357bf5804e92f510c08bcf16c538f"
 dependencies = [
  "Inflector",
  "async-graphql-parser",
  "darling 0.20.10",
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 3.2.0",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
- "strum 0.25.0",
+ "strum 0.26.3",
  "syn 2.0.77",
  "thiserror",
 ]
 
 [[package]]
 name = "async-graphql-parser"
-version = "7.0.1"
+version = "7.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58fdc0adf9f53c2b65bb0ff5170cba1912299f248d0e48266f444b6f005deb1d"
+checksum = "79272bdbf26af97866e149f05b2b546edb5c00e51b5f916289931ed233e208ad"
 dependencies = [
  "async-graphql-value",
  "pest",
@@ -938,9 +938,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-value"
-version = "7.0.1"
+version = "7.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cf4d4e86208f4f9b81a503943c07e6e7f29ad3505e6c9ce6431fe64dc241681"
+checksum = "ef5ec94176a12a8cbe985cd73f2e54dc9c702c88c766bdef12f1f3a67cedbee1"
 dependencies = [
  "bytes",
  "indexmap 2.5.0",
@@ -1249,7 +1249,7 @@ dependencies = [
  "hmac",
  "http 0.2.12",
  "http-body 0.4.6",
- "lru 0.12.4",
+ "lru",
  "once_cell",
  "percent-encoding",
  "regex-lite",
@@ -5118,9 +5118,9 @@ dependencies = [
 
 [[package]]
 name = "handlebars"
-version = "4.5.0"
+version = "5.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "faa67bab9ff362228eb3d00bd024a4965d8231bbb7921167f0cfa66c6626b225"
+checksum = "d08485b96a0e6393e9e4d1b8d48cf74ad6c063cd905eb33f42c1ce3f0377539b"
 dependencies = [
  "log",
  "pest",
@@ -6055,7 +6055,7 @@ dependencies = [
  "iota-sdk 0.7.0-alpha",
  "iota-test-transaction-builder",
  "iota-types",
- "lru 0.12.4",
+ "lru",
  "maplit",
  "move-core-types",
  "num_enum",
@@ -6262,7 +6262,7 @@ dependencies = [
  "iota-types",
  "itertools 0.13.0",
  "jsonrpsee",
- "lru 0.12.4",
+ "lru",
  "mockall",
  "moka",
  "more-asserts",
@@ -6748,7 +6748,7 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
- "lru 0.12.4",
+ "lru",
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
@@ -7418,7 +7418,7 @@ dependencies = [
  "insta",
  "iota-move-build",
  "iota-types",
- "lru 0.12.4",
+ "lru",
  "move-binary-format",
  "move-command-line-common",
  "move-compiler",
@@ -7486,7 +7486,7 @@ dependencies = [
  "iota-transaction-checks",
  "iota-types",
  "jsonrpsee",
- "lru 0.12.4",
+ "lru",
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
@@ -7717,7 +7717,7 @@ dependencies = [
  "iota-framework",
  "iota-move-build",
  "iota-types",
- "lru 0.12.4",
+ "lru",
  "move-package",
  "msim",
  "rand 0.8.5",
@@ -7892,7 +7892,7 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
- "lru 0.12.4",
+ "lru",
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
@@ -8189,7 +8189,7 @@ dependencies = [
  "iota-sdk 1.1.5",
  "iota-util-mem",
  "itertools 0.13.0",
- "lru 0.12.4",
+ "lru",
  "move-binary-format",
  "move-bytecode-utils",
  "move-command-line-common",
@@ -9027,15 +9027,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e5d0c5463c911ef55624739fc353238b4e310f0144be1f875dc42fec6bfd5ec"
 dependencies = [
  "logos-codegen",
-]
-
-[[package]]
-name = "lru"
-version = "0.7.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e999beba7b6e8345721bd280141ed958096a2e4abdf74f67ff4ce49b4b54e47a"
-dependencies = [
- "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -10403,7 +10394,7 @@ checksum = "e238432a7881ec7164503ccc516c014bf009be7984cde1ba56837862543bdec3"
 dependencies = [
  "bitvec 1.0.1",
  "either",
- "lru 0.12.4",
+ "lru",
  "num-bigint 0.4.6",
  "num-integer",
  "num-modular",
@@ -10641,25 +10632,23 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry"
-version = "0.21.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e32339a5dc40459130b3bd269e9892439f55b33e772d2a9d402a789baaf4e8a"
+checksum = "4c365a63eec4f55b7efeceb724f1336f26a9cf3427b70e59e2cd2a5b947fba96"
 dependencies = [
  "futures-core",
  "futures-sink",
- "indexmap 2.5.0",
  "js-sys",
  "once_cell",
  "pin-project-lite",
  "thiserror",
- "urlencoding",
 ]
 
 [[package]]
 name = "opentelemetry"
-version = "0.24.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c365a63eec4f55b7efeceb724f1336f26a9cf3427b70e59e2cd2a5b947fba96"
+checksum = "803801d3d3b71cd026851a53f974ea03df3d179cb758b260136a6c9e22e196af"
 dependencies = [
  "futures-core",
  "futures-sink",

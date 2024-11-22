@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    future::Future,
+};
 
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
@@ -61,78 +64,84 @@ impl Loader<u64> for Db {
 
     type Error = Error;
 
-    async fn load(
+    fn load(
         &self,
         keys: &[u64],
-    ) -> Result<
-        HashMap<u64, BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>,
-        Error,
-    > {
-        let latest_iota_system_state = self
-            .inner
-            .spawn_blocking(move |this| this.get_latest_iota_system_state())
-            .await
-            .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
-        let governance_api = GovernanceReadApi::new(self.inner.clone());
+    ) -> impl Future<
+        Output = Result<
+            HashMap<u64, BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>,
+            Error,
+        >,
+    > + Send {
+        async move {
+            let latest_iota_system_state = self
+                .inner
+                .spawn_blocking(move |this| this.get_latest_iota_system_state())
+                .await
+                .map_err(|_| {
+                    Error::Internal("Failed to fetch latest Iota system state".to_string())
+                })?;
+            let governance_api = GovernanceReadApi::new(self.inner.clone());
 
-        let pending_validators_exchange_rate = governance_api
-            .pending_validators_exchange_rate()
-            .await
-            .map_err(|e| {
-                Error::Internal(format!(
-                    "Error fetching pending validators exchange rates. {e}"
-                ))
-            })?;
+            let pending_validators_exchange_rate = governance_api
+                .pending_validators_exchange_rate()
+                .await
+                .map_err(|e| {
+                    Error::Internal(format!(
+                        "Error fetching pending validators exchange rates. {e}"
+                    ))
+                })?;
 
-        let mut exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
-            .await
-            .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
+            let mut exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
+                .await
+                .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
 
-        exchange_rates.extend(pending_validators_exchange_rate.into_iter());
+            exchange_rates.extend(pending_validators_exchange_rate.into_iter());
 
-        let mut results = BTreeMap::new();
+            let mut results = BTreeMap::new();
 
-        // The requested epoch is the epoch for which we want to compute the APY. For
-        // the current ongoing epoch we cannot compute an APY, so we compute it
-        // for epoch - 1. First need to check if that requested epoch is not the
-        // current running one. If it is, then subtract one as the APY cannot be
-        // computed for a running epoch. If no epoch is passed in the key, then
-        // we default to the latest epoch - 1 for the same reasons as above.
-        let epoch_to_filter_out = if let Some(epoch) = keys.first() {
-            if epoch == &latest_iota_system_state.epoch {
-                *epoch - 1
+            // The requested epoch is the epoch for which we want to compute the APY. For
+            // the current ongoing epoch we cannot compute an APY, so we compute it
+            // for epoch - 1. First need to check if that requested epoch is not the
+            // current running one. If it is, then subtract one as the APY cannot be
+            // computed for a running epoch. If no epoch is passed in the key, then
+            // we default to the latest epoch - 1 for the same reasons as above.
+            let epoch_to_filter_out = if let Some(epoch) = keys.first() {
+                if epoch == &latest_iota_system_state.epoch {
+                    *epoch - 1
+                } else {
+                    *epoch
+                }
             } else {
-                *epoch
+                latest_iota_system_state.epoch - 1
+            };
+
+            // filter the exchange rates to only include data for the epochs that are less
+            // than or equal to the requested epoch. This enables us to get
+            // historical exchange rates accurately and pass this to the APY
+            // calculation function TODO we might even filter here by the epoch at
+            // which the stake subsidy started to avoid passing that to the
+            // `calculate_apy` function and doing another filter there
+            for er in exchange_rates {
+                results.insert(
+                    er.address,
+                    er.rates
+                        .into_iter()
+                        .filter(|(epoch, _)| epoch <= &epoch_to_filter_out)
+                        .collect(),
+                );
             }
-        } else {
-            latest_iota_system_state.epoch - 1
-        };
 
-        // filter the exchange rates to only include data for the epochs that are less
-        // than or equal to the requested epoch. This enables us to get
-        // historical exchange rates accurately and pass this to the APY
-        // calculation function TODO we might even filter here by the epoch at
-        // which the stake subsidy started to avoid passing that to the
-        // `calculate_apy` function and doing another filter there
-        for er in exchange_rates {
-            results.insert(
-                er.address,
-                er.rates
-                    .into_iter()
-                    .filter(|(epoch, _)| epoch <= &epoch_to_filter_out)
-                    .collect(),
-            );
+            let requested_epoch = match keys.first() {
+                Some(x) => *x,
+                None => latest_iota_system_state.epoch,
+            };
+
+            let mut r = HashMap::new();
+            r.insert(requested_epoch, results);
+
+            Ok(r)
         }
-
-        let requested_epoch = match keys.first() {
-            Some(x) => *x,
-            None => latest_iota_system_state.epoch,
-        };
-
-        let mut r = HashMap::new();
-        r.insert(requested_epoch, results);
-
-        Ok(r)
     }
 }
 
