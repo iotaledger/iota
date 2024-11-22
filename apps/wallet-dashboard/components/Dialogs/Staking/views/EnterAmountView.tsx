@@ -43,6 +43,7 @@ interface EnterAmountViewProps {
     showActiveStatus?: boolean;
     gasBudget?: string | number | null;
     handleClose: () => void;
+    isTransactionLoading?: boolean;
 }
 
 function EnterAmountView({
@@ -51,6 +52,7 @@ function EnterAmountView({
     onStake,
     gasBudget = 0,
     handleClose,
+    isTransactionLoading,
 }: EnterAmountViewProps): JSX.Element {
     const coinType = IOTA_TYPE_ARG;
     const { data: metadata } = useCoinMetadata(coinType);
@@ -59,22 +61,26 @@ function EnterAmountView({
     const account = useCurrentAccount();
     const accountAddress = account?.address;
 
-    const { values } = useFormikContext<FormValues>();
+    const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: iotaBalance } = useBalance(accountAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
 
-    const maxTokenBalance = coinBalance - BigInt(Number(gasBudget));
+    const gasBudgetBigInt = BigInt(gasBudget ?? 0);
+    const [gas, symbol] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
+
+    const maxTokenBalance = coinBalance - gasBudgetBigInt;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
         maxTokenBalance,
         IOTA_TYPE_ARG,
         CoinFormat.FULL,
     );
 
-    const gasBudgetBigInt = BigInt(gasBudget ?? 0);
-    const [gas, symbol] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
+    const caption = isTransactionLoading
+        ? '--'
+        : `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,
@@ -112,18 +118,18 @@ function EnterAmountView({
                                     return (
                                         <Input
                                             {...field}
-                                            onValueChange={(values) =>
-                                                setFieldValue('amount', values.value, true)
-                                            }
+                                            onValueChange={({ value }) => {
+                                                setFieldValue('amount', value, true);
+                                            }}
                                             type={InputType.NumericFormat}
                                             label="Amount"
                                             value={amount}
-                                            onChange={onChange}
+                                            suffix={` ${symbol}`}
                                             placeholder="Enter amount to stake"
                                             errorMessage={
                                                 values.amount && meta.error ? meta.error : undefined
                                             }
-                                            caption={`${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`}
+                                            caption={coinBalance ? caption : ''}
                                         />
                                     );
                                 }}
@@ -171,7 +177,7 @@ function EnterAmountView({
                         fullWidth
                         type={ButtonType.Primary}
                         onClick={onStake}
-                        disabled={!amount}
+                        disabled={!amount || !!errors?.amount}
                         text="Stake"
                     />
                 </div>
