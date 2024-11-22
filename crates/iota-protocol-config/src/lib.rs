@@ -180,6 +180,10 @@ struct FeatureFlags {
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
+
+    // Enable a fixed, protocol-defined base gas price for all transactions.
+    #[serde(skip_serializing_if = "is_false")]
+    fixed_base_fee: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -522,7 +526,7 @@ pub struct ProtocolConfig {
     object_runtime_max_num_store_entries_system_tx: Option<u64>,
 
     // === Execution gas costs ====
-    /// Base cost for any Iota transaction
+    /// Base cost for any Iota transaction in computation units
     base_tx_cost_fixed: Option<u64>,
 
     /// Additional cost for a transaction that publishes a package
@@ -585,12 +589,15 @@ pub struct ProtocolConfig {
     /// In basis point.
     reward_slashing_rate: Option<u64>,
 
-    /// Unit gas price, Nanos per internal gas unit.
+    /// Unit storage gas price, Nanos per internal gas unit.
     storage_gas_price: Option<u64>,
+
+    // Base gas price for computation gas, nanos per computation unit.
+    base_gas_price: Option<u64>,
 
     /// The number of tokens that the set of validators should receive per
     /// epoch.
-    validator_target_reward: Option<u64>,
+    validator_subsidy: Option<u64>,
 
     /// === Core Protocol ===
 
@@ -1030,6 +1037,10 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
+    pub fn fixed_base_fee(&self) -> bool {
+        self.feature_flags.fixed_base_fee
+    }
+
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1264,9 +1275,11 @@ impl ProtocolConfig {
             // Change reward slashing rate to 100%.
             reward_slashing_rate: Some(10000),
             storage_gas_price: Some(76),
+            // Base gas price is 1000 Nano/computation unit.
+            base_gas_price: Some(1000),
             // The initial target reward for validators per epoch.
             // Refer to the IOTA tokenomics for the origin of this value.
-            validator_target_reward: Some(767_000 * 1_000_000_000),
+            validator_subsidy: Some(767_000 * 1_000_000_000),
             max_transactions_per_checkpoint: Some(10_000),
             max_checkpoint_size_bytes: Some(30 * 1024 * 1024),
 
@@ -1583,6 +1596,7 @@ impl ProtocolConfig {
         };
 
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
+        cfg.feature_flags.fixed_base_fee = true;
 
         // MoveVM related flags
         {

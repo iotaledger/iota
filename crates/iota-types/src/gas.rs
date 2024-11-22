@@ -19,7 +19,11 @@ pub mod checked {
         ObjectID,
         effects::{TransactionEffects, TransactionEffectsAPI},
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
+        gas_model::{
+            gas_v1::IotaGasStatus as IotaGasStatusV1,
+            gas_v2::IotaGasStatus as IotaGasStatusV2,
+            tables::GasStatus,
+        },
         iota_serde::{BigInt, Readable},
         object::Object,
         transaction::ObjectReadResult,
@@ -55,6 +59,7 @@ pub mod checked {
     #[derive(Debug)]
     pub enum IotaGasStatus {
         V1(IotaGasStatusV1),
+        V2(IotaGasStatusV2),
     }
 
     impl IotaGasStatus {
@@ -67,7 +72,7 @@ pub mod checked {
             // Common checks. We may pull them into version specific status as needed, but
             // they are unlikely to change.
 
-            // gas price must be bigger or equal to reference gas price
+            // gas price must be greater than or equal to reference gas price
             if gas_price < reference_gas_price {
                 return Err(UserInputError::GasPriceUnderRGP {
                     gas_price,
@@ -82,15 +87,26 @@ pub mod checked {
                 .into());
             }
 
-            Ok(Self::V1(IotaGasStatusV1::new_with_budget(
-                gas_budget,
-                gas_price,
-                reference_gas_price,
-                config,
-            )))
+            if config.fixed_base_fee() {
+                Ok(Self::V2(IotaGasStatusV2::new_with_budget(
+                    gas_budget,
+                    gas_price,
+                    reference_gas_price,
+                    config,
+                )))
+            } else {
+                Ok(Self::V1(IotaGasStatusV1::new_with_budget(
+                    gas_budget,
+                    gas_price,
+                    reference_gas_price,
+                    config,
+                )))
+            }
         }
 
         pub fn new_unmetered() -> Self {
+            // Always return V1 as unmetered gas status is identical from V1 to V2.
+            // This is only used for system transactions which do no pay gas.
             Self::V1(IotaGasStatusV1::new_unmetered())
         }
 
@@ -103,6 +119,7 @@ pub mod checked {
         ) -> UserInputResult {
             match self {
                 Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
+                Self::V2(status) => status.check_gas_balance(gas_objs, gas_budget),
             }
         }
     }

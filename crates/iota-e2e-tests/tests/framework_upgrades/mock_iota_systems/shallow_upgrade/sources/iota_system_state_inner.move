@@ -17,7 +17,7 @@ module iota_system::iota_system_state_inner {
     const SYSTEM_STATE_VERSION_V1: u64 = 18446744073709551605;  // u64::MAX - 10
     const SYSTEM_STATE_VERSION_V2: u64 = 18446744073709551606;  // u64::MAX - 9
 
-    public struct SystemEpochInfoEventV1 has copy, drop {
+    public struct SystemEpochInfoEventV2 has copy, drop {
         epoch: u64,
         protocol_version: u64,
         reference_gas_price: u64,
@@ -29,6 +29,7 @@ module iota_system::iota_system_state_inner {
         total_stake_rewards_distributed: u64,
         burnt_tokens_amount: u64,
         minted_tokens_amount: u64,
+        tips_amount: u64,
     }
 
     public struct SystemParametersV1 has store {
@@ -131,7 +132,7 @@ module iota_system::iota_system_state_inner {
         let storage_rebate = balance::split(&mut self.storage_fund, storage_rebate_amount);
 
         event::emit(
-            SystemEpochInfoEventV1 {
+            SystemEpochInfoEventV2 {
                 epoch: self.epoch,
                 protocol_version: self.protocol_version,
                 reference_gas_price: self.reference_gas_price,
@@ -143,6 +144,7 @@ module iota_system::iota_system_state_inner {
                 total_stake_rewards_distributed: 0,
                 burnt_tokens_amount: 0,
                 minted_tokens_amount: 0,
+                tips_amount: 0,
             }
         );
 

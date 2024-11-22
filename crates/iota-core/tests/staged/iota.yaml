@@ -62,6 +62,7 @@ ChangeEpoch:
         TYPENAME: ProtocolVersion
     - storage_charge: U64
     - computation_charge: U64
+    - computation_charge_burned: U64
     - storage_rebate: U64
     - non_refundable_storage_fee: U64
     - epoch_start_timestamp_ms: U64
