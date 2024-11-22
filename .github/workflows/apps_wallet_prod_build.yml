@@ -39,7 +39,7 @@ jobs:
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
       - name: Build Wallet
         run: pnpm wallet build
-          - name: Get Previous Tag
+      - name: Get Previous Tag
         id: prev_tag
         run: |
           tags=$(git tag --list 'wallet-v*.*.*' --sort=-creatordate)
