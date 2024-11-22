@@ -131,13 +131,13 @@ Download each package. For example, on macOS use [homebrew](https://brew.sh/):
 
 `brew install wget curl`
 
-### Learn more about Iota
+### Learn more about IOTA
 
-- https://docs.iota.io/learn
+- https://docs.iota.org/about-iota
 
 ### Learn more about building and running a Full node from source code
 
-- https://docs.iota.io/build/fullnode
+- https://docs.iota.org/operator/iota-full-node
 
 ### Learn more about Docker Compose
 
