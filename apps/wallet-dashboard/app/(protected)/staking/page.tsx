@@ -3,8 +3,7 @@
 
 'use client';
 
-import { StakeDialog } from '@/components';
-import { StakeDetailsDialog } from '@/components/Dialogs';
+// import { StakeDetailsDialog } from '@/components/Dialogs';
 import { StartStaking } from '@/components/staking-overview/StartStaking';
 import {
     Button,
@@ -17,6 +16,8 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
+import { StakeDialog } from '@/components';
+import { StakeDialogView } from '@/components/Dialogs/Staking/StakeDialog';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,
@@ -35,11 +36,13 @@ import { useMemo, useState } from 'react';
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
-    const [isDialogStakeOpen, setIsDialogStakeOpen] = useState(false);
+    // const [isDialogStakeOpen, setIsDialogStakeOpen] = useState(false);
+    const [stakeDialogView, setStakeDialogView] = useState<StakeDialogView | undefined>();
     const [selectedStake, setSelectedStake] = useState<ExtendedDelegatedStake | null>(null);
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const activeValidators = (system as IotaSystemStateSummary)?.activeValidators;
 
+    const [selectedValidator, setSelectedValidator] = useState<string>('');
     const { data: delegatedStakeData } = useGetDelegatedStake({
         address: account?.address || '',
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -70,12 +73,22 @@ function StakingDashboardPage(): JSX.Element {
     );
 
     const viewStakeDetails = (extendedStake: ExtendedDelegatedStake) => {
+        setStakeDialogView(StakeDialogView.Details);
         setSelectedStake(extendedStake);
     };
 
-    function handleNewStake() {
-        setIsDialogStakeOpen(true);
+    function handleCloseStakeDialog() {
+        setSelectedValidator('');
+        setSelectedStake(null);
+        setStakeDialogView(undefined);
     }
+
+    function handleNewStake() {
+        setSelectedStake(null);
+        setStakeDialogView(StakeDialogView.SelectValidator);
+    }
+
+    const isDialogStakeOpen = stakeDialogView !== undefined;
 
     return (delegatedStakeData?.length ?? 0) > 0 ? (
         <Panel>
@@ -102,8 +115,7 @@ function StakingDashboardPage(): JSX.Element {
                             <InfoBox
                                 type={InfoBoxType.Default}
                                 title="Earn with active validators"
-                                supportingText="Unstake IOTA from the inactive validators and stake on an active
-validator to start earning rewards again."
+                                supportingText="Unstake IOTA from the inactive validators and stake on an active validator to start earning rewards again."
                                 icon={<Info />}
                                 style={InfoBoxStyle.Elevated}
                             />
@@ -138,12 +150,15 @@ validator to start earning rewards again."
                     </div>
                 </div>
             </div>
-            <StakeDialog isOpen={isDialogStakeOpen} setOpen={setIsDialogStakeOpen} />
-            {selectedStake && (
-                <StakeDetailsDialog
-                    extendedStake={selectedStake}
-                    handleClose={() => setSelectedStake(null)}
-                    showActiveStatus
+            {isDialogStakeOpen && (
+                <StakeDialog
+                    stakedDetails={selectedStake}
+                    isOpen={isDialogStakeOpen}
+                    handleClose={handleCloseStakeDialog}
+                    view={stakeDialogView}
+                    setView={setStakeDialogView}
+                    selectedValidator={selectedValidator}
+                    setSelectedValidator={setSelectedValidator}
                 />
             )}
         </Panel>

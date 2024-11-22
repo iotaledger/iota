@@ -16,6 +16,7 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     getStakeIotaByIotaId,
     MIN_NUMBER_IOTA_TO_STAKE,
+    createValidationSchema,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
@@ -33,7 +34,6 @@ import { useSigner } from '../../hooks/useSigner';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
-import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import {
     Button,

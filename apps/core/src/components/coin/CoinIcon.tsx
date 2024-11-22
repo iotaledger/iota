@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { useCoinMetadata } from '../../hooks';
+import { useCoinMetadata, ImageIcon, ImageIconSize } from '../../index';
 import { IotaLogoMark } from '@iota/ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { ImageIcon, ImageIconSize } from '../icon';
 import cx from 'clsx';
 
 interface NonIotaCoinProps {

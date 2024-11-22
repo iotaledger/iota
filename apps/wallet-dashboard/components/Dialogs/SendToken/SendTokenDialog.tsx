@@ -43,7 +43,7 @@ function SendTokenDialogBody({
         selectedCoin?.coinType,
         activeAddress,
         formData.to,
-        formData.amount,
+        formData.formattedAmount,
         selectedCoin?.totalBalance === formData.amount,
     );
 
