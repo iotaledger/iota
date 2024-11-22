@@ -541,6 +541,48 @@ impl AuthorityStore {
         Ok(result)
     }
 
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn insert_finalized_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+        epoch: EpochId,
+        sequence: CheckpointSequenceNumber,
+    ) -> IotaResult {
+        let mut batch = self
+            .perpetual_tables
+            .executed_transactions_to_checkpoint
+            .batch();
+        batch.insert_batch(
+            &self.perpetual_tables.executed_transactions_to_checkpoint,
+            digests.iter().map(|d| (*d, (epoch, sequence))),
+        )?;
+        batch.write()?;
+        trace!("Transactions {digests:?} finalized at checkpoint {sequence} epoch {epoch}");
+        Ok(())
+    }
+
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn get_transaction_perpetual_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+        Ok(self
+            .perpetual_tables
+            .executed_transactions_to_checkpoint
+            .get(digest)?)
+    }
+
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn multi_get_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+        Ok(self
+            .perpetual_tables
+            .executed_transactions_to_checkpoint
+            .multi_get(digests)?)
+    }
+
     /// Returns true if there are no objects in the database
     pub fn database_is_empty(&self) -> IotaResult<bool> {
         self.perpetual_tables.database_is_empty()

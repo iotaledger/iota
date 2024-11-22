@@ -102,6 +102,13 @@ pub struct AuthorityPerpetualTables {
     #[default_options_override_fn = "events_table_default_config"]
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
 
+    /// Epoch and checkpoint of transactions finalized by checkpoint
+    /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
+    /// Note, there is a table with the same name in
+    /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
+    pub(crate) executed_transactions_to_checkpoint:
+        DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
+
     // Finalized root state accumulator for epoch, to be included in CheckpointSummary
     // of last checkpoint of epoch. These values should only ever be written once
     // and never changed
@@ -349,6 +356,13 @@ impl AuthorityPerpetualTables {
         Ok(self.effects.get(&effect_digest)?)
     }
 
+    pub fn get_checkpoint_sequence_number(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+        Ok(self.executed_transactions_to_checkpoint.get(digest)?)
+    }
+
     pub fn get_newer_object_keys(
         &self,
         object: &(ObjectID, SequenceNumber),
@@ -418,6 +432,7 @@ impl AuthorityPerpetualTables {
         self.live_owned_object_markers.unsafe_clear()?;
         self.executed_effects.unsafe_clear()?;
         self.events.unsafe_clear()?;
+        self.executed_transactions_to_checkpoint.unsafe_clear()?;
         self.root_state_hash_by_epoch.unsafe_clear()?;
         self.epoch_start_configuration.unsafe_clear()?;
         self.pruned_checkpoint.unsafe_clear()?;
