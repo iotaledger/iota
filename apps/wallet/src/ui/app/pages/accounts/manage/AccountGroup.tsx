@@ -167,7 +167,7 @@ export function AccountGroup({
                 ))}
             </Collapsible>
             <div
-                className={`absolute right-3 top-3 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+                className={`absolute right-3 top-3 z-[100] rounded-lg bg-neutral-100 shadow-md dark:bg-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>
