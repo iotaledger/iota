@@ -68,7 +68,7 @@ jobs:
       - name: Get version from tag
         id: version
         run: echo "::set-output name=version::${GITHUB_REF#refs/tags/wallet-v}"
-      
+
       - name: Create GitHub Release
         uses: elgohr/create-release@v5
         env:
