@@ -41,6 +41,19 @@
 				"!.next/cache/**",
 				"pkg/**"
 			]
+		},
+		"build:nightly": {
+			"dependsOn": [
+				"^build"
+			],
+			"outputs": [
+				"build/**",
+				"dist/**",
+				"storybook-static/**",
+				".next/**",
+				"!.next/cache/**",
+				"pkg/**"
+			]
 		}
 	},
 	"globalEnv": [

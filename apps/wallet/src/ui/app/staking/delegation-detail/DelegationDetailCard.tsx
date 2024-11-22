@@ -99,7 +99,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin(iotaEarned, IOTA_TYPE_ARG);
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
 
-    const delegationId = delegationData?.status === 'Active' && delegationData?.stakedIotaId;
+    const delegationId = delegationData?.stakedIotaId;
 
     const stakeByValidatorAddress = `/stake/new?${new URLSearchParams({
         address: validatorAddress,
