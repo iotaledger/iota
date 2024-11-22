@@ -125,7 +125,7 @@ export function RecoverManyPage() {
                         }
                         setRecoverInfo(null);
                     }}
-                    background="bg-neutral-100"
+                    background="bg-neutral-100 dark:bg-neutral-6"
                 >
                     <div className="flex h-full w-full flex-col flex-nowrap gap-4 text-center">
                         {recoverInfo?.type === AccountSourceType.Mnemonic ? (

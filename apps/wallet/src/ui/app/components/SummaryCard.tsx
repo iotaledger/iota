@@ -13,7 +13,7 @@ export interface SummaryCardProps {
 
 export function SummaryCard({ body, header, footer }: SummaryCardProps) {
     return (
-        <div className="flex w-full flex-col flex-nowrap gap-xs rounded-xl bg-neutral-96 pb-md">
+        <div className="flex w-full flex-col flex-nowrap gap-xs rounded-xl bg-neutral-96 pb-md dark:bg-neutral-12">
             {header ? (
                 <div className="flex h-[56px] items-center">
                     <Title title={header} size={TitleSize.Small} />
