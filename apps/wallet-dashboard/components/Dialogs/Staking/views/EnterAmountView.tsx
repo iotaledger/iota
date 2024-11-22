@@ -93,7 +93,7 @@ function EnterAmountView({
 
     return (
         <Layout>
-            <Header title="Enter amount" onClose={handleClose} onBack={handleClose} titleCentered />
+            <Header title="Enter amount" onClose={handleClose} onBack={onBack} titleCentered />
             <LayoutBody>
                 <div className="flex w-full flex-col justify-between">
                     <div>
