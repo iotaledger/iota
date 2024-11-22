@@ -1,9 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useGetTimeBeforeEpochNumber, useTimeAgo, TimeUnit } from '../../index';
-
-export const NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE = 2;
-export const NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS = 1;
+import {
+    useGetTimeBeforeEpochNumber,
+    useTimeAgo,
+    TimeUnit,
+    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
+    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
+} from '../../index';
 
 export function useStakeTxnInfo(startEpoch?: string | number) {
     const startEarningRewardsEpoch =
