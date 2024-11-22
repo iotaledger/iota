@@ -19,6 +19,7 @@ import HiddenAssets from './HiddenAssets';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
 import { Warning } from '@iota/ui-icons';
+import { useOnScreen } from '@iota/core';
 
 enum AssetCategory {
     Visual = 'Visual',
@@ -44,6 +45,7 @@ const ASSET_CATEGORIES = [
 function NftsPage() {
     const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | null>(null);
     const observerElem = useRef<HTMLDivElement | null>(null);
+    const { isIntersecting } = useOnScreen(observerElem);
 
     const accountAddress = useActiveAddress();
     const {
@@ -51,6 +53,7 @@ function NftsPage() {
         hasNextPage,
         isLoading,
         isFetchingNextPage,
+        fetchNextPage,
         error,
         isPending,
         isError,
@@ -94,6 +97,12 @@ function NftsPage() {
                 }) ?? []
         );
     }, [ownedAssets]);
+
+    useEffect(() => {
+        if (isIntersecting && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    }, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
     useEffect(() => {
         let computeSelectedCategory = false;
@@ -172,17 +181,17 @@ function NftsPage() {
                                 ) : (
                                     <NoData message="No assets found yet." />
                                 )}
+                                <div ref={observerElem}>
+                                    {isSpinnerVisible ? (
+                                        <div className="mt-1 flex w-full justify-center">
+                                            <LoadingIndicator />
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
                         </Loading>
                     </>
                 )}
-                <div ref={observerElem}>
-                    {isSpinnerVisible ? (
-                        <div className="mt-1 flex w-full justify-center">
-                            <LoadingIndicator />
-                        </div>
-                    ) : null}
-                </div>
             </div>
         </PageTemplate>
     );
