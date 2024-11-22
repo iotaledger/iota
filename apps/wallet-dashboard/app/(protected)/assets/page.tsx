@@ -11,6 +11,8 @@ import { useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
 
+const OBJECTS_PER_REQ = 50;
+
 const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
     {
         label: 'Visual',
@@ -28,7 +30,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const { data, isFetching, fetchNextPage, hasNextPage } = useGetOwnedObjects(
         account?.address,
         undefined,
-        50,
+        OBJECTS_PER_REQ,
     );
 
     const [visual, nonVisual] = (() => {

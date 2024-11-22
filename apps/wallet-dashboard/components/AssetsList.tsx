@@ -7,6 +7,7 @@ import { AssetTileLink } from '@/components';
 import { LoadingIndicator } from '@iota/apps-ui-kit';
 import { useEffect, useRef } from 'react';
 import { useOnScreen } from '@iota/core';
+import cl from 'clsx';
 
 interface AssetListProps {
     assets: IotaObjectData[];
@@ -40,7 +41,7 @@ export function AssetList({
     }, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
     return (
-        <div className={ASSET_LAYOUT[selectedCategory]}>
+        <div className={cl('max-h-[600px]', ASSET_LAYOUT[selectedCategory])}>
             {assets.map((asset) => (
                 <AssetTileLink key={asset.digest} asset={asset} type={selectedCategory} />
             ))}
