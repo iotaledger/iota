@@ -40,7 +40,6 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
         metaKeys,
         metaValues,
         formatMetaValue,
-
         isContainedInKiosk,
         kioskItem,
     } = useNftDetails(objectId, senderAddress);
