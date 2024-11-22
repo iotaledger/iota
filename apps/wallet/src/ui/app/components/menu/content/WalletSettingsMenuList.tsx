@@ -4,7 +4,6 @@
 
 import { useNextMenuUrl, Overlay } from '_components';
 import { useAppSelector } from '_hooks';
-import { getCustomNetwork } from '_src/shared/api-env';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
@@ -29,8 +28,11 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
+import { Theme, useTheme, getCustomNetwork } from '@iota/core';
 
 function MenuList() {
+    const { theme, setTheme } = useTheme();
+
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
@@ -77,6 +79,10 @@ function MenuList() {
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 
+    function toggleTheme() {
+        const newTheme = theme === Theme.Light ? Theme.Dark : Theme.Light;
+        setTheme(newTheme);
+    }
     const autoLockSubtitle = handleAutoLockSubtitle();
     const MENU_ITEMS = [
         {
@@ -99,8 +105,7 @@ function MenuList() {
         {
             title: 'Themes',
             icon: <DarkMode />,
-            onClick: () => {},
-            isDisabled: true,
+            onClick: toggleTheme,
         },
         {
             title: 'Reset',
@@ -114,12 +119,7 @@ function MenuList() {
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.map((item, index) => (
-                        <Card
-                            key={index}
-                            type={CardType.Default}
-                            onClick={item.onClick}
-                            isDisabled={item.isDisabled}
-                        >
+                        <Card key={index} type={CardType.Default} onClick={item.onClick}>
                             <CardImage type={ImageType.BgSolid}>
                                 <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 [&_svg]:h-5 [&_svg]:w-5">
                                     <span className="text-2xl">{item.icon}</span>

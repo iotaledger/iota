@@ -100,7 +100,7 @@ impl WalletContext {
         Ok(self.config.active_address.unwrap())
     }
 
-    /// Get the latest object reference given a object id
+    /// Get the latest object reference given a object id.
     pub async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef, anyhow::Error> {
         let client = self.get_client().await?;
         Ok(client
@@ -111,7 +111,7 @@ impl WalletContext {
             .object_ref())
     }
 
-    /// Get all the gas objects (and conveniently, gas amounts) for the address
+    /// Get all the gas objects (and conveniently, gas amounts) for the address.
     pub async fn gas_objects(
         &self,
         address: IotaAddress,
@@ -181,7 +181,7 @@ impl WalletContext {
         }
     }
 
-    /// Find a gas object which fits the budget
+    /// Find a gas object which fits the budget.
     pub async fn gas_for_owner_budget(
         &self,
         address: IotaAddress,
@@ -243,7 +243,7 @@ impl WalletContext {
             .pop())
     }
 
-    /// Returns one address and all gas objects owned by that address.
+    /// Return one address and all gas objects owned by that address.
     pub async fn get_one_account(&self) -> anyhow::Result<(IotaAddress, Vec<ObjectRef>)> {
         let address = self.get_addresses().pop().unwrap();
         Ok((
@@ -262,7 +262,7 @@ impl WalletContext {
         Ok(None)
     }
 
-    /// Returns all the account addresses managed by the wallet and their owned
+    /// Return all the account addresses managed by the wallet and their owned
     /// gas objects.
     pub async fn get_all_accounts_and_gas_objects(
         &self,
@@ -286,12 +286,12 @@ impl WalletContext {
         Ok(gas_price)
     }
 
-    /// Add an account
+    /// Add an account.
     pub fn add_account(&mut self, alias: impl Into<Option<String>>, keypair: IotaKeyPair) {
         self.config.keystore.add_key(alias.into(), keypair).unwrap();
     }
 
-    /// Sign a transaction with a key currently managed by the WalletContext
+    /// Sign a transaction with a key currently managed by the WalletContext.
     pub fn sign_transaction(&self, data: &TransactionData) -> Transaction {
         let sig = self
             .config
