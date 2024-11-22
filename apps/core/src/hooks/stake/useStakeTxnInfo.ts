@@ -4,8 +4,8 @@ import {
     useGetTimeBeforeEpochNumber,
     useTimeAgo,
     TimeUnit,
-    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
+    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
 } from '../../index';
 
 export function useStakeTxnInfo(startEpoch?: string | number) {
@@ -25,7 +25,7 @@ export function useStakeTxnInfo(startEpoch?: string | number) {
     });
     const stakedRewardsStartEpoch =
         timeBeforeStakeRewardsStarts > 0
-            ? `${timeBeforeStakeRewardsStartsAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsStartsAgo}`
+            ? `in ${timeBeforeStakeRewardsStartsAgo}`
             : startEpoch
               ? `Epoch #${Number(startEarningRewardsEpoch)}`
               : '--';
@@ -40,7 +40,7 @@ export function useStakeTxnInfo(startEpoch?: string | number) {
     });
     const timeBeforeStakeRewardsRedeemableAgoDisplay =
         timeBeforeStakeRewardsRedeemable > 0
-            ? `${timeBeforeStakeRewardsRedeemableAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsRedeemableAgo}`
+            ? `in ${timeBeforeStakeRewardsRedeemableAgo}`
             : startEpoch
               ? `Epoch #${Number(redeemableRewardsEpoch)}`
               : '--';
