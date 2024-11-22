@@ -3,13 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    CoinItem,
     getRecognizedUnRecognizedTokenChanges,
     type BalanceChange,
     type BalanceChangeSummary,
 } from '@iota/core';
 import { useMemo } from 'react';
 import { Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
-import { CoinItem, ExplorerLink, ExplorerLinkType } from '_src/ui/app/components';
+import { ExplorerLink, ExplorerLinkType } from '_src/ui/app/components';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { RecognizedBadge } from '@iota/ui-icons';
 

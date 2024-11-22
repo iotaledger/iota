@@ -187,7 +187,7 @@ pub enum IotaValidatorCommand {
         #[clap(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
-    /// Iota native bridge committee member registration
+    /// IOTA native bridge committee member registration.
     #[clap(name = "register-bridge-committee")]
     RegisterBridgeCommittee {
         /// Path to Bridge Authority Key file.
@@ -207,7 +207,7 @@ pub enum IotaValidatorCommand {
         #[clap(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
-    /// Update iota native bridge committee node url
+    /// Update IOTA native bridge committee node url.
     UpdateBridgeCommitteeNodeUrl {
         /// New node url to be registered in the on chain bridge object.
         #[clap(long)]
