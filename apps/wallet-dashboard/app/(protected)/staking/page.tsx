@@ -3,7 +3,6 @@
 
 'use client';
 
-// import { StakeDetailsDialog } from '@/components/Dialogs';
 import { StartStaking } from '@/components/staking-overview/StartStaking';
 import {
     Button,
@@ -36,7 +35,6 @@ import { useMemo, useState } from 'react';
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
-    // const [isDialogStakeOpen, setIsDialogStakeOpen] = useState(false);
     const [stakeDialogView, setStakeDialogView] = useState<StakeDialogView | undefined>();
     const [selectedStake, setSelectedStake] = useState<ExtendedDelegatedStake | null>(null);
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
