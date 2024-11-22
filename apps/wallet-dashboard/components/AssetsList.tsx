@@ -8,6 +8,7 @@ import { AssetTileLink } from '@/components';
 interface AssetListProps {
     assets: IotaObjectData[];
     selectedCategory: AssetCategory;
+    onClick: (asset: IotaObjectData) => void;
 }
 
 const ASSET_LAYOUT: Record<AssetCategory, string> = {
@@ -16,11 +17,20 @@ const ASSET_LAYOUT: Record<AssetCategory, string> = {
     [AssetCategory.Other]: 'flex flex-col overflow-auto py-sm',
 };
 
-export function AssetList({ assets, selectedCategory }: AssetListProps): React.JSX.Element {
+export function AssetList({
+    assets,
+    selectedCategory,
+    onClick,
+}: AssetListProps): React.JSX.Element {
     return (
         <div className={ASSET_LAYOUT[selectedCategory]}>
             {assets.map((asset) => (
-                <AssetTileLink key={asset.digest} asset={asset} type={selectedCategory} />
+                <AssetTileLink
+                    key={asset.digest}
+                    asset={asset}
+                    type={selectedCategory}
+                    onClick={onClick}
+                />
             ))}
         </div>
     );
