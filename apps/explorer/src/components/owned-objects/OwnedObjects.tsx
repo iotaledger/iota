@@ -30,10 +30,11 @@ import {
 import { ListViewLarge, ListViewMedium, ListViewSmall, Warning } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
-import { ListView, SmallThumbnailsView, ThumbnailsView } from '~/components';
+import { ListView, NoObjectsOwnedMessage, SmallThumbnailsView, ThumbnailsView } from '~/components';
 import { ObjectViewMode } from '~/lib/enums';
 import { Pagination } from '~/components/ui';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
+import { OwnedObjectsContainerHeight } from '~/lib/ui';
 
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
@@ -86,10 +87,17 @@ function getShowPagination(
     return currentPage !== 0 || itemsLength > SHOW_PAGINATION_MAX_ITEMS;
 }
 
+const MIN_OBJECT_COUNT_TO_HEIGHT_MAP: Record<number, OwnedObjectsContainerHeight> = {
+    0: OwnedObjectsContainerHeight.Sm,
+    15: OwnedObjectsContainerHeight.Md,
+    30: OwnedObjectsContainerHeight.Lg,
+};
+
 interface OwnedObjectsProps {
     id: string;
+    setContainerHeight?: (containerHeight: OwnedObjectsContainerHeight) => void;
 }
-export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
+export function OwnedObjects({ id, setContainerHeight }: OwnedObjectsProps): JSX.Element {
     const [limit, setLimit] = useState(50);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,
@@ -167,7 +175,17 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     );
 
     const hasAssets = sortedDataByDisplayImages.length > 0;
+
     const noAssets = !hasAssets && !isPending;
+
+    useEffect(() => {
+        const ownedObjectsCount = sortedDataByDisplayImages.length;
+        Object.keys(MIN_OBJECT_COUNT_TO_HEIGHT_MAP).forEach((minObjectCount) => {
+            if (ownedObjectsCount >= Number(minObjectCount)) {
+                setContainerHeight?.(MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)]);
+            }
+        });
+    }, [sortedDataByDisplayImages, setContainerHeight]);
 
     if (isError) {
         return (
@@ -184,9 +202,11 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     }
 
     return (
-        <div className={clsx(!noAssets && 'h-coinsAndAssetsContainer md:h-full')}>
+        <div className={clsx(!noAssets && 'h-coinsAndAssetsContainer', 'h-full')}>
             <div className={clsx('flex h-full overflow-hidden', !showPagination && 'pb-2')}>
-                <div className="relative flex h-full w-full flex-col gap-4">
+                <div
+                    className={clsx('relative flex h-full w-full flex-col', { 'gap-4': hasAssets })}
+                >
                     <div className="flex w-full flex-col items-start sm:min-h-[72px] sm:flex-row sm:items-center sm:justify-between">
                         <Title size={TitleSize.Medium} title="Assets" />
                         {hasAssets && (
@@ -244,31 +264,30 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                             </div>
                         )}
                     </div>
-                    <div className="flex-2 flex w-full flex-col overflow-hidden p-md">
-                        {noAssets && (
-                            <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
-                                <div className="text-body-lg">No Assets owned</div>
-                            </div>
-                        )}
+                    {noAssets ? (
+                        <NoObjectsOwnedMessage objectType="Assets" />
+                    ) : (
+                        <div className="flex-2 flex w-full flex-col overflow-hidden p-md">
+                            {hasAssets && viewMode === ObjectViewMode.List && (
+                                <ListView loading={isPending} data={sortedDataByDisplayImages} />
+                            )}
+                            {hasAssets && viewMode === ObjectViewMode.SmallThumbnail && (
+                                <SmallThumbnailsView
+                                    loading={isPending}
+                                    data={sortedDataByDisplayImages}
+                                    limit={limit}
+                                />
+                            )}
+                            {hasAssets && viewMode === ObjectViewMode.Thumbnail && (
+                                <ThumbnailsView
+                                    loading={isPending}
+                                    data={sortedDataByDisplayImages}
+                                    limit={limit}
+                                />
+                            )}
+                        </div>
+                    )}
 
-                        {hasAssets && viewMode === ObjectViewMode.List && (
-                            <ListView loading={isPending} data={sortedDataByDisplayImages} />
-                        )}
-                        {hasAssets && viewMode === ObjectViewMode.SmallThumbnail && (
-                            <SmallThumbnailsView
-                                loading={isPending}
-                                data={sortedDataByDisplayImages}
-                                limit={limit}
-                            />
-                        )}
-                        {hasAssets && viewMode === ObjectViewMode.Thumbnail && (
-                            <ThumbnailsView
-                                loading={isPending}
-                                data={sortedDataByDisplayImages}
-                                limit={limit}
-                            />
-                        )}
-                    </div>
                     {showPagination && hasAssets && (
                         <div className="flex flex-row flex-wrap items-center justify-between gap-sm px-sm--rs py-sm--rs">
                             <Pagination {...pagination} />
