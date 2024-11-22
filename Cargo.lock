@@ -3462,6 +3462,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+ "unicode-xid 0.2.6",
+]
+
+[[package]]
 name = "diesel"
 version = "2.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4384,7 +4405,7 @@ dependencies = [
  "cbc",
  "ctr",
  "curve25519-dalek-ng",
- "derive_more",
+ "derive_more 0.99.18",
  "digest 0.10.7",
  "ecdsa 0.16.9",
  "ed25519-consensus",
@@ -4477,7 +4498,7 @@ dependencies = [
  "ark-snark",
  "blst",
  "byte-slice-cast",
- "derive_more",
+ "derive_more 0.99.18",
  "fastcrypto",
  "ff 0.13.0",
  "im",
@@ -6119,7 +6140,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "derivative",
+ "derive_more 1.0.0",
  "diesel",
  "fastcrypto",
  "futures",
@@ -7590,7 +7611,7 @@ dependencies = [
 [[package]]
 name = "iota-rust-sdk"
 version = "0.0.0"
-source = "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=d605da95029e74376f0f39a95526bb1a5c0ebd7a#d605da95029e74376f0f39a95526bb1a5c0ebd7a"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d605da95029e74376f0f39a95526bb1a5c0ebd7a#d605da95029e74376f0f39a95526bb1a5c0ebd7a"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7655,7 +7676,7 @@ dependencies = [
  "bech32",
  "bitflags 2.6.0",
  "bytemuck",
- "derive_more",
+ "derive_more 0.99.18",
  "futures",
  "getset",
  "gloo-timers 0.3.0",
@@ -8149,8 +8170,7 @@ dependencies = [
  "consensus-config",
  "coset",
  "criterion",
- "derivative",
- "derive_more",
+ "derive_more 1.0.0",
  "enum_dispatch",
  "expect-test",
  "eyre",
@@ -9940,7 +9960,7 @@ dependencies = [
 [[package]]
 name = "msim"
 version = "0.1.0"
-source = "git+ssh://git@github.com/iotaledger/iota-sim.git?rev=8fe1939f4bf1e54d0638756c82aaa6c29212e2bb#8fe1939f4bf1e54d0638756c82aaa6c29212e2bb"
+source = "git+https://github.com/iotaledger/iota-sim.git?rev=f16ef50ba7d874fe1f0960f248f6c651a634d6a5#f16ef50ba7d874fe1f0960f248f6c651a634d6a5"
 dependencies = [
  "ahash 0.8.11",
  "async-task",
@@ -9968,7 +9988,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/iotaledger/iota-sim.git?rev=8fe1939f4bf1e54d0638756c82aaa6c29212e2bb#8fe1939f4bf1e54d0638756c82aaa6c29212e2bb"
+source = "git+https://github.com/iotaledger/iota-sim.git?rev=f16ef50ba7d874fe1f0960f248f6c651a634d6a5#f16ef50ba7d874fe1f0960f248f6c651a634d6a5"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2 1.0.86",
@@ -12196,7 +12216,7 @@ dependencies = [
 [[package]]
 name = "real_tokio"
 version = "1.39.2"
-source = "git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main#e34a35287024b341db16139a402508aaea8ec955"
+source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?branch=main#e34a35287024b341db16139a402508aaea8ec955"
 dependencies = [
  "backtrace",
  "bytes",
@@ -12206,7 +12226,7 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
- "tokio-macros 2.4.0 (git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main)",
+ "tokio-macros 2.4.0 (git+https://github.com/iotaledger/tokio-madsim-fork.git?branch=main)",
  "windows-sys 0.52.0",
 ]
 
@@ -13062,7 +13082,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eca070c12893629e2cc820a9761bedf6ce1dcddc9852984d1dc734b8bd9bd024"
 dependencies = [
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.18",
  "parity-scale-codec 3.6.12",
  "scale-info-derive",
 ]
@@ -14747,7 +14767,7 @@ dependencies = [
 [[package]]
 name = "tokio-macros"
 version = "2.4.0"
-source = "git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main#e34a35287024b341db16139a402508aaea8ec955"
+source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?branch=main#e34a35287024b341db16139a402508aaea8ec955"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
@@ -14817,7 +14837,7 @@ dependencies = [
 [[package]]
 name = "tokio-util"
 version = "0.7.11"
-source = "git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main#e34a35287024b341db16139a402508aaea8ec955"
+source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?branch=main#e34a35287024b341db16139a402508aaea8ec955"
 dependencies = [
  "bytes",
  "futures-core",

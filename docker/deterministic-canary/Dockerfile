@@ -39,24 +39,7 @@ RUN cargo new canary
 
 WORKDIR canary
 
-# TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-RUN --mount=type=ssh <<EOT
-  set -e
-  echo "Setting Git SSH protocol"
-  (
-    set +e
-    ssh -T git@github.com
-    if [ ! "$?" = "1" ]; then
-      echo "No GitHub SSH key loaded, exiting..."
-      exit 1
-    fi
-  )
-EOT
-ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
-
-# TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-RUN --mount=type=ssh cargo fetch
+RUN cargo fetch
 
 FROM fetch AS build
 
@@ -81,8 +64,7 @@ ENV RUSTFLAGS='-C target-feature=+crt-static -C codegen-units=1'
 ENV GIT_REVISION=${GIT_REVISION}
 ENV PROFILE=${PROFILE}
 
-# TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-RUN --mount=type=ssh --network=none cargo build --target x86_64-unknown-linux-musl --frozen --profile ${PROFILE}
+RUN --network=none cargo build --target x86_64-unknown-linux-musl --frozen --profile ${PROFILE}
 
 FROM scratch AS install
 
