@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"iota_adapter_latest":[["impl&lt;'state&gt; LinkageResolver for <a class=\"struct\" href=\"iota_adapter_latest/programmable_transactions/linkage_view/struct.LinkageView.html\" title=\"struct iota_adapter_latest::programmable_transactions::linkage_view::LinkageView\">LinkageView</a>&lt;'state&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
