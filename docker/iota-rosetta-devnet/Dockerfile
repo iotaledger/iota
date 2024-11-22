@@ -11,7 +11,7 @@ ENV GIT_REVISION=$GIT_REVISION
 WORKDIR "/iota"
 
 # Install build dependencies, including clang and lld for faster linking
-RUN apt update && apt install -y cmake clang lld
+RUN apt update && apt install -y cmake clang lld git
 
 # Configure Rust to use clang and lld as the linker
 RUN mkdir -p ~/.cargo && \
@@ -20,25 +20,13 @@ RUN mkdir -p ~/.cargo && \
 # Install additional dependencies
 RUN apt install -y libpq5 libpq-dev ca-certificates
 
-# Copy in all crates, Cargo.toml, and Cargo.lock
-COPY consensus consensus
-COPY crates crates
-COPY docs docs
-COPY external-crates external-crates
-COPY iota-execution iota-execution
-COPY Cargo.toml Cargo.lock ./
+# Clone the repository and checkout the devnet branch
+RUN git clone https://github.com/iotaledger/iota .
+RUN git checkout devnet
 
 RUN cargo build --profile ${PROFILE} \
-  --bin iota-node \
-  --bin stress \
-  --bin iota-bridge \
-  --bin bridge-indexer \
-  --bin iota-bridge-cli \
-  --bin iota-analytics-indexer \
   --bin iota \
-  --bin iota-faucet \
-  --bin iota-cluster-test \
-  --bin iota-tool \
+  --bin iota-rosetta \
   --features ${CARGO_BUILD_FEATURES:=default}
 
 # Copy the built binary to the working directory depending on the output folder of the profile,
@@ -51,16 +39,8 @@ else \
   echo "Error: No build directory found"; \
   exit 1; \
 fi && \
-mv $TARGET_DIR/iota-node ./ && \
-mv $TARGET_DIR/stress ./ && \
-mv $TARGET_DIR/iota-bridge ./ && \
-mv $TARGET_DIR/bridge-indexer ./ && \
-mv $TARGET_DIR/iota-bridge-cli ./ && \
-mv $TARGET_DIR/iota-analytics-indexer ./ && \
 mv $TARGET_DIR/iota ./ && \
-mv $TARGET_DIR/iota-faucet ./ && \
-mv $TARGET_DIR/iota-cluster-test ./ && \
-mv $TARGET_DIR/iota-tool ./;
+mv $TARGET_DIR/iota-rosetta ./;
 
 # Production image
 FROM debian:bookworm-slim AS runtime
@@ -71,16 +51,16 @@ WORKDIR "$WORKDIR"
 # Install runtime dependencies and tools
 RUN apt update && apt install -y libpq5 ca-certificates curl
 
-COPY --from=builder /iota/iota-node /usr/local/bin
-COPY --from=builder /iota/stress /usr/local/bin
-COPY --from=builder /iota/iota-bridge /usr/local/bin
-COPY --from=builder /iota/bridge-indexer /usr/local/bin
-COPY --from=builder /iota/iota-bridge-cli /usr/local/bin
-COPY --from=builder /iota/iota-analytics-indexer /usr/local/bin
+# Install rosetta-cli
+RUN curl -sSfL https://raw.githubusercontent.com/coinbase/rosetta-cli/master/scripts/install.sh | sh -s
+
+# Download the genesis file and create the genesis state
+RUN mkdir -p devnet && curl -fL -o devnet/genesis.blob https://github.com/iotaledger/iota-genesis/raw/main/devnet/genesis.blob
+
 COPY --from=builder /iota/iota /usr/local/bin
-COPY --from=builder /iota/iota-faucet /usr/local/bin
-COPY --from=builder /iota/iota-cluster-test /usr/local/bin
-COPY --from=builder /iota/iota-tool /usr/local/bin
+COPY --from=builder /iota/iota-rosetta /usr/local/bin
+COPY --from=builder /iota/crates/iota-config/data/fullnode-template.yaml /iota/devnet/fullnode.yaml
+RUN /usr/local/bin/iota genesis
 
 ARG BUILD_DATE
 ARG GIT_REVISION
