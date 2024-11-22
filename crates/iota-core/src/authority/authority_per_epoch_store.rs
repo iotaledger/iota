@@ -41,8 +41,9 @@ use iota_types::{
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
-    iota_system_state::epoch_start_iota_system_state::{
-        EpochStartSystemState, EpochStartSystemStateTrait,
+    iota_system_state::{
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
+        system_display_object_key,
     },
     message_envelope::TrustedEnvelope,
     messages_checkpoint::{
@@ -62,6 +63,7 @@ use iota_types::{
 };
 use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
+use move_core_types::language_storage::StructTag;
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus::IntCounter;
 use serde::{Deserialize, Serialize};
@@ -957,6 +959,21 @@ impl AuthorityPerEpochStore {
 
     pub fn bridge_committee_initiated(&self) -> bool {
         self.epoch_start_configuration.bridge_committee_initiated()
+    }
+
+    pub fn is_system_display_object_created(&self, tag: StructTag, version: u16) -> bool {
+        let key = system_display_object_key(tag);
+
+        let object_version = self
+            .epoch_start_configuration
+            .system_display_object_version(&key)
+            .cloned();
+
+        let Some(object_version) = object_version else {
+            return false;
+        };
+
+        version <= object_version
     }
 
     pub fn get_parent_path(&self) -> PathBuf {

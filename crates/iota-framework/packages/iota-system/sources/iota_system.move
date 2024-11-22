@@ -41,18 +41,20 @@
 
 module iota_system::iota_system {
     use iota::balance::Balance;
+    use std::string::String;
 
     use iota::coin::Coin;
-    use iota_system::staking_pool::StakedIota;
+    use iota::display::Display;
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::table::Table;
     use iota::system_admin_cap::IotaSystemAdminCap;
-    use iota_system::validator::ValidatorV1;
-    use iota_system::validator_cap::UnverifiedValidatorOperationCap;
-    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1};
-    use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::dynamic_field;
     use iota::vec_map::VecMap;
+
+    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1, IotaSystemStateV2};
+    use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota};
+    use iota_system::validator::ValidatorV1;
+    use iota_system::validator_cap::UnverifiedValidatorOperationCap;
 
     #[test_only] use iota::balance;
     #[test_only] use iota_system::validator_set::ValidatorSetV1;
@@ -505,6 +507,53 @@ module iota_system::iota_system {
         self.load_system_state().iota_system_admin_cap()
     }
 
+    /// Create an empty system `Display` object with `IotaSystemAdminCap`.
+    public(package) fun new_system_display<T: key>(
+        wrapper: &mut IotaSystemState,
+        ctx: &mut TxContext,
+    ): Display<T> {
+        let self = wrapper.load_system_state();
+        self.new_system_display(ctx)
+    }
+
+    /// Create a new system `Display<T>` object with a set of fields using `IotaSystemAdminCap`.
+    public(package) fun new_system_display_with_fields<T: key>(
+        wrapper: &mut IotaSystemState,
+        fields: vector<String>,
+        values: vector<String>,
+        ctx: &mut TxContext,
+    ): Display<T> {
+        let self = wrapper.load_system_state();
+        self.new_system_display_with_fields(fields, values, ctx)
+    }
+
+    /// Insert a system display object.
+    public(package) fun insert_system_display_object<T: key>(
+        wrapper: &mut IotaSystemState,
+        display: Display<T>,
+    ) {
+        let self = wrapper.load_system_state_mut();
+        self.insert_system_display_object(display);
+    }
+
+    /// Borrow an immutable system display object.
+    public(package) fun borrow_system_display_object<T: key>(wrapper: &mut IotaSystemState): &Display<T> {
+        let self = wrapper.load_system_state();
+        self.borrow_system_display_object<T>()
+    }
+
+    /// Borrow a mutable system display object.
+    public(package) fun borrow_system_display_object_mut<T: key>(wrapper: &mut IotaSystemState): &mut Display<T> {
+        let self = wrapper.load_system_state_mut();
+        self.borrow_system_display_object_mut<T>()
+    }
+
+    /// Returns true if the related system display object exists.
+    public(package) fun contains_system_display_object<T: key>(wrapper: &mut IotaSystemState): bool {
+        let self = wrapper.load_system_state();
+        self.contains_system_display_object<T>()
+    }
+
     #[allow(unused_function)]
     /// This function should be called at the end of an epoch, and advances the system to the next epoch.
     /// It does the following things:
@@ -548,16 +597,23 @@ module iota_system::iota_system {
         storage_rebate
     }
 
-    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateV1 {
+    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateV2 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
+    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV2 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
-        let inner: &mut IotaSystemStateV1 = dynamic_field::borrow_mut(
+    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV2 {
+        if (self.version == 1) {
+            let v1: IotaSystemStateV1 = dynamic_field::remove(&mut self.id, self.version);
+            let v2 = v1.v1_to_v2();
+            self.version = 2;
+            dynamic_field::add(&mut self.id, self.version, v2);
+        };
+
+        let inner: &mut IotaSystemStateV2 = dynamic_field::borrow_mut(
             &mut self.id,
             self.version
         );

@@ -473,9 +473,8 @@ impl Builder {
         #[allow(clippy::infallible_destructuring_match)]
         let system_state = match unsigned_genesis.iota_system_object() {
             IotaSystemState::V1(inner) => inner,
-            #[cfg(msim)]
             _ => {
-                // Types other than V1 used in simtests do not need to be validated.
+                // Types other than V1 and used in simtests do not need to be validated.
                 return;
             }
         };
