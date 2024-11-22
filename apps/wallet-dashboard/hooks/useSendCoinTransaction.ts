@@ -45,11 +45,5 @@ export function useSendCoinTransaction(
         },
         enabled: !!recipientAddress && !!amount && !!coins && !!senderAddress && !!coinType,
         gcTime: 0,
-        select: (transaction) => {
-            return {
-                transaction,
-                gasBudget: transaction.getData().gasData.budget,
-            };
-        },
     });
 }

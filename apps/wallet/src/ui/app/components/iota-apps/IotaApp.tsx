@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ImageIcon, ImageIconSize } from '_app/shared/image-icon';
+import { ImageIcon, ImageIconSize } from '@iota/core';
 import { ExternalLink } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getDAppUrl } from '_src/shared/utils';
