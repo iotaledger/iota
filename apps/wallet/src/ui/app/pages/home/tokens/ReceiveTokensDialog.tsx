@@ -7,10 +7,7 @@ import { useCopyToClipboard } from '_hooks';
 import { QR } from '@iota/core';
 import { toast } from 'react-hot-toast';
 import { useIotaLedgerClient } from '_src/ui/app/components';
-import {
-    isLedgerAccountSerializedUI,
-    type LedgerAccountSerializedUI,
-} from '_src/background/accounts/LedgerAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 
 interface ReceiveTokensDialogProps {
@@ -27,31 +24,29 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
         copySuccessMessage: 'Address copied',
     });
 
-    const isLedger = isLedgerAccountSerializedUI(activeAccount as LedgerAccountSerializedUI);
-
-    const onVerifyAddress = useCallback(() => {
-        if (isLedger && activeAccount) {
-            (async () => {
-                try {
-                    let ledgerClient = iotaLedgerClient;
-                    if (!ledgerClient) {
-                        ledgerClient = await connectToLedger(true);
-                    }
-
-                    const derivationPath = (activeAccount as LedgerAccountSerializedUI)
-                        .derivationPath;
-
-                    if (derivationPath) {
-                        toast.success('Please, confirm the address on your Ledger device.');
-                        await ledgerClient.getPublicKey(derivationPath, true);
-                        toast.success('Address verification successful!');
-                    }
-                } catch {
-                    toast.error('Address verification failed!');
-                }
-            })();
+    const onVerifyAddress = useCallback(async () => {
+        if (!activeAccount) {
+            return;
         }
-    }, [isLedger, activeAccount, iotaLedgerClient, connectToLedger]);
+
+        if (!isLedgerAccountSerializedUI(activeAccount)) {
+            return;
+        }
+
+        try {
+            let ledgerClient = iotaLedgerClient;
+
+            if (!ledgerClient) {
+                ledgerClient = await connectToLedger(true);
+            }
+
+            toast.success('Please, confirm the address on your Ledger device.');
+            await ledgerClient.getPublicKey(activeAccount.derivationPath, true);
+            toast.success('Address verification successful!');
+        } catch {
+            toast.error('Address verification failed!');
+        }
+    }, [activeAccount, iotaLedgerClient, connectToLedger]);
 
     return (
         <div className="relative">
