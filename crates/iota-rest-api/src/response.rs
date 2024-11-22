@@ -164,7 +164,9 @@ pub async fn append_info_headers(
         .inner()
         .get_lowest_available_checkpoint()
         .map_err(|e| {
-            HeaderError::InternalServerError(format!("Failed to get lowest available checkpoint: {e}"))
+            HeaderError::InternalServerError(format!(
+                "Failed to get lowest available checkpoint: {e}"
+            ))
         })?;
 
     let lowest_available_checkpoint_objects = state
