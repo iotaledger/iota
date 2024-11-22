@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLink, ExplorerLinkType } from '_components';
-import { type IotaObjectChangeWithDisplay } from '@iota/core';
+import { type IotaObjectChangeWithDisplay, ImageIcon } from '@iota/core';
 
 import { Card, CardAction, CardActionType, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
-import { ImageIcon } from '../../../image-icon';
 import { ArrowTopRight } from '@iota/ui-icons';
 
 export function ObjectChangeDisplay({ change }: { change: IotaObjectChangeWithDisplay }) {
