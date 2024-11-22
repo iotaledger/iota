@@ -96,7 +96,7 @@ const config = {
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../../docs/content/references/ts-sdk/api/",
+        out: "../../docs/content/ts-sdk/api/",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
@@ -243,7 +243,8 @@ const config = {
           },
           {
             label: "TS SDK",
-            to: "references/ts-sdk/typescript/",
+            to: "ts-sdk/typescript",
+            activeBaseRegex: "^/ts-sdk/.*"
           },
           {
             label: "Node Operators",

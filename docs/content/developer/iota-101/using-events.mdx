@@ -64,7 +64,7 @@ public fun collect_profits( _: &ShopOwnerCap, shop: &mut DonutShop, ctx: &mut Tx
 ## Subscribing to Events
 
 To react to events emitted by Move modules, you need to subscribe to them.
-IOTA full nodes support event subscriptions via JSON-RPC notifications over WebSocket. You can interact with the [RPC directly][iotax_subscribeEvent](/iota-api-ref#iotax_subscribeevent), [iotax_subscribeTransaction](/iota-api-ref#iotax_subscribetransaction) or use an SDK like the [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx).
+IOTA full nodes support event subscriptions via JSON-RPC notifications over WebSocket. You can interact with the [RPC directly][iotax_subscribeEvent](/iota-api-ref#iotax_subscribeevent), [iotax_subscribeTransaction](/iota-api-ref#iotax_subscribetransaction) or use an SDK like the [IOTA TypeScript SDK](../../ts-sdk/typescript/index.mdx).
 
 The following excerpt from one of the examples uses the TypeScript SDK to create an asynchronous subscription to the filter identified in the filter.
 
@@ -134,7 +134,7 @@ async fn main() -> Result<()> {
 
 ### TypeScript
 
-To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
+To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
 
 ```ts
 

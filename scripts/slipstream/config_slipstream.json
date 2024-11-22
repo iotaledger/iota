@@ -203,15 +203,15 @@
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com\/typescript",
-                "replacement": "wiki.iota.org/references/ts-sdk/typescript"
+                "replacement": "wiki.iota.org/ts-sdk/typescript"
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com\/",
-                "replacement": "wiki.iota.org/references/ts-sdk/"
+                "replacement": "wiki.iota.org/ts-sdk/"
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com",
-                "replacement": "wiki.iota.org/references/ts-sdk/typescript"
+                "replacement": "wiki.iota.org/ts-sdk/typescript"
             },
             {
                 "regex": "[Mm]ysten[Ll]abs\\.com",
