@@ -34,7 +34,7 @@ export function FinishStakingView({
     amount,
     symbol,
     onClose,
-    validatorApy: { apy, isApyApproxZero },
+    validatorApy,
     gasBudget,
 }: FinishStakingViewProps): React.JSX.Element {
     return (
@@ -51,11 +51,7 @@ export function FinishStakingView({
                         <CardBody title={`${amount} ${symbol}`} subtitle="Stake" />
                     </Card>
 
-                    <StakingRewardDetails
-                        apy={apy}
-                        isApyApproxZero={isApyApproxZero}
-                        gasBudget={gasBudget}
-                    />
+                    <StakingRewardDetails validatorApy={validatorApy} gasBudget={gasBudget} />
                 </div>
             </LayoutBody>
 

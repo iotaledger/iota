@@ -6,14 +6,14 @@ import { formatApy, useFormatCoin, useStakeTxnInfo, ValidatorApyData } from '@io
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-interface StakingRewardDetailsProps extends ValidatorApyData {
+interface StakingRewardDetailsProps {
     gasBudget: string | number | null | undefined;
+    validatorApy: ValidatorApyData;
 }
 
 export function StakingRewardDetails({
     gasBudget,
-    apy,
-    isApyApproxZero,
+    validatorApy: { apy, isApyApproxZero },
 }: StakingRewardDetailsProps): React.JSX.Element {
     const [gas, gasSymbol] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
