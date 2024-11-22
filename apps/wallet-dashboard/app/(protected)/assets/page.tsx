@@ -7,7 +7,7 @@ import { Panel, Title, Chip, TitleSize } from '@iota/apps-ui-kit';
 import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
 
@@ -31,7 +31,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         50,
     );
 
-    const [visual, nonVisual] = useMemo(() => {
+    const [visual, nonVisual] = (() => {
         const visual: IotaObjectData[] = [];
         const nonVisual: IotaObjectData[] = [];
 
@@ -46,8 +46,9 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 }
             }),
         );
+
         return [visual, nonVisual];
-    }, [data]);
+    })();
 
     const categoryToAsset: Record<AssetCategory, IotaObjectData[]> = {
         [AssetCategory.Visual]: visual,
