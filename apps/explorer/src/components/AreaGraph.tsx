@@ -13,7 +13,7 @@ import { bisector, extent } from 'd3-array';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { throttle } from 'throttle-debounce';
 
-import { GraphTooltipContent } from './GraphTooltipContent';
+import { GraphTooltipContainer } from './GraphTooltipContent';
 
 let idCounter = 0;
 
@@ -129,21 +129,33 @@ export function AreaGraph<D>({
                     offsetTop={0}
                     left={tooltipLeft}
                     top={tooltipTopAdj}
-                    className="pointer-events-none absolute z-10 h-0 w-max overflow-visible"
+                    className="pointer-events-none absolute z-10 h-0 w-max overflow-visible bg-black"
                     unstyled
                     detectBounds
                 >
-                    <GraphTooltipContent>{tooltipContent(tooltipContentProps)}</GraphTooltipContent>
+                    <GraphTooltipContainer>
+                        {tooltipContent(tooltipContentProps)}
+                    </GraphTooltipContainer>
                 </TooltipInPortal>
             ) : null}
             <svg width={width} height={height}>
                 <defs>
                     <linearGradient id={fillGradientID} gradientTransform="rotate(90)">
-                        <stop stopColor="#0067EE" stopOpacity="0.16" />
-                        <stop offset="1" stopColor="#0067EE" stopOpacity="0" />
+                        <stop
+                            stopColor="currentColor"
+                            className="text-shader-primary-light-16 dark:text-shader-primary-dark-16"
+                        />
+                        <stop
+                            offset="1"
+                            stopColor="currentColor"
+                            className="text-shader-primary-light-0 dark:text-shader-primary-dark-0"
+                        />
                     </linearGradient>
                     <linearGradient id={lineGradientID}>
-                        <stop stopColor="currentColor" className="text-primary-30" />
+                        <stop
+                            stopColor="currentColor"
+                            className="text-primary-30 dark:text-primary-80"
+                        />
                     </linearGradient>
                 </defs>
                 <AreaClosed<D>

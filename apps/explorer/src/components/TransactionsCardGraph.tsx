@@ -5,7 +5,8 @@
 import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { LabelTextSize, TooltipPosition } from '@iota/apps-ui-kit';
-import { GraphTooltip, StatisticsPanel } from './StatisticsPanel';
+import { StatisticsPanel } from './StatisticsPanel';
+import { GraphTooltipContent } from './GraphTooltipContent';
 
 interface TooltipContentProps {
     data: {
@@ -24,7 +25,11 @@ function TooltipContent({
     const overline = `${dateFormatted}, Epoch ${epoch}`;
 
     return (
-        <GraphTooltip overline={overline} title={totalFormatted} subtitle="Transaction Blocks" />
+        <GraphTooltipContent
+            overline={overline}
+            title={totalFormatted}
+            subtitle="Transaction Blocks"
+        />
     );
 }
 
