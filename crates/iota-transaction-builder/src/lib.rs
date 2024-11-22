@@ -69,6 +69,7 @@ impl TransactionBuilder {
         Self(data_reader)
     }
 
+    /// Select a gas coin for the provided gas budget.
     async fn select_gas(
         &self,
         signer: IotaAddress,
@@ -175,6 +176,8 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// [`Command::TransferObjects`].
     pub async fn transfer_object_tx_kind(
         &self,
         object_id: ObjectID,
@@ -212,6 +215,8 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Add a [`Command::TransferObjects`] to the provided
+    /// [`ProgrammableTransactionBuilder`].
     async fn single_transfer_object(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
@@ -222,6 +227,10 @@ impl TransactionBuilder {
         Ok(())
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// [`Command::SplitCoins`] if some amount is provided and then transfers
+    /// the split amount or the whole gas object with
+    /// [`Command::TransferObjects`] to the recipient.
     pub fn transfer_iota_tx_kind(
         &self,
         recipient: IotaAddress,
@@ -255,6 +264,11 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// [`Command::MergeCoins`] if multiple inputs coins are provided and then a
+    /// [`Command::SplitCoins`] together with [`Command::TransferObjects`] for
+    /// each recipient + amount.
+    /// The length of the vectors for recipients and amounts must be the same.
     pub async fn pay_tx_kind(
         &self,
         input_coins: Vec<ObjectID>,
@@ -370,6 +384,8 @@ impl TransactionBuilder {
         )
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// [`Command::TransferObjects`] that sends the gas coin to the recipient.
     pub fn pay_all_iota_tx_kind(&self, recipient: IotaAddress) -> TransactionKind {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.pay_all_iota(recipient);
@@ -414,6 +430,8 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// [`Command::MoveCall`].
     pub async fn move_call_tx_kind(
         &self,
         package_object_id: ObjectID,
@@ -488,6 +506,8 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Add a single move call to the provided
+    /// [`ProgrammableTransactionBuilder`].
     pub async fn single_move_call(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
@@ -517,6 +537,8 @@ impl TransactionBuilder {
         Ok(())
     }
 
+    /// Resolve a provided [`ObjectID`] to the required [`ObjectArg`] for a
+    /// given move module.
     async fn get_object_arg(
         &self,
         id: ObjectID,
@@ -551,6 +573,8 @@ impl TransactionBuilder {
         })
     }
 
+    /// Convert provided JSON arguments for a move function to their
+    /// [`Argument`] representation and check their validity.
     pub async fn resolve_and_checks_json_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
@@ -631,6 +655,8 @@ impl TransactionBuilder {
         Ok(args)
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// [`Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
         sender: IotaAddress,
@@ -669,6 +695,8 @@ impl TransactionBuilder {
         ))
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// [`Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,
         package_id: ObjectID,
@@ -908,6 +936,8 @@ impl TransactionBuilder {
         )
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// [`Command::MergeCoins`] with the provided coins.
     pub async fn merge_coins_tx_kind(
         &self,
         primary_coin: ObjectID,
@@ -983,6 +1013,7 @@ impl TransactionBuilder {
         )
     }
 
+    /// Create an unsigned batched transaction, useful for the JSON RPC.
     pub async fn batch_transaction(
         &self,
         signer: IotaAddress,
@@ -1216,8 +1247,9 @@ impl TransactionBuilder {
         )
     }
 
-    // TODO: we should add retrial to reduce the transaction building error rate
+    /// Get the latest object ref for an object.
     pub async fn get_object_ref(&self, object_id: ObjectID) -> anyhow::Result<ObjectRef> {
+        // TODO: we should add retrial to reduce the transaction building error rate
         self.get_object_ref_and_type(object_id)
             .await
             .map(|(oref, _)| oref)
