@@ -16,8 +16,12 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
         window.matchMedia('(prefers-color-scheme: dark)').matches ? Theme.Dark : Theme.Light;
 
     const getInitialTheme = () => {
-        const storedTheme = localStorage.getItem(storageKey);
-        return storedTheme ? (storedTheme as Theme) : Theme.System;
+        if (typeof window === 'undefined') {
+            return Theme.System;
+        } else {
+            const storedTheme = localStorage?.getItem(storageKey);
+            return storedTheme ? (storedTheme as Theme) : Theme.System;
+        }
     };
 
     const [theme, setTheme] = useState<Theme>(getInitialTheme);
@@ -30,6 +34,8 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
     }, []);
 
     useEffect(() => {
+        if (typeof window === 'undefined') return;
+
         localStorage.setItem(storageKey, theme);
         applyTheme(theme);
 
