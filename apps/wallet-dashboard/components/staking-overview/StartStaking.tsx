@@ -9,11 +9,17 @@ import { StakeDialogView } from '../Dialogs/Staking/StakeDialog';
 
 export function StartStaking() {
     const { theme } = useTheme();
-    const [isDialogStakeOpen, setIsDialogStakeOpen] = useState(false);
+    const [dialogStakeView, setDialogStakeView] = useState<StakeDialogView | undefined>();
 
     function handleNewStake() {
-        setIsDialogStakeOpen(true);
+        setDialogStakeView(StakeDialogView.SelectValidator);
     }
+
+    function handleClose() {
+        setDialogStakeView(undefined);
+    }
+
+    const isDialogStakeOpen = dialogStakeView !== undefined;
 
     const videoSrc =
         theme === Theme.Dark
@@ -51,11 +57,14 @@ export function StartStaking() {
                     ></video>
                 </div>
             </div>
-            <StakeDialog
-                isOpen={isDialogStakeOpen}
-                handleClose={() => setIsDialogStakeOpen(false)}
-                view={StakeDialogView.SelectValidator}
-            />
+            {isDialogStakeOpen && (
+                <StakeDialog
+                    isOpen={isDialogStakeOpen}
+                    handleClose={handleClose}
+                    view={StakeDialogView.SelectValidator}
+                    setView={setDialogStakeView}
+                />
+            )}
         </Panel>
     );
 }

@@ -25,8 +25,9 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
-import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView, UnstakeView } from './views';
+import { Dialog } from '@iota/apps-ui-kit';
+import { FinishStakingView } from './views/FinishStaking';
 import { FormValues } from './views/EnterAmountView';
 
 export const MIN_NUMBER_IOTA_TO_STAKE = 1;
@@ -36,6 +37,7 @@ export enum StakeDialogView {
     SelectValidator,
     EnterAmount,
     Unstake,
+    TransactionDetails,
 }
 
 const INITIAL_VALUES = {
@@ -44,7 +46,6 @@ const INITIAL_VALUES = {
 
 interface StakeDialogProps {
     isTimelockedStaking?: boolean;
-    onSuccess?: (digest: string) => void;
     isOpen: boolean;
     handleClose: () => void;
     view: StakeDialogView;
@@ -56,7 +57,6 @@ interface StakeDialogProps {
 }
 
 export function StakeDialog({
-    onSuccess,
     isTimelockedStaking,
     isOpen,
     handleClose,
@@ -125,6 +125,9 @@ export function StakeDialog({
 
     const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
 
+    const validatorApy =
+        rollingAverageApys && selectedValidator ? rollingAverageApys[selectedValidator] : null;
+
     function handleBack(): void {
         setView?.(StakeDialogView.SelectValidator);
     }
@@ -156,25 +159,20 @@ export function StakeDialog({
             addNotification('Stake transaction was not created', NotificationType.Error);
             return;
         }
+
         signAndExecuteTransaction(
             {
                 transaction: newStakeData?.transaction,
             },
             {
-                onSuccess: (tx) => {
-                    if (onSuccess) {
-                        onSuccess(tx.digest);
-                    }
+                onSuccess: () => {
+                    setView?.(StakeDialogView.TransactionDetails);
+                    addNotification('Stake transaction has been sent');
                 },
             },
-        )
-            .then(() => {
-                handleClose();
-                addNotification('Stake transaction has been sent');
-            })
-            .catch(() => {
-                addNotification('Stake transaction was not sent', NotificationType.Error);
-            });
+        ).catch(() => {
+            addNotification('Stake transaction was not sent', NotificationType.Error);
+        });
     }
 
     function onSubmit(values: FormValues, { resetForm }: FormikHelpers<FormValues>) {
@@ -203,20 +201,32 @@ export function StakeDialog({
                             onNext={selectValidatorHandleNext}
                         />
                     )}
-                    {view === StakeDialogView.EnterAmount && (
+                    {view === StakeDialogView.EnterAmount && validatorApy && (
                         <EnterAmountView
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
                             onBack={handleBack}
                             onStake={handleStake}
                             gasBudget={newStakeData?.gasBudget}
+                            validatorApy={validatorApy}
                         />
                     )}
                     {view === StakeDialogView.Unstake && stakedDetails && (
                         <UnstakeView
                             extendedStake={stakedDetails}
-                            handleClose={handleClose}
+                            onUnstake={handleClose}
                             showActiveStatus
+                        />
+                    )}
+                    {view === StakeDialogView.TransactionDetails && validatorApy !== null && (
+                        <FinishStakingView
+                            validatorAddress={selectedValidator}
+                            gasBudget={newStakeData?.gasBudget}
+                            onConfirm={handleClose}
+                            onClose={handleClose}
+                            amount={amount}
+                            symbol={metadata?.symbol}
+                            validatorApy={validatorApy}
                         />
                     )}
                 </>

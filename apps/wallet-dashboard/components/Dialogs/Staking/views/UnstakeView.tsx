@@ -34,13 +34,13 @@ import { Layout, LayoutFooter, LayoutBody } from './Layout';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
-    handleClose: () => void;
+    onUnstake: () => void;
     showActiveStatus?: boolean;
 }
 
 export function UnstakeView({
     extendedStake,
-    handleClose,
+    onUnstake,
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const stakingReward = BigInt(extendedStake.estimatedReward ?? '').toString();
@@ -96,7 +96,7 @@ export function UnstakeView({
         await signAndExecuteTransaction({
             transaction: unstakeData.transaction,
         });
-        handleClose();
+        onUnstake();
     }
 
     const currentEpochEndTimeFormatted =
@@ -126,7 +126,7 @@ export function UnstakeView({
 
     return (
         <Layout>
-            <Header title="Unstake" onClose={handleClose} onBack={handleClose} titleCentered />
+            <Header title="Unstake" onClose={onUnstake} onBack={onUnstake} titleCentered />
             <LayoutBody>
                 <div className="flex flex-col gap-y-md">
                     <ValidatorStakingData

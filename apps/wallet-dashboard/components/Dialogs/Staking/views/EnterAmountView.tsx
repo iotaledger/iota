@@ -8,15 +8,12 @@ import {
     CoinFormat,
     parseAmount,
     useCoinMetadata,
-    useStakeTxnInfo,
+    ValidatorApyData,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
     ButtonType,
-    KeyValueInfo,
-    Panel,
-    Divider,
     Input,
     InputType,
     Header,
@@ -26,11 +23,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/ui-icons';
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-
-import { Validator } from './Validator';
-import { StakedInfo } from './StakedInfo';
-import { Layout, LayoutBody, LayoutFooter } from './Layout';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { StakingRewardDetails, Validator, StakedInfo, Layout, LayoutBody, LayoutFooter } from './';
 
 export interface FormValues {
     amount: string;
@@ -43,6 +37,7 @@ interface EnterAmountViewProps {
     showActiveStatus?: boolean;
     gasBudget?: string | number | null;
     handleClose: () => void;
+    validatorApy: ValidatorApyData;
 }
 
 function EnterAmountView({
@@ -51,6 +46,7 @@ function EnterAmountView({
     onStake,
     gasBudget = 0,
     handleClose,
+    validatorApy,
 }: EnterAmountViewProps): JSX.Element {
     const coinType = IOTA_TYPE_ARG;
     const { data: metadata } = useCoinMetadata(coinType);
@@ -62,7 +58,6 @@ function EnterAmountView({
     const { values } = useFormikContext<FormValues>();
     const amount = values.amount;
 
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: iotaBalance } = useBalance(accountAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
 
@@ -74,11 +69,6 @@ function EnterAmountView({
     );
 
     const gasBudgetBigInt = BigInt(gasBudget ?? 0);
-    const [gas, symbol] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
-
-    const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
-        system?.epoch,
-    );
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
@@ -139,28 +129,7 @@ function EnterAmountView({
                                 </div>
                             ) : null}
                         </div>
-
-                        <Panel hasBorder>
-                            <div className="flex flex-col gap-y-sm p-md">
-                                <KeyValueInfo
-                                    keyText="Staking Rewards Start"
-                                    value={stakedRewardsStartEpoch}
-                                    fullwidth
-                                />
-                                <KeyValueInfo
-                                    keyText="Redeem Rewards"
-                                    value={timeBeforeStakeRewardsRedeemableAgoDisplay}
-                                    fullwidth
-                                />
-                                <Divider />
-                                <KeyValueInfo
-                                    keyText="Gas fee"
-                                    value={gas || '--'}
-                                    supportingLabel={symbol}
-                                    fullwidth
-                                />
-                            </div>
-                        </Panel>
+                        <StakingRewardDetails gasBudget={gasBudget} {...validatorApy} />
                     </div>
                 </div>
             </LayoutBody>
