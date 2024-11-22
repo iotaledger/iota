@@ -12,12 +12,12 @@ import { NonVisualAssetCard } from './NonVisualAssetTile';
 interface AssetTileLinkProps {
     asset: IotaObjectData;
     type: AssetCategory;
-    onClick?: (asset: IotaObjectData) => void;
+    onClick: (asset: IotaObjectData) => void;
 }
 
 export function AssetTileLink({ asset, type, onClick }: AssetTileLinkProps): React.JSX.Element {
     function handleClick() {
-        onClick?.(asset);
+        onClick(asset);
     }
 
     return (

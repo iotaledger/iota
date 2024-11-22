@@ -13,7 +13,7 @@ import {
 type CollapsibleProps = {
     title: string;
     hideBorder?: boolean;
-    defaultOpen?: boolean;
+    defaultExpanded?: boolean;
     headerProps?: AccordionHeaderProps;
     titleSize?: TitleSize;
 };
@@ -21,21 +21,21 @@ type CollapsibleProps = {
 export function Collapsible({
     title,
     children,
-    defaultOpen,
+    defaultExpanded = false,
     hideBorder,
     titleSize = TitleSize.Small,
 }: PropsWithChildren<CollapsibleProps>) {
-    const [open, setOpen] = useState(defaultOpen ?? false);
+    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
     return (
         <Accordion hideBorder={hideBorder}>
             <AccordionHeader
                 hideBorder={hideBorder}
-                isExpanded={open}
-                onToggle={() => setOpen(!open)}
+                isExpanded={isExpanded}
+                onToggle={() => setIsExpanded(!isExpanded)}
             >
                 <Title size={titleSize} title={title} />
             </AccordionHeader>
-            <AccordionContent isExpanded={open}>{children}</AccordionContent>
+            <AccordionContent isExpanded={isExpanded}>{children}</AccordionContent>
         </Accordion>
     );
 }
