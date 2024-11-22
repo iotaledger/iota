@@ -4,6 +4,5 @@ export interface FormDataValues {
     amount: string;
     formattedAmount: string;
     to: string;
-    isPayAllIota: boolean;
     gasBudgetEst: string;
 }

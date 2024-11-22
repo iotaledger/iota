@@ -11,6 +11,7 @@ import { useGetAllCoins } from '@iota/core';
 import { Dialog, DialogBody, DialogContent, DialogPosition, Header } from '@iota/apps-ui-kit';
 import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface SendCoinPopupProps {
     coin: CoinBalance;
@@ -44,7 +45,7 @@ function SendTokenDialogBody({
         activeAddress,
         formData.to,
         formData.formattedAmount,
-        selectedCoin?.totalBalance === formData.amount,
+        selectedCoin?.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG,
     );
 
     function handleTransfer() {
@@ -102,6 +103,10 @@ function SendTokenDialogBody({
                             senderAddress={activeAddress}
                             isPending={isPending}
                             coinType={selectedCoin.coinType}
+                            isPayAllIota={
+                                selectedCoin.totalBalance === formData.amount &&
+                                selectedCoin.coinType === IOTA_TYPE_ARG
+                            }
                         />
                     )}
                 </DialogBody>
