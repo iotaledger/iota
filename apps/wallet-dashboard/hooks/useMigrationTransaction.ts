@@ -3,8 +3,8 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { Transaction } from '@iota/iota-sdk/transactions';
 import { useQuery } from '@tanstack/react-query';
+import { createMigrationTransaction } from '@iota/core';
 
 export function useMigrationTransaction(
     address: string,
@@ -16,7 +16,12 @@ export function useMigrationTransaction(
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['migration-transaction', address],
         queryFn: async () => {
-            const transaction = new Transaction();
+            const transaction = await createMigrationTransaction(
+                client,
+                address,
+                basicOutputObjects,
+                nftOutputObjects,
+            );
             transaction.setSender(address);
             await transaction.build({ client });
             return transaction;

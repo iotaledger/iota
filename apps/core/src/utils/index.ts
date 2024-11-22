@@ -25,3 +25,4 @@ export * from './getExplorerLink';
 export * from './stake';
 export * from './transaction';
 export * from './validation';
+export * from './migration';
