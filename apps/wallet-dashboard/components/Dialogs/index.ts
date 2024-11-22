@@ -4,4 +4,3 @@
 export * from './SendToken';
 export * from './ReceiveFundsDialog';
 export * from './Staking';
-export * from './StakeDetails';

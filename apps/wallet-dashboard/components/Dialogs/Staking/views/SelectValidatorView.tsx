@@ -2,25 +2,54 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { Button } from '@/components';
+import { Button, Header } from '@iota/apps-ui-kit';
+
+import { Validator } from './Validator';
+import { Layout, LayoutBody, LayoutFooter } from './Layout';
 
 interface SelectValidatorViewProps {
     validators: string[];
     onSelect: (validator: string) => void;
+    onNext: () => void;
+    selectedValidator: string;
+    handleClose: () => void;
 }
 
-function SelectValidatorView({ validators, onSelect }: SelectValidatorViewProps): JSX.Element {
+function SelectValidatorView({
+    validators,
+    onSelect,
+    onNext,
+    selectedValidator,
+    handleClose,
+}: SelectValidatorViewProps): JSX.Element {
     return (
-        <div>
-            <h2>Select Validator</h2>
-            <div className="flex flex-col items-start gap-2">
-                {validators.map((validator) => (
-                    <Button key={validator} onClick={() => onSelect(validator)}>
-                        {validator}
-                    </Button>
-                ))}
-            </div>
-        </div>
+        <Layout>
+            <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
+            <LayoutBody>
+                <div className="flex w-full flex-col gap-md">
+                    <div className="flex w-full flex-col">
+                        {validators.map((validator) => (
+                            <Validator
+                                key={validator}
+                                address={validator}
+                                onClick={onSelect}
+                                isSelected={selectedValidator === validator}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </LayoutBody>
+            {!!selectedValidator && (
+                <LayoutFooter>
+                    <Button
+                        fullWidth
+                        data-testid="select-validator-cta"
+                        onClick={onNext}
+                        text="Next"
+                    />
+                </LayoutFooter>
+            )}
+        </Layout>
     );
 }
 
