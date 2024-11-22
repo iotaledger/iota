@@ -7,7 +7,10 @@ import { useCopyToClipboard } from '_hooks';
 import { QR } from '@iota/core';
 import { toast } from 'react-hot-toast';
 import { useIotaLedgerClient } from '_src/ui/app/components';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
+import {
+    isLedgerAccountSerializedUI,
+    type LedgerAccountSerializedUI,
+} from '_src/background/accounts/LedgerAccount';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 
 interface ReceiveTokensDialogProps {
@@ -24,8 +27,10 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
         copySuccessMessage: 'Address copied',
     });
 
+    const isLedger = isLedgerAccountSerializedUI(activeAccount as LedgerAccountSerializedUI);
+
     const onVerifyAddress = useCallback(async () => {
-        if (!activeAccount) {
+        if (!isLedger || !activeAccount) {
             return;
         }
 
@@ -35,7 +40,6 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
 
         try {
             let ledgerClient = iotaLedgerClient;
-
             if (!ledgerClient) {
                 ledgerClient = await connectToLedger(true);
             }
@@ -46,7 +50,7 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
         } catch {
             toast.error('Address verification failed!');
         }
-    }, [activeAccount, iotaLedgerClient, connectToLedger]);
+    }, [isLedger, activeAccount, iotaLedgerClient, connectToLedger]);
 
     return (
         <div className="relative">
