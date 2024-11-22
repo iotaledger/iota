@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { KioskClientProvider, useCookieConsentBanner } from '@iota/core';
+import { KioskClientProvider, useCookieConsentBanner, ThemeProvider } from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
 import type { Network } from '@iota/iota-sdk/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -39,9 +39,11 @@ export function Layout(): JSX.Element {
                 <WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV}>
                     <KioskClientProvider>
                         <NetworkContext.Provider value={[network, setNetwork]}>
-                            <Outlet />
-                            <Toaster />
-                            <ReactQueryDevtools />
+                            <ThemeProvider appId="iota-explorer">
+                                <Outlet />
+                                <Toaster />
+                                <ReactQueryDevtools />
+                            </ThemeProvider>
                         </NetworkContext.Provider>
                     </KioskClientProvider>
                 </WalletProvider>

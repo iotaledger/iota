@@ -115,7 +115,7 @@ export function PkgModulesWrapper({
                         isLoading={false}
                         suggestions={searchSuggestions}
                         renderSuggestion={(suggestion) => (
-                            <div className="z-10 flex cursor-pointer justify-between bg-neutral-98">
+                            <div className="z-10 flex cursor-pointer justify-between">
                                 <ListItem
                                     hideBottomBorder
                                     onClick={() => onChangeModule(suggestion.label)}

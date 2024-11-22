@@ -44,7 +44,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
             : "The explorer is running slower than usual. We're working to fix the issue and appreciate your patience.";
 
     return (
-        <div className="relative min-h-screen w-full bg-neutral-98">
+        <div className="relative min-h-screen w-full">
             <section ref={headerRef} className="fixed top-0 z-20 flex w-full flex-col">
                 {renderNetworkDegradeBanner && (
                     <InfoBox
