@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
+use crate::{
+    TransactionBuilder, ProgrammableTransactionBuilder, TransactionData, Command, ObjectArg,
+    ObjectType, CallArg, IotaAddress, ObjectID, ensure, anyhow, IOTA_SYSTEM_PACKAGE_ID,
+    IOTA_SYSTEM_MODULE_NAME, ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME,
+    TIMELOCKED_STAKING_MODULE_NAME, ADD_TIMELOCKED_STAKE_FUN_NAME, WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
+};
 
 impl TransactionBuilder {
     /// Add stake to a validator's staking pool using multiple IOTA coins.
