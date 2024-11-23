@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import stake.rs, util.rs, and package.rs
 pub mod stake; 
 pub mod utils; 
 pub mod package; 
@@ -68,8 +67,7 @@ pub trait DataReader {
 
 #[derive(Clone)]
 pub struct TransactionBuilder(Arc<dyn DataReader + Sync + Send>);
-
-// Import moved functions. 
+ 
 use stake::{request_add_stake, request_withdraw_stake, request_add_timelocked_stake, request_withdraw_timelocked_stake};
 use utils::{select_gas, get_object_arg, input_refs, resolve_and_checks_json_args, get_object_ref, get_object_ref_and_type};
 use package::{publish_tx_kind, publish, upgrade_tx_kind, upgrade};
