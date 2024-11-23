@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// use super to include use statements, 
+// use super to include lib.rs 
 use super::*;
 
 impl TransactionBuilder {
