@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
+use std::result::Result;
 use anyhow::{Ok, anyhow, bail, ensure};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_types::{

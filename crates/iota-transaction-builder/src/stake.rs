@@ -1,13 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
-use crate::{
-    TransactionBuilder, ProgrammableTransactionBuilder, TransactionData, Command, ObjectArg,
-    ObjectType, CallArg, IotaAddress, ObjectID, ensure, anyhow, IOTA_SYSTEM_PACKAGE_ID,
-    IOTA_SYSTEM_MODULE_NAME, ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME,
-    TIMELOCKED_STAKING_MODULE_NAME, ADD_TIMELOCKED_STAKE_FUN_NAME, WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
+use std::result::Result;
+use anyhow::{anyhow, ensure};
+use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
+    base_types::{IotaAddress, ObjectID, ObjectType},
+    governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
+    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    timelock::timelocked_staking::{
+        ADD_TIMELOCKED_STAKE_FUN_NAME, TIMELOCKED_STAKING_MODULE_NAME,
+        WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
+    },
+    transaction::{
+        CallArg, Command, ObjectArg, TransactionData,
+    },
 };
+use crate::TransactionBuilder;
 
 impl TransactionBuilder {
     /// Add stake to a validator's staking pool using multiple IOTA coins.
