@@ -45,6 +45,18 @@
     .text-label-md {
         font-variant-alternates: 'ss01';
     }
+
+    input:-webkit-autofill,
+    input:-webkit-autofill:enabled,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+        appearance: none;
+        background-image: none !important;
+        background-color: transparent !important;
+        color: #545e6e !important;
+        transition: background-color 5000s ease-in-out 0s;
+        -webkit-text-fill-color: #545e6e !important;
+    }
 }
 
 @layer utilities {

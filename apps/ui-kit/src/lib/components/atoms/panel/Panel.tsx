@@ -18,7 +18,7 @@ interface PanelProps {
 export function Panel({
     children,
     hasBorder,
-    bgColor = 'bg-neutral-100 dark:bg-neutral-10',
+    bgColor = 'bg-neutral-100 dark:bg-neutral-6',
 }: React.PropsWithChildren<PanelProps>): React.JSX.Element {
     const borderClass = hasBorder
         ? 'border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8'

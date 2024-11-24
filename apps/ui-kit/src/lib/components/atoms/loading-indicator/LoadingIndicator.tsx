@@ -21,7 +21,7 @@ export interface LoadingIndicatorProps {
 }
 
 export function LoadingIndicator({
-    color = 'text-primary-30',
+    color = 'text-primary-30 dark:text-primary-80',
     size = 'w-5 h-5',
     text,
 }: LoadingIndicatorProps): React.JSX.Element {
