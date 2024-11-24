@@ -47,6 +47,9 @@ use move_core_types::{
     identifier::Identifier,
     language_storage::{StructTag, TypeTag},
 };
+use stake::TransactionBuilder::{request_add_stake, request_withdraw_stake, request_add_timelocked_stake, request_withdraw_timelocked_stake};
+use utils::TransactionBuilder::{select_gas, get_object_arg, input_refs, resolve_and_checks_json_args, get_object_ref, get_object_ref_and_type};
+use package::TransactionBuilder::{publish_tx_kind, publish, upgrade_tx_kind, upgrade};
 
 #[async_trait]
 pub trait DataReader {
@@ -67,10 +70,6 @@ pub trait DataReader {
 
 #[derive(Clone)]
 pub struct TransactionBuilder(Arc<dyn DataReader + Sync + Send>);
- 
-use stake::TransactionBuilder::{request_add_stake, request_withdraw_stake, request_add_timelocked_stake, request_withdraw_timelocked_stake};
-use utils::TransactionBuilder::{select_gas, get_object_arg, input_refs, resolve_and_checks_json_args, get_object_ref, get_object_ref_and_type};
-use package::TransactionBuilder::{publish_tx_kind, publish, upgrade_tx_kind, upgrade};
 
 impl TransactionBuilder {
     pub fn new(data_reader: Arc<dyn DataReader + Sync + Send>) -> Self {
