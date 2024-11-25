@@ -56,10 +56,16 @@ iota client call \
     --type-args "$ITEM_FOR_MARKET_PACKAGE_ID::market_items::Jeans"
 ```
 
-### 6. Publish marketplac extension
+### 6. Publish rules and marketplace extension
+
+Publish Kiosk rules modules:
+```bash
+iota client publish iota/kiosk/Move.toml
+```
+
 Publish the nft_marketplace.move module:
 ```bash
-iota client publish`
+iota client publish iota/docs/examples/move/nft_marketplace/sources/nft_marketplace.move`
 ```
 
 ### 7. Install the Extension on the Kiosk
