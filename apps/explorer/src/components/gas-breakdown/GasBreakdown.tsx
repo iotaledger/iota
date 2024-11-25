@@ -91,7 +91,11 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
     const isSponsored = gasData.isSponsored;
 
     return (
-        <CollapsibleCard collapsible render={({ isOpen }) => <Title title="Gas & Storage Fee" />}>
+        <CollapsibleCard
+            collapsible
+            render={({ isOpen }) => <Title title="Gas & Storage Fee" />}
+            hideBorder
+        >
             <div className="px-md--rs pb-lg pt-xs">
                 <Accordion hideBorder>
                     <AccordionContent isExpanded>
