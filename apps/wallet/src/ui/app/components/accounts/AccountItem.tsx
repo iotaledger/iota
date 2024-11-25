@@ -67,7 +67,7 @@ function AccountAvatar({ isLocked, icon }: { isLocked?: boolean; icon?: ReactNod
             className={cn(
                 'flex h-10 w-10 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 ',
                 isLocked
-                    ? 'bg-neutral-96 [&_svg]:text-neutral-10'
+                    ? 'bg-neutral-96 dark:bg-neutral-12 [&_svg]:text-neutral-10 [&_svg]:dark:text-neutral-92'
                     : 'bg-primary-30 [&_svg]:text-white',
             )}
         >
