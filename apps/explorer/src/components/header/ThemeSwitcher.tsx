@@ -6,15 +6,10 @@ import { DarkMode, LightMode } from '@iota/ui-icons';
 import { useEffect, useLayoutEffect } from 'react';
 import { useTheme, Theme } from '@iota/core';
 
-const ICON_MAP: Record<Theme, (props: React.SVGProps<SVGSVGElement>) => JSX.Element> = {
-    [Theme.Light]: LightMode,
-    [Theme.Dark]: DarkMode,
-};
-
 export function ThemeSwitcher(): React.JSX.Element {
     const { theme, setTheme } = useTheme();
 
-    const ThemeIcon = ICON_MAP[theme];
+    const ThemeIcon = theme === Theme.Dark ? DarkMode : LightMode;
 
     function handleOnClick(): void {
         const newTheme = theme === Theme.Light ? Theme.Dark : Theme.Light;
