@@ -5,7 +5,6 @@
 import { Loading } from '_components';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
-import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
 import {
     createStakeTransaction,
     createUnstakeTransaction,
@@ -16,6 +15,7 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
     getStakeIotaByIotaId,
+    MIN_NUMBER_IOTA_TO_STAKE,
     createValidationSchema,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';

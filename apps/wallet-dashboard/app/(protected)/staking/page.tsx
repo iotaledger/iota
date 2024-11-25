@@ -3,25 +3,41 @@
 
 'use client';
 
-import { AmountBox, Box, StakeCard, StakeDialog, Button } from '@/components';
-import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
-
+import { StartStaking } from '@/components/staking-overview/StartStaking';
+import {
+    Button,
+    ButtonSize,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    Panel,
+    Title,
+    TitleSize,
+} from '@iota/apps-ui-kit';
+import { StakeDialog } from '@/components';
+import { StakeDialogView } from '@/components/Dialogs/Staking/StakeDialog';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,
-    useFormatCoin,
     useGetDelegatedStake,
     useTotalDelegatedRewards,
     useTotalDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    StakingCard,
+    StakingStats,
 } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { StakeDialogView } from '@/components/Dialogs/Staking/StakeDialog';
+import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
+import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
+import { Info } from '@iota/ui-icons';
+import { useMemo } from 'react';
+import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const activeValidators = (system as IotaSystemStateSummary)?.activeValidators;
 
     const {
         isDialogStakeOpen,
@@ -44,13 +60,24 @@ function StakingDashboardPage(): JSX.Element {
     const extendedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
-    const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin(
-        totalDelegatedStake,
-        IOTA_TYPE_ARG,
-    );
-    const [formattedDelegatedRewards, rewardsSymbol, rewardsResult] = useFormatCoin(
-        totalDelegatedRewards,
-        IOTA_TYPE_ARG,
+
+    const delegations = useMemo(() => {
+        return delegatedStakeData?.flatMap((delegation) => {
+            return delegation.stakes.map((d) => ({
+                ...d,
+                // flag any inactive validator for the stakeIota object
+                // if the stakingPoolId is not found in the activeValidators list flag as inactive
+                inactiveValidator: !activeValidators?.find(
+                    ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
+                ),
+                validatorAddress: delegation.validatorAddress,
+            }));
+        });
+    }, [activeValidators, delegatedStakeData]);
+
+    // Check if there are any inactive validators
+    const hasInactiveValidatorDelegation = delegations?.some(
+        ({ inactiveValidator }) => inactiveValidator,
     );
 
     const viewStakeDetails = (extendedStake: ExtendedDelegatedStake) => {
@@ -58,34 +85,65 @@ function StakingDashboardPage(): JSX.Element {
         setSelectedStake(extendedStake);
     };
 
-    return (
-        <>
-            <div className="flex flex-col items-center justify-center gap-4 pt-12">
-                <AmountBox
-                    title="Currently staked"
-                    amount={
-                        stakeResult.isPending ? '-' : `${formattedDelegatedStake} ${stakeSymbol}`
-                    }
-                />
-                <AmountBox
-                    title="Earned"
-                    amount={`${
-                        rewardsResult.isPending ? '-' : formattedDelegatedRewards
-                    } ${rewardsSymbol}`}
-                />
-                <Box title="Stakes">
-                    <div className="flex flex-col items-center gap-4">
-                        <h1>List of stakes</h1>
-                        {extendedStakes?.map((extendedStake) => (
-                            <StakeCard
-                                key={extendedStake.stakedIotaId}
-                                extendedStake={extendedStake}
-                                onDetailsClick={viewStakeDetails}
+    return (delegatedStakeData?.length ?? 0) > 0 ? (
+        <Panel>
+            <Title
+                title="Staking"
+                trailingElement={
+                    <Button
+                        onClick={() => handleNewStake()}
+                        size={ButtonSize.Small}
+                        type={ButtonType.Primary}
+                        text="Stake"
+                    />
+                }
+            />
+            <div className="flex h-full w-full flex-col flex-nowrap gap-md p-md--rs">
+                <div className="flex gap-xs">
+                    <StakingStats title="Your stake" balance={totalDelegatedStake} />
+                    <StakingStats title="Earned" balance={totalDelegatedRewards} />
+                </div>
+                <Title title="In progress" size={TitleSize.Small} />
+                <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
+                    {hasInactiveValidatorDelegation ? (
+                        <div className="mb-3">
+                            <InfoBox
+                                type={InfoBoxType.Default}
+                                title="Earn with active validators"
+                                supportingText="Unstake IOTA from the inactive validators and stake on an active validator to start earning rewards again."
+                                icon={<Info />}
+                                style={InfoBoxStyle.Elevated}
                             />
-                        ))}
+                        </div>
+                    ) : null}
+                    <div className="w-full gap-2">
+                        {system &&
+                            delegations
+                                ?.filter(({ inactiveValidator }) => inactiveValidator)
+                                .map((delegation) => (
+                                    <StakingCard
+                                        extendedStake={delegation}
+                                        currentEpoch={Number(system.epoch)}
+                                        key={delegation.stakedIotaId}
+                                        inactiveValidator
+                                        onClick={() => viewStakeDetails(delegation)}
+                                    />
+                                ))}
                     </div>
-                </Box>
-                <Button onClick={handleNewStake}>New Stake</Button>
+                    <div className="w-full gap-2">
+                        {system &&
+                            delegations
+                                ?.filter(({ inactiveValidator }) => !inactiveValidator)
+                                .map((delegation) => (
+                                    <StakingCard
+                                        extendedStake={delegation}
+                                        currentEpoch={Number(system.epoch)}
+                                        key={delegation.stakedIotaId}
+                                        onClick={() => viewStakeDetails(delegation)}
+                                    />
+                                ))}
+                    </div>
+                </div>
             </div>
             {isDialogStakeOpen && stakeDialogView && (
                 <StakeDialog
@@ -98,7 +156,9 @@ function StakingDashboardPage(): JSX.Element {
                     setSelectedValidator={setSelectedValidator}
                 />
             )}
-        </>
+        </Panel>
+    ) : (
+        <StartStaking />
     );
 }
 

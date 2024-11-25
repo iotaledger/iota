@@ -10,12 +10,12 @@ import {
     useTotalDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    StakingStats,
+    StakingCard,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { StakeCard } from '../home/StakedCard';
-import { StatsDetail } from '_app/staking/validators/StatsDetail';
 import {
     Title,
     TitleSize,
@@ -106,8 +106,8 @@ export function ValidatorsCard() {
     return (
         <div className="flex h-full w-full flex-col flex-nowrap">
             <div className="flex gap-xs py-md">
-                <StatsDetail title="Your stake" balance={totalDelegatedStake} />
-                <StatsDetail title="Earned" balance={totalDelegatedRewards} />
+                <StakingStats title="Your stake" balance={totalDelegatedStake} />
+                <StakingStats title="Earned" balance={totalDelegatedRewards} />
             </div>
             <Title title="In progress" size={TitleSize.Small} />
             <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
@@ -128,11 +128,19 @@ validator to start earning rewards again."
                         delegations
                             ?.filter(({ inactiveValidator }) => inactiveValidator)
                             .map((delegation) => (
-                                <StakeCard
+                                <StakingCard
                                     extendedStake={delegation}
                                     currentEpoch={Number(system.epoch)}
                                     key={delegation.stakedIotaId}
                                     inactiveValidator
+                                    onClick={() =>
+                                        navigate(
+                                            `/stake/delegation-detail?${new URLSearchParams({
+                                                validator: delegation.validatorAddress,
+                                                staked: delegation.stakedIotaId,
+                                            }).toString()}`,
+                                        )
+                                    }
                                 />
                             ))}
                 </div>
@@ -142,10 +150,18 @@ validator to start earning rewards again."
                         delegations
                             ?.filter(({ inactiveValidator }) => !inactiveValidator)
                             .map((delegation) => (
-                                <StakeCard
+                                <StakingCard
                                     extendedStake={delegation}
                                     currentEpoch={Number(system.epoch)}
                                     key={delegation.stakedIotaId}
+                                    onClick={() =>
+                                        navigate(
+                                            `/stake/delegation-detail?${new URLSearchParams({
+                                                validator: delegation.validatorAddress,
+                                                staked: delegation.stakedIotaId,
+                                            }).toString()}`,
+                                        )
+                                    }
                                 />
                             ))}
                 </div>
