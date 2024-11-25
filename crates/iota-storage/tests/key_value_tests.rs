@@ -215,6 +215,13 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
+    async fn get_transaction_perpetual_checkpoint(
+        &self,
+        digest: TransactionDigest,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        Ok(self.tx_to_checkpoint.get(&digest).cloned())
+    }
+
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -223,7 +230,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         Ok(self.objects.get(&ObjectKey(object_id, version)).cloned())
     }
 
-    async fn multi_get_transaction_checkpoint(
+    async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
