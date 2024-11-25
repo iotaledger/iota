@@ -48,7 +48,7 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
                 <KeyValueInfo
                     keyText="Total Staked"
                     tooltipPosition={TooltipPosition.Right}
-                    tooltipText="Stake percentage managed by this validator."
+                    tooltipText="The full amount of IOTA staked by this validator and delegators for network validation and rewards."
                     value={totalValidatorStakeFormatted}
                     supportingLabel={totalValidatorStakeSymbol}
                     fullwidth
