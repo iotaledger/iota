@@ -12,13 +12,13 @@ index cc5620ecfe..d2ad8f1dac 100644
  # 64 bit MSVC, override default 1M stack with 8M stack
  [target.x86_64-pc-windows-msvc]
 diff --git a/Cargo.toml b/Cargo.toml
-index 6fd5380358..f2111d330c 100644
+index a2371ff16f..57a1fedaa5 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -682,5 +682,7 @@ field_names = "0.2.0"
- semver = "1.0.16"
- spinners = "4.1.0"
- include_dir = "0.7.3"
+@@ -461,3 +461,7 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
+ typed-store = { path = "crates/typed-store" }
+ typed-store-derive = { path = "crates/typed-store-derive" }
+ typed-store-error = { path = "crates/typed-store-error" }
 +
 +[patch.crates-io]
 +tokio = { git = "https://github.com/iotaledger/iota-sim.git", rev = "f16ef50ba7d874fe1f0960f248f6c651a634d6a5" }

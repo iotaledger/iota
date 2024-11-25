@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinIcon, useFormatCoin } from '@iota/core';
+import { useFormatCoin, ImageIconSize, CoinIcon } from '@iota/core';
 import {
     Card,
     CardAction,
@@ -12,7 +12,6 @@ import {
     CardType,
     ImageType,
 } from '@iota/apps-ui-kit';
-import { ImageIconSize } from '../../shared/image-icon';
 
 interface TxnAmountProps {
     amount: string | number | bigint;

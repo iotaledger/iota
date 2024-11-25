@@ -3,13 +3,13 @@
 
 import React, { useState } from 'react';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-import { CoinItem, SendTokenDialog } from '@/components';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import {
     COINS_QUERY_REFETCH_INTERVAL,
     COINS_QUERY_STALE_TIME,
     filterAndSortTokenBalances,
     useSortedCoinsByCategories,
+    CoinItem,
 } from '@iota/core';
 import {
     ButtonSegment,
@@ -19,6 +19,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { RecognizedBadge } from '@iota/ui-icons';
+import { SendTokenDialog } from '@/components';
 
 enum TokenCategory {
     All = 'All',
