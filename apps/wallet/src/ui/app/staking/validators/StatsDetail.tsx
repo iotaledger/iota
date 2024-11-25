@@ -14,12 +14,16 @@ export function StatsDetail({ balance, title }: DisplayStatsProps) {
     const [formatted, symbol] = useFormatCoin(balance, IOTA_TYPE_ARG);
 
     return (
-        <div className="flex h-[96px] flex-1 flex-col justify-between rounded-xl bg-neutral-96 p-md">
-            <div className="text-label-sm text-neutral-10">{title}</div>
+        <div className="flex h-[96px] flex-1 flex-col justify-between rounded-xl bg-neutral-96 p-md dark:bg-neutral-12">
+            <div className="text-label-sm text-neutral-10 dark:text-neutral-92">{title}</div>
 
             <div className="flex items-baseline gap-xxs">
-                <div className="text-title-md text-neutral-10">{formatted}</div>
-                <div className="text-label-md text-neutral-10 opacity-40">{symbol}</div>
+                <div className="text-title-md text-neutral-10 dark:text-neutral-92">
+                    {formatted}
+                </div>
+                <div className="text-label-md text-neutral-10 opacity-40 dark:text-neutral-92">
+                    {symbol}
+                </div>
             </div>
         </div>
     );
