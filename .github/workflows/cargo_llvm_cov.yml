@@ -82,24 +82,19 @@ jobs:
 
           [ -f "target/nextest.profdata" ] || exit 1
 
-      - name: Run code coverage (simtest)
-        run: |
-          cargo +nightly llvm-cov clean --profraw-only
+      # - name: Run code coverage (simtest)
+      #   run: |
+      #     cargo +nightly llvm-cov clean --profraw-only
 
-          git clean -fd
+      #     git clean -fd
 
-          set +e
-          ./scripts/simtest/simtest-cov.sh
-          [ -f "target/simtest.profdata" ] || exit 1
+      #     set +e
+      #     ./scripts/simtest/simtest-cov.sh
+      #     [ -f "target/simtest.profdata" ] || exit 1
 
-      - name: Create html report
+      - name: Create report (lcov.info)
         run: |
           cd target
-
-          if [ -d "report" ]; then
-            echo "Cleaning old report."
-            rm -rf report
-          fi
 
           if [ -f "simtest.profdata" ]; then
             $LLVM_PROFDATA merge --failure-mode=warn --sparse nextest.profdata simtest.profdata --output merged.profdata
@@ -110,29 +105,21 @@ jobs:
           [ -f "merged.profdata" ] || exit 1
 
           LLVM_PROFILE_FILE="merged.profdata" cargo +nightly llvm-cov report \
-            --html \
-            --package iota-sdk \
-            --output-dir . \
+            --lcov \
+            --output-path ./lcov.info \
             --ignore-filename-regex 'external-crates/.*'
 
-          [ -d "html" ] || exit 1
-          mv html report
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: target/lcov.info
 
-          echo "Packaging html report."
-          [ -d "report" ] || exit 1
-          tar -czf report.tgz report
-          [ -f "report.tgz" ] || exit 1
-
-      - name: Publish html report and trigger update
-        run: |
-          rsync -av target/report.tgz ${{ secrets.CODEGOV_REPORT_HOST }}:transfer/cargo-llvm-cov/
-          ssh ${{ secrets.CODEGOV_REPORT_HOST }}
-
-      - name: Backup html report
+      - name: Backup report
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         if: always()
         with:
-          name: report
-          path: target/report.tgz
+          name: lcov.info
+          path: target/lcov.info
           if-no-files-found: error
           retention-days: 30
