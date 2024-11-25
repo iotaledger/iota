@@ -79,7 +79,7 @@ jobs:
           body: |
             ## Changelog
             {{ env.changelog }}
-          draft: false
+          draft: true
           prerelease: false
       - name: Upload artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
