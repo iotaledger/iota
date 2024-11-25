@@ -3,23 +3,25 @@
 
 import React from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
-import { DetailsView } from './views';
+import { DetailsView, SendView } from './views';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-
-export enum AssetsDialogView {
-    Details,
-    Send,
-}
+import { AssetsDialogView } from './hooks';
 
 interface AssetsDialogProps {
     isOpen: boolean;
     handleClose: () => void;
     asset: IotaObjectData | null;
+    view: AssetsDialogView;
+    setView: (view: AssetsDialogView) => void;
 }
 
-export function AssetsDialog({ isOpen, handleClose, asset }: AssetsDialogProps): JSX.Element {
-    const [view, setView] = React.useState<AssetsDialogView>(AssetsDialogView.Details);
-
+export function AssetsDialog({
+    isOpen,
+    handleClose,
+    asset,
+    setView,
+    view,
+}: AssetsDialogProps): JSX.Element {
     function handleDetailsSend() {
         setView(AssetsDialogView.Send);
     }
@@ -33,6 +35,7 @@ export function AssetsDialog({ isOpen, handleClose, asset }: AssetsDialogProps):
                     handleSend={handleDetailsSend}
                 />
             )}
+            {view === AssetsDialogView.Send && <SendView />}
         </Dialog>
     );
 }

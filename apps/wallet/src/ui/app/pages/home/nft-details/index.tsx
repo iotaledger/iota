@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { Collapsible } from '_app/shared/collapse';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useNFTBasicData, useNftDetails } from '@iota/core';
+import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';

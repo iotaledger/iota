@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { ExplorerLinkType, useNftDetails } from '@iota/core';
+import { ExplorerLinkType, useNftDetails, Collapsible } from '@iota/core';
 import {
     Button,
     ButtonType,
@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Layout, LayoutBody, LayoutFooter } from '../../Staking/views/Layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { Collapsible } from '@/components/Collapsible/Collapsible';
+// import { Collapsible } from '@/components/Collapsible/Collapsible';
 import { ExplorerLink } from '@/components/ExplorerLink';
 import { useCurrentAccount } from '@iota/dapp-kit';
 
@@ -105,7 +105,7 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
                             </div>
                         )}
 
-                        <Collapsible defaultExpanded title="Details">
+                        <Collapsible defaultOpen title="Details">
                             <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
                                 {ownerAddress && (
                                     <KeyValueInfo
@@ -131,7 +131,7 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
                             </div>
                         </Collapsible>
                         {metaKeys.length ? (
-                            <Collapsible defaultExpanded title="Attributes">
+                            <Collapsible defaultOpen title="Attributes">
                                 <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
                                     {metaKeys.map((aKey, idx) => {
                                         const { value, valueLink } = formatMetaValue(

@@ -6,7 +6,7 @@ import { useTransactionData } from '_src/ui/app/hooks';
 import { type Transaction } from '@iota/iota-sdk/transactions';
 import { Command } from './Command';
 import { Input } from './Input';
-import { Collapsible } from '_src/ui/app/shared/collapse';
+import { Collapsible } from '@iota/core';
 import {
     ButtonSegment,
     ButtonSegmentType,
