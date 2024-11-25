@@ -4,9 +4,9 @@
 use std::{env, path::PathBuf, str::FromStr};
 
 use anyhow::Result;
-use iota_replay::{execute_replay_command, ReplayToolCommand};
+use iota_replay::{ReplayToolCommand, execute_replay_command};
 
-const LOCALNET_ADDR: &str = "http://127.0.0.1:9000";
+const TESTNET_ADDR: &str = "https://api.testnet.iota.cafe";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -20,13 +20,13 @@ async fn main() -> Result<(), anyhow::Error> {
         return Ok(());
     }
     let tx_digest = &args[1]; // tx_digest passed as the first argument
-    let localnet_addr = String::from_str(LOCALNET_ADDR).unwrap();
+    let localnet_addr = String::from_str(TESTNET_ADDR).unwrap();
 
     let cmd = ReplayToolCommand::PersistSandbox {
         tx_digest: tx_digest.clone(),
         base_path: path,
     };
 
-    execute_replay_command(Some(localnet_addr), true, true, None, cmd).await?;
+    execute_replay_command(Some(localnet_addr), true, true, None, None, cmd).await?;
     Ok(())
 }
