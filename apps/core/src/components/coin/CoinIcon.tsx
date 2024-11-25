@@ -18,7 +18,7 @@ interface NonIotaCoinProps {
 function NonIotaCoin({ coinType, size = ImageIconSize.Full, rounded }: NonIotaCoinProps) {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
-        <div className="flex h-full w-full items-center justify-center rounded-full bg-neutral-96 dark:bg-neutral-92">
+        <div className="flex h-full w-full items-center justify-center rounded-full bg-neutral-96 dark:bg-neutral-12">
             <ImageIcon
                 src={coinMeta?.iconUrl}
                 label={coinMeta?.name || coinType}
@@ -47,7 +47,7 @@ export function CoinIcon({
 
     return coinType === IOTA_TYPE_ARG ? (
         <Component {...coinWrapperProps}>
-            <div className={cx(size, 'text-neutral-10')}>
+            <div className={cx(size, 'text-neutral-10 dark:text-neutral-92')}>
                 <IotaLogoMark className="h-full w-full" />
             </div>
         </Component>
