@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::fmt;
 
 use axum::{
     extract::State,
@@ -10,7 +9,7 @@ use axum::{
 };
 
 use crate::{
-    APPLICATION_BCS, RestService, TEXT_PLAIN_UTF_8,
+    APPLICATION_BCS, RestError, RestService, TEXT_PLAIN_UTF_8,
     content_type::ContentType,
     types::{
         X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT, X_IOTA_EPOCH,
@@ -127,46 +126,25 @@ where
     }
 }
 
-#[derive(Debug)]
-pub enum HeaderError {
-    InternalServerError(String),
-}
-
-impl fmt::Display for HeaderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HeaderError::InternalServerError(message) => {
-                write!(f, "Internal Server Error in header: {}", message)
-            }
-        }
-    }
-}
-
-impl IntoResponse for HeaderError {
-    fn into_response(self) -> Response {
-        let status_code = match self {
-            HeaderError::InternalServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        };
-
-        (status_code, self.to_string()).into_response()
-    }
-}
-
 pub async fn append_info_headers(
     State(state): State<RestService>,
     response: Response,
-) -> Result<impl IntoResponse, HeaderError> {
+) -> Result<impl IntoResponse, RestError> {
     let latest_checkpoint = state.reader.inner().get_latest_checkpoint().map_err(|e| {
-        HeaderError::InternalServerError(format!("Failed to get latest checkpoint: {e}"))
+        RestError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to get latest checkpoint: {e}"),
+        )
     })?;
     let lowest_available_checkpoint = state
         .reader
         .inner()
         .get_lowest_available_checkpoint()
         .map_err(|e| {
-            HeaderError::InternalServerError(format!(
-                "Failed to get lowest available checkpoint: {e}"
-            ))
+            RestError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get lowest available checkpoint: {e}"),
+            )
         })?;
 
     let lowest_available_checkpoint_objects = state
@@ -174,9 +152,10 @@ pub async fn append_info_headers(
         .inner()
         .get_lowest_available_checkpoint_objects()
         .map_err(|e| {
-            HeaderError::InternalServerError(format!(
-                "Failed to get lowest available checkpoint objects: {e}"
-            ))
+            RestError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get lowest available checkpoint objects: {e}"),
+            )
         })?;
 
     let mut headers = HeaderMap::new();
