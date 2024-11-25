@@ -5,7 +5,7 @@
 
 import React, { useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { AssetCard, Button, RouteLink, SendAssetPopup } from '@/components';
+import { Button, RouteLink, SendAssetPopup, VisualAssetDetailsCard } from '@/components';
 import { useIsAssetTransferable, useGetObject } from '@iota/core';
 import { usePopups } from '@/hooks';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -30,7 +30,7 @@ const VisualAssetDetailPage = () => {
         <div className="flex h-full w-full flex-col space-y-4 px-40">
             <RouteLink path={ASSETS_ROUTE.path} title="Back" />
             {asset?.data ? (
-                <AssetCard key={asset.data.objectId} asset={asset.data} />
+                <VisualAssetDetailsCard key={asset.data.objectId} asset={asset.data} />
             ) : (
                 <div className="flex justify-center p-20">Asset not found</div>
             )}
