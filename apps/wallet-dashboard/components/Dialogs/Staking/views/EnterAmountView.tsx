@@ -8,15 +8,12 @@ import {
     CoinFormat,
     parseAmount,
     useCoinMetadata,
-    useStakeTxnInfo,
+    ValidatorApyData,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
     ButtonType,
-    KeyValueInfo,
-    Panel,
-    Divider,
     Input,
     InputType,
     Header,
@@ -26,11 +23,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/ui-icons';
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-
-import { Validator } from './Validator';
-import { StakedInfo } from './StakedInfo';
-import { Layout, LayoutBody, LayoutFooter } from './Layout';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { StakingRewardDetails, Validator, StakedInfo, Layout, LayoutBody, LayoutFooter } from './';
 
 export interface FormValues {
     amount: string;
@@ -43,15 +37,17 @@ interface EnterAmountViewProps {
     showActiveStatus?: boolean;
     gasBudget?: string | number | null;
     handleClose: () => void;
+    validatorApy: ValidatorApyData;
     isTransactionLoading?: boolean;
 }
 
-function EnterAmountView({
+export function EnterAmountView({
     selectedValidator: selectedValidatorAddress,
     onBack,
     onStake,
     gasBudget = 0,
     handleClose,
+    validatorApy,
     isTransactionLoading,
 }: EnterAmountViewProps): JSX.Element {
     const coinType = IOTA_TYPE_ARG;
@@ -64,12 +60,10 @@ function EnterAmountView({
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: iotaBalance } = useBalance(accountAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
 
     const gasBudgetBigInt = BigInt(gasBudget ?? 0);
-    const [gas, symbol] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
 
     const maxTokenBalance = coinBalance - gasBudgetBigInt;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
@@ -81,10 +75,6 @@ function EnterAmountView({
     const caption = isTransactionLoading
         ? '--'
         : `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
-
-    const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
-        system?.epoch,
-    );
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
@@ -124,7 +114,7 @@ function EnterAmountView({
                                             type={InputType.NumericFormat}
                                             label="Amount"
                                             value={amount}
-                                            suffix={` ${symbol}`}
+                                            suffix={` ${metadata?.symbol}`}
                                             placeholder="Enter amount to stake"
                                             errorMessage={
                                                 values.amount && meta.error ? meta.error : undefined
@@ -145,28 +135,7 @@ function EnterAmountView({
                                 </div>
                             ) : null}
                         </div>
-
-                        <Panel hasBorder>
-                            <div className="flex flex-col gap-y-sm p-md">
-                                <KeyValueInfo
-                                    keyText="Staking Rewards Start"
-                                    value={stakedRewardsStartEpoch}
-                                    fullwidth
-                                />
-                                <KeyValueInfo
-                                    keyText="Redeem Rewards"
-                                    value={timeBeforeStakeRewardsRedeemableAgoDisplay}
-                                    fullwidth
-                                />
-                                <Divider />
-                                <KeyValueInfo
-                                    keyText="Gas fee"
-                                    value={gas || '--'}
-                                    supportingLabel={symbol}
-                                    fullwidth
-                                />
-                            </div>
-                        </Panel>
+                        <StakingRewardDetails gasBudget={gasBudget} />
                     </div>
                 </div>
             </LayoutBody>
@@ -185,5 +154,3 @@ function EnterAmountView({
         </Layout>
     );
 }
-
-export default EnterAmountView;

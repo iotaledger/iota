@@ -13,11 +13,13 @@ import { roundFloat } from '../utils/roundFloat';
 
 const DEFAULT_APY_DECIMALS = 2;
 
+export interface ValidatorApyData {
+    apy: number;
+    isApyApproxZero: boolean;
+}
+
 export interface ApyByValidator {
-    [validatorAddress: string]: {
-        apy: number;
-        isApyApproxZero: boolean;
-    };
+    [validatorAddress: string]: ValidatorApyData;
 }
 // For small APY, show ~0% instead of 0%
 // If APY falls below 0.001, show ~0% instead of 0% since we round to 2 decimal places
