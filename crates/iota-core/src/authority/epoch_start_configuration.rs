@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use enum_dispatch::enum_dispatch;
 use iota_config::{ExecutionCacheConfig, NodeConfig};
@@ -13,8 +13,9 @@ use iota_types::{
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
     error::IotaResult,
-    iota_system_state::epoch_start_iota_system_state::{
-        EpochStartSystemState, EpochStartSystemStateTrait,
+    iota_system_state::{
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
+        get_system_display_objects,
     },
     messages_checkpoint::{CheckpointDigest, CheckpointTimestamp},
     randomness_state::get_randomness_state_obj_initial_shared_version,
@@ -34,6 +35,8 @@ pub trait EpochStartConfigTrait {
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
     fn bridge_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
     fn bridge_committee_initiated(&self) -> bool;
+    fn system_display_object_versions(&self) -> impl Iterator<Item = (&String, &u16)>;
+    fn system_display_object_version(&self, key: &str) -> Option<&u16>;
 
     fn execution_cache_type(&self) -> ExecutionCacheConfigType {
         if self.flags().contains(&EpochFlag::WritebackCacheEnabled) {
@@ -115,6 +118,10 @@ impl EpochStartConfiguration {
         let bridge_obj_initial_shared_version =
             get_bridge_obj_initial_shared_version(object_store)?;
         let bridge_committee_initiated = is_bridge_committee_initiated(object_store)?;
+        let system_display_object_versions = get_system_display_objects(object_store)?
+            .into_iter()
+            .map(|(key, display)| (key, display.version))
+            .collect();
         Ok(Self::V1(EpochStartConfigurationV1 {
             system_state,
             epoch_digest,
@@ -124,6 +131,7 @@ impl EpochStartConfiguration {
             coin_deny_list_obj_initial_shared_version,
             bridge_obj_initial_shared_version,
             bridge_committee_initiated,
+            system_display_object_versions,
         }))
     }
 
@@ -143,6 +151,7 @@ impl EpochStartConfiguration {
                     .coin_deny_list_obj_initial_shared_version,
                 bridge_obj_initial_shared_version: config.bridge_obj_initial_shared_version,
                 bridge_committee_initiated: config.bridge_committee_initiated,
+                system_display_object_versions: config.system_display_object_versions.clone(),
             }),
             _ => panic!(
                 "This function is only implemented for the latest version of EpochStartConfiguration"
@@ -174,6 +183,7 @@ pub struct EpochStartConfigurationV1 {
     coin_deny_list_obj_initial_shared_version: SequenceNumber,
     bridge_obj_initial_shared_version: Option<SequenceNumber>,
     bridge_committee_initiated: bool,
+    system_display_object_versions: HashMap<String, u16>,
 }
 
 impl EpochStartConfigTrait for EpochStartConfigurationV1 {
@@ -207,5 +217,13 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
 
     fn bridge_committee_initiated(&self) -> bool {
         self.bridge_committee_initiated
+    }
+
+    fn system_display_object_versions(&self) -> impl Iterator<Item = (&String, &u16)> {
+        self.system_display_object_versions.iter()
+    }
+
+    fn system_display_object_version(&self, key: &str) -> Option<&u16> {
+        self.system_display_object_versions.get(key)
     }
 }

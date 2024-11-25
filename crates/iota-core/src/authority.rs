@@ -54,6 +54,7 @@ use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
     authenticator_state::get_authenticator_state,
+    balance::Balance,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
@@ -71,6 +72,8 @@ use iota_types::{
     execution_status::ExecutionStatus,
     fp_ensure,
     gas::{GasCostSummary, IotaGasStatus},
+    gas_coin::GAS,
+    governance::StakedIota,
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
@@ -100,6 +103,7 @@ use iota_types::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
     supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions},
+    timelock::{timelock::TimeLock, timelocked_staked_iota::TimelockedStakedIota},
     transaction::*,
 };
 use itertools::Itertools;
@@ -4490,6 +4494,73 @@ impl AuthorityState {
         Some(tx)
     }
 
+    #[instrument(level = "debug", skip_all)]
+    fn create_system_display_txs(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Option<EndOfEpochTransactionKind> {
+        let txs = [
+            self.create_staked_iota_display_tx_v1(epoch_store),
+            self.create_staked_timelocked_iota_display_tx_v1(epoch_store),
+            self.create_timelocked_iota_display_tx_v1(epoch_store),
+        ]
+        .iter()
+        .filter_map(|f| f.clone())
+        .collect::<Vec<_>>();
+
+        if txs.is_empty() {
+            return None;
+        }
+
+        info!("Creating system display transactions");
+        Some(EndOfEpochTransactionKind::system_display(txs))
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    fn create_staked_iota_display_tx_v1(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Option<SystemDisplayTransactionKind> {
+        let tag = StakedIota::type_();
+
+        if epoch_store.is_system_display_object_created(tag, 1) {
+            return None;
+        }
+
+        info!("Creating `StakedIota` system display v1 transaction");
+        Some(SystemDisplayTransactionKind::StakedIotaV1)
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    fn create_staked_timelocked_iota_display_tx_v1(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Option<SystemDisplayTransactionKind> {
+        let tag = TimelockedStakedIota::type_();
+
+        if epoch_store.is_system_display_object_created(tag, 1) {
+            return None;
+        }
+
+        info!("Creating `TimelockedStakedIota` system display v1 transaction");
+        Some(SystemDisplayTransactionKind::TimelockedStakedIotaV1)
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    fn create_timelocked_iota_display_tx_v1(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Option<SystemDisplayTransactionKind> {
+        let tag = TimeLock::<Balance>::type_(Balance::type_(GAS::type_().into()).into());
+
+        if epoch_store.is_system_display_object_created(tag, 1) {
+            return None;
+        }
+
+        info!("Creating `TimeLock<Balance<IOTA>>` system display v1 transaction");
+        Some(SystemDisplayTransactionKind::TimelockedIotaV1)
+    }
+
     /// Creates and execute the advance epoch transaction to effects without
     /// committing it to the database. The effects of the change epoch tx
     /// are only written to the database after a certified checkpoint has been
@@ -4523,6 +4594,9 @@ impl AuthorityState {
             txns.push(tx);
         }
         if let Some(tx) = self.init_bridge_committee_tx(epoch_store) {
+            txns.push(tx);
+        }
+        if let Some(tx) = self.create_system_display_txs(epoch_store) {
             txns.push(tx);
         }
 

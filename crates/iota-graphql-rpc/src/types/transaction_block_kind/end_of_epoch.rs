@@ -287,6 +287,7 @@ impl EndOfEpochTransactionKind {
                     checkpoint_viewed_at,
                 })
             }
+            N::SystemDisplay(_) => todo!(),
         }
     }
 }

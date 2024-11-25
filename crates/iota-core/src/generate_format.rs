@@ -33,8 +33,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg, TransactionExpiration,
-        TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg,
+        SystemDisplayTransactionKind, TransactionExpiration, TransactionKind,
     },
     utils::DEFAULT_ADDRESS_SEED,
 };
@@ -172,6 +172,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<TypeArgumentError>(&samples)?;
     tracer.trace_type::<PackageUpgradeError>(&samples)?;
     tracer.trace_type::<TransactionExpiration>(&samples)?;
+    tracer.trace_type::<SystemDisplayTransactionKind>(&samples)?;
     tracer.trace_type::<EndOfEpochTransactionKind>(&samples)?;
 
     tracer.trace_type::<IDOperation>(&samples)?;

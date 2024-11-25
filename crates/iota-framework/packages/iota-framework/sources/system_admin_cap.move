@@ -10,7 +10,8 @@ module iota::system_admin_cap {
     const ENotSystemAddress: u64 = 1;
 
     /// `IotaSystemAdminCap` allows to perform privileged IOTA system operations.
-    /// For example, packing and unpacking `TimeLock`s during staking, etc.
+    /// For example, packing and unpacking `TimeLock`s during staking,
+    /// creating `Display` objects without `Publisher`, etc.
     public struct IotaSystemAdminCap has store {}
 
     #[allow(unused_function)]

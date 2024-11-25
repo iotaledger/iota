@@ -534,6 +534,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                     bridge_object_version: sequence_number.value(),
                 }
             }
+            crate::transaction::EndOfEpochTransactionKind::SystemDisplay(_) => todo!(),
         }
     }
 }

@@ -292,6 +292,14 @@ pub enum TransactionKind {
     // .. more transaction types go here
 }
 
+/// SystemDisplayTransactionKind
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, IntoStaticStr)]
+pub enum SystemDisplayTransactionKind {
+    StakedIotaV1,
+    TimelockedStakedIotaV1,
+    TimelockedIotaV1,
+}
+
 /// EndOfEpochTransactionKind
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, IntoStaticStr)]
 pub enum EndOfEpochTransactionKind {
@@ -300,6 +308,7 @@ pub enum EndOfEpochTransactionKind {
     AuthenticatorStateExpire(AuthenticatorStateExpire),
     BridgeStateCreate(ChainIdentifier),
     BridgeCommitteeInit(SequenceNumber),
+    SystemDisplay(Vec<SystemDisplayTransactionKind>),
 }
 
 impl EndOfEpochTransactionKind {
@@ -347,6 +356,10 @@ impl EndOfEpochTransactionKind {
         Self::BridgeCommitteeInit(bridge_shared_version)
     }
 
+    pub fn system_display(txs: Vec<SystemDisplayTransactionKind>) -> Self {
+        Self::SystemDisplay(txs)
+    }
+
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             Self::ChangeEpoch(_) => {
@@ -377,6 +390,13 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 },
             ],
+            Self::SystemDisplay(_) => {
+                vec![InputObjectKind::SharedMoveObject {
+                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                    mutable: true,
+                }]
+            }
         }
     }
 
@@ -406,6 +426,9 @@ impl EndOfEpochTransactionKind {
                 ]
                 .into_iter(),
             ),
+            Self::SystemDisplay(_) => {
+                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
+            }
         }
     }
 
@@ -436,6 +459,33 @@ impl EndOfEpochTransactionKind {
                     return Err(UserInputError::Unsupported(
                         "should not try to finalize committee yet".to_string(),
                     ));
+                }
+            }
+            Self::SystemDisplay(txs) => {
+                for tx in txs {
+                    match tx {
+                        SystemDisplayTransactionKind::StakedIotaV1 => {
+                            if !config.enable_staked_iota_display_v1() {
+                                return Err(UserInputError::Unsupported(
+                                    "`StakedIota` display is not enabled".to_string(),
+                                ));
+                            }
+                        }
+                        SystemDisplayTransactionKind::TimelockedStakedIotaV1 => {
+                            if !config.enable_timelocked_staked_iota_display_v1() {
+                                return Err(UserInputError::Unsupported(
+                                    "`TimelockedStakedIota` display is not enabled".to_string(),
+                                ));
+                            }
+                        }
+                        SystemDisplayTransactionKind::TimelockedIotaV1 => {
+                            if !config.enable_timelocked_iota_display_v1() {
+                                return Err(UserInputError::Unsupported(
+                                    "`TimeLock<Balance<IOTA>>` display is not enabled".to_string(),
+                                ));
+                            }
+                        }
+                    }
                 }
             }
         }
