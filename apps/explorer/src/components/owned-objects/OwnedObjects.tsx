@@ -295,9 +295,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                             {hasVisualAssets && viewMode === ObjectViewMode.Thumbnail && (
                                 <ThumbnailsView
                                     loading={isPending}
-                                    data={new Array(80)
-                                        .fill(0)
-                                        .flatMap(() => sortedDataByDisplayImages)}
+                                    data={sortedDataByDisplayImages}
                                     limit={limit}
                                 />
                             )}
