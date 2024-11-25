@@ -25,7 +25,7 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
     const nftImageUrl = nftMeta?.imageUrl || '';
 
     // Extract either the attributes, or use the top-level NFT fields:
-    const metaFields =
+    const { keys: metaKeys, values: metaValues } =
         (nftFields as NftFields)?.metadata?.fields?.attributes?.fields ||
         Object.entries(nftFields ?? {})
             .filter(([key]) => key !== 'id')
@@ -37,8 +37,6 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
                 },
                 { keys: [] as string[], values: [] as string[] },
             );
-    const metaKeys: string[] = metaFields ? metaFields.keys : [];
-    const metaValues = metaFields ? metaFields.values : [];
 
     const ownerAddress =
         (objectData?.owner &&
@@ -79,10 +77,8 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
         metaKeys,
         metaValues,
         formatMetaValue,
-
         isContainedInKiosk,
         kioskItem,
-
         nftMeta,
         isPendingMeta,
     };
