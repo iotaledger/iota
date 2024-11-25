@@ -1457,6 +1457,27 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "default" ];
       };
+      "aligned-vec" = rec {
+        crateName = "aligned-vec";
+        version = "0.6.1";
+        edition = "2021";
+        sha256 = "0ammhfzm15iyg6rd21019ivlaqixrcr1psvhpn02a1dgbqb6c2by";
+        libName = "aligned_vec";
+        authors = [
+          "sarah <>"
+        ];
+        dependencies = [
+          {
+            name = "equator";
+            packageId = "equator";
+          }
+        ];
+        features = {
+          "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
+        };
+        resolvedDefaultFeatures = [ "default" "std" ];
+      };
       "alloc-no-stdlib" = rec {
         crateName = "alloc-no-stdlib";
         version = "2.0.4";
@@ -12376,7 +12397,7 @@ rec {
         ];
 
       };
-      "derive_more" = rec {
+      "derive_more 0.99.18" = rec {
         crateName = "derive_more";
         version = "0.99.18";
         edition = "2018";
@@ -12430,6 +12451,99 @@ rec {
           "unwrap" = [ "convert_case" "rustc_version" ];
         };
         resolvedDefaultFeatures = [ "add" "add_assign" "as_mut" "as_ref" "constructor" "convert_case" "default" "deref" "deref_mut" "display" "error" "from" "from_str" "index" "index_mut" "into" "into_iterator" "is_variant" "iterator" "mul" "mul_assign" "not" "rustc_version" "sum" "try_into" "unwrap" ];
+      };
+      "derive_more 1.0.0" = rec {
+        crateName = "derive_more";
+        version = "1.0.0";
+        edition = "2021";
+        sha256 = "01cd8pskdjg10dvfchi6b8a9pa1ja1ic0kbn45dl8jdyrfwrk6sa";
+        authors = [
+          "Jelte Fennema <github-tech@jeltef.nl>"
+        ];
+        dependencies = [
+          {
+            name = "derive_more-impl";
+            packageId = "derive_more-impl";
+          }
+        ];
+        features = {
+          "add" = [ "derive_more-impl/add" ];
+          "add_assign" = [ "derive_more-impl/add_assign" ];
+          "as_ref" = [ "derive_more-impl/as_ref" ];
+          "constructor" = [ "derive_more-impl/constructor" ];
+          "debug" = [ "derive_more-impl/debug" ];
+          "default" = [ "std" ];
+          "deref" = [ "derive_more-impl/deref" ];
+          "deref_mut" = [ "derive_more-impl/deref_mut" ];
+          "display" = [ "derive_more-impl/display" ];
+          "error" = [ "derive_more-impl/error" ];
+          "from" = [ "derive_more-impl/from" ];
+          "from_str" = [ "derive_more-impl/from_str" ];
+          "full" = [ "add" "add_assign" "as_ref" "constructor" "debug" "deref" "deref_mut" "display" "error" "from" "from_str" "index" "index_mut" "into" "into_iterator" "is_variant" "mul" "mul_assign" "not" "sum" "try_from" "try_into" "try_unwrap" "unwrap" ];
+          "index" = [ "derive_more-impl/index" ];
+          "index_mut" = [ "derive_more-impl/index_mut" ];
+          "into" = [ "derive_more-impl/into" ];
+          "into_iterator" = [ "derive_more-impl/into_iterator" ];
+          "is_variant" = [ "derive_more-impl/is_variant" ];
+          "mul" = [ "derive_more-impl/mul" ];
+          "mul_assign" = [ "derive_more-impl/mul_assign" ];
+          "not" = [ "derive_more-impl/not" ];
+          "sum" = [ "derive_more-impl/sum" ];
+          "testing-helpers" = [ "derive_more-impl/testing-helpers" "dep:rustc_version" ];
+          "try_from" = [ "derive_more-impl/try_from" ];
+          "try_into" = [ "derive_more-impl/try_into" ];
+          "try_unwrap" = [ "derive_more-impl/try_unwrap" ];
+          "unwrap" = [ "derive_more-impl/unwrap" ];
+        };
+        resolvedDefaultFeatures = [ "as_ref" "debug" "default" "display" "from" "std" ];
+      };
+      "derive_more-impl" = rec {
+        crateName = "derive_more-impl";
+        version = "1.0.0";
+        edition = "2021";
+        sha256 = "08mxyd456ygk68v5nfn4dyisn82k647w9ri2jl19dqpvmnp30wyb";
+        procMacro = true;
+        libName = "derive_more_impl";
+        authors = [
+          "Jelte Fennema <github-tech@jeltef.nl>"
+        ];
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2 1.0.86";
+          }
+          {
+            name = "quote";
+            packageId = "quote 1.0.37";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.77";
+          }
+          {
+            name = "unicode-xid";
+            packageId = "unicode-xid 0.2.6";
+            optional = true;
+          }
+        ];
+        features = {
+          "as_ref" = [ "syn/extra-traits" "syn/visit" ];
+          "debug" = [ "syn/extra-traits" "dep:unicode-xid" ];
+          "display" = [ "syn/extra-traits" "dep:unicode-xid" ];
+          "error" = [ "syn/extra-traits" ];
+          "from" = [ "syn/extra-traits" ];
+          "full" = [ "add" "add_assign" "as_ref" "constructor" "debug" "deref" "deref_mut" "display" "error" "from" "from_str" "index" "index_mut" "into" "into_iterator" "is_variant" "mul" "mul_assign" "not" "sum" "try_from" "try_into" "try_unwrap" "unwrap" ];
+          "into" = [ "syn/extra-traits" ];
+          "is_variant" = [ "dep:convert_case" ];
+          "mul" = [ "syn/extra-traits" ];
+          "mul_assign" = [ "syn/extra-traits" ];
+          "not" = [ "syn/extra-traits" ];
+          "testing-helpers" = [ "dep:rustc_version" ];
+          "try_into" = [ "syn/extra-traits" ];
+          "try_unwrap" = [ "dep:convert_case" ];
+          "unwrap" = [ "dep:convert_case" ];
+        };
+        resolvedDefaultFeatures = [ "as_ref" "debug" "default" "display" "from" ];
       };
       "diesel" = rec {
         crateName = "diesel";
@@ -13994,6 +14108,49 @@ rec {
             name = "once_cell";
             packageId = "once_cell";
           }
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2 1.0.86";
+          }
+          {
+            name = "quote";
+            packageId = "quote 1.0.37";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.77";
+            features = [ "full" ];
+          }
+        ];
+
+      };
+      "equator" = rec {
+        crateName = "equator";
+        version = "0.2.2";
+        edition = "2021";
+        sha256 = "1sk1swwd76rn091gi1m26s10z11dgynb4jfcly228782b8xsapf3";
+        authors = [
+          "sarah <>"
+        ];
+        dependencies = [
+          {
+            name = "equator-macro";
+            packageId = "equator-macro";
+          }
+        ];
+
+      };
+      "equator-macro" = rec {
+        crateName = "equator-macro";
+        version = "0.2.1";
+        edition = "2021";
+        sha256 = "1k0n5q7d6wn9g3fva9z7hr4pr3z494dsb1zja5ima8h3diwpkxiv";
+        procMacro = true;
+        libName = "equator_macro";
+        authors = [
+          "sarah <>"
+        ];
+        dependencies = [
           {
             name = "proc-macro2";
             packageId = "proc-macro2 1.0.86";
@@ -15673,7 +15830,7 @@ rec {
           }
           {
             name = "derive_more";
-            packageId = "derive_more";
+            packageId = "derive_more 0.99.18";
           }
           {
             name = "digest";
@@ -16043,7 +16200,7 @@ rec {
           }
           {
             name = "derive_more";
-            packageId = "derive_more";
+            packageId = "derive_more 0.99.18";
           }
           {
             name = "fastcrypto";
@@ -17374,13 +17531,13 @@ rec {
         };
         resolvedDefaultFeatures = [ "read" "read-core" ];
       };
-      "git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main#tokio-macros@2.4.0" = rec {
+      "git+https://github.com/iotaledger/tokio-madsim-fork.git?branch=main#tokio-macros@2.4.0" = rec {
         crateName = "tokio-macros";
         version = "2.4.0";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "ssh://git@github.com/iotaledger/tokio-madsim-fork.git";
+          url = "https://github.com/iotaledger/tokio-madsim-fork.git";
           rev = "e34a35287024b341db16139a402508aaea8ec955";
           sha256 = "0p0djsx0r02hlhsws3hjmsg2p5xhk31166kc4mginaynvv8b6rp5";
         };
@@ -21762,8 +21919,9 @@ rec {
             features = [ "derive" "wrap_help" ];
           }
           {
-            name = "derivative";
-            packageId = "derivative";
+            name = "derive_more";
+            packageId = "derive_more 1.0.0";
+            features = [ "debug" ];
           }
           {
             name = "diesel";
@@ -27979,7 +28137,7 @@ rec {
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "ssh://git@github.com/iotaledger/iota-rust-sdk.git";
+          url = "https://github.com/iotaledger/iota-rust-sdk.git";
           rev = "d605da95029e74376f0f39a95526bb1a5c0ebd7a";
           sha256 = "1xn49a84nlwplkgr1njcb62gig8ccdzqlr2m5xs0khx15ss18ac8";
         };
@@ -28258,7 +28416,7 @@ rec {
           }
           {
             name = "derive_more";
-            packageId = "derive_more";
+            packageId = "derive_more 0.99.18";
             usesDefaultFeatures = false;
             features = [ "from" "as_ref" "deref" "deref_mut" "display" ];
           }
@@ -30401,12 +30559,9 @@ rec {
             packageId = "consensus-config";
           }
           {
-            name = "derivative";
-            packageId = "derivative";
-          }
-          {
             name = "derive_more";
-            packageId = "derive_more";
+            packageId = "derive_more 1.0.0";
+            features = [ "as_ref" "from" "debug" "display" ];
           }
           {
             name = "enum_dispatch";
@@ -36622,9 +36777,9 @@ rec {
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "ssh://git@github.com/iotaledger/iota-sim.git";
-          rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb";
-          sha256 = "0z1b373zzcbyc54gs8l60l6c57a0vgyi5xg9krlaibcbrwm3yisg";
+          url = "https://github.com/iotaledger/iota-sim.git";
+          rev = "f16ef50ba7d874fe1f0960f248f6c651a634d6a5";
+          sha256 = "1bp3m6dl1msgmdgksypasbw29gjg77kjhwq1c7kc1i2s80q0bisr";
         };
         authors = [
           "IOTA Stiftung"
@@ -36754,9 +36909,9 @@ rec {
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "ssh://git@github.com/iotaledger/iota-sim.git";
-          rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb";
-          sha256 = "0z1b373zzcbyc54gs8l60l6c57a0vgyi5xg9krlaibcbrwm3yisg";
+          url = "https://github.com/iotaledger/iota-sim.git";
+          rev = "f16ef50ba7d874fe1f0960f248f6c651a634d6a5";
+          sha256 = "1bp3m6dl1msgmdgksypasbw29gjg77kjhwq1c7kc1i2s80q0bisr";
         };
         procMacro = true;
         libName = "msim_macros";
@@ -41892,13 +42047,17 @@ rec {
       };
       "pprof" = rec {
         crateName = "pprof";
-        version = "0.13.0";
+        version = "0.14.0";
         edition = "2021";
-        sha256 = "1jqi6yakwwhln5b1vr3aprgl2kdlvsmidqh24is7wk6k3g2rfp7g";
+        sha256 = "1l6nb1zmym8m99vhr6y2blff4af9x555m7nwby0l9fmyk242zgpb";
         authors = [
           "Yang Keao <keao.yang@yahoo.com>"
         ];
         dependencies = [
+          {
+            name = "aligned-vec";
+            packageId = "aligned-vec";
+          }
           {
             name = "backtrace";
             packageId = "backtrace";
@@ -44114,7 +44273,7 @@ rec {
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "ssh://git@github.com/iotaledger/tokio-madsim-fork.git";
+          url = "https://github.com/iotaledger/tokio-madsim-fork.git";
           rev = "e34a35287024b341db16139a402508aaea8ec955";
           sha256 = "0p0djsx0r02hlhsws3hjmsg2p5xhk31166kc4mginaynvv8b6rp5";
         };
@@ -44134,7 +44293,7 @@ rec {
           }
           {
             name = "tokio-macros";
-            packageId = "git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main#tokio-macros@2.4.0";
+            packageId = "git+https://github.com/iotaledger/tokio-madsim-fork.git?branch=main#tokio-macros@2.4.0";
             optional = true;
           }
           {
@@ -47493,7 +47652,7 @@ rec {
           }
           {
             name = "derive_more";
-            packageId = "derive_more";
+            packageId = "derive_more 0.99.18";
             usesDefaultFeatures = false;
             features = [ "from" ];
           }
@@ -52994,7 +53153,7 @@ rec {
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "ssh://git@github.com/iotaledger/tokio-madsim-fork.git";
+          url = "https://github.com/iotaledger/tokio-madsim-fork.git";
           rev = "e34a35287024b341db16139a402508aaea8ec955";
           sha256 = "0p0djsx0r02hlhsws3hjmsg2p5xhk31166kc4mginaynvv8b6rp5";
         };
