@@ -622,9 +622,6 @@ IotaSystemStateV1
 IotaSystemStateV2
 	public struct
 	0x3::iota_system_state_inner
-SystemEpochInfoEventV1
-	public struct
-	0x3::iota_system_state_inner
 SystemEpochInfoEventV2
 	public struct
 	0x3::iota_system_state_inner
@@ -632,6 +629,9 @@ create
 	public(package) fun
 	0x3::iota_system_state_inner
 create_system_parameters
+	public(package) fun
+	0x3::iota_system_state_inner
+v1_to_v2
 	public(package) fun
 	0x3::iota_system_state_inner
 request_add_validator_candidate

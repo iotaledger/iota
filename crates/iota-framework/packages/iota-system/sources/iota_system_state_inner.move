@@ -161,22 +161,6 @@ module iota_system::iota_system_state_inner {
 
     /// Event containing system-level epoch information, emitted during
     /// the epoch advancement transaction.
-    public struct SystemEpochInfoEventV has copy, drop {
-        epoch: u64,
-        protocol_version: u64,
-        reference_gas_price: u64,
-        total_stake: u64,
-        storage_charge: u64,
-        storage_rebate: u64,
-        storage_fund_balance: u64,
-        total_gas_fees: u64,
-        total_stake_rewards_distributed: u64,
-        burnt_tokens_amount: u64,
-        minted_tokens_amount: u64,
-    }
-
-    /// Event containing system-level epoch information, emitted during
-    /// the epoch advancement transaction.
     public struct SystemEpochInfoEventV2 has copy, drop {
         epoch: u64,
         protocol_version: u64,

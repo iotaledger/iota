@@ -871,7 +871,7 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
-        let (_gas_status, checked_input_objects) = 
+        let (_gas_status, checked_input_objects) =
             iota_transaction_checks::check_transaction_input(
                 epoch_store.protocol_config(),
                 epoch_store.reference_gas_price(),
@@ -1952,7 +1952,6 @@ impl AuthorityState {
         } else {
             transaction.gas().to_vec()
         };
-        let reference_gas_price = epoch_store.reference_gas_price();
 
         let (gas_status, checked_input_objects) = if skip_checks {
             // If we are skipping checks, then we call the check_dev_inspect_input function

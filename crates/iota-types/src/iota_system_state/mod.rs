@@ -104,6 +104,13 @@ impl IotaSystemStateWrapper {
                     protocol_config,
                 );
             }
+            2 => {
+                Self::advance_epoch_safe_mode_impl::<IotaSystemStateV2>(
+                    move_object,
+                    params,
+                    protocol_config,
+                );
+            }
             #[cfg(msim)]
             IOTA_SYSTEM_STATE_SIM_TEST_V1 => {
                 Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateV1>(

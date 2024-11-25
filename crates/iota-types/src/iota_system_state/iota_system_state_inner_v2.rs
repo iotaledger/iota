@@ -9,13 +9,8 @@ use super::{
     AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     get_validators_from_table_vec,
+    iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorSetV1, ValidatorV1},
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-    iota_system_state_inner_v1::{
-        ValidatorSetV1,
-        StorageFundV1,
-        SystemParametersV1,
-        ValidatorV1,
-    },
 };
 use crate::{
     balance::Balance,
@@ -279,12 +274,4 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             validator_low_stake_grace_period,
         }
     }
-}
-
-/// Rust version of the Move
-/// iota_system::validator_cap::UnverifiedValidatorOperationCap type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct UnverifiedValidatorOperationCap {
-    pub id: ObjectID,
-    pub authorizer_validator_address: IotaAddress,
 }
