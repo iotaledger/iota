@@ -37,11 +37,11 @@ jobs:
       matrix:
         os: [
           self-hosted, # ubuntu-x86_64
-          macos-latest-xlarge, # macos-arm64
+          macos-latest, # macos-arm64
         ]
     steps:
       - name: Install postgres (MacOS arm64)
-        if: ${{ matrix.os == 'macos-latest-xlarge' }}
+        if: ${{ matrix.os == 'macos-latest' }}
         shell: bash
         # env:
         #   PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
