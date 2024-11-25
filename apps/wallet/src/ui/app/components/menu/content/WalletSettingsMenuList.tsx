@@ -4,7 +4,7 @@
 
 import { useNextMenuUrl, Overlay } from '_components';
 import { useAppSelector } from '_hooks';
-import { getCustomNetwork } from '_src/shared/api-env';
+import { getCustomNetwork } from '@iota/core';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
