@@ -50,12 +50,10 @@
     input:-webkit-autofill:enabled,
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus {
-        appearance: none;
-        background-image: none !important;
-        background-color: transparent !important;
-        color: #545e6e !important;
+        @apply !bg-transparent appearance-none !bg-none;
+        @apply dark:!text-neutral-10 !text-neutral-92;
         transition: background-color 5000s ease-in-out 0s;
-        -webkit-text-fill-color: #545e6e !important;
+        -webkit-text-fill-color: theme('colors.neutral.92') !important;
     }
 }
 
