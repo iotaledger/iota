@@ -34,7 +34,6 @@ import { ListView, NoObjectsOwnedMessage, SmallThumbnailsView, ThumbnailsView } 
 import { ObjectViewMode } from '~/lib/enums';
 import { Pagination } from '~/components/ui';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
-import { OwnedObjectsContainerHeight } from '~/lib/ui';
 
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
@@ -48,6 +47,11 @@ interface ItemsRangeFromCurrentPage {
 enum FilterValue {
     All = 'all',
     Kiosks = 'kiosks',
+}
+
+enum OwnedObjectsContainerHeight {
+    Small = 'md:h-[430px]',
+    Default = 'h-[400px] md:h-[570px]',
 }
 
 const FILTER_OPTIONS = [
@@ -88,21 +92,22 @@ function getShowPagination(
 }
 
 const MIN_OBJECT_COUNT_TO_HEIGHT_MAP: Record<number, OwnedObjectsContainerHeight> = {
-    0: OwnedObjectsContainerHeight.Sm,
-    15: OwnedObjectsContainerHeight.Md,
-    30: OwnedObjectsContainerHeight.Lg,
+    0: OwnedObjectsContainerHeight.Small,
+    20: OwnedObjectsContainerHeight.Default,
 };
 
 interface OwnedObjectsProps {
     id: string;
-    setContainerHeight?: (containerHeight: OwnedObjectsContainerHeight) => void;
 }
-export function OwnedObjects({ id, setContainerHeight }: OwnedObjectsProps): JSX.Element {
+export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     const [limit, setLimit] = useState(50);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,
         undefined,
     );
+
+    const [ownedObjectsContainerHeight, setOwnedObjectsContainerHeight] =
+        useState<OwnedObjectsContainerHeight>(OwnedObjectsContainerHeight.Small);
 
     const [viewMode, setViewMode] = useLocalStorage(
         OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE,
@@ -182,10 +187,12 @@ export function OwnedObjects({ id, setContainerHeight }: OwnedObjectsProps): JSX
         const ownedObjectsCount = sortedDataByDisplayImages.length;
         Object.keys(MIN_OBJECT_COUNT_TO_HEIGHT_MAP).forEach((minObjectCount) => {
             if (ownedObjectsCount >= Number(minObjectCount)) {
-                setContainerHeight?.(MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)]);
+                setOwnedObjectsContainerHeight(
+                    MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)],
+                );
             }
         });
-    }, [sortedDataByDisplayImages, setContainerHeight]);
+    }, [sortedDataByDisplayImages, setOwnedObjectsContainerHeight]);
 
     if (isError) {
         return (
@@ -207,10 +214,10 @@ export function OwnedObjects({ id, setContainerHeight }: OwnedObjectsProps): JSX
                 <div
                     className={clsx('relative flex h-full w-full flex-col', { 'gap-4': hasAssets })}
                 >
-                    <div className="flex w-full flex-col items-start sm:min-h-[72px] sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex w-full flex-row flex-wrap items-center justify-between sm:min-h-[72px]">
                         <Title size={TitleSize.Medium} title="Assets" />
                         {hasAssets && (
-                            <div className="flex flex-row-reverse justify-between sm:flex-row sm:pr-lg">
+                            <div className="flex justify-between sm:flex-row sm:pr-lg">
                                 <div className="flex items-center gap-sm">
                                     {VIEW_MODES.map((mode) => {
                                         const selected = mode.value === viewMode;
@@ -267,7 +274,12 @@ export function OwnedObjects({ id, setContainerHeight }: OwnedObjectsProps): JSX
                     {noAssets ? (
                         <NoObjectsOwnedMessage objectType="Assets" />
                     ) : (
-                        <div className="flex-2 flex w-full flex-col overflow-hidden p-md">
+                        <div
+                            className={clsx(
+                                'flex-2 flex w-full flex-col overflow-hidden p-md',
+                                ownedObjectsContainerHeight,
+                            )}
+                        >
                             {hasAssets && viewMode === ObjectViewMode.List && (
                                 <ListView loading={isPending} data={sortedDataByDisplayImages} />
                             )}

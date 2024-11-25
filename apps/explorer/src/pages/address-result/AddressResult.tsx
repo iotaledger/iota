@@ -15,9 +15,6 @@ import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
 import { TotalStaked } from './TotalStaked';
-import { useState } from 'react';
-import clsx from 'clsx';
-import { OwnedObjectsContainerHeight } from '~/lib/ui';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
@@ -66,8 +63,6 @@ export default function AddressResultPage(): JSX.Element {
 }
 
 function OwnedObjectsPanel({ address }: { address: string }) {
-    const [ownedObjectsContainerHeight, setOwnedObjectsContainerHeight] =
-        useState<OwnedObjectsContainerHeight>(OwnedObjectsContainerHeight.Sm);
     const isMediumOrAbove = useBreakpoint('md');
     const leftPane = {
         panel: <OwnedCoins id={address} />,
@@ -76,12 +71,12 @@ function OwnedObjectsPanel({ address }: { address: string }) {
     };
 
     const rightPane = {
-        panel: <OwnedObjects setContainerHeight={setOwnedObjectsContainerHeight} id={address} />,
+        panel: <OwnedObjects id={address} />,
         minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
     };
 
     return (
-        <div className={clsx('flex flex-col justify-between', ownedObjectsContainerHeight)}>
+        <div className="flex flex-col justify-between">
             <ErrorBoundary>
                 {isMediumOrAbove ? (
                     <SplitPanes
