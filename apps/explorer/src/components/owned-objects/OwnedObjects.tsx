@@ -50,7 +50,7 @@ enum FilterValue {
 }
 
 enum OwnedObjectsContainerHeight {
-    Small = 'md:h-[430px]',
+    Small = 'h-[400px]',
     Default = 'h-[400px] md:h-[570px]',
 }
 
@@ -179,9 +179,9 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         isFetching,
     );
 
-    const hasAssets = sortedDataByDisplayImages.length > 0;
+    const hasVisualAssets = sortedDataByDisplayImages.length > 0;
 
-    const noAssets = !hasAssets && !isPending;
+    const noVisualAssets = !hasVisualAssets && !isPending;
 
     useEffect(() => {
         const ownedObjectsCount = sortedDataByDisplayImages.length;
@@ -209,14 +209,16 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     }
 
     return (
-        <div className={clsx(!noAssets && 'h-coinsAndAssetsContainer', 'h-full')}>
+        <div className={clsx(!noVisualAssets ? 'h-coinsAndAssetsContainer' : 'h-full')}>
             <div className={clsx('flex h-full overflow-hidden', !showPagination && 'pb-2')}>
                 <div
-                    className={clsx('relative flex h-full w-full flex-col', { 'gap-4': hasAssets })}
+                    className={clsx('relative flex h-full w-full flex-col', {
+                        'gap-4': hasVisualAssets,
+                    })}
                 >
                     <div className="flex w-full flex-row flex-wrap items-center justify-between sm:min-h-[72px]">
                         <Title size={TitleSize.Medium} title="Assets" />
-                        {hasAssets && (
+                        {hasVisualAssets && (
                             <div className="flex justify-between sm:flex-row sm:pr-lg">
                                 <div className="flex items-center gap-sm">
                                     {VIEW_MODES.map((mode) => {
@@ -271,7 +273,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                             </div>
                         )}
                     </div>
-                    {noAssets ? (
+                    {noVisualAssets ? (
                         <NoObjectsOwnedMessage objectType="Assets" />
                     ) : (
                         <div
@@ -280,27 +282,29 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                 ownedObjectsContainerHeight,
                             )}
                         >
-                            {hasAssets && viewMode === ObjectViewMode.List && (
+                            {hasVisualAssets && viewMode === ObjectViewMode.List && (
                                 <ListView loading={isPending} data={sortedDataByDisplayImages} />
                             )}
-                            {hasAssets && viewMode === ObjectViewMode.SmallThumbnail && (
+                            {hasVisualAssets && viewMode === ObjectViewMode.SmallThumbnail && (
                                 <SmallThumbnailsView
                                     loading={isPending}
                                     data={sortedDataByDisplayImages}
                                     limit={limit}
                                 />
                             )}
-                            {hasAssets && viewMode === ObjectViewMode.Thumbnail && (
+                            {hasVisualAssets && viewMode === ObjectViewMode.Thumbnail && (
                                 <ThumbnailsView
                                     loading={isPending}
-                                    data={sortedDataByDisplayImages}
+                                    data={new Array(80)
+                                        .fill(0)
+                                        .flatMap(() => sortedDataByDisplayImages)}
                                     limit={limit}
                                 />
                             )}
                         </div>
                     )}
 
-                    {showPagination && hasAssets && (
+                    {showPagination && hasVisualAssets && (
                         <div className="flex flex-row flex-wrap items-center justify-between gap-sm px-sm--rs py-sm--rs">
                             <Pagination {...pagination} />
                             <div className="flex items-center gap-3">
