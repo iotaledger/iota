@@ -41,7 +41,7 @@ jobs:
         ]
     steps:
       - name: Install postgres (MacOS arm64)
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ matrix.os == 'macos-latest-xlarge' }}
         shell: bash
         # env:
         #   PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
