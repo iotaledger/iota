@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["package_builder","package_data"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["alias","basic","created_objects","foundry","nft"]};

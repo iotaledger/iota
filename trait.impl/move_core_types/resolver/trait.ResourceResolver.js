@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"iota_adapter_latest":[["impl&lt;'backing&gt; ResourceResolver for <a class=\"struct\" href=\"iota_adapter_latest/temporary_store/struct.TemporaryStore.html\" title=\"struct iota_adapter_latest::temporary_store::TemporaryStore\">TemporaryStore</a>&lt;'backing&gt;"],["impl&lt;'state&gt; ResourceResolver for <a class=\"struct\" href=\"iota_adapter_latest/programmable_transactions/linkage_view/struct.LinkageView.html\" title=\"struct iota_adapter_latest::programmable_transactions::linkage_view::LinkageView\">LinkageView</a>&lt;'state&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

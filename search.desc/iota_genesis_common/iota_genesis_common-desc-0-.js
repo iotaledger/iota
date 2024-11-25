@@ -1,0 +1,1 @@
+searchState.loadedDescShard("iota_genesis_common", 0, "Takes as input a transaction of kind Genesis and executes …\nGets a <code>ProtocolConfig</code> for genesis based on a …\nPrepares the data necessary and then invokes …")
