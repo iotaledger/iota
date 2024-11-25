@@ -41,6 +41,7 @@ pub struct IndexedCheckpoint {
     pub timestamp_ms: u64,
     pub total_gas_cost: i64, // total gas cost could be negative
     pub computation_cost: u64,
+    pub computation_cost_burned: u64,
     pub storage_cost: u64,
     pub storage_rebate: u64,
     pub non_refundable_storage_fee: u64,
@@ -77,6 +78,9 @@ impl IndexedCheckpoint {
             end_of_epoch: checkpoint.end_of_epoch_data.clone().is_some(),
             total_gas_cost,
             computation_cost: checkpoint.epoch_rolling_gas_cost_summary.computation_cost,
+            computation_cost_burned: checkpoint
+                .epoch_rolling_gas_cost_summary
+                .computation_cost_burned,
             storage_cost: checkpoint.epoch_rolling_gas_cost_summary.storage_cost,
             storage_rebate: checkpoint.epoch_rolling_gas_cost_summary.storage_rebate,
             non_refundable_storage_fee: checkpoint
