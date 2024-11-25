@@ -168,15 +168,11 @@ export function StakeDialog({
                     setView?.(StakeDialogView.TransactionDetails);
                     addNotification('Stake transaction has been sent');
                 },
+                onError: () => {
+                    addNotification('Stake transaction was not sent', NotificationType.Error);
+                },
             },
-        )
-            .then(() => {
-                handleClose();
-                addNotification('Stake transaction has been sent');
-            })
-            .catch(() => {
-                addNotification('Stake transaction was not sent', NotificationType.Error);
-            });
+        );
     }
 
     function onSubmit(_: FormValues, { resetForm }: FormikHelpers<FormValues>) {
@@ -223,7 +219,7 @@ export function StakeDialog({
                             showActiveStatus
                         />
                     )}
-                    {view === StakeDialogView.TransactionDetails && validatorApy !== null && (
+                    {view === StakeDialogView.TransactionDetails && (
                         <FinishStakingView
                             validatorAddress={selectedValidator}
                             gasBudget={newStakeData?.gasBudget}
@@ -232,6 +228,7 @@ export function StakeDialog({
                             amount={amount}
                             symbol={metadata?.symbol}
                             validatorApy={validatorApy}
+                            showActiveStatus
                         />
                     )}
                 </>

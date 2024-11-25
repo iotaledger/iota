@@ -41,7 +41,7 @@ interface EnterAmountViewProps {
     isTransactionLoading?: boolean;
 }
 
-function EnterAmountView({
+export function EnterAmountView({
     selectedValidator: selectedValidatorAddress,
     onBack,
     onStake,
@@ -135,7 +135,7 @@ function EnterAmountView({
                                 </div>
                             ) : null}
                         </div>
-                        <StakingRewardDetails gasBudget={gasBudget} validatorApy={validatorApy} />
+                        <StakingRewardDetails gasBudget={gasBudget} />
                     </div>
                 </div>
             </LayoutBody>
@@ -154,5 +154,3 @@ function EnterAmountView({
         </Layout>
     );
 }
-
-export default EnterAmountView;

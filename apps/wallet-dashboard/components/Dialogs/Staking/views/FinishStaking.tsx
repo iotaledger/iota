@@ -9,14 +9,13 @@ import {
     CardImage,
     CardType,
     Header,
-    ImageShape,
     ImageType,
 } from '@iota/apps-ui-kit';
-import { ValidatorApyData } from '@iota/core';
+import { CoinIcon, ImageIconSize, ValidatorApyData } from '@iota/core';
 import { Validator } from './Validator';
-import { IotaLogoMark } from '@iota/ui-icons';
 import { StakingRewardDetails } from './StakingRewardDetails';
 import { Layout, LayoutBody, LayoutFooter } from './Layout';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface FinishStakingViewProps {
     validatorAddress: string;
@@ -24,8 +23,9 @@ interface FinishStakingViewProps {
     onConfirm: () => void;
     amount: string;
     symbol: string | undefined;
-    validatorApy: ValidatorApyData;
+    validatorApy?: ValidatorApyData | null;
     onClose: () => void;
+    showActiveStatus?: boolean;
 }
 
 export function FinishStakingView({
@@ -36,17 +36,28 @@ export function FinishStakingView({
     onClose,
     validatorApy,
     gasBudget,
+    showActiveStatus,
 }: FinishStakingViewProps): React.JSX.Element {
     return (
         <Layout>
             <Header title="Transaction" onClose={onClose} />
             <LayoutBody>
-                <div className="flex flex-col gap-y-md">
-                    <Validator address={validatorAddress} isSelected showAction={false} />
+                <div className="flex flex-col gap-y-lg">
+                    <Validator
+                        address={validatorAddress}
+                        showActiveStatus={showActiveStatus}
+                        isSelected
+                        showAction={false}
+                    />
 
                     <Card type={CardType.Outlined}>
-                        <CardImage type={ImageType.BgSolid} shape={ImageShape.Rounded}>
-                            <IotaLogoMark className="h-5 w-5 text-neutral-10" />
+                        <CardImage type={ImageType.BgSolid}>
+                            <CoinIcon
+                                hasCoinWrapper
+                                coinType={IOTA_TYPE_ARG}
+                                rounded
+                                size={ImageIconSize.Small}
+                            />
                         </CardImage>
                         <CardBody title={`${amount} ${symbol}`} subtitle="Stake" />
                     </Card>

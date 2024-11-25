@@ -63,7 +63,7 @@ export function CoinIconWrapper({ children, size, hasBorder }: CoinIconWrapperPr
             className={cx(
                 size,
                 hasBorder && 'border border-shader-neutral-light-8',
-                'flex items-center justify-center rounded-full bg-neutral-100',
+                'flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-10',
             )}
         >
             {children}
