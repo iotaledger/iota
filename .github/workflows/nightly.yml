@@ -37,7 +37,7 @@ jobs:
       matrix:
         os: [
           self-hosted, # ubuntu-x86_64
-          macos-latest, # macos-arm64
+          macos-latest-xlarge, # macos-arm64
         ]
     steps:
       - name: Install postgres (MacOS arm64)
