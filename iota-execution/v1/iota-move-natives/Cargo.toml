@@ -1,5 +1,5 @@
 [package]
-name = "iota-move-natives-latest"
+name = "iota-move-natives-v1"
 version = "0.1.0"
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
@@ -24,6 +24,6 @@ iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
-move-stdlib-natives = { path = "../../../external-crates/move/crates/move-stdlib-natives" }
-move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
+move-stdlib-natives = { path = "../../../external-crates/move/move-execution/v1/crates/move-stdlib-natives", package = "move-stdlib-natives-v1" }
+move-vm-runtime = { path = "../../../external-crates/move/move-execution/v1/crates/move-vm-runtime", package = "move-vm-runtime-v1" }
 move-vm-types.workspace = true

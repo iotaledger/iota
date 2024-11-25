@@ -1,5 +1,5 @@
 [package]
-name = "iota-verifier-latest"
+name = "iota-verifier-v1"
 version = "0.1.0"
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
@@ -10,7 +10,7 @@ description = "Move framework for Iota platform"
 [dependencies]
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-move-abstract-interpreter = { path = "../../../external-crates/move/crates/move-abstract-interpreter" }
+move-abstract-interpreter = { path = "../../../external-crates/move/move-execution/v1/crates/move-abstract-interpreter", package = "move-abstract-interpreter-v1" }
 move-abstract-stack.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
