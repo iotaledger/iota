@@ -4,14 +4,12 @@
 
 use std::{collections::BTreeMap, result::Result};
 
-use anyhow::{Ok, anyhow, bail, ensure};
+use anyhow::{Ok, anyhow, bail};
 use futures::future::join_all;
 use iota_json::{
     IotaJsonValue, ResolvedCallArg, is_receiving_argument, resolve_move_function_args,
 };
-use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaRawData,
-};
+use iota_json_rpc_types::{IotaData, IotaObjectDataOptions, IotaRawData};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType},
@@ -19,23 +17,18 @@ use iota_types::{
     move_package::MovePackage,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        Argument, CallArg, Command, ObjectArg,
-    },
+    transaction::{Argument, CallArg, ObjectArg},
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
-use move_core_types::{
-    identifier::Identifier,
-    language_storage::TypeTag,
-};
+use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::TransactionBuilder;
 
 impl TransactionBuilder {
     /// Select a gas coin for the provided gas budget.
-    async fn select_gas(
+    pub(crate) async fn select_gas(
         &self,
         signer: IotaAddress,
         input_gas: impl Into<Option<ObjectID>>,
@@ -122,7 +115,7 @@ impl TransactionBuilder {
             }
         })
     }
-    
+
     /// Convert provided JSON arguments for a move function to their
     /// [`Argument`] representation and check their validity.
     pub async fn resolve_and_checks_json_args(
@@ -215,7 +208,7 @@ impl TransactionBuilder {
 
     /// Helper function to get the latest ObjectRef (ObjectID, SequenceNumber,
     /// ObjectDigest) and ObjectType for a provided ObjectID.
-    async fn get_object_ref_and_type(
+    pub(crate) async fn get_object_ref_and_type(
         &self,
         object_id: ObjectID,
     ) -> anyhow::Result<(ObjectRef, ObjectType)> {

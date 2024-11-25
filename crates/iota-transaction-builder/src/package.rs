@@ -4,17 +4,15 @@
 
 use std::result::Result;
 
-use anyhow::{Ok, anyhow, bail, ensure};
+use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID},
     move_package::MovePackage,
-    object::{Object, Owner},
+    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        Argument, Command, ObjectArg, TransactionData, TransactionKind,
-    },
+    transaction::{Argument, ObjectArg, TransactionData, TransactionKind},
 };
 use move_core_types::ident_str;
 

@@ -2,38 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod stake; 
-pub mod utils; 
-pub mod package; 
+pub mod package;
+pub mod stake;
+pub mod utils;
 
-use std::{result::Result, sync::Arc};
+use std::{result::Result, str::FromStr, sync::Arc};
 
-use anyhow::{Ok, anyhow, bail, ensure};
+use anyhow::{Ok, anyhow, bail};
 use async_trait::async_trait;
-use futures::future::join_all;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, RPCTransactionRequestParams,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectInfo, ObjectRef},
+    base_types::{IotaAddress, ObjectID, ObjectInfo},
     coin,
     error::UserInputError,
     fp_ensure,
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        Argument, CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind,
-    },
+    transaction::{CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind},
 };
-use move_core_types::{
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
-};
-use stake::TransactionBuilder::{request_add_stake, request_withdraw_stake, request_add_timelocked_stake, request_withdraw_timelocked_stake};
-use utils::TransactionBuilder::{select_gas, get_object_arg, input_refs, resolve_and_checks_json_args, get_object_ref, get_object_ref_and_type};
-use package::TransactionBuilder::{publish_tx_kind, publish, upgrade_tx_kind, upgrade};
+use move_core_types::{identifier::Identifier, language_storage::StructTag};
 
 #[async_trait]
 pub trait DataReader {
@@ -265,16 +256,6 @@ impl TransactionBuilder {
         TransactionData::new_pay(
             signer, coin_refs, recipients, amounts, gas, gas_budget, gas_price,
         )
-    }
-
-    /// Get the object references for a list of object IDs
-    pub async fn input_refs(&self, obj_ids: &[ObjectID]) -> Result<Vec<ObjectRef>, anyhow::Error> {
-        let handles: Vec<_> = obj_ids.iter().map(|id| self.get_object_ref(*id)).collect();
-        let obj_refs = join_all(handles)
-            .await
-            .into_iter()
-            .collect::<anyhow::Result<Vec<ObjectRef>>>()?;
-        Ok(obj_refs)
     }
 
     /// Construct a transaction kind for the PayIota transaction type.
@@ -747,5 +728,4 @@ impl TransactionBuilder {
             gas_price,
         ))
     }
-
 }
