@@ -99,37 +99,41 @@ export function Table({
                         'justify-end': !paginationOptions && action,
                     })}
                 >
-                    {paginationOptions && (
+                    {(paginationOptions || action) && (
                         <div className="flex gap-2">
-                            <Button
-                                type={ButtonType.Secondary}
-                                size={ButtonSize.Small}
-                                icon={<DoubleArrowLeft />}
-                                disabled={!paginationOptions.hasFirst}
-                                onClick={paginationOptions.onFirst}
-                            />
-                            <Button
-                                type={ButtonType.Secondary}
-                                size={ButtonSize.Small}
-                                icon={<ArrowLeft />}
-                                disabled={!paginationOptions.hasPrev}
-                                onClick={paginationOptions.onPrev}
-                            />
-                            <Button
-                                type={ButtonType.Secondary}
-                                size={ButtonSize.Small}
-                                icon={<ArrowRight />}
-                                disabled={!paginationOptions.hasNext}
-                                onClick={paginationOptions.onNext}
-                            />
-                            <Button
-                                type={ButtonType.Secondary}
-                                size={ButtonSize.Small}
-                                icon={<DoubleArrowRight />}
-                                disabled={!paginationOptions.hasLast}
-                                onClick={paginationOptions.onLast}
-                            />
-                            {action}
+                            {paginationOptions && (
+                                <>
+                                    <Button
+                                        type={ButtonType.Secondary}
+                                        size={ButtonSize.Small}
+                                        icon={<DoubleArrowLeft />}
+                                        disabled={!paginationOptions.hasFirst}
+                                        onClick={paginationOptions.onFirst}
+                                    />
+                                    <Button
+                                        type={ButtonType.Secondary}
+                                        size={ButtonSize.Small}
+                                        icon={<ArrowLeft />}
+                                        disabled={!paginationOptions.hasPrev}
+                                        onClick={paginationOptions.onPrev}
+                                    />
+                                    <Button
+                                        type={ButtonType.Secondary}
+                                        size={ButtonSize.Small}
+                                        icon={<ArrowRight />}
+                                        disabled={!paginationOptions.hasNext}
+                                        onClick={paginationOptions.onNext}
+                                    />
+                                    <Button
+                                        type={ButtonType.Secondary}
+                                        size={ButtonSize.Small}
+                                        icon={<DoubleArrowRight />}
+                                        disabled={!paginationOptions.hasLast}
+                                        onClick={paginationOptions.onLast}
+                                    />
+                                </>
+                            )}
+                            {action && action}
                         </div>
                     )}
                     {supportingLabel || pageSizeSelector ? (
