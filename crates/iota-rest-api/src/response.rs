@@ -9,7 +9,7 @@ use axum::{
 };
 
 use crate::{
-    APPLICATION_BCS, RestService, TEXT_PLAIN_UTF_8,
+    APPLICATION_BCS, RestError, RestService, TEXT_PLAIN_UTF_8,
     content_type::ContentType,
     types::{
         X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT, X_IOTA_EPOCH,
@@ -129,19 +129,34 @@ where
 pub async fn append_info_headers(
     State(state): State<RestService>,
     response: Response,
-) -> impl IntoResponse {
-    let latest_checkpoint = state.reader.inner().get_latest_checkpoint().unwrap();
+) -> Result<impl IntoResponse, RestError> {
+    let latest_checkpoint = state.reader.inner().get_latest_checkpoint().map_err(|e| {
+        RestError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to get latest checkpoint: {e}"),
+        )
+    })?;
     let lowest_available_checkpoint = state
         .reader
         .inner()
         .get_lowest_available_checkpoint()
-        .unwrap();
+        .map_err(|e| {
+            RestError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get lowest available checkpoint: {e}"),
+            )
+        })?;
 
     let lowest_available_checkpoint_objects = state
         .reader
         .inner()
         .get_lowest_available_checkpoint_objects()
-        .unwrap();
+        .map_err(|e| {
+            RestError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get lowest available checkpoint objects: {e}"),
+            )
+        })?;
 
     let mut headers = HeaderMap::new();
 
@@ -177,7 +192,6 @@ pub async fn append_info_headers(
         X_IOTA_LOWEST_AVAILABLE_CHECKPOINT,
         lowest_available_checkpoint.to_string().try_into().unwrap(),
     );
-
     headers.insert(
         X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
         lowest_available_checkpoint_objects
@@ -186,5 +200,5 @@ pub async fn append_info_headers(
             .unwrap(),
     );
 
-    (headers, response)
+    Ok((headers, response))
 }
