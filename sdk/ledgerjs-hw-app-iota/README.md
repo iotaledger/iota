@@ -4,6 +4,10 @@
 
 # ledgerjs-hw-app-iota
 
+ledgerjs-hw-app-iota is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol. 
+
+> **Note**: This technology is currently available **only on Testnet and Devnet**, and is **not yet supported on Mainnet**.
+
 [Ledger Hardware Wallet](https://www.ledger.com/) JavaScript bindings for [IOTA](https://iota.org/),
 based on [LedgerJS](https://github.com/LedgerHQ/ledgerjs).
 

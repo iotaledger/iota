@@ -1,5 +1,9 @@
 # @iota/create-dapp
 
+create-dapp SDK is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol. 
+
+> **Note**: This technology is currently available **only on Testnet and Devnet**, and is **not yet supported on Mainnet**.
+
 `@iota/create-dapp` is a CLI tool that helps you to create a new dApp project.
 
 You can get started quickly by running the following command:
