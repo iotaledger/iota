@@ -15,7 +15,7 @@ interface OverlayProps {
     closeOverlay?: () => void;
     closeIcon?: ReactNode | null;
     setShowModal?: (showModal: boolean) => void;
-    background?: 'bg-neutral-100';
+    background?: 'bg-neutral-100 dark:bg-neutral-6';
     titleCentered?: boolean;
     showBackButton?: boolean;
     onBack?: () => void;
@@ -58,7 +58,7 @@ export function Overlay({
                         testId="overlay-title"
                     />
                 )}
-                <div className="flex w-full flex-1 flex-col overflow-hidden bg-neutral-100 p-md">
+                <div className="flex w-full flex-1 flex-col overflow-hidden bg-neutral-100 p-md dark:bg-neutral-6">
                     {children}
                 </div>
             </div>
