@@ -2,15 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useOnScreen } from '@iota/core';
+import { Theme, useOnScreen, useTheme } from '@iota/core';
 import { useRef, useEffect, useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 import type { Language } from 'prism-react-renderer';
 import type { IotaMoveNormalizedType } from '@iota/iota-sdk/client';
 import { LinkWithQuery } from '../ui';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { useTheme } from '~/hooks';
-import { Theme } from '~/lib/ui';
 
 interface TypeReference {
     address: string;
