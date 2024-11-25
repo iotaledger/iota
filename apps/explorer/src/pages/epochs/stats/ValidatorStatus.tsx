@@ -3,13 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { getRefGasPrice } from '@iota/core';
+import { getRefGasPrice, useTheme, Theme } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
-
 import { RingChart, RingChartLegend } from '~/components/ui';
-import { useTheme } from '~/hooks';
-import { Theme } from '~/lib/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
