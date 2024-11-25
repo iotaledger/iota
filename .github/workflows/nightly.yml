@@ -43,11 +43,11 @@ jobs:
       - name: Install postgres (MacOS arm64)
         if: ${{ matrix.os == 'macos-latest' }}
         shell: bash
-        env:
-          PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
-          LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
-          PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
-          PATH: "/opt/homebrew/bin:$PATH"
+        # env:
+        #   PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
+        #   LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
+        #   PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
+        #   PATH: "/opt/homebrew/bin:$PATH"
         # run: |
         #   brew install postgresql
         run: |
