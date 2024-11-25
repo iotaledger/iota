@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useOnScreen } from '@iota/core';
+import { Theme, useOnScreen, useTheme } from '@iota/core';
 import { useRef, useEffect, useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 import type { Language } from 'prism-react-renderer';
@@ -35,19 +35,25 @@ export function SyntaxHighlighter({
     const observerElem = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(observerElem);
     const [loadedLines, setLoadedLines] = useState(MAX_LINES);
+    const { theme } = useTheme();
+
     useEffect(() => {
         if (isIntersecting) {
             setLoadedLines((prev) => prev + MAX_LINES);
         }
     }, [isIntersecting]);
+
+    const isDark = theme === Theme.Dark;
+    const codeTheme = isDark ? themes.oneDark : themes.github;
+
     return (
         <div className="overflow-auto whitespace-pre font-mono text-sm">
-            <Highlight code={code} language={language} theme={themes.github}>
+            <Highlight code={code} language={language} theme={codeTheme}>
                 {({ style, tokens, getLineProps, getTokenProps }) => (
                     <pre className="overflow-auto bg-transparent p-xs font-medium" style={style}>
                         {tokens.slice(0, loadedLines).map((line, i) => (
                             <div {...getLineProps({ line, key: i })} key={i} className="table-row">
-                                <div className="table-cell select-none pr-4 text-left text-primary-30 opacity-50">
+                                <div className="table-cell select-none pr-4 text-left text-primary-30 opacity-50 dark:text-primary-80">
                                     {i + 1}
                                 </div>
 

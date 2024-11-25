@@ -131,7 +131,7 @@ export function PkgModulesWrapper({
                         )}
                     />
                 </div>
-                <div className="flex-1 overflow-auto pt-sm">
+                <div className="max-h-[560px] flex-1 overflow-auto pt-sm">
                     <VerticalList>
                         <div className="flex flex-col gap-sm">
                             {moduleNames.map((name) => (
@@ -189,13 +189,15 @@ function ExecutePanelContent({
                     ))}
                 </SegmentedButton>
 
-                <ListTabContent id={EXECUTE_TAB.id}>
-                    <ModuleFunctionsInteraction
-                        key={`${packageId}-${moduleName}`}
-                        packageId={packageId}
-                        moduleName={moduleName}
-                    />
-                </ListTabContent>
+                <div className="pr-md--rs">
+                    <ListTabContent id={EXECUTE_TAB.id}>
+                        <ModuleFunctionsInteraction
+                            key={`${packageId}-${moduleName}`}
+                            packageId={packageId}
+                            moduleName={moduleName}
+                        />
+                    </ListTabContent>
+                </div>
             </TabsProvider>
         </TabbedContentWrapper>
     );
