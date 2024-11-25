@@ -9,7 +9,7 @@ import { Link } from '~/components/ui';
 export function LegalText(): JSX.Element {
     return (
         <div className="flex justify-center md:justify-start">
-            <span className="dark:text-neutral-60 text-body-md text-neutral-40">
+            <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                 &copy;
                 {`${new Date().getFullYear()} IOTA Stiftung. All rights reserved.`}
             </span>
@@ -27,7 +27,7 @@ export function LegalLinks(): JSX.Element {
                     <Link
                         variant="text"
                         href={href}
-                        className="dark:text-neutral-60 dark:text-neutral-60. text-body-md text-neutral-40"
+                        className="text-body-md text-neutral-40 dark:text-neutral-60"
                     >
                         {title}
                     </Link>
@@ -38,7 +38,7 @@ export function LegalLinks(): JSX.Element {
                     <Link
                         variant="text"
                         data-cc="c-settings"
-                        className="dark:text-neutral-60 dark:text-neutral-60. text-body-md text-neutral-40"
+                        className="text-body-md text-neutral-40 dark:text-neutral-60"
                     >
                         Manage Cookies
                     </Link>
