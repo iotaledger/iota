@@ -53,7 +53,7 @@ function RadioButton({
                 />
                 <span
                     className="absolute
-                    text-neutral-40 peer-checked:text-primary-30 peer-disabled:opacity-40 peer-checked:peer-disabled:text-neutral-40 dark:text-neutral-60 dark:peer-checked:text-primary-80 dark:peer-checked:peer-disabled:text-neutral-40 [&_svg]:h-6 [&_svg]:w-6
+                    text-neutral-40 peer-checked:text-primary-30 peer-disabled:opacity-40 peer-checked:peer-disabled:text-neutral-40 dark:text-neutral-60 dark:peer-checked:peer-disabled:text-neutral-40 [&_svg]:h-6 [&_svg]:w-6
                 "
                 >
                     <RadioIcon />
