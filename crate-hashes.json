@@ -1,0 +1,21 @@
+{
+  "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#0.1.8": "1dakf88892yv8vxz4wzf6w69gaikin4dkqpiyj2qmm0lzcii364m",
+  "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#fastcrypto-derive@0.1.3": "1dakf88892yv8vxz4wzf6w69gaikin4dkqpiyj2qmm0lzcii364m",
+  "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#fastcrypto-tbls@0.1.0": "1dakf88892yv8vxz4wzf6w69gaikin4dkqpiyj2qmm0lzcii364m",
+  "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#fastcrypto-vdf@0.1.0": "1dakf88892yv8vxz4wzf6w69gaikin4dkqpiyj2qmm0lzcii364m",
+  "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#fastcrypto-zkp@0.1.3": "1dakf88892yv8vxz4wzf6w69gaikin4dkqpiyj2qmm0lzcii364m",
+  "git+https://github.com/bmwill/axum-server.git?rev=f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7#axum-server@0.6.1": "102ya135423jgynryjqdq2ik3q94fazywpm8gfxf6089aascz4mh",
+  "git+https://github.com/bmwill/openapiv3.git?rev=ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963#openapiv3@2.0.0": "0jdij26i9awycvj18xsmijgc7b07yfj666iplvx2qq614y7slggy",
+  "git+https://github.com/mystenlabs/anemo.git?rev=dbb5a074c2d25660525ab5d36d65ff0cb8051949#anemo-build@0.0.0": "19v8kjhmnqq66lpbnjfp802r3l6jr4mc06ilgg6709x6jacvklr6",
+  "git+https://github.com/mystenlabs/anemo.git?rev=dbb5a074c2d25660525ab5d36d65ff0cb8051949#anemo-cli@0.0.0": "19v8kjhmnqq66lpbnjfp802r3l6jr4mc06ilgg6709x6jacvklr6",
+  "git+https://github.com/mystenlabs/anemo.git?rev=dbb5a074c2d25660525ab5d36d65ff0cb8051949#anemo-tower@0.0.0": "19v8kjhmnqq66lpbnjfp802r3l6jr4mc06ilgg6709x6jacvklr6",
+  "git+https://github.com/mystenlabs/anemo.git?rev=dbb5a074c2d25660525ab5d36d65ff0cb8051949#anemo@0.0.0": "19v8kjhmnqq66lpbnjfp802r3l6jr4mc06ilgg6709x6jacvklr6",
+  "git+https://github.com/nextest-rs/datatest-stable.git?rev=72db7f6d1bbe36a5407e96b9488a581f763e106f#datatest-stable@0.1.3": "0zgqv8v6792r2akikhcw0w6d8nmi9lh9l9f5dkdfgs51k87nn1sl",
+  "git+https://github.com/zhiburt/tabled/?rev=e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4#json_to_table@0.6.0": "07p30gz56gz43dhbv4rarx79c8nnmh2vsr18y0wh6rjnzxmi78sh",
+  "git+ssh://git@github.com/iotaledger/iota-rust-sdk.git?rev=d605da95029e74376f0f39a95526bb1a5c0ebd7a#iota-rust-sdk@0.0.0": "1xn49a84nlwplkgr1njcb62gig8ccdzqlr2m5xs0khx15ss18ac8",
+  "git+ssh://git@github.com/iotaledger/iota-sim.git?rev=8fe1939f4bf1e54d0638756c82aaa6c29212e2bb#msim-macros@0.1.0": "0z1b373zzcbyc54gs8l60l6c57a0vgyi5xg9krlaibcbrwm3yisg",
+  "git+ssh://git@github.com/iotaledger/iota-sim.git?rev=8fe1939f4bf1e54d0638756c82aaa6c29212e2bb#msim@0.1.0": "0z1b373zzcbyc54gs8l60l6c57a0vgyi5xg9krlaibcbrwm3yisg",
+  "git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main#real_tokio@1.39.2": "0p0djsx0r02hlhsws3hjmsg2p5xhk31166kc4mginaynvv8b6rp5",
+  "git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main#tokio-macros@2.4.0": "0p0djsx0r02hlhsws3hjmsg2p5xhk31166kc4mginaynvv8b6rp5",
+  "git+ssh://git@github.com/iotaledger/tokio-madsim-fork.git?branch=main#tokio-util@0.7.11": "0p0djsx0r02hlhsws3hjmsg2p5xhk31166kc4mginaynvv8b6rp5"
+}
