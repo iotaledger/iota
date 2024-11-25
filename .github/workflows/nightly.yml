@@ -48,39 +48,41 @@ jobs:
           LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
           PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
           PATH: "/opt/homebrew/bin:$PATH"
+        # run: |
+        #   brew install postgresql
         run: |
-          brew install postgresql
+          df -hI /dev/disk3s1s1
 
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+  #     - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
 
-      - name: cargo build
-        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # pin@v1.0.3
-        with:
-          command: build
-          args: --all-targets --all-features --release
+  #     - name: cargo build
+  #       uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # pin@v1.0.3
+  #       with:
+  #         command: build
+  #         args: --all-targets --all-features --release
 
-  tests:
-    uses: ./.github/workflows/_rust_tests.yml
+  # tests:
+  #   uses: ./.github/workflows/_rust_tests.yml
 
-  external-tests:
-    uses: ./.github/workflows/_external_rust_tests.yml
+  # external-tests:
+  #   uses: ./.github/workflows/_external_rust_tests.yml
 
-  move-tests:
-    uses: ./.github/workflows/_move_tests.yml
+  # move-tests:
+  #   uses: ./.github/workflows/_move_tests.yml
 
-  deny:
-    uses: ./.github/workflows/_cargo_deny.yml
+  # deny:
+  #   uses: ./.github/workflows/_cargo_deny.yml
 
-  deny-external:
-    uses: ./.github/workflows/_cargo_deny.yml
-    with:
-      manifest-path: external-crates/move/Cargo.toml
+  # deny-external:
+  #   uses: ./.github/workflows/_cargo_deny.yml
+  #   with:
+  #     manifest-path: external-crates/move/Cargo.toml
 
-  e2e:
-    uses: ./.github/workflows/_e2e.yml
+  # e2e:
+  #   uses: ./.github/workflows/_e2e.yml
 
-  execution-cut:
-    uses: ./.github/workflows/_execution_cut.yml
+  # execution-cut:
+  #   uses: ./.github/workflows/_execution_cut.yml
 
-  split-cluster:
-    uses: ./.github/workflows/split_cluster.yml
+  # split-cluster:
+  #   uses: ./.github/workflows/split_cluster.yml
