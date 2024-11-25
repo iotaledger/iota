@@ -1284,7 +1284,7 @@ impl AuthorityState {
         let digest = *certificate.digest();
 
         fail_point_if!("correlated-crash-process-certificate", || {
-            if iota_simulator::random::deterministic_probability_once(&digest, 0.01) {
+            if iota_simulator::random::deterministic_probability_once(digest, 0.01) {
                 iota_simulator::task::kill_current_node(None);
             }
         });
@@ -4185,7 +4185,7 @@ impl AuthorityState {
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
         #[cfg(msim)]
-        let system_packages = system_packages.map(|p| p).chain(extra_packages.iter());
+        let system_packages = system_packages.chain(&extra_packages);
 
         for system_package in system_packages {
             let modules = system_package.modules().to_vec();
@@ -5105,7 +5105,7 @@ pub mod framework_injection {
     }
 
     pub fn get_extra_packages(name: AuthorityName) -> Vec<SystemPackage> {
-        let built_in = BTreeSet::from_iter(BuiltInFramework::all_package_ids().into_iter());
+        let built_in = BTreeSet::from_iter(BuiltInFramework::all_package_ids());
         let extra: Vec<ObjectID> = OVERRIDE.with(|cfg| {
             cfg.borrow()
                 .keys()
