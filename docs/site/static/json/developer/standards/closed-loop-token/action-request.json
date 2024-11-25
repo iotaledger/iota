@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What are the three ways to confirm an `ActionRequest` for token transfers and conversions?",
+        "answerOptions": [
+            { "answerText": "Using `TokenCap`, `TreasuryPolicy`, and `TransferCap`", "isCorrect": false },
+            { "answerText": "Using `TokenPolicyCap`, `TransferRequest`, and `TreasuryRequest`", "isCorrect": false },
+            { "answerText": "Using `TreasuryCap`, `TokenPolicy`, and `TokenPolicyCap`", "isCorrect": true },
+            { "answerText": "Using `TreasuryCap`, `TokenRequest`, and `PolicyRequest`", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which confirmation method is required if a token `spend` action request is generated?",
+        "answerOptions": [
+            { "answerText": "Use `TreasuryCap` to directly approve the spend action", "isCorrect": false },
+            { "answerText": "Use `TokenPolicy` with `confirm_request_mut` to approve the spend action", "isCorrect": true },
+            { "answerText": "Use `TokenPolicyCap` to confirm the request", "isCorrect": false },
+            { "answerText": "Use `TokenPolicy` with `confirm_request` to approve the spend action", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the purpose of `ActionRequest` in the token management system?",
+        "answerOptions": [
+            { "answerText": "It automatically confirms actions for any token request", "isCorrect": false },
+            { "answerText": "It acts as proof of completed actions for token transfers and spends", "isCorrect": false },
+            { "answerText": "It authorizes protected actions such as transfers, conversions, and spending of tokens", "isCorrect": true },
+            { "answerText": "It locks token actions until approvals are granted", "isCorrect": false }
+        ]
+    }
+]

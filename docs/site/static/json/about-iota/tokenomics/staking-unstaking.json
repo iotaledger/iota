@@ -1,0 +1,34 @@
+{
+    "questions": [
+      {
+        "questionText": "How does IOTA determine the voting power of a validator in its Delegated-Proof-of-Stake (DPoS) system?",
+        "answerOptions": [
+          { "answerText": "The number of transactions processed by the validator.", "isCorrect": false },
+          { "answerText": "The validator's network activity.", "isCorrect": false },
+          { "answerText": "The amount of stake delegated to them by IOTA token holders.", "isCorrect": true },
+          { "answerText": "The validator's commission rate.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What happens when you unstake your IOTA tokens?",
+        "answerOptions": [
+          { "answerText": "You lose your accumulated rewards.", "isCorrect": false },
+          { "answerText": "The stake object is unwrapped, and both the principal and accumulated rewards are returned as IOTA tokens.", "isCorrect": true },
+          { "answerText": "The validator retains the commission rate in the next epoch.", "isCorrect": false },
+          { "answerText": "Your tokens are automatically staked with another validator.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What is a validator commission rate?",
+        "answerOptions": [
+          { "answerText": "The rate at which a validator processes transactions.", "isCorrect": false },
+          { "answerText": "The percentage of staking rewards a validator takes from stakers.", "isCorrect": true },
+          { "answerText": "The maximum rewards a validator can earn.", "isCorrect": false },
+          { "answerText": "The minimum stake required by a validator.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+
+  
+  

@@ -2,38 +2,35 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use effects_v1::TransactionEffectsV1;
-pub use effects_v2::UnchangedSharedKind;
+pub use effects_v1::UnchangedSharedKind;
 use enum_dispatch::enum_dispatch;
-use iota_protocol_config::ProtocolConfig;
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::IntentScope;
+use shared_crypto::intent::{Intent, IntentScope};
 pub use test_effects_builder::TestEffectsBuilder;
 
-use self::effects_v2::TransactionEffectsV2;
 use crate::{
     base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber},
-    committee::EpochId,
-    crypto::{default_hash, AuthoritySignInfo, AuthorityStrongQuorumSignInfo, EmptySignInfo},
+    committee::{Committee, EpochId},
+    crypto::{
+        AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
+        default_hash,
+    },
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
-    error::{IotaError, IotaResult},
+    error::IotaResult,
     event::Event,
     execution::SharedInput,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
-    message_envelope::{
-        Envelope, Message, TrustedEnvelope, UnauthenticatedMessage, VerifiedEnvelope,
-    },
+    message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     object::Owner,
     storage::WriteKind,
-    transaction::VersionedProtocolMessage,
 };
 
-mod effects_v1;
-mod effects_v2;
+pub(crate) mod effects_v1;
 mod object_change;
 mod test_effects_builder;
 
@@ -46,7 +43,7 @@ pub const APPROX_SIZE_OF_EXECUTION_STATUS: usize = 120;
 // Approximate size of `EpochId` type in bytes
 pub const APPROX_SIZE_OF_EPOCH_ID: usize = 10;
 // Approximate size of `GasCostSummary` type in bytes
-pub const APPROX_SIZE_OF_GAS_COST_SUMMARY: usize = 40;
+pub const APPROX_SIZE_OF_GAS_COST_SUMMARY: usize = 50;
 // Approximate size of `Option<TransactionEventsDigest>` type in bytes
 pub const APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST: usize = 40;
 // Approximate size of `TransactionDigest` type in bytes
@@ -60,34 +57,6 @@ pub const APPROX_SIZE_OF_OWNER: usize = 48;
 #[allow(clippy::large_enum_variant)]
 pub enum TransactionEffects {
     V1(TransactionEffectsV1),
-    V2(TransactionEffectsV2),
-}
-
-impl VersionedProtocolMessage for TransactionEffects {
-    fn message_version(&self) -> Option<u64> {
-        Some(match self {
-            Self::V1(_) => 1,
-            Self::V2(_) => 2,
-        })
-    }
-
-    fn check_version_supported(&self, protocol_config: &ProtocolConfig) -> IotaResult {
-        match self {
-            Self::V1(_) => Ok(()),
-            Self::V2(_) => {
-                if protocol_config.enable_effects_v2() {
-                    Ok(())
-                } else {
-                    Err(IotaError::WrongMessageVersion {
-                        error: format!(
-                            "TransactionEffectsV2 is not supported at protocol {:?}.",
-                            protocol_config.version
-                        ),
-                    })
-                }
-            }
-        }
-    }
 }
 
 impl Message for TransactionEffects {
@@ -97,24 +66,12 @@ impl Message for TransactionEffects {
     fn digest(&self) -> Self::DigestType {
         TransactionEffectsDigest::new(default_hash(self))
     }
-
-    fn verify_user_input(&self) -> IotaResult {
-        Ok(())
-    }
-
-    fn verify_epoch(&self, _: EpochId) -> IotaResult {
-        // Authorities are allowed to re-sign effects from prior epochs, so we do not
-        // verify the epoch here.
-        Ok(())
-    }
 }
-
-impl UnauthenticatedMessage for TransactionEffects {}
 
 // TODO: Get rid of this and use TestEffectsBuilder instead.
 impl Default for TransactionEffects {
     fn default() -> Self {
-        TransactionEffects::V2(Default::default())
+        TransactionEffects::V1(Default::default())
     }
 }
 
@@ -130,45 +87,8 @@ impl TransactionEffects {
         status: ExecutionStatus,
         executed_epoch: EpochId,
         gas_used: GasCostSummary,
-        modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
-        shared_objects: Vec<ObjectRef>,
-        transaction_digest: TransactionDigest,
-        created: Vec<(ObjectRef, Owner)>,
-        mutated: Vec<(ObjectRef, Owner)>,
-        unwrapped: Vec<(ObjectRef, Owner)>,
-        deleted: Vec<ObjectRef>,
-        unwrapped_then_deleted: Vec<ObjectRef>,
-        wrapped: Vec<ObjectRef>,
-        gas_object: (ObjectRef, Owner),
-        events_digest: Option<TransactionEventsDigest>,
-        dependencies: Vec<TransactionDigest>,
-    ) -> Self {
-        Self::V1(TransactionEffectsV1::new(
-            status,
-            executed_epoch,
-            gas_used,
-            modified_at_versions,
-            shared_objects,
-            transaction_digest,
-            created,
-            mutated,
-            unwrapped,
-            deleted,
-            unwrapped_then_deleted,
-            wrapped,
-            gas_object,
-            events_digest,
-            dependencies,
-        ))
-    }
-
-    /// Creates a TransactionEffects message from the results of execution,
-    /// choosing the correct format for the current protocol version.
-    pub fn new_from_execution_v2(
-        status: ExecutionStatus,
-        executed_epoch: EpochId,
-        gas_used: GasCostSummary,
         shared_objects: Vec<SharedInput>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
         transaction_digest: TransactionDigest,
         lamport_version: SequenceNumber,
         changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
@@ -176,11 +96,12 @@ impl TransactionEffects {
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
     ) -> Self {
-        Self::V2(TransactionEffectsV2::new(
+        Self::V1(TransactionEffectsV1::new(
             status,
             executed_epoch,
             gas_used,
             shared_objects,
+            loaded_per_epoch_config_objects,
             transaction_digest,
             lamport_version,
             changed_objects,
@@ -198,30 +119,6 @@ impl TransactionEffects {
     }
 
     pub fn estimate_effects_size_upperbound_v1(
-        num_writes: usize,
-        num_mutables: usize,
-        num_deletes: usize,
-        num_deps: usize,
-    ) -> usize {
-        let fixed_sizes = APPROX_SIZE_OF_EXECUTION_STATUS
-            + APPROX_SIZE_OF_EPOCH_ID
-            + APPROX_SIZE_OF_GAS_COST_SUMMARY
-            + APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST;
-
-        // Each write or delete contributes at roughly this amount because:
-        // Each write can be a mutation which can show up in `mutated` and
-        // `modified_at_versions` `num_delete` is added for padding
-        let approx_change_entry_size = 1_000
-            + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_writes
-            + (APPROX_SIZE_OF_OBJECT_REF * num_mutables)
-            + (APPROX_SIZE_OF_OBJECT_REF * num_deletes);
-
-        let deps_size = 1_000 + APPROX_SIZE_OF_TX_DIGEST * num_deps;
-
-        fixed_sizes + approx_change_entry_size + deps_size
-    }
-
-    pub fn estimate_effects_size_upperbound_v2(
         num_writes: usize,
         num_modifies: usize,
         num_deps: usize,
@@ -319,6 +216,7 @@ pub enum InputSharedObject {
     ReadOnly(ObjectRef),
     ReadDeleted(ObjectID, SequenceNumber),
     MutateDeleted(ObjectID, SequenceNumber),
+    Cancelled(ObjectID, SequenceNumber),
 }
 
 impl InputSharedObject {
@@ -333,6 +231,9 @@ impl InputSharedObject {
             InputSharedObject::ReadDeleted(id, version)
             | InputSharedObject::MutateDeleted(id, version) => {
                 (*id, *version, ObjectDigest::OBJECT_DIGEST_DELETED)
+            }
+            InputSharedObject::Cancelled(id, version) => {
+                (*id, *version, ObjectDigest::OBJECT_DIGEST_CANCELLED)
             }
         }
     }
@@ -351,14 +252,15 @@ pub trait TransactionEffectsAPI {
     /// Metadata of objects prior to modification. This includes any object that
     /// exists in the store prior to this transaction and is modified in
     /// this transaction. It includes objects that are mutated, wrapped and
-    /// deleted. This API is only available on effects v2 and above.
+    /// deleted.
     fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)>;
-    /// Returns the list of shared objects used in the input, with full object
-    /// reference and use kind. This is needed in effects because in
-    /// transaction we only have object ID for shared objects. Their version
-    /// and digest can only be figured out after sequencing. Also provides
-    /// the use kind to indicate whether the object was mutated or read-only.
-    /// Down the road it could also indicate use-of-deleted.
+    /// Returns the list of sequenced shared objects used in the input.
+    /// This is needed in effects because in transaction we only have object ID
+    /// for shared objects. Their version and digest can only be figured out
+    /// after sequencing. Also provides the use kind to indicate whether the
+    /// object was mutated or read-only. It does not include per epoch
+    /// config objects since they do not require sequencing. TODO: Rename
+    /// this function to indicate sequencing requirement.
     fn input_shared_objects(&self) -> Vec<InputSharedObject>;
     fn created(&self) -> Vec<(ObjectRef, Owner)>;
     fn mutated(&self) -> Vec<(ObjectRef, Owner)>;
@@ -388,10 +290,15 @@ pub trait TransactionEffectsAPI {
                 InputSharedObject::MutateDeleted(id, _) => Some(id),
                 InputSharedObject::Mutate(..)
                 | InputSharedObject::ReadOnly(..)
-                | InputSharedObject::ReadDeleted(..) => None,
+                | InputSharedObject::ReadDeleted(..)
+                | InputSharedObject::Cancelled(..) => None,
             })
             .collect()
     }
+
+    /// Returns all root shared objects (i.e. not child object) that are
+    /// read-only in the transaction.
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
 
     // All of these should be #[cfg(test)], but they are used by tests in other
     // crates, and dependencies don't get built with cfg(test) set as far as I
@@ -439,7 +346,7 @@ impl TransactionEvents {
 
 #[derive(Debug)]
 pub struct TransactionEffectsDebugSummary {
-    /// Size of bcs serialized byets of the effects.
+    /// Size of bcs serialized bytes of the effects.
     pub bcs_size: usize,
     pub status: ExecutionStatus,
     pub gas_used: GasCostSummary,
@@ -463,3 +370,18 @@ pub type VerifiedTransactionEffectsEnvelope<S> = VerifiedEnvelope<TransactionEff
 pub type VerifiedSignedTransactionEffects = VerifiedTransactionEffectsEnvelope<AuthoritySignInfo>;
 pub type VerifiedCertifiedTransactionEffects =
     VerifiedTransactionEffectsEnvelope<AuthorityStrongQuorumSignInfo>;
+
+impl CertifiedTransactionEffects {
+    pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
+        self.auth_sig().verify_secure(
+            self.data(),
+            Intent::iota_app(IntentScope::TransactionEffects),
+            committee,
+        )
+    }
+
+    pub fn verify(self, committee: &Committee) -> IotaResult<VerifiedCertifiedTransactionEffects> {
+        self.verify_authority_signatures(committee)?;
+        Ok(VerifiedCertifiedTransactionEffects::new_from_verified(self))
+    }
+}

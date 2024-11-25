@@ -7,13 +7,14 @@ use anyhow::{anyhow, bail, ensure};
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
-        feature::{Irc30Metadata, MetadataFeature},
-        unlock_condition::ImmutableAliasAddressUnlockCondition,
         AliasId, Feature, FoundryOutput, FoundryOutputBuilder, NativeTokens, Output, OutputId,
         SimpleTokenScheme, TokenScheme,
+        feature::{Irc30Metadata, MetadataFeature},
+        unlock_condition::ImmutableAliasAddressUnlockCondition,
     },
 };
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, TxContext},
     coin::Coin,
@@ -24,7 +25,6 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::coin_type::CoinType,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
-    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_binary_format::errors::VMError;
 use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
@@ -32,12 +32,12 @@ use rand::random;
 
 use crate::stardust::{
     migration::{
+        MigrationTargetNetwork,
         executor::Executor,
         migration::{
-            Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
+            MIGRATION_PROTOCOL_VERSION, Migration, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
         },
         verification::created_objects::CreatedObjects,
-        MigrationTargetNetwork,
     },
     types::{output_header::OutputHeader, output_index::random_output_index},
 };

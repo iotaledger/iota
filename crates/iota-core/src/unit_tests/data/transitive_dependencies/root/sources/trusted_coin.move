@@ -10,7 +10,7 @@ module examples::trusted_coin {
     use iota::tx_context::{Self, TxContext};
 
     /// Name of the coin
-    struct TRUSTED_COIN has drop {}
+    public struct TRUSTED_COIN has drop {}
 
     /// Register the trusted currency to acquire its `TreasuryCap`. Because
     /// this is a module initializer, it ensures the currency only gets

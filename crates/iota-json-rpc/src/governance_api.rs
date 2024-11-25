@@ -5,15 +5,16 @@
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::{proc_macro::cached, SizedCache};
+use cached::{SizedCache, proc_macro::cached};
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
-    error_object_from_rpc, GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics,
+    GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, error_object_from_rpc,
 };
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee, Stake, StakeStatus, TimelockedStake,
     ValidatorApy, ValidatorApys,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -24,24 +25,23 @@ use iota_types::{
     id::ID,
     iota_serde::BigInt,
     iota_system_state::{
-        get_validator_from_table, iota_system_state_summary::IotaSystemStateSummary,
-        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate,
+        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
+        iota_system_state_summary::IotaSystemStateSummary,
     },
     object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use itertools::Itertools;
-use jsonrpsee::{core::RpcResult, RpcModule};
-use mysten_metrics::spawn_monitored_task;
+use jsonrpsee::{RpcModule, core::RpcResult};
+use statrs::statistics::{Data, Median};
 use tracing::{info, instrument};
 
 use crate::{
+    IotaRpcModule, ObjectProvider,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError, RpcInterimResult},
-    logger::with_tracing,
-    IotaRpcModule, ObjectProvider,
+    logger::FutureWithTracing as _,
 };
-
 #[derive(Clone)]
 pub struct GovernanceReadApi {
     state: Arc<dyn StateRead>,
@@ -193,12 +193,13 @@ impl GovernanceReadApi {
         );
 
         let system_state = self.get_system_state()?;
-        let system_state_summary: IotaSystemStateSummary =
-            system_state.clone().into_iota_system_state_summary();
+        let system_state_summary = system_state.clone().into_iota_system_state_summary();
 
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
             .into_iter()
+            // Try to find for any pending active validator
+            .chain(pending_validator_exchange_rate(&self.state)?.into_iter())
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -320,7 +321,7 @@ impl GovernanceReadApi {
                         .find_object_lt_or_eq_version(&object_id, &version.one_before().unwrap())
                         .await?
                     else {
-                        Err(IotaRpcInputError::UserInputError(
+                        Err(IotaRpcInputError::UserInput(
                             UserInputError::ObjectNotFound {
                                 object_id,
                                 version: None,
@@ -329,7 +330,7 @@ impl GovernanceReadApi {
                     };
                     stakes.push((o, false));
                 }
-                ObjectRead::NotExists(id) => Err(IotaRpcInputError::UserInputError(
+                ObjectRead::NotExists(id) => Err(IotaRpcInputError::UserInput(
                     UserInputError::ObjectNotFound {
                         object_id: id,
                         version: None,
@@ -353,16 +354,12 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedStake>> {
-        with_tracing(
-            async move { self.get_stakes_by_ids(staked_iota_ids).await },
-            None,
-        )
-        .await
+        self.get_stakes_by_ids(staked_iota_ids).trace().await
     }
 
     #[instrument(skip(self))]
     async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>> {
-        with_tracing(async move { self.get_stakes(owner).await }, None).await
+        self.get_stakes(owner).trace().await
     }
 
     #[instrument(skip(self))]
@@ -370,14 +367,9 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
-        with_tracing(
-            async move {
-                self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
-                    .await
-            },
-            None,
-        )
-        .await
+        self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
+            .trace()
+            .await
     }
 
     #[instrument(skip(self))]
@@ -385,47 +377,41 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         owner: IotaAddress,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
-        with_tracing(async move { self.get_timelocked_stakes(owner).await }, None).await
+        self.get_timelocked_stakes(owner).trace().await
     }
 
     #[instrument(skip(self))]
     async fn get_committee_info(&self, epoch: Option<BigInt<u64>>) -> RpcResult<IotaCommittee> {
-        with_tracing(
-            async move {
-                self.state
-                    .get_or_latest_committee(epoch)
-                    .map(|committee| committee.into())
-                    .map_err(Error::from)
-            },
-            None,
-        )
+        async move {
+            self.state
+                .get_or_latest_committee(epoch)
+                .map(|committee| committee.into())
+                .map_err(Error::from)
+        }
+        .trace()
         .await
     }
 
     #[instrument(skip(self))]
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummary> {
-        with_tracing(
-            async move {
-                Ok(self
-                    .state
-                    .get_system_state()
-                    .map_err(Error::from)?
-                    .into_iota_system_state_summary())
-            },
-            None,
-        )
+        async move {
+            Ok(self
+                .state
+                .get_system_state()
+                .map_err(Error::from)?
+                .into_iota_system_state_summary())
+        }
+        .trace()
         .await
     }
 
     #[instrument(skip(self))]
     async fn get_reference_gas_price(&self) -> RpcResult<BigInt<u64>> {
-        with_tracing(
-            async move {
-                let epoch_store = self.state.load_epoch_store_one_call_per_task();
-                Ok(epoch_store.reference_gas_price().into())
-            },
-            None,
-        )
+        async move {
+            let epoch_store = self.state.load_epoch_store_one_call_per_task();
+            Ok(epoch_store.reference_gas_price().into())
+        }
+        .trace()
         .await
     }
 
@@ -452,74 +438,51 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
     let mut apys = vec![];
 
     for rates in exchange_rate_table.into_iter().filter(|r| r.active) {
-        let exchange_rates_count = rates.rates.len();
-        let exchange_rates = rates.rates.into_iter().map(|(_, rate)| rate);
+        let exchange_rates = rates.rates.iter().map(|(_, rate)| rate);
 
-        // We need at least 2 data points to calculate apy.
-        let average_apy = if exchange_rates_count >= 2 {
-            // rates are sorted by epoch in descending order.
-            let er_e = exchange_rates.clone().dropping(1);
-            // rate e+1
-            let er_e_1 = exchange_rates.dropping_back(1);
-            let apys = er_e
-                .zip(er_e_1)
-                .map(calculate_apy)
-                .filter(|apy| *apy > 0.0 && *apy < 0.1)
-                .take(30)
-                .collect::<Vec<_>>();
-
-            if apys.is_empty() {
-                0.0
-            } else {
-                let apy_counts = apys.len() as f64;
-                apys.iter().sum::<f64>() / apy_counts
-            }
-        } else {
-            0.0
-        };
+        let median_apy = median_apy_from_exchange_rates(exchange_rates);
         apys.push(ValidatorApy {
             address: rates.address,
-            apy: average_apy,
+            apy: median_apy,
         });
     }
     apys
 }
 
-#[test]
-fn test_apys_calculation_filter_outliers() {
-    // staking pool exchange rates extracted from mainnet
-    let file =
-        std::fs::File::open("src/unit_tests/data/validator_exchange_rate/rates.json").unwrap();
-    let rates: BTreeMap<String, Vec<(u64, PoolTokenExchangeRate)>> =
-        serde_json::from_reader(file).unwrap();
-
-    let mut address_map = BTreeMap::new();
-
-    let exchange_rates = rates
-        .into_iter()
-        .map(|(validator, rates)| {
-            let address = IotaAddress::random_for_testing_only();
-            address_map.insert(address, validator);
-            ValidatorExchangeRates {
-                address,
-                pool_id: ObjectID::random(),
-                active: true,
-                rates,
-            }
+/// Calculate the APY for a validator based on the exchange rates of the staking
+/// pool.
+///
+/// The calculation uses the median value of the sample, to filter out
+/// outliers introduced by large staking/unstaking events.
+pub fn median_apy_from_exchange_rates<'er>(
+    exchange_rates: impl DoubleEndedIterator<Item = &'er PoolTokenExchangeRate> + Clone,
+) -> f64 {
+    // rates are sorted by epoch in descending order.
+    let rates = exchange_rates.clone().dropping(1);
+    let rates_next = exchange_rates.dropping_back(1);
+    let apys = rates
+        .zip(rates_next)
+        .filter_map(|(er, er_next)| {
+            let apy = calculate_apy(er, er_next);
+            (apy > 0.0).then_some(apy)
         })
-        .collect();
+        .take(90)
+        .collect::<Vec<_>>();
 
-    let apys = calculate_apys(exchange_rates);
-
-    for apy in apys {
-        println!("{}: {}", address_map[&apy.address], apy.apy);
-        assert!(apy.apy < 0.07)
+    if apys.is_empty() {
+        // not enough data points
+        0.0
+    } else {
+        Data::new(apys).median()
     }
 }
 
-// APY_e = (ER_e+1 / ER_e) ^ 365
-fn calculate_apy((rate_e, rate_e_1): (PoolTokenExchangeRate, PoolTokenExchangeRate)) -> f64 {
-    (rate_e.rate() / rate_e_1.rate()).powf(365.0) - 1.0
+/// Calculate the APY by the exchange rate of two consecutive epochs
+/// (`er`, `er_next`).
+///
+/// The formula used is `APY_e = (er / er_next) ^ 365`
+fn calculate_apy(er: &PoolTokenExchangeRate, er_next: &PoolTokenExchangeRate) -> f64 {
+    (er.rate() / er_next.rate()).powf(365.0) - 1.0
 }
 
 fn stake_status(
@@ -555,7 +518,7 @@ fn stake_status(
 /// 1, it will be cleared when the epoch changes. rates are in descending order
 /// by epoch.
 #[cached(
-    ty = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
+    type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",
     convert = "{ _current_epoch }",
     result = true
@@ -588,7 +551,7 @@ async fn exchange_rates(
         system_state_summary.inactive_pools_size as usize,
     )? {
         let pool_id: ID =
-            bcs::from_bytes(&df.1.bcs_name).map_err(|e| IotaError::ObjectDeserializationError {
+            bcs::from_bytes(&df.1.bcs_name).map_err(|e| IotaError::ObjectDeserialization {
                 error: e.to_string(),
             })?;
         let validator = get_validator_from_table(
@@ -605,6 +568,18 @@ async fn exchange_rates(
         ));
     }
 
+    validator_exchange_rates(state, tables)
+}
+
+/// Get validator exchange rates
+fn validator_exchange_rates(
+    state: &Arc<dyn StateRead>,
+    tables: Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>,
+) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
+    if tables.is_empty() {
+        return Ok(vec![]);
+    };
+
     let mut exchange_rates = vec![];
     // Get exchange rates for each validator
     for (address, pool_id, exchange_rates_id, exchange_rates_size, active) in tables {
@@ -613,7 +588,7 @@ async fn exchange_rates(
             .into_iter()
             .map(|df| {
                 let epoch: EpochId = bcs::from_bytes(&df.1.bcs_name).map_err(|e| {
-                    IotaError::ObjectDeserializationError {
+                    IotaError::ObjectDeserialization {
                         error: e.to_string(),
                     }
                 })?;
@@ -637,9 +612,34 @@ async fn exchange_rates(
             rates,
         });
     }
+
     Ok(exchange_rates)
 }
 
+/// Check if there is any pending validator and get its exchange rates
+fn pending_validator_exchange_rate(
+    state: &Arc<dyn StateRead>,
+) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
+    let system_state = state.get_system_state()?;
+    let object_store = state.get_object_store();
+
+    // Try to find for any pending active validator
+    let tables = system_state
+        .get_pending_active_validators(object_store)?
+        .into_iter()
+        .map(|pending_active_validator| {
+            (
+                pending_active_validator.iota_address,
+                pending_active_validator.staking_pool_id,
+                pending_active_validator.exchange_rates_id,
+                pending_active_validator.exchange_rates_size,
+                false,
+            )
+        })
+        .collect::<Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>>();
+
+    validator_exchange_rates(state, tables)
+}
 #[derive(Clone, Debug)]
 pub struct ValidatorExchangeRates {
     pub address: IotaAddress,
@@ -655,5 +655,41 @@ impl IotaRpcModule for GovernanceReadApi {
 
     fn rpc_doc_module() -> Module {
         GovernanceReadApiOpenRpc::module_doc()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calculate_apys_with_outliers() {
+        let file =
+            std::fs::File::open("src/unit_tests/data/validator_exchange_rate/rates.json").unwrap();
+        let rates: BTreeMap<String, Vec<(u64, PoolTokenExchangeRate)>> =
+            serde_json::from_reader(file).unwrap();
+
+        let mut address_map = BTreeMap::new();
+
+        let exchange_rates = rates
+            .into_iter()
+            .map(|(validator, rates)| {
+                let address = IotaAddress::random_for_testing_only();
+                address_map.insert(address, validator);
+                ValidatorExchangeRates {
+                    address,
+                    pool_id: ObjectID::random(),
+                    active: true,
+                    rates,
+                }
+            })
+            .collect();
+
+        let apys = calculate_apys(exchange_rates);
+
+        for apy in &apys {
+            println!("{}: {}", address_map[&apy.address], apy.apy);
+            assert!(apy.apy < 0.25)
+        }
     }
 }

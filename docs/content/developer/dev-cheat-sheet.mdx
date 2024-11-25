@@ -2,6 +2,7 @@
 title: IOTA Developer Cheat Sheet
 sidebar_label: Dev Cheat Sheet
 ---
+import TestingCheatSheet from "../_snippets/testing-cheat-sheet.mdx";
 
 Quick reference on best practices for IOTA Network developers.
 
@@ -28,9 +29,7 @@ Quick reference on best practices for IOTA Network developers.
 
 ### Testing
 
-- Use [`iota::test_scenario`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move) to mimic multi-transaction, multi-sender test scenarios.
-- Use the [`iota::test_utils`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) module for better test error messages via `assert_eq`, debug printing via `print`, and test-only destruction via `destroy`.
-- Use `iota move test --coverage` to compute code coverage information for your tests, and `iota move coverage source --module <name>` to see uncovered lines highlighted in red. Push coverage all the way to 100% if feasible.
+<TestingCheatSheet />
 
 ## Apps
 

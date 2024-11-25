@@ -116,6 +116,9 @@
   color: #525860;
   font-weight: 600;
 }
+.hidden-text{
+  display: none;
+}
 [data-theme="dark"] .table-of-contents__link--active {
   color: white;
 }
@@ -175,6 +178,7 @@
 .pagination-nav__label {
   color: white;
 }
+
 .pagination-nav__link--next {
   background-color: #0101ff;
   display: flex;
@@ -317,6 +321,17 @@ h4 {
   }
 }
 @media screen and (max-width: 599px) {
+  .pagination-nav{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .pagination-nav__link{
+    width: 100%;
+  } 
+  .backgroundImage{
+    background-size: 125%
+  }
   h2,
   .h2 {
     font-size: 1.7rem;
@@ -370,6 +385,9 @@ h4 {
 }
 
 /** navbar search field **/
+[data-theme='light'] .DocSearch {
+  --docsearch-searchbox-background: var(--ifm-background-color-dark);
+}
 .DocSearch-Button-Container {
   width: 100%;
   justify-content: space-between;
@@ -410,8 +428,18 @@ h4 {
 }
 
 /** Globals **/
-.button-cta {
+.button{
+  text-wrap: wrap;
   color: var(--iota-white);
+  background: var(--iota-hero-dark);
+}
+.button--success{
+  background: var(--iota-success-dark);
+}
+.button--danger{
+  background: var(--iota-issue-dark);
+}
+.button-cta {
   letter-spacing: -0.3px;
   cursor: pointer;
   border-style: none;
@@ -428,7 +456,6 @@ h4 {
   border-radius: 2px 0px 0px 0px;
   justify-content: space-between;
   opacity: 0px;
-  background: #0101ff;
   align-items: center;
   justify-content: center;
   gap: 1rem;
@@ -449,6 +476,9 @@ h4 {
     display: none;
   }
 }
+.footer {
+  background-color: black;
+}
 
 /** colors **/
 .text-white {
@@ -456,4 +486,24 @@ h4 {
 }
 .text-gray {
   color: var(--iota-gray);
+}
+
+/* Ensure equations are scrollable on smaller screens */
+.katex-display {
+  overflow-x: scroll;
+  white-space: nowrap;
+}
+
+/* Reduce font size for mobile screens */
+@media screen and (max-width: 768px) {
+  .katex-display {
+    font-size: 0.9rem;
+    display: block;
+  }
+}
+
+/* Optional: Set a max-width for the math elements to prevent overflow */
+.katex-display {
+  max-width: 100%;
+  overflow-wrap: break-word;
 }

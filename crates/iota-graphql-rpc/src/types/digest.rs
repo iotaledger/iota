@@ -8,7 +8,7 @@ use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_types::digests::{ObjectDigest, TransactionDigest};
 
-use super::string_input::impl_string_input;
+use crate::types::string_input::impl_string_input;
 
 pub(crate) const BASE58_DIGEST_LENGTH: usize = 32;
 

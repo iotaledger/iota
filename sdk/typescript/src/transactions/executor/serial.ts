@@ -1,0 +1,146 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { toB64 } from '@iota/bcs';
+
+import { bcs } from '../../bcs/index.js';
+import type { IotaClient, IotaTransactionBlockResponseOptions } from '../../client/index.js';
+import type { Signer } from '../../cryptography/keypair.js';
+import type { ObjectCacheOptions } from '../ObjectCache.js';
+import { isTransaction, Transaction } from '../Transaction.js';
+import { CachingTransactionExecutor } from './caching.js';
+import { SerialQueue } from './queue.js';
+
+export class SerialTransactionExecutor {
+    #queue = new SerialQueue();
+    #signer: Signer;
+    #cache: CachingTransactionExecutor;
+    #defaultGasBudget: bigint;
+
+    constructor({
+        signer,
+        defaultGasBudget = 50_000_000n,
+        ...options
+    }: Omit<ObjectCacheOptions, 'address'> & {
+        client: IotaClient;
+        signer: Signer;
+        /** The gasBudget to use if the transaction has not defined it's own gasBudget, defaults to `50_000_000n` */
+        defaultGasBudget?: bigint;
+    }) {
+        this.#signer = signer;
+        this.#defaultGasBudget = defaultGasBudget;
+        this.#cache = new CachingTransactionExecutor({
+            client: options.client,
+            cache: options.cache,
+        });
+    }
+
+    async applyEffects(effects: typeof bcs.TransactionEffects.$inferType) {
+        return Promise.all([this.#cacheGasCoin(effects), this.#cache.cache.applyEffects(effects)]);
+    }
+
+    #cacheGasCoin = async (effects: typeof bcs.TransactionEffects.$inferType) => {
+        if (!effects.V1) {
+            return;
+        }
+
+        const gasCoin = getGasCoinFromEffects(effects).ref;
+        if (gasCoin) {
+            this.#cache.cache.setCustom('gasCoin', gasCoin);
+        } else {
+            this.#cache.cache.deleteCustom('gasCoin');
+        }
+    };
+
+    async buildTransaction(transaction: Transaction) {
+        return this.#queue.runTask(() => this.#buildTransaction(transaction));
+    }
+
+    #buildTransaction = async (transaction: Transaction) => {
+        const gasCoin = await this.#cache.cache.getCustom<{
+            objectId: string;
+            version: string;
+            digest: string;
+        }>('gasCoin');
+
+        const copy = Transaction.from(transaction);
+        if (gasCoin) {
+            copy.setGasPayment([gasCoin]);
+        }
+
+        copy.setGasBudgetIfNotSet(this.#defaultGasBudget);
+        copy.setSenderIfNotSet(this.#signer.toIotaAddress());
+
+        return this.#cache.buildTransaction({ transaction: copy });
+    };
+
+    resetCache() {
+        return this.#cache.reset();
+    }
+
+    waitForLastTransaction() {
+        return this.#cache.waitForLastTransaction();
+    }
+
+    executeTransaction(
+        transaction: Transaction | Uint8Array,
+        options?: IotaTransactionBlockResponseOptions,
+    ) {
+        return this.#queue.runTask(async () => {
+            const bytes = isTransaction(transaction)
+                ? await this.#buildTransaction(transaction)
+                : transaction;
+
+            const { signature } = await this.#signer.signTransaction(bytes);
+            const results = await this.#cache
+                .executeTransaction({
+                    signature,
+                    transaction: bytes,
+                    options,
+                })
+                .catch(async (error) => {
+                    await this.resetCache();
+                    throw error;
+                });
+
+            const effectsBytes = Uint8Array.from(results.rawEffects!);
+            const effects = bcs.TransactionEffects.parse(effectsBytes);
+            await this.applyEffects(effects);
+
+            return {
+                digest: results.digest,
+                effects: toB64(effectsBytes),
+            };
+        });
+    }
+}
+
+export function getGasCoinFromEffects(effects: typeof bcs.TransactionEffects.$inferType) {
+    if (!effects.V1) {
+        throw new Error('Unexpected effects version');
+    }
+
+    const gasObjectChange = effects.V1.changedObjects[effects.V1.gasObjectIndex!];
+
+    if (!gasObjectChange) {
+        throw new Error('Gas object not found in effects');
+    }
+
+    const [objectId, { outputState }] = gasObjectChange;
+
+    if (!outputState.ObjectWrite) {
+        throw new Error('Unexpected gas object state');
+    }
+
+    const [digest, owner] = outputState.ObjectWrite;
+
+    return {
+        ref: {
+            objectId,
+            digest,
+            version: effects.V1.lamportVersion,
+        },
+        owner: owner.AddressOwner || owner.ObjectOwner!,
+    };
+}

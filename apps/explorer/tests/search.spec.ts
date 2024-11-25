@@ -6,9 +6,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { faucet, split_coin } from './utils/localnet';
 
 async function search(page: Page, text: string) {
-    const searchbar = page.getByRole('combobox');
+    const searchbar = page.getByPlaceholder('Search');
     await searchbar.fill(text);
-    const result = page.getByRole('option').first();
+    const result = page.getByRole('button').getByText(text).first();
     await result.click();
 }
 

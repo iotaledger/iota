@@ -4,35 +4,32 @@
 
 import { useFormatCoin } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Transaction, type TransactionData } from '@iota/iota-sdk/transactions';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 
-export function useTransactionData(sender?: string | null, transaction?: TransactionBlock | null) {
+export function useTransactionData(sender?: string | null, transaction?: Transaction | null) {
     const client = useIotaClient();
-    return useQuery({
+    return useQuery<TransactionData>({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['transaction-data', transaction?.serialize()],
+        queryKey: ['transaction-data', transaction?.getData()],
         queryFn: async () => {
-            const clonedTransaction = new TransactionBlock(transaction!);
+            const clonedTransaction = Transaction.from(transaction!);
             if (sender) {
                 clonedTransaction.setSenderIfNotSet(sender);
             }
             // Build the transaction to bytes, which will ensure that the transaction data is fully populated:
             await clonedTransaction!.build({ client });
-            return clonedTransaction!.blockData;
+            return clonedTransaction!.getData();
         },
         enabled: !!transaction,
     });
 }
 
-export function useTransactionGasBudget(
-    sender?: string | null,
-    transaction?: TransactionBlock | null,
-) {
+export function useTransactionGasBudget(sender?: string | null, transaction?: Transaction | null) {
     const { data, ...rest } = useTransactionData(sender, transaction);
 
-    const [formattedGas] = useFormatCoin(data?.gasConfig.budget, IOTA_TYPE_ARG);
+    const [formattedGas] = useFormatCoin(data?.gasData.budget, IOTA_TYPE_ARG);
 
     return {
         data: formattedGas,

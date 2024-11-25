@@ -2,5 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './Footer';
-export * from './FooterIcon';
 export * from './Legal';

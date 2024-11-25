@@ -4,9 +4,8 @@
 
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaLoadedChildObjectsResponse, IotaObjectDataOptions, IotaObjectResponse,
-    IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ProtocolConfigResponse,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -15,6 +14,10 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides methods for reading transaction related data such as transaction
+/// blocks, checkpoints, and protocol configuration. The trait further provides
+/// methods for reading the ledger (current objects) as well its history (past
+/// objects).
 #[open_rpc(namespace = "iota", tag = "Read API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait ReadApi {
@@ -80,6 +83,27 @@ pub trait ReadApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse>;
 
+    /// Note there is no software-level guarantee/SLA that objects with past
+    /// versions can be retrieved by this API, even if the object and
+    /// version exists/existed. The result may vary across nodes depending
+    /// on their pruning policies. Returns the latest object information
+    /// with a version less than or equal to the given version
+    // Note that this endpoint is used by iota replay tool. Also the
+    // implementation in `iota-json-rpc` uses internally the
+    // `AuthorityState::find_object_lt_or_eq_version` method, which has
+    // underlying utility, e.g., `RemoteFetcher::get_child_object` uses
+    // `try_get_object_before_version` to get the object with the versions <=
+    // the given version. We have the `deprecated` flag here to not expose it in
+    // the generated spec file, and it should be only for internal usage.
+    #[method(name = "tryGetObjectBeforeVersion", deprecated = "true")]
+    async fn try_get_object_before_version(
+        &self,
+        /// the ID of the queried object
+        object_id: ObjectID,
+        /// the version of the queried object
+        version: SequenceNumber,
+    ) -> RpcResult<IotaPastObjectResponse>;
+
     /// Note there is no software-level guarantee/SLA that objects with past versions
     /// can be retrieved by this API, even if the object and version exists/existed.
     /// The result may vary across nodes depending on their pruning policies.
@@ -93,12 +117,6 @@ pub trait ReadApi {
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>>;
-
-    #[method(name = "getLoadedChildObjects")]
-    async fn get_loaded_child_objects(
-        &self,
-        digest: TransactionDigest,
-    ) -> RpcResult<IotaLoadedChildObjectsResponse>;
 
     /// Return a checkpoint
     #[rustfmt::skip]
@@ -118,18 +136,6 @@ pub trait ReadApi {
         cursor: Option<BigInt<u64>>,
         /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
         limit: Option<usize>,
-        /// query result ordering, default to false (ascending order), oldest record first.
-        descending_order: bool,
-    ) -> RpcResult<CheckpointPage>;
-
-    #[rustfmt::skip]
-    #[method(name = "getCheckpoints", version <= "0.31")]
-    async fn get_checkpoints_deprecated_limit(
-        &self,
-        /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        cursor: Option<BigInt<u64>>,
-        /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
-        limit: Option<BigInt<u64>>,
         /// query result ordering, default to false (ascending order), oldest record first.
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;

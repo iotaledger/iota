@@ -8,7 +8,6 @@ module hero::example {
     use iota::balance::{Self, Balance};
     use iota::coin::{Self, Coin};
     use iota::event;
-    use iota::math;
     use iota::iota::IOTA;
 
     /// Our hero!
@@ -143,7 +142,7 @@ module hero::example {
         let magic = (value - MIN_SWORD_COST) / MIN_SWORD_COST;
         Sword {
             id: object::new(ctx),
-            magic: math::min(magic, MAX_MAGIC),
+            magic: magic.min(MAX_MAGIC),
             strength: 1,
             game_id: object::id(game)
         }
@@ -289,7 +288,7 @@ module hero::example {
         assert!(hero.game_id == game_id, EWrongGame);
 
         // cap hero's HP at MAX_HP to avoid int overflows
-        hero.health = math::min(hero.health + potency, MAX_HP)
+        hero.health = (hero.health + potency).min(MAX_HP)
     }
 
     /// Add `new_sword` to the hero's inventory and return the old sword

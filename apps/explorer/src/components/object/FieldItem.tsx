@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaMoveNormalizedType } from '@iota/iota.js/client';
-import { Text } from '@iota/ui';
-
+import { type IotaMoveNormalizedType } from '@iota/iota-sdk/client';
 import { SyntaxHighlighter } from '~/components';
 import { AddressLink, Link, ObjectLink } from '~/components/ui';
 import { getFieldTypeValue } from '~/lib/ui';
@@ -60,8 +58,8 @@ export function FieldItem({
     }
 
     return (
-        <Text variant="body/medium" color="steel-darker" truncate={truncate}>
+        <div className="truncate text-body-md text-neutral-40">
             {value === null || value === undefined ? null : String(value)}
-        </Text>
+        </div>
     );
 }

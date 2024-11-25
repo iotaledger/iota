@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 export interface ExtendedTransaction {
     action: TransactionAction;

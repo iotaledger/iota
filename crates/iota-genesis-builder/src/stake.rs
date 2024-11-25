@@ -7,7 +7,6 @@ use iota_config::genesis::{
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
-    gas_coin::STARDUST_TOTAL_SUPPLY_NANOS,
     object::Object,
     stardust::coin_kind::get_gas_balance_maybe,
 };
@@ -63,10 +62,13 @@ impl GenesisStake {
 
     /// Create a new valid [`TokenDistributionSchedule`] from the
     /// inner token allocations.
-    pub fn to_token_distribution_schedule(&self) -> TokenDistributionSchedule {
+    pub fn to_token_distribution_schedule(
+        &self,
+        total_supply_nanos: u64,
+    ) -> TokenDistributionSchedule {
         let mut builder = TokenDistributionScheduleBuilder::new();
 
-        let pre_minted_supply = self.calculate_pre_minted_supply();
+        let pre_minted_supply = self.calculate_pre_minted_supply(total_supply_nanos);
 
         builder.set_pre_minted_supply(pre_minted_supply);
 
@@ -76,7 +78,7 @@ impl GenesisStake {
         builder.build()
     }
 
-    /// Extend a vanilla [`TokenDistributionSchedule`] with the
+    /// Extend a [`TokenDistributionSchedule`] without migration with the
     /// inner token allocations.
     ///
     /// The resulting schedule is guaranteed to contain allocations
@@ -85,21 +87,23 @@ impl GenesisStake {
     /// ## Errors
     ///
     /// The method fails if the resulting schedule contains is invalid.
-    pub fn extend_vanilla_token_distribution_schedule(
+    pub fn extend_token_distribution_schedule_without_migration(
         &self,
-        mut vanilla_schedule: TokenDistributionSchedule,
+        mut schedule_without_migration: TokenDistributionSchedule,
+        total_supply_nanos: u64,
     ) -> TokenDistributionSchedule {
-        vanilla_schedule
+        schedule_without_migration
             .allocations
             .extend(self.token_allocation.clone());
-        vanilla_schedule.pre_minted_supply = self.calculate_pre_minted_supply();
-        vanilla_schedule.validate();
-        vanilla_schedule
+        schedule_without_migration.pre_minted_supply =
+            self.calculate_pre_minted_supply(total_supply_nanos);
+        schedule_without_migration.validate();
+        schedule_without_migration
     }
 
     /// Calculates the part of the IOTA supply that is pre-minted.
-    fn calculate_pre_minted_supply(&self) -> u64 {
-        STARDUST_TOTAL_SUPPLY_NANOS - self.sum_token_allocation()
+    fn calculate_pre_minted_supply(&self, total_supply_nanos: u64) -> u64 {
+        total_supply_nanos - self.sum_token_allocation()
     }
 }
 

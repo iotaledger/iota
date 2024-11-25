@@ -15,7 +15,7 @@ module locked_stake::locked_stake_tests {
     use locked_stake::locked_stake as ls;
     use locked_stake::epoch_time_lock;
 
-    const MICROS_PER_IOTA: u64 = 1_000_000_000;
+    const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
     #[test]
     #[expected_failure(abort_code = epoch_time_lock::EEpochAlreadyPassed)]
@@ -48,18 +48,18 @@ module locked_stake::locked_stake_tests {
         let mut ls = ls::new(10, test_scenario::ctx(scenario));
 
         // Deposit 100 IOTA.
-        ls::deposit_iota(&mut ls, balance::create_for_testing(100 * MICROS_PER_IOTA));
+        ls::deposit_iota(&mut ls, balance::create_for_testing(100 * NANOS_PER_IOTA));
 
-        assert_eq(ls::iota_balance(&ls), 100 * MICROS_PER_IOTA);
+        assert_eq(ls::iota_balance(&ls), 100 * NANOS_PER_IOTA);
 
         test_scenario::next_tx(scenario, @0x1);
         let mut system_state = test_scenario::take_shared<IotaSystemState>(scenario);
 
         // Stake 10 of the 100 IOTA.
-        ls::stake(&mut ls, &mut system_state, 10 * MICROS_PER_IOTA, @0x1, test_scenario::ctx(scenario));
+        ls::stake(&mut ls, &mut system_state, 10 * NANOS_PER_IOTA, @0x1, test_scenario::ctx(scenario));
         test_scenario::return_shared(system_state);
 
-        assert_eq(ls::iota_balance(&ls), 90 * MICROS_PER_IOTA);
+        assert_eq(ls::iota_balance(&ls), 90 * NANOS_PER_IOTA);
         assert_eq(vec_map::size(ls::staked_iota(&ls)), 1);
 
         test_scenario::next_tx(scenario, @0x1);
@@ -68,11 +68,11 @@ module locked_stake::locked_stake_tests {
 
         // Create a StakedIota object and add it to the LockedStake object.
         let staked_iota = iota_system::request_add_stake_non_entry(
-            &mut system_state, coin::mint_for_testing(20 * MICROS_PER_IOTA, ctx), @0x2, ctx);
+            &mut system_state, coin::mint_for_testing(20 * NANOS_PER_IOTA, ctx), @0x2, ctx);
         test_scenario::return_shared(system_state);
 
         ls::deposit_staked_iota(&mut ls, staked_iota);
-        assert_eq(ls::iota_balance(&ls), 90 * MICROS_PER_IOTA);
+        assert_eq(ls::iota_balance(&ls), 90 * NANOS_PER_IOTA);
         assert_eq(vec_map::size(ls::staked_iota(&ls)), 2);
         advance_epoch(scenario);
 
@@ -83,7 +83,7 @@ module locked_stake::locked_stake_tests {
         // Unstake both stake objects
         ls::unstake(&mut ls, &mut system_state, *staked_iota_id, test_scenario::ctx(scenario));
         test_scenario::return_shared(system_state);
-        assert_eq(ls::iota_balance(&ls), 100 * MICROS_PER_IOTA);
+        assert_eq(ls::iota_balance(&ls), 100 * NANOS_PER_IOTA);
         assert_eq(vec_map::size(ls::staked_iota(&ls)), 1);
 
         test_scenario::next_tx(scenario, @0x1);
@@ -91,7 +91,7 @@ module locked_stake::locked_stake_tests {
         let mut system_state = test_scenario::take_shared<IotaSystemState>(scenario);
         ls::unstake(&mut ls, &mut system_state, *staked_iota_id, test_scenario::ctx(scenario));
         test_scenario::return_shared(system_state);
-        assert_eq(ls::iota_balance(&ls), 120 * MICROS_PER_IOTA);
+        assert_eq(ls::iota_balance(&ls), 120 * NANOS_PER_IOTA);
         assert_eq(vec_map::size(ls::staked_iota(&ls)), 0);
 
         destroy(ls);
@@ -107,13 +107,13 @@ module locked_stake::locked_stake_tests {
 
         let mut ls = ls::new(2, test_scenario::ctx(scenario));
 
-        ls::deposit_iota(&mut ls, balance::create_for_testing(100 * MICROS_PER_IOTA));
+        ls::deposit_iota(&mut ls, balance::create_for_testing(100 * NANOS_PER_IOTA));
 
-        assert_eq(ls::iota_balance(&ls), 100 * MICROS_PER_IOTA);
+        assert_eq(ls::iota_balance(&ls), 100 * NANOS_PER_IOTA);
 
         test_scenario::next_tx(scenario, @0x1);
         let mut system_state = test_scenario::take_shared<IotaSystemState>(scenario);
-        ls::stake(&mut ls, &mut system_state, 10 * MICROS_PER_IOTA, @0x1, test_scenario::ctx(scenario));
+        ls::stake(&mut ls, &mut system_state, 10 * NANOS_PER_IOTA, @0x1, test_scenario::ctx(scenario));
         test_scenario::return_shared(system_state);
 
         advance_epoch(scenario);
@@ -122,7 +122,7 @@ module locked_stake::locked_stake_tests {
         advance_epoch(scenario);
 
         let (staked_iota, iota_balance) = ls::unlock(ls, test_scenario::ctx(scenario));
-        assert_eq(balance::value(&iota_balance), 90 * MICROS_PER_IOTA);
+        assert_eq(balance::value(&iota_balance), 90 * NANOS_PER_IOTA);
         assert_eq(vec_map::size(&staked_iota), 1);
 
         destroy(staked_iota);

@@ -2,20 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod simple_faucet;
+mod write_ahead_log;
+
+use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
+
 use async_trait::async_trait;
+use clap::Parser;
 use iota_types::base_types::{IotaAddress, ObjectID, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::FaucetError;
-
-mod simple_faucet;
-mod write_ahead_log;
-use std::{net::Ipv4Addr, path::PathBuf};
-
-use clap::Parser;
-
 pub use self::simple_faucet::SimpleFaucet;
+use crate::FaucetError;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FaucetReceipt {
@@ -47,6 +46,17 @@ pub enum BatchSendStatusType {
     INPROGRESS,
     SUCCEEDED,
     DISCARDED,
+}
+
+pub struct AppState<F = Arc<SimpleFaucet>> {
+    pub faucet: F,
+    pub config: FaucetConfig,
+}
+
+impl<F> AppState<F> {
+    pub fn new(faucet: F, config: FaucetConfig) -> Self {
+        Self { faucet, config }
+    }
 }
 
 #[async_trait]
@@ -127,8 +137,8 @@ impl Default for FaucetConfig {
         Self {
             port: 5003,
             host_ip: Ipv4Addr::new(127, 0, 0, 1),
-            amount: 1_000_000_000,
-            num_coins: 1,
+            amount: DEFAULT_AMOUNT,
+            num_coins: DEFAULT_NUM_OF_COINS,
             request_buffer_size: 10,
             max_request_per_second: 10,
             wallet_client_timeout_secs: 60,

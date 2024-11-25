@@ -2,25 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{error::ExecutionError, IOTA_FRAMEWORK_ADDRESS};
+use iota_types::{IOTA_FRAMEWORK_ADDRESS, error::ExecutionError};
 use move_binary_format::{
-    access::ModuleAccess,
-    binary_views::BinaryIndexedView,
+    CompiledModule,
     file_format::{
         Bytecode, FunctionDefinition, FunctionHandle, FunctionInstantiation, ModuleHandle,
         SignatureToken,
     },
-    CompiledModule,
 };
 use move_bytecode_utils::format_signature_token;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
-use move_vm_config::verifier::VerifierConfig;
 
-use crate::{verification_failure, TEST_SCENARIO_MODULE_NAME};
+use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
 pub const TRANSFER_MODULE: &IdentStr = ident_str!("transfer");
 pub const EVENT_MODULE: &IdentStr = ident_str!("event");
 pub const EVENT_FUNCTION: &IdentStr = ident_str!("emit");
+pub const GET_EVENTS_TEST_FUNCTION: &IdentStr = ident_str!("events_by_type");
 pub const PUBLIC_TRANSFER_FUNCTIONS: &[&IdentStr] = &[
     ident_str!("public_transfer"),
     ident_str!("public_freeze_object"),
@@ -51,10 +49,7 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
 /// `transfer` functions, there is no relaxation for `store`
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
-pub fn verify_module(
-    module: &CompiledModule,
-    verifier_config: &VerifierConfig,
-) -> Result<(), ExecutionError> {
+pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
     if *module.address() == IOTA_FRAMEWORK_ADDRESS
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
@@ -63,28 +58,21 @@ pub fn verify_module(
         // bypass private generics
         return Ok(());
     }
-    let view = &BinaryIndexedView::Module(module);
     // do not need to check the iota::transfer module itself
     for func_def in &module.function_defs {
-        verify_function(view, func_def, verifier_config.allow_receiving_object_id).map_err(
-            |error| {
-                verification_failure(format!(
-                    "{}::{}. {}",
-                    module.self_id(),
-                    module.identifier_at(module.function_handle_at(func_def.function).name),
-                    error
-                ))
-            },
-        )?;
+        verify_function(module, func_def).map_err(|error| {
+            verification_failure(format!(
+                "{}::{}. {}",
+                module.self_id(),
+                module.identifier_at(module.function_handle_at(func_def.function).name),
+                error
+            ))
+        })?;
     }
     Ok(())
 }
 
-fn verify_function(
-    view: &BinaryIndexedView,
-    fdef: &FunctionDefinition,
-    allow_receiving_object_id: bool,
-) -> Result<(), String> {
+fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(), String> {
     let code = match &fdef.code {
         None => return Ok(()),
         Some(code) => code,
@@ -102,7 +90,7 @@ fn verify_function(
             let type_arguments = &view.signature_at(*type_parameters).0;
             let ident = addr_module(view, mhandle);
             if ident == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
-                verify_private_transfer(view, fhandle, type_arguments, allow_receiving_object_id)?
+                verify_private_transfer(view, fhandle, type_arguments)?
             } else if ident == (IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
             }
@@ -112,24 +100,17 @@ fn verify_function(
 }
 
 fn verify_private_transfer(
-    view: &BinaryIndexedView,
+    view: &CompiledModule,
     fhandle: &FunctionHandle,
     type_arguments: &[SignatureToken],
-    allow_receiving_object_id: bool,
 ) -> Result<(), String> {
-    let public_transfer_functions = if allow_receiving_object_id {
-        PUBLIC_TRANSFER_FUNCTIONS
-    } else {
-        // Before protocol version 33, the `receiving_object_id` function was not public
-        &PUBLIC_TRANSFER_FUNCTIONS[..PUBLIC_TRANSFER_FUNCTIONS.len() - 1]
-    };
-    let self_handle = view.module_handle_at(view.self_handle_idx().unwrap());
+    let self_handle = view.module_handle_at(view.self_handle_idx());
     if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
     // public transfer functions require `store` and have no additional rules
-    if public_transfer_functions.contains(&fident) {
+    if PUBLIC_TRANSFER_FUNCTIONS.contains(&fident) {
         return Ok(());
     }
     if !PRIVATE_TRANSFER_FUNCTIONS.contains(&fident) {
@@ -160,13 +141,17 @@ fn verify_private_transfer(
 }
 
 fn verify_private_event_emit(
-    view: &BinaryIndexedView,
+    view: &CompiledModule,
     fhandle: &FunctionHandle,
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let fident = view.identifier_at(fhandle.name);
+    if fident == GET_EVENTS_TEST_FUNCTION {
+        // test-only function with no params--no need to verify
+        return Ok(());
+    }
     if fident != EVENT_FUNCTION {
-        debug_assert!(false, "unknown transfer function {}", fident);
+        debug_assert!(false, "unknown event function {}", fident);
         return Err(format!("Calling unknown event function, {}", fident));
     };
 
@@ -189,16 +174,16 @@ fn verify_private_event_emit(
     Ok(())
 }
 
-fn is_defined_in_current_module(view: &BinaryIndexedView, type_arg: &SignatureToken) -> bool {
+fn is_defined_in_current_module(view: &CompiledModule, type_arg: &SignatureToken) -> bool {
     match type_arg {
-        SignatureToken::Struct(_) | SignatureToken::StructInstantiation(_) => {
+        SignatureToken::Datatype(_) | SignatureToken::DatatypeInstantiation(_) => {
             let idx = match type_arg {
-                SignatureToken::Struct(idx) => *idx,
-                SignatureToken::StructInstantiation(s) => s.0,
+                SignatureToken::Datatype(idx) => *idx,
+                SignatureToken::DatatypeInstantiation(s) => s.0,
                 _ => unreachable!(),
             };
-            let shandle = view.struct_handle_at(idx);
-            view.self_handle_idx() == Some(shandle.module)
+            let shandle = view.datatype_handle_at(idx);
+            view.self_handle_idx() == shandle.module
         }
         SignatureToken::TypeParameter(_)
         | SignatureToken::Bool
@@ -217,7 +202,7 @@ fn is_defined_in_current_module(view: &BinaryIndexedView, type_arg: &SignatureTo
 }
 
 fn addr_module<'a>(
-    view: &'a BinaryIndexedView,
+    view: &'a CompiledModule,
     mhandle: &ModuleHandle,
 ) -> (AccountAddress, &'a IdentStr) {
     let maddr = view.address_identifier_at(mhandle.address);

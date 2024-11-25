@@ -4,8 +4,8 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use anyhow::{anyhow, bail, Result};
-use iota_storage::{indexes::CoinInfo, IndexStore};
+use anyhow::{Result, anyhow, bail};
+use iota_storage::{IndexStore, indexes::CoinInfo};
 use iota_types::{base_types::ObjectInfo, object::Owner};
 use tracing::info;
 use typed_store::traits::Map;
@@ -22,7 +22,7 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
     let mut coin_index = BTreeMap::new();
 
     tracing::info!("Reading live objects set");
-    for object in store.iter_live_object_set(false) {
+    for object in store.iter_live_object_set() {
         let LiveObject::Normal(object) = object else {
             continue;
         };

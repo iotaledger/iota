@@ -1,0 +1,49 @@
+
+import ChallengeVerifier  from '@site/src/components/CTF/ctf-verifier';
+
+
+
+
+# Challenge 4: Airdrop
+
+Your mission is to participate in the "Horse Token" airdrop and capture the elusive flag. You'll need to mint some Horse Tokens and claim your share through the airdrop mechanism. But simply collecting tokens won’t be enough—securing the flag requires a bit more effort.
+
+Use your command line expertise to interact with the system, track your progress, and perform key actions efficiently. Pay close attention to the airdrop logic, as understanding how the token distribution works will be crucial to successfully capturing the flag.
+
+## Deployed Contract Addresses:
+```
+CoinMetadata<0x913ddcf84345bc087530e0b5d8b183780ecf902ea6cfa64b62d3f8a349ebafd9::airdrop::AIRDROP>: 0x163ef67f9631eea22ef33e58aab3e0d5c243184335e943047c28cb0a30985cf0
+Vault: 0x4ae07fd00773080f9af2e43c2464667536d661ba0001a670e3971efbb01446e2
+Package: 0x913ddcf84345bc087530e0b5d8b183780ecf902ea6cfa64b62d3f8a349ebafd9
+TreasuryCap<0x913ddcf84345bc087530e0b5d8b183780ecf902ea6cfa64b62d3f8a349ebafd9::airdrop::AIRDROP>: 0xa9b65a0be78472f053298980a4fae935d12571731bfd7be3b9d41183a7f100ff
+Counter: 0xc96bfaf42e3b8b1f2e5dbf469dc5f7846c911dbbb76966475cfd06cf3893b080
+```
+
+## Contracts
+
+### `airdrop.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_4/sources/airdrop.move
+```
+
+### `counter.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_4/sources/counter.move
+```
+
+## Related Articles
+Challenges 1-3 have introduced you to the basics of interacting with Move contracts, the Object Model, and the Coin Standard. In this challenge, you'll need to apply your knowledge to a more complex scenario involving an airdrop mechanism.
+This challnege can be solved with IOTA PTBs, which will also help you in further challenges.
+
+- [Coin Standard](../standards/coin.mdx)
+- [Object Model](../iota-101/objects/object-model.mdx)
+- [Programmable Transaction Blocks](../iota-101/transactions/ptb/programmable-transaction-blocks-overview.mdx)
+
+
+
+Good luck in capturing your fourth flag!
+
+
+:::tip
+Under `Deployed Contract Addresses`, you can find the addresses of the package as well as the `Vault`. Carefully check what the constraints are for the `get_flag` function to work, as it has some assertions that need to be met.
+:::
+
+<ChallengeVerifier expectedObjectType="0x913ddcf84345bc087530e0b5d8b183780ecf902ea6cfa64b62d3f8a349ebafd9::airdrop::Flag" />

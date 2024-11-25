@@ -1,0 +1,34 @@
+{
+    "questions": [
+      {
+        "questionText": "What mechanism does IOTA use to determine the set of validators that process transactions?",
+        "answerOptions": [
+          { "answerText": "Proof of Work.", "isCorrect": false },
+          { "answerText": "Delegated Proof of Stake (DPoS).", "isCorrect": true },
+          { "answerText": "Proof of Authority.", "isCorrect": false },
+          { "answerText": "Proof of Space.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "How long are IOTA tokens locked in the staking process?",
+        "answerOptions": [
+          { "answerText": "For a fixed period of 1 month.", "isCorrect": false },
+          { "answerText": "For the entire epoch.", "isCorrect": true },
+          { "answerText": "Until the validator processes a transaction.", "isCorrect": false },
+          { "answerText": "For one day.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "How are validator rewards distributed in the IOTA DPoS system?",
+        "answerOptions": [
+          { "answerText": "Validators keep all rewards.", "isCorrect": false },
+          { "answerText": "Validators share rewards proportionally with stakers after taking a commission.", "isCorrect": true },
+          { "answerText": "Rewards are distributed equally among all validators.", "isCorrect": false },
+          { "answerText": "Rewards are only given to validators who perform the most transactions", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+
+  
+  

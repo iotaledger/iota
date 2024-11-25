@@ -5,7 +5,7 @@
 use std::future;
 
 use futures::StreamExt;
-use iota_sdk::{IotaClientBuilder, IOTA_COIN_TYPE};
+use iota_sdk::{IOTA_COIN_TYPE, IotaClientBuilder};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use test_cluster::TestClusterBuilder;
 
@@ -18,8 +18,8 @@ use test_cluster::TestClusterBuilder;
 //     let client = IotaClientBuilder::default().build(rpc_url).await?;
 //     let txs = client
 //         .read_api()
-//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(),
-// None, true)         .collect::<Vec<_>>()
+//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(), None, true)
+//         .collect::<Vec<_>>()
 //         .await;
 
 //     assert_eq!(1, txs.len());
@@ -37,8 +37,8 @@ use test_cluster::TestClusterBuilder;
 
 //     let txs = client
 //         .read_api()
-//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(),
-// None, true)         .collect::<Vec<_>>()
+//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(), None, true)
+//         .collect::<Vec<_>>()
 //         .await;
 
 //     assert_eq!(2, txs.len());

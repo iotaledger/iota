@@ -16,9 +16,9 @@
  * Build: 1.0.0
  * Runtime: browser:typescript-ampli-v2
  *
- * [View Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Explorer/events/main/latest)
+ * [View Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest)
  *
- * [Full Setup Instructions](https://data.amplitude.com/mystenlabs/Iota%20Explorer/implementation/web)
+ * [Full Setup Instructions](https://data.amplitude.com/iotaledger/Iota%20Explorer/implementation/web)
  */
 
 import * as amplitude from '@amplitude/analytics-browser';
@@ -26,8 +26,8 @@ import * as amplitude from '@amplitude/analytics-browser';
 type Environment = 'production' | 'development';
 
 export const ApiKey: Record<Environment, string> = {
-    production: import.meta.env.VITE_AMPLI_PROD_API_KEY,
-    development: import.meta.env.VITE_AMPLI_DEV_API_KEY,
+    production: '896b9073219c06800d9bf0aecf1b6f80',
+    development: '253fa1582d8ed913d8c5957f601df3fe',
 };
 
 /**
@@ -38,7 +38,7 @@ export const DefaultConfiguration: BrowserOptions = {
         version: '1',
         branch: 'main',
         source: 'web',
-        versionId: 'e04b8300-7375-4e37-a47e-7eb097e55c65',
+        versionId: '81db59d9-e06e-4c91-be42-e1b536a9f68a',
     },
     ...{
         ingestionMetadata: {
@@ -46,6 +46,7 @@ export const DefaultConfiguration: BrowserOptions = {
             sourceVersion: '2.0.0',
         },
     },
+    serverZone: amplitude.Types.ServerZone.EU,
 };
 
 interface LoadOptionsBase {
@@ -70,7 +71,7 @@ type LoadOptions =
 
 interface IdentifyProperties {
     /**
-     * The Iota network that the user is currently interacting with.
+     * The IOTA network that the user is currently interacting with.
      */
     activeNetwork: string;
     /**
@@ -299,7 +300,7 @@ export class Ampli {
   /**
    * activated tooltip
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Explorer/events/main/latest/activated%20tooltip)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/activated%20tooltip)
    *
    * When users activate or open a tooltip in the application.
    *
@@ -318,7 +319,7 @@ export class Ampli {
   /**
    * clicked current epoch card
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Explorer/events/main/latest/clicked%20current%20epoch%20card)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/clicked%20current%20epoch%20card)
    *
    * When users click the current epoch card on the home page.
    *
@@ -337,7 +338,7 @@ export class Ampli {
   /**
    * clicked search result
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Explorer/events/main/latest/clicked%20search%20result)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/clicked%20search%20result)
    *
    * When users click a search result within the search bar.
    *
@@ -356,7 +357,7 @@ export class Ampli {
   /**
    * clicked validator row
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Explorer/events/main/latest/clicked%20validator%20row)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/clicked%20validator%20row)
    *
    * When users click a validator list item in a table.
    *
@@ -375,7 +376,7 @@ export class Ampli {
   /**
    * completed search
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Explorer/events/main/latest/completed%20search)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/completed%20search)
    *
    * When users successfully search for something.
    *
@@ -394,9 +395,9 @@ export class Ampli {
   /**
    * opened iota explorer
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Explorer/events/main/latest/opened%20iota%20explorer)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/opened%20iota%20explorer)
    *
-   * When users first open Iota Explorer.
+   * When users first open IOTA Explorer.
    *
    * Owner: William Robertson
    *
@@ -411,7 +412,7 @@ export class Ampli {
   /**
    * switched network
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Explorer/events/main/latest/switched%20network)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/switched%20network)
    *
    * When users switch from one network to another.
    *

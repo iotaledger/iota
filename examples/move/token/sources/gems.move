@@ -38,7 +38,6 @@ module examples::gem {
     use std::string::{Self, String};
     use iota::iota::IOTA;
     use iota::balance::{Self, Balance};
-    use iota::tx_context::sender;
     use iota::coin::{Self, Coin, TreasuryCap};
 
     use iota::token::{Self, Token, ActionRequest};
@@ -76,8 +75,8 @@ module examples::gem {
     // rules for different types of actions.
     fun init(otw: GEM, ctx: &mut TxContext) {
         let (treasury_cap, coin_metadata) = coin::create_currency(
-            otw, 0, b"GEM", b"Capy Gems", // otw, decimal, symbol, name
-            b"In-game currency for Capy Miners", none(), // description, url
+            otw, 0, b"GEM", b"Gems", // otw, decimal, symbol, name
+            b"In-game currency for Miners", none(), // description, url
             ctx
         );
 
@@ -96,7 +95,7 @@ module examples::gem {
 
         // deal with `TokenPolicy`, `CoinMetadata` and `TokenPolicyCap`
         transfer::public_freeze_object(coin_metadata);
-        transfer::public_transfer(cap, sender(ctx));
+        transfer::public_transfer(cap, ctx.sender());
         token::share_policy(policy);
     }
 

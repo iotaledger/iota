@@ -6,15 +6,15 @@ use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 
 use futures::Stream;
 use iota_json_rpc_types::Filter;
+use iota_metrics::{metered_channel::Sender, spawn_monitored_task};
 use iota_types::{base_types::ObjectID, error::IotaError};
-use mysten_metrics::{metered_channel::Sender, spawn_monitored_task};
 use parking_lot::RwLock;
 use prometheus::Registry;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, warn};
 
-use crate::subscription_handler::{SubscriptionMetrics, EVENT_DISPATCH_BUFFER_SIZE};
+use crate::subscription_handler::{EVENT_DISPATCH_BUFFER_SIZE, SubscriptionMetrics};
 
 type Subscribers<T, F> = Arc<RwLock<BTreeMap<String, (tokio::sync::mpsc::Sender<T>, F)>>>;
 
@@ -38,19 +38,21 @@ where
         metrics_label: &'static str,
     ) -> Self {
         let channel_label = format!("streamer_{}", metrics_label);
-        let gauge = if let Some(metrics) = mysten_metrics::get_metrics() {
-            metrics.channels.with_label_values(&[&channel_label])
+        let gauge = if let Some(metrics) = iota_metrics::get_metrics() {
+            metrics
+                .channel_inflight
+                .with_label_values(&[&channel_label])
         } else {
             // We call init_metrics very early when starting a node. Therefore when this
             // happens, it's probably in a test.
-            mysten_metrics::init_metrics(&Registry::default());
-            mysten_metrics::get_metrics()
+            iota_metrics::init_metrics(&Registry::default());
+            iota_metrics::get_metrics()
                 .unwrap()
-                .channels
+                .channel_inflight
                 .with_label_values(&[&channel_label])
         };
 
-        let (tx, rx) = mysten_metrics::metered_channel::channel(buffer, &gauge);
+        let (tx, rx) = iota_metrics::metered_channel::channel(buffer, &gauge);
         let streamer = Self {
             streamer_queue: tx,
             subscribers: Default::default(),

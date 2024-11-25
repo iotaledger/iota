@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PaginationFirst24, PaginationNext24, PaginationPrev24 } from '@iota/icons';
-import { type InfiniteData, type UseInfiniteQueryResult } from '@tanstack/react-query';
+import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
+import { ArrowLeft, ArrowRight, DoubleArrowLeft } from '@iota/ui-icons';
 import { useState } from 'react';
 
 interface PaginationProps {
+    hasFirst: boolean;
     hasPrev: boolean;
     hasNext: boolean;
     onFirst(): void;
@@ -14,48 +15,12 @@ interface PaginationProps {
     onNext(): void;
 }
 
-interface CursorPaginationProps extends PaginationProps {
-    currentPage: number;
-}
-
 export interface PaginationResponse<Cursor = string> {
     nextCursor: Cursor | null;
     hasNextPage: boolean;
 }
 
-export function useCursorPagination<T>(query: UseInfiniteQueryResult<InfiniteData<T>>) {
-    const [currentPage, setCurrentPage] = useState(0);
-
-    return {
-        ...query,
-        data: query.data?.pages[currentPage],
-        pagination: {
-            onFirst: () => setCurrentPage(0),
-            onNext: () => {
-                if (!query.data || query.isFetchingNextPage) {
-                    return;
-                }
-
-                // Make sure we are at the end before fetching another page
-                if (currentPage >= query.data.pages.length - 1) {
-                    query.fetchNextPage();
-                }
-
-                setCurrentPage(currentPage + 1);
-            },
-            onPrev: () => {
-                setCurrentPage(Math.max(currentPage - 1, 0));
-            },
-            hasNext:
-                !query.isFetchingNextPage &&
-                (currentPage < (query.data?.pages.length ?? 0) - 1 || !!query.hasNextPage),
-            hasPrev: currentPage !== 0,
-            currentPage,
-        } satisfies CursorPaginationProps,
-    };
-}
-
-/** @deprecated Prefer `useCursorPagination` + `useInfiniteQuery` for pagination. */
+/** @deprecated Prefer `useCursorPagination` from core + `useInfiniteQuery` for pagination. */
 export function usePaginationStack<Cursor = string>() {
     const [stack, setStack] = useState<Cursor[]>([]);
 
@@ -66,6 +31,7 @@ export function usePaginationStack<Cursor = string>() {
             nextCursor = null,
         }: Partial<PaginationResponse<Cursor>> = {}): PaginationProps {
             return {
+                hasFirst: stack.length > 0,
                 hasPrev: stack.length > 0,
                 hasNext: hasNextPage,
                 onFirst() {
@@ -84,32 +50,6 @@ export function usePaginationStack<Cursor = string>() {
     };
 }
 
-interface PaginationButtonProps {
-    label: string;
-    icon: typeof PaginationFirst24;
-    disabled: boolean;
-    onClick(): void;
-}
-
-function PaginationButton({
-    label,
-    icon: Icon,
-    disabled,
-    onClick,
-}: PaginationButtonProps): JSX.Element {
-    return (
-        <button
-            className="rounded-md border border-steel px-2 py-1 text-steel shadow-xs disabled:border-gray-45 disabled:text-gray-45"
-            aria-label={label}
-            type="button"
-            disabled={disabled}
-            onClick={onClick}
-        >
-            <Icon className="text-[24px]" />
-        </button>
-    );
-}
-
 export function Pagination({
     hasNext,
     hasPrev,
@@ -119,21 +59,24 @@ export function Pagination({
 }: PaginationProps): JSX.Element {
     return (
         <div className="flex gap-2">
-            <PaginationButton
-                label="Go to First"
-                icon={PaginationFirst24}
-                disabled={!hasPrev}
+            <Button
+                type={ButtonType.Secondary}
+                size={ButtonSize.Small}
+                icon={<DoubleArrowLeft />}
                 onClick={onFirst}
-            />
-            <PaginationButton
-                label="Previous"
-                icon={PaginationPrev24}
                 disabled={!hasPrev}
-                onClick={onPrev}
             />
-            <PaginationButton
-                label="Next"
-                icon={PaginationNext24}
+            <Button
+                type={ButtonType.Secondary}
+                size={ButtonSize.Small}
+                icon={<ArrowLeft />}
+                onClick={onPrev}
+                disabled={!hasPrev}
+            />
+            <Button
+                type={ButtonType.Secondary}
+                size={ButtonSize.Small}
+                icon={<ArrowRight />}
                 disabled={!hasNext}
                 onClick={onNext}
             />

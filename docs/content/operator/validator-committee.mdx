@@ -3,11 +3,14 @@ title: Validator Committee
 description: IOTA has a committee of validators to verify on-chain transactions. Epochs, quorums, transactions, certificates, and consensus are touch points for this committee.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/validator-committee.json';
+
 A set of independent validators participate on the IOTA network, each running its own instance of the IOTA software on a separate machine (or a sharded cluster of machines the same entity operates). Each validator handles read and write requests sent by clients, verifying transactions and updating on-chain information.
 
-To learn how to set up and run a IOTA Validator node, including how staking and rewards work, see [IOTA Validator Node Configuration](validator-config.mdx).
+To learn how to set up and run an IOTA Validator node, including how staking and rewards work, see [IOTA Validator Node Configuration](validator-config.mdx).
 
-IOTA uses Delegated Proof-of-Stake (DPoS) to determine which validators operate the network and their voting power. Validators are incentivized to participate in good faith via a share of transaction fees, staking rewards, and slashing stake and staking rewards in case of misbehavior.
+IOTA uses Delegated Proof-of-Stake (DPoS) to determine which validators operate the network and their voting power. Validators are incentivized to participate in good faith via staking rewards, which are slashed in case of misbehavior.
 
 ## Epochs 
 
@@ -15,7 +18,7 @@ Operation of the IOTA network is temporally partitioned into non-overlapping, ap
 
 ## Quorums 
 
-A quorum is a set of validators whose combined voting power is greater than two-thirds (>2/3) of the total during a particular epoch. For example, in a IOTA instance operated by four validators that all have the same voting power, any group containing three validators is a quorum.
+A quorum is a set of validators whose combined voting power is greater than two-thirds (>2/3) of the total during a particular epoch. For example, in an IOTA instance operated by four validators that all have the same voting power, any group containing three validators is a quorum.
 
 The quorum size of >2/3 ensures Byzantine fault tolerance (BFT). A validator commits a transaction (durably store the transaction and update its internal state with the effects of the transaction) only if it is accompanied by cryptographic signatures from a quorum. IOTA calls the combination of the transaction and the quorum signatures on its bytes a *certificate*. The policy of committing only certificates ensures Byzantine fault tolerance: if >2/3 of the validators faithfully follow the protocol, they are guaranteed to eventually agree on both the set of committed certificates and their effects.
 
@@ -50,3 +53,5 @@ Narwhal enables the parallel ordering of transactions into batches that are coll
 Consensus sequences certificates of transactions. These represent transactions that have already been presented to 2/3 of validators that checked that all their owned objects are available to be operated on and signed the transaction. Upon a certificate being sequenced, IOTA sets the lock of the shared objects at the next available version to map to the execution of that certificate. So for example if you have a shared object X at version 2, and you sequence certificate T, IOTA stores T -> [(X, 2)]. That is all you do when IOTA reaches consensus, and as a result IOTA can ingest a lot of sequenced transactions.
 
 Now, after this is done IOTA can execute all certificates that have their locks set, on one or multiple cores. Obviously, transactions for earlier versions of objects need to be processed first (causally), and that reduces the degree of concurrency. The read and write set of the transaction can be statically determined from its versioned object inputs--execution can only read/write an object that was an input to the transaction, or that was created by the transaction.
+
+<Quiz questions={questions} />

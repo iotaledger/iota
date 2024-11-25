@@ -5,10 +5,10 @@ use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_json_rpc_api::{CoinReadApiClient, GovernanceReadApiClient};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig, DEFAULT_GAS_AMOUNT};
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{get_key_pair_from_rng, IotaKeyPair},
+    crypto::{IotaKeyPair, get_key_pair_from_rng},
     gas_coin::NANOS_PER_IOTA,
 };
 use test_cluster::TestClusterBuilder;
@@ -36,11 +36,13 @@ use test_cluster::TestClusterBuilder;
 /// and thus gets more rewards, it still gets 25%. See the voting power
 /// calculation function for why that is.
 ///
-/// Two exchanges rates are needed to calculate the APY in the API. Epoch 0
-/// always has an initial exchange rate set which cannot be used, so we need to
-/// calculate APY from epoch 1 and 2. Since we need epoch 0 to start staking
-/// anyway, and only have the stake of the pool at the expected number (a
-/// quarter of 3.5B IOTAs) starting from epoch 1, this is totally fine.
+/// At least two exchanges rates are needed to calculate the APY in the API.
+/// Epoch 0 always has an initial exchange rate set which cannot be used, so we
+/// need to calculate APY from later epochs. We use three epochs, to augment the
+/// exchange-rate sample and avoid tampering the statistical estimate of the
+/// APY. Since we need epoch 0 to start staking anyway, and only have the stake
+/// of the pool at the expected number (a quarter of 3.5B IOTAs) starting from
+/// epoch 1, this is totally fine.
 #[sim_test]
 async fn test_apy() {
     // We need a large stake for low enough APY values such that they are not
@@ -65,8 +67,8 @@ async fn test_apy() {
     // for that address.
     test_cluster
         .wallet
-        .config
-        .keystore
+        .config_mut()
+        .keystore_mut()
         .add_key(None, IotaKeyPair::Ed25519(keypair))
         .unwrap();
 
@@ -95,7 +97,7 @@ async fn test_apy() {
         .active_validators()
         .next()
         .unwrap()
-        .config
+        .config()
         .iota_address();
     let transaction = TestTransactionBuilder::new(address, gas_coin.object_ref(), ref_gas_price)
         .call_staking(stake_coin.object_ref(), validator_address)
@@ -104,8 +106,9 @@ async fn test_apy() {
         .sign_and_execute_transaction(&transaction)
         .await;
 
-    // Wait for two epochs with the new stake so we get two new exchange rates which
-    // are minimally needed to calculate the APY.
+    // Wait for three epochs with the new stake so we get an accurate
+    // statistical estimate of the APY.
+    test_cluster.wait_for_epoch(None).await;
     test_cluster.wait_for_epoch(None).await;
     test_cluster.wait_for_epoch(None).await;
 
@@ -116,7 +119,7 @@ async fn test_apy() {
         .await
         .expect("call should succeed");
 
-    assert_eq!(apys.epoch, 2);
+    assert_eq!(apys.epoch, 3);
 
     let validator_apy = apys
         .apys

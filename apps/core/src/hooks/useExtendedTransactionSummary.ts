@@ -3,7 +3,7 @@
 
 import { useTransactionSummary } from './';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
-import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useExtendedTransactionSummary(

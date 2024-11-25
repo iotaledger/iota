@@ -6,9 +6,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS, StructTag,
     coin::{CoinMetadata, TreasuryCap},
     id::UID,
-    StructTag, IOTA_FRAMEWORK_ADDRESS,
 };
 
 pub const COIN_MANAGER_MODULE_NAME: &IdentStr = ident_str!("coin_manager");

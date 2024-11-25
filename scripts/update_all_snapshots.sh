@@ -13,5 +13,9 @@ SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 ROOT="$SCRIPT_DIR/.."
 
 cd "$ROOT/crates/iota-protocol-config" && cargo insta test --review
+cd "$ROOT/crates/iota-cost" && cargo insta test --review
 cd "$ROOT/crates/iota-swarm-config" && cargo insta test --review
 cd "$ROOT/crates/iota-open-rpc" && cargo run --example generate-json-rpc-spec -- record
+cd "$ROOT/crates/iota-core" && cargo -q run --example generate-format -- print > tests/staged/iota.yaml
+UPDATE=1 cargo test -p iota-framework --test build-system-packages
+UPDATE=1 cargo test -p iota-rest-api

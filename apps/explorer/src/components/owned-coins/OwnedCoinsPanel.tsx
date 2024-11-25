@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useElementDimensions, useGetCoins, useOnScreen } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
-
 import CoinItem from './CoinItem';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 const MIN_CONTAINER_WIDTH_SIZE = 500;
 
@@ -34,18 +33,14 @@ export default function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Eleme
     const multiCols = containerWidth > MIN_CONTAINER_WIDTH_SIZE;
 
     return (
-        <div className="max-h-ownCoinsPanel overflow-auto pb-3">
-            <div className="flex flex-wrap" ref={coinsSectionRef}>
+        <div className="max-h-[230px] overflow-auto">
+            <div className="flex flex-col flex-wrap gap-xs" ref={coinsSectionRef}>
                 {data &&
                     data.pages.map((page) =>
                         page.data.map((coin) => (
                             <div
                                 key={coin.coinObjectId}
-                                className={clsx(
-                                    'w-full min-w-coinItemContainer pb-3 pl-3',
-                                    multiCols && 'basis-1/3',
-                                    !multiCols && 'pr-3',
-                                )}
+                                className={clsx('w-full', multiCols && 'basis-1/3')}
                             >
                                 <CoinItem coin={coin} />
                             </div>

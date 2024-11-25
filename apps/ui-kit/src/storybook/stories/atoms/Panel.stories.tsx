@@ -4,7 +4,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { Address, Panel, Title } from '@/components';
 
-const meta = {
+const meta: Meta<typeof Panel> = {
     component: Panel,
     tags: ['autodocs'],
     render: (props) => {

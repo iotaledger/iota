@@ -11,13 +11,11 @@ pub mod checked {
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         base_types::{ObjectID, ObjectRef},
+        deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         digests::TransactionDigest,
         error::ExecutionError,
-        gas::{deduct_gas, GasCostSummary, IotaGasStatus},
-        gas_model::{
-            gas_predicates::{charge_upgrades, dont_charge_budget_on_storage_oog},
-            tables::GasStatus,
-        },
+        gas::{GasCostSummary, IotaGasStatus, deduct_gas},
+        gas_model::tables::GasStatus,
         is_system_package,
         object::Data,
     };
@@ -34,6 +32,7 @@ pub mod checked {
     /// version. 2- Isolate all gas accounting into a single implementation.
     /// Gas objects are not    passed around, and they are retrieved from
     /// this instance.
+    #[allow(dead_code)]
     #[derive(Debug)]
     pub struct GasCharger {
         tx_digest: TransactionDigest,
@@ -65,7 +64,7 @@ pub mod checked {
         pub fn new_unmetered(tx_digest: TransactionDigest) -> Self {
             Self {
                 tx_digest,
-                gas_model_version: 6, // pick any of the latest, it should not matter
+                gas_model_version: 1, // pick any of the latest, it should not matter
                 gas_coins: vec![],
                 smashed_gas_coin: None,
                 gas_status: IotaGasStatus::new_unmetered(),
@@ -222,11 +221,7 @@ pub mod checked {
         }
 
         pub fn charge_upgrade_package(&mut self, size: usize) -> Result<(), ExecutionError> {
-            if charge_upgrades(self.gas_model_version) {
-                self.gas_status.charge_publish_package(size)
-            } else {
-                Ok(())
-            }
+            self.gas_status.charge_publish_package(size)
         }
 
         pub fn charge_input_objects(
@@ -245,6 +240,24 @@ pub mod checked {
                 .map(|(_, obj)| obj.object_size_for_gas_metering())
                 .sum();
             self.gas_status.charge_storage_read(total_size)
+        }
+
+        pub fn charge_coin_transfers(
+            &mut self,
+            protocol_config: &ProtocolConfig,
+            num_non_gas_coin_owners: u64,
+        ) -> Result<(), ExecutionError> {
+            // times two for the global pause and per-address settings
+            // this "overcharges" slightly since it does not check the global pause for each
+            // owner but rather each coin type.
+            let bytes_read_per_owner = CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS;
+            // associate the cost with dynamic field access so that it will increase if/when
+            // this cost increases
+            let cost_per_byte =
+                protocol_config.dynamic_field_borrow_child_object_type_cost_per_byte() as usize;
+            let cost_per_owner = bytes_read_per_owner * cost_per_byte;
+            let owner_cost = cost_per_owner * (num_non_gas_coin_owners as usize);
+            self.gas_status.charge_storage_read(owner_cost)
         }
 
         /// Resets any mutations, deletions, and events recorded in the store,
@@ -306,11 +319,7 @@ pub mod checked {
             // charge for storage, however they track storage values to check
             // for conservation rules
             if let Some(gas_object_id) = self.smashed_gas_coin {
-                if dont_charge_budget_on_storage_oog(self.gas_model_version) {
-                    self.handle_storage_and_rebate_v2(temporary_store, execution_result)
-                } else {
-                    self.handle_storage_and_rebate_v1(temporary_store, execution_result)
-                }
+                self.handle_storage_and_rebate(temporary_store, execution_result);
 
                 let cost_summary = self.gas_status.summary();
                 let gas_used = cost_summary.net_gas_usage();
@@ -327,23 +336,7 @@ pub mod checked {
             }
         }
 
-        fn handle_storage_and_rebate_v1<T>(
-            &mut self,
-            temporary_store: &mut TemporaryStore<'_>,
-            execution_result: &mut Result<T, ExecutionError>,
-        ) {
-            if let Err(err) = self.gas_status.charge_storage_and_rebate() {
-                self.reset(temporary_store);
-                self.gas_status.adjust_computation_on_out_of_gas();
-                temporary_store.ensure_active_inputs_mutated();
-                temporary_store.collect_rebate(self);
-                if execution_result.is_ok() {
-                    *execution_result = Err(err);
-                }
-            }
-        }
-
-        fn handle_storage_and_rebate_v2<T>(
+        fn handle_storage_and_rebate<T>(
             &mut self,
             temporary_store: &mut TemporaryStore<'_>,
             execution_result: &mut Result<T, ExecutionError>,

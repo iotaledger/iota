@@ -1,12 +1,10 @@
 [package]
 name = "test-generation"
 version = "0.1.0"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
-homepage = "https://diem.com"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/diem/diem"
 description = "Tool for generating tests for the bytecode verifier and Move VM runtime"
 
 [dependencies]
@@ -22,11 +20,12 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 module-generation.workspace = true
-move-binary-format.workspace = true
+move-binary-format = { workspace = true, features = ["fuzzing"] }
 move-bytecode-verifier.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
 move-stdlib.workspace = true
+move-stdlib-natives.workspace = true
 move-vm-runtime.workspace = true
 move-vm-test-utils.workspace = true
 move-vm-types.workspace = true

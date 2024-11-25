@@ -5,9 +5,9 @@
 
 # This script runs as part of the rust.yml CI workflow.
 # It will detect new tests added to the repository since the last commit
-# to the main branch, and run them 20 times each with a different seed.
+# to the develop branch, and run them 20 times each with a different seed.
 
-MERGE_BASE=$(git merge-base HEAD origin/main)
+MERGE_BASE=$(git merge-base HEAD origin/develop)
 
 # print git diff between current revision and origin/main, grep for new tests
 NEW_TESTS=( $(git diff "$MERGE_BASE" \

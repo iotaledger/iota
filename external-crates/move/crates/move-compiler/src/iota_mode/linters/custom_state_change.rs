@@ -11,18 +11,11 @@
 //! with a store ability and passes it as an argument to a "private"
 //! transfer/share/freeze call.
 
-use std::collections::BTreeMap;
-
 use move_ir_types::location::*;
 
-use super::{
-    LinterDiagCategory, FREEZE_FUN, INVALID_LOC, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE,
-    LINT_WARNING_PREFIX, RECEIVE_FUN, SHARE_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME,
-};
 use crate::{
     cfgir::{
         absint::JoinResult,
-        ast::Program,
         visitor::{
             LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain, SimpleExecutionContext,
         },
@@ -39,6 +32,12 @@ use crate::{
     parser::ast::Ability_,
     shared::{CompilationEnv, Identifier},
 };
+use std::collections::BTreeMap;
+
+use super::{
+    LinterDiagnosticCategory, LinterDiagnosticCode, FREEZE_FUN, INVALID_LOC, LINT_WARNING_PREFIX,
+    RECEIVE_FUN, SHARE_FUN, IOTA_PKG_NAME, TRANSFER_FUN, TRANSFER_MOD_NAME,
+};
 
 const PRIVATE_OBJ_FUNCTIONS: &[(&str, &str, &str)] = &[
     (IOTA_PKG_NAME, TRANSFER_MOD_NAME, TRANSFER_FUN),
@@ -50,8 +49,8 @@ const PRIVATE_OBJ_FUNCTIONS: &[(&str, &str, &str)] = &[
 const CUSTOM_STATE_CHANGE_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagCategory::CustomStateChange as u8,
-    LINTER_DEFAULT_DIAG_CODE,
+    LinterDiagnosticCategory::Iota as u8,
+    LinterDiagnosticCode::CustomStateChange as u8,
     "potentially unenforceable custom transfer/share/freeze policy",
 );
 
@@ -91,7 +90,6 @@ impl SimpleAbsIntConstructor for CustomStateChangeVerifier {
 
     fn new<'a>(
         _env: &CompilationEnv,
-        _program: &'a Program,
         context: &'a CFGContext<'a>,
         _init_state: &mut State,
     ) -> Option<Self::AI<'a>> {

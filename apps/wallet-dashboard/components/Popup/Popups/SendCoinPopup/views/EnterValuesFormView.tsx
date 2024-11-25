@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinBalance } from '@iota/iota.js/client';
+import { CoinBalance } from '@iota/iota-sdk/client';
 import { FormDataValues } from '../SendCoinPopup';
 import { Button } from '@/components';
 import { useFormatCoin } from '@iota/core';

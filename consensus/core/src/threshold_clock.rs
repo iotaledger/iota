@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cmp::Ordering, sync::Arc, time::Instant};
+use std::{cmp::Ordering, sync::Arc};
+
+use tokio::time::Instant;
 
 use crate::{
     block::{BlockRef, Round},
@@ -13,7 +15,7 @@ use crate::{
 pub(crate) struct ThresholdClock {
     aggregator: StakeAggregator<QuorumThreshold>,
     round: Round,
-    last_quorum_ts: Instant,
+    quorum_ts: Instant,
     context: Arc<Context>,
 }
 
@@ -22,7 +24,7 @@ impl ThresholdClock {
         Self {
             aggregator: StakeAggregator::new(),
             round,
-            last_quorum_ts: Instant::now(),
+            quorum_ts: Instant::now(),
             context,
         }
     }
@@ -60,8 +62,8 @@ impl ThresholdClock {
                         .metrics
                         .node_metrics
                         .quorum_receive_latency
-                        .observe(now.duration_since(self.last_quorum_ts).as_secs_f64());
-                    self.last_quorum_ts = now;
+                        .observe(now.duration_since(self.quorum_ts).as_secs_f64());
+                    self.quorum_ts = now;
                 }
             }
         }
@@ -69,6 +71,10 @@ impl ThresholdClock {
 
     pub(crate) fn get_round(&self) -> Round {
         self.round
+    }
+
+    pub(crate) fn get_quorum_ts(&self) -> Instant {
+        self.quorum_ts
     }
 }
 
@@ -79,8 +85,8 @@ mod tests {
     use super::*;
     use crate::block::BlockDigest;
 
-    #[test]
-    fn test_threshold_clock_add_block() {
+    #[tokio::test]
+    async fn test_threshold_clock_add_block() {
         let context = Arc::new(Context::new_for_test(4).0);
         let mut aggregator = ThresholdClock::new(0, context);
 
@@ -134,8 +140,8 @@ mod tests {
         assert_eq!(aggregator.get_round(), 5);
     }
 
-    #[test]
-    fn test_threshold_clock_add_blocks() {
+    #[tokio::test]
+    async fn test_threshold_clock_add_blocks() {
         let context = Arc::new(Context::new_for_test(4).0);
         let mut aggregator = ThresholdClock::new(0, context);
 

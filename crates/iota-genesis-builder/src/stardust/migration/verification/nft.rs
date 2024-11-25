@@ -6,13 +6,13 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
+    TypeTag,
     balance::Balance,
     base_types::ObjectID,
-    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, Field},
+    dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
     stardust::output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
-    TypeTag,
 };
 
 use crate::stardust::migration::{

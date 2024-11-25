@@ -5,32 +5,14 @@
 use clap::*;
 use colored::Colorize;
 use iota::{
-    client_commands::IotaClientCommands::{ProfileTransaction, ReplayTransaction},
+    client_commands::IotaClientCommands::{ProfileTransaction, ReplayBatch, ReplayTransaction},
     iota_commands::IotaCommand,
 };
 use iota_types::exit_main;
 use tracing::debug;
 
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
-        version
-    }
-};
-
-const VERSION: &str = {
-    #[allow(clippy::const_is_empty)]
-    if GIT_REVISION.is_empty() {
-        env!("CARGO_PKG_VERSION")
-    } else {
-        const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION)
-    }
-};
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
 #[derive(Parser)]
 #[clap(
@@ -59,6 +41,13 @@ async fn main() {
                 .with_env()
                 .init()
         }
+        IotaCommand::Client {
+            cmd: Some(ReplayBatch { .. }),
+            ..
+        } => telemetry_subscribers::TelemetryConfig::new()
+            .with_log_level("info")
+            .with_env()
+            .init(),
 
         IotaCommand::Client {
             cmd: Some(ReplayTransaction {
@@ -86,12 +75,10 @@ async fn main() {
                 .with_env()
                 .init()
         }
-
         IotaCommand::Start { .. } => telemetry_subscribers::TelemetryConfig::new()
             .with_log_level("info")
             .with_env()
             .init(),
-
         _ => telemetry_subscribers::TelemetryConfig::new()
             .with_log_level("error")
             .with_env()

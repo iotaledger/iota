@@ -3,67 +3,101 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     net::SocketAddr,
     num::NonZeroUsize,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-use futures::{future::join_all, StreamExt};
+use futures::{Future, StreamExt, future::join_all};
+use iota_bridge::{
+    crypto::{BridgeAuthorityKeyPair, BridgeAuthoritySignInfo},
+    iota_transaction_builder::{
+        build_add_tokens_on_iota_transaction, build_committee_register_transaction,
+    },
+    types::{
+        BridgeCommitteeValiditySignInfo, CertifiedBridgeAction, VerifiedCertifiedBridgeAction,
+    },
+    utils::{publish_and_register_coins_return_add_coins_on_iota_action, wait_for_server_to_be_up},
+};
 use iota_config::{
+    Config, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
+    PersistedConfig,
+    genesis::Genesis,
+    local_ip_utils::get_available_port,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
-    Config, NodeConfig, PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG,
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
+use iota_genesis_builder::SnapshotSource;
+use iota_json_rpc_api::{
+    BridgeReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
+    error_object_from_rpc,
+};
 use iota_json_rpc_types::{
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, TransactionFilter,
+    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, TransactionFilter,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::{ProtocolVersion, SupportedProtocolVersions};
+use iota_protocol_config::ProtocolVersion;
 use iota_sdk::{
+    IotaClient, IotaClientBuilder,
+    apis::QuorumDriverApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
-    IotaClient, IotaClientBuilder,
 };
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
-    genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig, DEFAULT_GAS_AMOUNT},
+    genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
-    network_config_builder::{ProtocolVersionsConfig, SupportedProtocolVersionsCallback},
+    network_config_builder::{
+        ProtocolVersionsConfig, StateAccumulatorEnabledCallback, StateAccumulatorV1EnabledConfig,
+        SupportedProtocolVersionsCallback,
+    },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_BRIDGE_OBJECT_ID,
     base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
+    bridge::{
+        BridgeSummary, BridgeTrait, TOKEN_ID_BTC, TOKEN_ID_ETH, TOKEN_ID_USDC, TOKEN_ID_USDT,
+        get_bridge, get_bridge_obj_initial_shared_version,
+    },
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{IotaKeyPair, KeypairTraits},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, ToFromBytes, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemState,
-        IotaSystemStateTrait,
+        IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     message_envelope::Message,
+    messages_grpc::HandleCertificateRequestV1,
     object::Object,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    supported_protocol_versions::SupportedProtocolVersions,
+    traffic_control::{PolicyConfig, RemoteFirewallConfig},
     transaction::{
-        CertifiedTransaction, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
+        CertifiedTransaction, ObjectArg, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKind,
     },
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
+    core::RpcResult,
     http_client::{HttpClient, HttpClientBuilder},
-    ws_client::{WsClient, WsClientBuilder},
 };
 use rand::{distributions::*, rngs::OsRng, seq::SliceRandom};
 use tokio::{
     task::JoinHandle,
-    time::{sleep, timeout, Instant},
+    time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
 
@@ -74,7 +108,6 @@ pub struct FullNodeHandle {
     pub iota_client: IotaClient,
     pub rpc_client: HttpClient,
     pub rpc_url: String,
-    pub ws_url: String,
 }
 
 impl FullNodeHandle {
@@ -82,7 +115,6 @@ impl FullNodeHandle {
         let rpc_url = format!("http://{}", json_rpc_address);
         let rpc_client = HttpClientBuilder::default().build(&rpc_url).unwrap();
 
-        let ws_url = format!("ws://{}", json_rpc_address);
         let iota_client = IotaClientBuilder::default().build(&rpc_url).await.unwrap();
 
         Self {
@@ -90,22 +122,22 @@ impl FullNodeHandle {
             iota_client,
             rpc_client,
             rpc_url,
-            ws_url,
         }
     }
+}
 
-    pub async fn ws_client(&self) -> WsClient {
-        WsClientBuilder::default()
-            .build(&self.ws_url)
-            .await
-            .unwrap()
-    }
+struct Faucet {
+    address: IotaAddress,
+    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>,
 }
 
 pub struct TestCluster {
     pub swarm: Swarm,
     pub wallet: WalletContext,
     pub fullnode_handle: FullNodeHandle,
+    pub bridge_authority_keys: Option<Vec<BridgeAuthorityKeyPair>>,
+    pub bridge_server_ports: Option<Vec<u16>>,
+    faucet: Option<Faucet>,
 }
 
 impl TestCluster {
@@ -117,8 +149,16 @@ impl TestCluster {
         &self.fullnode_handle.iota_client
     }
 
+    pub fn quorum_driver_api(&self) -> &QuorumDriverApi {
+        self.iota_client().quorum_driver_api()
+    }
+
     pub fn rpc_url(&self) -> &str {
         &self.fullnode_handle.rpc_url
+    }
+
+    pub fn wallet(&mut self) -> &WalletContext {
+        &self.wallet
     }
 
     pub fn wallet_mut(&mut self) -> &mut WalletContext {
@@ -172,7 +212,7 @@ impl TestCluster {
     pub fn all_node_handles(&self) -> Vec<IotaNodeHandle> {
         self.swarm
             .all_nodes()
-            .map(|n| n.get_node_handle().unwrap())
+            .flat_map(|n| n.get_node_handle())
             .collect()
     }
 
@@ -185,6 +225,10 @@ impl TestCluster {
 
     pub fn get_validator_pubkeys(&self) -> Vec<AuthorityName> {
         self.swarm.active_validators().map(|v| v.name()).collect()
+    }
+
+    pub fn get_genesis(&self) -> Genesis {
+        self.swarm.config().genesis.clone()
     }
 
     pub fn stop_node(&self, name: &AuthorityName) {
@@ -251,6 +295,14 @@ impl TestCluster {
             .compute_object_reference()
     }
 
+    pub async fn get_bridge_summary(&self) -> RpcResult<BridgeSummary> {
+        self.iota_client()
+            .http()
+            .get_latest_bridge()
+            .await
+            .map_err(error_object_from_rpc)
+    }
+
     pub async fn get_object_or_tombstone_from_fullnode_store(
         &self,
         object_id: ObjectID,
@@ -258,57 +310,10 @@ impl TestCluster {
         self.fullnode_handle
             .iota_node
             .state()
-            .get_cache_reader()
+            .get_object_cache_reader()
             .get_latest_object_ref_or_tombstone(object_id)
             .unwrap()
             .unwrap()
-    }
-
-    /// To detect whether the network has reached such state, we use the
-    /// fullnode as the source of truth, since a fullnode only does epoch
-    /// transition when the network has done so.
-    /// If target_epoch is specified, wait until the cluster reaches that epoch.
-    /// If target_epoch is None, wait until the cluster reaches the next epoch.
-    /// Note that this function does not guarantee that every node is at the
-    /// target epoch.
-    pub async fn wait_for_epoch(&self, target_epoch: Option<EpochId>) -> IotaSystemState {
-        self.wait_for_epoch_with_timeout(target_epoch, Duration::from_secs(60))
-            .await
-    }
-
-    pub async fn wait_for_epoch_with_timeout(
-        &self,
-        target_epoch: Option<EpochId>,
-        timeout_dur: Duration,
-    ) -> IotaSystemState {
-        let mut epoch_rx = self
-            .fullnode_handle
-            .iota_node
-            .with(|node| node.subscribe_to_epoch_change());
-        let mut state = Option::None;
-        timeout(timeout_dur, async {
-            while let Ok(system_state) = epoch_rx.recv().await {
-                info!("received epoch {}", system_state.epoch());
-                state = Some(system_state.clone());
-                match target_epoch {
-                    Some(target_epoch) if system_state.epoch() >= target_epoch => {
-                        return system_state;
-                    }
-                    None => {
-                        return system_state;
-                    }
-                    _ => (),
-                }
-            }
-            unreachable!("Broken reconfig channel");
-        })
-        .await
-        .unwrap_or_else(|_| {
-            if let Some(state) = state {
-                panic!("Timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
-            }
-            panic!("Timed out waiting for cluster to target epoch {target_epoch:?}")
-        })
     }
 
     pub async fn wait_for_run_with_range_shutdown_signal(&self) -> Option<RunWithRange> {
@@ -340,8 +345,8 @@ impl TestCluster {
                 },
             }
         })
-        .await
-        .expect("Timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
+            .await
+            .expect("Timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
     }
 
     pub async fn wait_for_protocol_version(
@@ -375,7 +380,7 @@ impl TestCluster {
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire
     /// network to reach the next epoch. This requires waiting for both the
     /// fullnode and all validators to reach the next epoch.
-    pub async fn trigger_reconfiguration(&self) {
+    pub async fn force_new_epoch(&self) {
         info!("Starting reconfiguration");
         let start = Instant::now();
 
@@ -403,6 +408,66 @@ impl TestCluster {
         self.wait_for_epoch_all_nodes(cur_committee.epoch + 1).await;
 
         info!("reconfiguration complete after {:?}", start.elapsed());
+    }
+
+    /// To detect whether the network has reached such state, we use the
+    /// fullnode as the source of truth, since a fullnode only does epoch
+    /// transition when the network has done so.
+    /// If target_epoch is specified, wait until the cluster reaches that epoch.
+    /// If target_epoch is None, wait until the cluster reaches the next epoch.
+    /// Note that this function does not guarantee that every node is at the
+    /// target epoch.
+    pub async fn wait_for_epoch(&self, target_epoch: Option<EpochId>) -> IotaSystemState {
+        self.wait_for_epoch_with_timeout(target_epoch, Duration::from_secs(60))
+            .await
+    }
+
+    pub async fn wait_for_epoch_on_node(
+        &self,
+        handle: &IotaNodeHandle,
+        target_epoch: Option<EpochId>,
+        timeout_dur: Duration,
+    ) -> IotaSystemState {
+        let mut epoch_rx = handle.with(|node| node.subscribe_to_epoch_change());
+
+        let mut state = None;
+        timeout(timeout_dur, async {
+            let epoch = handle.with(|node| node.state().epoch_store_for_testing().epoch());
+            if Some(epoch) == target_epoch {
+                return handle.with(|node| node.state().get_iota_system_state_object_for_testing().unwrap());
+            }
+            while let Ok(system_state) = epoch_rx.recv().await {
+                info!("received epoch {}", system_state.epoch());
+                state = Some(system_state.clone());
+                match target_epoch {
+                    Some(target_epoch) if system_state.epoch() >= target_epoch => {
+                        return system_state;
+                    }
+                    None => {
+                        return system_state;
+                    }
+                    _ => (),
+                }
+            }
+            unreachable!("Broken reconfig channel");
+        })
+            .await
+            .unwrap_or_else(|_| {
+                error!("Timed out waiting for cluster to reach epoch {target_epoch:?}");
+                if let Some(state) = state {
+                    panic!("Timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
+                }
+                panic!("Timed out waiting for cluster to target epoch {target_epoch:?}")
+            })
+    }
+
+    pub async fn wait_for_epoch_with_timeout(
+        &self,
+        target_epoch: Option<EpochId>,
+        timeout_dur: Duration,
+    ) -> IotaSystemState {
+        self.wait_for_epoch_on_node(&self.fullnode_handle.iota_node, target_epoch, timeout_dur)
+            .await
     }
 
     pub async fn wait_for_epoch_all_nodes(&self, target_epoch: EpochId) {
@@ -449,16 +514,16 @@ impl TestCluster {
     /// Note that we don't restart the fullnode here, and it is assumed that the
     /// fulnode supports the entire version range.
     pub async fn update_validator_supported_versions(
-        &mut self,
+        &self,
         new_supported_versions: SupportedProtocolVersions,
     ) {
         for authority in self.get_validator_pubkeys() {
             self.stop_node(&authority);
             tokio::time::sleep(Duration::from_millis(1000)).await;
             self.swarm
-                .node_mut(&authority)
+                .node(&authority)
                 .unwrap()
-                .config
+                .config()
                 .supported_protocol_versions = Some(new_supported_versions);
             self.start_node(&authority).await;
             info!("Restarted validator {}", authority);
@@ -484,6 +549,54 @@ impl TestCluster {
         }
     }
 
+    pub async fn trigger_reconfiguration_if_not_yet_and_assert_bridge_committee_initialized(&self) {
+        let mut bridge =
+            get_bridge(self.fullnode_handle.iota_node.state().get_object_store()).unwrap();
+        if !bridge.committee().members.contents.is_empty() {
+            assert_eq!(
+                self.swarm.active_validators().count(),
+                bridge.committee().members.contents.len()
+            );
+            return;
+        }
+        // wait for next epoch
+        self.force_new_epoch().await;
+        bridge = get_bridge(self.fullnode_handle.iota_node.state().get_object_store()).unwrap();
+        // Committee should be initiated
+        assert!(bridge.committee().member_registrations.contents.is_empty());
+        assert_eq!(
+            self.swarm.active_validators().count(),
+            bridge.committee().members.contents.len()
+        );
+    }
+
+    // Wait for bridge node in the cluster to be up and running.
+    pub async fn wait_for_bridge_cluster_to_be_up(&self, timeout_sec: u64) {
+        let bridge_ports = self.bridge_server_ports.as_ref().unwrap();
+        let mut tasks = vec![];
+        for port in bridge_ports.iter() {
+            let server_url = format!("http://127.0.0.1:{}", port);
+            tasks.push(wait_for_server_to_be_up(server_url, timeout_sec));
+        }
+        join_all(tasks)
+            .await
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()
+            .unwrap();
+    }
+
+    pub async fn get_mut_bridge_arg(&self) -> Option<ObjectArg> {
+        get_bridge_obj_initial_shared_version(
+            self.fullnode_handle.iota_node.state().get_object_store(),
+        )
+        .unwrap()
+        .map(|seq| ObjectArg::SharedObject {
+            id: IOTA_BRIDGE_OBJECT_ID,
+            initial_shared_version: seq,
+            mutable: true,
+        })
+    }
+
     pub async fn wait_for_authenticator_state_update(&self) {
         timeout(
             Duration::from_secs(60),
@@ -500,13 +613,13 @@ impl TestCluster {
                     while let Some(tx) = txns.next().await {
                         let digest = *tx.transaction_digest();
                         let tx = state
-                            .get_cache_reader()
+                            .get_transaction_cache_reader()
                             .get_transaction_block(&digest)
                             .unwrap()
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
-                            TransactionKind::AuthenticatorStateUpdate(_) => break,
+                            TransactionKind::AuthenticatorStateUpdateV1(_) => break,
                             _ => panic!("{:?}", tx),
                         }
                     }
@@ -514,6 +627,22 @@ impl TestCluster {
         )
         .await
         .expect("Timed out waiting for authenticator state update");
+    }
+
+    /// Return the highest observed protocol version in the test cluster.
+    pub fn highest_protocol_version(&self) -> ProtocolVersion {
+        self.all_node_handles()
+            .into_iter()
+            .map(|h| {
+                h.with(|node| {
+                    node.state()
+                        .epoch_store_for_testing()
+                        .epoch_start_state()
+                        .protocol_version()
+                })
+            })
+            .max()
+            .expect("at least one node must be up to get highest protocol version")
     }
 
     pub async fn test_transaction_builder(&self) -> TestTransactionBuilder {
@@ -595,9 +724,13 @@ impl TestCluster {
     pub async fn create_certificate(
         &self,
         tx: Transaction,
+        client_addr: Option<SocketAddr>,
     ) -> anyhow::Result<CertifiedTransaction> {
         let agg = self.authority_aggregator();
-        Ok(agg.process_transaction(tx).await?.into_cert_for_testing())
+        Ok(agg
+            .process_transaction(tx, client_addr)
+            .await?
+            .into_cert_for_testing())
     }
 
     /// Execute a transaction on specified list of validators, and bypassing
@@ -612,7 +745,10 @@ impl TestCluster {
         pubkeys: &[AuthorityName],
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
         let agg = self.authority_aggregator();
-        let certificate = agg.process_transaction(tx).await?.into_cert_for_testing();
+        let certificate = agg
+            .process_transaction(tx, None)
+            .await?
+            .into_cert_for_testing();
         let replies = loop {
             let futures: Vec<_> = agg
                 .authority_clients
@@ -626,7 +762,14 @@ impl TestCluster {
                 })
                 .map(|client| {
                     let cert = certificate.clone();
-                    async move { client.handle_certificate_v2(cert).await }
+                    async move {
+                        client
+                            .handle_certificate_v1(
+                                HandleCertificateRequestV1::new(cert).with_events(),
+                                None,
+                            )
+                            .await
+                    }
                 })
                 .collect();
 
@@ -649,9 +792,9 @@ impl TestCluster {
         let mut all_events = HashMap::new();
         for reply in replies {
             let effects = reply.signed_effects.into_data();
+            let events = reply.events.unwrap_or_default();
             all_effects.insert(effects.digest(), effects);
-            all_events.insert(reply.events.digest(), reply.events);
-            // reply.fastpath_input_objects is unused.
+            all_events.insert(events.digest(), events);
         }
         assert_eq!(all_effects.len(), 1);
         assert_eq!(all_events.len(), 1);
@@ -661,7 +804,7 @@ impl TestCluster {
         ))
     }
 
-    /// This call sends some funds from the seeded address to the funding
+    /// This call sends some funds from the seeded faucet address to the funding
     /// address for the given amount and returns the gas object ref. This
     /// is useful to construct transactions from the funding address.
     pub async fn fund_address_and_return_gas(
@@ -670,20 +813,171 @@ impl TestCluster {
         amount: Option<u64>,
         funding_address: IotaAddress,
     ) -> ObjectRef {
-        let context = &self.wallet;
-        let (sender, gas) = context.get_one_gas_object().await.unwrap().unwrap();
-        let tx = context.sign_transaction(
-            &TestTransactionBuilder::new(sender, gas, rgp)
-                .transfer_iota(amount, funding_address)
-                .build(),
-        );
-        context.execute_transaction_must_succeed(tx).await;
+        let Faucet { address, keypair } = &self
+            .faucet
+            .as_ref()
+            .expect("Faucet not initialized: incompatible with `NetworkConfig`.");
 
-        context
-            .get_one_gas_object_owned_by_address(funding_address)
+        let keypair = &*keypair.lock().await;
+
+        let gas_ref = *self
+            .wallet
+            .get_gas_objects_owned_by_address(*address, None)
             .await
             .unwrap()
+            .first()
+            .unwrap();
+
+        let tx_data = TestTransactionBuilder::new(*address, gas_ref, rgp)
+            .transfer_iota(amount, funding_address)
+            .build();
+
+        let signed_transaction = to_sender_signed_transaction(tx_data, keypair);
+
+        let response = self
+            .iota_client()
+            .quorum_driver_api()
+            .execute_transaction_block(
+                signed_transaction,
+                IotaTransactionBlockResponseOptions::new().with_effects(),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await
+            .unwrap();
+
+        response
+            .effects
             .unwrap()
+            .created()
+            .first()
+            .unwrap()
+            .reference
+            .to_object_ref()
+    }
+
+    pub async fn transfer_iota_must_exceed(
+        &self,
+        sender: IotaAddress,
+        receiver: IotaAddress,
+        amount: u64,
+    ) -> ObjectID {
+        let tx = self
+            .test_transaction_builder_with_sender(sender)
+            .await
+            .transfer_iota(Some(amount), receiver)
+            .build();
+        let effects = self
+            .sign_and_execute_transaction(&tx)
+            .await
+            .effects
+            .unwrap();
+        assert_eq!(&IotaExecutionStatus::Success, effects.status());
+        effects.created().first().unwrap().object_id()
+    }
+
+    /// Wait to catch up to the given checkpoint sequence
+    /// number with a default timeout of 60 sec
+    pub async fn wait_for_checkpoint(
+        &self,
+        checkpoint_sequence_number: u64,
+        timeout: Option<Duration>,
+    ) {
+        let timeout = timeout.unwrap_or(Duration::from_secs(60));
+        tokio::time::timeout(timeout, async {
+            loop {
+                let fullnode_checkpoint = self
+                    .fullnode_handle
+                    .iota_node
+                    .with(|node| {
+                        node.state()
+                            .get_checkpoint_store()
+                            .get_highest_executed_checkpoint_seq_number()
+                    })
+                    .unwrap();
+
+                match fullnode_checkpoint {
+                    Some(c) if c >= checkpoint_sequence_number => break,
+                    _ => tokio::time::sleep(Duration::from_millis(100)).await,
+                }
+            }
+        })
+        .await
+        .expect("Timeout waiting for indexer to catchup to checkpoint");
+    }
+
+    /// Get all objects owned by an address
+    pub async fn get_owned_objects(
+        &self,
+        address: IotaAddress,
+        options: Option<IotaObjectDataOptions>,
+    ) -> anyhow::Result<Vec<IotaObjectResponse>> {
+        let page = self
+            .rpc_client()
+            .get_owned_objects(
+                address,
+                options.map(IotaObjectResponseQuery::new_with_options),
+                None,
+                None,
+            )
+            .await?;
+
+        Ok(page.data)
+    }
+
+    /// Create transactions based on provided object ids
+    /// by transfering them from one address to another
+    pub async fn transfer_objects(
+        &self,
+        sender: IotaAddress,
+        receiver: IotaAddress,
+        object_ids: Vec<ObjectID>,
+        gas: ObjectID,
+        options: Option<IotaTransactionBlockResponseOptions>,
+    ) -> anyhow::Result<Vec<IotaTransactionBlockResponse>> {
+        let mut transaction_block_resp: Vec<IotaTransactionBlockResponse> = Vec::new();
+
+        for id in object_ids {
+            let response = self
+                .transfer_object(sender, receiver, id, gas, options.clone())
+                .await?;
+
+            transaction_block_resp.push(response);
+        }
+
+        Ok(transaction_block_resp)
+    }
+
+    /// Create a transaction to transfer an object from one address to another.
+    /// The object's type must allow public transfers
+    pub async fn transfer_object(
+        &self,
+        sender: IotaAddress,
+        receiver: IotaAddress,
+        object_id: ObjectID,
+        gas: ObjectID,
+        options: Option<IotaTransactionBlockResponseOptions>,
+    ) -> anyhow::Result<IotaTransactionBlockResponse> {
+        let http_client = self.rpc_client();
+        let transaction_bytes = http_client
+            .transfer_object(sender, object_id, Some(gas), 10_000_000.into(), receiver)
+            .await?;
+
+        let tx = self
+            .wallet
+            .sign_transaction(&transaction_bytes.to_data().unwrap());
+
+        let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+        let response = http_client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                options,
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await?;
+
+        Ok(response)
     }
 
     #[cfg(msim)]
@@ -780,6 +1074,12 @@ pub struct TestClusterBuilder {
     authority_overload_config: Option<AuthorityOverloadConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
+    fullnode_policy_config: Option<PolicyConfig>,
+    fullnode_fw_config: Option<RemoteFirewallConfig>,
+
+    max_submit_position: Option<usize>,
+    submit_delay_step_override_millis: Option<u64>,
+    validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
 }
 
 impl TestClusterBuilder {
@@ -803,6 +1103,11 @@ impl TestClusterBuilder {
             authority_overload_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
+            fullnode_policy_config: None,
+            fullnode_fw_config: None,
+            max_submit_position: None,
+            submit_delay_step_override_millis: None,
+            validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
         }
     }
 
@@ -810,6 +1115,16 @@ impl TestClusterBuilder {
         if let Some(run_with_range) = run_with_range {
             self.fullnode_run_with_range = Some(run_with_range);
         }
+        self
+    }
+
+    pub fn with_fullnode_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
+        self.fullnode_policy_config = config;
+        self
+    }
+
+    pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
+        self.fullnode_fw_config = config;
         self
     }
 
@@ -913,6 +1228,15 @@ impl TestClusterBuilder {
         self
     }
 
+    pub fn with_state_accumulator_callback(
+        mut self,
+        func: StateAccumulatorEnabledCallback,
+    ) -> Self {
+        self.validator_state_accumulator_config =
+            StateAccumulatorV1EnabledConfig::PerValidator(func);
+        self
+    }
+
     pub fn with_validator_candidates(
         mut self,
         addresses: impl IntoIterator<Item = IotaAddress>,
@@ -933,6 +1257,16 @@ impl TestClusterBuilder {
 
     pub fn with_accounts(mut self, accounts: Vec<AccountConfig>) -> Self {
         self.get_or_init_genesis_config().accounts = accounts;
+        self
+    }
+
+    pub fn with_migration_data(mut self, migration_sources: Vec<SnapshotSource>) -> Self {
+        self.get_or_init_genesis_config().migration_sources = migration_sources;
+        self
+    }
+
+    pub fn with_additional_accounts(mut self, accounts: Vec<AccountConfig>) -> Self {
+        self.get_or_init_genesis_config().accounts.extend(accounts);
         self
     }
 
@@ -957,14 +1291,45 @@ impl TestClusterBuilder {
         self
     }
 
+    pub fn with_max_submit_position(mut self, max_submit_position: usize) -> Self {
+        self.max_submit_position = Some(max_submit_position);
+        self
+    }
+
+    pub fn with_submit_delay_step_override_millis(
+        mut self,
+        submit_delay_step_override_millis: u64,
+    ) -> Self {
+        self.submit_delay_step_override_millis = Some(submit_delay_step_override_millis);
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
+        // We can add a faucet account to the `GenesisConfig` if there was no
+        // `NetworkConfig` provided. Only either a `GenesisConfig` or a
+        // `NetworkConfig` can be used to configure and build the cluster.
+        let faucet = self.network_config.is_none().then(|| {
+            let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
+            let accounts = &mut self.get_or_init_genesis_config().accounts;
+            accounts.push(AccountConfig {
+                address: Some(faucet_address),
+                gas_amounts: vec![DEFAULT_GAS_AMOUNT],
+            });
+            Faucet {
+                address: faucet_address,
+                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
+                    faucet_keypair,
+                ))),
+            }
+        });
+
         // All test clusters receive a continuous stream of random JWKs.
         // If we later use zklogin authenticated transactions in tests we will need to
         // supply valid JWKs as well.
         #[cfg(msim)]
         if !self.default_jwks {
             iota_node::set_jwk_injector(Arc::new(|_authority, provider| {
-                use fastcrypto_zkp::bn254::zk_login::{JwkId, JWK};
+                use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
                 use rand::Rng;
 
                 // generate random (and possibly conflicting) id/key pairings.
@@ -994,16 +1359,12 @@ impl TestClusterBuilder {
             PersistedConfig::read(&working_dir.join(IOTA_CLIENT_CONFIG)).unwrap();
 
         let fullnode = swarm.fullnodes().next().unwrap();
-        let json_rpc_address = fullnode.config.json_rpc_address;
+        let json_rpc_address = fullnode.config().json_rpc_address;
         let fullnode_handle =
             FullNodeHandle::new(fullnode.get_node_handle().unwrap(), json_rpc_address).await;
 
-        wallet_conf.envs.push(IotaEnv {
-            alias: "localnet".to_string(),
-            rpc: fullnode_handle.rpc_url.clone(),
-            ws: Some(fullnode_handle.ws_url.clone()),
-        });
-        wallet_conf.active_env = Some("localnet".to_string());
+        wallet_conf.add_env(IotaEnv::new("localnet", fullnode_handle.rpc_url.clone()));
+        wallet_conf.set_active_env(Some("localnet".to_string()));
 
         wallet_conf
             .persisted(&working_dir.join(IOTA_CLIENT_CONFIG))
@@ -1017,7 +1378,186 @@ impl TestClusterBuilder {
             swarm,
             wallet,
             fullnode_handle,
+            bridge_authority_keys: None,
+            bridge_server_ports: None,
+            faucet,
         }
+    }
+
+    pub async fn build_with_bridge(
+        self,
+        bridge_authority_keys: Vec<BridgeAuthorityKeyPair>,
+        deploy_tokens: bool,
+    ) -> TestCluster {
+        let timer = Instant::now();
+        let gas_objects_for_authority_keys = bridge_authority_keys
+            .iter()
+            .map(|k| {
+                let address = IotaAddress::from(k.public());
+                Object::with_id_owner_for_testing(ObjectID::random(), address)
+            })
+            .collect::<Vec<_>>();
+        let mut test_cluster = self
+            .with_objects(gas_objects_for_authority_keys)
+            .build()
+            .await;
+        info!(
+            "TestCluster build took {:?} secs",
+            timer.elapsed().as_secs()
+        );
+        let ref_gas_price = test_cluster.get_reference_gas_price().await;
+        let bridge_arg = test_cluster.get_mut_bridge_arg().await.unwrap();
+        assert_eq!(
+            bridge_authority_keys.len(),
+            test_cluster.swarm.active_validators().count()
+        );
+
+        // Committee registers themselves
+        let mut server_ports = vec![];
+        let mut tasks = vec![];
+        let quorum_driver_api = test_cluster.quorum_driver_api().clone();
+        for (node, kp) in test_cluster
+            .swarm
+            .active_validators()
+            .zip(bridge_authority_keys.iter())
+        {
+            let validator_address = node.config().iota_address();
+            // create committee registration tx
+            let gas = test_cluster
+                .wallet
+                .get_one_gas_object_owned_by_address(validator_address)
+                .await
+                .unwrap()
+                .unwrap();
+
+            let server_port = get_available_port("127.0.0.1");
+            let server_url = format!("http://127.0.0.1:{}", server_port);
+            server_ports.push(server_port);
+            let data = build_committee_register_transaction(
+                validator_address,
+                &gas,
+                bridge_arg,
+                kp.public().as_bytes().to_vec(),
+                &server_url,
+                ref_gas_price,
+                1000000000,
+            )
+            .unwrap();
+
+            let tx = Transaction::from_data_and_signer(data, vec![
+                node.config().account_key_pair.keypair(),
+            ]);
+            let api_clone = quorum_driver_api.clone();
+            tasks.push(async move {
+                api_clone
+                    .execute_transaction_block(
+                        tx,
+                        IotaTransactionBlockResponseOptions::new().with_effects(),
+                        None,
+                    )
+                    .await
+            });
+        }
+
+        if deploy_tokens {
+            let timer = Instant::now();
+            let token_ids = vec![TOKEN_ID_BTC, TOKEN_ID_ETH, TOKEN_ID_USDC, TOKEN_ID_USDT];
+            let token_prices = vec![500_000_000u64, 30_000_000u64, 1_000u64, 1_000u64];
+            let action = publish_and_register_coins_return_add_coins_on_iota_action(
+                test_cluster.wallet(),
+                bridge_arg,
+                vec![
+                    Path::new("../../bridge/move/tokens/btc").into(),
+                    Path::new("../../bridge/move/tokens/eth").into(),
+                    Path::new("../../bridge/move/tokens/usdc").into(),
+                    Path::new("../../bridge/move/tokens/usdt").into(),
+                ],
+                token_ids,
+                token_prices,
+                0,
+            );
+            let action = action.await;
+            info!("register tokens took {:?} secs", timer.elapsed().as_secs());
+            let sig_map = bridge_authority_keys
+                .iter()
+                .map(|key| {
+                    (
+                        key.public().into(),
+                        BridgeAuthoritySignInfo::new(&action, key).signature,
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+            let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
+                action,
+                BridgeCommitteeValiditySignInfo {
+                    signatures: sig_map.clone(),
+                },
+            );
+            let verifired_action_cert =
+                VerifiedCertifiedBridgeAction::new_from_verified(certified_action);
+            let sender_address = test_cluster.get_address_0();
+
+            await_committee_register_tasks(&test_cluster, tasks).await;
+
+            // Wait until committee is set up
+            test_cluster
+                .trigger_reconfiguration_if_not_yet_and_assert_bridge_committee_initialized()
+                .await;
+
+            let tx = build_add_tokens_on_iota_transaction(
+                sender_address,
+                &test_cluster
+                    .wallet
+                    .get_one_gas_object_owned_by_address(sender_address)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+                verifired_action_cert,
+                bridge_arg,
+                ref_gas_price,
+            )
+            .unwrap();
+
+            let response = test_cluster.sign_and_execute_transaction(&tx).await;
+            assert_eq!(
+                response.effects.unwrap().status(),
+                &IotaExecutionStatus::Success
+            );
+            info!("Deploy tokens took {:?} secs", timer.elapsed().as_secs());
+        } else {
+            await_committee_register_tasks(&test_cluster, tasks).await;
+        }
+
+        async fn await_committee_register_tasks(
+            test_cluster: &TestCluster,
+            tasks: Vec<
+                impl Future<Output = Result<IotaTransactionBlockResponse, iota_sdk::error::Error>>,
+            >,
+        ) {
+            // The tx may fail if a member tries to register when the committee is already
+            // finalized. In that case, we just need to check the committee
+            // members is not empty since once the committee is finalized, it
+            // should not be empty.
+            let responses = join_all(tasks).await;
+            let mut has_failure = false;
+            for response in responses {
+                if response.unwrap().effects.unwrap().status() != &IotaExecutionStatus::Success {
+                    has_failure = true;
+                }
+            }
+            if has_failure {
+                let bridge_summary = test_cluster.get_bridge_summary().await.unwrap();
+                assert_ne!(bridge_summary.committee.members.len(), 0);
+            }
+        }
+
+        info!(
+            "TestCluster build_with_bridge took {:?} secs",
+            timer.elapsed().as_secs()
+        );
+        test_cluster.bridge_authority_keys = Some(bridge_authority_keys);
+        test_cluster.bridge_server_ports = Some(server_ports);
+        test_cluster
     }
 
     /// Start a Swarm and set up WalletConfig
@@ -1031,6 +1571,7 @@ impl TestClusterBuilder {
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
+            .with_state_accumulator_config(self.validator_state_accumulator_config.clone())
             .with_fullnode_count(1)
             .with_fullnode_supported_protocol_versions_config(
                 self.fullnode_supported_protocol_versions_config
@@ -1038,7 +1579,9 @@ impl TestClusterBuilder {
                     .unwrap_or(self.validator_supported_protocol_versions_config.clone()),
             )
             .with_db_checkpoint_config(self.db_checkpoint_config_fullnodes.clone())
-            .with_fullnode_run_with_range(self.fullnode_run_with_range);
+            .with_fullnode_run_with_range(self.fullnode_run_with_range)
+            .with_fullnode_policy_config(self.fullnode_policy_config.clone())
+            .with_fullnode_fw_config(self.fullnode_fw_config.clone());
 
         if let Some(genesis_config) = self.genesis_config.take() {
             builder = builder.with_genesis_config(genesis_config);
@@ -1074,6 +1617,15 @@ impl TestClusterBuilder {
             builder = builder.with_data_ingestion_dir(data_ingestion_dir);
         }
 
+        if let Some(max_submit_position) = self.max_submit_position {
+            builder = builder.with_max_submit_position(max_submit_position);
+        }
+
+        if let Some(submit_delay_step_override_millis) = self.submit_delay_step_override_millis {
+            builder =
+                builder.with_submit_delay_step_override_millis(submit_delay_step_override_millis);
+        }
+
         let mut swarm = builder.build();
         swarm.launch().await?;
 
@@ -1105,13 +1657,9 @@ impl TestClusterBuilder {
         let active_address = keystore.addresses().first().cloned();
 
         // Create wallet config with stated authorities port
-        IotaClientConfig {
-            keystore: Keystore::from(FileBasedKeystore::new(&keystore_path)?),
-            envs: Default::default(),
-            active_address,
-            active_env: Default::default(),
-        }
-        .save(wallet_path)?;
+        IotaClientConfig::new(FileBasedKeystore::new(&keystore_path)?)
+            .with_active_address(active_address)
+            .save(wallet_path)?;
 
         // Return network handle
         Ok(swarm)

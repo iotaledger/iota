@@ -7,7 +7,7 @@ use std::str::FromStr;
 use anyhow::ensure;
 use move_core_types::{
     account_address::AccountAddress,
-    annotated_value::{MoveStruct, MoveStructLayout},
+    annotated_value::{MoveDatatypeLayout, MoveValue},
     ident_str,
     identifier::{IdentStr, Identifier},
     language_storage::StructTag,
@@ -15,14 +15,14 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::{serde_as, Bytes};
+use serde_with::{Bytes, serde_as};
 
 use crate::{
+    IOTA_SYSTEM_ADDRESS,
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     error::{IotaError, IotaResult},
     iota_serde::{BigInt, Readable},
     object::bounded_visitor::BoundedVisitor,
-    IOTA_SYSTEM_ADDRESS,
 };
 
 /// A universal Iota event type encapsulating different types of events
@@ -101,7 +101,7 @@ impl EventEnvelope {
 
 /// Specific type of event
 #[serde_as]
-#[derive(PartialEq, Eq, Debug, Clone, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct Event {
     pub package_id: ObjectID,
     pub transaction_module: Identifier,
@@ -127,12 +127,12 @@ impl Event {
             contents,
         }
     }
-    pub fn move_event_to_move_struct(
+    pub fn move_event_to_move_value(
         contents: &[u8],
-        layout: MoveStructLayout,
-    ) -> IotaResult<MoveStruct> {
-        BoundedVisitor::deserialize_struct(contents, &layout).map_err(|e| {
-            IotaError::ObjectSerializationError {
+        layout: MoveDatatypeLayout,
+    ) -> IotaResult<MoveValue> {
+        BoundedVisitor::deserialize_value(contents, &layout.into_layout()).map_err(|e| {
+            IotaError::ObjectSerialization {
                 error: e.to_string(),
             }
         })
@@ -141,7 +141,7 @@ impl Event {
     pub fn is_system_epoch_info_event(&self) -> bool {
         self.type_.address == IOTA_SYSTEM_ADDRESS
             && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEvent")
+            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
     }
 }
 
@@ -164,7 +164,7 @@ impl Event {
 
 // Event emitted in move code `fun advance_epoch`
 #[derive(Deserialize)]
-pub struct SystemEpochInfoEvent {
+pub struct SystemEpochInfoEventV1 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub reference_gas_price: u64,

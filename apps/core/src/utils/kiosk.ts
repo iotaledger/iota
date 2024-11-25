@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { KIOSK_OWNER_CAP } from '@iota/kiosk';
-import { IotaObjectData, IotaObjectResponse, NetworkId, getNetwork } from '@iota/iota.js/client';
+import { IotaObjectData, IotaObjectResponse, NetworkId, getNetwork } from '@iota/iota-sdk/client';
 
 export const ORIGINBYTE_KIOSK_MODULE =
     '0x95a441d389b07437d00dd07e0b6f05f513d7659b13fd7c5d3923c7d9d847199b::ob_kiosk';

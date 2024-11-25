@@ -6,15 +6,15 @@ use derive_syn_parse::Parse;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2, TokenTree};
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, quote};
 use syn::{
+    Attribute, GenericArgument, LitStr, PatType, Path, PathArguments, Token, TraitItem, Type,
     parse,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
     spanned::Spanned,
     token::{Comma, Paren},
-    Attribute, GenericArgument, LitStr, PatType, Path, PathArguments, Token, TraitItem, Type,
 };
 use unescape::unescape;
 
@@ -44,7 +44,10 @@ pub fn open_rpc(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let tag = attr.find_attr("tag").to_quote();
 
-    let methods = rpc_definition.methods.iter().map(|method|{
+    let methods = rpc_definition.methods.iter().flat_map(|method|{
+        if method.deprecated {
+            return None;
+        }
         let name = &method.name;
         let deprecated = method.deprecated;
         let doc = &method.doc;
@@ -71,19 +74,19 @@ pub fn open_rpc(attr: TokenStream, item: TokenStream) -> TokenStream {
         };
 
         if method.is_pubsub {
-            quote! {
+            Some(quote! {
                 let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
                 #(#inputs)*
                 let result = #returns_ty
                 builder.add_subscription(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
-            }
+            })
         } else {
-            quote! {
+            Some(quote! {
                 let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
                 #(#inputs)*
                 let result = #returns_ty
                 builder.add_method(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
-            }
+            })
         }
     }).collect::<Vec<_>>();
 
@@ -201,6 +204,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                 };
                 let mut attributes = parse::<Attributes>(token)?;
                 let method_name = attributes.get_value("name");
+
                 let deprecated = attributes.find("deprecated").is_some();
 
                 if let Some(version_attr) = attributes.find("version") {

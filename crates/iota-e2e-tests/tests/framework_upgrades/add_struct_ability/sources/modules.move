@@ -7,19 +7,19 @@ module iota_system::msim_extra_1 {
     use iota::transfer;
     use iota::tx_context::{Self, TxContext};
 
-    struct Type has drop, copy {
+    public struct Type has drop, copy {
         x: u64,
     }
 
-    struct Obj has key, store {
+    public struct Obj has key, store {
         id: UID,
     }
 
-    struct AlmostObj {
+    public struct AlmostObj {
         id: UID,
     }
 
-    struct Wrapper has key {
+    public struct Wrapper has key {
         id: UID,
         obj: Obj,
     }

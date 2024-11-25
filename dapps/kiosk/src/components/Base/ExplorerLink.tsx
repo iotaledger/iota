@@ -13,8 +13,8 @@ export function ExplorerLink(opts: LinkOptions) {
     const [copied, setCopied] = useState<boolean>(false);
     const link =
         'address' in opts
-            ? `https://iotaexplorer.com/address/${opts.address}?network=testnet`
-            : `https://iotaexplorer.com/object/${opts.object}?network=testnet`;
+            ? `https://explorer.iota.org/address/${opts.address}?network=testnet`
+            : `https://explorer.iota.org/object/${opts.object}?network=testnet`;
 
     const copyToClipboard = async () => {
         await navigator.clipboard.writeText('address' in opts ? opts.address : opts.object);

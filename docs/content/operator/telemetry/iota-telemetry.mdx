@@ -3,6 +3,9 @@ title: Telemetry
 description: Collects data from the node and sends it to Google Analytics for monitoring and analysis.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/telemetry/iota-telemetry.json';
+
 The `iota-telemetry` crate is used to collect data from a node, package it into structured events and send it to Google
 Analytics (GA). It uses the GA4 Measurement Protocol, which allows backends to send custom event data to track node
 performance and other metrics.
@@ -24,7 +27,7 @@ The library defines following constants:
 To organize the telemetry data that is to be sent:
 - `TelemetryEvent`: Represents a single event with a name and a set of parameters.
 - `TelemetryPayload`: Represents the payload to be sent, containing a client ID and a list of telemetry events.
-- `IpResponse: Represents` the structure of the IP lookup service response.
+- `IpResponse`: Represents the structure of the IP lookup service response.
 
 ## Sending the Event
 
@@ -39,3 +42,5 @@ It retrieves:
 After retrieving all data, `send_telemetry_event` constructs a `TelemetryEvent` and wraps it into
 a `TelemetryPayload` type containing the hardcoded client ID. Then, the payload will be sent to GA as an HTTP POST request
 with content type JSON, which can be visualized and analyzed in the GA dashboard.
+
+<Quiz questions={questions} />

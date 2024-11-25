@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { DropdownPosition, Select, SelectSize } from '@iota/apps-ui-kit';
 import { useState } from 'react';
-
-import { genTableDataFromTxData } from '~/components';
-import { Pagination, PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
+import { PlaceholderTable, TableCard } from '~/components/ui';
+import { useCursorPagination } from '@iota/core';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
@@ -22,37 +24,40 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
 
     const { data, isFetching, pagination, isPending } = useCursorPagination(transactions);
 
-    const cardData = data ? genTableDataFromTxData(data.data) : undefined;
+    const tableColumns = generateTransactionsTableColumns();
 
     return (
         <div className="flex flex-col space-y-5 text-left xl:pr-10">
-            {isPending || isFetching || !cardData ? (
+            {isPending || isFetching || !data?.data ? (
                 <PlaceholderTable
                     rowCount={20}
                     rowHeight="16px"
                     colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
-                    colWidths={['30%', '30%', '10%', '20%', '10%']}
                 />
             ) : (
                 <div>
-                    <TableCard data={cardData.data} columns={cardData.columns} />
+                    <TableCard
+                        data={data.data}
+                        columns={tableColumns}
+                        paginationOptions={pagination}
+                        pageSizeSelector={
+                            <Select
+                                dropdownPosition={DropdownPosition.Top}
+                                value={limit.toString()}
+                                options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                    label: `${size} / page`,
+                                    id: size.toString(),
+                                }))}
+                                onValueChange={(value) => {
+                                    setLimit(Number(value));
+                                    pagination.onFirst();
+                                }}
+                                size={SelectSize.Small}
+                            />
+                        }
+                    />
                 </div>
             )}
-            <div className="flex justify-between">
-                <Pagination {...pagination} />
-                <select
-                    className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                    value={limit}
-                    onChange={(e) => {
-                        setLimit(Number(e.target.value));
-                        pagination.onFirst();
-                    }}
-                >
-                    <option value={20}>20 Per Page</option>
-                    <option value={40}>40 Per Page</option>
-                    <option value={60}>60 Per Page</option>
-                </select>
-            </div>
         </div>
     );
 }

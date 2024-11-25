@@ -57,14 +57,14 @@ impl Container {
         let startup_sender = Arc::new(startup_sender);
         let node = builder
             .ip(ip)
-            .name(&format!("{:?}", config.protocol_public_key().concise()))
+            .name(&format!("{:?}", config.authority_public_key().concise()))
             .init(move || {
                 info!("Node restarted");
                 let config = config.clone();
                 let mut cancel_receiver = cancel_receiver.clone();
                 let startup_sender = startup_sender.clone();
                 async move {
-                    let registry_service = mysten_metrics::RegistryService::new(Registry::new());
+                    let registry_service = iota_metrics::RegistryService::new(Registry::new());
                     let server = IotaNode::start(config, registry_service, None)
                         .await
                         .unwrap();

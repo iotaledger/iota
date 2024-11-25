@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[test_only]
 module stardust::nft_tests {
 
     use std::ascii;

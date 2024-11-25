@@ -7,7 +7,7 @@ import {
     getNetwork,
     Network,
     type NetworkConfiguration,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 
 export type NetworkEnvType =
     | { network: Exclude<Network, Network.Custom>; customRpcUrl: null }

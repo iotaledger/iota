@@ -32,6 +32,10 @@ export interface NavbarItemProps {
      * The onClick event of the navbar item.
      */
     onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+    /**
+     * Indicates if the navbar item is disabled.
+     */
+    isDisabled?: boolean;
 }
 
 export function NavbarItem(props: NavbarItemProps): React.JSX.Element {

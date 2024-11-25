@@ -5,8 +5,8 @@ import React from 'react';
 import Image from 'next/image';
 import { useAppsBackend } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
-import { AppListItem } from './AppList.types';
-import { getDefaultNetwork } from '@iota/iota.js/client';
+import { type AppListItem } from './AppList.types';
+import { getDefaultNetwork } from '@iota/iota-sdk/client';
 
 const AppListItem = (props: AppListItem) => {
     return (

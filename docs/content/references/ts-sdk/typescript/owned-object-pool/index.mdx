@@ -19,14 +19,17 @@ At a high level, this is how you implement the library:
 
 ```ts
 // Initialize the ExecutorServiceHandler.
-const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, iotaClient);
+const eshandler = await ExecutorServiceHandler.initialize(
+adminKeypair,
+iotaClient,
+);
 
 /// And then for each incoming request...
-/// ...get the incoming transactionBlock
-const myTransactionBlock;
+/// ...get the incoming transaction
+const myTransaction;
 
 /// and send it for execution
-const promise = eshandler.execute(myTransactionBlock, iotaClient, splitStrategy);
+const promise = eshandler.execute(myTransaction, iotaClient, splitStrategy);
 ```
 
 See [End-to-End Examples](../owned-object-pool/examples.mdx) for sample code you can run.

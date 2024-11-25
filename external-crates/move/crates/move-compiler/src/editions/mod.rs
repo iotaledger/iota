@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     diag,
     diagnostics::Diagnostic,
-    shared::{format_oxford_list, CompilationEnv},
+    shared::{string_utils::format_oxford_list, CompilationEnv},
 };
 
 //**************************************************************************************************
@@ -38,6 +38,7 @@ pub enum FeatureGate {
     PublicPackage,
     PostFixAbilities,
     StructTypeVisibility,
+    Enums,
     DotCall,
     PositionalFields,
     LetMut,
@@ -51,6 +52,9 @@ pub enum FeatureGate {
     AutoborrowEq,
     CleverAssertions,
     NoParensCast,
+    TypeHoles,
+    Lambda,
+    ModuleLabel,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, PartialOrd, Ord, Default)]
@@ -67,35 +71,50 @@ pub const UPGRADE_NOTE: &str = "You can update the edition in the 'Move.toml', o
 // Entry
 //**************************************************************************************************
 
+/// Returns true if the feature is present in the given edition.
+/// Adds an error to the environment.
 pub fn check_feature_or_error(
     env: &mut CompilationEnv,
     edition: Edition,
     feature: FeatureGate,
     loc: Loc,
 ) -> bool {
+    if !edition.supports(feature) {
+        env.add_diag(create_feature_error(edition, feature, loc));
+        false
+    } else {
+        true
+    }
+}
+
+pub fn feature_edition_error_msg(edition: Edition, feature: FeatureGate) -> Option<String> {
     let supports_feature = edition.supports(feature);
     if !supports_feature {
-        env.add_diag(create_feature_error(edition, feature, loc));
+        let valid_editions = valid_editions_for_feature(feature);
+        let message =
+            if valid_editions.is_empty() && Edition::DEVELOPMENT.features().contains(&feature) {
+                format!(
+                    "{} under development and should not be used right now.",
+                    feature.error_prefix()
+                )
+            } else {
+                format!(
+                    "{} not supported by current edition '{edition}', \
+                    only {} support this feature",
+                    feature.error_prefix(),
+                    format_oxford_list!("and", "'{}'", valid_editions)
+                )
+            };
+        Some(message)
+    } else {
+        None
     }
-    supports_feature
 }
 
 pub fn create_feature_error(edition: Edition, feature: FeatureGate, loc: Loc) -> Diagnostic {
     assert!(!edition.supports(feature));
-    let valid_editions = valid_editions_for_feature(feature);
-    let message = if valid_editions.is_empty() && Edition::DEVELOPMENT.features().contains(&feature)
-    {
-        format!(
-            "{} under development and should not be used right now.",
-            feature.error_prefix()
-        )
-    } else {
-        format!(
-            "{} not supported by current edition '{edition}', \
-                only {} support this feature",
-            feature.error_prefix(),
-            format_oxford_list!("and", "'{}'", valid_editions)
-        )
+    let Some(message) = feature_edition_error_msg(edition, feature) else {
+        panic!("Previous assert should have failed");
     };
     let mut diag = diag!(Editions::FeatureTooNew, (loc, message));
     diag.add_note(UPGRADE_NOTE);
@@ -117,7 +136,7 @@ pub fn valid_editions_for_feature(feature: FeatureGate) -> Vec<Edition> {
 static SUPPORTED_FEATURES: Lazy<BTreeMap<Edition, BTreeSet<FeatureGate>>> =
     Lazy::new(|| BTreeMap::from_iter(Edition::ALL.iter().map(|e| (*e, e.features()))));
 
-const E2024_ALPHA_FEATURES: &[FeatureGate] = &[FeatureGate::MacroFuns];
+const E2024_ALPHA_FEATURES: &[FeatureGate] = &[];
 
 const E2024_BETA_FEATURES: &[FeatureGate] = &[
     FeatureGate::NestedUse,
@@ -134,9 +153,15 @@ const E2024_BETA_FEATURES: &[FeatureGate] = &[
     FeatureGate::SyntaxMethods,
     FeatureGate::AutoborrowEq,
     FeatureGate::NoParensCast,
+    FeatureGate::MacroFuns,
+    FeatureGate::TypeHoles,
+    FeatureGate::CleverAssertions,
+    FeatureGate::Lambda,
+    FeatureGate::ModuleLabel,
+    FeatureGate::Enums,
 ];
 
-const DEVELOPMENT_FEATURES: &[FeatureGate] = &[FeatureGate::CleverAssertions];
+const DEVELOPMENT_FEATURES: &[FeatureGate] = &[];
 
 const E2024_MIGRATION_FEATURES: &[FeatureGate] = &[FeatureGate::Move2024Migration];
 
@@ -243,6 +268,7 @@ impl FeatureGate {
             FeatureGate::PublicPackage => "'public(package)' is",
             FeatureGate::PostFixAbilities => "Postfix abilities are",
             FeatureGate::StructTypeVisibility => "Struct visibility modifiers are",
+            FeatureGate::Enums => "Enums are",
             FeatureGate::DotCall => "Method syntax is",
             FeatureGate::PositionalFields => "Positional fields are",
             FeatureGate::LetMut => "'mut' variable modifiers are",
@@ -256,6 +282,9 @@ impl FeatureGate {
             FeatureGate::AutoborrowEq => "Automatic borrowing is",
             FeatureGate::CleverAssertions => "Clever `assert!`, `abort`, and `#[error]` are",
             FeatureGate::NoParensCast => "'as' without parentheses is",
+            FeatureGate::TypeHoles => "'_' placeholders for type inference are",
+            FeatureGate::Lambda => "lambda expressions are",
+            FeatureGate::ModuleLabel => "'module' label forms (ending with ';') are",
         }
     }
 }
@@ -370,6 +399,6 @@ impl Serialize for Flavor {
 
 impl Default for Edition {
     fn default() -> Self {
-        Edition::LEGACY
+        Edition::E2024_BETA
     }
 }

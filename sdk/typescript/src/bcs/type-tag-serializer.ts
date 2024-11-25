@@ -5,7 +5,7 @@
 import { splitGenericParameters } from '@iota/bcs';
 
 import { normalizeIotaAddress } from '../utils/iota-types.js';
-import type { TypeTag } from './index.js';
+import type { TypeTag } from './types.js';
 
 const VECTOR_REGEX = /^vector<(.+)>$/;
 const STRUCT_REGEX = /^([^:]+)::([^:]+)::([^<]+)(<(.+)>)?/;
@@ -31,6 +31,7 @@ export class TypeTagSerializer {
         } else if (str === 'signer') {
             return { signer: null };
         }
+
         const vectorMatch = str.match(VECTOR_REGEX);
         if (vectorMatch) {
             return {

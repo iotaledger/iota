@@ -21,7 +21,7 @@ export function useUnstakeTransaction(stakedIotaId: string, senderAddress: strin
         select: (transaction) => {
             return {
                 transaction,
-                gasBudget: transaction.blockData.gasConfig.budget,
+                gasBudget: transaction.getData().gasData.budget,
             };
         },
     });

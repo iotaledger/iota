@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
+import { Feature } from '@iota/core';
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 type UseVerifiedSourceCodeArgs = {
@@ -31,13 +32,13 @@ export function useVerifiedSourceCode({
     moduleName,
 }: UseVerifiedSourceCodeArgs): UseQueryResult<string | null, Error> {
     const { network } = useIotaClientContext();
-    const isEnabled = useFeatureIsOn('module-source-verification');
+    const isEnabled = useFeatureIsOn(Feature.ModuleSourceVerification as string);
 
     return useQuery<string | null, Error>({
         queryKey: ['verified-source-code', packageId, moduleName, network],
         queryFn: async () => {
             const response = await fetch(
-                `https://source.mystenlabs.com/api?network=${network.toLowerCase()}&address=${packageId}&module=${moduleName}`,
+                `https://source.iota.org/api?network=${network.toLowerCase()}&address=${packageId}&module=${moduleName}`,
             );
             if (!response.ok) {
                 throw new Error(`Encountered unexpected response: ${response.status}`);

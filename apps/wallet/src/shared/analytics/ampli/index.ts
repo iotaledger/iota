@@ -16,9 +16,9 @@
  * Build: 1.0.0
  * Runtime: browser:typescript-ampli-v2
  *
- * [View Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest)
+ * [View Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest)
  *
- * [Full Setup Instructions](https://data.amplitude.com/mystenlabs/Iota%20Wallet/implementation/web)
+ * [Full Setup Instructions](https://data.amplitude.com/iotaledger/Iota%20Wallet/implementation/web)
  */
 
 import * as amplitude from '@amplitude/analytics-browser';
@@ -26,8 +26,8 @@ import * as amplitude from '@amplitude/analytics-browser';
 export type Environment = 'production' | 'development';
 
 const API_KEY: Record<Environment, string> = {
-    production: '05c63856469c4e1d4aa9a6c1b2298d3b',
-    development: '938968357fcb3bf031d27b5049f62449',
+    production: '2a5d35822a1bab41835813f0223f319e',
+    development: '30a15c4ef8ae0e10ce5d2ed4f0023de3',
 };
 
 /**
@@ -35,10 +35,10 @@ const API_KEY: Record<Environment, string> = {
  */
 const DEFAULT_CONFIGURATION: BrowserOptions = {
     plan: {
-        version: '3',
+        version: '1',
         branch: 'main',
         source: 'web',
-        versionId: 'e417ca76-bc93-4e57-b900-d5cd7c4b033c',
+        versionId: 'ca799820-3dab-4797-bf37-22ff7cc67e78',
     },
     ...{
         ingestionMetadata: {
@@ -46,6 +46,7 @@ const DEFAULT_CONFIGURATION: BrowserOptions = {
             sourceVersion: '2.0.0',
         },
     },
+    serverZone: amplitude.Types.ServerZone.EU,
 };
 
 export interface LoadOptionsBase {
@@ -74,7 +75,7 @@ export interface IdentifyProperties {
      */
     activeAccountType?: string;
     /**
-     * The Iota Network that the user is currently interacting with.
+     * The IOTA Network that the user is currently interacting with.
      */
     activeNetwork: string;
     /**
@@ -122,7 +123,7 @@ export interface AddedAccountsProperties {
     numberOfAccounts: number;
 }
 
-export interface ClickedBullsharkQuestsCtaProperties {
+export interface ClickedAppsBannerProperties {
     /**
      * The flow the user came from.
      */
@@ -135,7 +136,7 @@ export interface ClickedCollectibleCardProperties {
      */
     collectibleType: string;
     /**
-     * The ID of an object on Iota.
+     * The ID of an object on IOTA.
      */
     objectId: string;
     sourceScreen?: string;
@@ -154,7 +155,7 @@ export interface ClickedHideAssetProperties {
      */
     collectibleType: string;
     /**
-     * The ID of an object on Iota.
+     * The ID of an object on IOTA.
      */
     objectId: string;
 }
@@ -331,7 +332,7 @@ export interface SentCoinsProperties {
 
 export interface SentCollectibleProperties {
     /**
-     * The ID of an object on Iota.
+     * The ID of an object on IOTA.
      */
     objectId: string;
 }
@@ -392,10 +393,10 @@ export class AddedAccounts implements BaseEvent {
     }
 }
 
-export class ClickedBullsharkQuestsCta implements BaseEvent {
-    event_type = 'clicked bullshark quests cta';
+export class ClickedAppsBannerCta implements BaseEvent {
+    event_type = 'clicked apps banner cta';
 
-    constructor(public event_properties: ClickedBullsharkQuestsCtaProperties) {
+    constructor(public event_properties: ClickedAppsBannerProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -635,11 +636,11 @@ export class Ampli {
   }
 
   private isInitializedAndEnabled(): boolean {
-		// if (!this.amplitude) {
-		// 	console.error('ERROR: Ampli is not yet initialized. Have you called ampli.load() on app start?');
-		// 	return false;
-		// }
-		return false;
+		if (!this.amplitude) {
+			console.error('ERROR: Ampli is not yet initialized. Have you called ampli.load() on app start?');
+			return false;
+		}
+		return !this.disabled;
   }
 
   /**
@@ -736,7 +737,7 @@ export class Ampli {
   /**
    * added accounts
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/added%20accounts)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/added%20accounts)
    *
    * When users successfully add new accounts to the wallet.
    *
@@ -753,26 +754,24 @@ export class Ampli {
   }
 
   /**
-   * clicked bullshark quests cta
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20bullshark%20quests%20cta)
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20bullshark%20quests%20cta)
-   *
-   * When users click the call-to-action for the Bullshark Quests interstitial/banner.
+   * When users click the call-to-action for banner.
    *
    * @param properties The event's properties (e.g. sourceFlow)
    * @param options Amplitude event options.
    */
-  clickedBullsharkQuestsCta(
-    properties: ClickedBullsharkQuestsCtaProperties,
+  clickedAppsBannerCta(
+    properties: ClickedAppsBannerProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ClickedBullsharkQuestsCta(properties), options);
+    return this.track(new ClickedAppsBannerCta(properties), options);
   }
 
   /**
    * clicked collectible card
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20collectible%20card)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20collectible%20card)
    *
    * When users click to view a collectible in the wallet.
    *
@@ -791,7 +790,7 @@ export class Ampli {
   /**
    * clicked create new account
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20create%20new%20account)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20create%20new%20account)
    *
    * When users click the button to create a new passphrase account.
    *
@@ -808,7 +807,7 @@ export class Ampli {
   /**
    * clicked create new wallet
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20create%20new%20wallet)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20create%20new%20wallet)
    *
    * When users click to create a new wallet during onboarding.
    *
@@ -825,7 +824,7 @@ export class Ampli {
   /**
    * clicked get started
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20get%20started)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20get%20started)
    *
    * When users click "Get Started" after installing the wallet.
    *
@@ -842,7 +841,7 @@ export class Ampli {
   /**
    * clicked hide asset
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20hide%20asset)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20hide%20asset)
    *
    * Event has no description in tracking plan.
    *
@@ -859,7 +858,7 @@ export class Ampli {
   /**
    * clicked import existing wallet
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20import%20existing%20wallet)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20import%20existing%20wallet)
    *
    * When users click to import an existing wallet during onboarding.
    *
@@ -876,7 +875,7 @@ export class Ampli {
   /**
    * clicked import passphrase
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20import%20passphrase)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20import%20passphrase)
    *
    * When users click to import an account via passphrase.
    *
@@ -893,7 +892,7 @@ export class Ampli {
   /**
    * clicked import private key
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20import%20private%20key)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20import%20private%20key)
    *
    * When users click the button to import an account via private key.
    *
@@ -910,7 +909,7 @@ export class Ampli {
   /**
    * clicked stake IOTA
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20stake%20IOTA)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20stake%20IOTA)
    *
    * When users click to stake IOTA in the wallet.
    *
@@ -929,7 +928,7 @@ export class Ampli {
   /**
    * clicked unstake IOTA
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20unstake%20IOTA)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/clicked%20unstake%20IOTA)
    *
    * When users click to unstake IOTA.
    *
@@ -948,7 +947,7 @@ export class Ampli {
   /**
    * connected hardware wallet
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/connected%20hardware%20wallet)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/connected%20hardware%20wallet)
    *
    * When users successfully connect their hardware wallet.
    *
@@ -967,7 +966,7 @@ export class Ampli {
   /**
    * created new wallet
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/created%20new%20wallet)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/created%20new%20wallet)
    *
    * When users successfully create a new wallet during onboarding.
    *
@@ -984,7 +983,7 @@ export class Ampli {
   /**
    * disconnected application
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/disconnected%20application)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/disconnected%20application)
    *
    * When users disconnect from an application in the wallet.
    *
@@ -1003,7 +1002,7 @@ export class Ampli {
   /**
    * imported existing account
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/imported%20existing%20account)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/imported%20existing%20account)
    *
    * When users successfully import an existing account during onboarding.
    *
@@ -1022,7 +1021,7 @@ export class Ampli {
   /**
    * opened application
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/opened%20application)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/opened%20application)
    *
    * When users click to open an application from the wallet.
    *
@@ -1041,7 +1040,7 @@ export class Ampli {
   /**
    * opened connect ledger flow
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/opened%20connect%20ledger%20flow)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/opened%20connect%20ledger%20flow)
    *
    * When users open the "Connect Ledger Wallet" flow.
    *
@@ -1060,7 +1059,7 @@ export class Ampli {
   /**
    * opened wallet extension
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/opened%20wallet%20extension)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/opened%20wallet%20extension)
    *
    * When users first open the wallet extension.
    *
@@ -1077,7 +1076,7 @@ export class Ampli {
   /**
    * pinned coin
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/pinned%20coin)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/pinned%20coin)
    *
    * When users pin an unrecognized coin on the home page.
    *
@@ -1096,7 +1095,7 @@ export class Ampli {
   /**
    * responded to connection request
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/responded%20to%20connection%20request)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/responded%20to%20connection%20request)
    *
    * When users respond to a connection request in the wallet.
    *
@@ -1115,7 +1114,7 @@ export class Ampli {
   /**
    * responded to transaction request
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/responded%20to%20transaction%20request)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/responded%20to%20transaction%20request)
    *
    * When users respond to a transaction request from an application.
    *
@@ -1134,7 +1133,7 @@ export class Ampli {
   /**
    * selected coin
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/selected%20coin)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/selected%20coin)
    *
    * When users select a specific coin from the home screen.
    *
@@ -1153,7 +1152,7 @@ export class Ampli {
   /**
    * selected validator
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/selected%20validator)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/selected%20validator)
    *
    * When users select a validator in the staking flow.
    *
@@ -1172,7 +1171,7 @@ export class Ampli {
   /**
    * sent coins
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/sent%20coins)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/sent%20coins)
    *
    * When users successfully send coins to someone.
    *
@@ -1191,7 +1190,7 @@ export class Ampli {
   /**
    * sent collectible
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/sent%20collectible)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/sent%20collectible)
    *
    * Owner: William Robertson
    *
@@ -1208,7 +1207,7 @@ export class Ampli {
   /**
    * staked IOTA
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/staked%20IOTA)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/staked%20IOTA)
    *
    * When users successfully stake IOTA with a validator.
    *
@@ -1227,7 +1226,7 @@ export class Ampli {
   /**
    * switched account
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/switched%20account)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/switched%20account)
    *
    * When users switch their active account in the wallet.
    *
@@ -1246,7 +1245,7 @@ export class Ampli {
   /**
    * switched network
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/switched%20network)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/switched%20network)
    *
    * When users switch between different network connections.
    *
@@ -1265,7 +1264,7 @@ export class Ampli {
   /**
    * unpinned coin
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/unpinned%20coin)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/unpinned%20coin)
    *
    * When users un-pin a recognized coin on the home page.
    *
@@ -1284,7 +1283,7 @@ export class Ampli {
   /**
    * unstaked IOTA
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/unstaked%20IOTA)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/unstaked%20IOTA)
    *
    * When users successfully un-stake IOTA.
    *
@@ -1303,7 +1302,7 @@ export class Ampli {
   /**
    * viewed ledger tutorial
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/viewed%20ledger%20tutorial)
+   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Wallet/events/main/latest/viewed%20ledger%20tutorial)
    *
    * When users click the link to get help with connecting their Ledger wallet.
    *

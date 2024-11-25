@@ -4,7 +4,7 @@
 /* eslint-disable @tanstack/query/exhaustive-deps */
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { PaginatedObjectsResponse } from '@iota/iota.js/client';
+import { PaginatedObjectsResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { TANSTACK_OWNED_OBJECTS_KEY } from '../utils/constants';

@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { SVGProps } from 'react';
 export default function SvgAdd(props: SVGProps<SVGSVGElement>) {
     return (
@@ -14,7 +13,7 @@ export default function SvgAdd(props: SVGProps<SVGSVGElement>) {
         >
             <path
                 fill="currentColor"
-                d="M13 5a1 1 0 1 0-2 0v6H5a1 1 0 1 0 0 2h6v6a1 1 0 1 0 2 0v-6h6a1 1 0 1 0 0-2h-6V5Z"
+                d="M13 5a1 1 0 1 0-2 0v6H5a1 1 0 1 0 0 2h6v6a1 1 0 1 0 2 0v-6h6a1 1 0 1 0 0-2h-6z"
             />
         </svg>
     );

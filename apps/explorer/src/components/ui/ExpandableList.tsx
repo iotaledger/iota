@@ -2,12 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronUp12 } from '@iota/icons';
-import { Text } from '@iota/ui';
-import clsx from 'clsx';
 import { type ReactNode, useMemo, useState, createContext, useContext } from 'react';
-
-import { Link } from './Link';
+import { TriangleDown } from '@iota/ui-icons';
+import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
+import clsx from 'clsx';
 
 type ExpandableListContextType = {
     handleShowAllClick: () => void;
@@ -57,13 +55,27 @@ export function ExpandableListControl(): JSX.Element | null {
     }
 
     return (
-        <div className="flex cursor-pointer items-center gap-1 text-steel hover:text-steel-dark">
-            <Link variant="text" onClick={handleShowAllClick}>
-                <div className="flex items-center gap-0.5">
-                    <Text variant="bodySmall/medium">{showAllText}</Text>
-                    <ChevronUp12 className={clsx('h-3 w-3', !showAll ? 'rotate-90' : '')} />
-                </div>
-            </Link>
+        <div className="flex w-full cursor-pointer justify-center">
+            <Button
+                size={ButtonSize.Small}
+                type={ButtonType.Ghost}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    handleShowAllClick();
+                }}
+                text={showAllText}
+                iconAfterText
+                icon={
+                    <TriangleDown
+                        className={clsx(
+                            'ml-xxxs h-5 w-5 text-neutral-60',
+                            showAll
+                                ? 'rotate-180 transition-transform ease-linear'
+                                : 'rotate-0 transition-transform ease-linear',
+                        )}
+                    />
+                }
+            />
         </div>
     );
 }
@@ -92,7 +104,6 @@ export function ExpandableList({
                 showAll,
                 items,
                 defaultItemsToShow,
-                itemsLabel,
             }}
         >
             {children || (

@@ -8,7 +8,7 @@ use move_binary_format::file_format::{
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
     Visibility::Public,
 };
-use move_bytecode_verifier::meter::BoundMeter;
+use move_bytecode_verifier_meter::bound::BoundMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
 
 use crate::unit_tests::production_config;
@@ -38,6 +38,7 @@ fn test_bicliques() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(0)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -64,6 +65,7 @@ fn test_bicliques() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![],
+            jump_tables: vec![],
         }),
     });
     let code = &mut m.function_defs[1].code.as_mut().unwrap().code;
@@ -90,6 +92,7 @@ fn test_bicliques() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -112,6 +115,7 @@ fn test_bicliques() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(0),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
         let code = &mut m.function_defs[i as usize + 2].code.as_mut().unwrap().code;
@@ -125,11 +129,11 @@ fn test_bicliques() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_bicliques",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );
@@ -164,6 +168,7 @@ fn test_merge_state_large_graph() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(0)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -189,6 +194,7 @@ fn test_merge_state_large_graph() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(1)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -209,6 +215,7 @@ fn test_merge_state_large_graph() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(1)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -230,6 +237,7 @@ fn test_merge_state_large_graph() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(1),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
         let code = &mut m.function_defs[i as usize + 3].code.as_mut().unwrap().code;
@@ -248,11 +256,11 @@ fn test_merge_state_large_graph() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_merge_state_large_graph",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );
@@ -287,6 +295,7 @@ fn test_merge_state() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(0)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -318,6 +327,7 @@ fn test_merge_state() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(2),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
         let code = &mut m.function_defs[i as usize + 1].code.as_mut().unwrap().code;
@@ -341,11 +351,11 @@ fn test_merge_state() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_merge_state",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );
@@ -403,6 +413,7 @@ fn test_copyloc_pop() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(2),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
         let code = &mut m.function_defs[i as usize].code.as_mut().unwrap().code;
@@ -428,11 +439,11 @@ fn test_copyloc_pop() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_copyloc_pop",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );

@@ -5,24 +5,23 @@
 #[test_only]
 module iota_system::governance_test_utils {
     use iota::address;
-    use iota::balance;
-    use iota::iota::{Self, IOTA};
+    use iota::balance::{Self, Balance};
     use iota::coin::{Self, Coin};
-    use iota_system::staking_pool::{StakedIota, StakingPool};
-    use iota::test_utils::assert_eq;
-    use iota_system::validator::{Self, Validator};
+    use iota::iota::{Self, IOTA};
+    use iota::system_admin_cap;
+    use iota::test_scenario::{Self, Scenario};
+    use iota::test_utils::{Self, assert_eq};
+
+    use iota_system::staking_pool::{StakedIota, StakingPoolV1};
+    use iota_system::validator::{Self, ValidatorV1};
     use iota_system::iota_system::{Self, IotaSystemState};
     use iota_system::iota_system_state_inner;
-    use iota::test_scenario::{Self, Scenario};
-    use iota::test_utils;
-    use iota::balance::Balance;
-    use iota::timelock;
 
-    const MICROS_PER_IOTA: u64 = 1_000_000_000;
+    const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
     public fun create_validator_for_testing(
         addr: address, init_stake_amount_in_iota: u64, ctx: &mut TxContext
-    ): Validator {
+    ): ValidatorV1 {
         let validator = validator::new_for_testing(
             addr,
             x"AA",
@@ -36,8 +35,7 @@ module iota_system::governance_test_utils {
             b"/ip4/127.0.0.1/tcp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
-            option::some(balance::create_for_testing<IOTA>(init_stake_amount_in_iota * MICROS_PER_IOTA)),
+            option::some(balance::create_for_testing<IOTA>(init_stake_amount_in_iota * NANOS_PER_IOTA)),
             1,
             0,
             true,
@@ -47,7 +45,7 @@ module iota_system::governance_test_utils {
     }
 
     /// Create a validator set with the given stake amounts
-    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<Validator> {
+    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<ValidatorV1> {
         let mut i = 0;
         let mut validators = vector[];
         while (i < stakes.length()) {
@@ -59,7 +57,7 @@ module iota_system::governance_test_utils {
     }
 
     public fun create_iota_system_state_for_testing(
-        validators: vector<Validator>, iota_supply_amount: u64, storage_fund_amount: u64, ctx: &mut TxContext
+        validators: vector<ValidatorV1>, iota_supply_amount: u64, storage_fund_amount: u64, ctx: &mut TxContext
     ) {
         let system_parameters = iota_system_state_inner::create_system_parameters(
             42,  // epoch_duration_ms, doesn't matter what number we put here
@@ -77,13 +75,13 @@ module iota_system::governance_test_utils {
         // We mint the given amount so the system appears to have a total supply of iota_supply_amount,
         // but we burn it since we cannot put it anywhere.
         let iota_total_supply_balance = iota_treasury_cap.mint_balance(
-            iota_supply_amount * MICROS_PER_IOTA,
+            iota_supply_amount * NANOS_PER_IOTA,
             ctx,
         );
         iota_total_supply_balance.destroy_for_testing();
 
         let storage_fund = iota_treasury_cap.mint_balance(
-            storage_fund_amount * MICROS_PER_IOTA,
+            storage_fund_amount * NANOS_PER_IOTA,
             ctx,
         );
 
@@ -95,7 +93,7 @@ module iota_system::governance_test_utils {
             1,   // protocol version
             0,   // chain_start_timestamp_ms
             system_parameters,
-            timelock::new_system_timelock_cap_for_testing(),
+            system_admin_cap::new_system_admin_cap_for_testing(),
             ctx,
         )
     }
@@ -120,7 +118,7 @@ module iota_system::governance_test_utils {
     }
 
     public fun advance_epoch_with_reward_amounts_return_rebate(
-      validator_target_reward: u64, storage_charge: u64, computation_charge: u64, stoarge_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
+        validator_target_reward: u64, storage_charge: u64, computation_charge: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
     ): Balance<IOTA> {
         scenario.next_tx(@0x0);
         let new_epoch = scenario.ctx().epoch() + 1;
@@ -129,7 +127,7 @@ module iota_system::governance_test_utils {
         let ctx = scenario.ctx();
 
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_target_reward, storage_charge, computation_charge, stoarge_rebate, non_refundable_storage_rebate, 0, 0, ctx,
+            new_epoch, 1, validator_target_reward, storage_charge, computation_charge, storage_rebate, non_refundable_storage_rebate, 0, 0, ctx,
         );
         test_scenario::return_shared(system_state);
         scenario.next_epoch(@0x0);
@@ -147,7 +145,7 @@ module iota_system::governance_test_utils {
     public fun advance_epoch_with_target_reward_amounts(
         validator_target_reward: u64, storage_charge: u64, computation_charge: u64, scenario: &mut Scenario
     ) {
-        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(validator_target_reward * MICROS_PER_IOTA, storage_charge * MICROS_PER_IOTA, computation_charge * MICROS_PER_IOTA, 0, 0, scenario);
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(validator_target_reward * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, scenario);
         test_utils::destroy(storage_rebate)
     }
 
@@ -165,7 +163,7 @@ module iota_system::governance_test_utils {
 
         let validator_target_reward = computation_charge;
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_target_reward * MICROS_PER_IOTA, storage_charge * MICROS_PER_IOTA, computation_charge * MICROS_PER_IOTA, 0, 0, reward_slashing_rate, 0, ctx
+            new_epoch, 1, validator_target_reward * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, reward_slashing_rate, 0, ctx
         );
         test_utils::destroy(storage_rebate);
         test_scenario::return_shared(system_state);
@@ -180,7 +178,7 @@ module iota_system::governance_test_utils {
 
         let ctx = scenario.ctx();
 
-        system_state.request_add_stake(coin::mint_for_testing(amount * MICROS_PER_IOTA, ctx), validator, ctx);
+        system_state.request_add_stake(coin::mint_for_testing(amount * NANOS_PER_IOTA, ctx), validator, ctx);
         test_scenario::return_shared(system_state);
     }
 
@@ -214,12 +212,11 @@ module iota_system::governance_test_utils {
             net_addr,
             net_addr,
             net_addr,
-            net_addr,
             1,
             0,
             ctx
         );
-        system_state.request_add_stake(coin::mint_for_testing<IOTA>(init_stake_amount * MICROS_PER_IOTA, ctx), validator, ctx);
+        system_state.request_add_stake(coin::mint_for_testing<IOTA>(init_stake_amount * NANOS_PER_IOTA, ctx), validator, ctx);
         system_state.request_add_validator_for_testing(0, ctx);
         test_scenario::return_shared(system_state);
     }
@@ -238,7 +235,6 @@ module iota_system::governance_test_utils {
             b"description",
             b"image_url",
             b"project_url",
-            net_addr,
             net_addr,
             net_addr,
             net_addr,
@@ -328,7 +324,7 @@ module iota_system::governance_test_utils {
         amount
     }
 
-    public fun stake_plus_current_rewards(addr: address, staking_pool: &StakingPool, scenario: &mut Scenario): u64 {
+    public fun stake_plus_current_rewards(addr: address, staking_pool: &StakingPoolV1, scenario: &mut Scenario): u64 {
         let mut sum = 0;
         scenario.next_tx(addr);
         let mut stake_ids = scenario.ids_for_sender<StakedIota>();

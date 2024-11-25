@@ -82,7 +82,7 @@ ResolvedGraph {
             "C-resolved",
             "Root-resolved",
         },
-        manifest_digest: "6C8AB032D245517996BC9E218500AF7471360346649D91F8858488AF631742A8",
+        manifest_digest: "3135D49E4D184F4E00B5D356CF70CCBA457D3BD5431D8B4613B2E67968FB8F55",
         deps_digest: "060AD7E57DFB13104F21BE5F5C3759D03F0553FC3229247D9A7A6B45F50D03A3",
     },
     build_options: BuildConfig {
@@ -103,6 +103,7 @@ ResolvedGraph {
         deps_as_root: false,
         silence_warnings: false,
         warnings_are_errors: false,
+        json_errors: false,
         additional_named_addresses: {},
         lint_flag: LintFlag {
             no_lint: false,

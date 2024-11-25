@@ -2,19 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaMoveNormalizedType } from '@iota/iota.js/client';
-import { normalizeIotaAddress } from '@iota/iota.js/utils';
-import cl from 'clsx';
-import { Highlight, Prism } from 'prism-react-renderer';
+import { type IotaMoveNormalizedType } from '@iota/iota-sdk/client';
+import { Prism } from 'prism-react-renderer';
 import 'prism-themes/themes/prism-one-light.css';
 import { useMemo } from 'react';
 
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
-import { LinkWithQuery } from '~/components/ui';
 
-import type { Language } from 'prism-react-renderer';
-
-import styles from './ModuleView.module.css';
+import { SyntaxHighlighter } from '../syntax-highlighter';
 
 // Include Rust language support.
 // TODO: Write a custom prismjs syntax for Move Bytecode.
@@ -54,7 +49,7 @@ function unwrapTypeReference(type: IotaMoveNormalizedType): null | TypeReference
     return null;
 }
 
-function ModuleView({ id, name, code }: ModuleViewProps): JSX.Element {
+export function ModuleView({ id, name, code }: ModuleViewProps): JSX.Element {
     const { data: normalizedModule } = useNormalizedMoveModule(id, name);
     const normalizedModuleReferences = useMemo(() => {
         const typeReferences: Record<string, TypeReference> = {};
@@ -78,66 +73,11 @@ function ModuleView({ id, name, code }: ModuleViewProps): JSX.Element {
     }, [normalizedModule]);
 
     return (
-        <section className={styles.modulewrapper}>
-            <div className={cl(styles.code, styles.codeview)}>
-                <Highlight code={code} language={'rust' as Language} theme={undefined}>
-                    {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                        <pre className={className} style={style}>
-                            {tokens.map((line, i) => (
-                                <div
-                                    {...getLineProps({ line, key: i })}
-                                    key={i}
-                                    className={styles.codeline}
-                                >
-                                    <div className={styles.codelinenumbers}>{i + 1}</div>
-
-                                    {line.map((token, key) => {
-                                        const reference =
-                                            normalizedModuleReferences?.[token.content];
-
-                                        if (
-                                            (token.types.includes('class-name') ||
-                                                token.types.includes('constant')) &&
-                                            reference
-                                        ) {
-                                            const href = `/object/${reference.address}?module=${reference.module}`;
-
-                                            return (
-                                                <LinkWithQuery
-                                                    key={key}
-                                                    {...getTokenProps({
-                                                        token,
-                                                        key,
-                                                    })}
-                                                    to={href}
-                                                    target={
-                                                        normalizeIotaAddress(reference.address) ===
-                                                        normalizeIotaAddress(id!)
-                                                            ? undefined
-                                                            : '_blank'
-                                                    }
-                                                />
-                                            );
-                                        }
-
-                                        return (
-                                            <span
-                                                {...getTokenProps({
-                                                    token,
-                                                    key,
-                                                })}
-                                                key={key}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            ))}
-                        </pre>
-                    )}
-                </Highlight>
-            </div>
-        </section>
+        <SyntaxHighlighter
+            code={code}
+            language="rust"
+            normalizedModuleReferences={normalizedModuleReferences}
+            id={id}
+        />
     );
 }
-
-export default ModuleView;

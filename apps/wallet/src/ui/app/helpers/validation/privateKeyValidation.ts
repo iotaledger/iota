@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { decodeIotaPrivateKey, encodeIotaPrivateKey } from '@iota/iota.js/cryptography/keypair';
+import { decodeIotaPrivateKey, encodeIotaPrivateKey } from '@iota/iota-sdk/cryptography/keypair';
 import { hexToBytes } from '@noble/hashes/utils';
 import { z } from 'zod';
 

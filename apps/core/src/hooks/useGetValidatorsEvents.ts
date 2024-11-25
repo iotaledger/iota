@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useIotaClient } from '@iota/dapp-kit';
-import { IotaEvent, type EventId } from '@iota/iota.js/client';
+import { IotaEvent, type EventId } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 type GetValidatorsEvent = {

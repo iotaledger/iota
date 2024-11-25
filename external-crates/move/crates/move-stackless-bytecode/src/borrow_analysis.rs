@@ -56,7 +56,7 @@ impl BorrowInfo {
     fn get_children(&self, node: &BorrowNode) -> Vec<&BorrowNode> {
         self.borrowed_by
             .get(node)
-            .map(|s| s.iter().map(|(n, _)| n).collect_vec())
+            .map(|s| s.iter().map(|(n, _)| n).collect())
             .unwrap_or_default()
     }
 
@@ -64,7 +64,7 @@ impl BorrowInfo {
     fn get_incoming(&self, node: &BorrowNode) -> Vec<&(BorrowNode, BorrowEdge)> {
         self.borrows_from
             .get(node)
-            .map(|s| s.iter().collect_vec())
+            .map(|s| s.iter().collect())
             .unwrap_or_default()
     }
 

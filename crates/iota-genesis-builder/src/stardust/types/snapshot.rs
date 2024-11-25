@@ -7,10 +7,10 @@ use iota_sdk::types::block::{
 };
 use iota_types::stardust::error::StardustError;
 use packable::{
+    Packable, PackableExt,
     error::{UnpackError, UnpackErrorExt},
     packer::Packer,
     unpacker::Unpacker,
-    Packable, PackableExt,
 };
 
 /// The snapshot version supported currently

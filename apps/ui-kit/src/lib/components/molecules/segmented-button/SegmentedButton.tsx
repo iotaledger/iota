@@ -27,7 +27,7 @@ export function SegmentedButton({
     const borderColors = type === SegmentedButtonType.Outlined ? OUTLINED_BORDER : '';
     const borderShape = shape === ButtonSegmentType.Rounded ? 'rounded-full gap-1 p-xxs' : '';
     return (
-        <div className={cx('flex flex-row', backgroundColors, borderColors, borderShape)}>
+        <div className={cx('flex flex-row flex-wrap', backgroundColors, borderColors, borderShape)}>
             {children}
         </div>
     );

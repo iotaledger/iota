@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { SVGProps } from 'react';
 export default function SvgSortByDefault(props: SVGProps<SVGSVGElement>) {
     return (
@@ -14,7 +13,7 @@ export default function SvgSortByDefault(props: SVGProps<SVGSVGElement>) {
         >
             <path
                 fill="currentColor"
-                d="M11.293 4.293a1 1 0 0 1 1.414 0l4 4a1 1 0 0 1-1.414 1.414L12 6.414 8.707 9.707a1 1 0 0 1-1.414-1.414l4-4ZM11.293 19.707a1 1 0 0 0 1.414 0l4-4a1 1 0 0 0-1.414-1.414L12 17.586l-3.293-3.293a1 1 0 0 0-1.414 1.414l4 4Z"
+                d="M11.293 4.293a1 1 0 0 1 1.414 0l4 4a1 1 0 0 1-1.414 1.414L12 6.414 8.707 9.707a1 1 0 0 1-1.414-1.414zm0 15.414a1 1 0 0 0 1.414 0l4-4a1 1 0 0 0-1.414-1.414L12 17.586l-3.293-3.293a1 1 0 0 0-1.414 1.414z"
             />
         </svg>
     );

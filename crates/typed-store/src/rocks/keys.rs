@@ -5,9 +5,9 @@
 use std::marker::PhantomData;
 
 use bincode::Options;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
-use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
+use super::{RocksDBRawIter, TypedStoreError, be_fix_int_ser};
 
 /// An iterator over the keys of a prefix.
 pub struct Keys<'a, K> {
@@ -38,7 +38,7 @@ impl<'a, K: DeserializeOwned> Iterator for Keys<'a, K> {
         } else {
             match self.db_iter.status() {
                 Ok(_) => None,
-                Err(err) => Some(Err(TypedStoreError::RocksDBError(format!("{err}")))),
+                Err(err) => Some(Err(TypedStoreError::RocksDB(format!("{err}")))),
             }
         }
     }

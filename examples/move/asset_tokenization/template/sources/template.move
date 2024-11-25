@@ -23,6 +23,7 @@ module asset_tokenization::template {
     const ICON_URL: vector<u8> = b"icon_url";
     const BURNABLE: bool = true;
 
+    #[allow(lint(share_owned))]
     fun init (otw: TEMPLATE, ctx: &mut TxContext){
 
         let icon_url = if (ICON_URL == b"") {

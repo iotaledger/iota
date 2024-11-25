@@ -54,18 +54,14 @@ export function Navbar({
         >
             {isCollapsable && (
                 <div className="flex w-full items-center justify-between sm:mb-[48px] sm:flex-col">
-                    <div className="flex justify-center">
-                        <IotaLogoMark
-                            width={38}
-                            height={38}
-                            className="text-neutral-10 dark:text-neutral-92"
-                        />
+                    <div className="flex justify-center [&_svg]:h-[38px] [&_svg]:w-[38px]">
+                        <IotaLogoMark className="text-neutral-10 dark:text-neutral-92" />
                     </div>
                     <div
-                        className="state-layer relative rounded-full p-xs hover:cursor-pointer dark:text-neutral-92 sm:hidden"
+                        className="state-layer relative rounded-full p-xs hover:cursor-pointer dark:text-neutral-92 sm:hidden [&_svg]:h-6 [&_svg]:w-6"
                         onClick={onToggleNavbar}
                     >
-                        <MenuIcon className={'h-6 w-6'} />
+                        <MenuIcon />
                     </div>
                 </div>
             )}
@@ -82,11 +78,19 @@ export function Navbar({
                             'px-xs py-xxs': !isCollapsable,
                             'py-xxs pl-xs pr-sm': isCollapsable,
                         })}
+                        data-testid={`nav-${item.id}`}
                     >
                         <NavbarItem
                             {...item}
                             isSelected={item.id === activeId}
-                            onClick={() => onClickItem(item.id)}
+                            onClick={(e) => {
+                                if (item.onClick) {
+                                    item.onClick(e);
+                                }
+                                if (!item.isDisabled) {
+                                    onClickItem(item.id);
+                                }
+                            }}
                         />
                     </div>
                 ))}

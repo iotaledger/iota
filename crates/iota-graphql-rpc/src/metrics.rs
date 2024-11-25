@@ -6,10 +6,10 @@ use std::{sync::Arc, time::Duration};
 
 use async_graphql::{PathSegment, ServerError};
 use prometheus::{
+    Gauge, Histogram, HistogramVec, IntCounter, IntCounterVec, Registry,
     register_gauge_with_registry, register_histogram_vec_with_registry,
     register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, Gauge, Histogram, HistogramVec, IntCounter, IntCounterVec,
-    Registry,
+    register_int_counter_with_registry,
 };
 
 use crate::error::code;

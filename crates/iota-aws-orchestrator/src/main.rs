@@ -6,12 +6,12 @@ use std::{str::FromStr, time::Duration};
 
 use benchmark::{BenchmarkParametersGenerator, LoadType};
 use clap::Parser;
-use client::{aws::AwsClient, ServerProviderClient};
+use client::{ServerProviderClient, aws::AwsClient};
 use eyre::{Context, Result};
 use faults::FaultsType;
 use measurement::MeasurementsCollection;
 use orchestrator::Orchestrator;
-use protocol::narwhal::{NarwhalBenchmarkType, NarwhalProtocol};
+use protocol::iota::{IotaBenchmarkType, IotaProtocol};
 use settings::{CloudProvider, Settings};
 use ssh::SshConnectionManager;
 use testbed::Testbed;
@@ -30,12 +30,8 @@ pub mod settings;
 pub mod ssh;
 pub mod testbed;
 
-/// NOTE: Link these types to the correct protocol. Either Iota or Narwhal.
-// use protocol::iota::{IotaBenchmarkType, IotaProtocol};
-// type Protocol = IotaProtocol;
-// type BenchmarkType = IotaBenchmarkType;
-type Protocol = NarwhalProtocol;
-type BenchmarkType = NarwhalBenchmarkType;
+type Protocol = IotaProtocol;
+type BenchmarkType = IotaBenchmarkType;
 
 #[derive(Parser)]
 #[command(author, version, about = "Testbed orchestrator", long_about = None)]

@@ -10,13 +10,6 @@ This crate defines the core logic for running and reporting Move unit
 tests. Move unit testing is made up of two main components; a test runner,
 and a test reporter.
 
-It's important to also note here that unit tests can be run using the
-[stackless bytecode interpreter](../../move-prover/interpreter). If the
-unit tests are run with the stackless bytecode interpreter and the test
-returns a value, then the result of executing the unit test with the Move
-VM and the result of the interpreter will be compared and an error will
-be raised if they are not equal.
-
 Detailed information on how to use unit tests as a user of Move can be
 found [here](https://move-language.github.io/move/unit-testing.html).
 

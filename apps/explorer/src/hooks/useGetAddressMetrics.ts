@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { type AddressMetrics } from '@iota/iota.js/src/client';
+import { type AddressMetrics } from '@iota/iota-sdk/src/client';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 export function useGetAddressMetrics(): UseQueryResult<AddressMetrics, Error> {

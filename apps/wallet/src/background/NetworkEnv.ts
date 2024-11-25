@@ -4,7 +4,7 @@
 
 import { type NetworkEnvType } from '_src/shared/api-env';
 import { isValidUrl } from '_src/shared/utils';
-import { getDefaultNetwork, Network } from '@iota/iota.js/client';
+import { getDefaultNetwork, Network } from '@iota/iota-sdk/client';
 import mitt from 'mitt';
 import Browser from 'webextension-polyfill';
 

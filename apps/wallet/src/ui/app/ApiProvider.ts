@@ -4,7 +4,7 @@
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { getIotaClient } from '_src/shared/iota-client';
-import { getDefaultNetwork, Network, type IotaClient } from '@iota/iota.js/client';
+import { getDefaultNetwork, Network, type IotaClient } from '@iota/iota-sdk/client';
 
 import type { BackgroundClient } from './background-client';
 import { BackgroundServiceSigner } from './background-client/BackgroundServiceSigner';

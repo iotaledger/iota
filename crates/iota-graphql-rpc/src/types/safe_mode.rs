@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 
-use super::gas::GasCostSummary;
+use crate::types::gas::GasCostSummary;
 
 /// Information about whether epoch changes are using safe mode.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]

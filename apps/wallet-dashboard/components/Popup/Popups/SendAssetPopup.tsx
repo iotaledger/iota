@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useCallback, useState } from 'react';
-import { IotaObjectData } from '@iota/iota.js/client';
+import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetCard, Input } from '@/components';
 import { Button } from '@/components/Buttons';
 import { FlexDirection } from '@/lib/ui/enums';
@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import { useCreateSendAssetTransaction } from '@/hooks';
+import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
 
 interface SendAssetPopupProps {
     asset: IotaObjectData;
@@ -48,7 +49,7 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
     function onSendAssetSuccess() {
         addNotification('Transfer transaction successful', NotificationType.Success);
         onClose?.();
-        router.push('/dashboard/assets/visual-assets');
+        router.push(ASSETS_ROUTE.path + '/visual-assets');
     }
 
     function onSendAssetError() {

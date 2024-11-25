@@ -4,9 +4,6 @@ outputs:
   isDoc:
     description: True when changes happened to some documentation
     value: "${{ steps.diff.outputs.isDoc }}"
-  isOldDoc:
-    description: True when changes happened to old doc folder
-    value: "${{ steps.diff.outputs.isOldDoc }}"
   isRust:
     description: True when changes happened to the Rust code
     value: "${{ steps.diff.outputs.isRust }}"
@@ -20,9 +17,9 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
     - name: Detect Changes
-      uses: dorny/paths-filter@v2.10.2
+      uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
       id: diff
       with:
         filters: |
@@ -30,18 +27,25 @@ runs:
             - "consensus/**"
             - "crates/**"
             - "external-crates/**"
-            - "narwhal/**"
             - "iota-execution/**"
+            - "docs/examples/rust/**"
+            - ".github/workflows/hierarchy.yml"
             - ".github/workflows/codecov.yml"
-            - ".github/workflows/rust.yml"
-            - ".github/workflows/external.yml"
+            - ".github/workflows/_rust.yml"
+            - ".github/workflows/_rust_tests.yml"
+            - ".github/workflows/_rust_lints.yml"
+            - ".github/workflows/_external_rust_tests.yml"
+            - ".github/workflows/_cargo_deny.yml"
+            - "scripts/cargo_sort/cargo_sort.py"
+            - "Cargo.toml"
+            - "Cargo.lock"
+            - ".config/nextest.toml"
           isDoc:
             - "docs/content/**"
+            - "docs/site/**"
             - "*.mdx"
-            - ".github/workflows/docs.yml"
-          isOldDoc:
-            - "doc/**"
-            - "*.md"
+            - ".github/workflows/_docs_lint.yml"
+            - ".github/workflows/_docusaurus.yml"
           isMove:
             - "crates/iota-framework/**"
             - "crates/iota-framework-build/**"
@@ -50,6 +54,7 @@ runs:
             - "Cargo.toml"
             - "examples/**"
             - "iota_programmability/**"
+            - ".github/workflows/_move_tests.yml"
           isReleaseNotesEligible:
             - "consensus/**"
             - "crates/**"
@@ -58,6 +63,5 @@ runs:
             - "docker/**"
             - "external-crates/**"
             - "kiosk/**"
-            - "narwhal/**"
             - "nre/**"
             - "iota-execution/**"

@@ -7,15 +7,6 @@ module iota::object {
     use std::bcs;
     use iota::address;
 
-    /* friend iota::clock; */
-    /* friend iota::coin; */
-    /* friend iota::dynamic_field; */
-    /* friend iota::dynamic_object_field; */
-    /* friend iota::transfer; */
-    /* friend iota::authenticator_state; */
-    /* friend iota::random; */
-    /* friend iota::deny_list; */
-
     /// Allows calling `.to_address` on an `ID` to get an `address`.
     public use fun id_to_address as ID.to_address;
 
@@ -34,9 +25,6 @@ module iota::object {
     /// Allows calling `.to_bytes` on a `UID` to get a `vector<u8>`.
     public use fun uid_to_bytes as UID.to_bytes;
 
-    /* #[test_only] */
-    /* friend iota::test_scenario; */
-
     /// The hardcoded ID for the singleton Iota System State Object.
     const IOTA_SYSTEM_STATE_OBJECT_ID: address = @0x5;
 
@@ -51,6 +39,9 @@ module iota::object {
 
     /// The hardcoded ID for the singleton DenyList.
     const IOTA_DENY_LIST_OBJECT_ID: address = @0x403;
+
+    /// The hardcoded ID for the Bridge Object.
+    const IOTA_BRIDGE_ID: address = @0x9;
 
     /// Sender is not @0x0 the system address.
     const ENotSystemAddress: u64 = 0;
@@ -142,6 +133,15 @@ module iota::object {
     public(package) fun iota_deny_list_object_id(): UID {
         UID {
             id: ID { bytes: IOTA_DENY_LIST_OBJECT_ID }
+        }
+    }
+
+    #[allow(unused_function)]
+    /// Create the `UID` for the singleton `Bridge` object.
+    /// This should only be called once from `bridge`.
+    fun bridge(): UID {
+        UID {
+            id: ID { bytes: IOTA_BRIDGE_ID }
         }
     }
 

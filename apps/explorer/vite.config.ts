@@ -4,16 +4,17 @@
 
 /// <reference types="vitest" />
 import react from '@vitejs/plugin-react';
+import { execSync } from 'child_process';
 import { defineConfig } from 'vite';
-import pluginRewriteAll from 'vite-plugin-rewrite-all';
 import svgr from 'vite-plugin-svgr';
 import { configDefaults } from 'vitest/config';
 
 process.env.VITE_VERCEL_ENV = process.env.VERCEL_ENV || 'development';
+const EXPLORER_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [react(), svgr(), pluginRewriteAll()],
+    plugins: [react(), svgr()],
     test: {
         // Omit end-to-end tests:
         exclude: [...configDefaults.exclude, 'tests/**'],
@@ -30,5 +31,8 @@ export default defineConfig({
         alias: {
             '~': new URL('./src', import.meta.url).pathname,
         },
+    },
+    define: {
+        EXPLORER_REV: JSON.stringify(EXPLORER_REV),
     },
 });

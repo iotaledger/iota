@@ -6,21 +6,17 @@ use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use iota_package_resolver::{
-    error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
+    Package, PackageStore, PackageStoreWithLruCache, Result, error::Error as PackageResolverError,
 };
 use iota_rest_api::Client;
-use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    object::Object,
-};
+use iota_types::{base_types::ObjectID, object::Object};
 use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
 use typed_store::{
+    DBMapUtils, Map, TypedStoreError,
     rocks::{DBMap, MetricConf},
     traits::{TableSummary, TypedStoreDebug},
-    Map, TypedStoreError,
 };
-use typed_store_derive::DBMapUtils;
 
 const STORE: &str = "RocksDB";
 
@@ -35,7 +31,7 @@ impl From<Error> for PackageResolverError {
         match source {
             Error::TypedStore(store_error) => Self::Store {
                 store: STORE,
-                source: Box::new(store_error),
+                source: Arc::new(store_error),
             },
         }
     }
@@ -77,10 +73,9 @@ pub struct LocalDBPackageStore {
 
 impl LocalDBPackageStore {
     pub fn new(path: &Path, rest_url: &str) -> Self {
-        let rest_api_url = format!("{}/rest", rest_url);
         Self {
             package_store_tables: PackageStoreTables::new(path),
-            fallback_client: Client::new(rest_api_url),
+            fallback_client: Client::new(rest_url),
         }
     }
 
@@ -115,14 +110,9 @@ impl LocalDBPackageStore {
 
 #[async_trait]
 impl PackageStore for LocalDBPackageStore {
-    async fn version(&self, id: AccountAddress) -> Result<SequenceNumber> {
-        let object = self.get(id).await?;
-        Ok(object.version())
-    }
-
     async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>> {
         let object = self.get(id).await?;
-        Ok(Arc::new(Package::read(&object)?))
+        Ok(Arc::new(Package::read_from_object(&object)?))
     }
 }
 

@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What is the recommended naming convention for functions that create objects in Move?",
+    "answerOptions": [
+      { "answerText": "`empty`", "isCorrect": false },
+      { "answerText": "`add`", "isCorrect": false },
+      { "answerText": "`new`", "isCorrect": true },
+      { "answerText": "`remove`", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "According to Move conventions, what should you avoid including in function names?",
+    "answerOptions": [
+      { "answerText": "The action being performed", "isCorrect": false },
+      { "answerText": "The object's name", "isCorrect": true },
+      { "answerText": "The module name", "isCorrect": false },
+      { "answerText": "The property name", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Why should you use capabilities instead of addresses for access control in Move?",
+    "answerOptions": [
+      { "answerText": "To improve transaction speed", "isCorrect": false },
+      { "answerText": "To enhance error handling", "isCorrect": false },
+      { "answerText": "To maintain composability", "isCorrect": true },
+      { "answerText": "To reduce code size", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How should errors be named in Move according to the conventions?",
+    "answerOptions": [
+      { "answerText": "Use camelCase starting with 'e'", "isCorrect": false },
+      { "answerText": "Use uppercase letters only", "isCorrect": false },
+      { "answerText": "Use PascalCase starting with 'E' and ensure they are descriptive", "isCorrect": true },
+      { "answerText": "Use lowercase letters only", "isCorrect": false }
+    ]
+  }
+]

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaValidatorSummary } from '@iota/iota.js/client';
+import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 
 import { calculateStakeShare } from './calculateStakeShare';
 

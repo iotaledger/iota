@@ -4,7 +4,7 @@
 
 import { toB64 } from '@iota/bcs';
 import type { BcsType } from '@iota/bcs';
-import { bcs } from '@iota/iota.js/bcs';
+import { bcs } from '@iota/iota-sdk/bcs';
 
 import type { MoveTypeLayout } from './move.js';
 import { toShortTypeString } from './util.js';

@@ -1,0 +1,41 @@
+{
+    "questions": [
+      {
+        "questionText": "How do validators on the IOTA network get their voting power?",
+        "answerOptions": [
+          { "answerText": "By mining.", "isCorrect": false },
+          { "answerText": "By holding their own IOTA tokens.", "isCorrect": false },
+          { "answerText": "From IOTA token holders who delegate their stakes to them.", "isCorrect": true },
+          { "answerText": "From other validators.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What unique feature of IOTA staking allows rewards to automatically reinvest?",
+        "answerOptions": [
+          { "answerText": "Stakers keep their tokens in a cold wallet.", "isCorrect": false },
+          { "answerText": "Auto-compounding rewards.", "isCorrect": true },
+          { "answerText": "High validator commission rates.", "isCorrect": false },
+          { "answerText": "No performance penalties.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "When does a user's stake start contributing to a validator's voting power?",
+        "answerOptions": [
+          { "answerText": "Immediately after staking.", "isCorrect": false },
+          { "answerText": "After the next block is mined.", "isCorrect": false },
+          { "answerText": "From the next epoch.", "isCorrect": true },
+          { "answerText": "After 24 hours.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What happens if a validator underperforms during an epoch?",
+        "answerOptions": [
+          { "answerText": "They receive reduced rewards.", "isCorrect": false },
+          { "answerText": "They lose all their rewards for that epoch.", "isCorrect": true },
+          { "answerText": "Their commission rate is increased.", "isCorrect": false },
+          { "answerText": "Nothing, rewards are distributed equally.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  

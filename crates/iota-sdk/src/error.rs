@@ -15,21 +15,21 @@ pub enum Error {
     Rpc(#[from] jsonrpsee::core::ClientError),
     #[error(transparent)]
     BcsSerialization(#[from] bcs::Error),
-    #[error("Subscription error : {0}")]
+    #[error("Subscription error: {0}")]
     Subscription(String),
     #[error("Failed to confirm tx status for {0:?} within {1} seconds.")]
     FailToConfirmTransactionStatus(TransactionDigest, u64),
     #[error("Data error: {0}")]
     Data(String),
     #[error(
-        "Client/Server api version mismatch, client api version : {client_version}, server api version : {server_version}"
+        "Client/Server api version mismatch, client api version: {client_version}, server api version: {server_version}"
     )]
     ServerVersionMismatch {
         client_version: String,
         server_version: String,
     },
-    #[error("Insufficient fund for address [{address}], requested amount: {amount}")]
-    InsufficientFund { address: IotaAddress, amount: u128 },
+    #[error("Insufficient funds for address [{address}], requested amount: {amount}")]
+    InsufficientFunds { address: IotaAddress, amount: u128 },
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 }

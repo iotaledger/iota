@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_protocol_config::{ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]
@@ -64,31 +65,31 @@ mod sim_only_tests {
     use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_protocol_config::SupportedProtocolVersions;
     use iota_types::{
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
+        IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
         base_types::{ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
         iota_system_state::{
+            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1, IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1,
+            IOTA_SYSTEM_STATE_SIM_TEST_V1, IotaSystemState, IotaSystemStateTrait,
             epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
-            IotaSystemState, IotaSystemStateTrait, IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2,
-            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2, IOTA_SYSTEM_STATE_SIM_TEST_V1,
         },
         object::{Object, Owner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
+        supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
             CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-            TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionKind,
         },
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
-        MOVE_STDLIB_PACKAGE_ID,
     };
-    use move_binary_format::CompiledModule;
+    use move_binary_format::{CompiledModule, file_format_common::VERSION_MAX};
     use move_core_types::ident_str;
     use test_cluster::TestCluster;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
     use tracing::info;
 
     use super::*;
@@ -151,7 +152,7 @@ mod sim_only_tests {
             .with_async(|node| async {
                 // give time for restarted node to catch up, reconfig
                 // to new protocol, and reconfig again
-                sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(15)).await;
 
                 let epoch_store = node.state().epoch_store_for_testing();
                 assert_eq!(epoch_store.epoch(), 2);
@@ -189,7 +190,7 @@ mod sim_only_tests {
         // verify that the node that didn't support the new version shut itself down.
         for v in test_cluster.swarm.validator_nodes() {
             if !v
-                .config
+                .config()
                 .supported_protocol_versions
                 .unwrap()
                 .is_version_supported(ProtocolVersion::new(FINISH))
@@ -342,12 +343,6 @@ mod sim_only_tests {
         let to_wrap1 = create_obj(&cluster).await;
         let to_transfer1 = create_obj(&cluster).await;
 
-        // Instances of the type that existed before will not have public transfer
-        // despite now having store
-        assert!(!has_public_transfer(&cluster, &to_wrap0.0).await);
-        assert!(!has_public_transfer(&cluster, &to_transfer0.0).await);
-        assert!(has_public_transfer(&cluster, &to_wrap1.0).await);
-        assert!(has_public_transfer(&cluster, &to_transfer1.0).await);
         // Instances of the type that existed before and new instances are able to take
         // advantage of the newly introduced ability
         wrap_obj(&cluster, to_wrap0).await;
@@ -432,6 +427,7 @@ mod sim_only_tests {
                         IOTA_CLOCK_OBJECT_ID,
                         IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                         IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        IOTA_BRIDGE_OBJECT_ID,
                     ]
                     .contains(&obj.0);
                     (!is_framework_obj).then_some(obj.0)
@@ -448,16 +444,13 @@ mod sim_only_tests {
 
         // Call a function from the newly published system package
         assert_eq!(
-            dev_inspect_call(
-                &cluster,
-                ProgrammableMoveCall {
-                    package: iota_extra,
-                    module: ident_str!("msim_extra_1").to_owned(),
-                    function: ident_str!("canary").to_owned(),
-                    type_arguments: vec![],
-                    arguments: vec![],
-                }
-            )
+            dev_inspect_call(&cluster, ProgrammableMoveCall {
+                package: iota_extra,
+                module: ident_str!("msim_extra_1").to_owned(),
+                function: ident_str!("canary").to_owned(),
+                type_arguments: vec![],
+                arguments: vec![],
+            })
             .await,
             43,
         );
@@ -478,16 +471,13 @@ mod sim_only_tests {
     }
 
     async fn call_canary(cluster: &TestCluster) -> u64 {
-        dev_inspect_call(
-            cluster,
-            ProgrammableMoveCall {
-                package: IOTA_SYSTEM_PACKAGE_ID,
-                module: ident_str!("msim_extra_1").to_owned(),
-                function: ident_str!("canary").to_owned(),
-                type_arguments: vec![],
-                arguments: vec![],
-            },
-        )
+        dev_inspect_call(cluster, ProgrammableMoveCall {
+            package: IOTA_SYSTEM_PACKAGE_ID,
+            module: ident_str!("msim_extra_1").to_owned(),
+            function: ident_str!("canary").to_owned(),
+            type_arguments: vec![],
+            arguments: vec![],
+        })
         .await
     }
 
@@ -653,10 +643,11 @@ mod sim_only_tests {
 
         node_handle
             .with_async(|node| async {
-                let store = node.state().get_cache_reader().clone();
+                let store = node.state().get_object_cache_reader().clone();
                 let framework = store.get_object(package);
                 let digest = framework.unwrap().unwrap().previous_transaction;
-                let effects = store.get_executed_effects(&digest);
+                let tx_store = node.state().get_transaction_cache_reader().clone();
+                let effects = tx_store.get_executed_effects(&digest);
                 effects.unwrap().unwrap()
             })
             .await
@@ -668,21 +659,12 @@ mod sim_only_tests {
         node_handle
             .with_async(|node| async {
                 node.state()
-                    .get_cache_reader()
+                    .get_object_cache_reader()
                     .get_object(object_id)
                     .unwrap()
                     .unwrap()
             })
             .await
-    }
-
-    async fn has_public_transfer(cluster: &TestCluster, object_id: &ObjectID) -> bool {
-        get_object(&cluster, object_id)
-            .await
-            .data
-            .try_as_move()
-            .unwrap()
-            .has_public_transfer()
     }
 
     #[sim_test]
@@ -793,6 +775,11 @@ mod sim_only_tests {
 
     #[sim_test]
     async fn test_safe_mode_recovery() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_disable_bridge_for_testing();
+            config
+        });
+
         override_iota_system_modules("mock_iota_systems/base");
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
@@ -842,6 +829,11 @@ mod sim_only_tests {
 
     #[sim_test]
     async fn iota_system_mock_smoke_test() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_disable_bridge_for_testing();
+            config
+        });
+
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
@@ -856,6 +848,11 @@ mod sim_only_tests {
 
     #[sim_test]
     async fn iota_system_state_shallow_upgrade_test() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_disable_bridge_for_testing();
+            config
+        });
+
         override_iota_system_modules("mock_iota_systems/shallow_upgrade");
 
         let test_cluster = TestClusterBuilder::new()
@@ -881,13 +878,18 @@ mod sim_only_tests {
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
         assert_eq!(
             system_state.system_state_version(),
-            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2
+            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1
         );
-        assert!(matches!(system_state, IotaSystemState::SimTestShallowV2(_)));
+        assert!(matches!(system_state, IotaSystemState::SimTestShallowV1(_)));
     }
 
     #[sim_test]
     async fn iota_system_state_deep_upgrade_test() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_disable_bridge_for_testing();
+            config
+        });
+
         override_iota_system_modules("mock_iota_systems/deep_upgrade");
 
         let test_cluster = TestClusterBuilder::new()
@@ -929,9 +931,9 @@ mod sim_only_tests {
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
         assert_eq!(
             system_state.system_state_version(),
-            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2
+            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1
         );
-        if let IotaSystemState::SimTestDeepV2(inner) = system_state {
+        if let IotaSystemState::SimTestDeepV1(inner) = system_state {
             // Make sure we have 1 inactive validator for latter testing.
             assert_eq!(inner.validators.inactive_validators.size, 1);
             get_validator_from_table(
@@ -946,7 +948,7 @@ mod sim_only_tests {
             )
             .unwrap();
         } else {
-            panic!("Expecting SimTestDeepV2 type");
+            panic!("Expecting SimTestDeepV1 type");
         }
     }
 
@@ -974,7 +976,7 @@ mod sim_only_tests {
         // The system state object will be upgraded next time we execute advance_epoch
         // transaction at epoch boundary.
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
-        if let IotaSystemState::V2(inner) = system_state {
+        if let IotaSystemState::V1(inner) = system_state {
             assert_eq!(inner.parameters.min_validator_count, 4);
         } else {
             unreachable!("Unexpected iota system state version");
@@ -1011,6 +1013,7 @@ mod sim_only_tests {
             &iota_system_modules(fixture),
             TransactionDigest::genesis_marker(),
             u64::MAX,
+            VERSION_MAX,
             &[
                 BuiltInFramework::get_package_by_id(&MOVE_STDLIB_PACKAGE_ID).genesis_move_package(),
                 BuiltInFramework::get_package_by_id(&IOTA_FRAMEWORK_PACKAGE_ID)
@@ -1032,6 +1035,6 @@ mod sim_only_tests {
 
         let mut config = BuildConfig::new_for_testing();
         config.run_bytecode_verifier = true;
-        config.build(package).unwrap()
+        config.build(&package).unwrap()
     }
 }

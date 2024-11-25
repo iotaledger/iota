@@ -11,7 +11,4 @@ export const container = style({
     padding: 8,
     color: themeVars.colors.iconButton,
     backgroundColor: themeVars.backgroundColors.iconButton,
-    ':hover': {
-        backgroundColor: themeVars.backgroundColors.iconButtonHover,
-    },
 });

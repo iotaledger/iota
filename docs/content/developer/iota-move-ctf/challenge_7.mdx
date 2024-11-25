@@ -1,0 +1,38 @@
+
+import ChallengeVerifier  from '@site/src/components/CTF/ctf-verifier';
+
+
+
+
+# Challenge 7: PTBs
+
+In response to the recent pizza challenge, the city of Venice has implemented a smart contract to efficiently manage ingredients and prevent hoarding. Participants are invited to utilize these perishable ingredients, which must be used immediately to create dough. 
+
+Your objective is to gather the necessary ingredients—flour, water, yeast, and salt—and craft the dough required to capture the flag. This challenge can be solved using the Move CLI and the [`iota client ptb` command.](../../references/cli/ptb.mdx)
+
+## Deployed Contract Addresses:
+```
+Package: 0x202d65a2b1d2de4ba90e9eeb51ef4e16fafdaaa5c8b1dc3cbd8a935e5eb4d25c
+```
+
+## Contracts
+
+### `ptb.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_7/sources/ptb.move
+```
+
+
+## Related Articles
+
+This challenge will introduce you to the PTB standard and how to use the Move CLI to interact with it. You should be familiar with the PTB standard and how to use the Move CLI to call the `ptb` function.
+
+- [PTB Standard](../iota-101/transactions/ptb/programmable-transaction-blocks-overview.mdx)
+- [IOTA CLI reference](../../references/cli/ptb.mdx)
+
+
+
+Good luck in capturing your seventh flag!
+
+
+
+<ChallengeVerifier expectedObjectType="0x202d65a2b1d2de4ba90e9eeb51ef4e16fafdaaa5c8b1dc3cbd8a935e5eb4d25c::ptb::Flag" />

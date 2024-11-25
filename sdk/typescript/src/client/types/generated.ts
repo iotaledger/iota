@@ -11,12 +11,24 @@
  * /crates/iota-open-rpc/spec/openrpc.json
  */
 
+/** Provides metrics about the addresses. */
+export interface AddressMetrics {
+    /** The checkpoint sequence number at which the metrics were computed. */
+    checkpoint: string;
+    /** The count of sender addresses. */
+    cumulativeActiveAddresses: string;
+    /** The count of sender and recipient addresses. */
+    cumulativeAddresses: string;
+    /** The count of daily unique sender addresses. */
+    dailyActiveAddresses: string;
+    /** The epoch to which the checkpoint is assigned. */
+    epoch: string;
+    /** The checkpoint timestamp. */
+    timestampMs: string;
+}
 export interface Balance {
     coinObjectCount: number;
     coinType: string;
-    lockedBalance: {
-        [key: string]: string;
-    };
     totalBalance: string;
 }
 export interface BalanceChange {
@@ -96,11 +108,14 @@ export type CompressedSignature =
     | {
           ZkLogin: string;
       };
+/** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
+export type ConsensusDeterminedVersionAssignments = {
+    CancelledTransactions: [string, [string, string][]][];
+};
 export type IotaParsedData =
     | {
           dataType: 'moveObject';
           fields: MoveStruct;
-          hasPublicTransfer: boolean;
           type: string;
       }
     | {
@@ -187,6 +202,8 @@ export interface ECMHLiveObjectSetDigest {
 export interface EndOfEpochData {
     /** Commitments to epoch specific state (e.g. live object set) */
     epochCommitments: CheckpointCommitment[];
+    /** The number of tokens that were minted (if positive) or burnt (if negative) in this epoch. */
+    epochSupplyChange: number;
     /**
      * next_epoch_committee is `Some` if and only if the current checkpoint is the last checkpoint of an
      * epoch. Therefore next_epoch_committee can be used to pick the last checkpoint of an epoch, which is
@@ -201,6 +218,50 @@ export interface EndOfEpochData {
      * checkpoint.
      */
     nextEpochProtocolVersion: string;
+}
+export interface EndOfEpochInfo {
+    burntTokensAmount: string;
+    epochEndTimestamp: string;
+    lastCheckpointId: string;
+    mintedTokensAmount: string;
+    /** existing fields from `SystemEpochInfoEventV1` (without epoch) */
+    protocolVersion: string;
+    referenceGasPrice: string;
+    storageCharge: string;
+    storageFundBalance: string;
+    storageRebate: string;
+    totalGasFees: string;
+    totalStake: string;
+    totalStakeRewardsDistributed: string;
+}
+export interface EpochInfo {
+    /** The end of epoch information. */
+    endOfEpochInfo?: EndOfEpochInfo | null;
+    /** Epoch number */
+    epoch: string;
+    /** The timestamp when the epoch started. */
+    epochStartTimestamp: string;
+    /** Count of tx in epoch */
+    epochTotalTransactions: string;
+    /** First, last checkpoint sequence numbers */
+    firstCheckpointId: string;
+    /** The reference gas price for the given epoch. */
+    referenceGasPrice?: string | null;
+    /** List of validators included in epoch */
+    validators: IotaValidatorSummary[];
+}
+/** A light-weight version of `EpochInfo` for faster loading */
+export interface EpochMetrics {
+    /** The end of epoch information. */
+    endOfEpochInfo?: EndOfEpochInfo | null;
+    /** The current epoch ID. */
+    epoch: string;
+    /** The timestamp when the epoch started. */
+    epochStartTimestamp: string;
+    /** The total number of transactions in the epoch. */
+    epochTotalTransactions: string;
+    /** The first checkpoint ID of the epoch. */
+    firstCheckpointId: string;
 }
 export interface IotaEvent {
     /** Base 58 encoded bcs bytes of the move event */
@@ -326,6 +387,8 @@ export type ExecutionStatus = {
 export interface GasCostSummary {
     /** Cost of computation/execution */
     computationCost: string;
+    /** The burned component of the computation/execution costs */
+    computationCostBurned: string;
     /** The fee for the rebate. The portion of the storage rebate kept by the system. */
     nonRefundableStorageFee: string;
     /** Storage cost, it's the sum of all storage cost for all objects created or mutated. */
@@ -435,13 +498,17 @@ export interface CoinMetadata {
 }
 export type IotaEndOfEpochTransactionKind =
     | 'AuthenticatorStateCreate'
-    | 'RandomnessStateCreate'
-    | 'CoinDenyListStateCreate'
     | {
           ChangeEpoch: IotaChangeEpoch;
       }
     | {
           AuthenticatorStateExpire: IotaAuthenticatorStateExpire;
+      }
+    | {
+          BridgeStateCreate: string;
+      }
+    | {
+          BridgeCommitteeUpdate: string;
       };
 export interface IotaExecutionResult {
     /** The value of any arguments that were mutably borrowed. Non-mut borrowed values are not included */
@@ -614,11 +681,18 @@ export interface IotaSystemStateSummary {
     inactivePoolsSize: string;
     /** The current IOTA supply. */
     iotaTotalSupply: string;
+    /** The `TreasuryCap<IOTA>` object ID. */
+    iotaTreasuryCapId: string;
     /**
      * Maximum number of active validators at any moment. We do not allow the number of validators in any
      * epoch to go above this.
      */
     maxValidatorCount: string;
+    /**
+     * Minimum number of active validators at any moment. We do not allow the number of validators in any
+     * epoch to go under this.
+     */
+    minValidatorCount: string;
     /** Lower-bound on the amount of stake required to become a validator. */
     minValidatorJoiningStake: string;
     /** ID of the object that contains the list of new validators that will join at the end of the epoch. */
@@ -729,6 +803,7 @@ export type IotaTransactionBlockBuilderMode = 'Commit' | 'DevInspect';
  * fields so that they are decoupled from the internal definitions.
  */
 export interface IotaValidatorSummary {
+    authorityPubkeyBytes: string;
     commissionRate: string;
     description: string;
     /** ID of the exchange rate table object. */
@@ -741,6 +816,7 @@ export interface IotaValidatorSummary {
     name: string;
     netAddress: string;
     networkPubkeyBytes: string;
+    nextEpochAuthorityPubkeyBytes?: string | null;
     nextEpochCommissionRate: string;
     nextEpochGasPrice: string;
     nextEpochNetAddress?: string | null;
@@ -750,8 +826,6 @@ export interface IotaValidatorSummary {
     nextEpochProofOfPossession?: string | null;
     nextEpochProtocolPubkeyBytes?: string | null;
     nextEpochStake: string;
-    nextEpochWorkerAddress?: string | null;
-    nextEpochWorkerPubkeyBytes?: string | null;
     operationCapId: string;
     p2pAddress: string;
     /** Pending pool token withdrawn during the current epoch, emptied at epoch boundaries. */
@@ -777,15 +851,14 @@ export interface IotaValidatorSummary {
     /** The total number of IOTA tokens in this pool. */
     stakingPoolIotaBalance: string;
     votingPower: string;
-    workerAddress: string;
-    workerPubkeyBytes: string;
 }
-export interface LoadedChildObject {
-    objectId: string;
-    sequenceNumber: string;
-}
-export interface LoadedChildObjectsResponse {
-    loadedChildObjects: LoadedChildObject[];
+export interface MoveCallMetrics {
+    /** The count of calls of each function in the last 30 days. */
+    rank30Days: [MoveFunctionName, string][];
+    /** The count of calls of each function in the last 3 days. */
+    rank3Days: [MoveFunctionName, string][];
+    /** The count of calls of each function in the last 7 days. */
+    rank7Days: [MoveFunctionName, string][];
 }
 export interface MoveCallParams {
     arguments: unknown[];
@@ -799,6 +872,15 @@ export type IotaMoveFunctionArgType =
     | {
           Object: ObjectValueKind;
       };
+/** Identifies a Move function. */
+export interface MoveFunctionName {
+    /** The function name. */
+    function: string;
+    /** The module name to which the function belongs. */
+    module: string;
+    /** The package ID to which the function belongs. */
+    package: string;
+}
 export type MoveStruct =
     | MoveValue[]
     | {
@@ -820,7 +902,15 @@ export type MoveValue =
           id: string;
       }
     | MoveStruct
-    | null;
+    | null
+    | MoveVariant;
+export interface MoveVariant {
+    fields: {
+        [key: string]: MoveValue;
+    };
+    type: string;
+    variant: string;
+}
 /** The struct that contains signatures and public keys necessary for authenticating a MultiSig. */
 export interface MultiSig {
     /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
@@ -830,21 +920,6 @@ export interface MultiSig {
      * corresponding weight.
      */
     multisig_pk: MultiSigPublicKey;
-    /** The plain signature encoded with signature scheme. */
-    sigs: CompressedSignature[];
-}
-/**
- * Deprecated, use [struct MultiSig] instead. The struct that contains signatures and public keys necessary
- * for authenticating a MultiSigLegacy.
- */
-export interface MultiSigLegacy {
-    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
-    bitmap: string;
-    /**
-     * The public key encoded with each public key with its signature scheme used along with the
-     * corresponding weight.
-     */
-    multisig_pk: MultiSigPublicKeyLegacy;
     /** The plain signature encoded with signature scheme. */
     sigs: CompressedSignature[];
 }
@@ -858,18 +933,21 @@ export interface MultiSigPublicKey {
      */
     threshold: number;
 }
-/**
- * Deprecated, use [struct MultiSigPublicKey] instead. The struct that contains the public key used for
- * authenticating a MultiSig.
- */
-export interface MultiSigPublicKeyLegacy {
-    /** A list of public key and its corresponding weight. */
-    pk_map: [PublicKey, number][];
-    /**
-     * If the total weight of the public keys corresponding to verified signatures is larger than
-     * threshold, the MultiSig is verified.
-     */
-    threshold: number;
+export interface NetworkMetrics {
+    /** Current checkpoint number */
+    currentCheckpoint: string;
+    /** Current epoch number */
+    currentEpoch: string;
+    /** Current TPS - Transaction Blocks per Second. */
+    currentTps: number;
+    /** Total number of addresses seen in the network */
+    totalAddresses: string;
+    /** Total number of live objects in the network */
+    totalObjects: string;
+    /** Total number of packages published in the network */
+    totalPackages: string;
+    /** Peak TPS in the past 30 days */
+    tps30Days: number;
 }
 /**
  * ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object
@@ -1037,7 +1115,7 @@ export type ObjectResponseError =
           code: 'unknown';
       }
     | {
-          code: 'displayError';
+          code: 'display';
           error: string;
       };
 export interface IotaObjectResponseQuery {
@@ -1104,6 +1182,26 @@ export interface PaginatedDynamicFieldInfos {
  * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
  * item.
  */
+export interface PaginatedEpochInfos {
+    data: EpochInfo[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedEpochMetricss {
+    data: EpochMetrics[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
 export interface PaginatedEvents {
     data: IotaEvent[];
     hasNextPage: boolean;
@@ -1124,20 +1222,28 @@ export interface PaginatedObjectsResponse {
  * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
  * item.
  */
-export interface PaginatedStrings {
-    data: string[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
 export interface PaginatedTransactionResponse {
     data: IotaTransactionBlockResponse[];
     hasNextPage: boolean;
     nextCursor?: string | null;
+}
+/**
+ * An passkey authenticator with parsed fields. See field definition below. Can be initialized from
+ * [struct RawPasskeyAuthenticator].
+ */
+export interface PasskeyAuthenticator {
+    /**
+     * `authenticatorData` is a bytearray that encodes
+     * [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data) structure returned
+     * by the authenticator attestation response as is.
+     */
+    authenticator_data: number[];
+    /**
+     * `clientDataJSON` contains a JSON-compatible UTF-8 encoded string of the client data which is passed
+     * to the authenticator by the client during the authentication request (see
+     * [CollectedClientData](https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata))
+     */
+    client_data_json: string;
 }
 export interface ProtocolConfig {
     attributes: {
@@ -1162,6 +1268,9 @@ export type ProtocolConfigValue =
       }
     | {
           f64: string;
+      }
+    | {
+          bool: string;
       };
 export type PublicKey =
     | {
@@ -1175,6 +1284,9 @@ export type PublicKey =
       }
     | {
           ZkLogin: string;
+      }
+    | {
+          Passkey: string;
       };
 export type RPCTransactionRequestParams =
     | {
@@ -1187,7 +1299,6 @@ export type RawData =
     | {
           bcsBytes: string;
           dataType: 'moveObject';
-          hasPublicTransfer: boolean;
           type: string;
           version: string;
       }
@@ -1343,24 +1454,20 @@ export interface TransactionBlockEffectsModifiedAtVersions {
     sequenceNumber: string;
 }
 export type IotaTransactionBlockKind =
-    /** A system transaction that will update epoch information on-chain. */
+    /** A system transaction used for initializing the initial state of the chain. */
     | {
-          computation_charge: string;
-          epoch: string;
-          epoch_start_timestamp_ms: string;
-          kind: 'ChangeEpoch';
-          storage_charge: string;
-          storage_rebate: string;
-      } /** A system transaction used for initializing the initial state of the chain. */
-    | {
+          events: EventId[];
           kind: 'Genesis';
           objects: string[];
       } /** A system transaction marking the start of a series of transactions scheduled as part of a checkpoint */
     | {
           commit_timestamp_ms: string;
+          consensus_commit_digest: string;
+          consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments;
           epoch: string;
-          kind: 'ConsensusCommitPrologue';
+          kind: 'ConsensusCommitPrologueV1';
           round: string;
+          sub_dag_index?: string | null;
       } /** A series of transactions where the results of one transaction can be used in future transactions */
     | {
           /** Input objects or primitive values */
@@ -1374,7 +1481,7 @@ export type IotaTransactionBlockKind =
       } /** A transaction which updates global authenticator state */
     | {
           epoch: string;
-          kind: 'AuthenticatorStateUpdate';
+          kind: 'AuthenticatorStateUpdateV1';
           new_active_jwks: IotaActiveJwk[];
           round: string;
       } /** A transaction which updates global randomness state */
@@ -1387,13 +1494,6 @@ export type IotaTransactionBlockKind =
     | {
           kind: 'EndOfEpochTransaction';
           transactions: IotaEndOfEpochTransactionKind[];
-      }
-    | {
-          commit_timestamp_ms: string;
-          consensus_commit_digest: string;
-          epoch: string;
-          kind: 'ConsensusCommitPrologueV2';
-          round: string;
       };
 export interface IotaTransactionBlockResponse {
     balanceChanges?: BalanceChange[] | null;
@@ -1487,9 +1587,9 @@ export interface TransferObjectParams {
 }
 /** Identifies a struct and the module it was defined in */
 export interface TypeOrigin {
+    datatype_name: string;
     module_name: string;
     package: string;
-    struct_name: string;
 }
 /** Upgraded package info for the linkage table */
 export interface UpgradeInfo {

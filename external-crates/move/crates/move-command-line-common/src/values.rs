@@ -7,7 +7,7 @@ use std::fmt::{self, Display};
 use anyhow::bail;
 use move_core_types::{
     account_address::AccountAddress,
-    identifier::{self},
+    identifier,
     runtime_value::{MoveStruct, MoveValue},
 };
 

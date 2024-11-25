@@ -179,7 +179,7 @@ export default {
                 verticalListShort: '13.0625rem',
                 verticalListLong: '35.6875rem',
                 600: '37.5rem',
-                header: '68px',
+                header: '80px',
             },
             height: {
                 12.5: '3.125rem',

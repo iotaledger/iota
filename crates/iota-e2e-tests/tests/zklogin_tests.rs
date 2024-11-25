@@ -3,24 +3,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::net::SocketAddr;
+
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
     base_types::IotaAddress,
+    committee::EpochId,
     crypto::Signature,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     transaction::Transaction,
-    utils::{
-        get_legacy_zklogin_user_address, get_zklogin_user_address, load_test_vectors,
-        make_zklogin_tx,
-    },
+    utils::{get_zklogin_user_address, load_test_vectors, make_zklogin_tx},
     zk_login_authenticator::ZkLoginAuthenticator,
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestCluster, TestClusterBuilder};
 
 async fn do_zklogin_test(address: IotaAddress, legacy: bool) -> IotaResult {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -33,68 +33,12 @@ async fn do_zklogin_test(address: IotaAddress, legacy: bool) -> IotaResult {
         .next()
         .unwrap()
         .authority_client()
-        .handle_transaction(tx)
+        .handle_transaction(tx, Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
         .await
         .map(|_| ())
 }
 
-#[sim_test]
-async fn test_zklogin_feature_deny() {
-    use iota_protocol_config::ProtocolConfig;
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_zklogin_auth_for_testing(false);
-        config
-    });
-
-    let err = do_zklogin_test(get_zklogin_user_address(), false)
-        .await
-        .unwrap_err();
-
-    assert!(matches!(err, IotaError::UnsupportedFeatureError { .. }));
-}
-
-#[sim_test]
-async fn test_zklogin_feature_legacy_address_deny() {
-    use iota_protocol_config::ProtocolConfig;
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_verify_legacy_zklogin_address(false);
-        config
-    });
-
-    let err = do_zklogin_test(get_legacy_zklogin_user_address(), true)
-        .await
-        .unwrap_err();
-    assert!(matches!(err, IotaError::SignerSignatureAbsent { .. }));
-}
-
-#[sim_test]
-async fn test_legacy_zklogin_address_accept() {
-    use iota_protocol_config::ProtocolConfig;
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_verify_legacy_zklogin_address(true);
-        config
-    });
-    let err = do_zklogin_test(get_legacy_zklogin_user_address(), true)
-        .await
-        .unwrap_err();
-
-    // it does not hit the signer absent error.
-    assert!(matches!(err, IotaError::InvalidSignature { .. }));
-}
-
-#[sim_test]
-async fn zklogin_end_to_end_test() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(15000)
-        .with_default_jwks()
-        .build()
-        .await;
-
-    // trigger reconfiguration that advanced epoch to 1.
-    test_cluster.wait_for_epoch_all_nodes(1).await;
-
+async fn build_zklogin_tx(test_cluster: &TestCluster, max_epoch: EpochId) -> Transaction {
     // load test vectors
     let (kp, pk_zklogin, inputs) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
@@ -114,22 +58,47 @@ async fn zklogin_end_to_end_test() {
     // combine ephemeral sig with zklogin inputs.
     let generic_sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
         inputs.clone(),
-        2,
+        max_epoch,
         eph_sig.clone(),
     ));
-    let signed_txn = Transaction::from_generic_sig_data(tx_data.clone(), vec![generic_sig]);
+    Transaction::from_generic_sig_data(tx_data.clone(), vec![generic_sig])
+}
+#[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_feature_deny() {
+    use iota_protocol_config::ProtocolConfig;
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_zklogin_auth_for_testing(false);
+        config
+    });
+
+    let err = do_zklogin_test(get_zklogin_user_address(), false)
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, IotaError::UserInput {
+        error: UserInputError::Unsupported(..)
+    }));
+}
+
+#[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_end_to_end() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(15000)
+        .with_default_jwks()
+        .build()
+        .await;
+
+    test_cluster.wait_for_authenticator_state_update().await;
+    let signed_txn = build_zklogin_tx(&test_cluster, 2).await;
     let context = &test_cluster.wallet;
     let res = context.execute_transaction_may_fail(signed_txn).await;
     assert!(res.is_ok());
 
     // a txn with max_epoch mismatch with proof, fails to execute.
-    let generic_sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
-        inputs.clone(),
-        1,
-        eph_sig,
-    ));
-    let signed_txn_with_wrong_max_epoch =
-        Transaction::from_generic_sig_data(tx_data, vec![generic_sig]);
+    let signed_txn_with_wrong_max_epoch = build_zklogin_tx(&test_cluster, 1).await;
     assert!(
         context
             .execute_transaction_may_fail(signed_txn_with_wrong_max_epoch)
@@ -139,20 +108,48 @@ async fn zklogin_end_to_end_test() {
 }
 
 #[sim_test]
-async fn test_expired_zklogin_sig() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_max_epoch_too_large_fail_tx() {
+    use iota_protocol_config::ProtocolConfig;
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_zklogin_max_epoch_upper_bound_delta_for_testing(Some(1));
+        config
+    });
+
     let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(10000)
+        .with_epoch_duration_ms(15000)
+        .with_default_jwks()
+        .build()
+        .await;
+    test_cluster.wait_for_authenticator_state_update().await;
+    let context = &test_cluster.wallet;
+    // current epoch is 1, upper bound is 1 + 1, so max_epoch as 3 in zklogin
+    // signature should fail.
+    let signed_txn = build_zklogin_tx(&test_cluster, 2).await;
+    let res = context.execute_transaction_may_fail(signed_txn).await;
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("ZKLogin max epoch too large")
+    );
+}
+
+#[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_expired_zklogin_sig() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(15000)
         .with_default_jwks()
         .build()
         .await;
 
     // trigger reconfiguration that advanced epoch to 1.
-    test_cluster.trigger_reconfiguration().await;
-
+    test_cluster.force_new_epoch().await;
     // trigger reconfiguration that advanced epoch to 2.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
     // trigger reconfiguration that advanced epoch to 3.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
+
     // load one test vector, the zklogin inputs corresponds to max_epoch = 1
     let (kp, pk_zklogin, inputs) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
@@ -162,6 +159,8 @@ async fn test_expired_zklogin_sig() {
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), zklogin_addr)
         .await;
+    let context = &test_cluster.wallet;
+
     let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
         .transfer_iota(None, IotaAddress::ZERO)
         .build();
@@ -176,7 +175,6 @@ async fn test_expired_zklogin_sig() {
         eph_sig.clone(),
     ));
     let signed_txn_expired = Transaction::from_generic_sig_data(tx_data.clone(), vec![generic_sig]);
-    let context = &test_cluster.wallet;
 
     let res = context
         .execute_transaction_may_fail(signed_txn_expired)
@@ -189,7 +187,8 @@ async fn test_expired_zklogin_sig() {
 }
 
 #[sim_test]
-async fn test_auth_state_creation() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_auth_state_creation() {
     // Create test cluster without auth state object in genesis
     let test_cluster = TestClusterBuilder::new()
         .with_protocol_version(23.into())
@@ -200,16 +199,17 @@ async fn test_auth_state_creation() {
     // Wait until we are in an epoch that has zklogin enabled, but the auth state
     // object is not created yet.
     test_cluster.wait_for_protocol_version(24.into()).await;
-    // Now wait until the auth state object is created, ie. AuthenticatorStateUpdate
-    // transaction happened.
+    // Now wait until the auth state object is created, ie.
+    // AuthenticatorStateUpdateV1 transaction happened.
     test_cluster.wait_for_authenticator_state_update().await;
 }
 
 #[sim_test]
-async fn test_create_authenticator_state_object() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_create_authenticator_state_object() {
     let test_cluster = TestClusterBuilder::new()
         .with_protocol_version(23.into())
-        .with_epoch_duration_ms(10000)
+        .with_epoch_duration_ms(15000)
         .build()
         .await;
 
@@ -220,7 +220,7 @@ async fn test_create_authenticator_state_object() {
         h.with(|node| {
             assert!(
                 node.state()
-                    .get_cache_reader()
+                    .get_object_cache_reader()
                     .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
                     .unwrap()
                     .is_none()
@@ -237,7 +237,7 @@ async fn test_create_authenticator_state_object() {
     for h in &handles {
         h.with(|node| {
             node.state()
-                .get_cache_reader()
+                .get_object_cache_reader()
                 .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
                 .unwrap()
                 .expect("auth state object should exist");
@@ -249,7 +249,8 @@ async fn test_create_authenticator_state_object() {
 // votes from validators.
 #[cfg(msim)]
 #[sim_test]
-async fn test_conflicting_jwks() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+async fn test_zklogin_conflicting_jwks() {
     use std::{
         collections::HashSet,
         sync::{Arc, Mutex},
@@ -264,7 +265,7 @@ async fn test_conflicting_jwks() {
     use tokio::time::Duration;
 
     let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(30000)
+        .with_epoch_duration_ms(15000)
         .with_jwk_fetch_interval(Duration::from_secs(5))
         .build()
         .await;
@@ -282,13 +283,13 @@ async fn test_conflicting_jwks() {
             while let Some(tx) = txns.next().await {
                 let digest = *tx.transaction_digest();
                 let tx = state
-                    .get_cache_reader()
+                    .get_transaction_cache_reader()
                     .get_transaction_block(&digest)
                     .unwrap()
                     .unwrap();
                 match &tx.data().intent_message().value.kind() {
                     TransactionKind::EndOfEpochTransaction(_) => (),
-                    TransactionKind::AuthenticatorStateUpdate(update) => {
+                    TransactionKind::AuthenticatorStateUpdateV1(update) => {
                         let jwks = &mut *jwks_clone.lock().unwrap();
                         for jwk in &update.new_active_jwks {
                             jwks.push(jwk.clone());

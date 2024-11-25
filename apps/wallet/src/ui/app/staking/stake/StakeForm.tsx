@@ -2,28 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Card } from '_app/shared/card';
-import { Text } from '_app/shared/text';
-import NumberInput from '_components/number-input';
 import {
-    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
-    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
-} from '_src/shared/constants';
-import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
-import {
+    CoinFormat,
     createStakeTransaction,
+    getGasSummary,
     parseAmount,
     useCoinMetadata,
     useFormatCoin,
-    useGetTimeBeforeEpochNumber,
 } from '@iota/core';
-import { Field, Form, useFormikContext } from 'formik';
-import { memo, useCallback, useMemo } from 'react';
-
-import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
+import { Field, type FieldProps, Form, useFormikContext } from 'formik';
+import { memo, useEffect, useMemo } from 'react';
+import { useActiveAddress, useTransactionDryRun } from '../../hooks';
 import { type FormValues } from './StakingCard';
-
-const HIDE_MAX = true;
+import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
+import { StakeTxnInfo } from '../../components/receipt-card/StakeTxnInfo';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { Exclamation } from '@iota/ui-icons';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -34,129 +28,82 @@ export interface StakeFromProps {
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
     const { values, setFieldValue } = useFormikContext<FormValues>();
-
+    const activeAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
-    const [maxToken, symbol, queryResult] = useFormatCoin(coinBalance, coinType);
 
     const transaction = useMemo(() => {
         if (!values.amount || !decimals) return null;
+        if (Number(values.amount) < 0) return null;
         const amountWithoutDecimals = parseAmount(values.amount, decimals);
         return createStakeTransaction(amountWithoutDecimals, validatorAddress);
     }, [values.amount, validatorAddress, decimals]);
 
-    const activeAddress = useActiveAddress();
-    const { data: gasBudget } = useTransactionGasBudget(activeAddress, transaction);
+    const { data: txDryRunResponse } = useTransactionDryRun(
+        activeAddress ?? undefined,
+        transaction ?? new Transaction(),
+    );
 
-    const setMaxToken = useCallback(() => {
-        if (!maxToken) return;
-        setFieldValue('amount', maxToken);
-    }, [maxToken, setFieldValue]);
+    const gasSummary = txDryRunResponse ? getGasSummary(txDryRunResponse) : undefined;
 
-    // Reward will be available after 2 epochs
-    const startEarningRewardsEpoch =
-        Number(epoch || 0) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS;
+    const stakeAllTransaction = useMemo(() => {
+        return createStakeTransaction(coinBalance, validatorAddress);
+    }, [coinBalance, validatorAddress]);
 
-    const redeemableRewardsEpoch =
-        Number(epoch || 0) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE;
+    const { data: stakeAllTransactionDryRun } = useTransactionDryRun(
+        activeAddress ?? undefined,
+        stakeAllTransaction,
+    );
 
-    const { data: timeBeforeStakeRewardsStarts } =
-        useGetTimeBeforeEpochNumber(startEarningRewardsEpoch);
+    const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
 
-    const { data: timeBeforeStakeRewardsRedeemable } =
-        useGetTimeBeforeEpochNumber(redeemableRewardsEpoch);
+    // do not remove: gasBudget field is used in the validation schema apps/wallet/src/ui/app/staking/stake/utils/validation.ts
+    useEffect(() => {
+        setFieldValue('gasBudget', gasBudget);
+    }, [gasBudget]);
+
+    const maxTokenBalance = coinBalance - gasBudget;
+    const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
+
+    const hasEnoughRemaingBalance =
+        maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
 
     return (
-        <Form className="flex flex-1 flex-col flex-nowrap items-center" autoComplete="off">
-            <div className="mb-3 mt-3.5 flex w-full flex-col items-center justify-between gap-1.5">
-                <Text variant="caption" color="gray-85" weight="semibold">
-                    Enter the amount of IOTA to stake
-                </Text>
-                <Text variant="bodySmall" color="steel" weight="medium">
-                    Available - {maxToken} {symbol}
-                </Text>
-            </div>
-            <Card
-                variant="gray"
-                titleDivider
-                header={
-                    <div className="flex w-full bg-white p-2.5">
-                        <Field
-                            data-testid="stake-amount-input"
-                            component={NumberInput}
-                            allowNegative={false}
+        <Form
+            className="flex w-full flex-1 flex-col flex-nowrap items-center gap-md"
+            autoComplete="off"
+        >
+            <Field name="amount">
+                {({
+                    field: { onChange, ...field },
+                    form: { setFieldValue },
+                    meta,
+                }: FieldProps<FormValues>) => {
+                    return (
+                        <Input
+                            {...field}
+                            onValueChange={(values) => setFieldValue('amount', values.value, true)}
+                            type={InputType.NumericFormat}
                             name="amount"
-                            className="text-hero-dark placeholder:text-gray-70 w-full border-none bg-white text-heading4 font-semibold placeholder:font-semibold"
-                            decimals
-                            suffix={` ${symbol}`}
-                            autoFocus
+                            placeholder={`0 ${symbol}`}
+                            value={values.amount}
+                            caption={coinBalance ? `${maxTokenFormatted} ${symbol} Available` : ''}
+                            suffix={' ' + symbol}
+                            errorMessage={values.amount && meta.error ? meta.error : undefined}
+                            label="Amount"
                         />
-                        {!HIDE_MAX ? (
-                            <button
-                                className="border-gray-60 text-steel-darker hover:border-steel-dark hover:text-steel-darker flex h-6 w-11 cursor-pointer items-center justify-center rounded-2xl border border-solid bg-white text-bodySmall font-medium disabled:cursor-auto disabled:opacity-50"
-                                onClick={setMaxToken}
-                                disabled={queryResult.isPending}
-                                type="button"
-                            >
-                                Max
-                            </button>
-                        ) : null}
-                    </div>
-                }
-                footer={
-                    <div className="flex w-full justify-between py-px">
-                        <Text variant="body" weight="medium" color="steel-darker">
-                            Gas Fees
-                        </Text>
-                        <Text variant="body" weight="medium" color="steel-darker">
-                            {gasBudget} {symbol}
-                        </Text>
-                    </div>
-                }
-            >
-                <div className="flex w-full justify-between pb-3.75">
-                    <Text variant="body" weight="medium" color="steel-darker">
-                        Staking Rewards Start
-                    </Text>
-                    {timeBeforeStakeRewardsStarts > 0 ? (
-                        <CountDownTimer
-                            timestamp={timeBeforeStakeRewardsStarts}
-                            variant="body"
-                            color="steel-darker"
-                            weight="semibold"
-                            label="in"
-                            endLabel="--"
-                        />
-                    ) : (
-                        <Text variant="body" weight="medium" color="steel-darker">
-                            {epoch ? `Epoch #${Number(startEarningRewardsEpoch)}` : '--'}
-                        </Text>
-                    )}
-                </div>
-                <div className="item-center flex w-full justify-between pb-3.75">
-                    <div className="flex-1">
-                        <Text variant="pBody" weight="medium" color="steel-darker">
-                            Staking Rewards Redeemable
-                        </Text>
-                    </div>
-                    <div className="flex flex-1 items-center justify-end gap-1">
-                        {timeBeforeStakeRewardsRedeemable > 0 ? (
-                            <CountDownTimer
-                                timestamp={timeBeforeStakeRewardsRedeemable}
-                                variant="body"
-                                color="steel-darker"
-                                weight="semibold"
-                                label="in"
-                                endLabel="--"
-                            />
-                        ) : (
-                            <Text variant="body" weight="medium" color="steel-darker">
-                                {epoch ? `Epoch #${Number(redeemableRewardsEpoch)}` : '--'}
-                            </Text>
-                        )}
-                    </div>
-                </div>
-            </Card>
+                    );
+                }}
+            </Field>
+            {!hasEnoughRemaingBalance ? (
+                <InfoBox
+                    type={InfoBoxType.Error}
+                    supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                    style={InfoBoxStyle.Elevated}
+                    icon={<Exclamation />}
+                />
+            ) : null}
+            <StakeTxnInfo startEpoch={epoch} gasSummary={transaction ? gasSummary : undefined} />
         </Form>
     );
 }

@@ -1,0 +1,46 @@
+name: Changesets CI
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+jobs:
+  validate:
+    if: github.event.pull_request.draft == false
+    runs-on: self-hosted
+    steps:
+      - name: checkout code repository
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4
+      - name: Install Nodejs
+        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # pin@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - id: diff
+        name: Determine changed public packages from previous commit
+        run: echo "hasChanges=$(pnpm list --filter "...[$(git rev-parse HEAD^1)]" --depth -1 --json | jq "any(.[] | select(.private != true) ; length > 0)")" >> $GITHUB_OUTPUT
+      - name: Get changed files in the changesets folder
+        id: has-changesets
+        uses: tj-actions/changed-files@c3a1bb2c992d77180ae65be6ae6c166cf40f857c # pin@v45
+        with:
+          files: |
+            .changeset/**
+      - name: Create missing changeset note if there are missing changesets
+        if: steps.has-changesets.outputs.any_changed != 'true' && steps.diff.outputs.hasChanges == 'true'
+        run: |
+          echo "true" > missing-changeset.txt
+      - name: Upload missing changeset artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
+        if: steps.has-changesets.outputs.any_changed != 'true' && steps.diff.outputs.hasChanges == 'true'
+        with:
+          name: missing-changeset
+          path: missing-changeset.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Attempt to create snapshots.
+        run: pnpm changeset version --snapshot test-do-not-publish

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use clap::Parser;
 use iota_move_build::set_iota_flavor;
@@ -45,7 +45,7 @@ pub struct Calib {
 }
 
 pub fn execute_move_command(
-    package_path: Option<PathBuf>,
+    package_path: Option<&Path>,
     mut build_config: BuildConfig,
     command: Command,
 ) -> anyhow::Result<()> {

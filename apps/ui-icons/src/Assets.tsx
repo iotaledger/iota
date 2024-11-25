@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { SVGProps } from 'react';
 export default function SvgAssets(props: SVGProps<SVGSVGElement>) {
     return (
@@ -14,12 +13,8 @@ export default function SvgAssets(props: SVGProps<SVGSVGElement>) {
         >
             <path
                 fill="currentColor"
-                d="M19.5 11.959v.082a1.5 1.5 0 0 0 3 .017v-.116a1.5 1.5 0 1 0-3 .017ZM17.333 6.726a1.5 1.5 0 1 0 2.133-2.11l-.041-.04-.042-.042a1.5 1.5 0 1 0-2.11 2.133l.03.03.03.03ZM19.466 19.383a1.5 1.5 0 0 0-2.133-2.11l-.03.03-.03.03a1.5 1.5 0 1 0 2.11 2.133l.042-.041.04-.042ZM12.041 4.5a1.5 1.5 0 0 0 .017-3H12a1.5 1.5 0 0 0 0 3h.041ZM12.058 22.5a1.5 1.5 0 1 0-.017-3H12a1.5 1.5 0 0 0 0 3h.058Z"
-            />
-            <path
-                fill="currentColor"
                 fillRule="evenodd"
-                d="M6 12a6 6 0 1 1 12 0 6 6 0 0 1-12 0Zm6 4a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"
+                d="M7 3a5 5 0 0 0-5 5v6a5 5 0 0 0 5 5c1.038 0 1.63.263 2.605.524l5.795 1.553a5 5 0 0 0 6.124-3.536l1.553-5.795a5 5 0 0 0-3.536-6.124l-2.597-.696A5 5 0 0 0 13 3zm10.989 4.659a5 5 0 0 0-.043-.394l1.078.289a3 3 0 0 1 2.121 3.674l-1.553 5.796a3 3 0 0 1-3.674 2.121l-1.408-.377a5 5 0 0 0 2.916-2.44A5 5 0 0 0 18 14V8q0-.172-.011-.341m-2.54 8.074c.347-.49.551-1.087.551-1.733V8a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v6a3 3 0 0 0 2.984 3H13c1.011 0 1.906-.5 2.45-1.267Z"
                 clipRule="evenodd"
             />
         </svg>

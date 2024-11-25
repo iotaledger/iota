@@ -48,7 +48,7 @@ async fn test_profiler() {
     let output_dir = tempdir().unwrap();
     let profile_output = output_dir.path().join("profile.json");
 
-    let testnet_url = "https://fullnode.testnet.iota.io:443".to_string();
+    let testnet_url = "https://api.testnet.iota.cafe".to_string();
     let tx_digest = "98KxVD14f2JgceKx4X27HaVAA2YGJ3Aazf6Y4tabpHa8".to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
@@ -56,10 +56,11 @@ async fn test_profiler() {
         executor_version: None,
         protocol_version: None,
         profile_output: Some(profile_output),
+        config_objects: None,
     };
 
     let command_result =
-        iota_replay::execute_replay_command(Some(testnet_url), false, false, None, cmd).await;
+        iota_replay::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
 
     assert!(command_result.is_ok());
 

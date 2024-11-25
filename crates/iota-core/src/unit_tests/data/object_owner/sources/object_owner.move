@@ -10,16 +10,16 @@ module object_owner::object_owner {
     use iota::transfer;
     use iota::tx_context::{Self, TxContext};
 
-    struct Parent has key {
+    public struct Parent has key {
         id: UID,
         child: Option<ID>,
     }
 
-    struct Child has key, store {
+    public struct Child has key, store {
         id: UID,
     }
 
-    struct AnotherParent has key {
+    public struct AnotherParent has key {
         id: UID,
         child: ID,
     }
@@ -40,7 +40,7 @@ module object_owner::object_owner {
     }
 
     public entry fun create_parent_and_child(ctx: &mut TxContext) {
-        let parent_id = object::new(ctx);
+        let mut parent_id = object::new(ctx);
         let child = Child { id: object::new(ctx) };
         let child_id = object::id(&child);
         dynamic_object_field::add(&mut parent_id, 0, child);
@@ -98,7 +98,7 @@ module object_owner::object_owner {
     }
 
     public entry fun delete_parent_and_child(parent: Parent) {
-        let Parent { id: parent_id, child: child_ref_opt } = parent;
+        let Parent { id: mut parent_id, child: mut child_ref_opt } = parent;
         let child_id = option::extract(&mut child_ref_opt);
         let child: Child = dynamic_object_field::remove(&mut parent_id, 0);
         assert!(object::id(&child) == child_id, 0);
@@ -108,7 +108,7 @@ module object_owner::object_owner {
     }
 
     public entry fun create_another_parent(child: Child, ctx: &mut TxContext) {
-        let id = object::new(ctx);
+        let mut id = object::new(ctx);
         let child_id = object::id(&child);
         dynamic_object_field::add(&mut id, 0, child);
         let parent = AnotherParent {
@@ -119,7 +119,7 @@ module object_owner::object_owner {
     }
 
     public entry fun create_parent_and_child_wrapped(ctx: &mut TxContext) {
-        let parent_id = object::new(ctx);
+        let mut parent_id = object::new(ctx);
         let child = Child { id: object::new(ctx) };
         let child_id = object::id(&child);
         dynamic_field::add(&mut parent_id, 0, child);
@@ -131,7 +131,7 @@ module object_owner::object_owner {
     }
 
     public entry fun delete_parent_and_child_wrapped(parent: Parent) {
-        let Parent { id: parent_id, child: child_ref_opt } = parent;
+        let Parent { id: mut parent_id, child: mut child_ref_opt } = parent;
         let child_id = option::extract(&mut child_ref_opt);
         let child: Child = dynamic_field::remove(&mut parent_id, 0);
         assert!(object::id(&child) == child_id, 0);

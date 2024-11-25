@@ -15,17 +15,18 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_types::{
-    authenticator_state::{get_authenticator_state, AuthenticatorStateInner},
+    IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    authenticator_state::{AuthenticatorStateInner, get_authenticator_state},
     base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
-    deny_list::{get_coin_deny_list, PerTypeDenyList},
+    deny_list_v1::get_deny_list_root_object,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
-        get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
-        IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
+        IotaSystemState, IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
+        get_iota_system_state, get_iota_system_state_wrapper,
     },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
@@ -33,7 +34,6 @@ use iota_types::{
     object::Object,
     storage::ObjectStore,
     transaction::Transaction,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;
@@ -125,7 +125,7 @@ impl Genesis {
     pub fn checkpoint(&self) -> VerifiedCheckpoint {
         self.checkpoint
             .clone()
-            .verify(&self.committee().unwrap())
+            .try_into_verified(&self.committee().unwrap())
             .unwrap()
     }
 
@@ -152,14 +152,18 @@ impl Genesis {
         self.iota_system_object().reference_gas_price()
     }
 
-    // TODO: No need to return IotaResult.
+    // TODO: No need to return IotaResult. Also consider return &.
     pub fn committee(&self) -> IotaResult<Committee> {
-        Ok(self.committee_with_network().committee)
+        Ok(self.committee_with_network().committee().clone())
     }
 
     pub fn iota_system_wrapper_object(&self) -> IotaSystemStateWrapper {
         get_iota_system_state_wrapper(&self.objects())
             .expect("Iota System State Wrapper object must always exist")
+    }
+
+    pub fn contains_migrations(&self) -> bool {
+        self.checkpoint_contents.size() > 1
     }
 
     pub fn iota_system_object(&self) -> IotaSystemState {
@@ -171,29 +175,29 @@ impl Genesis {
             .objects()
             .iter()
             .find(|o| o.id() == iota_types::IOTA_CLOCK_OBJECT_ID)
-            .expect("Clock must always exist")
+            .expect("clock must always exist")
             .data
             .try_as_move()
-            .expect("Clock must be a Move object");
+            .expect("clock must be a Move object");
         bcs::from_bytes::<Clock>(clock.contents())
-            .expect("Clock object deserialization cannot fail")
+            .expect("clock object deserialization cannot fail")
     }
 
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
-        trace!("Reading Genesis from {}", path.display());
+        trace!("reading Genesis from {}", path.display());
         let read = File::open(path)
-            .with_context(|| format!("Unable to load Genesis from {}", path.display()))?;
+            .with_context(|| format!("unable to load Genesis from {}", path.display()))?;
         bcs::from_reader(BufReader::new(read))
-            .with_context(|| format!("Unable to parse Genesis from {}", path.display()))
+            .with_context(|| format!("unable to parse Genesis from {}", path.display()))
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
-        trace!("Writing Genesis to {}", path.display());
+        trace!("writing Genesis to {}", path.display());
         let mut write = BufWriter::new(File::create(path)?);
         bcs::serialize_into(&mut write, &self)
-            .with_context(|| format!("Unable to save Genesis to {}", path.display()))?;
+            .with_context(|| format!("unable to save Genesis to {}", path.display()))?;
         Ok(())
     }
 
@@ -325,7 +329,7 @@ impl UnsignedGenesis {
     }
 
     pub fn authenticator_state_object(&self) -> Option<AuthenticatorStateInner> {
-        get_authenticator_state(&self.objects()).expect("read from genesis cannot fail")
+        get_authenticator_state(self.objects()).expect("read from genesis cannot fail")
     }
 
     pub fn has_randomness_state_object(&self) -> bool {
@@ -335,8 +339,15 @@ impl UnsignedGenesis {
             .is_some()
     }
 
-    pub fn coin_deny_list_state(&self) -> Option<PerTypeDenyList> {
-        get_coin_deny_list(&self.objects())
+    pub fn has_bridge_object(&self) -> bool {
+        self.objects()
+            .get_object(&IOTA_BRIDGE_OBJECT_ID)
+            .expect("read from genesis cannot fail")
+            .is_some()
+    }
+
+    pub fn has_coin_deny_list_object(&self) -> bool {
+        get_deny_list_root_object(&self.objects()).is_ok()
     }
 }
 
@@ -520,11 +531,11 @@ impl TokenDistributionSchedule {
         assert_eq!(
             IotaAddress::default(),
             pre_minted_supply.recipient_address,
-            "Final allocation must be for the pre-minted supply amount",
+            "final allocation must be for the pre-minted supply amount",
         );
         assert!(
             pre_minted_supply.staked_with_validator.is_none(),
-            "Can't stake the pre-minted supply amount",
+            "cannot stake the pre-minted supply amount",
         );
 
         let schedule = Self {

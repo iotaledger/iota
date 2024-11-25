@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the purpose of the `token::flush` function in the context of a `TokenPolicy`?",
+        "answerOptions": [
+            { "answerText": "It resets all rules applied to the `TokenPolicy`.", "isCorrect": false },
+            { "answerText": "It consumes spent balance from the `TokenPolicy` using the `TreasuryCap`.", "isCorrect": true },
+            { "answerText": "It enables a previously disallowed action in the `TokenPolicy`.", "isCorrect": false },
+            { "answerText": "It confirms a pending `ActionRequest` in the `TokenPolicy`.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which function allows adding custom conditions (rules) to specific actions in a `TokenPolicy`?",
+        "answerOptions": [
+            { "answerText": "`token::allow` enables adding custom rules to token actions.", "isCorrect": false },
+            { "answerText": "`token::confirm_request` is used for adding custom conditions to actions.", "isCorrect": false },
+            { "answerText": "`token::add_rule_for_action` allows developers to specify custom rules for actions.", "isCorrect": true },
+            { "answerText": "`token::flush` is responsible for adding rules to actions in the `TokenPolicy`.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which function in the `TokenPolicy` allows you to remove a rule from a specific action?",
+        "answerOptions": [
+            { "answerText": "`token::disallow`", "isCorrect": false },
+            { "answerText": "`token::remove_rule_for_action`", "isCorrect": true },
+            { "answerText": "`token::flush`", "isCorrect": false },
+            { "answerText": "`token::confirm_request`", "isCorrect": false }
+        ]
+    }
+]

@@ -3,15 +3,16 @@
 
 use std::collections::HashMap;
 
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{Result, anyhow, bail, ensure};
 use iota_sdk::{
+    U256,
     types::block::{
         address::Address,
         output::{self as sdk_output, NativeTokens, OutputId, TokenId},
     },
-    U256,
 };
 use iota_types::{
+    TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     coin::Coin,
@@ -20,10 +21,9 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     object::{Object, Owner},
     stardust::{
-        output::{unlock_conditions, Alias, Nft},
+        output::{Alias, Nft, unlock_conditions},
         stardust_to_iota_address, stardust_to_iota_address_owner,
     },
-    TypeTag,
 };
 use tracing::warn;
 

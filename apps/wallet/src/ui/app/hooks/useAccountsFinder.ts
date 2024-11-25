@@ -4,16 +4,16 @@
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountsFinder, type AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { useIotaClient } from '@iota/dapp-kit';
-import { useIotaLedgerClient } from '../components/ledger/IotaLedgerClientProvider';
+import { useIotaLedgerClient } from '_components';
 import { useMemo } from 'react';
 import type {
     SourceStrategyToFind,
     SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { makeDerivationPath } from '_src/background/account-sources/bip44Path';
-import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { IOTA_BIP44_COIN_TYPE } from '../redux/slices/iota-objects/Coin';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export interface UseAccountFinderOptions {
     accountSourceType: AllowedAccountSourceTypes;

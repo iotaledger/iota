@@ -24,7 +24,7 @@ const PRIMITIVE_TYPES = ['u8', 'u16', 'u32', 'u64', 'u128', 'u256', 'bool', 'vec
 
 Mocha.suite('LSP', () => {
     Mocha.test('textDocument/documentSymbol', async () => {
-        const ext = vscode.extensions.getExtension('move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -45,7 +45,7 @@ Mocha.suite('LSP', () => {
 
         const syms: Array<lc.DocumentSymbol> | undefined = await
             vscode.commands.executeCommand(
-                'move-analyzer.textDocumentDocumentSymbol', params,
+                'iota-move.textDocumentDocumentSymbol', params,
             );
 
         assert.ok(syms);
@@ -69,7 +69,7 @@ Mocha.suite('LSP', () => {
     });
 
     Mocha.test('textDocument/hover for definition in the same module', async () => {
-        const ext = vscode.extensions.getExtension('move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -96,19 +96,19 @@ Mocha.suite('LSP', () => {
 
         const hoverResult: lc.Hover | undefined =
             await vscode.commands.executeCommand(
-                'move-analyzer.textDocumentHover',
+                'iota-move.textDocumentHover',
                 params,
             );
 
         assert.ok(hoverResult);
         assert.deepStrictEqual((hoverResult.contents as MarkupContent).value,
             // eslint-disable-next-line max-len
-            'fun Symbols::M2::other_doc_struct(): Symbols::M3::OtherDocStruct\n\n\nThis is a multiline docstring\n\nThis docstring has empty lines.\n\nIt uses the ** format instead of ///\n\n');
+            '```rust\nfun Symbols::M2::other_doc_struct(): Symbols::M3::OtherDocStruct\n```\n\nThis is a multiline docstring\n\nThis docstring has empty lines.\n\nIt uses the ** format instead of ///\n\n');
 
     });
 
     Mocha.test('textDocument/hover for definition in an external module', async () => {
-        const ext = vscode.extensions.getExtension('move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -135,18 +135,19 @@ Mocha.suite('LSP', () => {
 
         const hoverResult: lc.Hover | undefined =
             await vscode.commands.executeCommand(
-                'move-analyzer.textDocumentHover',
+                'iota-move.textDocumentHover',
                 params,
             );
 
 
         assert.ok(hoverResult);
         assert.deepStrictEqual((hoverResult.contents as MarkupContent).value,
-            'Symbols::M3::OtherDocStruct\n\nDocumented struct in another module\n');
+            // eslint-disable-next-line max-len
+            '```rust\nstruct Symbols::M3::OtherDocStruct has drop {\n\tsome_field: u64\n}\n```\nDocumented struct in another module\n');
     });
 
     Mocha.test('textDocument/completion', async () => {
-        const ext = vscode.extensions.getExtension('move.move-analyzer');
+        const ext = vscode.extensions.getExtension('iota-foundation.iota-move');
         assert.ok(ext);
 
         await ext.activate(); // Synchronous waiting for activation to complete
@@ -172,7 +173,7 @@ Mocha.suite('LSP', () => {
         };
 
         const items = await vscode.commands.executeCommand<Array<vscode.CompletionItem>>(
-            'move-analyzer.textDocumentCompletion',
+            'iota-move.textDocumentCompletion',
             params,
         );
 
@@ -188,31 +189,31 @@ Mocha.suite('LSP', () => {
             assert.strictEqual(isKeywordInCompletionItems(primitive, items), true);
         });
 
-        const colonParams: lc.CompletionParams = {
+        const parameterTypeParams: lc.CompletionParams = {
             textDocument: {
                 uri: docs.uri.toString(),
             },
-            // The position of the character ":"
+            // The position of the character "u"
             position: {
                 line: 9,
-                character: 15,
+                character: 17,
             },
         };
 
-        const itemsOnColon = await vscode.commands.executeCommand<Array<vscode.CompletionItem>>(
-            'move-analyzer.textDocumentCompletion',
-            colonParams,
+        const itemsOnParameterType = await vscode.commands.executeCommand<Array<vscode.CompletionItem>>(
+            'iota-move.textDocumentCompletion',
+            parameterTypeParams,
         );
 
-        assert.ok(itemsOnColon);
+        assert.ok(itemsOnParameterType);
 
-        const keywordsOnColon = itemsOnColon.filter(i => i.kind === CompletionItemKind.Keyword);
-        // Primitive types are the only keywords returned after inserting the colon
-        assert.strictEqual(keywordsOnColon.length, PRIMITIVE_TYPES.length);
+        const keywordsOnParameterType = itemsOnParameterType.filter(i => i.kind === CompletionItemKind.Keyword);
+        // Primitive types + `address` are the only keywords returned
+        assert.strictEqual(keywordsOnParameterType.length, PRIMITIVE_TYPES.length + 1);
 
         // Final safety check
         PRIMITIVE_TYPES.forEach((primitive) => {
-            assert.strictEqual(isKeywordInCompletionItems(primitive, keywordsOnColon), true);
+            assert.strictEqual(isKeywordInCompletionItems(primitive, keywordsOnParameterType), true);
         });
     });
 });

@@ -5,6 +5,7 @@ export enum InputType {
     Text = 'text',
     Password = 'password',
     Number = 'number',
+    NumericFormat = 'numericFormat',
 }
 
 export enum Resize {

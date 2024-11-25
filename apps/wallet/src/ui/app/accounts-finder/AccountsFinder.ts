@@ -3,10 +3,10 @@
 
 import type { AccountFromFinder, AddressFromFinder } from '_src/shared/accounts';
 import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './accounts-finder';
-import type { IotaClient } from '@iota/iota.js/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 import { getEmptyBalance } from './helpers';
 import type { FindBalance } from './types';
-import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 
 export enum AllowedAccountSourceTypes {
     MnemonicDerived = 'mnemonic-derived',
@@ -16,7 +16,6 @@ export enum AllowedAccountSourceTypes {
 
 export enum AllowedBip44CoinTypes {
     IOTA = 4218,
-    Shimmer = 4219,
 }
 
 export enum SearchAlgorithm {
@@ -66,26 +65,10 @@ const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoi
             addressGapLimit: 10,
         },
     },
-    // In shimmer we focus on accounts indexes and never rotate addresses
-    [AllowedBip44CoinTypes.Shimmer]: {
-        [AllowedAccountSourceTypes.LedgerDerived]: {
-            accountGapLimit: 3,
-            addressGapLimit: 0,
-        },
-        [AllowedAccountSourceTypes.MnemonicDerived]: {
-            accountGapLimit: 10,
-            addressGapLimit: 0,
-        },
-        [AllowedAccountSourceTypes.SeedDerived]: {
-            accountGapLimit: 10,
-            addressGapLimit: 0,
-        },
-    },
 };
 
 const CHANGE_INDEXES: { [key in AllowedBip44CoinTypes]: number[] } = {
     [AllowedBip44CoinTypes.IOTA]: [0, 1],
-    [AllowedBip44CoinTypes.Shimmer]: [0],
 };
 
 export class AccountsFinder {

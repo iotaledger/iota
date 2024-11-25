@@ -18,7 +18,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::*;
 use lock_file::LockFile;
 use move_compiler::{
@@ -30,7 +30,11 @@ use move_core_types::account_address::AccountAddress;
 use move_model::model::GlobalEnv;
 use resolution::{dependency_graph::DependencyGraphBuilder, resolution_graph::ResolvedGraph};
 use serde::{Deserialize, Serialize};
-use source_package::{layout::SourcePackageLayout, parsed_manifest::DependencyKind};
+use source_package::{
+    layout::SourcePackageLayout,
+    manifest_parser::{parse_move_manifest_string, parse_source_manifest},
+    parsed_manifest::DependencyKind,
+};
 
 use crate::{
     compilation::{
@@ -103,6 +107,10 @@ pub struct BuildConfig {
     /// If set, warnings become errors
     #[clap(long = move_compiler::command_line::WARNINGS_ARE_ERRORS, global = true)]
     pub warnings_are_errors: bool,
+
+    /// If set, reports errors at JSON
+    #[clap(long = move_compiler::command_line::JSON_ERRORS, global = true)]
+    pub json_errors: bool,
 
     /// Additional named address mapping. Useful for tools in rust
     #[clap(skip)]
@@ -183,7 +191,7 @@ impl BuildConfig {
     /// Compile the package at `path` or the containing Move package. Exit
     /// process on warning or failure.
     pub fn compile_package<W: Write>(self, path: &Path, writer: &mut W) -> Result<CompiledPackage> {
-        let resolved_graph = self.resolution_graph_for_package(path, writer)?;
+        let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
         BuildPlan::create(resolved_graph)?.compile(writer)
     }
@@ -197,7 +205,7 @@ impl BuildConfig {
         writer: &mut W,
         _reader: &mut R, // Reader here for enabling migration mode
     ) -> Result<CompiledPackage> {
-        let resolved_graph = self.resolution_graph_for_package(path, writer)?;
+        let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
         let build_plan = BuildPlan::create(resolved_graph)?;
         // TODO: When we are ready to release and enable automatic migration, uncomment
@@ -219,7 +227,7 @@ impl BuildConfig {
         path: &Path,
         writer: &mut W,
     ) -> Result<CompiledPackage> {
-        let resolved_graph = self.resolution_graph_for_package(path, writer)?;
+        let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
         BuildPlan::create(resolved_graph)?.compile_no_exit(writer)
     }
@@ -235,7 +243,7 @@ impl BuildConfig {
         // we set test and dev mode to migrate all the code
         self.test_mode = true;
         self.dev_mode = true;
-        let resolved_graph = self.resolution_graph_for_package(path, writer)?;
+        let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
         let build_plan = BuildPlan::create(resolved_graph)?;
         migration::migrate(build_plan, writer, reader)?;
@@ -255,7 +263,7 @@ impl BuildConfig {
     ) -> Result<GlobalEnv> {
         // resolution graph diagnostics are only needed for CLI commands so ignore them
         // by passing a vector as the writer
-        let resolved_graph = self.resolution_graph_for_package(path, &mut Vec::new())?;
+        let resolved_graph = self.resolution_graph_for_package(path, None, &mut Vec::new())?;
         let _mutx = PackageLock::lock(); // held until function returns
         ModelBuilder::create(resolved_graph, model_config).build_model()
     }
@@ -274,6 +282,7 @@ impl BuildConfig {
     pub fn resolution_graph_for_package<W: Write>(
         mut self,
         path: &Path,
+        chain_id: Option<String>,
         writer: &mut W,
     ) -> Result<ResolvedGraph> {
         if self.test_mode {
@@ -321,6 +330,7 @@ impl BuildConfig {
             dependency_graph,
             self,
             &mut dependency_cache,
+            chain_id,
             progress_output,
         )
     }
@@ -333,25 +343,40 @@ impl BuildConfig {
         };
         flags
             .set_warnings_are_errors(self.warnings_are_errors)
+            .set_json_errors(self.json_errors)
             .set_silence_warnings(self.silence_warnings)
     }
 
     pub fn update_lock_file_toolchain_version(
         &self,
-        path: &PathBuf,
+        path: &Path,
         compiler_version: String,
     ) -> Result<()> {
         let Some(lock_file) = self.lock_file.as_ref() else {
             return Ok(());
         };
+        let path = &SourcePackageLayout::try_find_root(path)
+            .map_err(|e| anyhow!("Unable to find package root for {}: {e}", path.display()))?;
+
+        // Resolve edition and flavor from `Move.toml` or assign defaults.
+        let manifest_string =
+            std::fs::read_to_string(path.join(SourcePackageLayout::Manifest.path()))?;
+        let toml_manifest = parse_move_manifest_string(manifest_string.clone())?;
+        let root_manifest = parse_source_manifest(toml_manifest)?;
+        let edition = root_manifest
+            .package
+            .edition
+            .or(self.default_edition)
+            .unwrap_or_default();
+        let flavor = root_manifest
+            .package
+            .flavor
+            .or(self.default_flavor)
+            .unwrap_or_default();
+
         let install_dir = self.install_dir.as_ref().unwrap_or(path).to_owned();
         let mut lock = LockFile::from(install_dir, lock_file)?;
-        update_compiler_toolchain(
-            &mut lock,
-            compiler_version,
-            self.default_edition.unwrap_or_default(),
-            self.default_flavor.unwrap_or_default(),
-        )?;
+        update_compiler_toolchain(&mut lock, compiler_version, edition, flavor)?;
         let _mutx = PackageLock::lock();
         lock.commit(lock_file)?;
         Ok(())

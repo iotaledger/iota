@@ -80,7 +80,7 @@ div.display > div > div > figure > div > div {
 }
 
 table.description {
-    @apply mb-[3.75rem] w-full sm:w-[866px] 2xl:mb-0;
+    @apply mb-[3.75rem] w-full sm:w-[866px];
 }
 
 /* Description CSS */

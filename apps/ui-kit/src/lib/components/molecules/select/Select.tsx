@@ -7,14 +7,21 @@ import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
+import { ButtonUnstyled } from '../../atoms/button';
 import { ListItem } from '../../atoms';
+import { DropdownPosition } from '../dropdown';
+import { SelectSize } from './select.enums';
 
 export type SelectOption =
     | string
     | { id: string; renderLabel: () => React.JSX.Element }
     | { id: string; label: React.ReactNode };
 
-interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled' | 'value'> {
+interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled'> {
+    /**
+     * The selected option value.
+     */
+    value?: string;
     /**
      * The field label.
      */
@@ -47,6 +54,18 @@ interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled
      * The callback to call when the value changes.
      */
     onValueChange?: (id: string) => void;
+    /**
+     * The callback to call when the option is clicked.
+     */
+    onOptionClick?: (id: string) => void;
+    /**
+     * The dropdown position
+     */
+    dropdownPosition?: DropdownPosition;
+    /**
+     * The size of the select.
+     */
+    size?: SelectSize;
 }
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(
@@ -61,22 +80,19 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             options,
             placeholder,
             onValueChange,
+            onOptionClick,
             value,
+            dropdownPosition = DropdownPosition.Bottom,
+            size = SelectSize.Default,
         },
         ref,
     ) => {
         const [isOpen, setIsOpen] = useState<boolean>(false);
-        const [selectedValue, setSelectedValue] = useState<SelectOption>(
-            findValueByProps(value, options),
-        );
+        const selectedValue = findValueByProps(value, options);
 
         const selectorText = selectedValue || placeholder;
-
-        useEffect(() => {
-            const newValue = findValueByProps(value, options);
-            setSelectedValue(newValue);
-        }, [value, options]);
-
+        const selectPadding = size === SelectSize.Small ? 'px-sm' : 'px-md';
+        const textSize = size === SelectSize.Small ? 'text-body-md' : 'text-body-lg';
         useEffect(() => {
             if (disabled && isOpen) {
                 closeDropdown();
@@ -96,15 +112,18 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         }
 
         function handleOptionClick(option: SelectOption) {
-            setSelectedValue(option);
             closeDropdown();
-            onValueChange?.(typeof option === 'string' ? option : option.id);
+            const clickedOption = typeof option === 'string' ? option : option.id;
+            onOptionClick?.(clickedOption);
+
+            if (option !== selectedValue) {
+                onValueChange?.(clickedOption);
+            }
         }
 
         function closeDropdown() {
             setIsOpen(false);
         }
-
         return (
             <InputWrapper
                 label={label}
@@ -114,13 +133,14 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                 labelHtmlTag={LabelHtmlTag.Div}
             >
                 <div className="relative flex w-full flex-col">
-                    <button
-                        type="button"
+                    <ButtonUnstyled
                         ref={ref}
                         onClick={onSelectorClick}
-                        data-selected-value={value}
                         disabled={disabled}
-                        className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30  active:enabled:border-primary-30 group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80"
+                        className={cx(
+                            'flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed  group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5',
+                            selectPadding,
+                        )}
                     >
                         {leadingIcon && (
                             <span className="text-neutral-10 dark:text-neutral-92">
@@ -130,13 +150,18 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
 
                         <div className="flex w-full flex-row items-baseline gap-x-3">
                             {selectorText && (
-                                <div className="block w-full text-start text-body-lg text-neutral-10 dark:text-neutral-92">
+                                <div
+                                    className={cx(
+                                        'block w-full text-start text-neutral-10 dark:text-neutral-92',
+                                        textSize,
+                                    )}
+                                >
                                     <OptionLabel option={selectorText} />
                                 </div>
                             )}
 
                             {supportingText && (
-                                <div className={cx(!placeholder && !selectedValue && 'ml-auto')}>
+                                <div className="ml-auto">
                                     <SecondaryText>{supportingText}</SecondaryText>
                                 </div>
                             )}
@@ -149,10 +174,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                                     ' rotate-180': isOpen,
                                 },
                             )}
-                            width={20}
-                            height={20}
                         />
-                    </button>
+                    </ButtonUnstyled>
 
                     {isOpen && (
                         <div
@@ -161,8 +184,11 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         />
                     )}
                     <div
-                        className={cx('absolute top-full z-50 min-w-full', {
+                        className={cx('absolute z-50 min-w-full', {
                             hidden: !isOpen,
+                            'top-full':
+                                !dropdownPosition || dropdownPosition === DropdownPosition.Bottom,
+                            'bottom-full': dropdownPosition === DropdownPosition.Top,
                         })}
                     >
                         <Dropdown>

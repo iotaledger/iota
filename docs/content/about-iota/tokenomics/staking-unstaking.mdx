@@ -3,6 +3,9 @@ title: Staking and Unstaking
 description: Staking and unstaking IOTA with validators earns a percentage of rewards they receive from gas fees.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import {questions} from '../../../site/static/json/about-iota/tokenomics/staking-unstaking.json';
+
 IOTA uses a Delegated-Proof-of-Stake (DPoS) system to secure and operate the network, meaning that the voting power of a validator in the network is determined by the amount of stake delegated to them by IOTA token holders. The more stake delegated to a validator, the more voting power they have. In exchange for processing transactions and performing consensus, validators earn rewards based on a given IOTA inflation rate. These rewards are then shared among stakers as staking rewards.
 
 ## Staking
@@ -19,7 +22,10 @@ Similar to staking, a user withdraws stake from a validator by sending a transac
 
 When you stake on IOTA, you have to choose a specific validator you would like to stake with. The choice of validator can potentially impact the amount of staking rewards you receive. The factors determining this amount include, but are not limited to:
 
-- Validator commission rate: a validator can choose to set a non-zero commission rate specifying the percentage of staking rewards they are taking from the stakers. For example, if a validator has the commission rate of 10%, then 10% of every staker's staking rewards is given to the validator. Understand that a validator can choose its commission at a future moment in time without prior notice.
-- Validator performance: a validator with bad performance might be punished according to the [tallying rule](./gas-pricing.mdx#computation). Punished validators do not receive any staking rewards for the epoch during which they are punished, and you also do not receive that epoch's rewards when you withdraw your stake from that validator. 
+- Validator commission rate: a validator can choose to set a non-zero commission rate specifying the percentage of staking rewards they are taking from the stakers. For example, if a validator has a commission rate of 10%, then 10% of every staker's staking rewards is given to the validator. Understand that a validator can choose its commission at a future moment in time without prior notice.
+- Validator performance: a validator with bad performance might be punished according to the [tallying rule](./gas-pricing.mdx#computation-gas-prices). Punished validators receive only a fraction of staking rewards for the epoch during which they are punished, and you also will receive a fraction of that epoch's rewards when you withdraw your stake from that validator. 
 
 IOTA-compatible crypto wallets and explorers typically provide validator information such as commission and APY. See the respective documentation for these tools for information on how to retrieve this data.
+
+## Quizzes
+<Quiz questions={questions} />

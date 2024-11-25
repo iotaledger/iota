@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What are dynamic fields in IOTA designed to address?",
+    "answerOptions": [
+      { "answerText": "They enforce a fixed structure on objects.", "isCorrect": false },
+      { "answerText": "They limit the size of objects to reduce transaction costs.", "isCorrect": false },
+      { "answerText": "They ensure collections are homogeneous.", "isCorrect": false },
+      { "answerText": "They allow for adding and removing fields dynamically, storing heterogeneous values, and only affect gas costs when accessed.", "isCorrect": true }
+    ]
+  },
+  {
+    "questionText": "What is the main difference between 'fields' and 'object fields' in IOTA's dynamic fields?",
+    "answerOptions": [
+      { "answerText": "Fields can store any value with the 'store' ability, while object fields require stored values to be objects with the 'key' ability and an 'id: UID' field.", "isCorrect": true },
+      { "answerText": "Fields are immutable, and object fields are mutable.", "isCorrect": false },
+      { "answerText": "Fields are accessible by their ID through external tools, and object fields are not.", "isCorrect": false },
+      { "answerText": "Fields can only store primitive data types, and object fields can store complex data types.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which abilities must the names of dynamic fields in IOTA possess?",
+    "answerOptions": [
+      { "answerText": "key and store", "isCorrect": false },
+      { "answerText": "copy and key", "isCorrect": false },
+      { "answerText": "copy, drop, and store", "isCorrect": true },
+      { "answerText": "store and drop only", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What should you do to safely modify a dynamic field's value or type in IOTA?",
+    "answerOptions": [
+      { "answerText": "Overwrite it directly with the new value.", "isCorrect": false },
+      { "answerText": "Use a special 'modify' function provided by the API.", "isCorrect": false },
+      { "answerText": "Remove the existing field before adding the new one.", "isCorrect": true },
+      { "answerText": "It is not possible to modify dynamic fields once they are added.", "isCorrect": false }
+    ]
+  }
+]

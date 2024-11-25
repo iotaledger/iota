@@ -12,7 +12,7 @@ module iota::zklogin_verified_issuer {
     /// Error if the proof consisting of the inputs provided to the verification function is invalid.
     const EInvalidProof: u64 = 1;
 
-    /// Posession of a VerifiedIssuer proves that the user's address was created using zklogin and with the given issuer
+    /// Possession of a VerifiedIssuer proves that the user's address was created using zklogin and with the given issuer
     /// (identity provider).
     public struct VerifiedIssuer has key {
         /// The ID of this VerifiedIssuer
@@ -40,7 +40,7 @@ module iota::zklogin_verified_issuer {
     }
 
     /// Verify that the caller's address was created using zklogin with the given issuer. If so, a VerifiedIssuer object
-    /// with the issuers id transfered to the caller.
+    /// with the issuers id transferred to the caller.
     ///
     /// Aborts with `EInvalidProof` if the verification fails.
     public fun verify_zklogin_issuer(
@@ -66,7 +66,7 @@ module iota::zklogin_verified_issuer {
         address_seed: u256,
         issuer: &String,
     ): bool {
-        check_zklogin_issuer_internal(address, address_seed, issuer.bytes())
+        check_zklogin_issuer_internal(address, address_seed, issuer.as_bytes())
     }
 
     /// Returns true if `address` was created using zklogin with the given issuer and address seed.

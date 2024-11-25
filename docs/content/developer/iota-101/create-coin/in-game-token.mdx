@@ -1,140 +1,71 @@
 ---
-title: In-Game Currency
+description: Learn how to create in-game currency on IOTA using the Closed-Loop Token standard.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/create-coin/in-game-token.json';
 
-Using the IOTA [Closed-Loop Token](../../standards/closed-loop-token.mdx) standard, you can create in-game currency (such as gems or diamonds in mobile games) that you can grant to players for their actions or make available to purchase. You mint the tokens on IOTA, but players can only use the tokens within the economy of the game itself. These types of tokens are usually not transferrable and you would typically mint them in predefined amounts to maintain scarcity and game balance.
+# Creating In-Game Currency
 
-The following example creates an in-game currency called a GEM, which represents a certain number of IOTA. In the example, the user can buy fungible GEMs using IOTA, which can then be used as currency within the game. Use the code comments to follow the logic of the example.
+You can use the IOTA [Closed-Loop Token](../../standards/closed-loop-token.mdx) standard
+to develop in-game currencies like gems or diamonds commonly found in mobile games.
+These tokens can be awarded to players for their actions or made available for purchase.
+While minted on the IOTA network, players can only use these tokens within the game's ecosystem.
+Typically, such tokens are non-transferable and are minted in predefined quantities to maintain scarcity and balance within the game.
 
-```move title="iota/examples/move/token/sources/gems.move"
-/// This is a simple example of a permissionless module for an imaginary game
-/// that sells swords for Gems. Gems are an in-game currency that can be bought
-/// with IOTA.
-module examples::sword {
-    use iota::tx_context::TxContext;
-    use iota::object::{Self, UID};
+## Setting Up the GEM Currency
 
-    use iota::token::{Self, Token, ActionRequest};
-    use examples::gem::GEM;
+In the following example creates an in-game currency called `GEM`, representing a specific amount of IOTA.
+Players can purchase fungible `GEMs` using IOTA, which they can then spend within the game.
 
-    /// Trying to purchase a sword with an incorrect amount.
-    const EWrongAmount: u64 = 0;
+### Example Overview
 
-    /// The price of a sword in Gems.
-    const SWORD_PRICE: u64 = 10;
+The IOTA repository includes a [basic example of creating an in-game currency]https://github.com/iotaledger/iota/tree/develop/examples/move/token.
+The Move modules responsible for establishing the game's economy are located in the [`gems.move`](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/gems.move) source file.
 
-    /// A game item that can be purchased with Gems.
-    struct Sword has key, store { id: UID }
+### The `examples::sword` Module
 
-    /// Purchase a sword with Gems.
-    public fun buy_sword(
-        gems: Token<GEM>, ctx: &mut TxContext
-    ): (Sword, ActionRequest<GEM>) {
-        assert!(SWORD_PRICE == token::value(&gems), EWrongAmount);
-        (
-            Sword { id: object::new(ctx) },
-            token::spend(gems, ctx)
-        )
-    }
-}
+The [`examples::sword` module](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/gems.move#L8) defines an in-game object, a `sword`,
+which holds value within the game.
+This module assigns a `GEM` value to the sword and includes the logic for trading `GEMs` to acquire a sword.
 
-/// Module that defines the in-game currency: GEMs which can be purchased with
-/// IOTA and used to buy swords (in the `sword` module).
-module examples::gem {
-    use std::option::none;
-    use std::string::{Self, String};
-    use iota::iota::IOTA;
-    use iota::transfer;
-    use iota::object::{Self, UID};
-    use iota::balance::{Self, Balance};
-    use iota::tx_context::{sender, TxContext};
-    use iota::coin::{Self, Coin, TreasuryCap};
-
-    use iota::token::{Self, Token, ActionRequest};
-
-    /// Trying to purchase Gems with an unexpected amount.
-    const EUnknownAmount: u64 = 0;
-
-    /// 10 IOTA is the price of a small bundle of Gems.
-    const SMALL_BUNDLE: u64 = 10_000_000_000;
-    const SMALL_AMOUNT: u64 = 100;
-
-    /// 100 IOTA is the price of a medium bundle of Gems.
-    const MEDIUM_BUNDLE: u64 = 100_000_000_000;
-    const MEDIUM_AMOUNT: u64 = 5_000;
-
-    /// 1000 IOTA is the price of a large bundle of Gems.
-    /// This is the best deal.
-    const LARGE_BUNDLE: u64 = 1_000_000_000_000;
-    const LARGE_AMOUNT: u64 = 100_000;
-
-    #[allow(lint(coin_field))]
-    /// Gems can be purchased through the `Store`.
-    struct GemStore has key {
-        id: UID,
-        /// Profits from selling Gems.
-        profits: Balance<IOTA>,
-        /// The Treasury Cap for the in-game currency.
-        gem_treasury: TreasuryCap<GEM>,
-    }
-
-    /// The OTW to create the in-game currency.
-    struct GEM has drop {}
-
-    // In the module initializer we create the in-game currency and define the
-    // rules for different types of actions.
-    fun init(otw: GEM, ctx: &mut TxContext) {
-        let (treasury_cap, coin_metadata) = coin::create_currency(
-            otw, 0, b"GEM", b"Capy Gems", // otw, decimal, symbol, name
-            b"In-game currency for Capy Miners", none(), // description, url
-            ctx
-        );
-
-        // create a `TokenPolicy` for GEMs
-        let (policy, cap) = token::new_policy(&treasury_cap, ctx);
-
-        token::allow(&mut policy, &cap, buy_action(), ctx);
-        token::allow(&mut policy, &cap, token::spend_action(), ctx);
-
-        // create and share the GemStore
-        transfer::share_object(GemStore {
-            id: object::new(ctx),
-            gem_treasury: treasury_cap,
-            profits: balance::zero()
-        });
-
-        // deal with `TokenPolicy`, `CoinMetadata` and `TokenPolicyCap`
-        transfer::public_freeze_object(coin_metadata);
-        transfer::public_transfer(cap, sender(ctx));
-        token::share_policy(policy);
-    }
-
-    /// Purchase Gems from the GemStore. Very silly value matching against module
-    /// constants...
-    public fun buy_gems(
-        self: &mut GemStore, payment: Coin<IOTA>, ctx: &mut TxContext
-    ): (Token<GEM>, ActionRequest<GEM>) {
-        let amount = coin::value(&payment);
-        let purchased = if (amount == SMALL_BUNDLE) {
-            SMALL_AMOUNT
-        } else if (amount == MEDIUM_BUNDLE) {
-            MEDIUM_AMOUNT
-        } else if (amount == LARGE_BUNDLE) {
-            LARGE_AMOUNT
-        } else {
-            abort EUnknownAmount
-        };
-
-        coin::put(&mut self.profits, payment);
-
-        // create custom request and mint some Gems
-        let gems = token::mint(&mut self.gem_treasury, purchased, ctx);
-        let req = token::new_request(buy_action(), purchased, none(), none(), ctx);
-
-        (gems, req)
-    }
-
-    /// The name of the `buy` action in the `GemStore`.
-    public fun buy_action(): String { string::utf8(b"buy") }
-}
+```move file=<rootDir>/examples/move/token/sources/gems.move#L8-L32
 ```
+
+### The `examples::gem` Module
+
+The [`examples::gem` module](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/gems.move#L36) is responsible
+for creating the `GEM` in-game currency.
+Players spend IOTA to purchase `GEMs`, which they can trade for swords or other in-game items.
+The module defines three tiers of `GEM` packages—small, medium, and large—each representing different in-game values.
+Constants within the module specify both the value and the quantity of GEMs in each package.
+
+```move file=<rootDir>/examples/move/token/sources/gems.move#L73-L69
+```
+
+#### Initializing the GEM Currency
+
+The `init` function in the module uses `coin::create_currency` to create the GEM currency. This function runs only once upon module publication. It sets the policies for the in-game currency, freezes the coin's metadata, and transfers the policy capability to the package publisher.
+
+```move file=<rootDir>/examples/move/token/sources/gems.move#L76-L100
+```
+
+#### Purchasing GEMs
+
+The module handles the purchase of `GEMs` through the `buy_gems` function.
+
+```move file=<rootDir>/examples/move/token/sources/gems.move#L104-L125
+```
+
+## Viewing the Complete Module Code
+
+For a comprehensive understanding, you can view the complete code of the `gems.move` module below.
+
+<details>
+<summary>Click to expand the full module code</summary>
+
+```move file=<rootDir>/examples/move/token/sources/gems.move
+```
+
+</details>
+
+<Quiz questions={questions} />

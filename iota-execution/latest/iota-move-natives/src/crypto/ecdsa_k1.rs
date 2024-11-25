@@ -8,10 +8,12 @@ use fastcrypto::{
     error::FastCryptoError,
     hash::{Keccak256, Sha256},
     secp256k1::{
-        recoverable::Secp256k1RecoverableSignature, Secp256k1PublicKey, Secp256k1Signature,
+        Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
+        recoverable::Secp256k1RecoverableSignature,
     },
-    traits::{RecoverableSignature, ToFromBytes},
+    traits::{RecoverableSignature, RecoverableSigner, ToFromBytes},
 };
+use iota_types::crypto::KeypairTraits;
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -19,8 +21,9 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
     pop_arg,
-    values::{Value, VectorRef},
+    values::{self, Value, VectorRef},
 };
+use rand::{SeedableRng, rngs::StdRng};
 use smallvec::smallvec;
 
 use crate::NativesCostTable;
@@ -28,12 +31,16 @@ use crate::NativesCostTable;
 pub const FAIL_TO_RECOVER_PUBKEY: u64 = 0;
 pub const INVALID_SIGNATURE: u64 = 1;
 pub const INVALID_PUBKEY: u64 = 2;
+pub const INVALID_PRIVKEY: u64 = 3;
+pub const INVALID_HASH_FUNCTION: u64 = 4;
+pub const INVALID_SEED: u64 = 5;
 
 pub const KECCAK256: u8 = 0;
 pub const SHA256: u8 = 1;
 
 const KECCAK256_BLOCK_SIZE: usize = 136;
 const SHA256_BLOCK_SIZE: usize = 64;
+const SEED_LENGTH: usize = 32;
 
 #[derive(Clone)]
 pub struct EcdsaK1EcrecoverCostParams {
@@ -143,10 +150,9 @@ pub fn ecrecover(
     };
 
     match pk {
-        Ok(pk) => Ok(NativeResult::ok(
-            cost,
-            smallvec![Value::vector_u8(pk.as_bytes().to_vec())],
-        )),
+        Ok(pk) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
+            pk.as_bytes().to_vec()
+        )])),
         Err(_) => Ok(NativeResult::err(cost, FAIL_TO_RECOVER_PUBKEY)),
     }
 }
@@ -183,10 +189,9 @@ pub fn decompress_pubkey(
     match Secp256k1PublicKey::from_bytes(&pubkey_ref) {
         Ok(pubkey) => {
             let uncompressed = &pubkey.pubkey.serialize_uncompressed();
-            Ok(NativeResult::ok(
-                cost,
-                smallvec![Value::vector_u8(uncompressed.to_vec())],
-            ))
+            Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
+                uncompressed.to_vec()
+            )]))
         }
         Err(_) => Ok(NativeResult::err(cost, INVALID_PUBKEY)),
     }
@@ -272,10 +277,9 @@ pub fn secp256k1_verify(
             // error is masked by OUT_OF_GAS error
             context.charge_gas(crypto_invalid_arguments_cost);
 
-            return Ok(NativeResult::ok(
-                context.gas_used(),
-                smallvec![Value::bool(false)],
-            ));
+            return Ok(NativeResult::ok(context.gas_used(), smallvec![
+                Value::bool(false)
+            ]));
         }
     };
     // Charge the base cost for this oper
@@ -313,4 +317,98 @@ pub fn secp256k1_verify(
     };
 
     Ok(NativeResult::ok(cost, smallvec![Value::bool(result)]))
+}
+
+/// ****************************************************************************
+/// ********************* native fun secp256k1_sign (TEST ONLY)
+/// Implementation of the Move native function `secp256k1_sign(private_key:
+/// &vector<u8>, msg: &vector<u8>, hash: u8): vector<u8>` This function has two
+/// cost modes depending on the hash being set to`KECCAK256` or `SHA256`. The
+/// core formula is same but constants differ. If hash = 0, we use the
+/// `keccak256` cost constants, otherwise we use the `sha256` cost constants.
+///   gas cost: 0 (because it is only for test purposes)
+/// ****************************************************************************
+/// *******************
+pub fn secp256k1_sign(
+    _context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 4);
+
+    // The corresponding Move function, iota::ecdsa_k1::secp256k1_sign, is only used
+    // for testing, so we don't need to charge any gas.
+    let cost = 0.into();
+
+    let recoverable = pop_arg!(args, bool);
+    let hash = pop_arg!(args, u8);
+    let msg = pop_arg!(args, VectorRef);
+    let private_key_bytes = pop_arg!(args, VectorRef);
+
+    let msg_ref = msg.as_bytes_ref();
+    let private_key_bytes_ref = private_key_bytes.as_bytes_ref();
+
+    let sk = match <Secp256k1PrivateKey as ToFromBytes>::from_bytes(&private_key_bytes_ref) {
+        Ok(sk) => sk,
+        Err(_) => return Ok(NativeResult::err(cost, INVALID_PRIVKEY)),
+    };
+
+    let kp = Secp256k1KeyPair::from(sk);
+
+    let signature = match (hash, recoverable) {
+        (KECCAK256, true) => kp
+            .sign_recoverable_with_hash::<Keccak256>(&msg_ref)
+            .as_bytes()
+            .to_vec(),
+        (KECCAK256, false) => kp.sign_with_hash::<Keccak256>(&msg_ref).as_bytes().to_vec(),
+        (SHA256, true) => kp
+            .sign_recoverable_with_hash::<Sha256>(&msg_ref)
+            .as_bytes()
+            .to_vec(),
+        (SHA256, false) => kp.sign_with_hash::<Sha256>(&msg_ref).as_bytes().to_vec(),
+        _ => return Ok(NativeResult::err(cost, INVALID_HASH_FUNCTION)),
+    };
+
+    Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
+        signature
+    )]))
+}
+
+/// ****************************************************************************
+/// ********************* native fun secp256k1_keypair_from_seed (TEST ONLY)
+/// Implementation of the Move native function `secp256k1_sign(seed:
+/// &vector<u8>): KeyPair` Seed must be exactly 32 bytes long.
+///   gas cost: 0 (because it is only for test purposes)
+/// ****************************************************************************
+/// *******************
+pub fn secp256k1_keypair_from_seed(
+    _context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 1);
+
+    // The corresponding Move function, iota::ecdsa_k1::secp256k1_keypair_from_seed,
+    // is only used for testing, so we don't need to charge any gas.
+    let cost = 0.into();
+
+    let seed = pop_arg!(args, VectorRef);
+    let seed_ref = seed.as_bytes_ref();
+
+    if seed_ref.len() != SEED_LENGTH {
+        return Ok(NativeResult::err(cost, INVALID_SEED));
+    }
+    let mut seed_array = [0u8; SEED_LENGTH];
+    seed_array.clone_from_slice(&seed_ref);
+
+    let kp = Secp256k1KeyPair::generate(&mut StdRng::from_seed(seed_array));
+
+    let pk_bytes = kp.public().as_bytes().to_vec();
+    let sk_bytes = kp.private().as_bytes().to_vec();
+
+    Ok(NativeResult::ok(cost, smallvec![Value::struct_(
+        values::Struct::pack(vec![Value::vector_u8(sk_bytes), Value::vector_u8(pk_bytes),])
+    )]))
 }

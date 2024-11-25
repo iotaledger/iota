@@ -1,0 +1,47 @@
+
+import ChallengeVerifier  from '@site/src/components/CTF/ctf-verifier';
+
+
+
+
+# Challenge 6: Go Recycle!
+
+The City of Venice is tired of all the trash ending up in the canals, especially pizza boxes still filled with a certain type of pizza which are just dumped everywhere are ruining the experience. They decided to start a recycling program rewarding people who do their part with a Venetian Flag; Go grab one! 
+
+For this challenge you might want to investigate the [Transfer to object](../iota-101/objects/transfers/transfer-to-object.mdx) functionality; Pizzaboxes from previous challenges can not be used in this one. 
+
+## Deployed Contract Addresses:
+```
+PizzaBoxRecycler: 0x16ddd3ae8cc4fe71f1acdc52838412a645eac93f1176450d05a77642f1816f34
+Package: 0xcbe251b41a23a3952e64036f01367df82f1ccf3498cb139ff3ef44712441abc9
+```
+
+## Contracts
+
+### recycle.move
+```move file=<rootDir>/docs/examples/move/ctf/challenge_6/sources/recycle.move
+```
+
+### pizza.move
+```move file=<rootDir>/docs/examples/move/ctf/challenge_6/sources/pizza.move
+```
+
+
+## Related Articles
+
+The previous challenges covered the basics of the Object Model and how to interact with the blockchain. This challenge's main theme is object transfers, which will be crucial to capturing the flag.
+We recommend you to check the following articles:
+
+- [Object Transfers](../iota-101/objects/transfers/)
+- [Transfer to object](../iota-101/objects/transfers/transfer-to-object.mdx)
+- [Custom Transfer Rules](../iota-101/objects/transfers/custom-rules.mdx)
+
+
+
+Good luck in capturing your sixth flag!
+
+:::tip
+Make sure you recycle enough pizza boxes!
+:::
+
+<ChallengeVerifier expectedObjectType="0xcbe251b41a23a3952e64036f01367df82f1ccf3498cb139ff3ef44712441abc9::recycle::Flag" />

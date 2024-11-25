@@ -4,7 +4,7 @@
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
 use iota_stardust_sdk::types::block::output::{
-    feature::Irc27Metadata as StardustIrc27, NftOutput as StardustNft,
+    NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use num_rational::Ratio;
@@ -15,13 +15,13 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
+    STARDUST_PACKAGE_ID, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::{Bag, Entry, VecMap},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
-    TypeTag, STARDUST_PACKAGE_ID,
 };
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
@@ -357,12 +357,9 @@ impl Nft {
         version: SequenceNumber,
     ) -> anyhow::Result<Object> {
         // Construct the Nft object.
-        let move_nft_object = unsafe {
-            // Safety: we know from the definition of `Nft` in the stardust package
-            // that it has public transfer (`store` ability is present).
+        let move_nft_object = {
             MoveObject::new_from_execution(
                 Self::tag().into(),
-                true,
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -447,12 +444,9 @@ impl NftOutput {
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
-        let move_nft_output_object = unsafe {
-            // Safety: we know from the definition of `NftOutput` in the stardust package
-            // that it does not have public transfer (`store` ability is absent).
+        let move_nft_output_object = {
             MoveObject::new_from_execution(
                 NftOutput::tag(coin_type.to_type_tag()).into(),
-                false,
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,

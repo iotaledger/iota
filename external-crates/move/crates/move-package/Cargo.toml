@@ -1,7 +1,7 @@
 [package]
 name = "move-package"
 version = "0.1.0"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -23,6 +23,7 @@ tempfile.workspace = true
 toml.workspace = true
 toml_edit.workspace = true
 treeline.workspace = true
+vfs.workspace = true
 walkdir.workspace = true
 
 move-binary-format.workspace = true
@@ -39,7 +40,7 @@ whoami.workspace = true
 
 [dev-dependencies]
 datatest-stable.workspace = true
-expect-test = "1.4.0"
+expect-test = "1.5"
 
 [[test]]
 name = "test_runner"

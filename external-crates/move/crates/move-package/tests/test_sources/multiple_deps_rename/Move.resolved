@@ -48,7 +48,7 @@ ResolvedGraph {
             "D",
             "test",
         },
-        manifest_digest: "16BB782949D226228DAF21045B45585AD7D7C8F6468D6ED504C0B5302C9CA861",
+        manifest_digest: "6C75E622C70493EFA9950CFDD2386FCC80AC6993FD4E54EF5AC34B983F83DD7D",
         deps_digest: "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600",
     },
     build_options: BuildConfig {
@@ -69,6 +69,7 @@ ResolvedGraph {
         deps_as_root: false,
         silence_warnings: false,
         warnings_are_errors: false,
+        json_errors: false,
         additional_named_addresses: {},
         lint_flag: LintFlag {
             no_lint: false,

@@ -11,8 +11,8 @@ module iota::vec_set {
     const EKeyDoesNotExist: u64 = 1;
 
     /// A set data structure backed by a vector. The set is guaranteed not to
-    /// contain duplicate keys. All operations are O(N) in the size of the set
-    /// - the intention of this data structure is only to provide the convenience
+    /// contain duplicate keys. All operations are O(N) in the size of the set.
+    /// The intention of this data structure is only to provide the convenience
     /// of programming against a set API. Sets that need sorted iteration rather
     /// than insertion order iteration should be handwritten.
     public struct VecSet<K: copy + drop> has copy, drop, store {
@@ -62,6 +62,16 @@ module iota::vec_set {
     public fun into_keys<K: copy + drop>(self: VecSet<K>): vector<K> {
         let VecSet { contents } = self;
         contents
+    }
+
+    /// Construct a new `VecSet` from a vector of keys.
+    /// The keys are stored in insertion order (the original `keys` ordering)
+    /// and are *not* sorted.
+    public fun from_keys<K: copy + drop>(mut keys: vector<K>): VecSet<K> {
+        keys.reverse();
+        let mut set = empty();
+        while (!keys.is_empty()) set.insert(keys.pop_back());
+        set
     }
 
     /// Borrow the `contents` of the `VecSet` to access content by index

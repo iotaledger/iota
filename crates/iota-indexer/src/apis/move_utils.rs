@@ -5,58 +5,42 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
+use diesel::r2d2::R2D2Connection;
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::MoveUtilsServer;
 use iota_json_rpc_types::{
     IotaMoveNormalizedFunction, IotaMoveNormalizedModule, IotaMoveNormalizedStruct,
     IotaMoveNormalizedType, MoveFunctionArgType, ObjectValueKind,
 };
 use iota_open_rpc::Module;
-use iota_types::{base_types::ObjectID, move_package::normalize_modules};
-use jsonrpsee::{core::RpcResult, RpcModule};
-use move_binary_format::binary_config::BinaryConfig;
+use iota_types::base_types::ObjectID;
+use jsonrpsee::{RpcModule, core::RpcResult};
+use move_binary_format::normalized::Module as NormalizedModule;
 
 use crate::indexer_reader::IndexerReader;
 
-pub struct MoveUtilsApi {
-    inner: IndexerReader,
+pub struct MoveUtilsApi<T: R2D2Connection + 'static> {
+    inner: IndexerReader<T>,
 }
 
-impl MoveUtilsApi {
-    pub fn new(inner: IndexerReader) -> Self {
+impl<T: R2D2Connection> MoveUtilsApi<T> {
+    pub fn new(inner: IndexerReader<T>) -> Self {
         Self { inner }
     }
 }
 
 #[async_trait]
-impl MoveUtilsServer for MoveUtilsApi {
+impl<T: R2D2Connection + 'static> MoveUtilsServer for MoveUtilsApi<T> {
     async fn get_normalized_move_modules_by_package(
         &self,
         package_id: ObjectID,
     ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
-        let package = self
-            .inner
-            .get_package_in_blocking_task(package_id)
-            .await
-            .map_err(|e| IotaRpcInputError::GenericNotFound(e.to_string()))?
-            .ok_or_else(|| {
-                IotaRpcInputError::GenericNotFound(format!(
-                    "Package object does not exist with ID {package_id}",
-                ))
-            })?;
-        let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
-        let modules =
-                // we are on the read path - it's OK to use VERSION_MAX of the supported Move
-                // binary format
-                normalize_modules(
-                    package.serialized_module_map().values(),
-                    &binary_config,
-                )
-                .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?;
-        Ok(modules
+        let resolver_modules = self.inner.get_package(package_id).await?.modules().clone();
+        let iota_normalized_modules = resolver_modules
             .into_iter()
-            .map(|(name, module)| (name, module.into()))
-            .collect::<BTreeMap<String, IotaMoveNormalizedModule>>())
+            .map(|(k, v)| (k, NormalizedModule::new(v.bytecode()).into()))
+            .collect::<BTreeMap<String, IotaMoveNormalizedModule>>();
+        Ok(iota_normalized_modules)
     }
 
     async fn get_normalized_move_module(
@@ -145,7 +129,7 @@ impl MoveUtilsServer for MoveUtilsApi {
     }
 }
 
-impl IotaRpcModule for MoveUtilsApi {
+impl<T: R2D2Connection> IotaRpcModule for MoveUtilsApi<T> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

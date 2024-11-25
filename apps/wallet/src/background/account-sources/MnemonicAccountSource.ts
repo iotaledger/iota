@@ -11,8 +11,8 @@ import {
     deriveKeypairFromSeed,
 } from '_src/shared/utils';
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
-import type { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+import { mnemonicToSeedHex } from '@iota/iota-sdk/cryptography';
+import type { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
 import Dexie from 'dexie';

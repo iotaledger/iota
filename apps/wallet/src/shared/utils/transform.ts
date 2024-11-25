@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB64 } from '@iota/iota.js/utils';
+import { fromB64, toB64 } from '@iota/iota-sdk/utils';
 
 export function toUtf8OrB64(message: string | Uint8Array) {
     const messageBytes = typeof message === 'string' ? fromB64(message) : message;

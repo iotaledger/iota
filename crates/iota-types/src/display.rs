@@ -6,10 +6,10 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::Deserialize;
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     collection_types::VecMap,
     event::Event,
     id::{ID, UID},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 pub const DISPLAY_MODULE_NAME: &IdentStr = ident_str!("display");

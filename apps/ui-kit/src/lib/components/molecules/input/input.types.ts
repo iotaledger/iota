@@ -1,22 +1,29 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { InputType } from './input.enums';
+import { ComponentProps } from 'react';
+import { InputType } from '.';
+import { NumericFormat } from 'react-number-format';
 
-type InputTypePasswordProps = {
-    type: InputType.Password;
-    /**
-     * Shows toggle button to show/hide the content of the input
-     */
-    isVisibilityToggleEnabled?: boolean;
+type InputElementProps = Omit<
+    React.ComponentProps<'input'>,
+    'type' | 'className' | 'ref' | 'value' | 'defaultValue'
+>;
+
+type GenericInputProps = {
+    type: InputType.Text | InputType.Password | InputType.Number;
 };
 
-type InputTypeTextProps = {
-    type: InputType.Text;
+type NumericFormatProps = ComponentProps<typeof NumericFormat>;
+
+export type NumericFormatInputProps = {
+    type: InputType.NumericFormat;
+    suffix?: NumericFormatProps['suffix'];
+    prefix?: NumericFormatProps['prefix'];
+    decimalScale?: NumericFormatProps['decimalScale'];
+    allowNegative?: NumericFormatProps['allowNegative'];
+    thousandSeparator?: NumericFormatProps['thousandSeparator'];
+    onValueChange?: NumericFormatProps['onValueChange'];
 };
 
-type InputTypeNumberProps = {
-    type: InputType.Number;
-};
-
-export type InputPropsByType = InputTypePasswordProps | InputTypeTextProps | InputTypeNumberProps;
+export type InputPropsByType = InputElementProps & (NumericFormatInputProps | GenericInputProps);

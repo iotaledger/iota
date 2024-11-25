@@ -3,20 +3,27 @@ processed 5 tasks
 init:
 A: object(0,0)
 
-task 1 'publish'. lines 7-27:
+task 1, lines 7-27:
+//# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5570800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5563200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'programmable'. lines 29-32:
+task 2, lines 29-32:
+//# programmable --inputs @A
+//> 0: P0::m::foo();
+//> 1: P0::m::bar();
+//> TransferObjects([Result(0)], Input(0))
 created: object(2,0), object(2,1)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 3435200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3412400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3 'create-checkpoint'. lines 34-34:
+task 3, line 34:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 4 'run-graphql'. lines 36-54:
+task 4, lines 36-53:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {
@@ -30,22 +37,9 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0xe3e7383383372fdc62d0d0fc4edc6ebaad1e2cd390a914c24c9c8cd5e223ed27::m::Foo"
+                          "repr": "0xd01ba1620a63906586ce0abe061e1f132f9581e42c616660afa3119a028c48a5::m::Bar"
                         }
-                      },
-                      "hasPublicTransfer": true
-                    }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMoveObject": {
-                      "contents": {
-                        "type": {
-                          "repr": "0xe3e7383383372fdc62d0d0fc4edc6ebaad1e2cd390a914c24c9c8cd5e223ed27::m::Bar"
-                        }
-                      },
-                      "hasPublicTransfer": false
+                      }
                     }
                   }
                 },
@@ -56,8 +50,18 @@ Response: {
                         "type": {
                           "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         }
-                      },
-                      "hasPublicTransfer": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0xd01ba1620a63906586ce0abe061e1f132f9581e42c616660afa3119a028c48a5::m::Foo"
+                        }
+                      }
                     }
                   }
                 }

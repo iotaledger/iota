@@ -1,8 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search24 } from '@iota/icons';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { Search } from '@iota/ui-icons';
+import { Button, ButtonType, ButtonSize, LoadingIndicator } from '@iota/apps-ui-kit';
+import {
+    AccountBalanceItem,
+    VerifyPasswordModal,
+    ConnectLedgerModal,
+    useIotaLedgerClient,
+} from '_components';
 import {
     AccountSourceType,
     type AccountSourceSerializedUI,
@@ -10,17 +16,12 @@ import {
 import { AccountType } from '_src/background/accounts/Account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalanceItem';
-import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPasswordModal';
-import { ConnectLedgerModal } from '_src/ui/app/components/ledger/ConnectLedgerModal';
-import { useIotaLedgerClient } from '_src/ui/app/components/ledger/IotaLedgerClientProvider';
 import { getKey } from '_src/ui/app/helpers/accounts';
 import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
 import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
-import { Button } from '_src/ui/app/shared/ButtonUI';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useParams } from 'react-router-dom';
@@ -101,7 +102,7 @@ export function AccountsFinderView(): JSX.Element {
         if (searchPhase === SearchPhase.Ready) {
             return {
                 text: 'Search',
-                icon: <Search24 />,
+                icon: <Search className="h-4 w-4" />,
             };
         }
         if (searchPhase === SearchPhase.Ongoing) {
@@ -112,7 +113,7 @@ export function AccountsFinderView(): JSX.Element {
         }
         return {
             text: 'Search again',
-            icon: <Search24 />,
+            icon: <Search className="h-4 w-4" />,
         };
     })();
 
@@ -129,41 +130,46 @@ export function AccountsFinderView(): JSX.Element {
                 <div className="flex flex-col gap-2">
                     {isLedgerLocked ? (
                         <Button
-                            variant="outline"
-                            size="tall"
+                            size={ButtonSize.Small}
+                            type={ButtonType.Secondary}
                             text="Unlock Ledger"
                             onClick={unlockLedger}
+                            fullWidth
                         />
                     ) : isLocked ? (
                         <Button
-                            variant="outline"
-                            size="tall"
+                            type={ButtonType.Secondary}
+                            size={ButtonSize.Small}
                             text="Verify password"
                             onClick={verifyPassword}
+                            fullWidth
                         />
                     ) : (
                         <>
                             <Button
-                                variant="outline"
-                                size="tall"
+                                size={ButtonSize.Small}
+                                type={ButtonType.Secondary}
                                 text={searchOptions.text}
-                                after={searchOptions.icon}
+                                icon={searchOptions.icon}
+                                iconAfterText
                                 onClick={runAccountsFinder}
                                 disabled={isSearchOngoing}
+                                fullWidth
                             />
 
                             <div className="flex flex-row gap-2">
                                 <Button
-                                    variant="outline"
-                                    size="tall"
+                                    size={ButtonSize.Small}
+                                    type={ButtonType.Secondary}
                                     text="Skip"
                                     disabled={isSearchOngoing}
+                                    fullWidth
                                 />
                                 <Button
-                                    variant="outline"
-                                    size="tall"
+                                    size={ButtonSize.Small}
                                     text="Continue"
                                     disabled={isSearchOngoing}
+                                    fullWidth
                                 />
                             </div>
                         </>

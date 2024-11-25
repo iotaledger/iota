@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CoinBalance } from '@iota/iota.js/client';
+import { type CoinBalance } from '@iota/iota-sdk/client';
 import type { AccountFromFinder, AddressFromFinder } from '_src/shared/accounts';
 import type { FindBalance } from './types';
 

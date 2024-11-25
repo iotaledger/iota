@@ -1,12 +1,10 @@
 [package]
 name = "move-stackless-bytecode"
 version = "0.1.0"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
-homepage = "https://diem.com"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/diem/diem"
 description = "Move stackless bytecode"
 
 [dependencies]
@@ -15,7 +13,6 @@ move-command-line-common.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
 move-model.workspace = true
-move-read-write-set-types.workspace = true
 
 codespan.workspace = true
 codespan-reporting = { workspace = true, features = ["serde", "serialization"] }
@@ -24,7 +21,6 @@ im.workspace = true
 itertools.workspace = true
 log.workspace = true
 num.workspace = true
-paste.workspace = true
 petgraph.workspace = true
 serde.workspace = true
 

@@ -1,0 +1,9 @@
+[package]
+name = "Kiosk"
+version = "0.0.1"
+
+[dependencies]
+Iota = { local = "../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+kiosk = "0x0"

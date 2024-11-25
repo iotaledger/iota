@@ -18,7 +18,7 @@ module test::m1 {
 
     public entry fun vec_string(mut v: vector<String>) {
         while (!vector::is_empty(&v)) {
-            string::utf8(*string::bytes(&vector::pop_back(&mut v)));
+            string::utf8(*string::as_bytes(&vector::pop_back(&mut v)));
         }
     }
 
@@ -30,7 +30,7 @@ module test::m1 {
         while (!vector::is_empty(&v)) {
             let opt = vector::pop_back(&mut v);
             if (option::is_some(&opt)) {
-                string::utf8(*string::bytes(&option::destroy_some(opt)));
+                string::utf8(*string::as_bytes(&option::destroy_some(opt)));
             }
         }
     }

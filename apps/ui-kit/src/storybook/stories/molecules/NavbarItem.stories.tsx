@@ -39,5 +39,8 @@ export const Default: Story = {
             control: 'select',
             options: Object.values(NavbarItemType),
         },
+        isDisabled: {
+            control: 'boolean',
+        },
     },
 };

@@ -4,7 +4,6 @@
 
 import { wrapCreateBrowserRouter } from '@sentry/react';
 import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom';
-
 import AddressResult from './address-result/AddressResult';
 import CheckpointDetail from './checkpoints/CheckpointDetail';
 import EpochDetail from './epochs/EpochDetail';
@@ -15,7 +14,6 @@ import TransactionResult from './transaction-result/TransactionResult';
 import { ValidatorDetails } from './validator/ValidatorDetails';
 import { ValidatorPageResult } from './validators/Validators';
 import { Layout } from '~/components';
-import { IdPage } from '~/pages/id-page';
 
 interface RedirectWithIdProps {
     base: string;
@@ -44,7 +42,6 @@ export const router = sentryCreateBrowserRouter([
             { path: 'address/:id', element: <AddressResult /> },
             { path: 'validators', element: <ValidatorPageResult /> },
             { path: 'validator/:id', element: <ValidatorDetails /> },
-            { path: 'experimental--id/:id', element: <IdPage /> },
         ],
     },
     {

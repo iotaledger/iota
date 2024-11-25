@@ -99,11 +99,11 @@ async fn main() -> Result<()> {
     let _guard = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .init();
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = iota_metrics::start_prometheus_server(
         format!("{}:{}", config.metrics_host, config.metrics_port).parse()?,
     );
     let registry: Registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     let metrics = DataIngestionMetrics::new(&registry);
 
     let progress_store = DynamoDBProgressStore::new(

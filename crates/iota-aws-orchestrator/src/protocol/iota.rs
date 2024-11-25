@@ -268,7 +268,7 @@ impl ProtocolMetrics for IotaProtocol {
                     "{}:{}{}",
                     instance.main_ip,
                     config.metrics_address.port(),
-                    mysten_metrics::METRICS_ROUTE
+                    iota_metrics::METRICS_ROUTE
                 );
                 (instance, path)
             })
@@ -286,7 +286,7 @@ impl ProtocolMetrics for IotaProtocol {
                     "{}:{}{}",
                     instance.main_ip,
                     Self::CLIENT_METRICS_PORT,
-                    mysten_metrics::METRICS_ROUTE
+                    iota_metrics::METRICS_ROUTE
                 );
                 (instance, path)
             })

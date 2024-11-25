@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type DelegatedStake } from '@iota/iota.js/client';
+import { type DelegatedStake } from '@iota/iota-sdk/client';
 
 // Get total Stake IOTA for a specific validator address
 export function getTokenStakeIotaForValidator(

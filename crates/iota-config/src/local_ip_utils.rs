@@ -4,7 +4,7 @@
 
 use std::net::SocketAddr;
 #[cfg(msim)]
-use std::sync::{atomic::AtomicI16, Arc};
+use std::sync::{Arc, atomic::AtomicI16};
 
 use iota_types::multiaddr::Multiaddr;
 
@@ -90,7 +90,7 @@ pub fn get_available_port(host: &str) -> u16 {
     }
 
     panic!(
-        "Error: could not find an available port on {}: {:?}",
+        "error: could not find an available port on {}: {:?}",
         host,
         get_ephemeral_port(host)
     );

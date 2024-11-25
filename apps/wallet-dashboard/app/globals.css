@@ -1,34 +1,88 @@
+@import '@iota/apps-ui-kit/styles';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-    --foreground-rgb: 0, 0, 0;
-    --background-start-rgb: 214, 219, 220;
-    --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --foreground-rgb: 255, 255, 255;
-        --background-start-rgb: 0, 0, 0;
-        --background-end-rgb: 0, 0, 0;
-    }
-}
-
 html,
 body {
     height: 100%;
-}
-
-body {
-    color: rgb(var(--foreground-rgb));
-    background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb)))
-        rgb(var(--background-start-rgb));
+    @apply bg-gray-100 dark:bg-gray-900;
+    @apply text-gray-900 dark:text-gray-100;
 }
 
 @layer utilities {
     .text-balance {
         text-wrap: balance;
+    }
+}
+
+@layer components {
+    .home-page-grid-container {
+        @apply grid grid-cols-1 gap-lg;
+        grid-template-areas:
+            'balance'
+            'staking'
+            'coins'
+            'vesting'
+            'activity';
+
+        &
+            > *:where(
+                [style*='grid-area: balance'],
+                [style*='grid-area: staking'],
+                [style*='grid-area: migration']
+            ) {
+            height: 200px;
+        }
+    }
+    .home-page-grid-container.with-migration {
+        grid-template-areas:
+            'balance'
+            'staking'
+            'migration'
+            'coins'
+            'vesting'
+            'activity';
+    }
+
+    @screen sm {
+        .home-page-grid-container {
+            @apply grid-cols-2;
+            grid-template-areas:
+                'balance balance'
+                'staking staking'
+                'coins coins'
+                'vesting vesting'
+                'activity activity';
+        }
+        .home-page-grid-container.with-migration {
+            grid-template-areas:
+                'balance balance'
+                'staking migration'
+                'coins coins'
+                'vesting vesting'
+                'activity activity';
+        }
+    }
+
+    @screen md {
+        .home-page-grid-container {
+            @apply grid-cols-3;
+            grid-template-areas:
+                'balance staking staking'
+                'coins vesting vesting'
+                'coins activity activity';
+        }
+        .home-page-grid-container.with-migration {
+            grid-template-areas:
+                'balance staking migration'
+                'coins vesting vesting'
+                'coins activity activity';
+        }
+    }
+
+    .grid-template-visual-assets {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     }
 }

@@ -1,5 +1,6 @@
 [package]
 name = "test_functions"
+edition = "2024.beta"
 
 [dependencies]
 Iota = { local = "../../../../iota-framework/packages/iota-framework" }

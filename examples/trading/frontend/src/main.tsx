@@ -7,7 +7,7 @@ import "@iota/dapp-kit/dist/index.css";
 import "@radix-ui/themes/styles.css";
 import "./styles/base.css";
 
-import { getFullnodeUrl } from "@iota/iota.js/client";
+import { getFullnodeUrl } from "@iota/iota-sdk/client";
 import {
   IotaClientProvider,
   WalletProvider,

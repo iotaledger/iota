@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getAmount } from '_helpers';
-import type { IotaTransactionBlockResponse } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 
 export function useGetTransferAmount({

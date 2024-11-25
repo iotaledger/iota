@@ -6,7 +6,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::payload::{
-    validation::check_objects, MultiGetObjects, ProcessPayload, RpcCommandProcessor, SignerInfo,
+    MultiGetObjects, ProcessPayload, RpcCommandProcessor, SignerInfo, validation::check_objects,
 };
 
 #[async_trait]

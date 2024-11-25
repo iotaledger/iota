@@ -10,7 +10,7 @@ import {
     Network,
     type NetworkId,
     getAllNetworks,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 
 export const SupportedNetworks = getAllNetworks();
 // The Explorer always shows the Custom RPC input so there is no need to confuse it more by having a Custom Network here
@@ -29,7 +29,7 @@ export const createIotaClient = (network: NetworkId): IotaClient => {
 
     const client = new IotaClient({
         transport:
-            supportedNetwork && network === Network.Mainnet
+            supportedNetwork && network === Network.Testnet // Sentry dev hint: change this to eg [Network.Localnet]
                 ? new SentryHttpTransport(networkUrl)
                 : new IotaHTTPTransport({ url: networkUrl }),
     });

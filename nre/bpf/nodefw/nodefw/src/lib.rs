@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod drainer;
 pub mod fwmap;
 pub mod server;
 pub mod time;

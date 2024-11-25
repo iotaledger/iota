@@ -46,7 +46,6 @@
     }
     totalGasFees
     totalStakeRewards
-    totalStakeSubsidies
     fundSize
     fundInflow
     fundOutflow

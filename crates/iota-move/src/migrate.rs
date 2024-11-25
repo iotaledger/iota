@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use clap::Parser;
 use move_cli::base::migrate;
@@ -16,7 +16,7 @@ pub struct Migrate {
 }
 
 impl Migrate {
-    pub fn execute(self, path: Option<PathBuf>, config: MoveBuildConfig) -> anyhow::Result<()> {
+    pub fn execute(self, path: Option<&Path>, config: MoveBuildConfig) -> anyhow::Result<()> {
         self.migrate.execute(path, config)
     }
 }

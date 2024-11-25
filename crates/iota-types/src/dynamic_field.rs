@@ -15,12 +15,13 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use schemars::JsonSchema;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 use shared_crypto::intent::HashingIntentScope;
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, ObjectID, SequenceNumber,
     base_types::{IotaAddress, ObjectDigest},
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
@@ -28,7 +29,6 @@ use crate::{
     iota_serde::{IotaTypeTag, Readable},
     object::Object,
     storage::ObjectStore,
-    MoveTypeTagTrait, ObjectID, SequenceNumber, IOTA_FRAMEWORK_ADDRESS,
 };
 
 const DYNAMIC_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_field");
@@ -43,6 +43,23 @@ pub struct Field<N, V> {
     pub id: UID,
     pub name: N,
     pub value: V,
+}
+
+/// Rust version of the Move iota::dynamic_object_field::Wrapper type
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+pub struct DOFWrapper<N> {
+    pub name: N,
+}
+
+impl<N> MoveTypeTagTrait for DOFWrapper<N>
+where
+    N: MoveTypeTagTrait,
+{
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(DynamicFieldInfo::dynamic_object_field_wrapper(
+            N::get_type_tag(),
+        )))
+    }
 }
 
 #[serde_as]
@@ -137,11 +154,11 @@ impl DynamicFieldInfo {
             (DynamicFieldType::DynamicObject, Some(TypeTag::Struct(s))) => Ok(s
                 .type_params
                 .first()
-                .ok_or_else(|| IotaError::ObjectDeserializationError {
+                .ok_or_else(|| IotaError::ObjectDeserialization {
                     error: format!("Error extracting dynamic object name from object: {tag}"),
                 })?
                 .clone()),
-            _ => Err(IotaError::ObjectDeserializationError {
+            _ => Err(IotaError::ObjectDeserialization {
                 error: format!("Error extracting dynamic object name from object: {tag}"),
             }),
         }
@@ -150,7 +167,7 @@ impl DynamicFieldInfo {
     pub fn try_extract_field_value(tag: &StructTag) -> IotaResult<TypeTag> {
         match tag.type_params.last() {
             Some(value_type) => Ok(value_type.clone()),
-            None => Err(IotaError::ObjectDeserializationError {
+            None => Err(IotaError::ObjectDeserialization {
                 error: format!("Error extracting dynamic object value from object: {tag}"),
             }),
         }
@@ -160,13 +177,13 @@ impl DynamicFieldInfo {
         move_struct: &MoveStruct,
     ) -> IotaResult<(MoveValue, DynamicFieldType, ObjectID)> {
         let name = extract_field_from_move_struct(move_struct, "name").ok_or_else(|| {
-            IotaError::ObjectDeserializationError {
+            IotaError::ObjectDeserialization {
                 error: "Cannot extract [name] field from iota::dynamic_field::Field".to_string(),
             }
         })?;
 
         let value = extract_field_from_move_struct(move_struct, "value").ok_or_else(|| {
-            IotaError::ObjectDeserializationError {
+            IotaError::ObjectDeserialization {
                 error: "Cannot extract [value] field from iota::dynamic_field::Field".to_string(),
             }
         })?;
@@ -178,13 +195,13 @@ impl DynamicFieldInfo {
                 }
                 _ => None,
             }
-            .ok_or_else(|| IotaError::ObjectDeserializationError {
+            .ok_or_else(|| IotaError::ObjectDeserialization {
                 error: "Cannot extract [name] field from iota::dynamic_object_field::Wrapper."
                     .to_string(),
             })?;
             // ID extracted from the wrapper object
             let object_id =
-                extract_id_value(value).ok_or_else(|| IotaError::ObjectDeserializationError {
+                extract_id_value(value).ok_or_else(|| IotaError::ObjectDeserialization {
                     error: format!(
                         "Cannot extract dynamic object's object id from \
                         iota::dynamic_field::Field, {value:?}"
@@ -193,14 +210,13 @@ impl DynamicFieldInfo {
             (name.clone(), DynamicFieldType::DynamicObject, object_id)
         } else {
             // ID of the Field object
-            let object_id = extract_object_id(move_struct).ok_or_else(|| {
-                IotaError::ObjectDeserializationError {
+            let object_id =
+                extract_object_id(move_struct).ok_or_else(|| IotaError::ObjectDeserialization {
                     error: format!(
                         "Cannot extract dynamic object's object id from \
                         iota::dynamic_field::Field, {move_struct:?}",
                     ),
-                }
-            })?;
+                })?;
             (name.clone(), DynamicFieldType::DynamicField, object_id)
         })
     }
@@ -299,9 +315,9 @@ where
     K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
 {
     let id = derive_dynamic_field_id(parent_id, &K::get_type_tag(), &bcs::to_bytes(key).unwrap())
-        .map_err(|err| IotaError::DynamicFieldReadError(err.to_string()))?;
+        .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?;
     let object = object_store.get_object(&id)?.ok_or_else(|| {
-        IotaError::DynamicFieldReadError(format!(
+        IotaError::DynamicFieldRead(format!(
             "Dynamic field with key={:?} and ID={:?} not found on parent {:?}",
             key, id, parent_id
         ))
@@ -322,12 +338,12 @@ where
 {
     let object = get_dynamic_field_object_from_store(object_store, parent_id, key)?;
     let move_object = object.data.try_as_move().ok_or_else(|| {
-        IotaError::DynamicFieldReadError(format!(
+        IotaError::DynamicFieldRead(format!(
             "Dynamic field {:?} is not a Move object",
             object.id()
         ))
     })?;
     Ok(bcs::from_bytes::<Field<K, V>>(move_object.contents())
-        .map_err(|err| IotaError::DynamicFieldReadError(err.to_string()))?
+        .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?
         .value)
 }

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { renderHook, waitFor } from '@testing-library/react';
 
 import { useIotaClientQueries } from '../../src/hooks/useIotaClientQueries.js';
@@ -12,7 +12,6 @@ const MOCK_GET_All_BALANCE_RESULT_DATA = [
         coinType: '0x2::iota::IOTA',
         coinObjectCount: 1,
         totalBalance: '100000',
-        lockedBalance: {},
     },
 ];
 const MOCK_QUERY_TRANSACTION_BLOCK_RESULT_DATA = {

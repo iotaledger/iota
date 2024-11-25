@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 interface SelectAllButtonProps {
     accountIds: string[];
@@ -27,8 +27,8 @@ export function SelectAllButton({
                     onChange([]);
                 }
             }}
-            variant="outline"
-            size="xs"
+            type={ButtonType.Ghost}
+            fullWidth
             text={selectedAccountIds.length < accountIds.length ? selectAllText : deselectAllText}
         />
     );

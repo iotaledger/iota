@@ -12,7 +12,7 @@ use iota_types::{
     transaction::{Argument, CallArg, ObjectArg},
 };
 use move_command_line_common::{
-    parser::{parse_u256, parse_u64, Parser as MoveCLParser},
+    parser::{Parser as MoveCLParser, parse_u64, parse_u256},
     values::{ParsableValue, ParsedValue, ValueToken},
 };
 use move_compiler::editions::Flavor;
@@ -57,8 +57,8 @@ pub struct IotaInitArgs {
     pub protocol_version: Option<u64>,
     #[clap(long = "max-gas")]
     pub max_gas: Option<u64>,
-    #[clap(long = "shared-object-deletion")]
-    pub shared_object_deletion: Option<bool>,
+    #[clap(long = "move-binary-format-version")]
+    pub move_binary_format_version: Option<u32>,
     #[clap(long = "simulator")]
     pub simulator: bool,
     #[clap(long = "custom-validator-account")]
@@ -189,8 +189,6 @@ pub struct CreateCheckpointCommand {
 #[derive(Debug, clap::Parser)]
 pub struct AdvanceEpochCommand {
     pub count: Option<u64>,
-    #[clap(long = "create-random-state")]
-    pub create_random_state: bool,
 }
 
 #[derive(Debug, clap::Parser)]

@@ -8,20 +8,20 @@ import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
 import {
-    Header,
     Card,
     CardType,
     CardImage,
     CardBody,
-    CardActionType,
     CardAction,
     ImageType,
+    CardActionType,
 } from '@iota/apps-ui-kit';
 import {
     AccountsFormType,
     useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ConnectLedgerModal } from '../../components/ledger/ConnectLedgerModal';
+    ConnectLedgerModal,
+    PageTemplate,
+} from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector } from '../../hooks';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
@@ -50,96 +50,113 @@ export function AddAccountPage() {
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
+    const cardGroups = [
+        {
+            title: 'Create a new mnemonic profile',
+            cards: [
+                {
+                    title: 'Create New',
+                    icon: Create,
+                    actionType: AccountsFormType.NewMnemonic,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+            ],
+        },
+        {
+            title: 'Import',
+            cards: [
+                {
+                    title: 'Mnemonic',
+                    icon: ImportPass,
+                    actionType: AccountsFormType.ImportMnemonic,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
+                    title: 'Private Key',
+                    icon: Key,
+                    actionType: AccountsFormType.ImportPrivateKey,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
+                    title: 'Seed',
+                    icon: Seed,
+                    actionType: AccountsFormType.ImportSeed,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+            ],
+        },
+        {
+            title: 'Import from Legder',
+            cards: [
+                {
+                    title: 'Ledger',
+                    icon: Ledger,
+                    actionType: AccountsFormType.ImportLedger,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+            ],
+        },
+    ];
+
+    const handleCardAction = async (actionType: AccountsFormType) => {
+        switch (actionType) {
+            case AccountsFormType.NewMnemonic:
+                setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
+                ampli.clickedCreateNewAccount({ sourceFlow });
+                navigate(
+                    `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
+                );
+                break;
+            case AccountsFormType.ImportMnemonic:
+                ampli.clickedImportPassphrase({ sourceFlow });
+                navigate('/accounts/import-passphrase');
+                break;
+            case AccountsFormType.ImportPrivateKey:
+                ampli.clickedImportPrivateKey({ sourceFlow });
+                navigate('/accounts/import-private-key');
+                break;
+            case AccountsFormType.ImportSeed:
+                navigate('/accounts/import-seed');
+                break;
+            case AccountsFormType.ImportLedger:
+                ampli.openedConnectLedgerFlow({ sourceFlow });
+                if (isPopup) {
+                    await openTabWithSearchParam('showLedger', 'true');
+                    window.close();
+                } else {
+                    setConnectLedgerModalOpen(true);
+                }
+                break;
+            default:
+                break;
+        }
+    };
 
     return (
-        <div className="h-full w-full">
-            <Header
-                title="Add Profile"
-                titleCentered
-                onClose={() => navigate('/')}
-                onBack={() => navigate('/')}
-            />
-            <div className="flex h-full w-full flex-col gap-4 bg-white p-md">
-                <div className="flex flex-col gap-y-4">
-                    <div className="flex flex-col gap-y-2">
-                        <span className="text-label-lg text-neutral-60">
-                            Create a new mnemonic profile
-                        </span>
-                        <Card
-                            type={CardType.Filled}
-                            onClick={() => {
-                                setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
-                                ampli.clickedCreateNewAccount({ sourceFlow });
-                                navigate(
-                                    `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
-                                );
-                            }}
-                            isDisabled={createAccountsMutation.isPending}
-                        >
-                            <CardIcon Icon={Create} />
-                            <CardBody title="Create New" />
-                            <CardAction type={CardActionType.Link} />
-                        </Card>
+        <PageTemplate
+            title="Add Profile"
+            isTitleCentered
+            onClose={() => navigate('/')}
+            showBackButton
+        >
+            <div className="flex h-full w-full flex-col gap-4 ">
+                {cardGroups.map((group, groupIndex) => (
+                    <div key={groupIndex} className="flex flex-col gap-y-2">
+                        <span className="text-label-lg text-neutral-60">{group.title}</span>
+                        {group.cards.map((card, cardIndex) => (
+                            <Card
+                                key={cardIndex}
+                                type={CardType.Filled}
+                                onClick={() => handleCardAction(card.actionType)}
+                                isDisabled={card.isDisabled}
+                            >
+                                <CardIcon Icon={card.icon} />
+                                <CardBody title={card.title} />
+                                <CardAction type={CardActionType.Link} />
+                            </Card>
+                        ))}
                     </div>
-                    <div className="flex flex-col gap-y-2">
-                        <span className="text-label-lg text-neutral-60">Import</span>
-                        <Card
-                            type={CardType.Filled}
-                            onClick={() => {
-                                ampli.clickedImportPassphrase({ sourceFlow });
-                                navigate('/accounts/import-passphrase');
-                            }}
-                            isDisabled={createAccountsMutation.isPending}
-                        >
-                            <CardIcon Icon={ImportPass} />
-                            <CardBody title="Mnemonic" />
-                            <CardAction type={CardActionType.Link} />
-                        </Card>
-                        <Card
-                            type={CardType.Filled}
-                            onClick={() => {
-                                ampli.clickedImportPrivateKey({ sourceFlow });
-                                navigate('/accounts/import-private-key');
-                            }}
-                            isDisabled={createAccountsMutation.isPending}
-                        >
-                            <CardIcon Icon={Key} />
-                            <CardBody title="Private Key" />
-                            <CardAction type={CardActionType.Link} />
-                        </Card>
-                        <Card
-                            type={CardType.Filled}
-                            onClick={() => {
-                                navigate('/accounts/import-seed');
-                            }}
-                            isDisabled={createAccountsMutation.isPending}
-                        >
-                            <CardIcon Icon={Seed} />
-                            <CardBody title="Seed" />
-                            <CardAction type={CardActionType.Link} />
-                        </Card>
-                    </div>
-                    <div className="flex flex-col gap-y-2">
-                        <span className="text-label-lg text-neutral-60">Import from Legder</span>
-                        <Card
-                            type={CardType.Filled}
-                            onClick={async () => {
-                                ampli.openedConnectLedgerFlow({ sourceFlow });
-                                if (isPopup) {
-                                    await openTabWithSearchParam('showLedger', 'true');
-                                    window.close();
-                                } else {
-                                    setConnectLedgerModalOpen(true);
-                                }
-                            }}
-                            isDisabled={createAccountsMutation.isPending}
-                        >
-                            <CardIcon Icon={Ledger} />
-                            <CardBody title="Ledger" />
-                            <CardAction type={CardActionType.Link} />
-                        </Card>
-                    </div>
-                </div>
+                ))}
             </div>
             {isConnectLedgerModalOpen && (
                 <ConnectLedgerModal
@@ -158,7 +175,7 @@ export function AddAccountPage() {
                     }}
                 />
             )}
-        </div>
+        </PageTemplate>
     );
 }
 

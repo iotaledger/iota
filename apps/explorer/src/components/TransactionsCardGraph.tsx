@@ -2,16 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmount, formatDate } from '@iota/core';
+import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Heading, Text, LoadingIndicator } from '@iota/ui';
-import { ParentSize } from '@visx/responsive';
-import clsx from 'clsx';
-
-import { AreaGraph } from './AreaGraph';
-import { FormattedStatsAmount } from './home-metrics/FormattedStatsAmount';
-import { ErrorBoundary } from './error-boundary/ErrorBoundary';
-import { Card } from '~/components/ui';
+import { LabelTextSize, TooltipPosition } from '@iota/apps-ui-kit';
+import { GraphTooltip, StatisticsPanel } from './StatisticsPanel';
 
 interface TooltipContentProps {
     data: {
@@ -26,18 +20,11 @@ function TooltipContent({
 }: TooltipContentProps): JSX.Element {
     const dateFormatted = formatDate(new Date(epochStartTimestamp), ['day', 'month']);
     const totalFormatted = formatAmount(epochTotalTransactions);
+
+    const overline = `${dateFormatted}, Epoch ${epoch}`;
+
     return (
-        <div className="flex flex-col gap-0.5">
-            <Text variant="subtitleSmallExtra/medium" color="steel-darker">
-                {dateFormatted}, Epoch {epoch}
-            </Text>
-            <Heading variant="heading6/semibold" color="steel-darker">
-                {totalFormatted}
-            </Heading>
-            <Text variant="subtitleSmallExtra/medium" color="steel-darker" uppercase>
-                Transaction Blocks
-            </Text>
-        </div>
+        <GraphTooltip overline={overline} title={totalFormatted} subtitle="Transaction Blocks" />
     );
 }
 
@@ -77,68 +64,35 @@ export function TransactionsCardGraph() {
     const lastEpochTotalTransactions =
         epochMetrics?.[epochMetrics.length - 1]?.epochTotalTransactions;
 
+    const lastEpochTotalTransactionsFormatted = lastEpochTotalTransactions
+        ? formatBalance(lastEpochTotalTransactions, 0, CoinFormat.ROUNDED)
+        : '--';
+
+    const stats: React.ComponentProps<typeof StatisticsPanel>['stats'] = [
+        {
+            size: LabelTextSize.Large,
+            label: 'Total',
+            text: totalTransactions ? formatBalance(totalTransactions, 0) : '--',
+            tooltipPosition: TooltipPosition.Right,
+            tooltipText: 'The total number of transaction blocks.',
+        },
+        {
+            size: LabelTextSize.Large,
+            label: 'Last epoch',
+            text: lastEpochTotalTransactionsFormatted,
+        },
+    ];
+
     return (
-        <Card bg="white/80" spacing={!epochMetrics?.length ? 'lg' : 'lgGraph'} height="full">
-            <div className="flex h-full flex-col gap-4 overflow-hidden">
-                <Heading variant="heading4/semibold" color="steel-darker">
-                    Transaction Blocks
-                </Heading>
-                <div className="flex flex-wrap gap-6">
-                    <FormattedStatsAmount
-                        orientation="vertical"
-                        label="Total"
-                        tooltip="Total transaction blocks"
-                        amount={totalTransactions}
-                        size="md"
-                    />
-                    <FormattedStatsAmount
-                        orientation="vertical"
-                        label="Last Epoch"
-                        amount={lastEpochTotalTransactions}
-                        size="md"
-                    />
-                </div>
-                <div
-                    className={clsx(
-                        'flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-xl transition-colors',
-                        !epochMetrics?.length && 'bg-gray-40',
-                    )}
-                >
-                    {isPending ? (
-                        <div className="flex flex-col items-center gap-1">
-                            <LoadingIndicator />
-                            <Text color="steel" variant="body/medium">
-                                loading data
-                            </Text>
-                        </div>
-                    ) : epochMetrics?.length ? (
-                        <div className="relative flex-1 self-stretch">
-                            <ErrorBoundary>
-                                <ParentSize className="absolute">
-                                    {({ height, width }) => (
-                                        <AreaGraph
-                                            data={epochMetrics}
-                                            height={height}
-                                            width={width}
-                                            getX={({ epoch }) => Number(epoch)}
-                                            getY={({ epochTotalTransactions }) =>
-                                                Number(epochTotalTransactions)
-                                            }
-                                            color="yellow"
-                                            formatY={formatAmount}
-                                            tooltipContent={TooltipContent}
-                                        />
-                                    )}
-                                </ParentSize>
-                            </ErrorBoundary>
-                        </div>
-                    ) : (
-                        <Text color="steel" variant="body/medium">
-                            No historical data available
-                        </Text>
-                    )}
-                </div>
-            </div>
-        </Card>
+        <StatisticsPanel
+            title="Transaction Blocks"
+            data={epochMetrics}
+            stats={stats}
+            isPending={isPending}
+            getX={({ epoch }) => Number(epoch)}
+            getY={({ epochTotalTransactions }) => Number(epochTotalTransactions)}
+            formatY={formatAmount}
+            tooltipContent={TooltipContent}
+        />
     );
 }

@@ -28,7 +28,6 @@
 module examples::regulated_token {
     use iota::vec_map;
     use iota::coin::{Self, TreasuryCap};
-    use iota::tx_context::sender;
 
     use iota::token::{Self, TokenPolicy, TokenPolicyCap};
 
@@ -49,8 +48,8 @@ module examples::regulated_token {
 
         set_rules(&mut policy, &cap, ctx);
 
-        transfer::public_transfer(treasury_cap, sender(ctx));
-        transfer::public_transfer(cap, sender(ctx));
+        transfer::public_transfer(treasury_cap, ctx.sender());
+        transfer::public_transfer(cap, ctx.sender());
         token::share_policy(policy);
     }
 
@@ -107,7 +106,6 @@ module examples::regulated_token {
         transfer::public_freeze_object(metadata);
         treasury_cap
     }
-
 }
 
 #[test_only]

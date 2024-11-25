@@ -3,7 +3,7 @@
 
 import cx from 'classnames';
 import { Button, ButtonSize, ButtonType } from '../button';
-import { ArrowLeft, Close } from '@iota/ui-icons';
+import { ArrowBack, Close } from '@iota/ui-icons';
 
 interface HeaderProps {
     /**
@@ -21,28 +21,40 @@ interface HeaderProps {
     /**
      * On close click handler (optional). If provided, a close button will be displayed.
      */
-    onClose?: () => void;
+    onClose?: (() => void) | ((e: React.MouseEvent<HTMLElement>) => void);
+    /**
+     * The 'data-testid' attribute value (used in e2e tests)
+     */
+    testId?: string;
 }
 
-export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): JSX.Element {
+export function Header({
+    title,
+    titleCentered,
+    onBack,
+    onClose,
+    testId,
+}: HeaderProps): JSX.Element {
     const titleCenteredClasses = titleCentered ? 'text-center' : onBack ? 'ml-1' : '';
     const keepSpaceForIcon = titleCentered && (!onBack || !onClose);
 
     return (
-        <div className="flex min-h-[56px] w-full items-center bg-neutral-100 px-md--rs pb-xs pt-sm text-neutral-10 dark:bg-neutral-6 dark:text-neutral-92">
+        <div className="flex min-h-[56px] w-full items-center bg-neutral-100 px-md--rs pb-xs pt-sm text-neutral-10 dark:bg-neutral-6 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
             {onBack ? (
                 <Button
                     size={ButtonSize.Small}
                     type={ButtonType.Ghost}
                     onClick={onBack}
-                    icon={<ArrowLeft className="h-5 w-5" />}
+                    icon={<ArrowBack />}
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />
             )}
 
             <div className={cx('flex-grow', titleCenteredClasses)}>
-                <span className="font-inter text-title-lg">{title}</span>
+                <span className="font-inter text-title-lg" data-testid={testId}>
+                    {title}
+                </span>
             </div>
 
             {onClose ? (
@@ -50,7 +62,8 @@ export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): 
                     size={ButtonSize.Small}
                     type={ButtonType.Ghost}
                     onClick={onClose}
-                    icon={<Close className="h-5 w-5" />}
+                    icon={<Close />}
+                    testId={`close-icon`}
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />

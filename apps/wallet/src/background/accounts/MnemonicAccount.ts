@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fromExportedKeypair } from '_src/shared/utils';
-import { type Keypair } from '@iota/iota.js/cryptography';
+import { type Keypair } from '@iota/iota-sdk/cryptography';
 
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 import {

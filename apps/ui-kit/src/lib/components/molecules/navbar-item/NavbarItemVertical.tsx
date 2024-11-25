@@ -19,16 +19,28 @@ export function NavbarItemVertical({
     isSelected,
     hasBadge,
     onClick,
+    isDisabled = false,
 }: Omit<NavbarItemProps, 'type'>): React.JSX.Element {
     const fillClasses = isSelected ? SELECTED_ICON : UNSELECTED_ICON;
     const backgroundColors = isSelected && SELECTED_BACKGROUND;
     const textClasses = isSelected ? SELECTED_TEXT : UNSELECTED_TEXT;
+    const disabledClasses = isDisabled
+        ? 'cursor-not-allowed opacity-60'
+        : 'state-layer cursor-pointer ';
+    const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (isDisabled) {
+            e.preventDefault();
+            return;
+        }
+        onClick?.(e);
+    };
     return (
         <div
-            onClick={onClick}
+            onClick={handleClick}
             className={cx(
-                'state-layer relative inline-flex w-full cursor-pointer flex-row items-center justify-between rounded-full p-sm',
+                'relative inline-flex w-full flex-row items-center justify-between rounded-full p-sm',
                 backgroundColors,
+                disabledClasses,
             )}
         >
             <div className="flex items-center gap-3">

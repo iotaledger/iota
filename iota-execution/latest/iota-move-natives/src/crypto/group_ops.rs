@@ -7,8 +7,8 @@ use std::collections::VecDeque;
 use fastcrypto::{
     error::{FastCryptoError, FastCryptoResult},
     groups::{
-        bls12381 as bls, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
-        Pairing,
+        FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+        bls12381 as bls,
     },
     serde_helpers::ToFromByteArray,
 };
@@ -23,19 +23,11 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 pub const NOT_SUPPORTED_ERROR: u64 = 0;
 pub const INVALID_INPUT_ERROR: u64 = 1;
 pub const INPUT_TOO_LONG_ERROR: u64 = 2;
-
-fn is_supported(context: &NativeContext) -> bool {
-    context
-        .extensions()
-        .get::<ObjectRuntime>()
-        .protocol_config
-        .enable_group_ops_native_functions()
-}
 
 fn is_msm_supported(context: &NativeContext) -> bool {
     context
@@ -184,9 +176,6 @@ pub fn internal_validate(
     debug_assert!(args.len() == 2);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let bytes_ref = pop_arg!(args, VectorRef);
     let bytes = bytes_ref.as_bytes_ref();
@@ -233,9 +222,6 @@ pub fn internal_add(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();
@@ -293,9 +279,6 @@ pub fn internal_sub(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();
@@ -353,9 +336,6 @@ pub fn internal_mul(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();
@@ -428,9 +408,6 @@ pub fn internal_div(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();
@@ -487,13 +464,11 @@ pub fn internal_div(
     }
 }
 
-/// ****************************************************************************
-/// ********************* native fun internal_hash_to
-/// Implementation of the Move native function `internal_hash_to(type: u8, m:
-/// &vector<u8>): vector<u8>`   gas cost: group_ops_bls12381_X_hash_to_base_cost
-/// + group_ops_bls12381_X_hash_to_cost_per_byte * |input|             where X
-/// is the requested type ******************************************************
-/// *****************************************
+#[rustfmt::skip]
+// native fun internal_hash_to
+// Implementation of the Move native function `internal_hash_to(type: u8, m: &vector<u8>): vector<u8>`
+//   gas cost: group_ops_bls12381_X_hash_to_base_cost + group_ops_bls12381_X_hash_to_cost_per_byte * |input|
+//             where X is the requested type
 pub fn internal_hash_to(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -503,9 +478,6 @@ pub fn internal_hash_to(
     debug_assert!(args.len() == 2);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let m_ref = pop_arg!(args, VectorRef);
     let m = m_ref.as_bytes_ref();
@@ -641,10 +613,9 @@ where
 
         let r = G::multi_scalar_mul(&scalars, &points)
             .expect("Already checked the lengths of the vectors");
-        Ok(NativeResult::ok(
-            context.gas_used(),
-            smallvec![Value::vector_u8(r.to_byte_array().to_vec())],
-        ))
+        Ok(NativeResult::ok(context.gas_used(), smallvec![
+            Value::vector_u8(r.to_byte_array().to_vec())
+        ]))
     } else {
         Ok(NativeResult::err(context.gas_used(), INVALID_INPUT_ERROR))
     }
@@ -738,9 +709,6 @@ pub fn internal_pairing(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();

@@ -4,7 +4,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { Search as SearchBox, useNavigateWithQuery, type SearchResult } from '~/components/ui';
+import { useNavigateWithQuery } from '~/components/ui';
+import { ListItem, Search as SearchBox, type Suggestion } from '@iota/apps-ui-kit';
 import { useDebouncedValue } from '~/hooks/useDebouncedValue';
 import { useSearch } from '~/hooks/useSearch';
 import { ampli } from '~/lib/utils';
@@ -15,11 +16,11 @@ function Search(): JSX.Element {
     const { isPending, data: results } = useSearch(debouncedQuery);
     const navigate = useNavigateWithQuery();
     const handleSelectResult = useCallback(
-        (result: SearchResult) => {
+        (result: Suggestion) => {
             if (result) {
                 ampli.clickedSearchResult({
                     searchQuery: result.id,
-                    searchCategory: result.type,
+                    searchCategory: result.label,
                 });
                 navigate(`/${result?.type}/${encodeURIComponent(result?.id)}`, {});
                 setQuery('');
@@ -37,16 +38,24 @@ function Search(): JSX.Element {
     }, [debouncedQuery]);
 
     return (
-        <div className="max-w flex">
-            <SearchBox
-                queryValue={query}
-                onChange={(value) => setQuery(value?.trim() ?? '')}
-                onSelectResult={handleSelectResult}
-                placeholder="Search"
-                isLoading={isPending || debouncedQuery !== query}
-                options={results}
-            />
-        </div>
+        <SearchBox
+            searchValue={query}
+            onSearchValueChange={(value) => setQuery(value?.trim() ?? '')}
+            onSuggestionClick={handleSelectResult}
+            placeholder="Search"
+            isLoading={isPending || debouncedQuery !== query}
+            suggestions={results}
+            renderSuggestion={(suggestion) => (
+                <div className="flex cursor-pointer justify-between bg-neutral-98">
+                    <ListItem hideBottomBorder>
+                        <div className="overflow-hidden text-ellipsis">{suggestion.label}</div>
+                        <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
+                            {suggestion.type}
+                        </div>
+                    </ListItem>
+                </div>
+            )}
+        />
     );
 }
 

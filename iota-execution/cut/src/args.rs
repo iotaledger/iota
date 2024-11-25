@@ -4,7 +4,7 @@
 
 use std::{env, path::PathBuf, str::FromStr};
 
-use anyhow::{self, bail, Result};
+use anyhow::{self, Result, bail};
 use clap::{ArgAction, Parser};
 use thiserror::Error;
 
@@ -115,14 +115,11 @@ mod tests {
         let src = cwd.join("src");
         let dst = cwd.join("dst");
 
-        assert_eq!(
-            dir,
-            Directory {
-                src,
-                dst,
-                suffix: Some("suffix".to_string()),
-            }
-        )
+        assert_eq!(dir, Directory {
+            src,
+            dst,
+            suffix: Some("suffix".to_string()),
+        })
     }
 
     #[test]
@@ -134,14 +131,11 @@ mod tests {
         let src = cwd.join("src");
         let dst = cwd.join("dst");
 
-        assert_eq!(
-            dir,
-            Directory {
-                src,
-                dst,
-                suffix: None,
-            }
-        )
+        assert_eq!(dir, Directory {
+            src,
+            dst,
+            suffix: None,
+        })
     }
 
     #[test]

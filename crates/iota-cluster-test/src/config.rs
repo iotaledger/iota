@@ -48,7 +48,7 @@ pub struct ClusterTestOpt {
     #[arg(num_args(0..))]
     pub local_migration_snapshots: Vec<PathBuf>,
     /// Remote migration snapshots.
-    #[clap(long, name = "iota|smr|<full-url>")]
+    #[clap(long, name = "iota|<full-url>")]
     #[arg(num_args(0..))]
     pub remote_migration_snapshots: Vec<SnapshotUrl>,
 }

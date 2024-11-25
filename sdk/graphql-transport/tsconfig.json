@@ -7,9 +7,9 @@
         "isolatedModules": true,
         "rootDir": "src",
         "paths": {
-            "@iota/iota.js/client": ["../../typescrupt/src/client"],
-            "@iota/iota.js/transactions": ["../../typescript/src/transactions"]
+            "@iota/iota-sdk/client": ["../../typescrupt/src/client"],
+            "@iota/iota-sdk/transactions": ["../../typescript/src/transactions"]
         }
     },
-    "references": [{ "path": "../wallet-standard" }, { "path": "../typescript" }]
+    "references": [{ "path": "../bcs" }, { "path": "../typescript" }]
 }

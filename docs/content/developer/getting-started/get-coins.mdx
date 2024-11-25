@@ -1,9 +1,9 @@
 ---
 description: Get test IOTA tokens using the IOTA CLI, SDK, or cURL.
-tags: [test tokens, faucet, CLI, cURL, TypeScript SDK]
+tags: [how-to, cli, typescript, sdk, faucet]
 ---
-
-import AlphaNet from "../../_snippets/alphanet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/get-coins.json';
 
 # Get Test Tokens
 
@@ -25,7 +25,7 @@ You can request test tokens within IOTA Wallet.
 You can use the following cURL command to request tokens directly from the faucet server:
 
 ```
-curl --location --request POST 'https://faucet.iota-rebased-alphanet.iota.cafe/gas' \
+curl --location --request POST 'https://faucet.testnet.iota.cafe/gas' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "FixedAmountRequest": {
@@ -34,14 +34,12 @@ curl --location --request POST 'https://faucet.iota-rebased-alphanet.iota.cafe/g
 }'
 ```
 
-<AlphaNet />
-
 :::tip Test tokens on a local network
 
-If you're working with a local network, replace `'https://faucet.iota-rebased-alphanet.iota.cafe/gas'` with the appropriate value based on which package runs your network:
+If you're working with a local network, replace `'https://faucet.devnet.iota.cafe/gas'` with the appropriate value based on which package runs your network:
 
 - `iota-faucet`: `http://127.0.0.1:5003/gas`
-- `iota-test-validator`: `http://127.0.0.1:9123/gas`
+- `iota start`: `http://127.0.0.1:9123/gas`
 
 You can also get tokens from your [local faucet](local-network.mdx#use-the-local-faucet).
 
@@ -52,7 +50,7 @@ You can also get tokens from your [local faucet](local-network.mdx#use-the-local
 You can also access the faucet using the IOTA TypeScript-SDK, as shown in the example below:
 
 ```typescript
-import { requestIOTAFromFaucetV0, getFaucetHost } from '@iota/iota.js/faucet';
+import { getFaucetHost, requestIOTAFromFaucetV0 } from '@iota/iota-sdk/faucet';
 
 // get tokens from the Devnet faucet server
 await requestIOTAFromFaucetV0({
@@ -61,3 +59,5 @@ await requestIOTAFromFaucetV0({
 	recipient: '<YOUR IOTA ADDRESS>',
 });
 ```
+
+<Quiz questions={questions} />

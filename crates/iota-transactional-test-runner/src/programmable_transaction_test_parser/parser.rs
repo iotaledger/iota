@@ -4,7 +4,7 @@
 
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use iota_types::{
     base_types::ObjectID,
     transaction::{Argument, Command, ProgrammableMoveCall},

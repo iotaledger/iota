@@ -152,7 +152,6 @@ def do_cut(args):
         print("Cut failed", file=stderr)
         exit(result.returncode)
 
-    clean_up_cut(args.feature)
     update_toml(args.feature, Path() / "iota-execution" / "Cargo.toml")
     generate_impls(args.feature, impl_module)
 
@@ -257,7 +256,6 @@ def do_rebase(args):
     if result.returncode != 0:
         print("Re-generation failed.", file=stderr)
         exit(result.returncode)
-    clean_up_cut(args.feature)
 
     print("Re-applying changes...", file=stderr)
     subprocess.run(
@@ -378,9 +376,11 @@ def cut_command(f):
         *["-p", "iota-adapter-latest"],
         *["-p", "iota-move-natives-latest"],
         *["-p", "iota-verifier-latest"],
+        *["-p", "move-abstract-interpreter"],
         *["-p", "move-bytecode-verifier"],
-        *["-p", "move-stdlib"],
+        *["-p", "move-stdlib-natives"],
         *["-p", "move-vm-runtime"],
+        *["-p", "bytecode-verifier-tests"],
     ]
 
 
@@ -398,17 +398,21 @@ def cut_directories(f):
     if f == "latest":
         crates.extend(
             [
+                external / "move" / "crates" / "move-abstract-interpreter",
                 external / "move" / "crates" / "move-bytecode-verifier",
-                external / "move" / "crates" / "move-stdlib",
+                external / "move" / "crates" / "move-stdlib-natives",
                 external / "move" / "crates" / "move-vm-runtime",
+                external / "move" / "crates" / "bytecode-verifier-tests",
             ]
         )
     else:
         crates.extend(
             [
+                external / "move" / "move-execution" / f / "crates" / "move-abstract-interpreter",
                 external / "move" / "move-execution" / f / "crates" / "move-bytecode-verifier",
-                external / "move" / "move-execution" / f / "crates" / "move-stdlib",
+                external / "move" / "move-execution" / f / "crates" / "move-stdlib-natives",
                 external / "move" / "move-execution" / f / "crates" / "move-vm-runtime",
+                external / "move" / "move-execution" / f / "crates" / "bytecode-verifier-tests",
             ]
         )
 
@@ -418,15 +422,6 @@ def cut_directories(f):
 def impl(feature):
     """Path to the impl module for this feature"""
     return Path() / "iota-execution" / "src" / (feature.replace("-", "_") + ".rs")
-
-
-def clean_up_cut(feature):
-    """Remove some special-case files/directories from a given cut"""
-    move_exec = Path() / "external-crates" / "move" / \
-        "move-execution" / feature / "crates"
-    remove(move_exec / "move-stdlib" / "src" / "main.rs")
-    rmtree(move_exec / "move-stdlib" / "tests")
-
 
 def delete_cut_crates(feature):
     """Delete `feature`-specific crates."""
@@ -469,8 +464,8 @@ def generate_lib(output_file: TextIO):
     Generates the contents of iota-execution/src/lib.rs to assign a numeric
     execution version for every module that implements an execution version.
 
-    Version snapshots (whose names follow the pattern `/v[0-9]+/`) are assigned
-    versions according to their names (v0 gets 0, v1 gets 1, etc).
+    Version snapshots (whose names follow the pattern `/v[1-9][0-9]*/`) are assigned
+    versions according to their names (v1 gets 1, v2 gets 2, etc).
 
     `latest` gets the next version after all version snapshots.
 
@@ -515,7 +510,7 @@ def generate_lib(output_file: TextIO):
                 for (version, feature, cut) in cuts
             )
         elif var == "VERIFIER_CUTS":
-            call = "Verifier::new(protocol_config, is_metered, metrics)"
+            call = "Verifier::new(config, metrics)"
             return "\n".join(
                 f"{spc}{feature or version} => Box::new({cut}::{call}),"
                 for (version, feature, cut) in cuts
@@ -556,7 +551,7 @@ def discover_cuts():
       used to easily export the versions for features.
     - The 2nd element is the name of the module.
 
-    Snapshot cuts (with names following the pattern /latest|v[0-9]+/)
+    Snapshot cuts (with names following the pattern /latest|v[1-9][0-9]*/)
     are assigned version numbers according to their name (with latest
     getting the version one higher than the highest occupied snapshot
     version).
@@ -573,7 +568,7 @@ def discover_cuts():
     for f in src.iterdir():
         if not f.is_file() or f.stem in NOT_A_CUT:
             continue
-        elif re.match(r"latest|v[0-9]+", f.stem):
+        elif re.match(r"latest|v[1-9][0-9]*", f.stem):
             snapshots.append(f)
         else:
             features.append(f)
@@ -590,17 +585,22 @@ def discover_cuts():
     snapshots.sort(key=snapshot_key)
     features.sort(key=feature_key)
 
+    single_snapshot = len(snapshots) == 1
     cuts = []
-    for snapshot in snapshots:
-        mod = snapshot.stem
-        if mod != "latest":
-            cuts.append((mod[1:], None, mod))
-            continue
+    if single_snapshot:
+        # If there is only one snapshot it should be latest
+        cuts.append((str(1), None, "latest"))
+    else:
+        for snapshot in snapshots:
+            mod = snapshot.stem
+            if mod != "latest":
+                cuts.append((mod[1:], None, mod))
+                continue
 
-        # Latest gets one higher version than any other snapshot
-        # version we've assigned so far
-        ver = 1 + max(int(v) for (v, _, _) in cuts)
-        cuts.append((str(ver), None, "latest"))
+            # Latest gets one higher version than any other snapshot
+            # version we've assigned so far
+            ver = 1 + max(int(v) for (v, _, _) in cuts)
+            cuts.append((str(ver), None, "latest"))
 
     # "Feature" cuts are not intended to be used on production
     # networks, so stability is not as important for them, they are

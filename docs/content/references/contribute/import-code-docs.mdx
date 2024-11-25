@@ -1,0 +1,48 @@
+---
+description: Import code documentation from this or any other repository.
+tags: [reference]
+---
+
+# Import Code for Documentation
+
+We import code snippets directly from the source code to ensure the documentation is always up-to-date and correct.
+To achieve this, we use two tools to either [import code from the IOTA repo](https://www.npmjs.com/package/remark-code-import) or [any other repository](https://www.npmjs.com/package/@saucelabs/theme-github-codeblock).
+
+:::info
+
+These tools only allow the import of complete files or specific lines from a file. So, if the code changes, make sure to update the lines.
+
+:::
+
+## Local Code Import
+
+We use the [`remark-code-import`](https://www.npmjs.com/package/remark-code-import) package to reference the code from the IOTA repo.
+
+:::note CI/CD
+
+If you import local code, ensure it is part of a CI/CD workflow so the code gets tested for correctness.
+
+:::
+
+### Usage
+
+Use it like a standard code block, specifying a path to the file you want to import. You can use `rootDir` as a base path to the repository.
+
+````
+```rust file=<rootDir>/some-path/to-rust-file.rs
+```
+````
+
+## Remote Code Import
+
+We use the [`@saucelabs/theme-github-codeblock`](https://www.npmjs.com/package/@saucelabs/theme-github-codeblock) package to reference code from any other repository.
+
+### Usage
+
+Create a code block with the keyword `reference` and add the GitHub link (with specific line numbers) to the file you want to import.
+
+````
+```rust reference
+https://github.com/some-repo/with-a-great-project/blob/some-branch/some-path/to-rust-file.rs#L7-L41
+```
+````

@@ -8,7 +8,7 @@ module examples::publish_with_event {
     use iota::event;
     use iota::tx_context::TxContext;
 
-    struct PublishEvent has copy, drop {
+    public struct PublishEvent has copy, drop {
         foo: String
     }
 

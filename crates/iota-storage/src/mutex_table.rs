@@ -4,21 +4,21 @@
 
 use std::{
     collections::{
-        hash_map::{DefaultHasher, RandomState},
         HashMap,
+        hash_map::{DefaultHasher, RandomState},
     },
     error::Error,
     fmt,
     hash::{BuildHasher, Hash, Hasher},
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
 use async_trait::async_trait;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use tokio::{
     sync::{
         Mutex, OwnedMutexGuard, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock, TryLockError,

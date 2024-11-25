@@ -8,25 +8,24 @@ use iota_types::{
     accumulator::Accumulator, base_types::SequenceNumber, digests::TransactionEventsDigest,
     effects::TransactionEffects, storage::MarkerValue,
 };
-use rocksdb::Options;
 use serde::{Deserialize, Serialize};
 use typed_store::{
+    DBMapUtils,
     metrics::SamplingInterval,
     rocks::{
-        default_db_options, read_size_from_env,
+        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
+        read_size_from_env,
         util::{empty_compaction_filter, reference_count_merge_operator},
-        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions,
     },
+    rocksdb::Options,
     traits::{Map, TableSummary, TypedStoreDebug},
 };
-use typed_store_derive::DBMapUtils;
 
 use super::*;
 use crate::authority::{
-    authority_store::LockDetailsWrapperDeprecated,
     authority_store_types::{
-        get_store_object_pair, try_construct_object, ObjectContentDigest, StoreData,
-        StoreMoveObjectWrapper, StoreObject, StoreObjectPair, StoreObjectValue, StoreObjectWrapper,
+        ObjectContentDigest, StoreData, StoreMoveObjectWrapper, StoreObject, StoreObjectPair,
+        StoreObjectValue, StoreObjectWrapper, get_store_object_pair, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
 };
@@ -63,15 +62,9 @@ pub struct AuthorityPerpetualTables {
     #[default_options_override_fn = "indirect_move_objects_table_default_config"]
     pub(crate) indirect_move_objects: DBMap<ObjectContentDigest, StoreMoveObjectWrapper>,
 
-    /// This is a map between object references of currently active objects that
-    /// can be mutated.
-    ///
-    /// For old epochs, it may also contain the transaction that they are lock
-    /// on for use by this specific validator. The transaction locks
-    /// themselves are now in AuthorityPerEpochStore.
-    #[default_options_override_fn = "owned_object_transaction_locks_table_default_config"]
-    #[rename = "owned_object_transaction_locks"]
-    pub(crate) live_owned_object_markers: DBMap<ObjectRef, Option<LockDetailsWrapperDeprecated>>,
+    /// Object references of currently active objects that can be mutated.
+    #[default_options_override_fn = "live_owned_object_markers_table_default_config"]
+    pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
@@ -84,14 +77,14 @@ pub struct AuthorityPerpetualTables {
     /// its execution. We store effects into this table in two different
     /// cases:
     /// 1. When a transaction is synced through state_sync, we store the effects
-    ///    here. These effects
-    /// are known to be final in the network, but may not have been executed
-    /// locally yet.
+    ///    here. These effects are known to be final in the network, but may not
+    ///    have been executed locally yet.
     /// 2. When the transaction is executed locally on this node, we store the
-    ///    effects here. This means that
-    /// it's possible to store the same effects twice (once for the synced
-    /// transaction, and once for the executed). It's also possible for the
-    /// effects to be reverted if the transaction didn't make it into the epoch.
+    ///    effects here. This means that it's possible to store the same effects
+    ///    twice (once for the synced transaction, and once for the executed).
+    ///
+    /// It's also possible for the effects to be reverted if the transaction
+    /// didn't make it into the epoch.
     #[default_options_override_fn = "effects_table_default_config"]
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
@@ -108,13 +101,6 @@ pub struct AuthorityPerpetualTables {
     // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
     #[default_options_override_fn = "events_table_default_config"]
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
-
-    /// DEPRECATED in favor of the table of the same name in
-    /// authority_per_epoch_store. Please do not add new
-    /// accessors/callsites. When transaction is executed via checkpoint
-    /// executor, we store association here
-    pub(crate) executed_transactions_to_checkpoint:
-        DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
     // Finalized root state accumulator for epoch, to be included in CheckpointSummary
     // of last checkpoint of epoch. These values should only ever be written once
@@ -363,15 +349,6 @@ impl AuthorityPerpetualTables {
         Ok(self.effects.get(&effect_digest)?)
     }
 
-    // DEPRECATED as the backing table has been moved to authority_per_epoch_store.
-    // Please do not add new accessors/callsites.
-    pub fn get_checkpoint_sequence_number(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        Ok(self.executed_transactions_to_checkpoint.get(digest)?)
-    }
-
     pub fn get_newer_object_keys(
         &self,
         object: &(ObjectID, SequenceNumber),
@@ -406,12 +383,26 @@ impl AuthorityPerpetualTables {
             .is_none())
     }
 
-    pub fn iter_live_object_set(&self, include_wrapped_object: bool) -> LiveSetIter<'_> {
+    pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
         LiveSetIter {
             iter: self.objects.unbounded_iter(),
             tables: self,
             prev: None,
-            include_wrapped_object,
+        }
+    }
+
+    pub fn range_iter_live_object_set(
+        &self,
+        lower_bound: Option<ObjectID>,
+        upper_bound: Option<ObjectID>,
+    ) -> LiveSetIter<'_> {
+        let lower_bound = lower_bound.as_ref().map(ObjectKey::min_for_id);
+        let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
+
+        LiveSetIter {
+            iter: self.objects.iter_with_bounds(lower_bound, upper_bound),
+            tables: self,
+            prev: None,
         }
     }
 
@@ -427,7 +418,6 @@ impl AuthorityPerpetualTables {
         self.live_owned_object_markers.unsafe_clear()?;
         self.executed_effects.unsafe_clear()?;
         self.events.unsafe_clear()?;
-        self.executed_transactions_to_checkpoint.unsafe_clear()?;
         self.root_state_hash_by_epoch.unsafe_clear()?;
         self.epoch_start_configuration.unsafe_clear()?;
         self.pruned_checkpoint.unsafe_clear()?;
@@ -511,8 +501,6 @@ pub struct LiveSetIter<'a> {
         <DBMap<ObjectKey, StoreObjectWrapper> as Map<'a, ObjectKey, StoreObjectWrapper>>::Iterator,
     tables: &'a AuthorityPerpetualTables,
     prev: Option<(ObjectKey, StoreObjectWrapper)>,
-    /// Whether a wrapped object is considered as a live object.
-    include_wrapped_object: bool,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
@@ -542,6 +530,13 @@ impl LiveObject {
             LiveObject::Wrapped(key) => (key.0, key.1, ObjectDigest::OBJECT_DIGEST_WRAPPED),
         }
     }
+
+    pub fn to_normal(self) -> Option<Object> {
+        match self {
+            LiveObject::Normal(object) => Some(object),
+            LiveObject::Wrapped(_) => None,
+        }
+    }
 }
 
 impl LiveSetIter<'_> {
@@ -558,14 +553,7 @@ impl LiveSetIter<'_> {
                     .expect("Constructing object from store cannot fail");
                 Some(LiveObject::Normal(object))
             }
-            StoreObject::Wrapped => {
-                if self.include_wrapped_object {
-                    Some(LiveObject::Wrapped(object_key))
-                } else {
-                    None
-                }
-            }
-            StoreObject::Deleted => None,
+            StoreObject::Wrapped | StoreObject::Deleted => None,
         }
     }
 }
@@ -602,7 +590,7 @@ impl Iterator for LiveSetIter<'_> {
 }
 
 // These functions are used to initialize the DB tables
-fn owned_object_transaction_locks_table_default_config() -> DBOptions {
+fn live_owned_object_markers_table_default_config() -> DBOptions {
     DBOptions {
         options: default_db_options()
             .optimize_for_write_throughput()

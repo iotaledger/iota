@@ -3,8 +3,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
+use iota_metrics::histogram::{Histogram, HistogramVec};
 use iota_types::{
     base_types::*,
     committee::*,
@@ -13,22 +14,19 @@ use iota_types::{
     error::{IotaError, IotaResult},
     fp_ensure,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-    },
     messages_grpc::{
-        HandleCertificateResponseV2, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionStatus, VerifiedObjectInfoResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
+        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionStatus,
+        VerifiedObjectInfoResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
 };
-use mysten_metrics::histogram::{Histogram, HistogramVec};
 use prometheus::{
-    core::GenericCounter, register_int_counter_vec_with_registry, IntCounterVec, Registry,
+    IntCounterVec, Registry, core::GenericCounter, register_int_counter_vec_with_registry,
 };
 use tap::TapFallible;
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 
 use crate::{authority_client::AuthorityAPI, epoch::committee_store::CommitteeStore};
 
@@ -311,12 +309,13 @@ where
     pub async fn handle_transaction(
         &self,
         transaction: Transaction,
+        client_addr: Option<SocketAddr>,
     ) -> Result<PlainTransactionInfoResponse, IotaError> {
         let _timer = self.metrics.handle_transaction_latency.start_timer();
         let digest = *transaction.digest();
         let response = self
             .authority_client
-            .handle_transaction(transaction.clone())
+            .handle_transaction(transaction.clone(), client_addr)
             .await?;
         let response = check_error!(
             self.address,
@@ -326,36 +325,114 @@ where
         Ok(response)
     }
 
-    fn verify_certificate_response_v2(
+    fn verify_certificate_response_v1(
         &self,
         digest: &TransactionDigest,
-        response: HandleCertificateResponseV2,
-    ) -> IotaResult<HandleCertificateResponseV2> {
-        let signed_effects =
-            self.check_signed_effects_plain(digest, response.signed_effects, None)?;
-
-        Ok(HandleCertificateResponseV2 {
+        HandleCertificateResponseV1 {
             signed_effects,
-            events: response.events,
-            fastpath_input_objects: vec![], // unused field
+            events,
+            input_objects,
+            output_objects,
+            auxiliary_data,
+        }: HandleCertificateResponseV1,
+    ) -> IotaResult<HandleCertificateResponseV1> {
+        let signed_effects = self.check_signed_effects_plain(digest, signed_effects, None)?;
+
+        // Check Events
+        match (&events, signed_effects.events_digest()) {
+            (None, None) | (None, Some(_)) => {}
+            (Some(events), None) => {
+                if !events.data.is_empty() {
+                    return Err(IotaError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: "Returned events but no event digest present in the signed effects"
+                            .to_string(),
+                    });
+                }
+            }
+            (Some(events), Some(events_digest)) => {
+                fp_ensure!(
+                    &events.digest() == events_digest,
+                    IotaError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: "Returned events don't match events digest in the signed effects"
+                            .to_string()
+                    }
+                );
+            }
+        }
+
+        // Check Input Objects
+        if let Some(input_objects) = &input_objects {
+            let expected: HashMap<_, _> = signed_effects
+                .old_object_metadata()
+                .into_iter()
+                .map(|(object_ref, _owner)| (object_ref.0, object_ref))
+                .collect();
+
+            for object in input_objects {
+                let object_ref = object.compute_object_reference();
+                if !expected
+                    .get(&object_ref.0)
+                    .is_some_and(|expect| &object_ref == expect)
+                {
+                    return Err(IotaError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: "Returned input object that wasn't present in the signed effects"
+                            .to_string(),
+                    });
+                }
+            }
+        }
+
+        // Check Output Objects
+        if let Some(output_objects) = &output_objects {
+            let expected: HashMap<_, _> = signed_effects
+                .all_changed_objects()
+                .into_iter()
+                .map(|(object_ref, _, _)| (object_ref.0, object_ref))
+                .collect();
+
+            for object in output_objects {
+                let object_ref = object.compute_object_reference();
+                if !expected
+                    .get(&object_ref.0)
+                    .is_some_and(|expect| &object_ref == expect)
+                {
+                    return Err(IotaError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: "Returned output object that wasn't present in the signed effects"
+                            .to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(HandleCertificateResponseV1 {
+            signed_effects,
+            events,
+            input_objects,
+            output_objects,
+            auxiliary_data,
         })
     }
 
     /// Execute a certificate.
-    pub async fn handle_certificate_v2(
+    pub async fn handle_certificate_v1(
         &self,
-        certificate: CertifiedTransaction,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        let digest = *certificate.digest();
+        request: HandleCertificateRequestV1,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
+        let digest = *request.certificate.digest();
         let _timer = self.metrics.handle_certificate_latency.start_timer();
         let response = self
             .authority_client
-            .handle_certificate_v2(certificate)
+            .handle_certificate_v1(request, client_addr)
             .await?;
 
         let verified = check_error!(
             self.address,
-            self.verify_certificate_response_v2(&digest, response),
+            self.verify_certificate_response_v1(&digest, response),
             "Client error in handle_certificate"
         )?;
         Ok(verified)
@@ -383,6 +460,7 @@ where
     }
 
     /// Handle Transaction information requests for a given digest.
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
     pub async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
@@ -412,78 +490,7 @@ where
         Ok(transaction_info)
     }
 
-    fn verify_checkpoint_sequence(
-        &self,
-        expected_seq: Option<CheckpointSequenceNumber>,
-        checkpoint: &Option<CertifiedCheckpointSummary>,
-    ) -> IotaResult {
-        let observed_seq = checkpoint.as_ref().map(|c| c.sequence_number);
-
-        if let (Some(e), Some(o)) = (expected_seq, observed_seq) {
-            fp_ensure!(
-                e == o,
-                IotaError::from("Expected checkpoint number doesn't match with returned")
-            );
-        }
-        Ok(())
-    }
-
-    fn verify_contents_exist<T, O>(
-        &self,
-        request_content: bool,
-        checkpoint: &Option<T>,
-        contents: &Option<O>,
-    ) -> IotaResult {
-        match (request_content, checkpoint, contents) {
-            // If content is requested, checkpoint is not None, but we are not getting any content,
-            // it's an error.
-            // If content is not requested, or checkpoint is None, yet we are still getting content,
-            // it's an error.
-            (true, Some(_), None) | (false, _, Some(_)) | (_, None, Some(_)) => Err(
-                IotaError::from("Checkpoint contents inconsistent with request"),
-            ),
-            _ => Ok(()),
-        }
-    }
-
-    fn verify_checkpoint_response(
-        &self,
-        request: &CheckpointRequest,
-        response: &CheckpointResponse,
-    ) -> IotaResult {
-        // Verify response data was correct for request
-        let CheckpointResponse {
-            checkpoint,
-            contents,
-        } = &response;
-        // Checks that the sequence number is correct.
-        self.verify_checkpoint_sequence(request.sequence_number, checkpoint)?;
-        self.verify_contents_exist(request.request_content, checkpoint, contents)?;
-        // Verify signature.
-        match checkpoint {
-            Some(c) => {
-                let epoch_id = c.epoch;
-                c.verify_with_contents(&*self.get_committee(&epoch_id)?, contents.as_ref())
-            }
-            None => Ok(()),
-        }
-    }
-
-    pub async fn handle_checkpoint(
-        &self,
-        request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, IotaError> {
-        let resp = self
-            .authority_client
-            .handle_checkpoint(request.clone())
-            .await?;
-        self.verify_checkpoint_response(&request, &resp)
-            .tap_err(|err| {
-                error!(?err, authority=?self.address, "Client error in handle_checkpoint");
-            })?;
-        Ok(resp)
-    }
-
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
     pub async fn handle_system_state_object(&self) -> Result<IotaSystemState, IotaError> {
         self.authority_client
             .handle_system_state_object(SystemStateRequest { _unused: false })

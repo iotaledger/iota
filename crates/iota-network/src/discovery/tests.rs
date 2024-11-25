@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use anemo::{types::PeerAffinity, Result};
+use anemo::{Result, types::PeerAffinity};
 use fastcrypto::ed25519::Ed25519PublicKey;
 use futures::stream::FuturesUnordered;
 use iota_config::p2p::AllowlistedPeer;

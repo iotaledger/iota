@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaTransaction } from '@iota/iota.js/client';
+import { type IotaTransaction } from '@iota/iota-sdk/client';
 
 import { Transaction } from './Transaction';
-import { ProgrammableTxnBlockCard } from '~/components';
-import { CollapsibleSection } from '~/components/ui';
+import { CollapsibleCard, ProgrammableTxnBlockCard } from '~/components';
+import { TitleSize } from '@iota/apps-ui-kit';
 
 interface TransactionsCardProps {
     transactions: IotaTransaction[];
@@ -21,11 +21,13 @@ export function TransactionsCard({ transactions }: TransactionsCardProps): JSX.E
         const [[type, data]] = Object.entries(transaction);
 
         return (
-            <CollapsibleSection defaultOpen key={index} title={type}>
+            <CollapsibleCard key={index} title={type} titleSize={TitleSize.Small} collapsible>
                 <div data-testid="transactions-card-content">
-                    <Transaction key={index} type={type} data={data} />
+                    <div className="px-md pb-lg pt-xs">
+                        <Transaction key={index} type={type} data={data} />
+                    </div>
                 </div>
-            </CollapsibleSection>
+            </CollapsibleCard>
         );
     });
 

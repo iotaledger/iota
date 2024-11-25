@@ -1,0 +1,245 @@
+# Add tags that are used in the documentation here.
+# Tags are used to categorize content and make it easier to find.
+# Tags should be in alphabetical order and kebab-case.
+
+# Diataxis
+explanation:
+  label: Explanation
+  description: Content that explains and helps understand a concept.
+
+how-to:
+  label: How-To
+  description: Goal orientated direction.
+
+reference:
+  label: Reference
+  description: Technical documentation.
+
+tutorial:
+  label: Tutorial
+  description: Learning orientated guide.
+
+# Programming languages
+move:
+  label: Move
+  description: Move programming language.
+
+python:
+  label: Python
+  description: Python programming language.
+
+rust:
+  label: Rust
+  description: Rust programming language.
+
+solidity:
+  label: Solidity
+  description: Solidity programming language.
+
+typescript:
+  label: TypeScript
+  description: TypeScript programming language.
+
+wasm:
+  label: WASM
+  description: WebAssembly programming language.
+
+# VMs
+evm:
+  label: EVM
+  description: Ethereum Virtual Machine.
+
+move-vm:
+  label: Move VM
+  description: Move Virtual Machine.
+
+# Networks
+devnet:
+  label: Devnet
+  description: Development network.
+
+mainnet:
+  label: Mainnet
+  description: Main network.
+
+testnet:
+  label: Testnet
+  description: Test network.
+
+# Node
+access-node:
+  label: Access Node
+  description: Node that provides access to the network.
+
+pruning:
+  label: Pruning
+
+rest-api:
+  label: REST API
+  description: Representational State Transfer API.
+
+rpc:
+  label: RPC
+  description: Remote Procedure Call.
+
+snapshot:
+  label: Snapshot
+
+validator:
+  label: Validator
+  description: Node that validates transactions.
+
+# Identity
+did:
+  label: DID
+  description: Decentralized Identifier.
+
+identity:
+  label: IOTA Identity
+  description: The IOTA Identity Implementation.
+
+verifiable-credentials:
+  label: Verifiable Credentials
+  description: Verifiable Credentials.
+
+verification-method:
+  label: Verification Method
+  description: Verification Method.
+
+zk:
+  label: Zero-Knowledge
+  description: Zero-Knowledge.
+
+# ISC
+allowance:
+  label: Allowance
+  description: Allowance for L1 interactions.
+
+core-contract:
+  label: Core Contract
+  description: Core Contract for interacting with L1.
+
+core-contract-blob:
+  label: Blob Core Contract
+
+core-contract-blocklog:
+  label: Blocklog Core Contract
+
+core-contract-errors:
+  label: Errors Core Contract
+
+core-contract-governance:
+  label: Governance Core Contract
+
+core-contract-root:
+  label: Root Core Contract
+
+erc20:
+  label: ERC20
+  description: ERC20 token standard.
+
+erc721:
+  label: ERC721
+  description: ERC721 token standard.
+
+isc:
+  label: ISC
+  description: IOTA L2 Smart Contracts.
+
+isc-accounts:
+  label: ISC Accounts
+  description: IOTA Smart Contract accounts.
+
+magic:
+  label: Magic Smart Contract
+  description: Magic Smart Contract.
+
+off-ledger:
+  label: Off-Ledger Request
+  description: Off-Ledger Request.
+
+on-ledger:
+  label: On-Ledger Request
+  description: On-Ledger Request.
+
+schema:
+  label: Schema Tool
+  description: Schema Tool for ISC WASM.
+
+solo:
+  label: Solo Testing Tool
+  description: Solo Testing Tool for ISC.
+
+# Crypto
+address:
+  label: Address
+  description: Identifier for a wallet.
+
+api:
+  label: API
+  description: Application Programming Interface.
+
+balance:
+  label: Balance
+  description: Amount of tokens.
+
+consensus:
+  label: Consensus
+  description: Agreement among a group of people.
+
+faucet:
+  label: Faucet
+  description: Service that provides tokens.
+
+native-token:
+  label: Native Token
+  description: Token on L1.
+
+nft:
+  label: NFT
+  description: Non-fungible token.
+
+state:
+  label: State
+  description: Current condition of a system.
+
+# Development
+sdk:
+  label: SDK
+  description: Software Development Kit.
+
+cli:
+  label: CLI
+  description: Command Line Interface.
+
+crates:
+  label: Crates
+  description: The IOTA Rust crates.
+
+getting-started:
+  label: Getting Started
+  description: Initial steps to start using IOTA.
+
+install:
+  label: Install
+  description: Add to a system.
+
+quickstart:
+  label: Quickstart
+  description: Get started quickly.
+
+randomness:
+  label: Randomness
+  description: On chain randomness.
+
+repository:
+  label: Repository
+  description: The IOTA repository.
+
+setup:
+  label: Setup
+  description: Prepare for use.
+
+testing:
+  label: Testing
+  description: Process of evaluating code.

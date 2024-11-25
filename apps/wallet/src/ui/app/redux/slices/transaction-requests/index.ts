@@ -11,9 +11,9 @@ import {
     type WalletSigner,
 } from '_src/ui/app/WalletSigner';
 import type { AppThunkConfig } from '_store/thunk-extras';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { fromB64 } from '@iota/iota.js/utils';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { fromB64 } from '@iota/iota-sdk/utils';
 import { createAsyncThunk, createEntityAdapter, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
@@ -35,15 +35,11 @@ export const respondToTransactionRequest = createAsyncThunk<
         txRequestID: string;
         approved: boolean;
         signer: WalletSigner;
-        clientIdentifier?: string;
     },
     AppThunkConfig
 >(
     'respond-to-transaction-request',
-    async (
-        { txRequestID, approved, signer, clientIdentifier },
-        { extra: { background }, getState },
-    ) => {
+    async ({ txRequestID, approved, signer }, { extra: { background }, getState }) => {
         const state = getState();
         const txRequest = txRequestsSelectors.selectById(state, txRequestID);
         if (!txRequest) {
@@ -54,32 +50,22 @@ export const respondToTransactionRequest = createAsyncThunk<
         let txResultError: string | undefined;
         if (approved) {
             try {
-                if (txRequest.tx.type === 'sign-message') {
-                    txResult = await signer.signMessage(
-                        {
-                            message: fromB64(txRequest.tx.message),
-                        },
-                        clientIdentifier,
-                    );
+                if (txRequest.tx.type === 'sign-personal-message') {
+                    txResult = await signer.signMessage({
+                        message: fromB64(txRequest.tx.message),
+                    });
                 } else if (txRequest.tx.type === 'transaction') {
-                    const tx = TransactionBlock.from(txRequest.tx.data);
+                    const tx = Transaction.from(txRequest.tx.data);
                     if (txRequest.tx.justSign) {
                         // Just a signing request, do not submit
-                        txSigned = await signer.signTransactionBlock(
-                            {
-                                transactionBlock: tx,
-                            },
-                            clientIdentifier,
-                        );
+                        txSigned = await signer.signTransaction({
+                            transaction: tx,
+                        });
                     } else {
-                        txResult = await signer.signAndExecuteTransactionBlock(
-                            {
-                                transactionBlock: tx,
-                                options: txRequest.tx.options,
-                                requestType: txRequest.tx.requestType,
-                            },
-                            clientIdentifier,
-                        );
+                        txResult = await signer.signAndExecuteTransaction({
+                            transactionBlock: tx,
+                            options: txRequest.tx.options,
+                        });
                     }
                 } else {
                     throw new Error(

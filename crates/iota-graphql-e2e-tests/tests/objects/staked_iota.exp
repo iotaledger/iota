@@ -3,13 +3,14 @@ processed 7 tasks
 init:
 C: object(0,0)
 
-task 1 'run-graphql'. lines 7-32:
+task 1, lines 7-32:
+//# run-graphql
 Response: {
   "data": {
     "objects": {
       "edges": [
         {
-          "cursor": "IFSiNxu26IDGjDLXR/NQdAUdOhaEjZKex+MXICXBhXsCAAAAAAAAAAA=",
+          "cursor": "IAeULt3Vt3s3r+CMTYVO1viD348GDaO7+cH3HhE5nbGzAAAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
@@ -28,58 +29,65 @@ Response: {
   }
 }
 
-task 2 'programmable'. lines 34-36:
+task 2, lines 34-36:
+//# programmable --sender C --inputs 10000000000 @C
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 38-38:
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [212, 87, 108, 251, 56, 39, 131, 80, 243, 226, 24, 38, 212, 155, 194, 14, 147, 80, 75, 129, 235, 34, 120, 3, 145, 155, 56, 192, 29, 182, 130, 250, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
-created: object(3,0), object(3,1)
-mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
-deleted: object(_), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 15412800,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+task 3, line 38:
+//# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [145, 201, 73, 32, 135, 23, 121, 37, 7, 101, 40, 103, 216, 99, 155, 51, 118, 111, 115, 220, 44, 253, 144, 143, 80, 103, 133, 240, 58, 235, 137, 202, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+created: object(3,0)
+mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
+deleted: object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14500800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
-task 4 'create-checkpoint'. lines 40-40:
+task 4, line 40:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 5 'advance-epoch'. lines 42-42:
+task 5, line 42:
+//# advance-epoch
 Epoch advanced: 0
 
-task 6 'run-graphql'. lines 44-70:
+task 6, lines 44-70:
+//# run-graphql
 Response: {
   "data": {
     "objects": {
       "edges": [
         {
-          "cursor": "IFSiNxu26IDGjDLXR/NQdAUdOhaEjZKex+MXICXBhXsCAgAAAAAAAAA=",
+          "cursor": "IAeULt3Vt3s3r+CMTYVO1viD348GDaO7+cH3HhE5nbGzAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
                 "principal": "1500000000000000",
-                "poolId": "0xd4576cfb38278350f3e21826d49bc20e93504b81eb227803919b38c01db682fa"
+                "poolId": "0x91c949208717792507652867d8639b33766f73dc2cfd908f506785f03aeb89ca"
               }
             }
           }
         },
         {
-          "cursor": "IHnZCaqEjWoEF5HIJeg16llFAO26SdX+RxUMj8CXbIXCAgAAAAAAAAA=",
+          "cursor": "IA+owYRIwFujnaEiElWV25tmsgRd3aiT7h9//oDyhQb2AgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
                 "principal": "15340000000000",
-                "poolId": "0xd4576cfb38278350f3e21826d49bc20e93504b81eb227803919b38c01db682fa"
+                "poolId": "0x91c949208717792507652867d8639b33766f73dc2cfd908f506785f03aeb89ca"
               }
             }
           }
         },
         {
-          "cursor": "IJu47+FkO7bebMZGSagpC4c9o1ILYXS87Fv6muppY20AAgAAAAAAAAA=",
+          "cursor": "IPEp6dbnEicrkwynNujLy5/Voas64Cc5Ta7ruT5oQNbTAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
                 "principal": "10000000000",
-                "poolId": "0xd4576cfb38278350f3e21826d49bc20e93504b81eb227803919b38c01db682fa"
+                "poolId": "0x91c949208717792507652867d8639b33766f73dc2cfd908f506785f03aeb89ca"
               }
             }
           }
@@ -90,7 +98,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IJu47+FkO7bebMZGSagpC4c9o1ILYXS87Fv6muppY20AAgAAAAAAAAA=",
+            "cursor": "IPEp6dbnEicrkwynNujLy5/Voas64Cc5Ta7ruT5oQNbTAgAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useIotaClient } from '@iota/dapp-kit';
-import { IotaClient, Network } from '@iota/iota.js/client';
+import { IotaClient, Network } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
 import { useNetwork } from '~/hooks';
@@ -12,7 +12,7 @@ export function useEnhancedRpcClient(): IotaClient {
     const [network] = useNetwork();
     const client = useIotaClient();
     const enhancedRpc = useMemo(() => {
-        if (network === Network.Local) {
+        if (network === Network.Localnet) {
             return new IotaClient({ url: 'http://localhost:9124' });
         }
 

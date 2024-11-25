@@ -16,7 +16,7 @@ use iota_types::{
         VerifiedCheckpoint,
     },
     object::Object,
-    storage::{BackingStore, ChildObjectResolver, ParentSync},
+    storage::{BackingStore, ChildObjectResolver},
     transaction::{
         InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjectReadResult,
         ReceivingObjects, VerifiedTransaction,
@@ -25,10 +25,7 @@ use iota_types::{
 pub mod in_mem_store;
 
 pub trait SimulatorStore:
-    iota_types::storage::BackingPackageStore
-    + iota_types::storage::ObjectStore
-    + ParentSync
-    + ChildObjectResolver
+    iota_types::storage::BackingPackageStore + iota_types::storage::ObjectStore + ChildObjectResolver
 {
     fn init_with_genesis(&mut self, genesis: &genesis::Genesis) {
         self.insert_checkpoint(genesis.checkpoint());
@@ -60,7 +57,7 @@ pub trait SimulatorStore:
 
     fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint>;
 
-    fn get_highest_checkpint(&self) -> Option<VerifiedCheckpoint>;
+    fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint>;
 
     fn get_checkpoint_contents(
         &self,
@@ -119,9 +116,11 @@ pub trait SimulatorStore:
 
     fn backing_store(&self) -> &dyn BackingStore;
 
-    // TODO: After we abstract object storage into the ExecutionCache trait, we can
-    // replace this with iota_core::TransactionInputLoad using an appropriate
-    // cache implementation.
+    // TODO: This function is now out-of-sync with read_objects_for_execution from
+    // transaction_input_loader.rs. For instance, it does not support the use of
+    // deleted shared objects. We will need to make SimulatorStore implement
+    // ExecutionCacheRead, and keep track of deleted shared objects in a marker
+    // table in order to merge this function.
     fn read_objects_for_synchronous_execution(
         &self,
         _tx_digest: &TransactionDigest,

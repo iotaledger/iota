@@ -2,65 +2,71 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { cva, type VariantProps } from 'class-variance-authority';
 import { useState } from 'react';
+import cn from 'clsx';
 
-const imageStyle = cva(['text-white capitalize overflow-hidden bg-gray-40'], {
-    variants: {
-        size: {
-            sm: 'w-6 h-6 font-medium text-subtitleSmallExtra',
-            md: 'w-7.5 h-7.5 font-medium text-body',
-            lg: 'md:w-10 md:h-10 w-8 h-8 font-medium text-heading4 md:text-iconTextLarge',
-            xl: 'md:w-31.5 md:h-31.5 w-16 h-16 font-medium text-heading4 md:text-iconTextLarge',
-        },
-        circle: {
-            true: 'rounded-full',
-            false: 'rounded-md',
-        },
-    },
+export enum ImageIconSize {
+    Small = 'w-5 h-5',
+    Medium = 'w-8 h-8',
+    Large = 'w-10 h-10',
+    Full = 'w-full h-full',
+}
 
-    defaultVariants: {
-        circle: false,
-        size: 'md',
-    },
-});
-
-export interface ImageIconProps extends VariantProps<typeof imageStyle> {
-    src?: string | null;
+export interface ImageIconProps {
+    src: string | null | undefined;
     label: string;
     fallback: string;
     alt?: string;
+    rounded?: boolean;
+    size?: ImageIconSize;
 }
 
-interface FallBackAvatarProps {
-    fallback: string;
-}
-
-function FallBackAvatar({ fallback }: FallBackAvatarProps): JSX.Element {
+function FallBackAvatar({
+    str,
+    rounded,
+    size = ImageIconSize.Large,
+}: {
+    str: string;
+    rounded?: boolean;
+    size?: ImageIconSize;
+}) {
+    function generateTextSize(size: ImageIconSize) {
+        switch (size) {
+            case ImageIconSize.Small:
+                return 'text-label-sm';
+            case ImageIconSize.Medium:
+                return 'text-label-md';
+            case ImageIconSize.Large:
+                return 'text-title-lg';
+            case ImageIconSize.Full:
+                return 'text-display-lg';
+        }
+    }
     return (
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-r from-gradient-blue-start to-gradient-blue-end">
-            {fallback?.slice(0, 2)}
+        <div
+            className={cn(
+                'flex items-center justify-center bg-neutral-96 bg-gradient-to-r capitalize text-neutral-10 dark:bg-neutral-92 dark:text-primary-100',
+                { 'rounded-full': rounded, 'rounded-lg': !rounded },
+                size,
+                generateTextSize(size),
+            )}
+        >
+            {str?.slice(0, 2)}
         </div>
     );
 }
 
-export function ImageIcon({
-    src,
-    label,
-    alt = label,
-    fallback,
-    ...styleProps
-}: ImageIconProps): JSX.Element {
+export function ImageIcon({ src, label, alt = label, fallback, rounded, size }: ImageIconProps) {
     const [error, setError] = useState(false);
     return (
-        <div role="img" className={imageStyle(styleProps)} aria-label={label}>
+        <div role="img" aria-label={label} className={size}>
             {error || !src ? (
-                <FallBackAvatar fallback={fallback} />
+                <FallBackAvatar rounded={rounded} str={fallback} size={size} />
             ) : (
                 <img
                     src={src}
                     alt={alt}
-                    className="flex h-full w-full items-center justify-center object-cover"
+                    className="flex h-full w-full items-center justify-center rounded-full object-cover"
                     onError={() => setError(true)}
                 />
             )}

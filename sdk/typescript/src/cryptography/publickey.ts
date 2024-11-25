@@ -8,8 +8,8 @@ import { bytesToHex } from '@noble/hashes/utils';
 
 import { bcs } from '../bcs/index.js';
 import { normalizeIotaAddress, IOTA_ADDRESS_LENGTH } from '../utils/iota-types.js';
-import type { SerializedSignature } from './index.js';
-import { IntentScope, messageWithIntent } from './intent.js';
+import type { IntentScope } from './intent.js';
+import { messageWithIntent } from './intent.js';
 import { SIGNATURE_SCHEME_TO_FLAG } from './signature-scheme.js';
 
 /**
@@ -57,8 +57,8 @@ export abstract class PublicKey {
     }
 
     /**
-     * Return the Iota representation of the public key encoded in
-     * base-64. A Iota public key is formed by the concatenation
+     * Return the IOTA representation of the public key encoded in
+     * base-64. A IOTA public key is formed by the concatenation
      * of the scheme flag with the raw bytes of the public key
      */
     toIotaPublicKey(): string {
@@ -68,7 +68,7 @@ export abstract class PublicKey {
 
     verifyWithIntent(
         bytes: Uint8Array,
-        signature: Uint8Array | SerializedSignature,
+        signature: Uint8Array | string,
         intent: IntentScope,
     ): Promise<boolean> {
         const intentMessage = messageWithIntent(intent, bytes);
@@ -80,25 +80,19 @@ export abstract class PublicKey {
     /**
      * Verifies that the signature is valid for for the provided PersonalMessage
      */
-    verifyPersonalMessage(
-        message: Uint8Array,
-        signature: Uint8Array | SerializedSignature,
-    ): Promise<boolean> {
+    verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
         return this.verifyWithIntent(
             bcs.vector(bcs.u8()).serialize(message).toBytes(),
             signature,
-            IntentScope.PersonalMessage,
+            'PersonalMessage',
         );
     }
 
     /**
-     * Verifies that the signature is valid for for the provided TransactionBlock
+     * Verifies that the signature is valid for for the provided Transaction
      */
-    verifyTransactionBlock(
-        transactionBlock: Uint8Array,
-        signature: Uint8Array | SerializedSignature,
-    ): Promise<boolean> {
-        return this.verifyWithIntent(transactionBlock, signature, IntentScope.TransactionData);
+    verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
+        return this.verifyWithIntent(transaction, signature, 'TransactionData');
     }
 
     /**
@@ -133,7 +127,7 @@ export abstract class PublicKey {
     }
 
     /**
-     * Return the Iota address associated with this Ed25519 public key
+     * Return the IOTA address associated with this Ed25519 public key
      */
     toIotaAddress(): string {
         // Each hex char represents half a byte, hence hex address doubles the length
@@ -158,8 +152,5 @@ export abstract class PublicKey {
     /**
      * Verifies that the signature is valid for for the provided message
      */
-    abstract verify(
-        data: Uint8Array,
-        signature: Uint8Array | SerializedSignature,
-    ): Promise<boolean>;
+    abstract verify(data: Uint8Array, signature: Uint8Array | string): Promise<boolean>;
 }

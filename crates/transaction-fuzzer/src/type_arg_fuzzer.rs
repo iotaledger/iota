@@ -4,13 +4,13 @@
 
 use iota_core::test_utils::send_and_confirm_transaction;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
     base_types::ObjectID,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
     utils::to_sender_signed_transaction,
-    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
@@ -19,7 +19,7 @@ use proptest::{arbitrary::*, prelude::*};
 
 use crate::{
     account_universe::AccountCurrent,
-    executor::{assert_is_acceptable_result, Executor},
+    executor::{Executor, assert_is_acceptable_result},
 };
 
 const GAS_PRICE: u64 = 700;
