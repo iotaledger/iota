@@ -50,8 +50,8 @@
     input:-webkit-autofill:enabled,
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus {
-        @apply !bg-transparent appearance-none !bg-none;
-        @apply dark:!text-neutral-10 !text-neutral-92;
+        @apply appearance-none !bg-transparent !bg-none;
+        @apply !text-neutral-92 dark:!text-neutral-10;
         transition: background-color 5000s ease-in-out 0s;
         -webkit-text-fill-color: theme('colors.neutral.92') !important;
     }
