@@ -9,7 +9,9 @@ use crate::{
     IOTA_SYSTEM_ADDRESS,
     balance::Balance,
     base_types::ObjectID,
+    collection_types::{Entry, VecMap},
     committee::EpochId,
+    display::DisplayVersionUpdatedEvent,
     error::IotaError,
     gas_coin::NANOS_PER_IOTA,
     id::{ID, UID},
@@ -114,5 +116,27 @@ impl TryFrom<&Object> for StakedIota {
         Err(IotaError::Type {
             error: format!("Object type is not a StakedIota: {:?}", object),
         })
+    }
+}
+
+pub fn staked_iota_display_version_update_event() -> DisplayVersionUpdatedEvent {
+    let id = ID::new(ObjectID::ZERO);
+    let version = 0_u16;
+    let contents = vec![
+        Entry {
+            key: "name".to_string(),
+            value: "staked_iota".to_string(),
+        },
+        Entry {
+            key: "image_url".to_string(),
+            value: "https://d315pvdvxi2gex.cloudfront.net/d96a337f84c5c900f31e08803.svg"
+                .to_string(),
+        },
+    ];
+    let fields = VecMap { contents };
+    DisplayVersionUpdatedEvent {
+        id,
+        version,
+        fields,
     }
 }

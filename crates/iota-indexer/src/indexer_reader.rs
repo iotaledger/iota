@@ -32,6 +32,7 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
     effects::TransactionEvents,
     event::EventID,
+    governance::{StakedIota, staked_iota_display_version_update_event},
     iota_system_state::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
@@ -1393,9 +1394,13 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         object_type: &move_core_types::language_storage::StructTag,
     ) -> Result<Option<iota_types::display::DisplayVersionUpdatedEvent>, IndexerError> {
-        let object_type = object_type.to_canonical_string(/* with_prefix */ true);
-        self.spawn_blocking(move |this| this.get_display_update_event(object_type))
-            .await
+        if StakedIota::is_staked_iota(&object_type) {
+            Ok(Some(staked_iota_display_version_update_event()))
+        } else {
+            let object_type = object_type.to_canonical_string(/* with_prefix */ true);
+            self.spawn_blocking(move |this| this.get_display_update_event(object_type))
+                .await
+        }
     }
 
     fn get_display_update_event(

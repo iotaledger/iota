@@ -32,6 +32,7 @@ use iota_types::{
     display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaObjectResponseError},
+    governance::{StakedIota, staked_iota_display_version_update_event},
     iota_serde::BigInt,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, CheckpointSummary,
@@ -1142,9 +1143,13 @@ async fn get_display_fields(
             error: None,
         });
     };
-    if let Some(display_object) =
-        get_display_object_by_type(kv_store, fullnode_api, &object_type).await?
-    {
+    if let Some(display_object) = {
+        if StakedIota::is_staked_iota(&object_type) {
+            Some(staked_iota_display_version_update_event())
+        } else {
+            get_display_object_by_type(kv_store, fullnode_api, &object_type).await?
+        }
+    } {
         return get_rendered_fields(display_object.fields, &layout);
     }
     Ok(DisplayFieldsResponse {
