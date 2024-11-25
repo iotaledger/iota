@@ -17,8 +17,8 @@ import {
     Divider,
     ButtonType,
 } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
-import { GAS_SYMBOL, CoinIcon, ImageIconSize, useFormatCoin, ExplorerLinkType } from '@iota/core';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinIcon, ImageIconSize, useFormatCoin, ExplorerLinkType } from '@iota/core';
 import { Loader } from '@iota/ui-icons';
 import { ExplorerLink } from '@/components';
 
@@ -40,6 +40,7 @@ export function ReviewValuesFormView({
     isPayAllIota,
 }: ReviewValuesFormProps): JSX.Element {
     const [formatAmount, symbol] = useFormatCoin(formattedAmount, coinType);
+    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG);
     return (
         <div className="flex h-full flex-col">
             <div className="flex h-full w-full flex-col gap-md">
@@ -91,8 +92,8 @@ export function ReviewValuesFormView({
                                 <Divider />
                                 <KeyValueInfo
                                     keyText={'Est. Gas Fees'}
-                                    value={gasBudgetEst}
-                                    supportingLabel={GAS_SYMBOL}
+                                    value={gasEstimated}
+                                    supportingLabel={gasSymbol}
                                     fullwidth
                                 />
                             </div>
