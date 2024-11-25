@@ -11,7 +11,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
-import { AssetsDialog } from '@/components/Dialogs/Assets/AssetsDialog';
+import { AssetsDialog, AssetsDialogView, useAssetsDialog } from '@/components/Dialogs/Assets';
 
 const PAGINATION_RANGE = [20, 40, 60];
 
@@ -27,6 +27,7 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {
+    const { view, setView } = useAssetsDialog();
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const [limit, setLimit] = useState<number>(PAGINATION_RANGE[1]);
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
@@ -66,6 +67,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
 
     function handleClickAsset(asset: IotaObjectData) {
         setSelectedAsset(asset);
+        setView(AssetsDialogView.Details);
     }
 
     function handleCloseDialog() {
@@ -107,6 +109,8 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     />
                 </div>
                 <AssetsDialog
+                    view={view}
+                    setView={setView}
                     isOpen={!!selectedAsset}
                     handleClose={handleCloseDialog}
                     asset={selectedAsset}

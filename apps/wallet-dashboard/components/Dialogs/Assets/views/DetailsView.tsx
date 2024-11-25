@@ -15,7 +15,6 @@ import Link from 'next/link';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Layout, LayoutBody, LayoutFooter } from '../../Staking/views/Layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-// import { Collapsible } from '@/components/Collapsible/Collapsible';
 import { ExplorerLink } from '@/components/ExplorerLink';
 import { useCurrentAccount } from '@iota/dapp-kit';
 
@@ -66,10 +65,7 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
                             isHoverable={false}
                         />
                     </div>
-                    <ExplorerLink
-                        address={senderAddress}
-                        linkProps={{ type: ExplorerLinkType.Object, objectID: objectId }}
-                    >
+                    <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId}>
                         <Button type={ButtonType.Ghost} text="View on Explorer" />
                     </ExplorerLink>
                     <div className="flex w-full flex-col gap-md">
@@ -112,7 +108,7 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
                                         keyText="Owner"
                                         value={
                                             <ExplorerLink
-                                                linkProps={{ type: ExplorerLinkType.Address }}
+                                                type={ExplorerLinkType.Address}
                                                 address={ownerAddress}
                                             >
                                                 {formatAddress(ownerAddress)}
