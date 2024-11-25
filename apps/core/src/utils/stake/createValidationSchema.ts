@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, formatBalance } from '../../index';
+import { CoinFormat, formatBalance } from '../../';
 import BigNumber from 'bignumber.js';
 import { mixed, object } from 'yup';
 

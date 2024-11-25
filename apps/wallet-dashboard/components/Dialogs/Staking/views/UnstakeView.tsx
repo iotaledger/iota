@@ -34,13 +34,13 @@ import { Layout, LayoutFooter, LayoutBody } from './Layout';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
-    onUnstake: () => void;
+    handleClose: () => void;
     showActiveStatus?: boolean;
 }
 
 export function UnstakeView({
     extendedStake,
-    onUnstake,
+    handleClose,
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const stakingReward = BigInt(extendedStake.estimatedReward ?? '').toString();
@@ -49,6 +49,7 @@ export function UnstakeView({
 
     const {
         totalStake: [tokenBalance],
+        totalStakeOriginal,
         epoch,
         systemDataResult,
         delegatedStakeDataResult,
@@ -68,7 +69,10 @@ export function UnstakeView({
 
     const delegationId = extendedStake?.status === 'Active' && extendedStake?.stakedIotaId;
 
-    const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + tokenBalance, IOTA_TYPE_ARG);
+    const [totalIota] = useFormatCoin(
+        BigInt(stakingReward || 0) + totalStakeOriginal,
+        IOTA_TYPE_ARG,
+    );
 
     const transaction = useMemo(
         () => createUnstakeTransaction(extendedStake.stakedIotaId),
@@ -96,7 +100,7 @@ export function UnstakeView({
         await signAndExecuteTransaction({
             transaction: unstakeData.transaction,
         });
-        onUnstake();
+        handleClose();
     }
 
     const currentEpochEndTimeFormatted =
@@ -126,7 +130,7 @@ export function UnstakeView({
 
     return (
         <Layout>
-            <Header title="Unstake" onClose={onUnstake} onBack={onUnstake} titleCentered />
+            <Header title="Unstake" onClose={handleClose} onBack={handleClose} titleCentered />
             <LayoutBody>
                 <div className="flex flex-col gap-y-md">
                     <ValidatorStakingData

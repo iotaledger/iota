@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
-import { Theme, useTheme } from '@/contexts';
 import { StakeDialog } from '../Dialogs';
+import { Theme, useTheme } from '@iota/core';
 import { useStakeDialog } from '../Dialogs/Staking/hooks/useStakeDialog';
 
 export function StartStaking() {

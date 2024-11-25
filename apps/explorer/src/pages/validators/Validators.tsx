@@ -11,7 +11,8 @@ import {
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
-    TableHeader,
+    Panel,
+    Title,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
@@ -155,26 +156,27 @@ function ValidatorPageResult(): JSX.Element {
                                 />
                             ))}
                         </div>
-                        <div>
-                            <ErrorBoundary>
-                                <TableHeader>All Validators</TableHeader>
-                                {(isPending || validatorsEventsLoading) && (
-                                    <PlaceholderTable
-                                        rowCount={20}
-                                        rowHeight="13px"
-                                        colHeadings={['Name', 'Address', 'Stake']}
-                                    />
-                                )}
-
-                                {isSuccess && tableData && tableColumns && (
-                                    <TableCard
-                                        data={tableData}
-                                        columns={tableColumns}
-                                        areHeadersCentered={false}
-                                    />
-                                )}
-                            </ErrorBoundary>
-                        </div>
+                        <Panel>
+                            <Title title="All Validators" />
+                            <div className="p-md">
+                                <ErrorBoundary>
+                                    {(isPending || validatorsEventsLoading) && (
+                                        <PlaceholderTable
+                                            rowCount={20}
+                                            rowHeight="13px"
+                                            colHeadings={['Name', 'Address', 'Stake']}
+                                        />
+                                    )}
+                                    {isSuccess && tableData && tableColumns && (
+                                        <TableCard
+                                            data={tableData}
+                                            columns={tableColumns}
+                                            areHeadersCentered={false}
+                                        />
+                                    )}
+                                </ErrorBoundary>
+                            </div>
+                        </Panel>
                     </div>
                 )
             }

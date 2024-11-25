@@ -25,10 +25,10 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
-import { DetailsView, UnstakeView } from './views';
 import { Dialog } from '@iota/apps-ui-kit';
-import { FinishStakingView } from './views/FinishStaking';
+import { DetailsView, UnstakeView } from './views';
 import { FormValues } from './views/EnterAmountView';
+import { FinishStakingView } from './views/FinishStaking';
 
 export const MIN_NUMBER_IOTA_TO_STAKE = 1;
 
@@ -125,8 +125,7 @@ export function StakeDialog({
 
     const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
 
-    const validatorApy =
-        rollingAverageApys && selectedValidator ? rollingAverageApys[selectedValidator] : null;
+    const validatorApy = rollingAverageApys?.[selectedValidator] ?? null;
 
     function handleBack(): void {
         setView?.(StakeDialogView.SelectValidator);
@@ -170,9 +169,14 @@ export function StakeDialog({
                     addNotification('Stake transaction has been sent');
                 },
             },
-        ).catch(() => {
-            addNotification('Stake transaction was not sent', NotificationType.Error);
-        });
+        )
+            .then(() => {
+                handleClose();
+                addNotification('Stake transaction has been sent');
+            })
+            .catch(() => {
+                addNotification('Stake transaction was not sent', NotificationType.Error);
+            });
     }
 
     function onSubmit(_: FormValues, { resetForm }: FormikHelpers<FormValues>) {
@@ -215,7 +219,7 @@ export function StakeDialog({
                     {view === StakeDialogView.Unstake && stakedDetails && (
                         <UnstakeView
                             extendedStake={stakedDetails}
-                            onUnstake={handleClose}
+                            handleClose={handleClose}
                             showActiveStatus
                         />
                     )}
