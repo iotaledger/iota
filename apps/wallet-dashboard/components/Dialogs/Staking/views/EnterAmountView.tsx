@@ -38,6 +38,7 @@ interface EnterAmountViewProps {
     gasBudget?: string | number | null;
     handleClose: () => void;
     validatorApy: ValidatorApyData;
+    isTransactionLoading?: boolean;
 }
 
 function EnterAmountView({
@@ -47,6 +48,7 @@ function EnterAmountView({
     gasBudget = 0,
     handleClose,
     validatorApy,
+    isTransactionLoading,
 }: EnterAmountViewProps): JSX.Element {
     const coinType = IOTA_TYPE_ARG;
     const { data: metadata } = useCoinMetadata(coinType);
@@ -55,20 +57,24 @@ function EnterAmountView({
     const account = useCurrentAccount();
     const accountAddress = account?.address;
 
-    const { values } = useFormikContext<FormValues>();
+    const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
     const { data: iotaBalance } = useBalance(accountAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
 
-    const maxTokenBalance = coinBalance - BigInt(Number(gasBudget));
+    const gasBudgetBigInt = BigInt(gasBudget ?? 0);
+
+    const maxTokenBalance = coinBalance - gasBudgetBigInt;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
         maxTokenBalance,
         IOTA_TYPE_ARG,
         CoinFormat.FULL,
     );
 
-    const gasBudgetBigInt = BigInt(gasBudget ?? 0);
+    const caption = isTransactionLoading
+        ? '--'
+        : `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
@@ -77,7 +83,7 @@ function EnterAmountView({
 
     return (
         <Layout>
-            <Header title="Enter amount" onClose={handleClose} onBack={handleClose} titleCentered />
+            <Header title="Enter amount" onClose={handleClose} onBack={onBack} titleCentered />
             <LayoutBody>
                 <div className="flex w-full flex-col justify-between">
                     <div>
@@ -102,18 +108,18 @@ function EnterAmountView({
                                     return (
                                         <Input
                                             {...field}
-                                            onValueChange={(values) =>
-                                                setFieldValue('amount', values.value, true)
-                                            }
+                                            onValueChange={({ value }) => {
+                                                setFieldValue('amount', value, true);
+                                            }}
                                             type={InputType.NumericFormat}
                                             label="Amount"
                                             value={amount}
-                                            onChange={onChange}
+                                            suffix={` ${metadata?.symbol}`}
                                             placeholder="Enter amount to stake"
                                             errorMessage={
                                                 values.amount && meta.error ? meta.error : undefined
                                             }
-                                            caption={`${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`}
+                                            caption={coinBalance ? caption : ''}
                                         />
                                     );
                                 }}
@@ -129,7 +135,7 @@ function EnterAmountView({
                                 </div>
                             ) : null}
                         </div>
-                        <StakingRewardDetails gasBudget={gasBudget} {...validatorApy} />
+                        <StakingRewardDetails gasBudget={gasBudget} validatorApy={validatorApy} />
                     </div>
                 </div>
             </LayoutBody>
@@ -140,7 +146,7 @@ function EnterAmountView({
                         fullWidth
                         type={ButtonType.Primary}
                         onClick={onStake}
-                        disabled={!amount}
+                        disabled={!amount || !!errors?.amount}
                         text="Stake"
                     />
                 </div>

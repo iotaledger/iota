@@ -50,8 +50,9 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
 
     const error = txn.effects?.status.error;
 
-    const timestamp = txn.timestampMs;
-    const transactionDate = formatDate(Number(timestamp), ['month', 'day', 'hour', 'minute']);
+    const transactionDate = !txn.timestampMs
+        ? '--'
+        : formatDate(Number(txn.timestampMs), ['month', 'day', 'hour', 'minute']);
 
     return (
         <Link

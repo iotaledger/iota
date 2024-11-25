@@ -1,9 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useGetTimeBeforeEpochNumber, useTimeAgo, TimeUnit } from '../../index';
-
-export const NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE = 2;
-export const NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS = 1;
+import {
+    useGetTimeBeforeEpochNumber,
+    useTimeAgo,
+    TimeUnit,
+    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
+    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
+} from '../../index';
 
 export function useStakeTxnInfo(startEpoch?: string | number) {
     const startEarningRewardsEpoch =
@@ -22,7 +25,7 @@ export function useStakeTxnInfo(startEpoch?: string | number) {
     });
     const stakedRewardsStartEpoch =
         timeBeforeStakeRewardsStarts > 0
-            ? `${timeBeforeStakeRewardsStartsAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsStartsAgo}`
+            ? `in ${timeBeforeStakeRewardsStartsAgo}`
             : startEpoch
               ? `Epoch #${Number(startEarningRewardsEpoch)}`
               : '--';
@@ -37,7 +40,7 @@ export function useStakeTxnInfo(startEpoch?: string | number) {
     });
     const timeBeforeStakeRewardsRedeemableAgoDisplay =
         timeBeforeStakeRewardsRedeemable > 0
-            ? `${timeBeforeStakeRewardsRedeemableAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsRedeemableAgo}`
+            ? `in ${timeBeforeStakeRewardsRedeemableAgo}`
             : startEpoch
               ? `Epoch #${Number(redeemableRewardsEpoch)}`
               : '--';

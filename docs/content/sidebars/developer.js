@@ -290,6 +290,24 @@ const developer = [
     },
     {
         type: 'category',
+        label: 'Capture The Flag',
+        link: {
+            type: 'doc',
+            id: 'developer/iota-move-ctf/introduction',
+        },
+        items: [
+            'developer/iota-move-ctf/challenge_1',
+            'developer/iota-move-ctf/challenge_2',
+            'developer/iota-move-ctf/challenge_3',
+            'developer/iota-move-ctf/challenge_4',
+            'developer/iota-move-ctf/challenge_5',
+            'developer/iota-move-ctf/challenge_6',
+            'developer/iota-move-ctf/challenge_7',
+            'developer/iota-move-ctf/challenge_8',
+        ],
+    },
+    {
+        type: 'category',
         label: 'From Solidity/EVM to Move',
         collapsed: true,
         link: {

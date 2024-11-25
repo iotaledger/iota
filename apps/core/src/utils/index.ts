@@ -26,3 +26,4 @@ export * from './formatApy';
 export * from './stake';
 export * from './transaction';
 export * from './validation';
+export * from './migration';

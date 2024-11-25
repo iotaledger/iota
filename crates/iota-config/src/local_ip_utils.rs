@@ -18,12 +18,19 @@ pub struct SimAddressManager {
 }
 
 #[cfg(msim)]
-impl SimAddressManager {
-    pub fn new() -> Self {
+impl Default for SimAddressManager {
+    fn default() -> Self {
         Self {
             next_ip_offset: AtomicI16::new(1),
             next_port: AtomicI16::new(9000),
         }
+    }
+}
+
+#[cfg(msim)]
+impl SimAddressManager {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn get_next_ip(&self) -> String {
