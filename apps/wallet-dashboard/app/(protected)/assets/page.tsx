@@ -11,6 +11,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
+import { AssetsDialog, AssetsDialogView, useAssetsDialog } from '@/components/Dialogs/Assets';
 
 const PAGINATION_RANGE = [20, 40, 60];
 
@@ -26,8 +27,10 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {
+    const { view, setView } = useAssetsDialog();
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const [limit, setLimit] = useState<number>(PAGINATION_RANGE[1]);
+    const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
 
     const account = useCurrentAccount();
     const ownedObjectsQuery = useGetOwnedObjects(account?.address, undefined, limit);
@@ -62,6 +65,15 @@ export default function AssetsDashboardPage(): React.JSX.Element {
 
     const assetList = categoryToAsset[selectedCategory];
 
+    function handleClickAsset(asset: IotaObjectData) {
+        setSelectedAsset(asset);
+        setView(AssetsDialogView.Details);
+    }
+
+    function handleCloseDialog() {
+        setSelectedAsset(null);
+    }
+
     return (
         <Panel>
             <Title title="Assets" size={TitleSize.Medium} />
@@ -77,7 +89,11 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     ))}
                 </div>
 
-                <AssetList assets={assetList} selectedCategory={selectedCategory} />
+                <AssetList
+                    assets={assetList}
+                    selectedCategory={selectedCategory}
+                    onClick={handleClickAsset}
+                />
                 <div className="flex flex-row items-center justify-end py-xs">
                     <PaginationOptions
                         pagination={pagination}
@@ -92,6 +108,13 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                         }
                     />
                 </div>
+                <AssetsDialog
+                    view={view}
+                    setView={setView}
+                    isOpen={!!selectedAsset}
+                    handleClose={handleCloseDialog}
+                    asset={selectedAsset}
+                />
             </div>
         </Panel>
     );
