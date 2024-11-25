@@ -188,7 +188,7 @@ function MovedAssetNotification({ t, destination, onUndo }: MovedAssetNotificati
             className="flex w-full flex-row items-baseline gap-x-xxs"
             onClick={() => toast.dismiss(t.id)}
         >
-            <ButtonUnstyled className="text-body-sm text-neutral-12">
+            <ButtonUnstyled className="text-body-sm text-neutral-12 dark:text-neutral-92">
                 Moved to {destination}
             </ButtonUnstyled>
             <ButtonUnstyled
@@ -196,7 +196,7 @@ function MovedAssetNotification({ t, destination, onUndo }: MovedAssetNotificati
                     onUndo();
                     toast.dismiss(t.id);
                 }}
-                className="ml-auto mr-sm text-body-sm text-neutral-12"
+                className="ml-auto mr-sm text-body-sm text-neutral-12 dark:text-neutral-92"
             >
                 UNDO
             </ButtonUnstyled>
