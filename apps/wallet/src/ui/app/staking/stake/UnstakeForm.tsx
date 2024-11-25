@@ -49,8 +49,6 @@ export function UnStakeForm({
         maxTimeUnit: TimeUnit.ONE_HOUR,
     });
 
-    console.log('coinBalance', coinBalance);
-
     const currentEpochEndTimeFormatted =
         currentEpochEndTime > 0 ? currentEpochEndTimeAgo : `Epoch #${epoch}`;
 
