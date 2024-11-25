@@ -69,7 +69,7 @@ transaction. If you need IOTA for a test network, you can
 import { IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 
 /* HERE ARE DEFINED THE PREPARATORY STEPS IF YOU WANT TO CODE ALONG*/
 // Define the transaction
@@ -84,7 +84,7 @@ function createPaymenttx(recipient: string): Transaction {
 }
 // Define your admin keypair and client
 const ADMIN_SECRET_KEY: string = '<your-address-secret-key>';
-const adminPrivateKeyArray = Uint8Array.from(Array.from(fromB64(ADMIN_SECRET_KEY)));
+const adminPrivateKeyArray = Uint8Array.from(Array.from(fromBase64(ADMIN_SECRET_KEY)));
 const adminKeypair = Ed25519Keypair.fromSecretKey(adminPrivateKeyArray.slice(1));
 
 const client = new IotaClient({

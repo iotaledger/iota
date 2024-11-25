@@ -62,3 +62,8 @@ jobs:
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
         run: cargo ci-clippy
+
+      - name: Check Clippy Lints with msim
+        run: |
+          git clean -fd
+          ./scripts/simtest/clippy.sh

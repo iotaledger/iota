@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ImageIcon, ImageIconSize } from '_app/shared/image-icon';
+import { ImageIcon, ImageIconSize } from '@iota/core';
 import { ExternalLink } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getDAppUrl } from '_src/shared/utils';
@@ -54,10 +54,10 @@ interface ListViewProps {
 
 function ListView({ name, icon, description, tags }: ListViewProps) {
     return (
-        <div className="item-center box-border flex gap-sm rounded-2xl bg-neutral-100 p-sm hover:bg-shader-primary-dark-12">
+        <div className="item-center box-border flex gap-sm rounded-2xl bg-neutral-100 p-sm hover:bg-shader-primary-dark-12 dark:bg-neutral-6">
             <ImageIcon src={icon || null} label={name} fallback={name} />
             <div className="flex flex-col justify-center gap-sm">
-                <span className="text-label-md text-neutral-10">{name}</span>
+                <span className="text-label-md text-neutral-10 dark:text-neutral-92">{name}</span>
                 <span className="text-body-sm text-neutral-40">{description}</span>
                 {tags?.length && (
                     <div className="flex flex-wrap gap-xxs">
