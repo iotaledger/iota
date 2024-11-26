@@ -98,7 +98,8 @@ module iota_system::iota_system_state_inner {
         next_protocol_version: u64,
         _validator_target_reward: u64,
         mut storage_charge: Balance<IOTA>,
-        mut computation_reward: Balance<IOTA>,
+        mut computation_charge: Balance<IOTA>,
+        mut _computation_charge_burned: u64,
         mut storage_rebate_amount: u64,
         mut _non_refundable_storage_fee_amount: u64,
         _reward_slashing_rate: u64,
@@ -112,9 +113,9 @@ module iota_system::iota_system_state_inner {
         self.protocol_version = next_protocol_version;
 
         let storage_charge_value = storage_charge.value();
-        let total_gas_fees = computation_reward.value();
+        let total_gas_fees = computation_charge.value();
 
-        balance::join(&mut self.storage_fund, computation_reward);
+        balance::join(&mut self.storage_fund, computation_charge);
         balance::join(&mut self.storage_fund, storage_charge);
         let storage_rebate = balance::split(&mut self.storage_fund, storage_rebate_amount);
 

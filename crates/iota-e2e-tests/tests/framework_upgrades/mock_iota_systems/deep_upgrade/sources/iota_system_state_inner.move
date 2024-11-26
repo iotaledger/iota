@@ -121,6 +121,7 @@ module iota_system::iota_system_state_inner {
         _validator_target_reward: u64,
         mut storage_charge: Balance<IOTA>,
         mut computation_reward: Balance<IOTA>,
+        mut _computation_charge_burned: u64,
         mut storage_rebate_amount: u64,
         mut _non_refundable_storage_fee_amount: u64,
         _reward_slashing_rate: u64,
