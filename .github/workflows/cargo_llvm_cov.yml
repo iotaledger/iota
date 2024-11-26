@@ -125,17 +125,16 @@ jobs:
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          base-path:  ${{ github.workspace }}
           path-to-lcov: target/lcov.info
           flag-name: nextest+simtest
           fail-on-error: true
 
-      - name: Upload coverage data to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          # no token required (https://docs.codecov.com/docs/codecov-tokens#uploading-without-a-token)
-          files: target/lcov.info
-          flags: nextest+simtest
-          disable_search: true
-          fail_ci_if_error: true
-          verbose: true
+      # - name: Upload coverage data to Codecov
+      #   uses: codecov/codecov-action@v5
+      #   with:
+      #     # TODO token required because of branch protection (https://docs.codecov.com/docs/codecov-tokens#uploading-without-a-token)
+      #     files: target/lcov.info
+      #     flags: nextest+simtest
+      #     disable_search: true
+      #     fail_ci_if_error: true
+      #     verbose: true
