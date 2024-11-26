@@ -6,7 +6,7 @@ import {
     TimeUnit,
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
-} from '../../index';
+} from '../../';
 
 export function useStakeTxnInfo(startEpoch?: string | number) {
     const startEarningRewardsEpoch =

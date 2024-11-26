@@ -94,7 +94,7 @@ export function StakeDialog({
         validateOnMount: true,
     });
 
-    const amount = formik.values.amount;
+    const amount = formik.values.amount || `${MIN_NUMBER_IOTA_TO_STAKE}`;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
@@ -110,7 +110,7 @@ export function StakeDialog({
         );
     }
 
-    const { data: newStakeData } = useNewStakeTransaction(
+    const { data: newStakeData, isLoading: isTransactionLoading } = useNewStakeTransaction(
         selectedValidator,
         amountWithoutDecimals,
         senderAddress,
@@ -176,7 +176,7 @@ export function StakeDialog({
             });
     }
 
-    function onSubmit(values: FormValues, { resetForm }: FormikHelpers<FormValues>) {
+    function onSubmit(_: FormValues, { resetForm }: FormikHelpers<FormValues>) {
         handleStake();
         resetForm();
     }
@@ -209,6 +209,7 @@ export function StakeDialog({
                             onBack={handleBack}
                             onStake={handleStake}
                             gasBudget={newStakeData?.gasBudget}
+                            isTransactionLoading={isTransactionLoading}
                         />
                     )}
                     {view === StakeDialogView.Unstake && stakedDetails && (

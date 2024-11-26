@@ -49,6 +49,7 @@ export function UnstakeView({
 
     const {
         totalStake: [tokenBalance],
+        totalStakeOriginal,
         epoch,
         systemDataResult,
         delegatedStakeDataResult,
@@ -68,7 +69,10 @@ export function UnstakeView({
 
     const delegationId = extendedStake?.status === 'Active' && extendedStake?.stakedIotaId;
 
-    const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + tokenBalance, IOTA_TYPE_ARG);
+    const [totalIota] = useFormatCoin(
+        BigInt(stakingReward || 0) + totalStakeOriginal,
+        IOTA_TYPE_ARG,
+    );
 
     const transaction = useMemo(
         () => createUnstakeTransaction(extendedStake.stakedIotaId),
