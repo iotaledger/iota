@@ -172,26 +172,6 @@ pub async fn indexer_wait_for_checkpoint(
     .expect("Timeout waiting for indexer to catchup to checkpoint");
 }
 
-/// Wait for the fullnode to catch up to the given checkpoint sequence number
-pub async fn fullnode_wait_for_checkpoint(client: &HttpClient, checkpoint_sequence_number: u64) {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            let Ok(checkpoint_seq_num) = client.get_latest_checkpoint_sequence_number().await
-            else {
-                continue;
-            };
-
-            if checkpoint_seq_num.into_inner() >= checkpoint_sequence_number {
-                break;
-            }
-
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-    })
-    .await
-    .expect("Timeout waiting for fullnode to catchup to checkpoint");
-}
-
 /// Wait for the indexer to catch up to the latest node checkpoint sequence
 /// number. Indexer starts storing data after checkpoint 0
 pub async fn indexer_wait_for_latest_checkpoint(

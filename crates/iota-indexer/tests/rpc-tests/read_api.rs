@@ -14,10 +14,7 @@ use iota_types::{
     error::IotaObjectResponseError,
 };
 
-use crate::common::{
-    ApiTestSetup, fullnode_wait_for_checkpoint, indexer_wait_for_checkpoint,
-    rpc_call_error_msg_matches,
-};
+use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, rpc_call_error_msg_matches};
 
 fn is_ascending(vec: &[u64]) -> bool {
     vec.windows(2).all(|window| window[0] <= window[1])
@@ -1161,12 +1158,6 @@ fn get_total_transaction_blocks() {
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, checkpoint).await;
-        // even tough when the indexer caught up with the desired checkpoint from the
-        // fullnode, sometimes when requesting the fullnode
-        // get_checkpoint(CheckpointId::SequenceNumber(checkpoint)) it can say that it
-        // does not exist, here we make sure that also the fullnode is synced
-        // with the desired checkpoint seq number
-        fullnode_wait_for_checkpoint(cluster.rpc_client(), checkpoint).await;
 
         let total_transaction_blocks = client.get_total_transaction_blocks().await.unwrap();
 
