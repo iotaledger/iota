@@ -49,9 +49,8 @@ interface StakeDialogProps {
     isOpen: boolean;
     handleClose: () => void;
     view: StakeDialogView;
-    setView?: (view: StakeDialogView) => void;
+    setView: (view: StakeDialogView) => void;
     stakedDetails?: ExtendedDelegatedStake | null;
-
     selectedValidator?: string;
     setSelectedValidator?: (validator: string) => void;
 }
@@ -128,7 +127,7 @@ export function StakeDialog({
     const validatorApy = rollingAverageApys?.[selectedValidator] ?? null;
 
     function handleBack(): void {
-        setView?.(StakeDialogView.SelectValidator);
+        setView(StakeDialogView.SelectValidator);
     }
 
     function handleValidatorSelect(validator: string): void {
@@ -137,16 +136,16 @@ export function StakeDialog({
 
     function selectValidatorHandleNext(): void {
         if (selectedValidator) {
-            setView?.(StakeDialogView.EnterAmount);
+            setView(StakeDialogView.EnterAmount);
         }
     }
 
     function detailsHandleUnstake() {
-        setView?.(StakeDialogView.Unstake);
+        setView(StakeDialogView.Unstake);
     }
 
     function detailsHandleStake() {
-        setView?.(StakeDialogView.SelectValidator);
+        setView(StakeDialogView.SelectValidator);
     }
 
     function handleStake(): void {
@@ -165,7 +164,7 @@ export function StakeDialog({
             },
             {
                 onSuccess: () => {
-                    setView?.(StakeDialogView.TransactionDetails);
+                    setView(StakeDialogView.TransactionDetails);
                     addNotification('Stake transaction has been sent');
                 },
                 onError: () => {
@@ -201,14 +200,13 @@ export function StakeDialog({
                             onNext={selectValidatorHandleNext}
                         />
                     )}
-                    {view === StakeDialogView.EnterAmount && validatorApy && (
+                    {view === StakeDialogView.EnterAmount && (
                         <EnterAmountView
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
                             onBack={handleBack}
                             onStake={handleStake}
                             gasBudget={newStakeData?.gasBudget}
-                            validatorApy={validatorApy}
                             isTransactionLoading={isTransactionLoading}
                         />
                     )}

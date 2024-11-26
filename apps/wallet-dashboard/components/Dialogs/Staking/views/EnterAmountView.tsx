@@ -2,14 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import {
-    useFormatCoin,
-    useBalance,
-    CoinFormat,
-    parseAmount,
-    useCoinMetadata,
-    ValidatorApyData,
-} from '@iota/core';
+import { useFormatCoin, useBalance, CoinFormat, parseAmount, useCoinMetadata } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
@@ -37,7 +30,6 @@ interface EnterAmountViewProps {
     showActiveStatus?: boolean;
     gasBudget?: string | number | null;
     handleClose: () => void;
-    validatorApy: ValidatorApyData;
     isTransactionLoading?: boolean;
 }
 
@@ -47,7 +39,6 @@ export function EnterAmountView({
     onStake,
     gasBudget = 0,
     handleClose,
-    validatorApy,
     isTransactionLoading,
 }: EnterAmountViewProps): JSX.Element {
     const coinType = IOTA_TYPE_ARG;
