@@ -80,7 +80,7 @@ module nft_marketplace::nft_marketplace {
     }
 
 
-  public fun set_price<T: key + store>(
+    public fun set_price<T: key + store>(
         kiosk: &mut Kiosk,
         cap: &KioskOwnerCap,
         item: T,
