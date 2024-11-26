@@ -41,5 +41,6 @@ export * from './useGasBudgetEstimation';
 export * from './useTransactionData';
 export * from './useGetStakingValidatorDetails';
 export * from './useCursorPagination';
+export * from './useTheme';
 
 export * from './stake';

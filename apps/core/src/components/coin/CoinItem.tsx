@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import React from 'react';
 import {
     Card,
     CardAction,
@@ -10,9 +11,10 @@ import {
     CardType,
     ImageType,
 } from '@iota/apps-ui-kit';
-import { CoinIcon, useFormatCoin, ImageIconSize } from '@iota/core';
+import { CoinIcon, ImageIconSize } from '../';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
+import { useFormatCoin } from '../../hooks';
 
 interface CoinItemProps {
     coinType: string;
@@ -23,7 +25,7 @@ interface CoinItemProps {
     usd?: number;
 }
 
-function CoinItem({
+export function CoinItem({
     coinType,
     balance,
     onClick,
@@ -37,7 +39,7 @@ function CoinItem({
     return (
         <Card type={CardType.Default} onClick={onClick}>
             <CardImage type={ImageType.BgTransparent}>
-                <div className="flex h-10 w-10 items-center justify-center rounded-full ">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10 dark:text-neutral-92">
                     <CoinIcon coinType={coinType} rounded size={ImageIconSize.Small} />
                 </div>
             </CardImage>
@@ -55,5 +57,3 @@ function CoinItem({
         </Card>
     );
 }
-
-export default CoinItem;

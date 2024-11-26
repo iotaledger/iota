@@ -30,10 +30,9 @@ mod sim_only_tests {
         // root object.
         let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
         let child_id = create_owned_child(&test_cluster, package_id).await;
-        let wrap_child_txn_digest = wrap_child(&test_cluster, package_id, object_id, child_id)
+        let wrap_child_txn_digest = *wrap_child(&test_cluster, package_id, object_id, child_id)
             .await
-            .transaction_digest()
-            .clone();
+            .transaction_digest();
 
         fullnode
             .with_async(|node| async {
@@ -46,7 +45,7 @@ mod sim_only_tests {
                 .unwrap();
 
                 // Wait until the above checkpoint is pruned.
-                let _ = timeout(
+                timeout(
                     Duration::from_secs(60),
                     wait_until_checkpoint_pruned(node, checkpoint),
                 )
@@ -80,14 +79,12 @@ mod sim_only_tests {
         // Next, we unwrap and delete the child object, as well as delete the root
         // object.
         let unwrap_delete_txn_digest =
-            unwrap_and_delete_child(&test_cluster, package_id, object_id)
+            *unwrap_and_delete_child(&test_cluster, package_id, object_id)
                 .await
-                .transaction_digest()
-                .clone();
-        let delete_root_obj_txn_digest = delete_object(&test_cluster, package_id, object_id)
+                .transaction_digest();
+        let delete_root_obj_txn_digest = *delete_object(&test_cluster, package_id, object_id)
             .await
-            .transaction_digest()
-            .clone();
+            .transaction_digest();
 
         fullnode
             .with_async(|node| async {
@@ -105,7 +102,7 @@ mod sim_only_tests {
                 .await
                 .unwrap();
 
-                let _ = timeout(
+                timeout(
                     Duration::from_secs(60),
                     wait_until_checkpoint_pruned(node, std::cmp::max(checkpoint1, checkpoint2)),
                 )
@@ -269,7 +266,7 @@ mod sim_only_tests {
             if let Some(seq) = node
                 .state()
                 .epoch_store_for_testing()
-                .get_transaction_checkpoint(&digest)
+                .get_transaction_checkpoint(digest)
                 .unwrap()
             {
                 return seq;
