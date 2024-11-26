@@ -1300,7 +1300,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "1",
+              "maxSupportedProtocolVersion": "2",
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
@@ -1310,12 +1310,12 @@
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
+                "fixed_base_fee": false,
                 "hardened_otw_check": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "rethrow_serialization_type_layout_errors": true,
-                "zklogin_auth": false,
-                "fixed_base_fee": true
+                "zklogin_auth": false
               },
               "attributes": {
                 "address_from_bytes_cost_base": {
@@ -1327,6 +1327,7 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "base_gas_price": null,
                 "base_tx_cost_fixed": {
                   "u64": "1000"
                 },
@@ -2076,7 +2077,7 @@
                 "types_is_one_time_witness_type_tag_cost_per_byte": {
                   "u64": "2"
                 },
-                "validator_subsidy": {
+                "validator_target_reward": {
                   "u64": "767000000000000"
                 },
                 "validator_validate_metadata_cost_base": {
@@ -8313,8 +8314,8 @@
           "protocolVersion",
           "referenceGasPrice",
           "safeMode",
-          "safeModeComputationRewards",
-          "safeModeComputationRewardsBurned",
+          "safeModeComputationCharges",
+          "safeModeComputationChargesBurned",
           "safeModeNonRefundableStorageFee",
           "safeModeStorageCharges",
           "safeModeStorageRebates",
@@ -8479,7 +8480,7 @@
             "description": "Whether the system is running in a downgraded safe mode due to a non-recoverable bug. This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can be reset once we are able to successfully execute advance_epoch.",
             "type": "boolean"
           },
-          "safeModeComputationRewards": {
+          "safeModeComputationCharges": {
             "description": "Amount of computation rewards accumulated (and not yet distributed) during safe mode.",
             "allOf": [
               {
@@ -8487,7 +8488,7 @@
               }
             ]
           },
-          "safeModeComputationRewardsBurned": {
+          "safeModeComputationChargesBurned": {
             "description": "Amount of burned computation rewards accumulated during safe mode.",
             "allOf": [
               {

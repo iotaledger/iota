@@ -4066,7 +4066,7 @@
             "type": "string",
             "format": "u64"
           },
-          "safe_mode_computation_rewards_burned": {
+          "safe_mode_computation_charges_burned": {
             "description": "Amount of burned computation rewards accumulated during safe mode.",
             "type": "string",
             "format": "u64"

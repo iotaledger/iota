@@ -622,6 +622,9 @@ IotaSystemStateV1
 IotaSystemStateV2
 	public struct
 	0x3::iota_system_state_inner
+SystemEpochInfoEventV1
+	public struct
+	0x3::iota_system_state_inner
 SystemEpochInfoEventV2
 	public struct
 	0x3::iota_system_state_inner
