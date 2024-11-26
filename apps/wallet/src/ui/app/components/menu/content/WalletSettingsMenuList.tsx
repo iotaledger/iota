@@ -28,15 +28,15 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
-import { Theme, useTheme, getCustomNetwork } from '@iota/core';
+import { useTheme, getCustomNetwork } from '@iota/core';
 
 function MenuList() {
-    const { theme, setTheme } = useTheme();
-
+    const { theme } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
     const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
+    const themeUrl = useNextMenuUrl(true, '/theme');
     const network = useAppSelector((state) => state.app.network);
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
@@ -75,15 +75,16 @@ function MenuList() {
         navigate(autoLockUrl);
     }
 
+    function onThemeClick() {
+        navigate(themeUrl);
+    }
+
     function onFAQClick() {
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 
-    function toggleTheme() {
-        const newTheme = theme === Theme.Light ? Theme.Dark : Theme.Light;
-        setTheme(newTheme);
-    }
     const autoLockSubtitle = handleAutoLockSubtitle();
+    const themeSubtitle = theme.charAt(0).toUpperCase() + theme.slice(1);
     const MENU_ITEMS = [
         {
             title: 'Network',
@@ -105,7 +106,8 @@ function MenuList() {
         {
             title: 'Themes',
             icon: <DarkMode />,
-            onClick: toggleTheme,
+            subtitle: themeSubtitle,
+            onClick: onThemeClick,
         },
         {
             title: 'Reset',
@@ -121,7 +123,7 @@ function MenuList() {
                     {MENU_ITEMS.map((item, index) => (
                         <Card key={index} type={CardType.Default} onClick={item.onClick}>
                             <CardImage type={ImageType.BgSolid}>
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 [&_svg]:h-5 [&_svg]:w-5">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
                                     <span className="text-2xl">{item.icon}</span>
                                 </div>
                             </CardImage>
