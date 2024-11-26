@@ -1,12 +1,12 @@
 .cookie-consent-theme {
     --cc-font-family: theme(fontFamily.sans);
     --cc-border-radius: theme(borderRadius.lg);
-    --cc-btn-primary-bg: theme(colors.hero.dark);
-    --cc-btn-primary-hover-bg: theme(colors.hero.DEFAULT);
-    --cc-btn-secondary-bg: theme(colors.gray.45);
-    --cc-btn-secondary-text: theme(colors.steel.darker);
-    --cc-btn-secondary-hover-text: theme(colors.steel.darker);
-    --cc-btn-border-radius: theme(borderRadius.xl);
+    --cc-btn-primary-bg: theme(colors.primary.30);
+    --cc-btn-primary-hover-bg: theme(colors.primary.30);
+    --cc-btn-secondary-bg: theme(colors.neutral.90);
+    --cc-btn-secondary-text: theme(colors.neutral.10);
+    --cc-btn-secondary-hover-text: theme(colors.neutral.6);
+    --cc-btn-border-radius: theme(borderRadius.full);
     --cc-consent-modal-box-shadow: theme(boxShadow.DEFAULT);
 }
 
@@ -15,11 +15,11 @@
 }
 
 #cc--main #c-ttl {
-    @apply text-heading6 text-steel-darker mb-2 font-semibold;
+    @apply text-body-lg text-neutral-60 mb-2 font-semibold;
 }
 
 #cc--main #c-txt {
-    @apply text-body text-steel-dark font-medium;
+    @apply text-body-md text-neutral-40 font-medium;
 }
 
 #cc--main #c-bns {
@@ -28,5 +28,5 @@
 
 #cc--main #c-p-bn,
 #cc--main #c-s-bn {
-    @apply text-body;
+    @apply text-body-md;
 }

@@ -139,10 +139,10 @@ export function NetworkSelector(): JSX.Element {
                         {!!network && data?.protocolVersion && binaryVersion ? (
                             <div className="bg-hero-darkest/5 rounded-b-lg">
                                 <div className="flex flex-col justify-between gap-1 px-4 py-3">
-                                    <div className="text-steel-dark text-body-sm font-medium">
+                                    <div className="text-neutral-40 text-body-sm font-medium">
                                         IOTA {selectedNetwork?.label ?? 'Custom RPC'}
                                     </div>
-                                    <div className="text-steel-dark text-body-sm font-medium">
+                                    <div className="text-neutral-40 text-body-sm font-medium">
                                         v{binaryVersion} (Protocol {data?.protocolVersion})
                                     </div>
                                 </div>
