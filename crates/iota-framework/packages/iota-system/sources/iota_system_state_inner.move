@@ -255,7 +255,7 @@ module iota_system::iota_system_state_inner {
         let IotaSystemStateV1 {
             epoch,
             protocol_version,
-            system_state_version,
+            system_state_version: _,
             iota_treasury_cap,
             validators,
             storage_fund,
@@ -276,7 +276,7 @@ module iota_system::iota_system_state_inner {
         IotaSystemStateV2 {
             epoch,
             protocol_version,
-            system_state_version,
+            system_state_version: 2,
             iota_treasury_cap,
             validators,
             storage_fund,

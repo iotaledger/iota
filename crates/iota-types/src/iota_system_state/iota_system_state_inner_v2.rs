@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
