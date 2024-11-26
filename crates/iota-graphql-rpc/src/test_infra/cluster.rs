@@ -74,6 +74,7 @@ pub async fn start_cluster(
         Some(data_ingestion_path),
         cancellation_token.clone(),
         None,
+        false,
     )
     .await;
 
@@ -139,6 +140,7 @@ pub async fn serve_executor(
         Some(data_ingestion_path),
         cancellation_token.clone(),
         Some(&graphql_connection_config.db_name()),
+        false,
     )
     .await;
 

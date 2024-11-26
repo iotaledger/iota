@@ -266,6 +266,7 @@ impl Cluster for LocalNewCluster {
                 ReaderWriterConfig::writer_mode(None),
                 data_ingestion_path.clone(),
                 None,
+                false,
             )
             .await;
 
@@ -276,6 +277,7 @@ impl Cluster for LocalNewCluster {
                 ReaderWriterConfig::reader_mode(indexer_address.to_string()),
                 data_ingestion_path,
                 None,
+                false,
             )
             .await;
         }

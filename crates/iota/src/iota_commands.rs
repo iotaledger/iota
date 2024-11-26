@@ -757,6 +757,7 @@ async fn start(
             ReaderWriterConfig::writer_mode(None),
             data_ingestion_path.clone(),
             None,
+            false,
         )
         .await;
         info!("Indexer in writer mode started");
@@ -768,6 +769,7 @@ async fn start(
             ReaderWriterConfig::reader_mode(indexer_address.to_string()),
             data_ingestion_path,
             None,
+            false,
         )
         .await;
         info!("Indexer in reader mode started");

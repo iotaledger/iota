@@ -46,6 +46,7 @@ pub async fn start_test_indexer<T: R2D2Connection + Send + 'static>(
     reader_writer_config: ReaderWriterConfig,
     data_ingestion_path: PathBuf,
     new_database: Option<&str>,
+    sync_from_rest_api: bool,
 ) -> (PgIndexerStore<T>, JoinHandle<Result<(), IndexerError>>) {
     start_test_indexer_impl(
         db_url,
@@ -56,6 +57,7 @@ pub async fn start_test_indexer<T: R2D2Connection + Send + 'static>(
         Some(data_ingestion_path),
         CancellationToken::new(),
         new_database,
+        sync_from_rest_api,
     )
     .await
 }
@@ -71,6 +73,7 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
     new_database: Option<&str>,
+    sync_from_rest_api: bool,
 ) -> (PgIndexerStore<T>, JoinHandle<Result<(), IndexerError>>) {
     let mut db_url = db_url.unwrap_or_else(|| {
         let pg_host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".into());
@@ -87,7 +90,7 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
     let mut config = IndexerConfig {
         db_url: Some(db_url.clone().into()),
         // Enable Rest Api checkpoint sync
-        remote_store_url: Some(format!("{}/api/v1", rpc_url)),
+        remote_store_url: sync_from_rest_api.then_some(format!("{}/api/v1", rpc_url)),
         rpc_client_url: rpc_url,
         reset_db: true,
         fullnode_sync_worker: true,

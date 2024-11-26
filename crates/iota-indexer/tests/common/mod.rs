@@ -129,6 +129,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         ReaderWriterConfig::writer_mode(None),
         temp.clone(),
         database_name,
+        true,
     )
     .await;
 
@@ -307,6 +308,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
         ReaderWriterConfig::writer_mode(None),
         data_ingestion_path,
         database_name,
+        false,
     )
     .await;
     (server_handle, pg_store, pg_handle)
