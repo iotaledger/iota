@@ -10,8 +10,8 @@ import {
     useTotalDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-    StakingStats,
     StakingCard,
+    useFormatCoin,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
@@ -25,9 +25,11 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     LoadingIndicator,
+    DisplayStats,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Info, Warning } from '@iota/ui-icons';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -49,7 +51,10 @@ export function ValidatorsCard() {
 
     // Total active stake for all Staked validators
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStake);
-
+    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin(
+        totalDelegatedStake,
+        IOTA_TYPE_ARG,
+    );
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
             return delegation.stakes.map((d) => ({
@@ -72,6 +77,7 @@ export function ValidatorsCard() {
     // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
+    const [totalDelegatedRewardsFormatted] = useFormatCoin(totalDelegatedRewards, IOTA_TYPE_ARG);
 
     const handleNewStake = () => {
         ampli.clickedStakeIota({
@@ -106,8 +112,16 @@ export function ValidatorsCard() {
     return (
         <div className="flex h-full w-full flex-col flex-nowrap">
             <div className="flex gap-xs py-md">
-                <StakingStats title="Your stake" balance={totalDelegatedStake} />
-                <StakingStats title="Earned" balance={totalDelegatedRewards} />
+                <DisplayStats
+                    label="Your stake"
+                    value={totalDelegatedStakeFormatted}
+                    supportingLabel={symbol}
+                />
+                <DisplayStats
+                    label="Earned"
+                    value={totalDelegatedRewardsFormatted}
+                    supportingLabel={symbol}
+                />
             </div>
             <Title title="In progress" size={TitleSize.Small} />
             <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">

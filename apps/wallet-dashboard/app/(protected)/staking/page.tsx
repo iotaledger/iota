@@ -8,6 +8,7 @@ import {
     Button,
     ButtonSize,
     ButtonType,
+    DisplayStats,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
@@ -26,13 +27,14 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
     StakingCard,
-    StakingStats,
+    useFormatCoin,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
 import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -60,6 +62,11 @@ function StakingDashboardPage(): JSX.Element {
     const extendedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
+    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin(
+        totalDelegatedStake,
+        IOTA_TYPE_ARG,
+    );
+    const [totalDelegatedRewardsFormatted] = useFormatCoin(totalDelegatedRewards, IOTA_TYPE_ARG);
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
@@ -100,8 +107,16 @@ function StakingDashboardPage(): JSX.Element {
             />
             <div className="flex h-full w-full flex-col flex-nowrap gap-md p-md--rs">
                 <div className="flex gap-xs">
-                    <StakingStats title="Your stake" balance={totalDelegatedStake} />
-                    <StakingStats title="Earned" balance={totalDelegatedRewards} />
+                    <DisplayStats
+                        label="Your stake"
+                        value={totalDelegatedStakeFormatted}
+                        supportingLabel={symbol}
+                    />
+                    <DisplayStats
+                        label="Earned"
+                        value={totalDelegatedRewardsFormatted}
+                        supportingLabel={symbol}
+                    />
                 </div>
                 <Title title="In progress" size={TitleSize.Small} />
                 <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
@@ -158,7 +173,9 @@ function StakingDashboardPage(): JSX.Element {
             )}
         </Panel>
     ) : (
-        <StartStaking />
+        <div className="flex h-[270px] p-lg">
+            <StartStaking />
+        </div>
     );
 }
 
