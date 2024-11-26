@@ -16,7 +16,6 @@ export function ExplorerLink({
     isExternal,
     ...getLinkProps
 }: React.PropsWithChildren<ExplorerLinkProps>): React.JSX.Element {
-    console.log('--- getLinkProps', getLinkProps);
     const getExplorerLink = useExplorerLinkGetter();
     const href = getExplorerLink(getLinkProps) ?? '#';
 

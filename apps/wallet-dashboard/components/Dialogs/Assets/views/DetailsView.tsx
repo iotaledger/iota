@@ -53,7 +53,7 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
 
     return (
         <Layout>
-            <Header title="Asset" onClose={handleClose} />
+            <Header title="Asset" onClose={handleClose} titleCentered />
             <LayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
@@ -70,7 +70,9 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
                     </ExplorerLink>
                     <div className="flex w-full flex-col gap-md">
                         <div className="flex flex-col gap-xxxs">
-                            <span className="text-title-lg text-neutral-10">{nftMeta?.name}</span>
+                            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+                                {nftMeta?.name}
+                            </span>
                             {nftMeta?.description ? (
                                 <span className="text-body-md text-neutral-60">
                                     {nftMeta?.description}

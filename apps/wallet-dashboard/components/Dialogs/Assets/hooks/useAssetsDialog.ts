@@ -9,7 +9,7 @@ export enum AssetsDialogView {
 }
 
 export function useAssetsDialog() {
-    const [view, setView] = React.useState<AssetsDialogView>(AssetsDialogView.Details);
+    const [view, setView] = React.useState<AssetsDialogView | undefined>(AssetsDialogView.Details);
 
     return {
         view,

@@ -108,13 +108,15 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                         }
                     />
                 </div>
-                <AssetsDialog
-                    view={view}
-                    setView={setView}
-                    isOpen={!!selectedAsset}
-                    handleClose={handleCloseDialog}
-                    asset={selectedAsset}
-                />
+                {view && (
+                    <AssetsDialog
+                        view={view}
+                        setView={setView}
+                        isOpen={!!selectedAsset}
+                        handleClose={handleCloseDialog}
+                        asset={selectedAsset}
+                    />
+                )}
             </div>
         </Panel>
     );
