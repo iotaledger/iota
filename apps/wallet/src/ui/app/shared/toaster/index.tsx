@@ -37,10 +37,8 @@ function getBottomSpace(pathname: string, isMenuVisible: boolean, isBottomNavSpa
         '/accounts/manage',
     ].includes(pathname);
 
-    const matchDynamicPaths = ['/dapp/connect'].some((path) => pathname.startsWith(path));
-
-    if (overlayWithActionButton || isBottomNavSpace || matchDynamicPaths) {
-        return '!bottom-20';
+    if (overlayWithActionButton || isBottomNavSpace) {
+        return '!bottom-16';
     }
 
     return '';
