@@ -95,7 +95,7 @@ npx vitest txn-builder.test.ts
 Troubleshooting:
 
 If you see errors like `ECONNRESET or "socket hang up"`, run `node -v` to make sure your node
-version is `v18.x.x`. Refer to this
+version is `v20.x.x`. Refer to this
 [guide](https://blog.logrocket.com/how-switch-node-js-versions-nvm/) to switch node version.
 
 Some more follow up here is if you used homebrew to install node, there could be multiple paths to
