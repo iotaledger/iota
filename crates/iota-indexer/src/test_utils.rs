@@ -86,11 +86,12 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
 
     let mut config = IndexerConfig {
         db_url: Some(db_url.clone().into()),
+        // Enable Rest Api checkpoint sync
+        remote_store_url: Some(format!("{}/api/v1", rpc_url)),
         rpc_client_url: rpc_url,
         reset_db: true,
         fullnode_sync_worker: true,
         rpc_server_worker: false,
-        remote_store_url: None,
         data_ingestion_path,
         ..Default::default()
     };

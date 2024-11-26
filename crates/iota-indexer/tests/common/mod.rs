@@ -114,7 +114,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
 ) -> (TestCluster, PgIndexerStore<PgConnection>, HttpClient) {
     let temp = tempdir().unwrap().into_path();
-    let mut builder = TestClusterBuilder::new().with_data_ingestion_dir(temp.clone());
+    let mut builder = TestClusterBuilder::new();
 
     if let Some(builder_modifier) = builder_modifier {
         builder = builder_modifier(builder);
