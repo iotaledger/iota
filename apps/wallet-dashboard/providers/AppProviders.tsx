@@ -26,6 +26,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
             <QueryClientProvider client={queryClient}>
                 <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
                     <WalletProvider
+                        autoConnect={true}
                         theme={[
                             {
                                 variables: lightTheme,
