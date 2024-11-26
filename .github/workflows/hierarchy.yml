@@ -178,9 +178,7 @@ jobs:
     secrets: inherit
 
   move-ide-tests:
-    if: (!cancelled() && !failure()) && needs.diff.outputs.isMoveIDE == 'true'
-    # TODO: use this line
-    # if: (!cancelled() && !failure()) && needs.diff.outputs.isMoveIDE == 'true' && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure()) && needs.diff.outputs.isMoveIDE == 'true' && github.event.pull_request.draft == false
     needs:
       - diff
       - dprint-format
