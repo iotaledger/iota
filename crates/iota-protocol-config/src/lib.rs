@@ -37,10 +37,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 4 additional "fake" versions in simulator builds so that we can
+    // We create 3 additional "fake" versions in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 4);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 3);
 
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -1159,8 +1159,8 @@ impl ProtocolConfig {
         #[cfg(msim)]
         {
             // populate the fake simulator version # with a different base tx cost.
-            if version == ProtocolVersion::MAX_ALLOWED {
-                let mut config = Self::get_for_version_impl(version - 1, Chain::Unknown);
+            if version > ProtocolVersion::MAX {
+                let mut config = Self::get_for_version_impl(ProtocolVersion::MAX, Chain::Unknown);
                 config.base_tx_cost_fixed = Some(config.base_tx_cost_fixed() + 1000);
                 return config;
             }
@@ -1631,11 +1631,6 @@ impl ProtocolConfig {
             cfg.feature_flags.passkey_auth = true;
         }
 
-        // Ignore this check for the fake versions for
-        // `test_choose_next_system_packages`. TODO: remove the never_loop
-        // attribute when the version 2 is added.
-        #[allow(clippy::never_loop)]
-        #[cfg(not(msim))]
         for cur in 2..=version.0 {
             match cur {
                 1 => unreachable!(),
