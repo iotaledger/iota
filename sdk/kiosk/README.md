@@ -9,7 +9,7 @@ This Kiosk SDK library provides different utilities to interact/create/manage a
 
 [You can read the documentation and see examples by clicking here.](https://docs.iota.org/references/ts-sdk/kiosk)
 
-## Install from NPM
+## Install
 
 To use the Kiosk SDK in your project, run the following command in your project root:
 
@@ -19,7 +19,7 @@ npm i @iota/kiosk @iota/iota-sdk
 
 To use the Kiosk SDK, you must create a [KioskClient](https://docs.iota.org/references/ts-sdk/kiosk/kiosk-client/introduction) instance.
 
-## Creating a kiosk client
+## Setup
 
 You can follow the example to create a KioskClient. The client currently supports MAINNET and TESTNET. View next section for usage in other networks.
 
