@@ -8,8 +8,7 @@ The default configuration limits scope to Iota framework packages in `crates/iot
 
 - `move-stdlib` — [address `0x1`](https://explorer.iota.org/object/0x1)
 - `iota-framework` — [address `0x2`](https://explorer.iota.org/object/0x2)
-- `iota-system` — [address `0x3`](https://explorer.iota.org/object/0x2)
-- `deepbook` — [address `0xdee9`](https://explorer.iota.org/object/0xdee9)
+- `iota-system` — [address `0x3`](https://explorer.iota.org/object/0x3)
 
 See examples below for requesting source from the server.
 
@@ -30,10 +29,9 @@ A sample configuration entry is as follows:
 source = "Repository"
 [packages.values]
 repository = "https://github.com/iotaledger/iota"
-branch = "framework/mainnet"
+branch = "mainnet"
 network = "mainnet"
 packages = [
-  { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
   { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
   { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
   { path = "crates/iota-framework/packages/iota-system", watch = "0x3" },
@@ -81,10 +79,10 @@ On occasion `https://source.iota.org` may return a `502` response or experience 
 
 The source service may experience transient downtime for at least the following reasons:
 
-- RPC event subscription disconnection or instability. The IOTA source service actively monitors on-chain upgrade events to ensure it always reports accurate verified source. If RPC subscription is lost, the service will attempt to regain the connection. During the time of disconnection the service will not respond with verified source in order to preserve integrity. This behavior is especially important for Iota framework packages that are upgraded _in-place_ (e.g., `0x1`, `0x2`, `0x3`, and `0xdee9`) to ensure integrity. This is usually a transient issue.
+- RPC event subscription disconnection or instability. The IOTA source service actively monitors on-chain upgrade events to ensure it always reports accurate verified source. If RPC subscription is lost, the service will attempt to regain the connection. During the time of disconnection the service will not respond with verified source in order to preserve integrity. This behavior is especially important for Iota framework packages that are upgraded _in-place_ (e.g., `0x1`, `0x2`, and `0x3`) to ensure integrity. This is usually a transient issue.
 
 - The on-chain package content has changed (e.g., due to a protocol upgrade) and the source repository does not yet reflect the new on-chain bytecode.
-  - This can happen when the branch containing we track for the source-to-be-verified as diverged from on-chain bytecode, or does not yet correspond to the new on-chain bytecode. This is especially the case for Iota framework packages that are upgraded _in-place_ at protocol upgrades (e.g., `0x1`, `0x2`, `0x3`, and `0xdee9`).
+  - This can happen when the branch containing we track for the source-to-be-verified as diverged from on-chain bytecode, or does not yet correspond to the new on-chain bytecode. This is especially the case for Iota framework packages that are upgraded _in-place_ at protocol upgrades (e.g., `0x1`, `0x2`, and `0x3`).
     - While usually transient, there may be extended periods of mismatched source and bytecode due to Iota's release process.
 
 - A new version of Move compiler is released, requiring service redeployment.

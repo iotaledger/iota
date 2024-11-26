@@ -262,6 +262,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_get_eth_contracts_to_watch() {
         telemetry_subscribers::init_for_testing();
         let temp_dir = tempfile::tempdir().unwrap();
@@ -316,6 +317,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_get_iota_modules_to_watch() {
         telemetry_subscribers::init_for_testing();
         let temp_dir = tempfile::tempdir().unwrap();
@@ -402,6 +404,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_starting_bridge_node() {
         telemetry_subscribers::init_for_testing();
         let bridge_test_cluster = setup().await;
@@ -452,6 +455,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_starting_bridge_node_with_client() {
         telemetry_subscribers::init_for_testing();
         let bridge_test_cluster = setup().await;
@@ -517,6 +521,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_starting_bridge_node_with_client_and_separate_client_key() {
         telemetry_subscribers::init_for_testing();
         let bridge_test_cluster = setup().await;

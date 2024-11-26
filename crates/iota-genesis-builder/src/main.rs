@@ -28,7 +28,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Tool for migrating Iota and Shimmer Hornet full-snapshot files")]
+#[clap(about = "Tool for migrating Iota Hornet full-snapshot file")]
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
@@ -41,13 +41,6 @@ enum Snapshot {
     #[clap(about = "Migrate an Iota Hornet full-snapshot file")]
     Iota {
         #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
-        snapshot_path: String,
-        #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
-        target_network: MigrationTargetNetwork,
-    },
-    #[clap(about = "Migrate a Shimmer Hornet full-snapshot file")]
-    Shimmer {
-        #[clap(long, help = "Path to the Shimmer Hornet full-snapshot file")]
         snapshot_path: String,
         #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
         target_network: MigrationTargetNetwork,
@@ -68,10 +61,6 @@ fn main() -> Result<()> {
             snapshot_path,
             target_network,
         } => (snapshot_path, target_network, CoinType::Iota),
-        Snapshot::Shimmer {
-            snapshot_path,
-            target_network,
-        } => (snapshot_path, target_network, CoinType::Shimmer),
     };
 
     // Start the Hornet snapshot parser
@@ -82,7 +71,6 @@ fn main() -> Result<()> {
     };
     let total_supply = match coin_type {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
-        CoinType::Shimmer => snapshot_parser.total_supply()?,
     };
 
     // Prepare the migration using the parser output stream
@@ -98,12 +86,6 @@ fn main() -> Result<()> {
     let object_snapshot_writer = BufWriter::new(output_file);
 
     match coin_type {
-        CoinType::Shimmer => {
-            // Run the migration and write the objects snapshot
-            itertools::process_results(snapshot_parser.outputs(), |outputs| {
-                migration.run(outputs, object_snapshot_writer)
-            })??;
-        }
         CoinType::Iota => {
             struct MergingIterator<I> {
                 unlocked_address_balances: BTreeMap<Address, OutputHeaderWithBalance>,

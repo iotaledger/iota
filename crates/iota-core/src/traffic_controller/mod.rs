@@ -22,7 +22,10 @@ use iota_metrics::spawn_monitored_task;
 use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig, Weight};
 use prometheus::IntGauge;
 use rand::Rng;
-use tokio::sync::{mpsc, mpsc::error::TrySendError};
+use tokio::{
+    sync::{mpsc, mpsc::error::TrySendError},
+    time,
+};
 use tracing::{debug, error, info, trace, warn};
 
 use self::metrics::TrafficControllerMetrics;
@@ -687,6 +690,10 @@ impl TrafficSim {
         let mut time_blocked_start = Instant::now();
         let start = Instant::now();
 
+        // we use ticker instead of sleep to be as close to the target TPS as possible,
+        let sleep_time = Duration::from_micros(1_000_000 / per_client_tps as u64);
+        let mut interval_ticker = time::interval(sleep_time);
+
         while start.elapsed() < duration {
             let client = Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, task_num)));
             let allowed = controller.check(&client, &None).await;
@@ -715,7 +722,8 @@ impl TrafficSim {
                 num_blocked += 1;
             }
             num_requests += 1;
-            tokio::time::sleep(Duration::from_micros(1_000_000 / per_client_tps as u64)).await;
+
+            interval_ticker.tick().await;
         }
         TrafficSimMetrics {
             num_requests,

@@ -10,14 +10,14 @@ use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 
 use crate::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
     committee::EpochId,
     error::{IotaError, IotaResult},
     inner_temporary_store::WrittenObjects,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
-        get_module, get_module_by_id, load_package_object_from_object_store,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
+        get_module_by_id, load_package_object_from_object_store,
     },
     transaction::{
         InputObjectKind, InputObjects, ObjectReadResult, Transaction, TransactionDataAPI,
@@ -84,15 +84,6 @@ impl ChildObjectResolver for InMemoryStorage {
             return Ok(None);
         }
         Ok(Some(recv_object))
-    }
-}
-
-impl ParentSync for InMemoryStorage {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        _object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        unreachable!("Should not be called for InMemoryStorage as it's deprecated.")
     }
 }
 

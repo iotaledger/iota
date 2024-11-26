@@ -66,7 +66,7 @@ fn create_bag_with_pt() {
     // * CoinManager
     // * CoinManagerTreasuryCap
     // * The total supply native token coin
-    // * The coin held by the foundry which can be a gas coin or a smr coin
+    // * The coin held by the foundry which is a gas coin
     assert_eq!(executor.store().objects().len() - object_count, 5);
     assert!(executor.native_tokens().get(&foundry_id.into()).is_some());
     let initial_supply_coin_object = executor

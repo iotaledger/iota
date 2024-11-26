@@ -2,6 +2,8 @@
 description: Learn how to upgrade your packages on the IOTA network while maintaining their immutable properties.
 ---
 import AutomatedAddressManagement from '../../../../_snippets/automated-address-management.mdx'
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/move-overview/package-upgrades/upgrade.json';
 
 # Managing Package Upgrades
 
@@ -627,3 +629,5 @@ iota_package = "<ORIGINAL-PACKAGE-ID>"
 
 * The `iota_package` address in the `[addresses]` section should always point back to the original package ID after an upgrade.
 * Before running any subsequent upgrade commands, always set the `iota_package` address to `0x0` in the `[addresses]` section. This ensures the validator assigns a new ID for the upgrade.
+
+<Quiz questions={questions} />

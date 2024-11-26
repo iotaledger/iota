@@ -67,7 +67,7 @@ _Resource Reccomendations_
 
 ### Containers
 
-**iota-indexer-writer** - Indexer writer syncs and indexes iota checkpoint data into a Postgres database. Checkpoint data can be pulled from a fullnode or a cloud provider hosted bucket. More info and available buckets can be found in iota [doc site](https://wiki.iota.org/guides/developer/advanced/custom-indexer#remote-reader).
+**iota-indexer-writer** - Indexer writer syncs and indexes iota checkpoint data into a Postgres database. Checkpoint data can be pulled from a fullnode or a cloud provider hosted bucket. More info and available buckets can be found in iota [doc site](https://docs.iota.org/developer/advanced/custom-indexer#remote-reader).
 
 ### Resource Recommendations
 

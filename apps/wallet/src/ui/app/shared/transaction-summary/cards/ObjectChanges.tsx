@@ -62,7 +62,7 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                         }
                     />
                     <div className="flex flex-row items-center gap-xxs pr-md">
-                        <Badge type={BadgeType.PrimarySoft} label={typeName} />
+                        <Badge type={BadgeType.Neutral} label={typeName} />
                         {change.objectId && (
                             <KeyValueInfo
                                 keyText="Package"
@@ -81,7 +81,7 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                 </div>
             )}
         >
-            <div className="flex flex-col gap-y-sm px-md">
+            <div className="flex flex-col gap-y-sm px-md pr-10">
                 <KeyValueInfo
                     keyText="Package"
                     value={
@@ -93,7 +93,6 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                             {formatAddress(packageId)}
                         </ExplorerLink>
                     }
-                    fullwidth
                 />
 
                 <KeyValueInfo
@@ -107,7 +106,6 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                             {moduleName}
                         </ExplorerLink>
                     }
-                    fullwidth
                 />
                 <KeyValueInfo
                     keyText="Type"
@@ -120,7 +118,6 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                             {typeName}
                         </ExplorerLink>
                     }
-                    fullwidth
                 />
             </div>
         </Collapsible>

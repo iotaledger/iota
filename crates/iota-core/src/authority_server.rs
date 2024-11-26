@@ -23,13 +23,11 @@ use iota_types::{
     error::*,
     fp_ensure,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
-    },
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-        HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
+        HandleCertificateRequestV1, HandleCertificateResponseV1,
+        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
         SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
         TransactionInfoResponse,
@@ -38,7 +36,6 @@ use iota_types::{
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
     transaction::*,
 };
-use narwhal_worker::LazyNarwhalClient;
 use nonempty::{NonEmpty, nonempty};
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -57,6 +54,7 @@ use crate::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    mysticeti_adapter::LazyMysticetiClient,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, policies::TrafficTally,
     },
@@ -127,9 +125,8 @@ impl AuthorityServer {
 
     /// Creates a new `AuthorityServer` for testing.
     pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
-        let consensus_address = new_local_tcp_address_for_testing();
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyNarwhalClient::new(consensus_address)),
+            Arc::new(LazyMysticetiClient::new()),
             state.name,
             Arc::new(ConnectionMonitorStatusForTests {}),
             100_000,
@@ -137,7 +134,6 @@ impl AuthorityServer {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
-            state.epoch_store_for_testing().protocol_config().clone(),
         ));
         Self::new_for_test_with_consensus_adapter(state, consensus_adapter)
     }
@@ -364,9 +360,9 @@ impl ValidatorService {
     pub async fn execute_certificate_for_testing(
         &self,
         cert: CertifiedTransaction,
-    ) -> Result<tonic::Response<HandleCertificateResponseV2>, tonic::Status> {
-        let request = make_tonic_request_for_testing(cert);
-        self.handle_certificate_v2(request).await
+    ) -> Result<tonic::Response<HandleCertificateResponseV1>, tonic::Status> {
+        let request = make_tonic_request_for_testing(HandleCertificateRequestV1::new(cert));
+        self.handle_certificate_v1(request).await
     }
 
     /// Handles a `Transaction` request for benchmarking.
@@ -469,7 +465,7 @@ impl ValidatorService {
         _include_auxiliary_data: bool,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         wait_for_effects: bool,
-    ) -> Result<(Option<Vec<HandleCertificateResponseV3>>, Weight), tonic::Status> {
+    ) -> Result<(Option<Vec<HandleCertificateResponseV1>>, Weight), tonic::Status> {
         // Validate if cert can be executed
         // Fullnode does not serve handle_certificate call.
         fp_ensure!(
@@ -523,8 +519,8 @@ impl ValidatorService {
                 };
 
                 return Ok((
-                    Some(vec![HandleCertificateResponseV3 {
-                        effects: signed_effects.into_inner(),
+                    Some(vec![HandleCertificateResponseV1 {
+                        signed_effects: signed_effects.into_inner(),
                         events,
                         input_objects: None,
                         output_objects: None,
@@ -650,8 +646,8 @@ impl ValidatorService {
                 let signed_effects = self.state.sign_effects(effects, epoch_store)?;
                 epoch_store.insert_tx_cert_sig(certificate.digest(), certificate.auth_sig())?;
 
-                Ok::<_, IotaError>(HandleCertificateResponseV3 {
-                    effects: signed_effects.into_inner(),
+                Ok::<_, IotaError>(HandleCertificateResponseV1 {
+                    signed_effects: signed_effects.into_inner(),
                     events,
                     input_objects,
                     output_objects,
@@ -705,51 +701,17 @@ impl ValidatorService {
         })
     }
 
-    async fn handle_certificate_v2_impl(
+    async fn handle_certificate_v1_impl(
         &self,
-        request: tonic::Request<CertifiedTransaction>,
-    ) -> WrappedServiceResponse<HandleCertificateResponseV2> {
-        let epoch_store = self.state.load_epoch_store_one_call_per_task();
-        let certificate = request.into_inner();
-        certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
-
-        let span = error_span!("handle_certificate", tx_digest = ?certificate.digest());
-        self.handle_certificates(
-            nonempty![certificate],
-            true,
-            false,
-            false,
-            false,
-            &epoch_store,
-            true,
-        )
-        .instrument(span)
-        .await
-        .map(|(resp, spam_weight)| {
-            (
-                tonic::Response::new(
-                    resp.expect(
-                        "handle_certificate should not return none with wait_for_effects=true",
-                    )
-                    .remove(0)
-                    .into(),
-                ),
-                spam_weight,
-            )
-        })
-    }
-
-    async fn handle_certificate_v3_impl(
-        &self,
-        request: tonic::Request<HandleCertificateRequestV3>,
-    ) -> WrappedServiceResponse<HandleCertificateResponseV3> {
+        request: tonic::Request<HandleCertificateRequestV1>,
+    ) -> WrappedServiceResponse<HandleCertificateResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let request = request.into_inner();
         request
             .certificate
             .validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
-        let span = error_span!("handle_certificate_v3", tx_digest = ?request.certificate.digest());
+        let span = error_span!("handle_certificate_v1", tx_digest = ?request.certificate.digest());
         self.handle_certificates(
             nonempty![request.certificate],
             request.include_events,
@@ -780,21 +742,6 @@ impl ValidatorService {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> Result<(), tonic::Status> {
         let protocol_config = epoch_store.protocol_config();
-        let node_config = &self.state.config;
-
-        // Soft Bundle MUST be enabled both in protocol config and local node config.
-        //
-        // The local node config is by default enabled, but can be turned off by the
-        // node operator. This acts an extra safety measure where a validator
-        // node have the choice to turn this feature off, without having to
-        // upgrade the entire network.
-        fp_ensure!(
-            protocol_config.soft_bundle() && node_config.enable_soft_bundle,
-            IotaError::UnsupportedFeature {
-                error: "Soft Bundle".to_string()
-            }
-            .into()
-        );
 
         // Enforce these checks per [SIP-19](https://github.com/sui-foundation/sips/blob/main/sips/sip-19.md):
         // - All certs must access at least one shared object.
@@ -816,14 +763,14 @@ impl ValidatorService {
             fp_ensure!(
                 certificate.contains_shared_object(),
                 IotaError::UserInput {
-                    error: UserInputError::NoSharedObjectError { digest: tx_digest }
+                    error: UserInputError::NoSharedObject { digest: tx_digest }
                 }
                 .into()
             );
             fp_ensure!(
                 !self.state.is_tx_already_executed(&tx_digest)?,
                 IotaError::UserInput {
-                    error: UserInputError::AlreadyExecutedError { digest: tx_digest }
+                    error: UserInputError::AlreadyExecuted { digest: tx_digest }
                 }
                 .into()
             );
@@ -831,7 +778,7 @@ impl ValidatorService {
                 fp_ensure!(
                     gas == certificate.gas_price(),
                     IotaError::UserInput {
-                        error: UserInputError::GasPriceMismatchError {
+                        error: UserInputError::GasPriceMismatch {
                             digest: tx_digest,
                             expected: gas,
                             actual: certificate.gas_price()
@@ -852,7 +799,7 @@ impl ValidatorService {
         fp_ensure!(
             !epoch_store.is_any_tx_certs_consensus_message_processed(certificates.iter())?,
             IotaError::UserInput {
-                error: UserInputError::CeritificateAlreadyProcessed
+                error: UserInputError::CertificateAlreadyProcessed
             }
             .into()
         );
@@ -860,10 +807,10 @@ impl ValidatorService {
         Ok(())
     }
 
-    async fn handle_soft_bundle_certificates_v3_impl(
+    async fn handle_soft_bundle_certificates_v1_impl(
         &self,
-        request: tonic::Request<HandleSoftBundleCertificatesRequestV3>,
-    ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV3> {
+        request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
+    ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let client_addr = if self.client_id_source.is_none() {
             self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
@@ -873,7 +820,7 @@ impl ValidatorService {
         let request = request.into_inner();
 
         let certificates = NonEmpty::from_vec(request.certificates)
-            .ok_or_else(|| IotaError::NoCertificateProvidedError)?;
+            .ok_or_else(|| IotaError::NoCertificateProvided)?;
         for certificate in &certificates {
             // We need to check this first because we haven't verified the cert signature.
             certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
@@ -895,7 +842,7 @@ impl ValidatorService {
                 .collect::<Vec<_>>()
                 .join(", ")
         );
-        let span = error_span!("handle_soft_bundle_certificates_v3");
+        let span = error_span!("handle_soft_bundle_certificates_v1");
         self.handle_certificates(
             certificates,
             request.include_events,
@@ -909,7 +856,7 @@ impl ValidatorService {
         .await
         .map(|(resp, spam_weight)| {
             (
-                tonic::Response::new(HandleSoftBundleCertificatesResponseV3 {
+                tonic::Response::new(HandleSoftBundleCertificatesResponseV1 {
                     responses: resp.unwrap_or_default(),
                 }),
                 spam_weight,
@@ -941,15 +888,6 @@ impl ValidatorService {
     ) -> WrappedServiceResponse<CheckpointResponse> {
         let request = request.into_inner();
         let response = self.state.handle_checkpoint_request(&request)?;
-        Ok((tonic::Response::new(response), Weight::one()))
-    }
-
-    async fn checkpoint_v2_impl(
-        &self,
-        request: tonic::Request<CheckpointRequestV2>,
-    ) -> WrappedServiceResponse<CheckpointResponseV2> {
-        let request = request.into_inner();
-        let response = self.state.handle_checkpoint_request_v2(&request)?;
         Ok((tonic::Response::new(response), Weight::one()))
     }
 
@@ -1184,26 +1122,18 @@ impl Validator for ValidatorService {
         .unwrap()
     }
 
-    /// Handles a `CertifiedTransaction` request.
-    async fn handle_certificate_v2(
+    async fn handle_certificate_v1(
         &self,
-        request: tonic::Request<CertifiedTransaction>,
-    ) -> Result<tonic::Response<HandleCertificateResponseV2>, tonic::Status> {
-        handle_with_decoration!(self, handle_certificate_v2_impl, request)
+        request: tonic::Request<HandleCertificateRequestV1>,
+    ) -> Result<tonic::Response<HandleCertificateResponseV1>, tonic::Status> {
+        handle_with_decoration!(self, handle_certificate_v1_impl, request)
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        request: tonic::Request<HandleCertificateRequestV3>,
-    ) -> Result<tonic::Response<HandleCertificateResponseV3>, tonic::Status> {
-        handle_with_decoration!(self, handle_certificate_v3_impl, request)
-    }
-
-    async fn handle_soft_bundle_certificates_v3(
-        &self,
-        request: tonic::Request<HandleSoftBundleCertificatesRequestV3>,
-    ) -> Result<tonic::Response<HandleSoftBundleCertificatesResponseV3>, tonic::Status> {
-        handle_with_decoration!(self, handle_soft_bundle_certificates_v3_impl, request)
+        request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
+    ) -> Result<tonic::Response<HandleSoftBundleCertificatesResponseV1>, tonic::Status> {
+        handle_with_decoration!(self, handle_soft_bundle_certificates_v1_impl, request)
     }
 
     /// Handles an `ObjectInfoRequest` request.
@@ -1228,14 +1158,6 @@ impl Validator for ValidatorService {
         request: tonic::Request<CheckpointRequest>,
     ) -> Result<tonic::Response<CheckpointResponse>, tonic::Status> {
         handle_with_decoration!(self, checkpoint_impl, request)
-    }
-
-    /// Handles a `CheckpointRequestV2` request.
-    async fn checkpoint_v2(
-        &self,
-        request: tonic::Request<CheckpointRequestV2>,
-    ) -> Result<tonic::Response<CheckpointResponseV2>, tonic::Status> {
-        handle_with_decoration!(self, checkpoint_v2_impl, request)
     }
 
     /// Gets the `IotaSystemState` response.

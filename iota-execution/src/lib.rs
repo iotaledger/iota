@@ -24,10 +24,8 @@ pub fn executor(
     silent: bool,
     enable_profiler: Option<PathBuf>,
 ) -> IotaResult<Arc<dyn Executor + Send + Sync>> {
-    let version = protocol_config.execution_version_as_option().unwrap_or(0);
+    let version = protocol_config.execution_version_as_option().unwrap_or(1);
     Ok(match version {
-        0 => panic!("TODO: v0 cut needs to be created and integrated here"),
-
         1 => Arc::new(latest::Executor::new(
             protocol_config,
             silent,
@@ -43,10 +41,9 @@ pub fn verifier<'m>(
     for_signing: bool,
     metrics: &'m Arc<BytecodeVerifierMetrics>,
 ) -> Box<dyn Verifier + 'm> {
-    let version = protocol_config.execution_version_as_option().unwrap_or(0);
+    let version = protocol_config.execution_version_as_option().unwrap_or(1);
     let config = protocol_config.verifier_config(for_signing);
     match version {
-        0 => panic!("TODO: v0 cut needs to be created and integrated here"),
         1 => Box::new(latest::Verifier::new(config, metrics)),
         v => panic!("Unsupported execution version {v}"),
     }

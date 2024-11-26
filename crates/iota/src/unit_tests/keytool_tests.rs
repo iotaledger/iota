@@ -153,8 +153,11 @@ async fn test_iota_operations_config() {
     // This is the hardcoded keystore in iota-operation: https://github.com/iotaledger/iota-operations/blob/af04c9d3b61610dbb36401aff6bef29d06ef89f8/docker/config/generate/static/iota.keystore
     // If this test fails, address hardcoded in iota-operations is likely needed be
     // updated.
-    let kp = IotaKeyPair::decode_base64("ANRj4Rx5FZRehqwrctiLgZDPrY/3tI5+uJLCdaXPCj6C").unwrap();
-    let contents = vec![kp.encode_base64()];
+    let kp = IotaKeyPair::decode(
+        "iotaprivkey1qr2x8cgu0y2egh5x4s4h9kytsxgvltv0776gul4cjtp8tfw0pglgyye70lu",
+    )
+    .unwrap();
+    let contents = vec![kp.encode().unwrap()];
     let res = std::fs::write(path, serde_json::to_string_pretty(&contents).unwrap());
     assert!(res.is_ok());
     let read = FileBasedKeystore::new(&path1);
@@ -170,8 +173,11 @@ async fn test_iota_operations_config() {
     // updated.
     let path2 = temp_dir.path().join("iota-benchmark.keystore");
     let path3 = path2.clone();
-    let kp = IotaKeyPair::decode_base64("APCWxPNCbgGxOYKeMfPqPmXmwdNVyau9y4IsyBcmC14A").unwrap();
-    let contents = vec![kp.encode_base64()];
+    let kp = IotaKeyPair::decode(
+        "iotaprivkey1qrcfd38ngfhqrvfes20rrul28ej7dswn2hy6h0wtsgkvs9expd0qqy38y3q",
+    )
+    .unwrap();
+    let contents = vec![kp.encode().unwrap()];
     let res = std::fs::write(path2, serde_json::to_string_pretty(&contents).unwrap());
     assert!(res.is_ok());
     let read = FileBasedKeystore::new(&path3);
@@ -191,10 +197,10 @@ async fn test_load_keystore_err() {
     // write encoded AuthorityKeyPair without flag byte to file
     let kp: AuthorityKeyPair = get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
     let contents = kp.encode_base64();
-    let res = std::fs::write(path, contents);
+    let res = std::fs::write(path, serde_json::to_string(&[contents]).unwrap());
     assert!(res.is_ok());
 
-    // cannot load keypair due to missing flag
+    // cannot load keypair due to wrong format
     assert!(FileBasedKeystore::new(&path2).is_err());
 }
 

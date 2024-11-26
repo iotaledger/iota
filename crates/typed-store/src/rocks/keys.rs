@@ -38,7 +38,7 @@ impl<'a, K: DeserializeOwned> Iterator for Keys<'a, K> {
         } else {
             match self.db_iter.status() {
                 Ok(_) => None,
-                Err(err) => Some(Err(TypedStoreError::RocksDBError(format!("{err}")))),
+                Err(err) => Some(Err(TypedStoreError::RocksDB(format!("{err}")))),
             }
         }
     }

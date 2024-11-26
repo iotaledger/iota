@@ -6,8 +6,8 @@ use async_graphql::*;
 use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeSystemStateSummary;
 
 use crate::types::{
-    big_int::BigInt, gas::GasCostSummary, safe_mode::SafeMode, storage_fund::StorageFund,
-    system_parameters::SystemParameters, uint53::UInt53,
+    big_int::BigInt, gas::GasCostSummary, iota_address::IotaAddress, safe_mode::SafeMode,
+    storage_fund::StorageFund, system_parameters::SystemParameters, uint53::UInt53,
 };
 
 #[derive(Clone, Debug)]
@@ -39,6 +39,8 @@ impl SystemStateSummary {
             enabled: Some(self.native.safe_mode),
             gas_summary: Some(GasCostSummary {
                 computation_cost: self.native.safe_mode_computation_rewards,
+                // All computation costs are burned in protocol v1.
+                computation_cost_burned: self.native.safe_mode_computation_rewards,
                 storage_cost: self.native.safe_mode_storage_charges,
                 storage_rebate: self.native.safe_mode_storage_rebates,
                 non_refundable_storage_fee: self.native.safe_mode_non_refundable_storage_fee,
@@ -57,6 +59,11 @@ impl SystemStateSummary {
     /// The total IOTA supply.
     async fn iota_total_supply(&self) -> Option<u64> {
         Some(self.native.iota_total_supply)
+    }
+
+    /// The treasury-cap id.
+    async fn iota_treasury_cap_id(&self) -> Option<IotaAddress> {
+        Some(self.native.iota_treasury_cap_id.into())
     }
 
     /// Details of the system that are decided during genesis.

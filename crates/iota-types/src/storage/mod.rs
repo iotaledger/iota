@@ -124,17 +124,12 @@ pub enum MarkerValue {
 
 /// DeleteKind together with the old sequence number prior to the deletion, if
 /// available. For normal deletion and wrap, we always will consult the object
-/// store to obtain the old sequence number. For UnwrapThenDelete however, in
-/// the old protocol where simplified_unwrap_then_delete is false,
-/// we will consult the object store to obtain the old sequence number, which
-/// latter will be put in modified_at_versions; in the new protocol where
-/// simplified_unwrap_then_delete is true, we will not consult the object store,
+/// store to obtain the old sequence number. For UnwrapThenDelete however,
+/// we will not consult the object store,
 /// and hence won't have the old sequence number.
 #[derive(Debug)]
 pub enum DeleteKindWithOldVersion {
     Normal(SequenceNumber),
-    // This variant will be deprecated when we turn on simplified_unwrap_then_delete.
-    UnwrapThenDeleteDEPRECATED(SequenceNumber),
     UnwrapThenDelete,
     Wrap(SequenceNumber),
 }
@@ -142,9 +137,9 @@ pub enum DeleteKindWithOldVersion {
 impl DeleteKindWithOldVersion {
     pub fn old_version(&self) -> Option<SequenceNumber> {
         match self {
-            DeleteKindWithOldVersion::Normal(version)
-            | DeleteKindWithOldVersion::UnwrapThenDeleteDEPRECATED(version)
-            | DeleteKindWithOldVersion::Wrap(version) => Some(*version),
+            DeleteKindWithOldVersion::Normal(version) | DeleteKindWithOldVersion::Wrap(version) => {
+                Some(*version)
+            }
             DeleteKindWithOldVersion::UnwrapThenDelete => None,
         }
     }
@@ -152,8 +147,7 @@ impl DeleteKindWithOldVersion {
     pub fn to_delete_kind(&self) -> DeleteKind {
         match self {
             DeleteKindWithOldVersion::Normal(_) => DeleteKind::Normal,
-            DeleteKindWithOldVersion::UnwrapThenDeleteDEPRECATED(_)
-            | DeleteKindWithOldVersion::UnwrapThenDelete => DeleteKind::UnwrapThenDelete,
+            DeleteKindWithOldVersion::UnwrapThenDelete => DeleteKind::UnwrapThenDelete,
             DeleteKindWithOldVersion::Wrap(_) => DeleteKind::Wrap,
         }
     }
@@ -166,8 +160,8 @@ pub enum ObjectChange {
     Delete(DeleteKindWithOldVersion),
 }
 
-pub trait StorageView: Storage + ParentSync + ChildObjectResolver {}
-impl<T: Storage + ParentSync + ChildObjectResolver> StorageView for T {}
+pub trait StorageView: Storage + ChildObjectResolver {}
+impl<T: Storage + ChildObjectResolver> StorageView for T {}
 
 /// An abstraction of the (possibly distributed) store for objects. This
 /// API only allows for the retrieval of objects, not any state changes
@@ -388,42 +382,6 @@ impl BackingPackageStore for PostExecutionPackageResolver {
     }
 }
 
-pub trait ParentSync {
-    /// This function is only called by older protocol versions.
-    /// It creates an explicit dependency to tombstones, which is not desired.
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>>;
-}
-
-impl<S: ParentSync> ParentSync for std::sync::Arc<S> {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        ParentSync::get_latest_parent_entry_ref_deprecated(self.as_ref(), object_id)
-    }
-}
-
-impl<S: ParentSync> ParentSync for &S {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        ParentSync::get_latest_parent_entry_ref_deprecated(*self, object_id)
-    }
-}
-
-impl<S: ParentSync> ParentSync for &mut S {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        ParentSync::get_latest_parent_entry_ref_deprecated(*self, object_id)
-    }
-}
-
 impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
     fn read_child_object(
         &self,
@@ -595,9 +553,7 @@ impl Display for DeleteKind {
     }
 }
 
-pub trait BackingStore:
-    BackingPackageStore + ChildObjectResolver + ObjectStore + ParentSync
-{
+pub trait BackingStore: BackingPackageStore + ChildObjectResolver + ObjectStore {
     fn as_object_store(&self) -> &dyn ObjectStore;
 }
 
@@ -606,7 +562,6 @@ where
     T: BackingPackageStore,
     T: ChildObjectResolver,
     T: ObjectStore,
-    T: ParentSync,
 {
     fn as_object_store(&self) -> &dyn ObjectStore {
         self

@@ -19,9 +19,10 @@ import { Text } from './ui/Text.js';
 
 type AccountDropdownMenuProps = {
     currentAccount: WalletAccount;
+    size?: React.ComponentProps<typeof Button>['size'];
 };
 
-export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps) {
+export function AccountDropdownMenu({ currentAccount, size = 'lg' }: AccountDropdownMenuProps) {
     const { mutate: disconnectWallet } = useDisconnectWallet();
     const accounts = useAccounts();
 
@@ -29,7 +30,7 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
         <DropdownMenu.Root modal={false}>
             <StyleMarker>
                 <DropdownMenu.Trigger asChild>
-                    <Button size="lg" className={styles.connectedAccount}>
+                    <Button size={size} className={styles.connectedAccount}>
                         <Text mono weight="bold">
                             {currentAccount.label ?? formatAddress(currentAccount.address)}
                         </Text>

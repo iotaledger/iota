@@ -218,7 +218,7 @@ impl StressTestRunner {
 
     pub async fn change_epoch(&self) {
         let pre_state_summary = self.system_state();
-        self.test_cluster.trigger_reconfiguration().await;
+        self.test_cluster.force_new_epoch().await;
         let post_state_summary = self.system_state();
         info!(
             "Changing epoch form {} to {}",

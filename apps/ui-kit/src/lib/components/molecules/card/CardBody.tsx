@@ -25,7 +25,7 @@ export function CardBody({
     return (
         <div
             className={cx('flex w-full flex-col', {
-                'grow-1 overflow-hidden': isTextTruncated,
+                truncate: isTextTruncated,
             })}
         >
             <div
@@ -35,7 +35,7 @@ export function CardBody({
             >
                 <div
                     className={cx('font-inter text-title-md text-neutral-10 dark:text-neutral-92', {
-                        'grow-1 overflow-hidden text-ellipsis whitespace-nowrap': isTextTruncated,
+                        truncate: isTextTruncated,
                     })}
                 >
                     {title}
@@ -50,7 +50,7 @@ export function CardBody({
             {subtitle && (
                 <div
                     className={cx('font-inter text-body-md text-neutral-40 dark:text-neutral-60', {
-                        'grow-1 overflow-hidden text-ellipsis whitespace-nowrap': isTextTruncated,
+                        truncate: isTextTruncated,
                     })}
                 >
                     {subtitle}

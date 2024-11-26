@@ -53,7 +53,7 @@ export function AutoLockAccounts() {
             closeOverlay={() => navigate(mainMenuUrl)}
         >
             <Loading loading={autoLock.isPending}>
-                <Form className="flex h-full flex-col pt-5" form={form} onSubmit={handleSave}>
+                <Form className="flex h-full flex-col" form={form} onSubmit={handleSave}>
                     <AutoLockSelector disabled={isSubmitting} />
                     <div className="flex-1" />
                     <Button

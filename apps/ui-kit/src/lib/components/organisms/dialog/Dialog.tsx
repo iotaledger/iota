@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as RadixDialog from '@radix-ui/react-dialog';
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import cx from 'classnames';
 import * as React from 'react';
 import { Close } from '@iota/ui-icons';
 import { useEffect, useState } from 'react';
+import { DialogPosition } from './dialog.enums';
 
 const Dialog = RadixDialog.Root;
 const DialogTrigger = RadixDialog.Trigger;
@@ -15,11 +17,15 @@ const DialogOverlay = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Overlay>,
     React.ComponentPropsWithoutRef<typeof RadixDialog.Overlay> & {
         showCloseIcon?: boolean;
+        position?: DialogPosition;
     }
->(({ showCloseIcon, ...props }, ref) => (
+>(({ showCloseIcon, position, ...props }, ref) => (
     <RadixDialog.Overlay
         ref={ref}
-        className="absolute inset-0 z-[99998] bg-shader-neutral-light-48 backdrop-blur-md"
+        className={cx('inset-0 z-[99998] bg-shader-neutral-light-48 backdrop-blur-md', {
+            fixed: position === DialogPosition.Right,
+            absolute: position === DialogPosition.Center,
+        })}
         {...props}
     >
         <DialogClose className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}>
@@ -34,28 +40,55 @@ const DialogContent = React.forwardRef<
     React.ComponentPropsWithoutRef<typeof RadixDialog.Content> & {
         containerId?: string;
         showCloseOnOverlay?: boolean;
+        position?: DialogPosition;
     }
->(({ className, containerId, showCloseOnOverlay, ...props }, ref) => {
-    const [containerElement, setContainerElement] = useState<HTMLElement | undefined>(undefined);
+>(
+    (
+        {
+            className,
+            containerId,
+            showCloseOnOverlay,
+            children,
+            position = DialogPosition.Center,
+            ...props
+        },
+        ref,
+    ) => {
+        const [containerElement, setContainerElement] = useState<HTMLElement | undefined>(
+            undefined,
+        );
 
-    useEffect(() => {
-        // This ensures document.getElementById is called in the client-side environment only.
-        // note. containerElement cant be null
-        const element = containerId ? document.getElementById(containerId) : undefined;
-        setContainerElement(element ?? undefined);
-    }, [containerId]);
-
-    return (
-        <RadixDialog.Portal container={containerElement}>
-            <DialogOverlay showCloseIcon={showCloseOnOverlay} />
-            <RadixDialog.Content
-                ref={ref}
-                className="absolute left-1/2 top-1/2 z-[99999] flex max-h-[60vh] w-80 max-w-[85vw] -translate-x-1/2 -translate-y-1/2 flex-col justify-center overflow-hidden rounded-xl bg-primary-100 dark:bg-neutral-6 md:w-96"
-                {...props}
-            />
-        </RadixDialog.Portal>
-    );
-});
+        useEffect(() => {
+            // This ensures document.getElementById is called in the client-side environment only.
+            // note. containerElement cant be null
+            const element = containerId ? document.getElementById(containerId) : undefined;
+            setContainerElement(element ?? undefined);
+        }, [containerId]);
+        const positionClass =
+            position === DialogPosition.Right
+                ? 'right-0 h-screen top-0 w-full max-w-[500px]'
+                : 'max-h-[60vh] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl w-80 max-w-[85vw]';
+        return (
+            <RadixDialog.Portal container={containerElement}>
+                <DialogOverlay showCloseIcon={showCloseOnOverlay} position={position} />
+                <RadixDialog.Content
+                    ref={ref}
+                    className={cx(
+                        'fixed z-[99999] flex flex-col justify-center overflow-hidden bg-primary-100 dark:bg-neutral-6 md:w-96',
+                        positionClass,
+                    )}
+                    {...props}
+                >
+                    <VisuallyHidden.Root>
+                        <RadixDialog.Title />
+                        <RadixDialog.Description />
+                    </VisuallyHidden.Root>
+                    {children}
+                </RadixDialog.Content>
+            </RadixDialog.Portal>
+        );
+    },
+);
 DialogContent.displayName = RadixDialog.Content.displayName;
 
 const DialogTitle = React.forwardRef<
@@ -70,16 +103,15 @@ const DialogTitle = React.forwardRef<
 ));
 DialogTitle.displayName = RadixDialog.Title.displayName;
 
-const DialogBody = React.forwardRef<
-    React.ElementRef<typeof RadixDialog.Description>,
-    React.ComponentPropsWithoutRef<typeof RadixDialog.Description>
->((props, ref) => (
-    <RadixDialog.Description
-        ref={ref}
-        className="p-md--rs text-body-sm text-neutral-40 dark:text-neutral-60"
-        {...props}
-    />
-));
-DialogBody.displayName = RadixDialog.Description.displayName;
+const DialogBody = React.forwardRef<React.ElementRef<'div'>, React.ComponentPropsWithoutRef<'div'>>(
+    (props, ref) => (
+        <div
+            ref={ref}
+            className="p-md--rs text-body-sm text-neutral-40 dark:text-neutral-60"
+            {...props}
+        />
+    ),
+);
+DialogBody.displayName = 'DialogBody';
 
 export { Dialog, DialogClose, DialogTrigger, DialogContent, DialogTitle, DialogBody };

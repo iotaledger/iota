@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
-use iota_protocol_config::ProtocolVersion;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
@@ -246,20 +245,20 @@ impl ExecutionCacheWrite for PassthroughCache {
             let tx_digest = *tx_outputs.transaction.digest();
             let effects_digest = tx_outputs.effects.digest();
 
-            // NOTE: We just check here that locks exist, not that they are locked to a
-            // specific TX. Why?
-            // 1. Lock existence prevents re-execution of old certs when objects have been
-            //    upgraded
+            // NOTE: We just check here that live markers exist, not that they are locked to
+            // a specific TX. Why?
+            // 1. Live markers existence prevents re-execution of old certs when objects
+            //    have been upgraded
             // 2. Not all validators lock, just 2f+1, so transaction should proceed
-            //    regardless (But the lock should exist which means previous transactions
-            //    finished)
+            //    regardless (But the live markers should exist which means previous
+            //    transactions finished)
             // 3. Equivocation possible (different TX) but as long as 2f+1 approves current
             //    TX its fine
-            // 4. Locks may have existed when we started processing this tx, but could have
-            //    since been deleted by a concurrent tx that finished first. In that case,
-            //    check if the tx effects exist.
+            // 4. Live markers may have existed when we started processing this tx, but
+            //    could have since been deleted by a concurrent tx that finished first. In
+            //    that case, check if the tx effects exist.
             self.store
-                .check_owned_objects_are_live(&tx_outputs.locks_to_delete)?;
+                .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
 
             self.store
                 .write_transaction_outputs(epoch_id, &[tx_outputs])
@@ -290,15 +289,6 @@ impl ExecutionCacheWrite for PassthroughCache {
 }
 
 impl AccumulatorStore for PassthroughCache {
-    fn get_object_ref_prior_to_key_deprecated(
-        &self,
-        object_id: &ObjectID,
-        version: iota_types::base_types::VersionNumber,
-    ) -> IotaResult<Option<ObjectRef>> {
-        self.store
-            .get_object_ref_prior_to_key_deprecated(object_id, version)
-    }
-
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
@@ -324,9 +314,8 @@ impl AccumulatorStore for PassthroughCache {
 
     fn iter_live_object_set(
         &self,
-        include_wrapped_tombstone: bool,
     ) -> Box<dyn Iterator<Item = crate::authority::authority_store_tables::LiveObject> + '_> {
-        self.store.iter_live_object_set(include_wrapped_tombstone)
+        self.store.iter_live_object_set()
     }
 }
 

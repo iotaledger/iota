@@ -115,7 +115,7 @@ module stardust::irc27 {
             attributes: _,
             non_standard_fields: _,
         } = irc27;
-     }
+    }
 
     #[test_only]
     public fun create_for_testing(

@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AutorefreshPause24, AutorefreshPlay24 } from '@iota/icons';
+import { ButtonUnstyled } from '@iota/apps-ui-kit';
+import { Pause, Play } from '@iota/ui-icons';
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
 
@@ -29,7 +30,7 @@ export interface PlayPauseProps {
 }
 
 export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.Element {
-    const Icon = paused ? AutorefreshPlay24 : AutorefreshPause24;
+    const Icon = paused ? Play : Pause;
 
     const isAnimating = animate?.start && !paused;
 
@@ -46,21 +47,23 @@ export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.El
     }, [animate, isAnimating]);
 
     return (
-        <button
-            type="button"
+        <ButtonUnstyled
             aria-label={paused ? 'Paused' : 'Playing'}
             onClick={onChange}
-            className="relative cursor-pointer border-none bg-transparent text-steel hover:text-steel-darker"
+            className="relative cursor-pointer border-none bg-transparent p-xxs text-neutral-40 dark:text-neutral-60"
         >
             {isAnimating && (
-                <motion.svg className="absolute -rotate-90 text-hero" viewBox="0 0 16 16">
+                <motion.svg
+                    className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 -rotate-90 text-primary-60"
+                    viewBox="0 0 16 16"
+                >
                     <motion.circle
                         fill="none"
                         cx="8"
                         cy="8"
                         r="7"
                         strokeLinecap="round"
-                        strokeWidth={2}
+                        strokeWidth={1.5}
                         stroke="currentColor"
                         variants={getAnimationVariants(animate.duration)}
                         initial="initial"
@@ -69,6 +72,6 @@ export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.El
                 </motion.svg>
             )}
             <Icon />
-        </button>
+        </ButtonUnstyled>
     );
 }

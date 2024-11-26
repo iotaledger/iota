@@ -1,4 +1,5 @@
-import AlphaNet from "../../../_snippets/alphanet.mdx";
+import NetworkInfo from "@site/src/components/NetworkInfo/index.tsx";
+import { Networks } from '@site/src/components/constant.tsx';
 
 # IOTA TypeScript SDK Quick Start
 
@@ -13,21 +14,26 @@ npm i @iota/iota-sdk
 
 ## Network locations
 
-<AlphaNet/>
-
 The following table lists the locations for IOTA networks.
 
-| Network | Full node                             | faucet                                |
-| ------- | ------------------------------------- | ------------------------------------- |
-| local   | `http://127.0.0.1:9000` (default)     | `http://127.0.0.1:9123/gas` (default) |
-| Devnet  | `https://fullnode.devnet.iota.io:443`  | `https://faucet.iota-rebased-alphanet.iota.cafe/gas`    |
-| Testnet | - | - |
-| Mainnet | - | - |
+## IOTA Testnet
+
+<NetworkInfo.Move {...Networks['iota_move_testnet']}/>
+
+## IOTA Devnet
+
+<NetworkInfo.Move {...Networks['iota_move_devnet']}/>
+
+## IOTA Localnet
+
+To create a local IOTA network, you can refer to [Local Development](/developer/getting-started/local-network) page.
+
+<NetworkInfo.Move {...Networks['iota_localnet']}/>
 
 :::warning
 
 Use dedicated nodes/shared services rather than public endpoints for production apps. The public
-endpoints maintained by the IOTA Foundation (`fullnode.<NETWORK>.iota.io:443`) are rate-limited, and support
+endpoints maintained by the IOTA Foundation (`api.<NETWORK>.iota.cafe:443`) are rate-limited, and support
 only 100 requests per 30 seconds or so. Do not use public endpoints in production applications with
 high traffic volume.
 
@@ -47,27 +53,6 @@ earlier version of the SDK, there are some changes you should consider when upda
 The IOTA TypeScript SDK is now divided into modular components. Before version 0.38.0, you imported
 the complete SDK module. Now, you upload the individual packages of the SDK module instead. See the
 [Module Packages section](#module-packages) for the list of packages.
-
-### Deprecated classes
-
-The IOTA TypeScript SDK deprecates the following classes with version 0.38.0:
-
--   `JsonRpcProvider` - The `JsonRpcProvider` class is deprecated in favor of the `iotaClient` class
-    when creating a client for a IOTA network. See
-    [Network Interactions with IOTAClient](./iota-client.mdx) for more information.
--   `SignerWithProver` and `RawSigner` - Key pairs now directly support signing transactions and
-    messages without the need of a `Signer` class. See the
-    [Key pairs](./cryptography/keypairs.mdx) topic for more information.
--   `signAndExecuteTransactionBlock` - This method was not deprecated, but is now part of
-    `IotaClient`.
--   `Connection` classes - The `Connection` classes (`Connection`, `devnetConnection`, and so on)
-    have been deprecated in favor of using `iotaClient` for establishing the connection. See
-    [Network Interactions with IotaClient](./iota-client.mdx) for more information.
--   The `superstruct` type definitions for `JsonRPCProvider` types are replaced with generated types
-    exported from `@iota/iota-sdk/client`. The new type definitions are pure TypeScript types that
-    you can't use for runtime validation.
--   A more stable JSON-RPC API has reduced the need for many of the SDK "getter" methods, which are
-    now deprecated.
 
 ### Signing transactions
 

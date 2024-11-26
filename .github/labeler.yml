@@ -1,5 +1,6 @@
-# Add 'Foo' to any changes within 'bar' folder or any subfolders
-"Type: Documentation":
-  - docs/content/**/*
-"iota-explorer":
-  - explorer/**/*
+Documentation:
+  - changed-files:
+      - any-glob-to-any-file: docs/content/**/*
+iota-explorer:
+  - changed-files:
+      - any-glob-to-any-file: explorer/**/*

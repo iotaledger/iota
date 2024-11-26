@@ -11,5 +11,5 @@
             "@iota/iota-sdk/transactions": ["../../typescript/src/transactions"]
         }
     },
-    "references": [{ "path": "../wallet-standard" }, { "path": "../typescript" }]
+    "references": [{ "path": "../bcs" }, { "path": "../typescript" }]
 }

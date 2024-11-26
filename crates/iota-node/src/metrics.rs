@@ -140,7 +140,7 @@ mod tests {
         tokio::task::yield_now().await;
 
         // now add a few registries to the service along side with metrics
-        let registry_1 = Registry::new_custom(Some("narwhal".to_string()), None).unwrap();
+        let registry_1 = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
         let counter_1 = IntCounter::new("counter_1", "a sample counter 1").unwrap();
         registry_1.register(Box::new(counter_1)).unwrap();
 
@@ -161,9 +161,9 @@ iota_counter_2 0"
         ));
 
         assert!(result.contains(
-            "# HELP narwhal_counter_1 a sample counter 1
-# TYPE narwhal_counter_1 counter
-narwhal_counter_1 0"
+            "# HELP consensus_counter_1 a sample counter 1
+# TYPE consensus_counter_1 counter
+consensus_counter_1 0"
         ));
 
         // Now remove registry 1
@@ -178,9 +178,9 @@ narwhal_counter_1 0"
 
         // Registry 1 metrics should not be present anymore
         assert!(!result.contains(
-            "# HELP narwhal_counter_1 a sample counter 1
-# TYPE narwhal_counter_1 counter
-narwhal_counter_1 0"
+            "# HELP consensus_counter_1 a sample counter 1
+# TYPE consensus_counter_1 counter
+consensus_counter_1 0"
         ));
 
         // Registry 2 metric should have increased by 1

@@ -150,7 +150,7 @@ impl TryFrom<MoveTokenRegistrationEvent> for TokenRegistrationEvent {
 
     fn try_from(event: MoveTokenRegistrationEvent) -> BridgeResult<Self> {
         let type_name = parse_iota_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
-            BridgeError::InternalError(format!(
+            BridgeError::Internal(format!(
                 "Failed to parse TypeTag: {e}, type name: {}",
                 event.type_name
             ))
@@ -189,7 +189,7 @@ impl TryFrom<MoveNewTokenEvent> for NewTokenEvent {
 
     fn try_from(event: MoveNewTokenEvent) -> BridgeResult<Self> {
         let type_name = parse_iota_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
-            BridgeError::InternalError(format!(
+            BridgeError::Internal(format!(
                 "Failed to parse TypeTag: {e}, type name: {}",
                 event.type_name
             ))
@@ -393,7 +393,7 @@ macro_rules! declare_events {
                 // Unwrap safe: we inited above
                 $(
                     if &event.type_ == $variant.get().unwrap() {
-                        let event_struct: $event_struct = bcs::from_bytes(&event.bcs).map_err(|e| BridgeError::InternalError(format!("Failed to deserialize event to {}: {:?}", stringify!($event_struct), e)))?;
+                        let event_struct: $event_struct = bcs::from_bytes(&event.bcs).map_err(|e| BridgeError::Internal(format!("Failed to deserialize event to {}: {:?}", stringify!($event_struct), e)))?;
                         return Ok(Some(IotaBridgeEvent::$variant(event_struct.try_into()?)));
                     }
                 )*
@@ -505,6 +505,7 @@ pub mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_events_when_init() {
         telemetry_subscribers::init_for_testing();
         init_all_struct_tags();
@@ -546,6 +547,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_conversion_for_committee_member_url_update_event() {
         let (_, kp): (_, BridgeAuthorityKeyPair) = get_key_pair();
         let new_url = "https://example.com:443";
@@ -574,6 +576,7 @@ pub mod tests {
     // TODO: add conversion tests for other events
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_0_iota_amount_conversion_for_iota_event() {
         let emitted_event = MoveTokenDepositedEvent {
             seq_num: 1,

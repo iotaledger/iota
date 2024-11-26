@@ -5,8 +5,8 @@
 import { type SignedTransaction } from '_src/ui/app/WalletSigner';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import {
-    type IotaSignAndExecuteTransactionBlockInput,
-    type IotaSignMessageOutput,
+    type IotaSignAndExecuteTransactionInput,
+    type IotaSignPersonalMessageOutput,
 } from '@iota/wallet-standard';
 
 export type TransactionDataType = {
@@ -14,12 +14,11 @@ export type TransactionDataType = {
     data: string;
     account: string;
     justSign?: boolean;
-    requestType?: IotaSignAndExecuteTransactionBlockInput['requestType'];
-    options?: IotaSignAndExecuteTransactionBlockInput['options'];
+    options?: IotaSignAndExecuteTransactionInput['options'];
 };
 
 export type SignMessageDataType = {
-    type: 'sign-message';
+    type: 'sign-personal-message';
     message: string;
     accountAddress: string;
 };
@@ -29,16 +28,17 @@ export type ApprovalRequest = {
     approved: boolean | null;
     origin: string;
     originFavIcon?: string;
-    txResult?: IotaTransactionBlockResponse | IotaSignMessageOutput;
+    txResult?: IotaTransactionBlockResponse | IotaSignPersonalMessageOutput;
     txResultError?: string;
     txSigned?: SignedTransaction;
     createdDate: string;
     tx: TransactionDataType | SignMessageDataType;
 };
 
-export interface SignMessageApprovalRequest extends Omit<ApprovalRequest, 'txResult' | 'tx'> {
+export interface SignPersonalMessageApprovalRequest
+    extends Omit<ApprovalRequest, 'txResult' | 'tx'> {
     tx: SignMessageDataType;
-    txResult?: IotaSignMessageOutput;
+    txResult?: IotaSignPersonalMessageOutput;
 }
 
 export interface TransactionApprovalRequest extends Omit<ApprovalRequest, 'txResult' | 'tx'> {
@@ -46,14 +46,14 @@ export interface TransactionApprovalRequest extends Omit<ApprovalRequest, 'txRes
     txResult?: IotaTransactionBlockResponse;
 }
 
-export function isSignMessageApprovalRequest(
+export function isSignPersonalMessageApprovalRequest(
     request: ApprovalRequest,
-): request is SignMessageApprovalRequest {
-    return request.tx.type === 'sign-message';
+): request is SignPersonalMessageApprovalRequest {
+    return request.tx.type === 'sign-personal-message';
 }
 
 export function isTransactionApprovalRequest(
     request: ApprovalRequest,
 ): request is TransactionApprovalRequest {
-    return request.tx.type !== 'sign-message';
+    return request.tx.type === 'transaction';
 }

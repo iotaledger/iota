@@ -5,15 +5,12 @@
 import preset from '@iota/core/tailwind.config';
 import colors from 'tailwindcss/colors';
 import { type Config } from 'tailwindcss';
-import { uiKitResponsivePreset } from '@iota/apps-ui-kit';
+// Note: exception for the tailwind preset import
+import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive.preset';
 
 export default {
     presets: [preset, uiKitResponsivePreset],
-    content: [
-        './src/**/*.{js,jsx,ts,tsx}',
-        './node_modules/@iota/ui/src/**/*.{js,jsx,ts,tsx}',
-        './node_modules/@iota/apps-ui-kit/dist/**/*.js',
-    ],
+    content: ['./src/**/*.{js,jsx,ts,tsx}', './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}'],
     theme: {
         // This COLOR are duplicated from @iota/core tailwind.config.ts!!!
         // They are repeated here cause uiKitResponsivePreset overwrites the colors, and they are still used throughout Explorer

@@ -14,10 +14,10 @@ Tested using:
 Add the paths to your private keys to validator.yaml. If you chose to put them in `/opt/iota/key-pairs`, you can use the following example:
 
 ```
-protocol-key-pair:
+authority-key-pair:
+  path: /opt/iota/key-pairs/authority.key
+protocol-key-pair: 
   path: /opt/iota/key-pairs/protocol.key
-worker-key-pair: 
-  path: /opt/iota/key-pairs/worker.key
 network-key-pair: 
   path: /opt/iota/key-pairs/network.key
 ```

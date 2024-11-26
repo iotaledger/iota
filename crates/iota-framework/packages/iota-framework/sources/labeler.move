@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+/// Defines a LabelerCap used for creating labels in a ``iota::timelock::Timelock`` object. 
+/// The LabelerCap can be created only be consuming an OTW, making then labels unique for each cap.
 module iota::labeler {
 
     /// Error code for when a type passed to the `create_labeler_cap` function is not a one-time witness.

@@ -6,12 +6,12 @@ import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
 import { isValidUrl } from '_src/shared/utils';
-import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
 import { Network } from '@iota/iota-sdk/client';
 import { Form, Formik } from 'formik';
 import { useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import * as Yup from 'yup';
+import { InputWithAction } from './InputWithAction';
 
 const MIN_CHAR = 5;
 
@@ -60,14 +60,7 @@ export function CustomRPCInput() {
             enableReinitialize={true}
         >
             <Form>
-                <InputWithAction
-                    type="text"
-                    name="rpcInput"
-                    min={MIN_CHAR}
-                    actionDisabled="auto"
-                    placeholder={placeholder}
-                    actionText="Save"
-                />
+                <InputWithAction name="rpcInput" min={MIN_CHAR} placeholder={placeholder} />
             </Form>
         </Formik>
     );

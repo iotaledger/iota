@@ -96,8 +96,8 @@ export function PasswordModalDialog({
                 <Header title={title} onClose={onClose} />
                 <DialogBody>
                     <Form form={form} id={formID} onSubmit={handleOnSubmit}>
-                        <div className="flex flex-col gap-y-6">
-                            <div className="flex flex-col gap-y-3">
+                        <div className="flex flex-col gap-y-lg">
+                            <div className="flex flex-col gap-y-sm">
                                 <Input
                                     autoFocus
                                     type={InputType.Password}
@@ -107,16 +107,19 @@ export function PasswordModalDialog({
                                     {...register('password')}
                                     name="password"
                                 />
-
-                                {showForgotPassword && hasAccountsSources ? (
-                                    <Link
-                                        to="/accounts/forgot-password"
-                                        onClick={onClose}
-                                        className="text-body-sm text-neutral-40 no-underline"
-                                    >
-                                        Forgot Password?
-                                    </Link>
-                                ) : null}
+                                {showForgotPassword && (
+                                    <div className="relative p-xs">
+                                        {hasAccountsSources ? (
+                                            <Link
+                                                to="/accounts/forgot-password"
+                                                onClick={onClose}
+                                                className="absolute top-0 text-body-sm text-neutral-40 no-underline"
+                                            >
+                                                Forgot Password?
+                                            </Link>
+                                        ) : null}
+                                    </div>
+                                )}
                             </div>
                             <div className="flex flex-col gap-3">
                                 <div className="flex gap-2.5">

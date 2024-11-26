@@ -451,8 +451,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Regularly scrape the client
         let mut metrics_commands = self.protocol_commands.clients_metrics_command(clients);
 
-        // TODO: Remove this when narwhal client latency metrics are available.
-        // We will be getting latency metrics directly from narwhal nodes instead from
+        // TODO: Remove this when consensus client latency metrics are available.
+        // We will be getting latency metrics directly from consensus nodes instead from
         // the nw client
         metrics_commands.append(&mut self.protocol_commands.nodes_metrics_command(nodes.clone()));
 

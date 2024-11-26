@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TimelockedObject } from '../interfaces';
+import { getMockedTimelockedStakedObjectsWithDynamicDate } from '../utils/vesting/getMockedTimelockedStakedObjectsWithDynamicDate';
 import { DAYS_PER_WEEK, DAYS_PER_YEAR, MILLISECONDS_PER_DAY } from './time.constants';
 import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
 
@@ -27,7 +28,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xfe755ca67e3a0714f97ec3c49cfc6f3ecdab2673d96b5840294d3a5db376c99',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1697320800000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -37,7 +38,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x682d14613231dd1dde39397977cdfafb6b6263b5683b6782348c597c104b834',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1698530400000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -47,7 +48,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x93f2bf2d044e45e1a85c010c22357892d1625436b8c95b26dcdb6f309319064',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1699740000000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -57,7 +58,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x44fa510ba216cd555ecd6b99d1ebd612f82e2bf421091c973bca49b064dc72b',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1700949600000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -67,7 +68,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xacd861b6dc5d108af03655a2175545ac6d432c526bcbe294b90e722fa36b459',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1702159200000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -77,7 +78,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x8f9eeb5953c77d53dcff3057619af7a29be1d9ce67bf66c86ad5309379d17e5',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1703368800000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -87,7 +88,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x70b1063c1104760afc06df5217bebdf02f937e1aff51211fc0472e677ba8c74',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1704578400000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -97,7 +98,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xb0aa6f655d08f630c15a2cfb4e3e13e307ce9d96c52c1e91c65a71a204819bd',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1705788000000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -107,7 +108,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x65224b9a3b9eadc55be4cb6efa363f283b924607496d60c02deef2aa6bf9e22',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1706997600000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -117,7 +118,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x68f9a2af0ebd0bcd9e3cc836ac7103670a9602e8dca8fd28e7b2b5a693898f2',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1708207200000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -127,7 +128,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x637e6b758efdb8d49ee96397ca909d579bb77b79f8b64e7e7f1af13ad4f7ce4',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1709416800000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -137,7 +138,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xbd0f349c21b67faec992b6c9a1b9b6343b4ff1f2ad5f33b0b4cd0fc31be2b31',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1710626400000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -147,7 +148,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xfb8c3539b22e4086bd03417027e70515e6fb6d18f366876ad5ad0d8da3bde0f',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1711836000000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -157,7 +158,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xbfb7c1a941885cc55a191e579c7c6d5dc345d6b5b9cfa439f724a343d354032',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1713045600000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -167,7 +168,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x8935a904f90e23f6f453cb0c85a03859e07f1c9e5a5d1644b2fbe7005d8e158',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1714255200000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -177,7 +178,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x73be6f8df4b73b83f8ccf909d61aabb56c56c56aa597d2806eccf3ab4fac66b',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1715464800000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -187,7 +188,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x20075cc2ebd5fa6e069829e58e55e6e010ad115e8cbc48d7a3d98d079ce649a',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1716674400000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -197,7 +198,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xce03433d496cb231ead90a661fe08b924eb9b0cfb43dd560ea02a8060f6afd0',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1717884000000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -207,7 +208,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xf111b8705ba276f8c6b76bdf72a4a46889cb8207cc5a80d3df0f40d9576116a',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1719093600000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -217,7 +218,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xbc27940fb9c6f96ae9e2c11ad151446e30de5281172e48aac7f600d1da92c10',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1720303200000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -227,7 +228,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x016fae8797d3d12a26e215ec1815ee8adce70bb93149b4d55eb06a81c476ff9',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1721512800000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -237,7 +238,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x06f1e354ff551d76da8dc890eab728a65319defb3608991b4c70a1a2b30e8f1',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1722722400000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -247,7 +248,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xc4cf3ea32480aab7d78784c6f00b9210ce0ffaabbcbb8cddd846073e7455386',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1723932000000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -257,7 +258,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x6dc10a8008855549b8d92e7704c799253a953d9835af001970426414fdd3ba7',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1725141600000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -267,7 +268,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xa5f7a66c575db3f74c5fe7043c28f7231a2127aec4dc2de88f5b9d3cf020511',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1726351200000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -277,7 +278,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xde0a4c2e0f16541983302c596339815ffa4d4743509e8115bc06fcf7f71ea8f',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1727560800000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -287,7 +288,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0xccc5d23ab69789b934b9bf7f5006e43eef45c2d7a251e3eec8b7dd24bc20a07',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1728770400000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -297,7 +298,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x503dc8844b0cd6e74e735433751328e8283569e81b4602aaa6941ce3fe826bb',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1729980000000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -307,7 +308,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x0fac98b5ac955644dffa0700933aababe438fae6fc58b8a4bd1f740c8aba941',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1731189600000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -317,7 +318,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x756483e3c7dd3491ea405f682df6c5dc1e4a59d8b5c9725b0d194815a25ea95',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1732399200000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -327,7 +328,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x72c4318876f51bed94c2228b395d18f5dce5f243039c7e3d8fad690dfe918fc',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1733608800000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -337,7 +338,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x37f68fd72af05b4c923268b64a0baa7511f27bc4cbd90641e444e7116f02604',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1734818400000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -347,7 +348,7 @@ export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject
             id: '0x97bedf66e48392a0b9baf8a8280e72fcce9b32ff980832edfe1a90a14ce9047',
         },
         locked: {
-            value: 1000,
+            value: 2_000_000_000,
         },
         expirationTimestampMs: 1736028000000,
         label: SUPPLY_INCREASE_VESTING_LABEL,
@@ -661,3 +662,6 @@ export const MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS: DelegatedTimelockedStake[
         ],
     },
 ];
+
+export const mockedTimelockedStackedObjectsWithDynamicDate =
+    getMockedTimelockedStakedObjectsWithDynamicDate(MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS);

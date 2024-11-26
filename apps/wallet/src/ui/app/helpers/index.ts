@@ -8,3 +8,4 @@ export { default as notEmpty } from './notEmptyCheck';
 export { getAmount } from './getAmount';
 export { checkStakingTxn } from './checkStakingTxn';
 export { truncateString } from './truncateString';
+export { formatAccountName } from './formatAccountName';

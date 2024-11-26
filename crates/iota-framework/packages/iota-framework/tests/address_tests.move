@@ -95,7 +95,7 @@ module iota::address_tests {
         assert!(@0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.to_ascii_string() == b"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".to_ascii_string());
     }
 
-     #[test]
+    #[test]
     fun to_string_ok() {
         assert!(@0x0.to_string() == b"0000000000000000000000000000000000000000000000000000000000000000".to_string());
         assert!(@0x1.to_string() == b"0000000000000000000000000000000000000000000000000000000000000001".to_string());

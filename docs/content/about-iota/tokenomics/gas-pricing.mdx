@@ -2,6 +2,9 @@
 title: IOTA Gas Pricing
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import {questions} from '../../../site/static/json/about-iota/tokenomics/gas-pricing.json';
+
 The IOTA gas-pricing mechanism achieves three outcomes: delivering low, predictable transaction fees, incentivizing validators to optimize their transaction processing operations, and preventing denial of service attacks.
 
 This enables you to focus on using the IOTA network to provide the best user experience without needing to forecast the current market price of gas fees. Since validators agree on a network-wide reference price at the start of each epoch, you can use the reference price as a credible anchor when submitting transactions. Moreover, the price setting mechanism rewards good validator behavior, thus aligning incentives between IOTA token holders, the network's operators (validators), and its users.
@@ -45,3 +48,6 @@ Overall, when you submit transactions with computation gas prices at or close to
 After IOTA enables horizontal scaling, validators can add more workers as demand for on-chain activity scales. This increases their costs linearly at the same pace of network activity and lets them process more transactions at the same low gas prices. In cases of extreme network congestion where validators cannot scale fast enough, the tip presence provides a market-based congestion pricing mechanism that discourages further demand spikes by increasing the cost of transacting on the IOTA platform.
 
 In the long run, the IOTA gas price mechanism creates incentives for validators to optimize their hardware and operations. Validators that invest in becoming more efficient are able to honor lower gas prices and obtain a stake reward boost. IOTA validators are thus encouraged to innovate and improve the experience of end users.
+
+## Quizzes
+<Quiz questions={questions} />

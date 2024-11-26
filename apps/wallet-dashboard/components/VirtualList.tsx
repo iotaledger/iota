@@ -61,7 +61,7 @@ function VirtualList<T>({
     ]);
 
     return (
-        <div className="relative h-[50vh] w-full overflow-auto" ref={containerRef}>
+        <div className="relative h-full w-full" ref={containerRef}>
             <div
                 style={{
                     height: `${virtualizer.getTotalSize()}px`,
@@ -72,7 +72,7 @@ function VirtualList<T>({
                 {virtualItems.map((virtualItem) => (
                     <div
                         key={virtualItem.key}
-                        className={`absolute w-full pb-4 pr-4 ${onClick ? 'cursor-pointer' : ''}`}
+                        className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
                         style={{
                             position: 'absolute',
                             top: 0,

@@ -37,7 +37,7 @@ pub type CloudProviderResult<T> = Result<T, CloudProviderError>;
 #[derive(thiserror::Error, Debug)]
 pub enum CloudProviderError {
     #[error("Failed to send server request: {0}")]
-    RequestError(String),
+    Request(String),
 
     #[error("Unexpected response: {0}")]
     UnexpectedResponse(String),
@@ -84,10 +84,10 @@ pub type MonitorResult<T> = Result<T, MonitorError>;
 #[derive(thiserror::Error, Debug)]
 pub enum MonitorError {
     #[error(transparent)]
-    SshError(#[from] SshError),
+    Ssh(#[from] SshError),
 
     #[error("Failed to start Grafana: {0}")]
-    GrafanaError(String),
+    Grafana(String),
 }
 
 pub type TestbedResult<T> = Result<T, TestbedError>;
@@ -95,17 +95,17 @@ pub type TestbedResult<T> = Result<T, TestbedError>;
 #[derive(thiserror::Error, Debug)]
 pub enum TestbedError {
     #[error(transparent)]
-    SettingsError(#[from] SettingsError),
+    Settings(#[from] SettingsError),
 
     #[error(transparent)]
-    CloudProviderError(#[from] CloudProviderError),
+    CloudProvider(#[from] CloudProviderError),
 
     #[error(transparent)]
-    SshError(#[from] SshError),
+    Ssh(#[from] SshError),
 
     #[error("Not enough instances: missing {0} instances")]
     InsufficientCapacity(usize),
 
     #[error(transparent)]
-    MonitorError(#[from] MonitorError),
+    Monitor(#[from] MonitorError),
 }

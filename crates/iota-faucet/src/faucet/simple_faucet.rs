@@ -427,8 +427,8 @@ impl SimpleFaucet {
     ) -> Result<IotaTransactionBlockResponse, FaucetError> {
         let signature = self
             .wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .sign_secure(&self.active_address, &tx_data, Intent::iota_transaction())
             .map_err(FaucetError::internal)?;
         let tx = Transaction::from_data(tx_data, vec![signature]);
@@ -537,7 +537,7 @@ impl SimpleFaucet {
 
             GasCoinResponse::UnknownGasCoin(coin_id) => {
                 self.recycle_gas_coin(coin_id, uuid).await;
-                Err(FaucetError::FullnodeReadingError(format!(
+                Err(FaucetError::FullnodeReading(format!(
                     "unknown gas coin {coin_id:?}"
                 )))
             }
@@ -666,7 +666,7 @@ impl SimpleFaucet {
             .read_api()
             .get_reference_gas_price()
             .await
-            .map_err(|e| FaucetError::FullnodeReadingError(format!("Error fetch gas price {e:?}")))
+            .map_err(|e| FaucetError::FullnodeReading(format!("Error fetch gas price {e:?}")))
     }
 
     async fn build_pay_iota_txn(
@@ -701,7 +701,7 @@ impl SimpleFaucet {
         let created = res
             .effects
             .ok_or_else(|| {
-                FaucetError::ParseTransactionResponseError(format!(
+                FaucetError::ParseTransactionResponse(format!(
                     "effects field missing for txn {}",
                     res.digest
                 ))
@@ -765,7 +765,7 @@ impl SimpleFaucet {
         let created = res
             .effects
             .ok_or_else(|| {
-                FaucetError::ParseTransactionResponseError(format!(
+                FaucetError::ParseTransactionResponse(format!(
                     "effects field missing for txn {}",
                     res.digest
                 ))
@@ -1123,7 +1123,7 @@ mod tests {
         ctx: &mut WalletContext,
         tx_data: TransactionData,
     ) -> Result<IotaTransactionBlockEffects, anyhow::Error> {
-        let signature = ctx.config.keystore.sign_secure(
+        let signature = ctx.config().keystore().sign_secure(
             &tx_data.sender(),
             &tx_data,
             Intent::iota_transaction(),

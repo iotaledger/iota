@@ -99,7 +99,7 @@ export class CachingTransactionExecutor {
     }
 
     async applyEffects(effects: typeof bcs.TransactionEffects.$inferType) {
-        this.#lastDigest = effects.V2?.transactionDigest ?? null;
+        this.#lastDigest = effects.V1?.transactionDigest ?? null;
         await this.cache.applyEffects(effects);
     }
 

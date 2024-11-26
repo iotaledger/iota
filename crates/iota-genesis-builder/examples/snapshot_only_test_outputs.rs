@@ -11,19 +11,16 @@ use iota_genesis_builder::{
     IF_STARDUST_ADDRESS,
     stardust::{
         parse::HornetSnapshotParser,
-        test_outputs::{STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO, add_snapshot_test_outputs, to_nanos},
+        test_outputs::{add_snapshot_test_outputs, to_nanos},
     },
 };
 use iota_sdk::types::block::address::Address;
 use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 
-pub const IF_SHIMMER_STARDUST_ADDRESS: &str =
-    "smr1qqzhsp9x3m22l55wlclawlw25536e3rgghep77awcfrgh60uxhxuq6vlak7";
-
 const WITH_SAMPLING: bool = false;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Tool for generating Iota and Shimmer Hornet full-snapshot files with test data")]
+#[clap(about = "Tool for generating Iota Hornet full-snapshot file with test data")]
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
@@ -34,11 +31,6 @@ enum Snapshot {
     #[clap(about = "Parse an Iota Hornet full-snapshot file")]
     Iota {
         #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
-        snapshot_path: String,
-    },
-    #[clap(about = "Parse a Shimmer Hornet full-snapshot file")]
-    Shimmer {
-        #[clap(long, help = "Path to the Shimmer Hornet full-snapshot file")]
         snapshot_path: String,
     },
 }
@@ -58,7 +50,6 @@ fn parse_snapshot<const VERIFY: bool>(
 
     let expected_total_supply = match coin_type {
         CoinType::Iota => to_nanos(STARDUST_TOTAL_SUPPLY_IOTA),
-        CoinType::Shimmer => STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO,
     };
 
     assert_eq!(total_supply, expected_total_supply);
@@ -73,7 +64,6 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let (current_path, coin_type) = match cli.snapshot {
         Snapshot::Iota { snapshot_path } => (snapshot_path, CoinType::Iota),
-        Snapshot::Shimmer { snapshot_path } => (snapshot_path, CoinType::Shimmer),
     };
     let mut new_path = String::from("test-");
     // prepend "test-" before the file name
@@ -91,10 +81,6 @@ async fn main() -> anyhow::Result<()> {
         CoinType::Iota => {
             // IOTA coin type values
             (0, IF_STARDUST_ADDRESS)
-        }
-        CoinType::Shimmer => {
-            // Shimmer coin type values
-            (1, IF_SHIMMER_STARDUST_ADDRESS)
         }
     };
 

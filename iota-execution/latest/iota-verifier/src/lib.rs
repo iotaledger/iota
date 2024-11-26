@@ -23,7 +23,7 @@ fn verification_failure(error: String) -> ExecutionError {
 }
 
 fn to_verification_timeout_error(error: String) -> ExecutionError {
-    ExecutionError::new_with_source(ExecutionErrorKind::IotaMoveVerificationTimedout, error)
+    ExecutionError::new_with_source(ExecutionErrorKind::IotaMoveVerificationTimeout, error)
 }
 
 /// Runs the Move verifier and checks if the error counts as a Move verifier

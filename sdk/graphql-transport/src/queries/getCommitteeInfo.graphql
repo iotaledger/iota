@@ -13,7 +13,7 @@ query getCommitteeInfo($epochId: UInt53, $after: String) {
                 }
                 nodes {
                     credentials {
-                        protocolPubKey
+                        authorityPubKey
                     }
                     votingPower
                 }

@@ -42,7 +42,7 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
             />
             {'publicKey' in data ? (
                 <KeyValueInfo
-                    keyText="Iota Public Key"
+                    keyText="IOTA Public Key"
                     value={data.publicKey.toIotaPublicKey()}
                     copyText={data.publicKey.toIotaPublicKey()}
                     isTruncated

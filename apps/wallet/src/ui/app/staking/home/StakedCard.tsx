@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '_src/shared/constants';
+import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '@iota/core';
 import { determineCountDownText } from '_src/ui/app/shared/countdown-timer';
 import {
     type ExtendedDelegatedStake,
@@ -10,12 +10,12 @@ import {
     useFormatCoin,
     useGetTimeBeforeEpochNumber,
     useTimeAgo,
+    ImageIcon,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ImageIcon } from '../../shared/image-icon';
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
@@ -123,7 +123,7 @@ export function StakeCard({
             }).toString()}`}
             className="no-underline"
         >
-            <Card type={CardType.Default}>
+            <Card type={CardType.Default} isHoverable>
                 <CardImage>
                     <ImageIcon
                         src={validatorMeta?.imageUrl || null}

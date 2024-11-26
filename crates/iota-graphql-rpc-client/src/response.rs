@@ -29,7 +29,7 @@ impl GraphqlResponse {
         let remote_address = resp.remote_addr();
         let http_version = resp.version();
         let status = resp.status();
-        let full_response: Response = resp.json().await.map_err(ClientError::InnerClientError)?;
+        let full_response: Response = resp.json().await.map_err(ClientError::InnerClient)?;
 
         Ok(Self {
             headers,

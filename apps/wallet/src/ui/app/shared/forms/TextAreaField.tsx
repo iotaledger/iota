@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { forwardRef, type ComponentProps, type ReactNode } from 'react';
-
-import FormField from './FormField';
 import { TextArea } from '@iota/apps-ui-kit';
 
 type TextAreaFieldProps = {
@@ -13,9 +11,5 @@ type TextAreaFieldProps = {
 } & ComponentProps<typeof TextArea>;
 
 export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>(
-    ({ label, ...props }, forwardedRef) => (
-        <FormField name={props.name}>
-            <TextArea {...props} label={label} ref={forwardedRef} />
-        </FormField>
-    ),
+    ({ label, ...props }, forwardedRef) => <TextArea {...props} label={label} ref={forwardedRef} />,
 );

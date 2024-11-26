@@ -111,7 +111,7 @@ async fn construct_object_response<T: R2D2Connection + 'static>(
                     )),
                     Err(e) => Ok(IotaObjectResponse::new(
                         Some(IotaObjectData::new(object_ref, o, layout, options, None)?),
-                        Some(IotaObjectResponseError::DisplayError {
+                        Some(IotaObjectResponseError::Display {
                             error: e.to_string(),
                         }),
                     )),

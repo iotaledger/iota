@@ -42,10 +42,7 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 /**
  * List of known types for shorthand search in the `search` command.
  */
-const KNOWN_TYPES = {
-  iotafren:
-    '0x80d7de9c4a56194087e0ba0bf59492aa8e6a5ee881606226930827085ddf2332::iotafrens::IotaFren<0x80d7de9c4a56194087e0ba0bf59492aa8e6a5ee881606226930827085ddf2332::capy::Capy>',
-};
+const KNOWN_TYPES = {};
 
 /** JsonRpcProvider for the Testnet */
 const client = new IotaClient({ url: getFullnodeUrl('testnet') });
@@ -140,13 +137,13 @@ program
 program
   .command('search')
   .description('search open listings in Kiosks')
-  .argument('<type>', 'The type of the item to search for. \nAvailable aliases: "iotafren", "test"')
+  .argument('<type>', 'The type of the item to search for. \nAvailable aliases: "test"')
   .action(searchType);
 
 program
   .command('policy')
   .description('search for a TransferPolicy for the specified type')
-  .argument('<type>', 'The type of the item to search for. \nAvailable aliases: "iotafren", "test"')
+  .argument('<type>', 'The type of the item to search for. \nAvailable aliases: "test"')
   .action(searchPolicy);
 
 program

@@ -56,7 +56,7 @@ export class Ed25519PublicKey extends PublicKey {
     }
 
     /**
-     * Return the Iota address associated with this Ed25519 public key
+     * Return the IOTA address associated with this Ed25519 public key
      */
     flag(): number {
         return SIGNATURE_SCHEME_TO_FLAG['ED25519'];

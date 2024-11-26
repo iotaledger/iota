@@ -17,7 +17,7 @@ import { RPC_METHODS, UnsupportedMethodError, UnsupportedParamError } from './me
 
 export interface IotaClientGraphQLTransportOptions {
     url: string;
-    fallbackFullNodeUrl?: string;
+    fallbackTransportUrl?: string;
     fallbackMethods?: (keyof typeof RPC_METHODS)[];
 }
 
@@ -68,9 +68,9 @@ export class IotaClientGraphQLTransport implements IotaTransport {
             'devInspectTransactionBlock',
         ];
 
-        if (options.fallbackFullNodeUrl) {
+        if (options.fallbackTransportUrl) {
             this.#fallbackTransport = new IotaHTTPTransport({
-                url: options.fallbackFullNodeUrl,
+                url: options.fallbackTransportUrl,
             });
         }
     }

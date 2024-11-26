@@ -43,7 +43,6 @@ module P0::m {
                         outputState {
                             asMoveObject {
                                 contents { type { repr } }
-                                hasPublicTransfer
                             }
                         }
                     }

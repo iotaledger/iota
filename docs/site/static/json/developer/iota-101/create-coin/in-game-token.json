@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What is the primary purpose of using the IOTA Closed-Loop Token standard in this context?",
+        "answerOptions": [
+            { "answerText": "To enable cross-game token transfers.", "isCorrect": false },
+            { "answerText": "To create in-game currency that is used within the game economy.", "isCorrect": true },
+            { "answerText": "To allow players to cash out tokens for fiat currency.", "isCorrect": false },
+            { "answerText": "To create a public cryptocurrency for trading.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the provided code example, what is the in-game currency called?",
+        "answerOptions": [
+            { "answerText": "IOTA", "isCorrect": false },
+            { "answerText": "GEM", "isCorrect": true },
+            { "answerText": "Doge", "isCorrect": false },
+            { "answerText": "Swords", "isCorrect": false }
+        ]
+    }
+]

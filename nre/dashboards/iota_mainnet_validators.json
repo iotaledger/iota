@@ -1128,7 +1128,7 @@
         "type": "prometheus",
         "uid": "e6b9ae38-5a18-477b-bd96-c67b655dd4aa"
       },
-      "description": "e2e latency of handling certificates that go through Narwhal (p67 across validators)",
+      "description": "e2e latency of handling certificates that go through consensus (p67 across validators)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1460,119 +1460,6 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "e6b9ae38-5a18-477b-bd96-c67b655dd4aa"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "fillOpacity": 70,
-            "lineWidth": 1
-          },
-          "mappings": [
-            {
-              "options": {
-                "from": 20,
-                "result": {
-                  "color": "red",
-                  "index": 0
-                },
-                "to": 100000000
-              },
-              "type": "range"
-            },
-            {
-              "options": {
-                "from": 10,
-                "result": {
-                  "color": "orange",
-                  "index": 1
-                },
-                "to": 20
-              },
-              "type": "range"
-            },
-            {
-              "options": {
-                "from": 0,
-                "result": {
-                  "color": "dark-green",
-                  "index": 2
-                },
-                "to": 10
-              },
-              "type": "range"
-            },
-            {
-              "options": {
-                "match": "null+nan",
-                "result": {
-                  "color": "transparent",
-                  "index": 3
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "dark-green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 29,
-        "w": 8,
-        "x": 16,
-        "y": 36
-      },
-      "id": 262,
-      "interval": "2m",
-      "options": {
-        "colWidth": 0.9,
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "rowHeight": 0.9,
-        "showValue": "never",
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "e6b9ae38-5a18-477b-bd96-c67b655dd4aa"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "histogram_quantile(0.5, sum by(le, host) (rate(primary_inbound_request_latency_bucket{network=\"mainnet\", route=\"/narwhal.PrimaryToPrimary/SendCertificate\"}[5m]))) * 1000",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{host}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "p50 process certificate (internal processing only)",
-      "type": "status-history"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
         "uid": "8Xt1pVoVk"
       },
       "description": "Error rate (as reported by all the IOTA Foundation FNs) for the RPC errors",
@@ -1764,7 +1651,7 @@
         "type": "prometheus",
         "uid": "e6b9ae38-5a18-477b-bd96-c67b655dd4aa"
       },
-      "description": "The rate of node participation in consensus via sending certified Narwhal proposals.",
+      "description": "The rate of node participation in consensus via sending certified consensus proposals.",
       "fieldConfig": {
         "defaults": {
           "color": {

@@ -220,7 +220,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
 
 #[cfg(test)]
 mod test {
-    use anemo::async_trait;
+    use async_trait::async_trait;
     use bytes::Bytes;
     use futures::stream;
 

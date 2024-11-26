@@ -31,108 +31,108 @@ impl std::fmt::Display for DataDownloadError {
 #[non_exhaustive]
 pub enum IndexerError {
     #[error("Indexer failed to convert timestamp to NaiveDateTime with error: `{0}`")]
-    DateTimeParsingError(String),
+    DateTimeParsing(String),
 
     #[error("Indexer failed to deserialize event from events table with error: `{0}`")]
-    EventDeserializationError(String),
+    EventDeserialization(String),
 
     #[error(
         "Fullnode returns unexpected responses, which may block indexers from proceeding, with error: `{0}`"
     )]
-    UnexpectedFullnodeResponseError(String),
+    UnexpectedFullnodeResponse(String),
 
     #[error("Indexer failed to transform data with error: `{0}`")]
-    DataTransformationError(String),
+    DataTransformation(String),
 
     #[error("Indexer failed to read fullnode with error: `{0}`")]
-    FullNodeReadingError(String),
+    FullNodeReading(String),
 
     #[error("Indexer failed to convert structs to diesel Insertable with error: `{0}`")]
-    InsertableParsingError(String),
+    InsertableParsing(String),
 
     #[error("Indexer failed to build JsonRpcServer with error: `{0}`")]
-    JsonRpcServerError(#[from] iota_json_rpc::error::Error),
+    JsonRpcServer(#[from] iota_json_rpc::error::Error),
 
     #[error("Indexer failed to find object mutations, which should never happen.")]
     ObjectMutationNotAvailable,
 
     #[error("Indexer failed to build PG connection pool with error: `{0}`")]
-    PgConnectionPoolInitError(String),
+    PgConnectionPoolInit(String),
 
     #[error("Indexer failed to get a pool connection from PG connection pool with error: `{0}`")]
-    PgPoolConnectionError(String),
+    PgPoolConnection(String),
 
     #[error("Indexer failed to read PostgresDB with error: `{0}`")]
-    PostgresReadError(String),
+    PostgresRead(String),
 
     #[error("Indexer failed to reset PostgresDB with error: `{0}`")]
-    PostgresResetError(String),
+    PostgresReset(String),
 
     #[error("Indexer failed to commit changes to PostgresDB with error: `{0}`")]
-    PostgresWriteError(String),
+    PostgresWrite(String),
 
     #[error(transparent)]
-    PostgresError(#[from] diesel::result::Error),
+    Postgres(#[from] diesel::result::Error),
 
     #[error("Indexer failed to initialize fullnode Http client with error: `{0}`")]
-    HttpClientInitError(String),
+    HttpClientInit(String),
 
     #[error("Indexer failed to serialize/deserialize with error: `{0}`")]
-    SerdeError(String),
+    Serde(String),
 
     #[error("Indexer error related to dynamic field: `{0}`")]
-    DynamicFieldError(String),
+    DynamicField(String),
 
     #[error("Indexer does not support the feature with error: `{0}`")]
-    NotSupportedError(String),
+    NotSupported(String),
 
     #[error("Indexer read corrupted/incompatible data from persistent storage: `{0}`")]
-    PersistentStorageDataCorruptionError(String),
+    PersistentStorageDataCorruption(String),
 
     #[error("Indexer generic error: `{0}`")]
-    GenericError(String),
+    Generic(String),
 
     #[error("Indexer failed to resolve object to move struct with error: `{0}`")]
-    ResolveMoveStructError(String),
+    ResolveMoveStruct(String),
 
     #[error(transparent)]
-    UncategorizedError(#[from] anyhow::Error),
+    Uncategorized(#[from] anyhow::Error),
 
     #[error(transparent)]
-    ObjectIdParseError(#[from] ObjectIDParseError),
+    ObjectIdParse(#[from] ObjectIDParseError),
 
     #[error("Invalid transaction digest with error: `{0}`")]
-    InvalidTransactionDigestError(String),
+    InvalidTransactionDigest(String),
 
     #[error(transparent)]
-    IotaError(#[from] IotaError),
+    Iota(#[from] IotaError),
 
     #[error(transparent)]
-    BcsError(#[from] bcs::Error),
+    Bcs(#[from] bcs::Error),
 
     #[error("Invalid argument with error: `{0}`")]
-    InvalidArgumentError(String),
+    InvalidArgument(String),
 
     #[error(transparent)]
-    UserInputError(#[from] UserInputError),
+    UserInput(#[from] UserInputError),
 
     #[error("Indexer failed to resolve module with error: `{0}`")]
-    ModuleResolutionError(String),
+    ModuleResolution(String),
 
     #[error(transparent)]
-    ObjectResponseError(#[from] IotaObjectResponseError),
+    ObjectResponse(#[from] IotaObjectResponseError),
 
     #[error(transparent)]
-    FastCryptoError(#[from] FastCryptoError),
+    FastCrypto(#[from] FastCryptoError),
 
     #[error("`{0}`: `{1}`")]
     ErrorWithContext(String, Box<IndexerError>),
 
     #[error("Indexer failed to send item to channel with error: `{0}`")]
-    MpscChannelError(String),
+    MpscChannel(String),
 
     #[error("Failed to process checkpoint(s): `{0}`")]
-    CheckpointProcessingError(String),
+    CheckpointProcessing(String),
 }
 
 pub trait Context<T> {
@@ -159,6 +159,6 @@ impl From<IndexerError> for ErrorObjectOwned {
 
 impl From<tokio::task::JoinError> for IndexerError {
     fn from(value: tokio::task::JoinError) -> Self {
-        IndexerError::UncategorizedError(anyhow::Error::from(value))
+        IndexerError::Uncategorized(anyhow::Error::from(value))
     }
 }

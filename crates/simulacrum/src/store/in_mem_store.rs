@@ -18,8 +18,8 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
-        get_module, load_package_object_from_object_store,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
+        load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -326,15 +326,6 @@ impl ObjectStore for InMemoryStore {
     }
 }
 
-impl ParentSync for InMemoryStore {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        _object_id: ObjectID,
-    ) -> iota_types::error::IotaResult<Option<iota_types::base_types::ObjectRef>> {
-        panic!("Never called in newer protocol versions")
-    }
-}
-
 #[derive(Debug)]
 pub struct KeyStore {
     validator_keys: BTreeMap<AuthorityName, AuthorityKeyPair>,
@@ -353,8 +344,8 @@ impl KeyStore {
             .iter()
             .map(|config| {
                 (
-                    config.protocol_public_key(),
-                    config.protocol_key_pair().copy(),
+                    config.authority_public_key(),
+                    config.authority_key_pair().copy(),
                 )
             })
             .collect();

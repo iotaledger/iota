@@ -73,7 +73,7 @@ async fn execute_transaction(
     Bcs(transaction): Bcs<SignedTransaction>,
 ) -> Result<ResponseContent<TransactionExecutionResponse>> {
     let executor = state.ok_or_else(|| anyhow::anyhow!("No Transaction Executor"))?;
-    let request = iota_types::quorum_driver_types::ExecuteTransactionRequestV3 {
+    let request = iota_types::quorum_driver_types::ExecuteTransactionRequestV1 {
         transaction: transaction.into(),
         include_events: parameters.events,
         include_input_objects: parameters.input_objects || parameters.balance_changes,
@@ -81,7 +81,7 @@ async fn execute_transaction(
         include_auxiliary_data: false,
     };
 
-    let iota_types::quorum_driver_types::ExecuteTransactionResponseV3 {
+    let iota_types::quorum_driver_types::ExecuteTransactionResponseV1 {
         effects,
         events,
         input_objects,
@@ -163,7 +163,7 @@ async fn execute_transaction(
 #[derive(Debug, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct ExecuteTransactionQueryParameters {
     // TODO once transaction finality support is more fully implemented up and down the stack, add
-    // back in this parameter, which will be mutally-exclusive with the other parameters. When
+    // back in this parameter, which will be mutually-exclusive with the other parameters. When
     // `true` will submit the txn and return a `202 Accepted` response with no payload.
     // effects: Option<bool>,
     /// Request `TransactionEvents` be included in the Response.

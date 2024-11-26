@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export { formatAddress, formatDigest } from './format.js';
+export { formatAddress, formatDigest, formatType } from './format.js';
 export {
     isValidIotaAddress,
     isValidIotaObjectId,

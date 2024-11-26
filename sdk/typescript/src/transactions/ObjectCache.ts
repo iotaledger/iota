@@ -267,11 +267,11 @@ export class ObjectCache {
     }
 
     async applyEffects(effects: typeof bcs.TransactionEffects.$inferType) {
-        if (!effects.V2) {
+        if (!effects.V1) {
             throw new Error(`Unsupported transaction effects version ${effects.$kind}`);
         }
 
-        const { lamportVersion, changedObjects } = effects.V2;
+        const { lamportVersion, changedObjects } = effects.V1;
 
         const deletedIds: string[] = [];
         const addedObjects: ObjectCacheEntry[] = [];

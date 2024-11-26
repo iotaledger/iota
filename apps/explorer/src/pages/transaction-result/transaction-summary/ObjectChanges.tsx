@@ -26,8 +26,15 @@ import {
     ObjectLink,
 } from '~/components/ui';
 import { ObjectDisplay } from './ObjectDisplay';
-import { Badge, BadgeType, KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
-import { FieldCollapsible } from '~/components';
+import {
+    Accordion,
+    AccordionHeader,
+    AccordionContent,
+    Badge,
+    BadgeType,
+    KeyValueInfo,
+    TitleSize,
+} from '@iota/apps-ui-kit';
 import { TriangleDown } from '@iota/ui-icons';
 
 interface ItemProps {
@@ -57,7 +64,6 @@ function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Elemen
                             label={formatAddress(packageId || '')}
                         />
                     }
-                    fullwidth
                 />
             );
         case ItemLabel.Module:
@@ -70,13 +76,12 @@ function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Elemen
                             label={moduleName || ''}
                         />
                     }
-                    fullwidth
                 />
             );
         case ItemLabel.Type:
-            return <KeyValueInfo keyText={label} value={typeName || ''} fullwidth />;
+            return <KeyValueInfo keyText={label} value={typeName || ''} />;
         default:
-            return <KeyValueInfo keyText={label} value="" fullwidth />;
+            return <KeyValueInfo keyText={label} value="" />;
     }
 }
 
@@ -89,11 +94,8 @@ interface ObjectDetailPanelProps {
 function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelProps): JSX.Element {
     const [open, setOpen] = useState(false);
     return (
-        <FieldCollapsible
-            hideBorder
-            onOpenChange={(isOpen) => setOpen(isOpen)}
-            hideArrow
-            render={() => (
+        <Accordion hideBorder>
+            <AccordionHeader hideBorder hideArrow isExpanded={open} onToggle={() => setOpen(!open)}>
                 <div className="flex w-full flex-row items-center justify-between px-md--rs">
                     <div className="flex flex-row gap-xxxs text-neutral-40 dark:text-neutral-60">
                         <span className="text-body-md">Object</span>
@@ -111,11 +113,9 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
                         {headerContent}
                     </div>
                 </div>
-            )}
-            open={open}
-        >
-            {panelContent}
-        </FieldCollapsible>
+            </AccordionHeader>
+            <AccordionContent isExpanded={open}>{panelContent}</AccordionContent>
+        </Accordion>
     );
 }
 
@@ -139,12 +139,12 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
         <ObjectDetailPanel
             headerContent={
                 <div className="flex shrink-0 items-center gap-xxs">
-                    <Badge type={BadgeType.PrimarySoft} label={name} />
+                    <Badge type={BadgeType.Neutral} label={name} />
                     {objectId && <ObjectLink objectId={objectId} />}
                 </div>
             }
             panelContent={
-                <div className="flex flex-col gap-xs px-md--rs py-sm--rs capitalize">
+                <div className="flex flex-col gap-xs px-md--rs py-sm--rs pr-16 capitalize">
                     {objectDetailLabels.map((label) => (
                         <Item
                             key={label}
@@ -179,7 +179,7 @@ function ObjectChangeEntries({
                 <ObjectDetailPanel
                     key={packageId}
                     panelContent={
-                        <div className="px-md-rs flex flex-col gap-2 py-sm--rs">
+                        <div className="flex flex-col gap-xs px-md--rs py-sm--rs pr-16 capitalize">
                             <Item label={ItemLabel.Package} packageId={packageId} />
                             {modules.map((moduleName, index) => (
                                 <Item
@@ -221,12 +221,7 @@ function ObjectChangeEntries({
             defaultItemsToShow={DEFAULT_ITEMS_TO_SHOW}
             itemsLabel="Objects"
         >
-            <div
-                className={clsx('flex gap-2 overflow-y-auto', {
-                    'flex-row': isDisplay,
-                    'flex-col': !isDisplay,
-                })}
-            >
+            <div className="flex flex-col gap-2 overflow-y-auto">
                 <ExpandableListItems />
             </div>
 

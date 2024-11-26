@@ -637,7 +637,7 @@ fn construct_move_call_persist_query(start_tx_seq: i64, end_tx_seq: i64) -> Stri
         m.package AS move_package,
         m.module AS move_module,
         m.func AS move_function
-    FROM tx_calls m
+    FROM tx_calls_fun m
     INNER JOIN transactions t
         ON m.tx_sequence_number = t.tx_sequence_number
     INNER JOIN checkpoints c

@@ -215,7 +215,7 @@ pub enum ToolCommand {
 
         #[arg(
             long = "concise",
-            help = "show concise output - name, protocol key and network address"
+            help = "show concise output - name, authority key and network address"
         )]
         concise: bool,
     },
@@ -316,9 +316,7 @@ pub enum ToolCommand {
         verbose: bool,
     },
 
-    // Restore from formal (slim, DB agnostic) snapshot. Note that this is only supported
-    /// for protocol versions supporting `commit_root_state_digest`. For
-    /// mainnet, this is epoch 20+, and for testnet this is epoch 12+
+    // Restore from formal (slim, DB agnostic) snapshot.
     #[clap(
         name = "download-formal-snapshot",
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
@@ -641,6 +639,7 @@ impl ToolCommand {
                         .handle_checkpoint(CheckpointRequest {
                             sequence_number,
                             request_content: true,
+                            certified: true,
                         })
                         .await
                         .unwrap();
@@ -709,9 +708,9 @@ impl ToolCommand {
                 let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
                     if no_sign_request {
                         if network == Chain::Mainnet {
-                            Some("https://formal-snapshot.mainnet.iota.io".to_string())
+                            Some("https://dbfiles.mainnet.iota.cafe/formal".to_string())
                         } else if network == Chain::Testnet {
-                            Some("https://formal-snapshot.testnet.iota.io".to_string())
+                            Some("https://dbfiles.testnet.iota.cafe/formal".to_string())
                         } else {
                             None
                         }
@@ -942,9 +941,9 @@ impl ToolCommand {
                 let snapshot_store_config = if no_sign_request {
                     let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
                         if network == Chain::Mainnet {
-                            Some("https://db-snapshot.mainnet.iota.io".to_string())
+                            Some("https://dbfiles.mainnet.iota.cafe/snapshots".to_string())
                         } else if network == Chain::Testnet {
-                            Some("https://db-snapshot.testnet.iota.io".to_string())
+                            Some("https://dbfiles.testnet.iota.cafe/snapshots".to_string())
                         } else {
                             None
                         }

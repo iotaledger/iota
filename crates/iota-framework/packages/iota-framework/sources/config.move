@@ -263,9 +263,7 @@ module iota::config {
         )
     }
 
-    /*
-    This is kept native to keep gas costing consistent.
-    */
+    /* This is kept native to keep gas costing consistent. */
     native fun read_setting_impl<
         FieldSettingValue: key,
         SettingValue: store,
@@ -276,15 +274,12 @@ module iota::config {
         name: address,
         current_epoch: u64,
     ): Option<Value>;
-        /*
-    // but the code is essentially
+    /* but the code is essentially:
         if (!field::exists_with_type<Name, Value>(&config.id, setting)) return option::none()
         let sobj: &Setting<Value> = field::borrow(&config.id, setting);
         let data = sobj.data.borrow();
         if (current_epoch > data.newer_value_epoch) option::some(data.newer_value)
         else data.older_value_opt
-
-    }
     */
 
 }

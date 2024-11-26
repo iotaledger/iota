@@ -75,17 +75,19 @@ export function LabelText({
             <div className="flex flex-row items-center gap-x-0.5">
                 <span
                     className={cx(
-                        'font-inter text-neutral-60 dark:text-neutral-40',
+                        'flex items-center font-inter text-neutral-60 dark:text-neutral-40',
                         labelTextClasses,
                     )}
                 >
                     {label}
+                    {tooltipText && (
+                        <div className="ml-xxxs flex items-center">
+                            <Tooltip text={tooltipText} position={tooltipPosition}>
+                                <Info className="text-neutral-60 dark:text-neutral-40" />
+                            </Tooltip>
+                        </div>
+                    )}
                 </span>
-                {tooltipText && (
-                    <Tooltip text={tooltipText} position={tooltipPosition}>
-                        <Info className="text-neutral-60 dark:text-neutral-40" />
-                    </Tooltip>
-                )}
             </div>
         </div>
     );

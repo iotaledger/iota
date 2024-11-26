@@ -254,12 +254,12 @@ impl BridgeTrait for BridgeInnerV1 {
             .into_iter()
             .map(|e| {
                 let source = BridgeChainId::try_from(e.key.source).map_err(|_e| {
-                    IotaError::GenericBridgeError {
+                    IotaError::GenericBridge {
                         error: format!("Unrecognized chain id: {}", e.key.source),
                     }
                 })?;
                 let destination = BridgeChainId::try_from(e.key.destination).map_err(|_e| {
-                    IotaError::GenericBridgeError {
+                    IotaError::GenericBridge {
                         error: format!("Unrecognized chain id: {}", e.key.destination),
                     }
                 })?;
@@ -287,12 +287,12 @@ impl BridgeTrait for BridgeInnerV1 {
             .into_iter()
             .map(|e| {
                 let source = BridgeChainId::try_from(e.key.source).map_err(|_e| {
-                    IotaError::GenericBridgeError {
+                    IotaError::GenericBridge {
                         error: format!("Unrecognized chain id: {}", e.key.source),
                     }
                 })?;
                 let destination = BridgeChainId::try_from(e.key.destination).map_err(|_e| {
-                    IotaError::GenericBridgeError {
+                    IotaError::GenericBridge {
                         error: format!("Unrecognized chain id: {}", e.key.destination),
                     }
                 })?;

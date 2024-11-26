@@ -7,8 +7,10 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 
+# internal dependencies
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-sdk.workspace = true
@@ -16,11 +18,13 @@ move-binary-format = { workspace = true, features = ["fuzzing"] }
 shared-crypto.workspace = true
 
 [dev-dependencies]
+# external dependencies
 bcs.workspace = true
 bip32.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 
+# internal dependencies
 move-core-types.workspace = true
 
 [[example]]
@@ -56,5 +60,5 @@ name = "foundry-output-claim"
 path = "stardust/foundry-output-claim.rs"
 
 [[example]]
-name = "shimmer-self-sponsor"
-path = "stardust/shimmer-self-sponsor.rs"
+name = "iota-self-sponsor"
+path = "stardust/iota-self-sponsor.rs"

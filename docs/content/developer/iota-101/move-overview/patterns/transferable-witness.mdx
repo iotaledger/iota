@@ -1,6 +1,9 @@
 ---
 description: Learn about the transferable witness pattern in Move for advanced authorization scenarios.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/move-overview/patterns/transferable-witness.json';
+
 # Transferable Witness
 
 The transferable witness pattern combines elements of both [capability](capabilities.mdx)
@@ -53,3 +56,5 @@ This carrier can be sent to authorized users, who can then extract the witness w
 
 For more insights and practical implementations of advanced authorization patterns in Move, consider exploring the [Hero](https://github.com/iotaledger/iota/blob/main/examples/move/hero/sources/example.move) example.
 This example demonstrates how transferable witnesses and similar patterns can be applied to build secure and robust smart contracts on the IOTA platform.
+
+<Quiz questions={questions} />

@@ -28,8 +28,8 @@ pub enum Error {
         client_version: String,
         server_version: String,
     },
-    #[error("Insufficient fund for address [{address}], requested amount: {amount}")]
-    InsufficientFund { address: IotaAddress, amount: u128 },
+    #[error("Insufficient funds for address [{address}], requested amount: {amount}")]
+    InsufficientFunds { address: IotaAddress, amount: u128 },
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 }

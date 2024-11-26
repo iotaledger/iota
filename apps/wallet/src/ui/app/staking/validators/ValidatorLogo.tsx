@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ImageIcon } from '_app/shared/image-icon';
 import {
     Badge,
     BadgeType,
@@ -15,7 +14,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
-import { formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
+import { formatPercentageDisplay, useGetValidatorsApy, ImageIcon, ImageIconSize } from '@iota/core';
 
 interface ValidatorLogoProps {
     validatorAddress: string;
@@ -82,9 +81,14 @@ export function ValidatorLogo({
         <>
             <Card type={type} onClick={onClick}>
                 <CardImage>
-                    <ImageIcon src={null} label={validatorName} fallback={validatorName} />
+                    <ImageIcon
+                        src={null}
+                        label={validatorName}
+                        fallback={validatorName}
+                        size={ImageIconSize.Large}
+                    />
                 </CardImage>
-                <CardBody title={validatorName} subtitle={subtitle} />
+                <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                 {showApy && (
                     <CardAction
                         type={CardActionType.SupportingText}

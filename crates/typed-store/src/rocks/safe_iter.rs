@@ -89,7 +89,7 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for SafeIter<'a, K, 
         } else {
             match self.db_iter.status() {
                 Ok(_) => None,
-                Err(err) => Some(Err(TypedStoreError::RocksDBError(format!("{err}")))),
+                Err(err) => Some(Err(TypedStoreError::RocksDB(format!("{err}")))),
             }
         }
     }

@@ -54,7 +54,7 @@ async fn pay_with_gas_budget(budget: u64) -> TransactionIdentifierResponseResult
     let sender = test_cluster.get_address_0();
     let recipient = test_cluster.get_address_1();
     let client = test_cluster.wallet.get_client().await.unwrap();
-    let keystore = &test_cluster.wallet.config.keystore;
+    let keystore = test_cluster.wallet.config().keystore();
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
@@ -167,7 +167,7 @@ async fn test_pay_with_gas_budget_fail() {
         TransactionIdentifierResponseResult::Error(rosetta_submit_gas_error) => {
             assert_eq!(rosetta_submit_gas_error, RosettaSubmitGasError {
                 code: 11,
-                message: "Transaction dry run error".to_string(),
+                message: "Transaction dry run".to_string(),
                 description: None,
                 retriable: false,
                 details: RosettaSubmitGasErrorDetails {

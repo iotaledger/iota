@@ -157,7 +157,7 @@ impl fmt::UpperHex for Digest {
     Deserialize,
     JsonSchema,
 )]
-pub struct ChainIdentifier(CheckpointDigest);
+pub struct ChainIdentifier(pub(crate) CheckpointDigest);
 
 pub static MAINNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
 pub static TESTNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
@@ -205,6 +205,14 @@ impl ChainIdentifier {
     pub fn as_bytes(&self) -> &[u8; 32] {
         self.0.inner()
     }
+
+    pub fn into_bytes(self) -> [u8; 32] {
+        self.0.into_inner()
+    }
+
+    pub fn digest(&self) -> CheckpointDigest {
+        self.0
+    }
 }
 
 pub fn get_mainnet_chain_identifier() -> ChainIdentifier {
@@ -223,7 +231,7 @@ pub fn get_mainnet_chain_identifier() -> ChainIdentifier {
 pub fn get_testnet_chain_identifier() -> ChainIdentifier {
     let digest = TESTNET_CHAIN_IDENTIFIER.get_or_init(|| {
         let digest = CheckpointDigest::new(
-            Base58::decode("69WiPg3DAQiwdxfncX6wYQ2siKwAe6L9BZthQea3JNMD")
+            Base58::decode("3MhPzSaSTHGffwPSV2Ws2DaK8LR8DBGPozTd2CbiJRwe")
                 .expect("testnet genesis checkpoint digest literal is invalid")
                 .try_into()
                 .expect("Testnet genesis checkpoint digest literal has incorrect length"),

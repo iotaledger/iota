@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    CoinFormat,
     createStakeTransaction,
     getGasSummary,
     parseAmount,
@@ -10,12 +11,13 @@ import {
     useFormatCoin,
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { useActiveAddress, useTransactionDryRun } from '../../hooks';
 import { type FormValues } from './StakingCard';
-import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
 import { StakeTxnInfo } from '../../components/receipt-card/StakeTxnInfo';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { Exclamation } from '@iota/ui-icons';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -25,11 +27,10 @@ export interface StakeFromProps {
 }
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
-    const { values } = useFormikContext<FormValues>();
-
+    const { values, setFieldValue } = useFormikContext<FormValues>();
+    const activeAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
-    const [maxToken, symbol, queryResult] = useFormatCoin(coinBalance, coinType);
 
     const transaction = useMemo(() => {
         if (!values.amount || !decimals) return null;
@@ -38,16 +39,34 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         return createStakeTransaction(amountWithoutDecimals, validatorAddress);
     }, [values.amount, validatorAddress, decimals]);
 
-    const activeAddress = useActiveAddress();
     const { data: txDryRunResponse } = useTransactionDryRun(
         activeAddress ?? undefined,
         transaction ?? new Transaction(),
     );
 
-    const gasSummary = useMemo(() => {
-        if (!txDryRunResponse) return null;
-        return getGasSummary(txDryRunResponse);
-    }, [txDryRunResponse]);
+    const gasSummary = txDryRunResponse ? getGasSummary(txDryRunResponse) : undefined;
+
+    const stakeAllTransaction = useMemo(() => {
+        return createStakeTransaction(coinBalance, validatorAddress);
+    }, [coinBalance, validatorAddress]);
+
+    const { data: stakeAllTransactionDryRun } = useTransactionDryRun(
+        activeAddress ?? undefined,
+        stakeAllTransaction,
+    );
+
+    const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
+
+    // do not remove: gasBudget field is used in the validation schema apps/wallet/src/ui/app/staking/stake/utils/validation.ts
+    useEffect(() => {
+        setFieldValue('gasBudget', gasBudget);
+    }, [gasBudget]);
+
+    const maxTokenBalance = coinBalance - gasBudget;
+    const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
+
+    const hasEnoughRemaingBalance =
+        maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
 
     return (
         <Form
@@ -60,11 +79,6 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     form: { setFieldValue },
                     meta,
                 }: FieldProps<FormValues>) => {
-                    const setMaxToken = useCallback(() => {
-                        if (!maxToken) return;
-                        setFieldValue('amount', maxToken);
-                    }, [maxToken, setFieldValue]);
-
                     return (
                         <Input
                             {...field}
@@ -73,22 +87,22 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                             name="amount"
                             placeholder={`0 ${symbol}`}
                             value={values.amount}
-                            caption={coinBalance ? `${maxToken} ${symbol} Available` : ''}
+                            caption={coinBalance ? `${maxTokenFormatted} ${symbol} Available` : ''}
                             suffix={' ' + symbol}
-                            trailingElement={
-                                <ButtonPill
-                                    onClick={setMaxToken}
-                                    disabled={queryResult.isPending || values.amount === maxToken}
-                                >
-                                    Max
-                                </ButtonPill>
-                            }
                             errorMessage={values.amount && meta.error ? meta.error : undefined}
                             label="Amount"
                         />
                     );
                 }}
             </Field>
+            {!hasEnoughRemaingBalance ? (
+                <InfoBox
+                    type={InfoBoxType.Error}
+                    supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                    style={InfoBoxStyle.Elevated}
+                    icon={<Exclamation />}
+                />
+            ) : null}
             <StakeTxnInfo startEpoch={epoch} gasSummary={transaction ? gasSummary : undefined} />
         </Form>
     );

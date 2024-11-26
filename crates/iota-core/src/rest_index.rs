@@ -297,7 +297,7 @@ impl IndexStoreTables {
         let mut object_scanned: u64 = 0;
         for object in authority_store
             .perpetual_tables
-            .range_iter_live_object_set(Some(start_id), Some(end_id), false)
+            .range_iter_live_object_set(Some(start_id), Some(end_id))
             .filter_map(LiveObject::to_normal)
         {
             object_scanned += 1;

@@ -11,7 +11,7 @@ module iota_system::timelocked_staking {
 
     use iota_system::iota_system::{IotaSystemState};
     use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{Validator};
+    use iota_system::validator::{ValidatorV1};
 
     /// For when trying to stake an expired time-locked balance.
     const ETimeLockShouldNotBeExpired: u64 = 0;
@@ -83,7 +83,7 @@ module iota_system::timelocked_staking {
         let (timelocked_balance, reward) = request_withdraw_stake_non_entry(iota_system, timelocked_staked_iota, ctx);
 
         // Transfer the withdrawn time-locked balance to the sender.
-       timelocked_balance.transfer_to_sender(ctx);
+        timelocked_balance.transfer_to_sender(ctx);
 
         // Send coins only if the reward is not zero.
         if (reward.value() > 0) {
@@ -107,8 +107,8 @@ module iota_system::timelocked_staking {
         assert!(timelocked_balance.is_locked(ctx), ETimeLockShouldNotBeExpired);
 
         // Unpack the time-locked balance.
-        let sys_timelock_cap = iota_system.load_system_timelock_cap();
-        let (balance, expiration_timestamp_ms, label) = timelock::system_unpack(sys_timelock_cap, timelocked_balance);
+        let sys_admin_cap = iota_system.load_iota_system_admin_cap();
+        let (balance, expiration_timestamp_ms, label) = timelock::system_unpack(sys_admin_cap, timelocked_balance);
 
         // Stake the time-locked balance.
         let staked_iota = iota_system.request_add_stake_non_entry(
@@ -181,8 +181,8 @@ module iota_system::timelocked_staking {
         let principal = withdraw_stake.split(principal);
 
         // Pack and return a time-locked balance, and the reward.
-        let sys_timelock_cap = iota_system.load_system_timelock_cap();
-        (timelock::system_pack(sys_timelock_cap, principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
+        let sys_admin_cap = iota_system.load_iota_system_admin_cap();
+        (timelock::system_pack(sys_admin_cap, principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
     }
 
     // === TimelockedStakedIota balance functions ===
@@ -312,8 +312,8 @@ module iota_system::timelocked_staking {
     fun transfer_multiple(mut stakes: vector<TimelockedStakedIota>, receiver: address) {
         // Transfer all the time-locked stakes to the recipient.
         while (!stakes.is_empty()) {
-           let stake = stakes.pop_back();
-           transfer::transfer(stake, receiver);
+            let stake = stakes.pop_back();
+            transfer::transfer(stake, receiver);
         };
 
         // Destroy the empty vector.
@@ -324,7 +324,7 @@ module iota_system::timelocked_staking {
     
     /// Request to add timelocked stake to the validator's staking pool at genesis
     public(package) fun request_add_stake_at_genesis(
-        validator: &mut Validator,
+        validator: &mut ValidatorV1,
         stake: Balance<IOTA>,
         staker_address: address,
         expiration_timestamp_ms: u64,

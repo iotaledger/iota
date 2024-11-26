@@ -3,3 +3,4 @@
 
 export * from './footer.constants';
 export * from './validator.constants';
+export * from './pageSize.constants';

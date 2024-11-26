@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What is the primary purpose of the `examples::loyalty` module in the provided code?",
+        "answerOptions": [
+            { "answerText": "To implement a decentralized exchange for trading tokens.", "isCorrect": false },
+            { "answerText": "To create a closed-loop loyalty token that users can use to make purchases in a gift shop.", "isCorrect": true },
+            { "answerText": "To create a regulated coin with a deny list.", "isCorrect": false },
+            { "answerText": "To provide a way to burn tokens.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the code example, what is the name of the loyalty token?",
+        "answerOptions": [
+            { "answerText": "GIFT", "isCorrect": false },
+            { "answerText": "IOTA", "isCorrect": false },
+            { "answerText": "TREASURYCAP", "isCorrect": false },
+            { "answerText": "LOYALTY", "isCorrect": true }
+        ]
+    }
+]

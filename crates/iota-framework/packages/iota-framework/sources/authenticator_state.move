@@ -82,9 +82,9 @@ module iota::authenticator_state {
 
     fun jwk_equal(a: &JWK, b: &JWK): bool {
         (&a.kty == &b.kty) &&
-           (&a.e == &b.e) &&
-           (&a.n == &b.n) &&
-           (&a.alg == &b.alg)
+        (&a.e == &b.e) &&
+        (&a.n == &b.n) &&
+        (&a.alg == &b.alg)
     }
 
     fun jwk_id_equal(a: &JwkId, b: &JwkId): bool {

@@ -11,9 +11,17 @@ export type CardActionProps = {
     type: CardActionType;
     onClick?: () => void;
     icon?: React.ReactNode;
+    iconAfterText?: boolean;
 };
 
-export function CardAction({ type, onClick, subtitle, title, icon }: CardActionProps) {
+export function CardAction({
+    type,
+    onClick,
+    subtitle,
+    title,
+    icon,
+    iconAfterText,
+}: CardActionProps) {
     function handleActionClick(event: React.MouseEvent) {
         event?.stopPropagation();
         onClick?.();
@@ -54,6 +62,8 @@ export function CardAction({ type, onClick, subtitle, title, icon }: CardActionP
                     size={ButtonSize.Small}
                     text={title}
                     onClick={handleActionClick}
+                    icon={icon}
+                    iconAfterText={iconAfterText}
                 />
             </div>
         );

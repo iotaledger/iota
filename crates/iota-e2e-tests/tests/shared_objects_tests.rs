@@ -468,7 +468,7 @@ async fn call_shared_object_contract() {
     );
 }
 
-#[ignore("Disabled due to flakiness - re-enable when failure is fixed")]
+#[ignore("Issue - https://github.com/iotaledger/iota/issues/4010")]
 #[sim_test]
 async fn access_clock_object_test() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -478,7 +478,7 @@ async fn access_clock_object_test() {
         &test_cluster
             .test_transaction_builder()
             .await
-            .move_call(package_id, "clock", "get_time", vec![CallArg::CLOCK_IMM])
+            .move_call(package_id, "clock", "access", vec![CallArg::CLOCK_IMM])
             .build(),
     );
     let digest = *transaction.digest();
@@ -628,7 +628,7 @@ async fn shared_object_sync() {
     assert!(effects.status().is_ok());
 
     // Submit transactions to the out-of-date authority.
-    // It will succeed because we share owned object certificates through narwhal
+    // It will succeed because we share owned object certificates through consensus
     let (effects, _) = test_cluster
         .submit_transaction_to_validators(increment_counter_transaction, &validators[0..1])
         .await

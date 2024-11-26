@@ -3,6 +3,9 @@ title: Metrics
 description: Prometheus-based metrics for the node.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/telemetry/iota-metrics.json';
+
 The `iota-metrics` crate defines a `Metrics` struct with various [`IntGaugeVec`][] metrics to monitor running tasks,
 pending futures, channel sizes, and scope activities. A gauge is a type of metric that represents a single numerical value
 that can go up or down.
@@ -138,7 +141,7 @@ It works as follows:
             .unwrap();
 
         // Create another registry and add a metric to it
-        let registry_1 = Registry::new_custom(Some("narwhal".to_string()), None).unwrap();
+        let registry_1 = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
         registry_1
             .register(Box::new(
                 IntCounter::new("counter_1", "counter_1_desc").unwrap(),
@@ -162,7 +165,7 @@ It works as follows:
 
         // Check the second metric
         let metric_2 = metrics.remove(0);
-        assert_eq!(metric_2.get_name(), "narwhal_counter_1");
+        assert_eq!(metric_2.get_name(), "consensus_counter_1");
         assert_eq!(metric_2.get_help(), "counter_1_desc");
 ```
 
@@ -230,3 +233,5 @@ This push task assigns the current timestamp to each metric, encodes the metrics
 pushes the compressed metrics data via an HTTP POST.
 
 [`IntGaugeVec`]: https://docs.rs/prometheus/latest/prometheus/type.IntGaugeVec.html
+
+<Quiz questions={questions} />

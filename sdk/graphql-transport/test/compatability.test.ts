@@ -15,6 +15,7 @@ import { publishPackage, setup, TestToolbox } from '../../typescript/test/e2e/ut
 import { IotaClientGraphQLTransport } from '../src/transport';
 
 const DEFAULT_GRAPHQL_URL = import.meta.env.DEFAULT_GRAPHQL_URL ?? 'http:127.0.0.1:9125';
+const LOCALNET_INDEXER = 'http:127.0.0.1:9124';
 
 describe('GraphQL IotaClient compatibility', () => {
     let toolbox: TestToolbox;
@@ -24,12 +25,12 @@ describe('GraphQL IotaClient compatibility', () => {
     const graphQLClient = new IotaClient({
         transport: new IotaClientGraphQLTransport({
             url: DEFAULT_GRAPHQL_URL,
-            fallbackFullNodeUrl: getFullnodeUrl('localnet'),
+            fallbackTransportUrl: LOCALNET_INDEXER,
         }),
     });
 
     beforeAll(async () => {
-        toolbox = await setup({ rpcURL: 'http:127.0.0.1:9124' });
+        toolbox = await setup({ rpcURL: LOCALNET_INDEXER });
 
         const packagePath = __dirname + '/../../typescript/test/e2e/data/dynamic_fields';
         ({ packageId } = await publishPackage(packagePath, toolbox));
@@ -281,7 +282,8 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLObject).toEqual(rpcObject);
     });
 
-    test('tryGetPastObject', async () => {
+    // This should work with a full node. Try to unskip it "later"
+    test.skip('tryGetPastObject', async () => {
         const {
             data: [{ coinObjectId: id, version }],
         } = await toolbox.getGasObjectsOwnedByAddress();
@@ -663,7 +665,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getCommitteeInfo', async () => {
+    test('getCommitteeInfo', async () => {
         const rpc = await toolbox.client.getCommitteeInfo({});
         const graphql = await graphQLClient!.getCommitteeInfo({});
 
@@ -719,7 +721,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getTotalTransactions', async () => {
+    test('getTotalTransactions', async () => {
         const rpc = await toolbox.client.getTotalTransactions();
         const graphql = await graphQLClient!.getTotalTransactions();
 

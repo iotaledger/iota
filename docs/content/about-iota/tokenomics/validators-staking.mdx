@@ -3,6 +3,8 @@ title: Validators and Staking Pools
 ---
 
 import StakingPoolReqs from "../../_snippets/staking-pool-reqs.mdx";
+import Quiz from '@site/src/components/Quiz';
+import {questions} from '../../../site/static/json/about-iota/tokenomics/validators-staking.json';
 
 Each IOTA validator maintains its own staking pool to track the amount of stake and to compound staking rewards. Validator pools operate together with a time series of exchange rates that are computed at each epoch boundary. These exchange rates determine the amount of IOTA tokens that each past IOTA staker can withdraw in the future. Importantly, the exchange rates increase as more rewards are deposited into a staking pool and the longer an amount of IOTA is deposited in a staking pool, the more rewards it will accrue.
 
@@ -22,3 +24,6 @@ $$
 $rewards(i, E)$ is then adjusted to consider potential slashed validators who have not met minimum quality requirements. Additionally, validators earn commissions on the staking pool's tokens. IOTA keeps track of the rewards accrued by both validators and delegators using a single global exchange rate table.
 
 <StakingPoolReqs />
+
+## Quizzes
+<Quiz questions={questions} />

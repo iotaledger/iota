@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What is an intent message in IOTA?",
+        "answerOptions": [
+            { "answerText": "A message containing serialized transaction data", "isCorrect": false },
+            { "answerText": "A compact struct that a signature commits to", "isCorrect": true },
+            { "answerText": "A user signature for transaction data", "isCorrect": false },
+            { "answerText": "A domain separator for signing messages", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which of the following is a benefit of the intent signing standard in IOTA?",
+        "answerOptions": [
+            { "answerText": "It uses a Rust struct tag name as a prefix", "isCorrect": false },
+            { "answerText": "It replaces the intent scope with a compact u8 representation", "isCorrect": true },
+            { "answerText": "It requires all data to implement the Signable trait", "isCorrect": false },
+            { "answerText": "It simplifies transaction validation for Rust applications", "isCorrect": false }
+        ]
+    }
+]

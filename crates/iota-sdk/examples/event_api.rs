@@ -29,15 +29,15 @@ async fn main() -> Result<(), anyhow::Error> {
     let descending = true;
     let query_events = client
         .event_api()
-        .query_events(EventFilter::All(vec![]), None, Some(5), descending) // query first 5 events in descending order
+        .query_events(EventFilter::All(vec![]), None, 5, descending) // query first 5 events in descending order
         .await?;
     println!(" *** Query events *** ");
     println!("{:?}", query_events);
     println!(" *** Query events ***\n ");
 
     let ws = IotaClientBuilder::default()
-        .ws_url("wss://rpc.testnet.iota.io:443")
-        .build("https://fullnode.testnet.iota.io:443")
+        .ws_url("wss://api.testnet.iota.cafe")
+        .build("https://api.testnet.iota.cafe")
         .await?;
     println!("WS version {:?}", ws.api_version());
 
