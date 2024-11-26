@@ -13,21 +13,24 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
     const storageKey = `theme_${appId}`;
 
     const getSystemTheme = () => {
-        if (typeof window === 'undefined') return Theme.Light;
         return window.matchMedia('(prefers-color-scheme: dark)').matches ? Theme.Dark : Theme.Light;
     };
 
     const getThemePreference = () => {
-        if (typeof window === 'undefined') {
-            return ThemePreference.System;
-        } else {
-            const storedTheme = localStorage?.getItem(storageKey) as ThemePreference | null;
-            return storedTheme ? storedTheme : ThemePreference.System;
-        }
+        const storedTheme = localStorage?.getItem(storageKey) as ThemePreference | null;
+        return storedTheme ? storedTheme : ThemePreference.System;
     };
 
-    const [systemTheme, setSystemTheme] = useState<Theme>(getSystemTheme);
-    const [themePreference, setThemePreference] = useState<ThemePreference>(getThemePreference);
+    const [systemTheme, setSystemTheme] = useState<Theme>(Theme.Light);
+    const [themePreference, setThemePreference] = useState<ThemePreference>(ThemePreference.System);
+
+    // Load the theme values on client
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        setSystemTheme(getSystemTheme());
+        setThemePreference(getThemePreference());
+    }, []);
 
     // When the theme preference changes..
     useEffect(() => {
