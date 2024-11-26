@@ -15,7 +15,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
     const getSystemTheme = () => {
         if (typeof window === 'undefined') return Theme.Light;
         return window.matchMedia('(prefers-color-scheme: dark)').matches ? Theme.Dark : Theme.Light;
-    }
+    };
 
     const getThemePreference = () => {
         if (typeof window === 'undefined') {
@@ -40,8 +40,8 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
         if (themePreference === ThemePreference.System) {
             const handleSystemThemeChange = () => {
                 const systemTheme = getSystemTheme();
-                setSystemTheme(systemTheme)
-            }
+                setSystemTheme(systemTheme);
+            };
             const systemThemeMatcher = window.matchMedia('(prefers-color-scheme: dark)');
             systemThemeMatcher.addEventListener('change', handleSystemThemeChange);
             return () => systemThemeMatcher.removeEventListener('change', handleSystemThemeChange);
@@ -50,11 +50,11 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
 
     // Derive the active theme from the preference
     const theme = (() => {
-        switch (themePreference){
+        switch (themePreference) {
             case ThemePreference.Dark:
-                return Theme.Dark
+                return Theme.Dark;
             case ThemePreference.Light:
-                return Theme.Light
+                return Theme.Light;
             case ThemePreference.System:
                 return systemTheme;
         }
@@ -62,10 +62,14 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
 
     // When the theme (preference or derived) changes update the CSS class
     useEffect(() => {
-         const documentElement = document.documentElement.classList;
-         documentElement.toggle(Theme.Dark, theme === Theme.Dark);
-         documentElement.toggle(Theme.Light, theme === Theme.Light);
-    }, [theme])
+        const documentElement = document.documentElement.classList;
+        documentElement.toggle(Theme.Dark, theme === Theme.Dark);
+        documentElement.toggle(Theme.Light, theme === Theme.Light);
+    }, [theme]);
 
-    return <ThemeContext.Provider value={{ theme, setThemePreference, themePreference }}>{children}</ThemeContext.Provider>;
+    return (
+        <ThemeContext.Provider value={{ theme, setThemePreference, themePreference }}>
+            {children}
+        </ThemeContext.Provider>
+    );
 }

@@ -6,7 +6,7 @@ import { Theme, ThemePreference } from '../enums';
 
 export interface ThemeContextType {
     theme: Theme;
-    themePreference: ThemePreference,
+    themePreference: ThemePreference;
     setThemePreference: (theme: ThemePreference) => void;
 }
 

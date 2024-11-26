@@ -12,7 +12,10 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     const { theme, themePreference, setThemePreference } = useTheme();
 
     const toggleTheme = () => {
-        const newTheme = themePreference === ThemePreference.Light ? ThemePreference.Dark : ThemePreference.Light;
+        const newTheme =
+            themePreference === ThemePreference.Light
+                ? ThemePreference.Dark
+                : ThemePreference.Light;
         setThemePreference(newTheme);
     };
 
