@@ -105,7 +105,8 @@ iota client call \
 
 ### 9.(Optional) Set Royalties
 
-Royalties are a percentage of the item's price or revenue paid to the owner for the use or sale of their asset
+Royalties are a percentage of the item's price or revenue paid to the owner for the use or sale of their asset.
+
 Set royalties for the item:
 
 ```bash
