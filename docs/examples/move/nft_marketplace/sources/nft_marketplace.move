@@ -22,7 +22,7 @@ module nft_marketplace::nft_marketplace {
     const EObjectNotExist: u64 = 1;
 
     // === Constants ===
-    const PERMISSIONS: u128 = 11;
+    const ALLOW_PLACE_AND_LOCK: u128 = 11;
 
     /// Extension Key for Kiosk Marketplace extension.
     public struct Marketplace has drop {}
@@ -35,13 +35,15 @@ module nft_marketplace::nft_marketplace {
         price: u64,
     }
 
+    // === Public Functions ===
+    
     /// Enables someone to install the Marketplace extension in their Kiosk.
     public fun install(
         kiosk: &mut Kiosk,
         cap: &KioskOwnerCap,
         ctx: &mut TxContext,
     ) {
-        kiosk_extension::add(Marketplace {}, kiosk, cap, PERMISSIONS, ctx);
+        kiosk_extension::add(Marketplace {}, kiosk, cap, ALLOW_PLACE_AND_LOCK, ctx);
     }
 
     /// Remove the extension from the Kiosk. Can only be performed by the owner,
@@ -50,15 +52,19 @@ module nft_marketplace::nft_marketplace {
         kiosk_extension::remove<Marketplace>(kiosk, cap);
     }
 
+    /// Setup item royalty percentage
+    /// - amount_bp - the percentage of the purchase price to be paid as a
+    /// fee, denominated in basis points (100_00 = 100%, 1 = 0.01%).
+    /// - min_amount - the minimum amount to be paid as a fee if the relative
+    /// amount is lower than this setting.
     public fun setup_royalties<T: key + store>(policy: &mut TransferPolicy<T>, cap: &TransferPolicyCap<T>, amount_bp: u16, min_amount: u64, ctx: &mut TxContext) {
         royalty_rule::add<T>(policy, cap, amount_bp, min_amount);
     }
 
-    /// Buy listed item and pay royalties if needed
+    /// Buy listed item with the indicated price and pay royalties if needed
     public fun buy_item<T: key + store>(kiosk: &mut Kiosk, policy: &mut TransferPolicy<T>, item_id: object::ID, mut payment: Coin<IOTA>, ctx: &mut TxContext) {
         assert!(kiosk_extension::is_installed<Marketplace>(kiosk), EExtensionNotInstalled);
-        let item_price = take_from_bag<T, Listed>(kiosk,  Listed { id: item_id });
-        let ItemPrice { price } = item_price;
+        let ItemPrice { price } = take_from_bag<T, Listed>(kiosk,  Listed { id: item_id });
         let payment_amount = payment.split(price, ctx);
         let payment_amount_value = payment_amount.value();
         let (item, mut transfer_request) = purchase(kiosk, item_id, payment_amount);
