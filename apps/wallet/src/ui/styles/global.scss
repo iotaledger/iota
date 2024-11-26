@@ -61,7 +61,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    @apply rounded-xl bg-neutral-100;
+    @apply rounded-xl bg-neutral-100 dark:bg-neutral-6;
 }
 
 * {
