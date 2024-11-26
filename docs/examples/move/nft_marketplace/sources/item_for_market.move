@@ -1,3 +1,4 @@
+/// Module provides `mock` items for using them in nft_marketplace and rental extensions.
 module nft_marketplace::market_items {
     use iota::package;
     /// One Time Witness.

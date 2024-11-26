@@ -387,7 +387,6 @@ module nft_marketplace::rental_extension {
         item: Key,
     ) : Rentable<T> {
         let ext_storage_mut = kiosk_extension::storage_mut(Rental {}, kiosk);
-        assert!(bag::contains(ext_storage_mut, item), EObjectNotExist);
         bag::remove<Key, Rentable<T>>(
             ext_storage_mut,
             item,

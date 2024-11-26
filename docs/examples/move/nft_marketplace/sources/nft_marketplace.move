@@ -105,7 +105,6 @@ module nft_marketplace::nft_marketplace {
         item_key: Key,
     ) : ItemPrice<T> {
         let ext_storage_mut = kiosk_extension::storage_mut(Marketplace {}, kiosk);
-        assert!(bag::contains(ext_storage_mut, item_key), EObjectNotExist);
         bag::remove<Key, ItemPrice<T>>(
             ext_storage_mut,
             item_key,
