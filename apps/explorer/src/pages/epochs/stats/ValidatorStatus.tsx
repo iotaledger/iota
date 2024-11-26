@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { getRefGasPrice } from '@iota/core';
+import { getRefGasPrice, useTheme, Theme } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
-
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { theme } = useTheme();
 
     const nextRefGasPrice = useMemo(
         () => getRefGasPrice(data?.activeValidators),
@@ -31,8 +31,14 @@ export function ValidatorStatus(): JSX.Element | null {
             gradient: {
                 deg: 315,
                 values: [
-                    { percent: 0, color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30] },
-                    { percent: 100, color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30] },
+                    {
+                        percent: 0,
+                        color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                    },
+                    {
+                        percent: 100,
+                        color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                    },
                 ],
             },
         },
@@ -44,7 +50,10 @@ export function ValidatorStatus(): JSX.Element | null {
         {
             value: data.atRiskValidators.length,
             label: 'At Risk',
-            color: IOTA_PRIMITIVES_COLOR_PALETTE.neutral[90],
+            color:
+                theme === Theme.Dark
+                    ? IOTA_PRIMITIVES_COLOR_PALETTE.neutral[20]
+                    : IOTA_PRIMITIVES_COLOR_PALETTE.neutral[90],
         },
     ];
 
