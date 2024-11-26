@@ -109,18 +109,29 @@ jobs:
             --output-path ./lcov.info \
             --ignore-filename-regex 'external-crates/.*'
 
-      - name: Upload coverage to Coveralls
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: target/lcov.info
-          base-path:  ${{ github.workspace }}
-
       - name: Backup report
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
-        if: always()
         with:
           name: lcov.info
           path: target/lcov.info
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          base-path:  ${{ github.workspace }}
+          path-to-lcov: target/lcov.info
+          flag-name: nextest+simtest
+          fail-on-error: true
+
+      - name: Upload coverage data to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          # no token required (https://docs.codecov.com/docs/codecov-tokens#uploading-without-a-token)
+          files: target/lcov.info
+          flags: nextest+simtest
+          disable_search: true
+          fail_ci_if_error: true
+          verbose: true
