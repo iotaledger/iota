@@ -89,7 +89,7 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
         // As fallback sync mechanism enable Rest Api if `data_ingestion_path` was not provided
         remote_store_url: data_ingestion_path
             .is_none()
-            .then_some(format!("{}/api/v1", rpc_url)),
+            .then_some(format!("{rpc_url}/api/v1")),
         rpc_client_url: rpc_url,
         reset_db: true,
         fullnode_sync_worker: true,
