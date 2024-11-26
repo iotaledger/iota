@@ -68,7 +68,7 @@ pub enum Error {
     IotaObjectRefFailure(IotaObjectResponseError),
 
     #[error("On-chain address cannot be zero")]
-    ZeroOnChainAddresSpecifiedFailure,
+    ZeroOnChainAddressSpecifiedFailure,
 }
 
 impl fmt::Display for AggregateError {
