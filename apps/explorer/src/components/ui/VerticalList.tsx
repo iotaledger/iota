@@ -17,7 +17,7 @@ export function ListItem({ active, children, onClick }: ListItemProps): JSX.Elem
             <button
                 type="button"
                 className={clsx(
-                    'block w-full cursor-pointer rounded-md border px-2.5 py-2 text-left text-body',
+                    'text-body block w-full cursor-pointer rounded-md border px-2.5 py-2 text-left',
                     active
                         ? 'border-gray-40 bg-gray-40 font-semibold text-neutral-40 shadow-sm'
                         : 'border-transparent bg-white font-medium text-neutral-50',

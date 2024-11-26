@@ -20,7 +20,7 @@ export default {
             },
             height: {
                 header: '80px',
-            }
+            },
         },
     },
 } satisfies Partial<Config>;
