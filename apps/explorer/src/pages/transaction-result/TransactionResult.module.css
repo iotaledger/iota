@@ -109,5 +109,5 @@
 }
 
 .datetime {
-    @apply text-body-sm text-gray-75 block font-semibold sm:inline;
+    @apply text-gray-75 block text-body-sm font-semibold sm:inline;
 }
