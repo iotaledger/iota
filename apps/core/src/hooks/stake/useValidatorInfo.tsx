@@ -36,10 +36,10 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         system,
         isPendingValidators,
         errorValidators,
-
         currentEpoch,
         validatorSummary,
         name: validatorSummary?.name || '',
+        imageUrl: validatorSummary?.imageUrl || '',
         stakingPoolActivationEpoch,
         commission,
         newValidator,

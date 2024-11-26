@@ -58,6 +58,7 @@ export function DetailsView({
         isApyApproxZero,
         newValidator,
         commission,
+        imageUrl,
     } = useValidatorInfo({
         validatorAddress,
     });
@@ -108,7 +109,7 @@ export function DetailsView({
                     <Card type={CardType.Filled}>
                         <CardImage>
                             <ImageIcon
-                                src={null}
+                                src={imageUrl}
                                 label={validatorName}
                                 fallback={validatorName}
                                 size={ImageIconSize.Large}

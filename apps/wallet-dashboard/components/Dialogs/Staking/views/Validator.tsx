@@ -28,7 +28,7 @@ export function Validator({
     isSelected,
     showAction = true,
 }: ValidatorProps) {
-    const { name, newValidator, isAtRisk, apy, isApyApproxZero } = useValidatorInfo({
+    const { name, newValidator, isAtRisk, apy, isApyApproxZero, imageUrl } = useValidatorInfo({
         validatorAddress: address,
     });
 
@@ -47,7 +47,7 @@ export function Validator({
     return (
         <Card type={isSelected ? CardType.Filled : CardType.Default} onClick={handleClick}>
             <CardImage>
-                <ImageIcon src={null} label={name} fallback={name} size={ImageIconSize.Large} />
+                <ImageIcon src={imageUrl} label={name} fallback={name} size={ImageIconSize.Large} />
             </CardImage>
             <CardBody title={name} subtitle={subtitle} isTextTruncated />
             {showAction && (
