@@ -106,9 +106,12 @@ jobs:
 
           LLVM_PROFILE_FILE="merged.profdata" cargo +nightly llvm-cov report \
             --lcov \
-            --remap-path-prefix \
-            --output-path ./lcov.info \
+            --output-path lcov.info \
             --ignore-filename-regex 'external-crates/.*'
+
+          echo "Removing absolute path prefix: ${{ github.workspace }} from report."
+          sed --in-place "s#${{ github.workspace }}#.#g" lcov.info
+
 
       - name: Backup report
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
