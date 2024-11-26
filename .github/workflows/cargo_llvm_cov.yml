@@ -106,7 +106,7 @@ jobs:
 
           LLVM_PROFILE_FILE="merged.profdata" cargo +nightly llvm-cov report \
             --lcov \
-            --remap-path-prefix=$(pwd)=. \
+            --remap-path-prefix \
             --output-path ./lcov.info \
             --ignore-filename-regex 'external-crates/.*'
 
