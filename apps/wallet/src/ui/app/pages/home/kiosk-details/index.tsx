@@ -41,7 +41,7 @@ function KioskDetailsPage() {
             >
                 <Loading loading={isPending}>
                     {!items?.length ? (
-                        <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
+                        <div className="text-steel-darker text-caption flex flex-1 items-center self-center font-semibold">
                             Kiosk is empty
                         </div>
                     ) : (
