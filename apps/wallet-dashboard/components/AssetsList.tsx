@@ -12,9 +12,9 @@ import cl from 'clsx';
 interface AssetListProps {
     assets: IotaObjectData[];
     selectedCategory: AssetCategory;
-    hasNextPage?: boolean;
-    isFetchingNextPage?: boolean;
-    fetchNextPage?: () => void;
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    fetchNextPage: () => void;
 }
 
 const ASSET_LAYOUT: Record<AssetCategory, string> = {
@@ -26,8 +26,8 @@ const ASSET_LAYOUT: Record<AssetCategory, string> = {
 export function AssetList({
     assets,
     selectedCategory,
-    hasNextPage = false,
-    isFetchingNextPage = false,
+    hasNextPage,
+    isFetchingNextPage,
     fetchNextPage,
 }: AssetListProps): React.JSX.Element {
     const observerElem = useRef<HTMLDivElement | null>(null);
