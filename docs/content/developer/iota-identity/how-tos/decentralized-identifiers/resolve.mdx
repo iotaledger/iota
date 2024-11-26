@@ -40,10 +40,10 @@ then extracts and validates the DID Document from it.
 <TabItem value="rust" label="Rust">
 
 ```rust
-use examples_kinesis::create_kinesis_did_document;
-use examples_kinesis::get_client_and_create_account;
+use examples::create_did_document;
+use examples::get_client_and_create_account;
 
-use examples_kinesis::get_memstorage;
+use examples::get_memstorage;
 use identity_iota::iota::IotaDocument;
 use identity_iota::prelude::Resolver;
 
@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
   let storage = get_memstorage()?;
   let identity_client = get_client_and_create_account(&storage).await?;
   // create new DID document and publish it
-  let (document, _) = create_kinesis_did_document(&identity_client, &storage).await?;
+  let (document, _) = create_did_document(&identity_client, &storage).await?;
 
   let did = document.id().clone();
 
@@ -85,9 +85,9 @@ You can also use the `Client` directly to resolve individual DIDs from its confi
 <TabItem value="rust" label="Rust">
 
 ```rust
-use examples_kinesis::create_kinesis_did_document;
-use examples_kinesis::get_client_and_create_account;
-use examples_kinesis::get_memstorage;
+use examples::create_did_document;
+use examples::get_client_and_create_account;
+use examples::get_memstorage;
 
 use identity_iota::iota::IotaDocument;
 
@@ -96,7 +96,7 @@ async fn main() -> anyhow::Result<()>{
   let storage = get_memstorage()?;
   let identity_client = get_client_and_create_account(&storage).await?;
   // create new DID document and publish it
-  let (document, _) = create_kinesis_did_document(&identity_client, &storage).await?;
+  let (document, _) = create_did_document(&identity_client, &storage).await?;
 
   let did = document.id().clone();
 
