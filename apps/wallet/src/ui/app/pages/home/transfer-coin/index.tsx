@@ -14,6 +14,7 @@ import {
     CoinSelector,
     createTokenTransferTransaction,
     filterAndSortTokenBalances,
+    parseAmount,
     useCoinMetadata,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
@@ -26,14 +27,15 @@ import { SendTokenForm, type SubmitProps } from './SendTokenForm';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 function TransferCoinPage() {
     const [searchParams] = useSearchParams();
-    const coinType = searchParams.get('type');
+    const selectedCoinType = searchParams.get('type');
     const [showTransactionPreview, setShowTransactionPreview] = useState<boolean>(false);
     const [formData, setFormData] = useState<SubmitProps>();
     const navigate = useNavigate();
-    const { data: coinMetadata } = useCoinMetadata(coinType);
+    const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);
     const address = activeAccount?.address;
@@ -49,6 +51,16 @@ function TransferCoinPage() {
             select: filterAndSortTokenBalances,
         },
     );
+    const coinBalance = coinsBalance?.find(
+        (coin) => coin.coinType === selectedCoinType,
+    )?.totalBalance;
+
+    const selectedAmount = formData?.amount;
+    const selectedCoinDecimals = coinMetadata?.decimals;
+    const hasSelectedMaxCoinBalance =
+        selectedAmount && selectedCoinDecimals && coinBalance
+            ? parseAmount(selectedAmount, coinMetadata.decimals) === BigInt(coinBalance)
+            : false;
 
     if (coinsBalanceIsPending) {
         return (
@@ -58,15 +70,19 @@ function TransferCoinPage() {
         );
     }
 
+    const isPayAllIota: boolean =
+        (hasSelectedMaxCoinBalance && selectedCoinType === IOTA_TYPE_ARG) ?? false;
+
     const transaction = useMemo(() => {
-        if (!coinType || !signer || !formData || !address) return null;
+        if (!selectedCoinType || !signer || !formData || !address) return null;
 
         return createTokenTransferTransaction({
-            coinType,
+            coinType: selectedCoinType,
             coinDecimals: coinMetadata?.decimals ?? 0,
+            isPayAllIota,
             ...formData,
         });
-    }, [formData, signer, coinType, address, coinMetadata?.decimals]);
+    }, [formData, signer, selectedCoinType, address, coinMetadata?.decimals]);
 
     const executeTransfer = useMutation({
         mutationFn: async () => {
@@ -95,7 +111,7 @@ function TransferCoinPage() {
             queryClient.invalidateQueries({ queryKey: ['coin-balance'] });
 
             ampli.sentCoins({
-                coinType: coinType!,
+                coinType: selectedCoinType!,
             });
 
             const receiptUrl = `/receipt?txdigest=${encodeURIComponent(
@@ -121,7 +137,7 @@ function TransferCoinPage() {
         return null;
     }
 
-    if (!coinType || !coinsBalance) {
+    if (!selectedCoinType || !coinsBalance) {
         return <Navigate to="/" replace={true} />;
     }
 
@@ -138,10 +154,10 @@ function TransferCoinPage() {
                     <div className="flex h-full flex-col">
                         <div className="h-full flex-1">
                             <PreviewTransfer
-                                coinType={coinType}
+                                coinType={selectedCoinType}
                                 amount={formData.amount}
                                 to={formData.to}
-                                approximation={formData.isPayAllIota}
+                                approximation={isPayAllIota}
                                 gasBudget={formData.gasBudgetEst}
                             />
                         </div>
@@ -152,7 +168,7 @@ function TransferCoinPage() {
                                 executeTransfer.mutateAsync();
                             }}
                             text="Send Now"
-                            disabled={coinType === null || executeTransfer.isPending}
+                            disabled={selectedCoinType === null || executeTransfer.isPending}
                             icon={
                                 executeTransfer.isPending ? (
                                     <Loader className="animate-spin" />
@@ -164,7 +180,7 @@ function TransferCoinPage() {
                 ) : (
                     <>
                         <CoinSelector
-                            activeCoinType={coinType}
+                            activeCoinType={selectedCoinType}
                             coins={coinsBalance || []}
                             onClick={(coinType) => {
                                 setFormData(undefined);
@@ -179,8 +195,8 @@ function TransferCoinPage() {
                                 setFormData(formData);
                                 setShowTransactionPreview(true);
                             }}
-                            key={coinType}
-                            coinType={coinType}
+                            key={selectedCoinType}
+                            coinType={selectedCoinType}
                             initialAmount={formData?.amount || ''}
                             initialTo={formData?.to || ''}
                         />

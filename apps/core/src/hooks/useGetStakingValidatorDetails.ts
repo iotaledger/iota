@@ -75,6 +75,7 @@ export function useGetStakingValidatorDetails({
     return {
         epoch: Number(system?.epoch) || 0,
         totalStake: totalStakeFormatted,
+        totalStakeOriginal: totalStake,
         totalValidatorsStake: totalValidatorsStakeFormatted,
         totalStakePercentage,
         validatorApy,
