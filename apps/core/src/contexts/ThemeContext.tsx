@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createContext } from 'react';
-import { Theme } from '../enums';
+import { Theme, ThemePreference } from '../enums';
 
 export interface ThemeContextType {
     theme: Theme;
-    setTheme: (theme: Theme) => void;
+    themePreference: ThemePreference,
+    setThemePreference: (theme: ThemePreference) => void;
 }
 
 export const ThemeContext = createContext<ThemeContextType>({
     theme: Theme.Light,
-    setTheme: () => {},
+    themePreference: ThemePreference.System,
+    setThemePreference: () => {},
 });

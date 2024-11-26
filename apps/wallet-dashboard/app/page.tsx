@@ -36,9 +36,8 @@ function HomeDashboardPage(): JSX.Element {
                     loop
                     className="absolute right-0 top-0 h-full w-full min-w-fit object-cover"
                     disableRemotePlayback
-                >
-                    <source src={videoSrc} type="video/mp4" />
-                </video>
+                    src={videoSrc} 
+                ></video>
             </div>
             <div className="flex h-full w-full flex-col items-center justify-between p-md sm:p-2xl">
                 <IotaLogoWeb width={130} height={32} />

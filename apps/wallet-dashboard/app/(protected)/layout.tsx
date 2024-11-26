@@ -6,14 +6,14 @@ import { Notifications } from '@/components/index';
 import React, { type PropsWithChildren } from 'react';
 import { Button } from '@iota/apps-ui-kit';
 import { Sidebar, TopNav } from './components';
-import { Theme, useTheme } from '@iota/core';
+import { ThemePreference, useTheme } from '@iota/core';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
-    const { theme, setTheme } = useTheme();
+    const { theme, themePreference, setThemePreference } = useTheme();
 
     const toggleTheme = () => {
-        const newTheme = theme === Theme.Light ? Theme.Dark : Theme.Light;
-        setTheme(newTheme);
+        const newTheme = themePreference === ThemePreference.Light ? ThemePreference.Dark : ThemePreference.Light;
+        setThemePreference(newTheme);
     };
 
     return (
