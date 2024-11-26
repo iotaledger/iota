@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    Header,
     Button,
     KeyValueInfo,
     Divider,
@@ -29,6 +30,7 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { Loader, Warning } from '@iota/ui-icons';
 import { useUnstakeTransaction } from '@/hooks';
 import { ValidatorStakingData } from '@/components';
+import { Layout, LayoutFooter, LayoutBody } from './Layout';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
@@ -36,7 +38,7 @@ interface UnstakeDialogProps {
     showActiveStatus?: boolean;
 }
 
-export function UnstakeDialogView({
+export function UnstakeView({
     extendedStake,
     handleClose,
     showActiveStatus,
@@ -47,6 +49,7 @@ export function UnstakeDialogView({
 
     const {
         totalStake: [tokenBalance],
+        totalStakeOriginal,
         epoch,
         systemDataResult,
         delegatedStakeDataResult,
@@ -66,7 +69,10 @@ export function UnstakeDialogView({
 
     const delegationId = extendedStake?.status === 'Active' && extendedStake?.stakedIotaId;
 
-    const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + tokenBalance, IOTA_TYPE_ARG);
+    const [totalIota] = useFormatCoin(
+        BigInt(stakingReward || 0) + totalStakeOriginal,
+        IOTA_TYPE_ARG,
+    );
 
     const transaction = useMemo(
         () => createUnstakeTransaction(extendedStake.stakedIotaId),
@@ -123,8 +129,9 @@ export function UnstakeDialogView({
     }
 
     return (
-        <>
-            <div className="flex h-full w-full flex-col justify-between">
+        <Layout>
+            <Header title="Unstake" onClose={handleClose} onBack={handleClose} titleCentered />
+            <LayoutBody>
                 <div className="flex flex-col gap-y-md">
                     <ValidatorStakingData
                         validatorAddress={extendedStake.validatorAddress}
@@ -173,9 +180,9 @@ export function UnstakeDialogView({
                         </div>
                     </Panel>
                 </div>
-            </div>
+            </LayoutBody>
 
-            <div className="flex w-full gap-2.5">
+            <LayoutFooter>
                 <Button
                     type={ButtonType.Secondary}
                     fullWidth
@@ -189,7 +196,7 @@ export function UnstakeDialogView({
                     }
                     iconAfterText
                 />
-            </div>
-        </>
+            </LayoutFooter>
+        </Layout>
     );
 }
