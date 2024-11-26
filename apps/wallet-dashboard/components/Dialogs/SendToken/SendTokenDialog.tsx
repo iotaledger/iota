@@ -45,7 +45,8 @@ function SendTokenDialogBody({
         activeAddress,
         formData.to,
         formData.formattedAmount,
-        selectedCoin?.totalBalance === formData.formattedAmount && selectedCoin.coinType === IOTA_TYPE_ARG,
+        selectedCoin?.totalBalance === formData.formattedAmount &&
+            selectedCoin.coinType === IOTA_TYPE_ARG,
     );
 
     function handleTransfer() {
