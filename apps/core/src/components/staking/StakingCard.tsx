@@ -31,7 +31,7 @@ interface StakingCardProps {
     extendedStake: ExtendedDelegatedStake;
     currentEpoch: number;
     inactiveValidator?: boolean;
-    onClick?: () => void;
+    onClick: () => void;
 }
 
 // For delegationsRequestEpoch n  through n + 2, show Start Earning

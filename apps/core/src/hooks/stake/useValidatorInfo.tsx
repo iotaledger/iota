@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useGetValidatorsApy } from '../';
-import { getTotalValidatorStake } from '../../utils';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
     const {
@@ -17,8 +16,6 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         null;
 
     const currentEpoch = Number(system?.epoch || 0);
-
-    const totalValidatorStake = getTotalValidatorStake(validatorSummary);
 
     const stakingPoolActivationEpoch = Number(validatorSummary?.stakingPoolActivationEpoch || 0);
 
@@ -49,6 +46,5 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         isAtRisk,
         apy,
         isApyApproxZero,
-        totalValidatorStake,
     };
 }
