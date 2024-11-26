@@ -439,10 +439,9 @@ mod simtests {
 
     use super::*;
 
-    async fn svc(
-        State(state): State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
-        request: Request<Body>,
-    ) -> Response {
+    type Storage = HashMap<String, Vec<u8>>;
+
+    async fn svc(State(state): State<Arc<Mutex<Storage>>>, request: Request<Body>) -> Response {
         let path = request.uri().path().to_string();
         let key = path.trim_start_matches('/');
         let value = state.lock().unwrap().get(key).cloned();
@@ -456,7 +455,7 @@ mod simtests {
         }
     }
 
-    async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
+    async fn test_server(data: Arc<Mutex<Storage>>) {
         let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
