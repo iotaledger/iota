@@ -373,46 +373,55 @@ module iota_system::rewards_distribution_tests {
                 400 * NANOS_PER_IOTA,
             ], scenario);
 
-        // Each pool gets 30 IOTA.
+        // Each validator pool has 25% of the voting power and thus gets 25% of the reward.
+        // => +30 IOTA for each pool
+        // Validator 1 gets 100/300 * 30 IOTA => +10 IOTA for validator 1
+        // Validator 2 gets 200/300 * 30 IOTA => +20 IOTA for validator 2
+        // Validators 3 and 4 have all the stake in the pool => +30 IOTA for validators 3 and 4
         advance_epoch_with_reward_amounts(0, 120, scenario);
         assert_validator_self_stake_amounts(
             validator_addrs(),
             vector[
-                110 * NANOS_PER_IOTA,
-                220 * NANOS_PER_IOTA,
-                330 * NANOS_PER_IOTA,
-                430 * NANOS_PER_IOTA,
+                (100 + 10) * NANOS_PER_IOTA,
+                (200 + 20) * NANOS_PER_IOTA,
+                (300 + 30) * NANOS_PER_IOTA,
+                (400 + 30) * NANOS_PER_IOTA,
             ],
             scenario);
         
         unstake(STAKER_ADDR_1, 0, scenario);
         stake_with(STAKER_ADDR_2, VALIDATOR_ADDR_1, 600, scenario);
         
-        // Each pool gets 30 IOTA.
+        // Each validator pool has 25% of the voting power and thus gets 25% of the reward.
+        // => +30 IOTA for each pool
         advance_epoch_with_reward_amounts(0, 120, scenario);
-        // staker 1 receives only 20 IOTA of rewards, not 40 since we are using pre-epoch exchange rate.
-        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 220 * NANOS_PER_IOTA);
+        // staker 1 receives only 200/300*30=20 IOTA of rewards, (not 40) since we are using pre-epoch exchange rate.
+        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), (200 + 20) * NANOS_PER_IOTA);
+        // The recent changes in stake are not valid for this epoch yet. Thus:
+        // Validators 1, 3 and 4 have all the stake in the pool => +30 IOTA for validators 1, 3 and 4
+        // Validator 2 gets 200/300 * 30 IOTA => +20 IOTA for validator 
         assert_validator_self_stake_amounts(
             validator_addrs(),
             vector[
-                140 * NANOS_PER_IOTA,
-                240 * NANOS_PER_IOTA,
-                360 * NANOS_PER_IOTA,
-                460 * NANOS_PER_IOTA,
+                (110 + 30) * NANOS_PER_IOTA,
+                (220 + 20) * NANOS_PER_IOTA,
+                (330 + 30) * NANOS_PER_IOTA,
+                (430 + 30) * NANOS_PER_IOTA,
             ],
             scenario);
         
         unstake(STAKER_ADDR_2, 0, scenario);
-        assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 120 * NANOS_PER_IOTA); // 20 IOTA of rewards received
+        // staker 2 receives its available principal (100 IOTA) + 100/300*60=20 IOTA of rewards, relative to 2 epochs.
+        // The stake added in the last epoch (600 IOTA) is not unstaked yet.
+        assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), (100 + 20) * NANOS_PER_IOTA);
 
+        // +10 IOTA for each pool
         advance_epoch_with_reward_amounts(0, 40, scenario);
 
-        unstake(STAKER_ADDR_2, 0, scenario); // unstake 600 principal IOTA
-        // additional 600 IOTA of principal and 46 IOTA of rewards withdrawn to Coin<IOTA>
-        // For this stake, the staking exchange rate is 100 : 140 and the unstaking
-        // exchange rate is 528 : 750 -ish so the total iota withdraw will be:
-        // (600 * 100 / 140) * 750 / 528 = ~608. Together with the 120 IOTA we already have,
-        // that would be about 728 IOTA.
+        // unstakes the additional 600 IOTA of principal + rewards relative to past epoch
+        // the rewarded amount is 600/740*10 IOTA 
+        // staker 2's balance is then ~120 + 600 + 8.1081081
+        unstake(STAKER_ADDR_2, 0, scenario); 
         // TODO: Come up with better numbers and clean it up!
         assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 728108108107);
         scenario_val.end();
@@ -455,42 +464,51 @@ module iota_system::rewards_distribution_tests {
 
         // need to advance epoch so validator's staking starts counting
         advance_epoch(scenario);
+        // Pool's stake:
         // V1: 200, V2: 300, V3: 300, V4: 400
 
         set_commission_rate_and_advance_epoch(VALIDATOR_ADDR_2, 2000, scenario); // 20% commission
+
+        // Each validator pool has 25% of the voting power and thus gets 25% of the reward.
+        // => +30 IOTA for each pool
         advance_epoch_with_reward_amounts(0, 120, scenario);
-        // V1: 230, V2: 330, V3: 330, V4: 430
-        // 2 IOTA, or 20 % of staker_2's rewards, goes to validator_2
+
+        // staker 1 gets 100/200*30 IOTA => +15 IOTA
+        // staker 2 would get 100/300*30 IOTA = 10 IOTA. However, since the commission rate is 20% for this pool, they get 8 IOTA
         assert_validator_non_self_stake_amounts(
             validator_addrs(),
             vector[
-                115 * NANOS_PER_IOTA,
-                108 * NANOS_PER_IOTA,
+                (100 + 15) * NANOS_PER_IOTA,
+                (100 + 8) * NANOS_PER_IOTA,
                 0,
                 0,
             ],
             scenario);
         
+        // Validator 1 gets 100/200*30 => +15 IOTA
+        // Validator 2 gets 200/300*30 + 2 (from the commission) => +22 IOTA
+        // Validators 3 and 4 have all the pool stake and get +30 IOTA each.
         assert_validator_self_stake_amounts(
             validator_addrs(),
             vector[
-                115 * NANOS_PER_IOTA,
-                222 * NANOS_PER_IOTA,
-                330 * NANOS_PER_IOTA,
-                430 * NANOS_PER_IOTA,
+                (100 + 15) * NANOS_PER_IOTA,
+                (200 + 22) * NANOS_PER_IOTA,
+                (300 + 30) * NANOS_PER_IOTA,
+                (400 + 30) * NANOS_PER_IOTA,
             ],
             scenario);
 
         set_commission_rate_and_advance_epoch(VALIDATOR_ADDR_1, 1000, scenario); // 10% commission
 
+        // +60 IOTA for each pool
         advance_epoch_with_reward_amounts(0, 240, scenario);
         assert_validator_total_stake_amounts(
             validator_addrs(),
             vector[
-                290 * NANOS_PER_IOTA,
-                390 * NANOS_PER_IOTA,
-                390 * NANOS_PER_IOTA,
-                490 * NANOS_PER_IOTA,
+                (230 + 60) * NANOS_PER_IOTA,
+                (330 + 60) * NANOS_PER_IOTA,
+                (330 + 60) * NANOS_PER_IOTA,
+                (430 + 60) * NANOS_PER_IOTA,
             ], scenario);
 
         // Staker 1 rewards in the recent distribution is 0.9 x 30 = 27 IOTA
@@ -579,7 +597,7 @@ module iota_system::rewards_distribution_tests {
 
         advance_epoch(scenario);
 
-        // validator_2 is reported by 3 other validators, so 75% of total stake.
+        // validator_2 is reported by 3 other validators, so 75% of total stake, since the voting power is capped at 10%.
         report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_2, scenario);
         report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_2, scenario);
         report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_2, scenario);
@@ -589,6 +607,10 @@ module iota_system::rewards_distribution_tests {
 
         // 3600 IOTA of total rewards, 50% threshold and 10% reward slashing.
         // So validator_2 is the only one whose rewards should get slashed.
+        // Each pool would get +900 IOTA, disregarding the slashing rate
+        // Validator 1 gets 100/200*900 = +450 IOTA
+        // Validator 2 would get 200/300*900 = +600 IOTA (disregarding slashing)
+        // Validators 3 and 4 have all the pool stake, so they get +900 IOTA each
         advance_epoch_with_reward_amounts_and_slashing_rates(
             0, 3600, 1000, scenario
         );
@@ -599,10 +621,10 @@ module iota_system::rewards_distribution_tests {
         assert_validator_self_stake_amounts(
             validator_addrs(),
             vector[
-                550 * NANOS_PER_IOTA,
-                740 * NANOS_PER_IOTA,
-                1200 * NANOS_PER_IOTA,
-                1300 * NANOS_PER_IOTA,
+                (100 + 450) * NANOS_PER_IOTA,
+                (200 + 600 - 60) * NANOS_PER_IOTA,
+                (300 + 900) * NANOS_PER_IOTA,
+                (400 + 900) * NANOS_PER_IOTA,
             ],
             scenario);
 
@@ -611,8 +633,8 @@ module iota_system::rewards_distribution_tests {
         unstake(STAKER_ADDR_2, 0, scenario);
 
         // Same analysis as above. Delegator 1 gets 450 additional IOTA, and 10% of staker 2's rewards (30 IOTA) are slashed.
-        assert!(total_iota_balance(STAKER_ADDR_1, scenario) == 550 * NANOS_PER_IOTA);
-        assert!(total_iota_balance(STAKER_ADDR_2, scenario) == 370 * NANOS_PER_IOTA);
+        assert!(total_iota_balance(STAKER_ADDR_1, scenario) == (100 + 450) * NANOS_PER_IOTA);
+        assert!(total_iota_balance(STAKER_ADDR_2, scenario) == (100 + 300 - 30) * NANOS_PER_IOTA);
         scenario_val.end();
     }
 
@@ -630,14 +652,17 @@ module iota_system::rewards_distribution_tests {
 
         advance_epoch(scenario);
 
-        // validator_2 is reported by 3 other validators, so 75% of total stake.
+        // validator_2 is reported by 3 other validators, so 75% of total stake, since the voting power is capped at 10%.
         report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_2, scenario);
         report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_2, scenario);
         report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_2, scenario);
 
-
         // 3600 IOTA of total rewards, 100% reward slashing.
         // So validator_2 is the only one whose rewards should get slashed.
+        // Each pool would get +900 IOTA, disregarding the slashing rate
+        // Validator 1 gets 100/200*900 = +450 IOTA
+        // Validator 2 would get 200/300*900 = +600 IOTA (disregarding slashing)
+        // Validators 3 and 4 have all the pool stake, so they get +900 IOTA each
         advance_epoch_with_reward_amounts_and_slashing_rates(
             0, 3600, 10_000, scenario
         );
@@ -648,10 +673,10 @@ module iota_system::rewards_distribution_tests {
         assert_validator_self_stake_amounts(
             validator_addrs(), 
             vector[
-                550 * NANOS_PER_IOTA,
-                200 * NANOS_PER_IOTA,
-                1200 * NANOS_PER_IOTA,
-                1300 * NANOS_PER_IOTA,
+                (100 + 450) * NANOS_PER_IOTA,
+                (200 + 600 - 600) * NANOS_PER_IOTA,
+                (300 + 900) * NANOS_PER_IOTA,
+                (400 + 900) * NANOS_PER_IOTA,
             ],
             scenario);
 
@@ -660,7 +685,7 @@ module iota_system::rewards_distribution_tests {
         unstake(STAKER_ADDR_2, 0, scenario);
 
         // Same analysis as above. Staker 1 gets 450 IOTA as rewards, and since all of staker 2's rewards are slashed she only gets back her principal.
-        assert!(total_iota_balance(STAKER_ADDR_1, scenario) == 550 * NANOS_PER_IOTA);
+        assert!(total_iota_balance(STAKER_ADDR_1, scenario) == (100 + 450) * NANOS_PER_IOTA);
         assert!(total_iota_balance(STAKER_ADDR_2, scenario) == 100 * NANOS_PER_IOTA);
         scenario_val.end();
     }
@@ -689,21 +714,22 @@ module iota_system::rewards_distribution_tests {
         // need to advance epoch so validator's staking starts counting
         advance_epoch(scenario);
 
-        // validator_4 is reported by 3 other validators, so 75% of total stake.
+        // validator_4 is reported by 3 other validators, so 75% of total stake, since the voting power is capped at 10%.
         report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_4, scenario);
         report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_4, scenario);
         report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, scenario);
 
         // 1000 IOTA of storage charges, 1500 IOTA of computation rewards, 50% slashing threshold
         // and 20% slashing rate
+        // because of the voting power cap, each pool gets +375 IOTA
         advance_epoch_with_reward_amounts_and_slashing_rates(
             1000, 1500, 2000, scenario
         );
 
-        // Validator 1's should get 375 * 1 = 375 in rewards.
-        // Validator 2's should get 375 * 1 = 375 in rewards.
-        // Validator 3's should get 375 * 3/5 = 225 in rewards.
-        // Validator 4's should get (375 - 75) * 4/5 = 240 in rewards.
+        // Validator 1 should get 375 * 1 = 375 in rewards.
+        // Validator 2 should get 375 * 1 = 375 in rewards.
+        // Validator 3 should get 375 * 3/5 = 225 in rewards.
+        // Validator 4 should get (375 - 75) * 4/5 = 240 in rewards.
         assert_validator_self_stake_amounts(
             validator_addrs(), 
             vector[
@@ -770,28 +796,45 @@ module iota_system::rewards_distribution_tests {
 
         stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 220, scenario);
 
+        // since the voting power is capped at 10%, each pool gets +10 IOTA
+        // Pools' stake after this are 
+        // P1: 100 + 220 + 10 = 330; P2: 200 + 10 = 210; P3: 300 + 10 = 310; P4: 400 + 10 = 410 
         advance_epoch_with_reward_amounts(0, 40, scenario);
 
         stake_with(STAKER_ADDR_2, VALIDATOR_ADDR_1, 480, scenario);
 
-        // Staker 1 gets 2/3 * 1/4 * 120 = 20 IOTA here.
+        // Here, each pool gets +30 IOTA
+        // Staker 1 gets 220/330 * 30 = +20 IOTA, totalling 240 IOTA of stake
+        // Pools' stake after this are 
+        // P1: 330 + 480 + 30 = 840; P2: 210 + 30 = 240; P3: 310 + 30 = 340; P4: 410 + 30 = 440
         advance_epoch_with_reward_amounts(0, 120, scenario);
 
         stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 130, scenario);
         stake_with(STAKER_ADDR_3, VALIDATOR_ADDR_1, 390, scenario);
 
-        // Staker 1 gets 20 IOTA here and staker 2 gets 40 IOTA here.
+        // Here, each pool gets +70 IOTA
+        // Staker 1 gets 240/840*70 = +20 IOTA, totalling 390 IOTA of stake
+        // Staker 2 gets 480/840*70 = +40 IOTA, totalling 520 IOTA of stake
+        // Pools' stake after this are 
+        // P1: 840 + 130 + 390 + 70 = 1430; P2: 240 + 70 = 310; P3: 340 + 70 = 410; P4: 440 + 70 = 510
         advance_epoch_with_reward_amounts(0, 280, scenario);
+
         stake_with(STAKER_ADDR_3, VALIDATOR_ADDR_1, 280, scenario);
         stake_with(STAKER_ADDR_4, VALIDATOR_ADDR_1, 1400, scenario);
 
-        // Staker 1 gets 30 IOTA, staker 2 gets 40 IOTA and staker 3 gets 30 IOTA.
+        // Here, each pool gets +110 IOTA
+        // Staker 1 gets 390/1430*110 = +30 IOTA, totalling 420 IOTA of stake
+        // Staker 2 gets 520/1430*110 = +40 IOTA, totalling 560 IOTA of stake
+        // Staker 3 gets 390/1430*110 = +30 IOTA, totalling 700 IOTA of stake
+        // Pools' stake after this are 
+        // P1: 1430 + 280 + 1400 + 110 = 3220; P2: 310 + 110 = 420
+        // P3: 410 + 110 = 520; P4: 510 + 110 = 620
         advance_epoch_with_reward_amounts(0, 440, scenario);
 
         scenario.next_tx(@0x0);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         // Check that we have the right amount of IOTA in the staking pool.
-        assert_eq(system_state.validator_stake_amount(VALIDATOR_ADDR_1), 140 * 23 * NANOS_PER_IOTA);
+        assert_eq(system_state.validator_stake_amount(VALIDATOR_ADDR_1), 3220 * NANOS_PER_IOTA);
         test_scenario::return_shared(system_state);
 
         // Withdraw all stakes at once.
@@ -802,22 +845,16 @@ module iota_system::rewards_distribution_tests {
         unstake(STAKER_ADDR_3, 0, scenario);
         unstake(STAKER_ADDR_4, 0, scenario);
 
-        // staker 1's first stake was active for 3 epochs so got 20 * 3 = 60 IOTA of rewards
-        // and her second stake was active for only one epoch and got 10 IOTA of rewards.
-        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), (220 + 130 + 20 * 3 + 10) * NANOS_PER_IOTA);
-        // staker 2's stake was active for 2 epochs so got 40 * 2 = 80 IOTA of rewards
-        assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), (480 + 40 * 2) * NANOS_PER_IOTA);
-        // staker 3's first stake was active for 1 epoch and got 30 IOTA of rewards
-        // and her second stake didn't get any rewards.
-        assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), (390 + 280 + 30) * NANOS_PER_IOTA);
-        // staker 4 joined and left in an epoch where no rewards were earned so she got no rewards.
+        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 420 * NANOS_PER_IOTA);
+        assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 560 * NANOS_PER_IOTA);
+        assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), 700 * NANOS_PER_IOTA);
         assert_eq(total_iota_balance(STAKER_ADDR_4, scenario), 1400 * NANOS_PER_IOTA);
 
         advance_epoch_with_reward_amounts(0, 0, scenario);
 
         scenario.next_tx(@0x0);
         let mut system_state = scenario.take_shared<IotaSystemState>();
-        // Since all the stakes are gone the pool is empty except for the validator's original stake.
+        // Since all the stakes are gone the pool is empty except for the validator's stake.
         assert_eq(system_state.validator_stake_amount(VALIDATOR_ADDR_1), 140 * NANOS_PER_IOTA);
         test_scenario::return_shared(system_state);
         scenario_val.end();
