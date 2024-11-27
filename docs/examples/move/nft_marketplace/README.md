@@ -16,7 +16,7 @@ By installation, we mean creating a Kiosk object and an OwnerCap, then transferr
 Run the following command to install the Kiosk module:
 
 ```bash
-iota client call \                                   
+iota client call \
     --package 0x2 \
     --module kiosk \
     --function default
@@ -72,7 +72,7 @@ After creation, export the following variable:
 Set up a transfer policy for the created item using the command:
 
 ```bash
-iota client call \                                   
+iota client call \
     --package 0x2 \
     --module transfer_policy \
     --function default \
