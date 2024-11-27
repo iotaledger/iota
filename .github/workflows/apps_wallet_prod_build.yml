@@ -71,12 +71,12 @@ jobs:
         run: echo "::set-output name=version::${GITHUB_REF#refs/tags/wallet-v}"
 
       - name: Create GitHub Release
-        uses: elgohr/Github-Release-Action@c5ea99036abb741a89f8bf1f2cd7fba845e3313a # pin@v5
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # pin@v2.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ env.CURRENT_TAG }}
-          release_name: IOTA Wallet v${{ steps.version.outputs.version }}
+          name: IOTA Wallet v${{ steps.version.outputs.version }}
           body: |
             ## Changelog
             {{ env.changelog }}
