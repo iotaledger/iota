@@ -1,6 +1,6 @@
 # `@iota/wallet-standard`
 
-wallet-standard is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol. 
+wallet-standard is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
 
 > **Note**: This package is currently supported in **only in Testnet and Devnet**, and is **not yet supported in Mainnet**.
 

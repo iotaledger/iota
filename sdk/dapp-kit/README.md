@@ -1,6 +1,6 @@
 # IOTA dApp Kit
 
-IOTA dApp Kit is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol. 
+IOTA dApp Kit is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
 
 > **Note**: This package is currently supported in **only in Testnet and Devnet**, and is **not yet supported in Mainnet**.
 
