@@ -135,5 +135,5 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: target/lcov.info
           flags: nextest+simtest
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           verbose: true
