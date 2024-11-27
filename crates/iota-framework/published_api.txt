@@ -601,6 +601,9 @@ is_inactive_validator
 active_validator_addresses
 	public(package) fun
 	0x3::validator_set_v2
+select_committee_members
+	public(package) fun
+	0x3::validator_set_v2
 ValidatorSetV1
 	public struct
 	0x3::validator_set
