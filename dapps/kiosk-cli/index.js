@@ -34,7 +34,7 @@ import {
 } from '@iota/iota-sdk/utils';
 import { bcs } from '@iota/iota-sdk/bcs';
 import { program } from 'commander';
-import { KIOSK_LISTING, KioskClient, KioskTransaction, Network } from '@iota/kiosk';
+import { KIOSK_LISTING, KioskClient, KioskTransaction } from '@iota/kiosk';
 import { IotaClient, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -49,7 +49,7 @@ const client = new IotaClient({ url: getFullnodeUrl('testnet') });
 
 const kioskClient = new KioskClient({
   client,
-  network: Network.TESTNET,
+  network: 'testnet',
 });
 
 /**
