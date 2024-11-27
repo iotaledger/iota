@@ -160,17 +160,15 @@ function StakingDashboardPage(): JSX.Element {
                     </div>
                 </div>
             </div>
-            {isDialogStakeOpen && stakeDialogView && (
-                <StakeDialog
-                    stakedDetails={selectedStake}
-                    isOpen={isDialogStakeOpen}
-                    handleClose={handleCloseStakeDialog}
-                    view={stakeDialogView}
-                    setView={setStakeDialogView}
-                    selectedValidator={selectedValidator}
-                    setSelectedValidator={setSelectedValidator}
-                />
-            )}
+            <StakeDialog
+                stakedDetails={selectedStake}
+                isOpen={isDialogStakeOpen}
+                handleClose={handleCloseStakeDialog}
+                view={stakeDialogView}
+                setView={setStakeDialogView}
+                selectedValidator={selectedValidator}
+                setSelectedValidator={setSelectedValidator}
+            />
         </Panel>
     ) : (
         <div className="flex h-[270px] p-lg">

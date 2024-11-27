@@ -43,10 +43,10 @@ const INITIAL_VALUES = {
 
 interface StakeDialogProps {
     isTimelockedStaking?: boolean;
-    onSuccess?: (digest: string) => void;
     isOpen: boolean;
     handleClose: () => void;
-    view: StakeDialogView;
+    onSuccess?: (digest: string) => void;
+    view?: StakeDialogView;
     setView?: (view: StakeDialogView) => void;
     stakedDetails?: ExtendedDelegatedStake | null;
 
