@@ -7,25 +7,25 @@ task 1, lines 7-30:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5988800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5988800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 33:
 //# run Test::M1::emit_T1 --sender A
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T1"), type_params: [] })] }, contents: [0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 35:
 //# run Test::M1::emit_T2 --sender A
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T2"), type_params: [] })] }, contents: [0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 37:
 //# run Test::M1::emit_both --sender A
 events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T1"), type_params: [] })] }, contents: [0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T2"), type_params: [] })] }, contents: [0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 39:
 //# create-checkpoint

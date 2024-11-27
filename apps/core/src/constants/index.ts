@@ -7,3 +7,4 @@ export * from './coins.constants';
 export * from './timelock.constants';
 export * from './migration.constants';
 export * from './features.enum';
+export * from './gas.constants';

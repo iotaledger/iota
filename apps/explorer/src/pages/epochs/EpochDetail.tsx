@@ -13,6 +13,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     LoadingIndicator,
+    Panel,
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
@@ -165,9 +166,8 @@ export default function EpochDetail() {
                         {isCurrentEpoch && <ValidatorStatus />}
                     </div>
 
-                    <div className="rounded-xl bg-white">
+                    <Panel>
                         <div className="relative">
-                            <div className="border-shader-inverte-dark-8 absolute bottom-0 left-0 z-0 h-[1px] w-full border-b" />
                             <SegmentedButton
                                 type={SegmentedButtonType.Transparent}
                                 shape={ButtonSegmentType.Underlined}
@@ -186,7 +186,7 @@ export default function EpochDetail() {
                                 />
                             </SegmentedButton>
                         </div>
-                        <div className="px-lg py-md">
+                        <div className="p-md">
                             {activeTabId === EpochTabs.Checkpoints ? (
                                 <CheckpointsTable
                                     initialCursor={initialCursorPlusOne}
@@ -198,7 +198,7 @@ export default function EpochDetail() {
                                 <TableCard data={tableData} columns={tableColumns} />
                             ) : null}
                         </div>
-                    </div>
+                    </Panel>
                 </div>
             }
         />

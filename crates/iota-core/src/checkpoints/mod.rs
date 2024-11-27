@@ -1559,6 +1559,8 @@ impl CheckpointBuilder {
             // sum only when we are within the same epoch
             GasCostSummary::new(
                 previous_gas_costs.computation_cost + current_gas_costs.computation_cost,
+                previous_gas_costs.computation_cost_burned
+                    + current_gas_costs.computation_cost_burned,
                 previous_gas_costs.storage_cost + current_gas_costs.storage_cost,
                 previous_gas_costs.storage_rebate + current_gas_costs.storage_rebate,
                 previous_gas_costs.non_refundable_storage_fee
@@ -1696,18 +1698,12 @@ impl CheckpointBuilder {
         let ccps = root_txs
             .iter()
             .filter_map(|tx| {
-                if let Some(tx) = tx {
-                    if matches!(
+                tx.as_ref().filter(|tx| {
+                    matches!(
                         tx.transaction_data().kind(),
                         TransactionKind::ConsensusCommitPrologueV1(_)
-                    ) {
-                        Some(tx)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                    )
+                })
             })
             .collect::<Vec<_>>();
 
@@ -1722,22 +1718,20 @@ impl CheckpointBuilder {
             .multi_get_transaction_blocks(
                 &sorted
                     .iter()
-                    .map(|tx| tx.transaction_digest().clone())
+                    .map(|tx| *tx.transaction_digest())
                     .collect::<Vec<_>>(),
             )
             .unwrap();
 
-        if ccps.len() == 0 {
+        if ccps.is_empty() {
             // If there is no consensus commit prologue transaction in the roots, then there
             // should be no consensus commit prologue transaction in the
             // checkpoint.
-            for tx in txs.iter() {
-                if let Some(tx) = tx {
-                    assert!(!matches!(
-                        tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologueV1(_)
-                    ));
-                }
+            for tx in txs.iter().flatten() {
+                assert!(!matches!(
+                    tx.transaction_data().kind(),
+                    TransactionKind::ConsensusCommitPrologueV1(_)
+                ));
             }
         } else {
             // If there is one consensus commit prologue, it must be the first one in the
@@ -1749,13 +1743,11 @@ impl CheckpointBuilder {
 
             assert_eq!(ccps[0].digest(), txs[0].as_ref().unwrap().digest());
 
-            for tx in txs.iter().skip(1) {
-                if let Some(tx) = tx {
-                    assert!(!matches!(
-                        tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologueV1(_)
-                    ));
-                }
+            for tx in txs.iter().skip(1).flatten() {
+                assert!(!matches!(
+                    tx.transaction_data().kind(),
+                    TransactionKind::ConsensusCommitPrologueV1(_)
+                ));
             }
         }
     }
@@ -2467,28 +2459,28 @@ mod tests {
             state.clone(),
             d(1),
             vec![d(2), d(3)],
-            GasCostSummary::new(11, 12, 11, 1),
+            GasCostSummary::new(11, 11, 12, 11, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(2),
             vec![d(3), d(4)],
-            GasCostSummary::new(21, 22, 21, 1),
+            GasCostSummary::new(21, 21, 22, 21, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(3),
             vec![],
-            GasCostSummary::new(31, 32, 31, 1),
+            GasCostSummary::new(31, 31, 32, 31, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(4),
             vec![],
-            GasCostSummary::new(41, 42, 41, 1),
+            GasCostSummary::new(41, 41, 42, 41, 1),
         );
         for i in [5, 6, 7, 10, 11, 12, 13] {
             commit_cert_for_test(
@@ -2496,7 +2488,7 @@ mod tests {
                 state.clone(),
                 d(i),
                 vec![],
-                GasCostSummary::new(41, 42, 41, 1),
+                GasCostSummary::new(41, 41, 42, 41, 1),
             );
         }
         for i in [15, 16, 17] {
@@ -2505,7 +2497,7 @@ mod tests {
                 state.clone(),
                 d(i),
                 vec![],
-                GasCostSummary::new(51, 52, 51, 1),
+                GasCostSummary::new(51, 51, 52, 51, 1),
             );
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
@@ -2571,7 +2563,7 @@ mod tests {
         assert_eq!(c1s.sequence_number, 0);
         assert_eq!(
             c1s.epoch_rolling_gas_cost_summary,
-            GasCostSummary::new(41, 42, 41, 1)
+            GasCostSummary::new(41, 41, 42, 41, 1)
         );
 
         assert_eq!(c2t, vec![d(3), d(2), d(1)]);
@@ -2579,7 +2571,7 @@ mod tests {
         assert_eq!(c2s.sequence_number, 1);
         assert_eq!(
             c2s.epoch_rolling_gas_cost_summary,
-            GasCostSummary::new(104, 108, 104, 4)
+            GasCostSummary::new(104, 104, 108, 104, 4)
         );
 
         // Pending at index 2 had 4 transactions, and we configured 3 transactions max.

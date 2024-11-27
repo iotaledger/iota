@@ -7,13 +7,13 @@ task 1, lines 9-37:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 7432800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7432800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 39:
 //# run t::m::create --sender A
 created: object(2,0), object(2,1), object(2,2), object(2,3)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 7797600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7797600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 41:
 //# view-object 2,3

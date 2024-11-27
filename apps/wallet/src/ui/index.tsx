@@ -8,12 +8,12 @@ import '@fontsource-variable/red-hat-mono';
 import { ErrorBoundary } from '_components';
 import { initAppType } from '_redux/slices/app';
 import { AppType, getFromLocationSearch } from '_redux/slices/app/AppType';
-// import { initAmplitude } from '_src/shared/analytics/amplitude';
+import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
-// import initSentry from '_src/ui/app/helpers/sentry';
+import initSentry from '_src/ui/app/helpers/sentry';
 import store from '_store';
 import { thunkExtras } from '_store/thunk-extras';
-import { KioskClientProvider } from '@iota/core';
+import { KioskClientProvider, ThemeProvider } from '@iota/core';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider } from '@iota/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
@@ -96,20 +96,22 @@ function AppWrapper() {
                             >
                                 <KioskClientProvider>
                                     <AccountsFormProvider>
-                                        <UnlockAccountProvider>
-                                            <div
-                                                className={cn(
-                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                    isFullscreen && 'rounded-xl shadow-lg',
-                                                )}
-                                            >
-                                                <ErrorBoundary>
-                                                    <App />
-                                                </ErrorBoundary>
-                                                <div id="overlay-portal-container"></div>
-                                                <div id="toaster-portal-container"></div>
-                                            </div>
-                                        </UnlockAccountProvider>
+                                        <ThemeProvider appId="wallet">
+                                            <UnlockAccountProvider>
+                                                <div
+                                                    className={cn(
+                                                        'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                        isFullscreen && 'rounded-xl shadow-lg',
+                                                    )}
+                                                >
+                                                    <ErrorBoundary>
+                                                        <App />
+                                                    </ErrorBoundary>
+                                                    <div id="overlay-portal-container"></div>
+                                                    <div id="toaster-portal-container"></div>
+                                                </div>
+                                            </UnlockAccountProvider>
+                                        </ThemeProvider>
                                     </AccountsFormProvider>
                                 </KioskClientProvider>
                             </IotaClientProvider>
@@ -123,7 +125,7 @@ function AppWrapper() {
 
 (async () => {
     await init();
-    // initSentry();
-    // initAmplitude();
+    initSentry();
+    initAmplitude();
     renderApp();
 })();

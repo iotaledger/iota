@@ -4183,7 +4183,6 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore = "until the repo is public https://github.com/iotaledger/iota/issues/3741"]
 #[tokio::test]
 async fn test_move_new() -> Result<(), anyhow::Error> {
     let current_dir = std::env::current_dir()?;

@@ -7,13 +7,13 @@ task 1, lines 7-35:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 7820400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7820400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 37:
 //# run tto::M1::start --sender A
 created: object(2,0), object(2,1), object(2,2), object(2,3)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 7235200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7235200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 39:
 //# view-object 2,0
@@ -76,7 +76,7 @@ task 7, line 47:
 //# run tto::M1::receive --args object(2,1) receiving(2,2) --sender A
 created: object(7,0)
 mutated: object(0,0), object(2,1), object(2,2)
-gas summary: computation_cost: 1000000, storage_cost: 5966000,  storage_rebate: 3518800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5966000,  storage_rebate: 3518800, non_refundable_storage_fee: 0
 
 task 8, line 49:
 //# view-object 2,0

@@ -1,7 +1,6 @@
 ---
 description: Learn how to monitor IOTA on-chain activity by subscribing to events emitted by Move packages.
 ---
-import AlphaNet from "../../_snippets/alphanet.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/iota-101/using-events.json';
 
@@ -109,8 +108,6 @@ This example leverages the IOTA TypeScript SDK to subscribe to events the packag
 
 ### Rust
 
-<AlphaNet />
-
 See [Rust SDK](../../references/rust-sdk.mdx).
 
 ```rust
@@ -122,8 +119,8 @@ use anyhow::Result;
 #[tokio::main]
 async fn main() -> Result<()> {
     let iota = IOTAClientBuilder::default()
-        .ws_url("wss://fullnode.mainnet.iota.io:443")
-        .build("https://fullnode.mainnet.iota.io:443")
+        .ws_url("wss://api.testnet.iota.cafe:443")
+        .build("https://api.testnet.iota.cafe:443")
         .await.unwrap();
     let mut subscribe_all = iota.event_api().subscribe_event(EventFilter::All(vec![])).await?;
     loop {

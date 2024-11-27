@@ -7,7 +7,7 @@ task 1, lines 10-27:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 6239600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6239600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 29-33:
 //# programmable --sender A --inputs @A
@@ -17,7 +17,7 @@ task 2, lines 29-33:
 //> TransferObjects([Result(0), Result(1), Result(2)], Input(0))
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 4605600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4605600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 35-39:
 //# programmable --sender A --inputs object(2,0) object(2,1) object(2,2)
@@ -27,7 +27,7 @@ task 3, lines 35-39:
 //> test::m1::priv2(Result(2))
 mutated: object(0,0)
 deleted: object(2,0), object(2,1), object(2,2)
-gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 4605600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 4605600, non_refundable_storage_fee: 0
 
 task 4, lines 41-44:
 //# programmable --sender A --inputs 0 0 0
@@ -35,4 +35,4 @@ task 4, lines 41-44:
 //> 1: MakeMoveVec<u64>([Input(0), Input(1), Input(2)]);
 //> test::m1::priv3(Result(1))
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0

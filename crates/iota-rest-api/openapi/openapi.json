@@ -2739,6 +2739,7 @@
         "type": "object",
         "required": [
           "computation_cost",
+          "computation_cost_burned",
           "non_refundable_storage_fee",
           "storage_cost",
           "storage_rebate"
@@ -2746,6 +2747,11 @@
         "properties": {
           "computation_cost": {
             "description": "Cost of computation/execution",
+            "type": "string",
+            "format": "u64"
+          },
+          "computation_cost_burned": {
+            "description": "The burned component of the computation/execution costs",
             "type": "string",
             "format": "u64"
           },

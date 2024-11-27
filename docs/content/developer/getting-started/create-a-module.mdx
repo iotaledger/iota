@@ -35,7 +35,7 @@ The first line of the module defines the module's name and the package it belong
 
 Move's [object model](../iota-101/objects/object-model.mdx) allows for code reuse. You can use types and functions declared in other modules, even if they belong to different packages.
 
-In this example, the module imports from the `object`, `transfer`, and `tx_context` modules from the `iota` package, which was defined as a [package dependency](create-a-package.mdx#dependencies).
+In this example, the module imports from the `object`, `transfer`, and `tx_context` modules from the `iota` package, which was defined as a [package dependency](create-a-package.mdx#dependencies). The module does not need to import them explicitly, because the compiler provides these `use` statements by default.
 
 ## Struct Declarations
 
@@ -74,11 +74,11 @@ Keep in mind that if you [upgrade your package](../iota-101/move-overview/packag
 
 ### Entry Functions
 
-Add the `entry` modifier to functions you want to call from a [programmable transaction block](../iota-101/transactions/ptb/prog-txn-blocks.mdx). All parameters passed to the function must be inputs to the transaction block, not results from other transactions in the block, nor can they be modified by previous transactions in the block. These functions can only return types with the `drop` ability.
+Add the `entry` modifier to functions you want to call from a [programmable transaction block](../iota-101/transactions/ptb/programmable-transaction-blocks). All parameters passed to the function must be inputs to the transaction block, not results from other transactions in the block, nor can they be modified by previous transactions in the block. These functions can only return types with the `drop` ability.
 
 ### Public Functions
 
-`public` functions can be called from a [programmable transaction block](../iota-101/transactions/ptb/prog-txn-blocks.mdx) or another module.
+`public` functions can be called from a [programmable transaction block](../iota-101/transactions/ptb/programmable-transaction-blocks) or another module.
 
 #### Accessor Functions
 

@@ -1,6 +1,7 @@
 ---
 source: crates/iota-e2e-tests/tests/snapshot_tests.rs
 expression: "run_one(cmds, context).await?"
+snapshot_kind: text
 ---
 [
   "iota client objects {ME}",
@@ -290,6 +291,7 @@ expression: "run_one(cmds, context).await?"
       "executedEpoch": "0",
       "gasUsed": {
         "computationCost": "0",
+        "computationCostBurned": "0",
         "storageCost": "0",
         "storageRebate": "0",
         "nonRefundableStorageFee": "0"

@@ -217,10 +217,10 @@ pub async fn perform_zk_login_test_tx(
 fn get_config(network: &str) -> (&str, &str) {
     match network {
         "devnet" => (
-            "https://faucet.devnet.iota.io/gas",
-            "https://rpc.devnet.iota.io:443",
+            "https://faucet.devnet.iota.cafe/v1/gas",
+            "https://api.devnet.iota.cafe",
         ),
-        "localnet" => ("http://127.0.0.1:9123/gas", "http://127.0.0.1:9000"),
+        "localnet" => ("http://127.0.0.1:9123/v1/gas", "http://127.0.0.1:9000"),
         _ => panic!("Invalid network"),
     }
 }

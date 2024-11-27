@@ -15,9 +15,7 @@ use iota_sdk::{
         base_types::ObjectID,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{
-            Argument, CallArg, Command, ProgrammableMoveCall, Transaction, TransactionData,
-        },
+        transaction::{Argument, CallArg, Command, Transaction, TransactionData},
     },
 };
 use shared_crypto::intent::Intent;
@@ -66,13 +64,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let package = ObjectID::from_hex_literal(pkg_id).map_err(|e| anyhow!(e))?;
     let module = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
     let function = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
-    ptb.command(Command::MoveCall(Box::new(ProgrammableMoveCall {
-        package,
-        module,
-        function,
-        type_arguments: vec![],
-        arguments: vec![Argument::Input(0)],
-    })));
+    ptb.command(Command::move_call(package, module, function, vec![], vec![
+        Argument::Input(0),
+    ]));
 
     // build the transaction block by calling finish on the ptb
     let builder = ptb.finish();

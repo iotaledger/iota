@@ -23,20 +23,20 @@ Create a class that represents your wallet. Use the `Wallet` interface from
 import { IOTA_DEVNET_CHAIN, Wallet } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
-	get version() {
-		// Return the version of the Wallet Standard this implements (in this case, 1.0.0).
-		return '1.0.0';
-	}
-	get name() {
-		return 'Wallet Name';
-	}
-	get icon() {
-		return 'some-icon-data-url';
-	}
-	// Return the IOTA chains that your wallet supports.
-	get chains() {
-		return [IOTA_DEVNET_CHAIN];
-	}
+    get version() {
+        // Return the version of the Wallet Standard this implements (in this case, 1.0.0).
+        return '1.0.0';
+    }
+    get name() {
+        return 'Wallet Name';
+    }
+    get icon() {
+        return 'some-icon-data-url';
+    }
+    // Return the IOTA chains that your wallet supports.
+    get chains() {
+        return [IOTA_DEVNET_CHAIN];
+    }
 }
 ```
 
@@ -57,9 +57,6 @@ wallet adapter, you must implement the following features in your wallet:
   for execution to the blockchain.
 - `iota:reportTransactionEffects` - Use to report the effects of a transaction executed in the dApp
   to the wallet. This allows the wallet to update its internal state to reflect the changes the transaction makes.
-- `iota:signTransactionBlock` - The previous version of `iota:signTransaction`. Still
-  implemented for compatibility with dApps that have not updated to the new feature.
-- `iota:signAndExecuteTransactionBlock` - The previous version of `iota:signAndExecuteTransaction`. Still implemented for compatibility with dApps that have not updated to the new feature.
 
 Implement these features in your wallet class under the `features` property:
 
@@ -77,7 +74,7 @@ import {
 } from "@iota/wallet-standard";
 
 class YourWallet implements Wallet {
-	/* ... existing code from above ... */
+    /* ... existing code from above ... */
 
   get features(): ConnectFeature & EventsFeature & IOTAFeatures {
     return {
@@ -89,17 +86,17 @@ class YourWallet implements Wallet {
         version: "1.0.0",
         on: this.#on,
       },
-			"iota:signPersonalMessage": {
+      "iota:signPersonalMessage": {
         version: "1.0.0",
-				signPersonalMessage: this.#signPersonalMessage,
-			},
+        signPersonalMessage: this.#signPersonalMessage,
+      },
       "iota:signTransaction": {
         version: "2.0.0",
         signTransaction: this.#signTransaction,
       },
       "iota:signAndExecuteTransaction": {
         version: "2.0.0",
-        signAndExecuteTransaction: this.#signAndExecuteTransactionBlock,
+        signAndExecuteTransaction: this.#signAndExecuteTransaction,
       },
       "iota:reportTransactionEffects": {
         version: "1.0.0",
@@ -115,7 +112,7 @@ class YourWallet implements Wallet {
     // Your wallet's connect implementation
   };
 
-	#signPersonalMessage: IOTASignPersonalMessageMethod = () => {
+  #signPersonalMessage: IOTASignPersonalMessageMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
@@ -146,26 +143,26 @@ required interface.
 import { ReadonlyWalletAccount } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
-	get accounts() {
-		// Assuming we already have some internal representation of accounts:
-		return someWalletAccounts.map(
-			(walletAccount) =>
-				// Return
-				new ReadonlyWalletAccount({
-					address: walletAccount.iotaAddress,
-					publicKey: walletAccount.pubkey,
-					// The IOTA chains that your wallet supports.
-					chains: [IOTA_DEVNET_CHAIN],
-					// The features that this account supports. This can be a subset of the wallet's supported features.
-					// These features must exist on the wallet as well.
-					features: [
-						'iota:signPersonalMessage',
-						'iota:signTransactionBlock',
-						'iota:signAndExecuteTransactionBlock',
-					],
-				}),
-		);
-	}
+    get accounts() {
+        // Assuming we already have some internal representation of accounts:
+        return someWalletAccounts.map(
+            (walletAccount) =>
+                // Return
+                new ReadonlyWalletAccount({
+                    address: walletAccount.iotaAddress,
+                    publicKey: walletAccount.pubkey,
+                    // The IOTA chains that your wallet supports.
+                    chains: [IOTA_DEVNET_CHAIN],
+                    // The features that this account supports. This can be a subset of the wallet's supported features.
+                    // These features must exist on the wallet as well.
+                    features: [
+                        'iota:signPersonalMessage',
+                        'iota:signTransaction',
+                        'iota:signAndExecuteTransaction',
+                    ],
+                }),
+        );
+    }
 }
 ```
 
@@ -182,10 +179,9 @@ registerWallet(new YourWallet());
 
 ### Best Practices for Efficient Transaction Execution
 
-The Wallet standard has been updated from its original design to better support changes in the IOTA ecosystem. For example, the GraphQL service was introduced after Mainnet launched. The `iota:signAndExecuteTransactionBlock` feature is closely tied to the JSON RPC options and data structures, so its continued maintenance becomes increasingly difficult as the GraphQL service becomes more ubiquitous.
-
-Consequently, the Wallet standard introduced the `iota:signAndExecuteTransaction` feature. The features of this method are more useful, regardless of which API you use to execute transactions. This usefulness comes at the expense
-of flexibility in what `iota:signAndExecuteTransaction` returns.
+The Wallet standard uses the `iota:signAndExecuteTransaction` feature.  
+The features of this method are useful, regardless of which API you use to execute transactions.
+However, this usefulness comes at the expense of flexibility in what `iota:signAndExecuteTransaction` returns.
 
 To solve this problem, use the `iota:signTransaction` feature to sign transactions, and
 leave transaction execution to the dApp. The dApp can query for additional data during

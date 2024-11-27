@@ -85,4 +85,12 @@ body {
     .grid-template-visual-assets {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     }
+
+    a {
+        @apply text-primary-30 dark:text-primary-80;
+        @apply transition-colors;
+        &:hover {
+            @apply text-opacity-80;
+        }
+    }
 }

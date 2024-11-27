@@ -1541,8 +1541,8 @@ impl IotaClientCommands {
 
                     if let Ok(env) = active_env {
                         let network = match env.rpc().as_str() {
-                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.io/v1/gas",
-                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.io/v1/gas",
+                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.cafe/v1/gas",
+                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.cafe/v1/gas",
                             IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
                                 "http://127.0.0.1:9123/gas"
                             }

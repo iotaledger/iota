@@ -1,6 +1,7 @@
 name: Build Wallet App (Prod)
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "wallet-v[0-9]+.[0-9]+.[0-9]+"
@@ -9,6 +10,7 @@ env:
   DEFAULT_NETWORK: ${{ secrets.WALLET_PROD_DEFAULT_NETWORK }}
   IOTA_NETWORKS: ${{ secrets.WALLET_PROD_IOTA_NETWORKS }}
   APPS_BACKEND: ${{ secrets.WALLET_PROD_APPS_BACKEND }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.TOOLING_SENTRY_AUTH_TOKEN }}
 
 jobs:
   wallet-prod-build:
@@ -38,6 +40,48 @@ jobs:
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
       - name: Build Wallet
         run: pnpm wallet build
+      - name: Get Previous Tag
+        id: prev_tag
+        run: |
+          tags=$(git tag --list 'wallet-v*.*.*' --sort=-creatordate)
+          current_tag=$(echo "$tags" | sed -n 1p)
+          prev_tag=$(echo "$tags" | sed -n 2p)
+          if [ -z "$prev_tag" ]; then
+            echo "No previous tag found. Skipping changelog generation."
+            echo "PREV_TAG=none" >> $GITHUB_ENV
+          else
+            echo "PREV_TAG=$prev_tag" >> $GITHUB_ENV
+          fi
+          echo "CURRENT_TAG=$current_tag" >> $GITHUB_ENV
+
+      - name: Generate Changelog
+        id: generate_changelog
+        run: |
+          if [ "${{ env.PREV_TAG }}" = "none" ]; then
+            echo "No previous tag found. Skipping changelog generation."
+            echo "changelog=No previous tag found. Changelog generation skipped." >> $GITHUB_ENV
+          else
+            git log ${{ env.PREV_TAG }}..${{ env.CURRENT_TAG }} --pretty=format:"- %s by @%an in #%h" -- ./apps/wallet > CHANGELOG.md
+            changelog=$(cat CHANGELOG.md)
+            echo "changelog=$changelog" >> $GITHUB_ENV
+          fi
+
+      - name: Get version from tag
+        id: version
+        run: echo "::set-output name=version::${GITHUB_REF#refs/tags/wallet-v}"
+
+      - name: Create GitHub Release
+        uses: elgohr/Github-Release-Action@c5ea99036abb741a89f8bf1f2cd7fba845e3313a # pin@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.CURRENT_TAG }}
+          release_name: IOTA Wallet v${{ steps.version.outputs.version }}
+          body: |
+            ## Changelog
+            {{ env.changelog }}
+          draft: true
+          prerelease: false
       - name: Upload artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         with:

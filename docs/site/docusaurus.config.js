@@ -18,7 +18,7 @@ const config = {
   favicon: "/icons/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://docs.iota.io",
+  url: "https://docs.iota.org",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -108,6 +108,7 @@ const config = {
         intentionallyNotExported: [],
       },
     ],
+    'plugin-image-zoom'
   ],
   presets: [
     [
@@ -241,6 +242,10 @@ const config = {
             to: "developer",
           },
           {
+            label: "TS SDK",
+            to: "references/ts-sdk/typescript/",
+          },
+          {
             label: "Node Operators",
             to: "operator",
           },
@@ -272,6 +277,14 @@ const config = {
         darkTheme: themes.vsDark,
         additionalLanguages: ["rust", "typescript", "solidity"],
       },
+      imageZoom: {
+        selector: '.markdown img',
+        // Optional medium-zoom options
+        // see: https://www.npmjs.com/package/medium-zoom#options
+        options: {
+          background: 'rgba(0, 0, 0, 0.6)',
+        },
+      }
     }),
 };
 

@@ -1,5 +1,14 @@
 # @iota/graphql-transport
 
+## 0.2.1
+
+### Patch Changes
+
+-   220fa7a: First public release.
+-   Updated dependencies [220fa7a]
+    -   @iota/bcs@0.2.1
+    -   @iota/iota-sdk@0.3.1
+
 ## 0.2.0
 
 ### Minor Changes

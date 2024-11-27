@@ -7,7 +7,7 @@ task 1, lines 7-18:
 //# publish --sender A
 created: object(1,0), object(1,1), object(1,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 10594400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10594400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 20:
 //# create-checkpoint
@@ -35,7 +35,7 @@ task 4, lines 35-37:
 created: object(4,0)
 mutated: object(0,0), object(1,2)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, storage_cost: 3990000,  storage_rebate: 2675200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3990000,  storage_rebate: 2675200, non_refundable_storage_fee: 0
 
 task 5, line 39:
 //# create-checkpoint

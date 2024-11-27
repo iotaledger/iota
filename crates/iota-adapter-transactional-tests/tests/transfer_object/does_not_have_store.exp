@@ -7,13 +7,13 @@ task 1, lines 9-26:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5776000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5776000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 28:
 //# run test::m::mint_s --sender A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2181200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2181200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 30:
 //# view-object 2,0
@@ -48,7 +48,7 @@ task 6, line 39:
 //# run test::m::mint_cup --type-args test::m::S --sender A
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2485200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2485200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 41:
 //# view-object 6,0

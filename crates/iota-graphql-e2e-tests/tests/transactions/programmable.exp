@@ -7,7 +7,7 @@ task 1, lines 7-17:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 6300400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6300400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 19:
 //# create-checkpoint
@@ -177,7 +177,7 @@ task 4, lines 202-217:
 //# upgrade --package P0 --upgrade-capability 1,0 --sender A
 created: object(4,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 6574000,  storage_rebate: 2606800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6574000,  storage_rebate: 2606800, non_refundable_storage_fee: 0
 
 task 5, line 219:
 //# create-checkpoint
@@ -454,7 +454,7 @@ task 7, lines 402-405:
 //> iota::transfer::public_transfer<P0::m::Foo>(Result(1), Input(1))
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2264800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 8, lines 407-416:
 //# programmable --sender A --inputs 42u64 43u64 1000 @A
@@ -469,7 +469,7 @@ task 8, lines 407-416:
 //> TransferObjects([NestedResult(2,0)], Input(3))
 created: object(8,0), object(8,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3306000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3306000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 9, line 418:
 //# create-checkpoint

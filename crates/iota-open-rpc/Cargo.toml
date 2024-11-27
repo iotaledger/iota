@@ -20,7 +20,7 @@ versions = "4.1.0"
 anyhow.workspace = true
 bcs.workspace = true
 clap.workspace = true
-fastcrypto = { workspace = true }
+fastcrypto.workspace = true
 pretty_assertions.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
