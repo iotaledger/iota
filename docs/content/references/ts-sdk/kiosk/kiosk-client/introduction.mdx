@@ -10,8 +10,8 @@ Kiosk Client is the base for all Kiosk SDK functionality.
 You can follow the example to create a `KioskClient`. View next section for usage in custom networks.
 
 ```typescript
-import { KioskClient, Network } from '@iota/kiosk';
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { KioskClient } from '@iota/kiosk';
+import { getFullnodeUrl, IotaClient, Network } from '@iota/iota-sdk/client';
 
 // We need a IOTA Client. You can re-use the IotaClient of your project
 // (it's not recommended to create a new one).
@@ -33,7 +33,7 @@ as the network, and pass the `packageIds` for the rules and extensions you want 
 // constructing it for custom network use.
 const kioskClient = new KioskClient({
     client,
-    network: 'custom',
+    network: Network.Custom,
     packageIds: {
         kioskLockRulePackageId: '0x...',
         royaltyRulePackageId: '0x...',
