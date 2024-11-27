@@ -1,11 +1,11 @@
 /// Module provides `mock` items for using them in nft_marketplace and rental extensions.
-module nft_marketplace::market_items {
+module nft_marketplace::clothing_store {
     use iota::package;
     /// One Time Witness.
-    public struct MARKET_ITEMS has drop {}
+    public struct CLOTHING_STORE has drop {}
 
 
-    fun init(otw: MARKET_ITEMS, ctx: &mut TxContext) {
+    fun init(otw: CLOTHING_STORE, ctx: &mut TxContext) {
         package::claim_and_keep(otw, ctx)
     }
 

@@ -30,7 +30,6 @@ module nft_marketplace::rental_extension {
     const ENotEnoughCoins: u64 = 2;
     const EInvalidKiosk: u64 = 3;
     const ERentingPeriodNotOver: u64 = 4;
-    const EObjectNotExist: u64 = 5;
     const ETotalPriceOverflow: u64 = 6;
 
     // === Constants ===

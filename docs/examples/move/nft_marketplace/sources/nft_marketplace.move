@@ -10,16 +10,13 @@ module nft_marketplace::nft_marketplace {
     };
 
     // rules imports
-    // use kiosk::floor_price_rule::Rule as FloorPriceRule;
-    // use kiosk::personal_kiosk_rule::Rule as PersonalRule;
     use kiosk::royalty_rule::Rule as RoyaltyRule;
     use kiosk::royalty_rule;
-    // use kiosk::witness_rule::Rule as WitnessRule;
 
 
     // === Errors ===
     const EExtensionNotInstalled: u64 = 0;
-    const EObjectNotExist: u64 = 1;
+    const EWrongPaymentRoyalties: u64 = 1;
 
     // === Constants ===
     const ALLOW_PLACE_AND_LOCK: u128 = 11;
@@ -30,7 +27,7 @@ module nft_marketplace::nft_marketplace {
     /// Used as a key for the item that has been up for sale that's placed in the Extension's Bag.
     public struct Listed has store, copy, drop { id: ID }
     
-    public struct ItemPrice<T: key + store> has store {
+    public struct ItemPrice<phantom T: key + store> has store {
         /// Total amount of time offered for renting in days.
         price: u64,
     }
@@ -62,21 +59,23 @@ module nft_marketplace::nft_marketplace {
     }
 
     /// Buy listed item with the indicated price and pay royalties if needed
-    public fun buy_item<T: key + store>(kiosk: &mut Kiosk, policy: &mut TransferPolicy<T>, item_id: object::ID, mut payment: Coin<IOTA>, ctx: &mut TxContext) {
+    public fun buy_item<T: key + store>(kiosk: &mut Kiosk, policy: &mut TransferPolicy<T>, item_id: object::ID, mut payment: Coin<IOTA>, ctx: &mut TxContext): T {
         assert!(kiosk_extension::is_installed<Marketplace>(kiosk), EExtensionNotInstalled);
         let ItemPrice { price } = take_from_bag<T, Listed>(kiosk,  Listed { id: item_id });
-        let payment_amount = payment.split(price, ctx);
-        let payment_amount_value = payment_amount.value();
-        let (item, mut transfer_request) = purchase(kiosk, item_id, payment_amount);
+        
+        let payment_amount_value = payment.value();
+        let coin_price = payment.split(price, ctx);
+        
+        let (item, mut transfer_request) = purchase(kiosk, item_id, coin_price);
         if (policy.has_rule<T, RoyaltyRule>()) { 
-            let royalties_value = royalty_rule::fee_amount(policy, payment_amount_value);
-            let royalties_coin = payment.split(royalties_value, ctx);
-            royalty_rule::pay(policy, &mut transfer_request, royalties_coin);
+            let royalties_value = royalty_rule::fee_amount(policy, price);
+            assert!(payment_amount_value == price + royalties_value, EWrongPaymentRoyalties);
+            royalty_rule::pay(policy, &mut transfer_request, payment);
+        } else {
+            payment.destroy_zero();
         };
         transfer_policy::confirm_request(policy, transfer_request);
-        transfer::public_transfer<T>(item, ctx.sender());
-        // Send a leftover back to buyer
-        transfer::public_transfer(payment, ctx.sender());
+        item
     }
 
 
@@ -95,6 +94,20 @@ module nft_marketplace::nft_marketplace {
         };
 
         place_in_bag<T, Listed>(kiosk, Listed { id }, item_price);
+    }
+
+
+    public fun get_item_price<T: key + store>(
+        kiosk: &Kiosk,
+        item_id: ID,
+    ) : u64 {
+        let storage_ref = kiosk_extension::storage(Marketplace {}, kiosk);
+        let ItemPrice { price } = bag::borrow<Listed, ItemPrice<T>>(
+            storage_ref,
+            Listed { id: item_id },
+        );
+
+        *price
     }
 
 
