@@ -16,8 +16,8 @@ export interface DescriptionItemProps {
 export function DescriptionItem({ title, children }: DescriptionItemProps) {
     return (
         <div className="flex items-center">
-            <dt className="text-steel-dark flex-1 text-pBodySmall font-medium">{title}</dt>
-            <dd className="text-steel-darker ml-0 text-pBodySmall font-medium">{children}</dd>
+            <dt className="text-steel-dark text-pBodySmall flex-1 font-medium">{title}</dt>
+            <dd className="text-steel-darker text-pBodySmall ml-0 font-medium">{children}</dd>
         </div>
     );
 }
