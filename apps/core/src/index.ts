@@ -12,3 +12,4 @@ export * from './contexts';
 export * from './enums';
 export * from './forms';
 export * from './types';
+export * from './interfaces';

@@ -11,9 +11,9 @@ import {
 } from '@iota/iota-sdk/client';
 
 import { groupByOwner } from './groupByOwner';
-import { IotaObjectChangesWithDisplay } from '../../types';
+import { IotaObjectChangeWithDisplay } from '../../types';
 
-export const getObjectChangeSummary = (objectChanges: IotaObjectChangesWithDisplay[]) => {
+export const getObjectChangeSummary = (objectChanges: IotaObjectChangeWithDisplay[]) => {
     if (!objectChanges) return null;
 
     const mutated = objectChanges.filter(

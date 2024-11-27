@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { type IotaObjectChangesWithDisplay, ExplorerLinkType, ImageIcon } from '../../';
+import { type IotaObjectChangeWithDisplay, ExplorerLinkType, ImageIcon } from '../../';
 import { Card, CardAction, CardActionType, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
 import { ArrowTopRight } from '@iota/ui-icons';
 import { RenderExplorerLink } from '../../types';
 
 interface ObjectChangeDisplayProps {
-    change?: IotaObjectChangesWithDisplay;
+    change?: IotaObjectChangeWithDisplay;
     renderExplorerLink: RenderExplorerLink;
 }
 export function ObjectChangeDisplay({

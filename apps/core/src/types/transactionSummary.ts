@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { GasSummaryType, BalanceChangeSummary, ObjectChangesSummary } from '.';
+import type { GasSummaryType, BalanceChangeSummary, ObjectChangeSummary } from '.';
 
 export type TransactionSummaryType = {
     digest?: string;
@@ -10,5 +10,5 @@ export type TransactionSummaryType = {
     timestamp?: string | null;
     balanceChanges: BalanceChangeSummary;
     gas?: GasSummaryType;
-    objectSummary: ObjectChangesSummary | null;
+    objectSummary: ObjectChangeSummary | null;
 } | null;

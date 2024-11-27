@@ -13,7 +13,7 @@ import { getLabel } from '../utils/transaction/getLabel';
 import { getObjectChangeSummary } from '../utils/transaction/getObjectChangeSummary';
 import { getObjectDisplayLookup } from '../utils/transaction/getObjectDisplayLookup';
 import { useMultiGetObjects } from './useMultiGetObjects';
-import { IotaObjectChangesWithDisplay } from '../types';
+import { IotaObjectChangeWithDisplay } from '../types';
 
 export function useTransactionSummary({
     transaction,
@@ -40,7 +40,7 @@ export function useTransactionSummary({
                 display: 'objectId' in change ? lookup?.get(change.objectId) : null,
             })),
         [lookup, objectChanges],
-    ) as IotaObjectChangesWithDisplay[];
+    ) as IotaObjectChangeWithDisplay[];
 
     const summary = useMemo(() => {
         if (!transaction) return null;

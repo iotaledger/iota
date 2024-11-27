@@ -5,9 +5,9 @@ import React from 'react';
 import {
     getObjectChangeLabel,
     type ObjectChangesByOwner,
-    type ObjectChangesSummary,
+    type ObjectChangeSummary,
     type IotaObjectChangeTypes,
-    type IotaObjectChangesWithDisplay,
+    type IotaObjectChangeWithDisplay,
     ExplorerLinkType,
 } from '../../';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -29,7 +29,7 @@ import { TriangleDown } from '@iota/ui-icons';
 import { RenderExplorerLink } from '../../types';
 
 interface ObjectDetailProps {
-    change: IotaObjectChangesWithDisplay;
+    change: IotaObjectChangeWithDisplay;
     ownerKey: string;
     display?: boolean;
     renderExplorerLink: RenderExplorerLink;
@@ -242,7 +242,7 @@ export function ObjectChangeEntry({
 }
 
 interface ObjectChangesProps {
-    changes?: ObjectChangesSummary | null;
+    changes?: ObjectChangeSummary | null;
     renderExplorerLink: RenderExplorerLink;
 }
 
@@ -255,7 +255,7 @@ export function ObjectChanges({ changes, renderExplorerLink }: ObjectChangesProp
                 return (
                     <ObjectChangeEntry
                         key={type}
-                        type={type as keyof ObjectChangesSummary}
+                        type={type as keyof ObjectChangeSummary}
                         changes={changes}
                         renderExplorerLink={renderExplorerLink}
                     />

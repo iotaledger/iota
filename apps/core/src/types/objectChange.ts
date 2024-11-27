@@ -12,15 +12,15 @@ export type IotaObjectChangeTypes =
     | 'created';
 
 export type WithDisplayFields<T> = T & { display?: DisplayFieldsResponse };
-export type IotaObjectChangesWithDisplay = WithDisplayFields<IotaObjectChange>;
+export type IotaObjectChangeWithDisplay = WithDisplayFields<IotaObjectChange>;
 
 export type ObjectChange = {
-    changesWithDisplay: IotaObjectChangesWithDisplay[];
+    changesWithDisplay: IotaObjectChangeWithDisplay[];
     changes: IotaObjectChange[];
     ownerType: string;
 };
 export type ObjectChangesByOwner = Record<string, ObjectChange>;
 
-export type ObjectChangesSummary = {
+export type ObjectChangeSummary = {
     [K in IotaObjectChangeTypes]: ObjectChangesByOwner;
 };
