@@ -25,16 +25,16 @@ You can follow this example to create a KioskClient.
 
 ```typescript
 import { KioskClient } from '@iota/kiosk';
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { getFullnodeUrl, IotaClient, Network } from '@iota/iota-sdk/client';
 
 // We need a IOTA Client. You can re-use the IotaClient of your project
 // (it's not recommended to create a new one).
-const client = new IotaClient({ url: getFullnodeUrl('testnet') });
+const client = new IotaClient({ url: getFullnodeUrl(Network.TESTNET) });
 
 // Now we can use it to create a kiosk Client.
 const kioskClient = new KioskClient({
     client,
-    network: 'testnet',
+    network: Network.TESTNET,
 });
 ```
 
