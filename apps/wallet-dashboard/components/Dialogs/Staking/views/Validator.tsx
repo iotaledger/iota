@@ -36,6 +36,7 @@ export function Validator({
         isAtRisk,
         apy,
         isApyApproxZero,
+        validatorSummary,
         system,
     } = useValidatorInfo({
         validatorAddress: address,
@@ -64,7 +65,7 @@ export function Validator({
         <Card type={isSelected ? CardType.Filled : CardType.Default} onClick={handleClick}>
             <CardImage>
                 <ImageIcon
-                    src={null}
+                    src={validatorSummary?.imageUrl ?? null}
                     label={validatorDisplayName}
                     fallback={validatorDisplayName}
                     size={ImageIconSize.Large}
