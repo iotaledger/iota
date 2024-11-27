@@ -12,9 +12,9 @@ const otherType = `${packageId}::other_module::OtherStruct<${packageId}::other_c
 // initialize a kioskClient.
 const kioskClient = new KioskClient({
     client: new IotaClient({
-        url: getFullnodeUrl('testnet'),
+        url: getFullnodeUrl(Network.Testnet),
     }),
-    network: Network.TESTNET,
+    network: Network.Testnet,
 });
 ```
 
