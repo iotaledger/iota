@@ -22,7 +22,7 @@ LLVM_PROFDATA="$HOME/.rustup/toolchains/$TOOLCHAIN/lib/rustlib/x86_64-unknown-li
 MSIM_WATCHDOG_TIMEOUT_MS=60000 MSIM_TEST_SEED=1 cargo llvm-cov \
   --ignore-run-fail \
   --no-report \
-  nextest -vv # --cargo-profile simulator
+  nextest -vv --cargo-profile simulator
 
 echo "Scanning for corrupted .profraw files. This might take a while."
 find target/llvm-cov-target -name '*.profraw' | while read file; do

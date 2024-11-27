@@ -82,15 +82,15 @@ jobs:
 
           [ -f "target/nextest.profdata" ] || exit 1
 
-      # - name: Run code coverage (simtest)
-      #   run: |
-      #     cargo +nightly llvm-cov clean --profraw-only
+      - name: Run code coverage (simtest)
+        run: |
+          cargo +nightly llvm-cov clean --profraw-only
 
-      #     git clean -fd
+          git clean -fd
 
-      #     set +e
-      #     ./scripts/simtest/simtest-cov.sh
-      #     [ -f "target/simtest.profdata" ] || exit 1
+          set +e
+          ./scripts/simtest/simtest-cov.sh
+          [ -f "target/simtest.profdata" ] || exit 1
 
       - name: Create report (lcov.info)
         run: |
