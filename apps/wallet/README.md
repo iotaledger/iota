@@ -4,7 +4,7 @@ A Chrome extension wallet for [IOTA](https://iota.org).
 
 # Set Up
 
-**Requirements**: 18.0.0 or later.
+**Requirements**: 20.0.0 or later.
 
 Dependencies are managed using [`pnpm`](https://pnpm.io/). You can start by installing dependencies in the root of the iota repository:
 
