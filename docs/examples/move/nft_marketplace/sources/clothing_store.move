@@ -1,4 +1,5 @@
 /// Module provides `mock` items for using them in nft_marketplace and rental extensions.
+#[allow(lint(self_transfer))]
 module nft_marketplace::clothing_store {
     use iota::package;
     /// One Time Witness.
