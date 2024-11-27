@@ -4,7 +4,6 @@
 'use client';
 
 import { AmountBox, Box, StakeCard, StakeDialog, Button } from '@/components';
-import { StakeDialogView } from '@/components/Dialogs/Staking/enums/view.enums';
 import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
 
 import {
@@ -19,6 +18,7 @@ import {
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { StakeDialogView } from '@/components/Dialogs/Staking/StakeDialog';
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();

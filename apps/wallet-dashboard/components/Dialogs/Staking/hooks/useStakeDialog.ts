@@ -3,7 +3,8 @@
 
 import { useState } from 'react';
 import { ExtendedDelegatedStake } from '@iota/core';
-import { StakeDialogView } from '../enums/view.enums';
+
+import { StakeDialogView } from '@/components/Dialogs/Staking/StakeDialog';
 
 export function useStakeDialog() {
     const [stakeDialogView, setStakeDialogView] = useState<StakeDialogView | undefined>();
