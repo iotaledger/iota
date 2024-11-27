@@ -58,7 +58,6 @@ export function DetailsView({
         isApyApproxZero,
         newValidator,
         commission,
-        imageUrl,
     } = useValidatorInfo({
         validatorAddress,
     });
