@@ -29,3 +29,4 @@ export * from './AreaGraph';
 export * from './GraphTooltipContent';
 export * from './IotaTokenCard';
 export * from './TransactionsCardGraph';
+export * from './ThemedIotaLogo';

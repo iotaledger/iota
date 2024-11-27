@@ -67,7 +67,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
             </Card>
             {recipient && (
                 <div className="flex flex-wrap items-center justify-between px-sm py-xs">
-                    <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                    <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
                         Recipient
                     </span>
                     <AddressLink address={recipient} />
@@ -86,6 +86,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
     return (
         <CollapsibleCard
             title="Balance Changes"
+            isTransparentPanel
             footer={
                 owner ? (
                     <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
