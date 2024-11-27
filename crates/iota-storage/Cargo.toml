@@ -70,7 +70,7 @@ iota-types = { workspace = true, features = ["test-utils"] }
 [target.'cfg(msim)'.dependencies]
 # external dependencies
 axum.workspace = true
-rustls = "0.23"
+rustls = "0.23.18"
 
 # internal dependencies
 iota-simulator.workspace = true
