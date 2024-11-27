@@ -18,6 +18,7 @@ import {
     useGetValidatorsApy,
     useBalance,
     createValidationSchema,
+    MIN_NUMBER_IOTA_TO_STAKE,
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
 import type { FormikHelpers } from 'formik';
@@ -29,13 +30,11 @@ import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView, UnstakeView } from './views';
 import { FormValues } from './views/EnterAmountView';
 
-export const MIN_NUMBER_IOTA_TO_STAKE = 1;
-
 export enum StakeDialogView {
-    Details = 'Details',
-    SelectValidator = 'SelectValidator',
-    EnterAmount = 'EnterAmount',
-    Unstake = 'Unstake',
+    Details,
+    SelectValidator,
+    EnterAmount,
+    Unstake,
 }
 
 const INITIAL_VALUES = {
@@ -44,10 +43,10 @@ const INITIAL_VALUES = {
 
 interface StakeDialogProps {
     isTimelockedStaking?: boolean;
-    onSuccess?: (digest: string) => void;
     isOpen: boolean;
     handleClose: () => void;
-    view: StakeDialogView;
+    onSuccess?: (digest: string) => void;
+    view?: StakeDialogView;
     setView?: (view: StakeDialogView) => void;
     stakedDetails?: ExtendedDelegatedStake | null;
 
