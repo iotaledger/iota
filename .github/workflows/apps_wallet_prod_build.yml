@@ -1,6 +1,7 @@
 name: Build Wallet App (Prod)
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "wallet-v[0-9]+.[0-9]+.[0-9]+"
@@ -70,7 +71,7 @@ jobs:
         run: echo "::set-output name=version::${GITHUB_REF#refs/tags/wallet-v}"
 
       - name: Create GitHub Release
-        uses: elgohr/create-release@c5ea99036abb741a89f8bf1f2cd7fba845e3313a # pin@v5
+        uses: elgohr/Github-Release-Action@c5ea99036abb741a89f8bf1f2cd7fba845e3313a # pin@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
