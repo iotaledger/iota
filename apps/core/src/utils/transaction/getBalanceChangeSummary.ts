@@ -7,17 +7,8 @@ import {
     type IotaTransactionBlockResponse,
 } from '@iota/iota-sdk/client';
 import { normalizeIotaObjectId, parseStructTag } from '@iota/iota-sdk/utils';
-
-export type BalanceChange = {
-    coinType: string;
-    amount: string;
-    recipient?: string;
-    owner?: string;
-    unRecognizedToken: boolean;
-};
-
-export type BalanceChangeByOwner = Record<string, BalanceChange[]>;
-export type BalanceChangeSummary = BalanceChangeByOwner | null;
+import { BalanceChange } from '../../interfaces';
+import { BalanceChangeByOwner } from '../../types';
 
 function getOwnerAddress(owner: ObjectOwner): string {
     if (typeof owner === 'object') {

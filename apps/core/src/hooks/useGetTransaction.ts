@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClient } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
+import { useTransactionSummary } from './useTransactionSummary';
 
 export function useGetTransaction(
     transactionId: string,
+    queryOptions?: { retry?: number; initialData?: IotaTransactionBlockResponse },
 ): UseQueryResult<IotaTransactionBlockResponse, Error> {
     const client = useIotaClient();
     return useQuery<IotaTransactionBlockResponse, Error>({
@@ -24,5 +26,26 @@ export function useGetTransaction(
                 },
             }),
         enabled: !!transactionId,
+        retry: queryOptions?.retry,
+        initialData: queryOptions?.initialData,
     });
+}
+
+export function useGetTransactionWithSummary(
+    transactionDigest: string,
+    initialData?: IotaTransactionBlockResponse,
+    recognizedPackagesList: string[] = [],
+) {
+    const txResponse = useGetTransaction(transactionDigest, { retry: 8, initialData });
+    const currentAccount = useCurrentAccount();
+
+    const { data: transaction } = txResponse;
+
+    const summary = useTransactionSummary({
+        transaction,
+        currentAddress: currentAccount?.address,
+        recognizedPackagesList,
+    });
+
+    return { summary, ...txResponse };
 }

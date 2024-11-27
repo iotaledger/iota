@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { UserApproveContainer } from '_components';
-import { useAppDispatch, useTransactionData, useTransactionDryRun } from '_hooks';
+import { ExplorerLinkHelper, UserApproveContainer } from '_components';
+import { useActiveAddress, useAppDispatch, useTransactionData, useTransactionDryRun } from '_hooks';
 import { type TransactionApprovalRequest } from '_payloads/transactions/ApprovalRequest';
 import { respondToTransactionRequest } from '_redux/slices/transaction-requests';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -11,13 +11,11 @@ import { useAccountByAddress } from '_src/ui/app/hooks/useAccountByAddress';
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
-import { TransactionSummary } from '_src/ui/app/shared/transaction-summary';
-import { useTransactionSummary } from '@iota/core';
+import { useTransactionSummary, TransactionSummary, GasFees } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
 
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
-import { GasFees } from './GasFees';
 import { TransactionDetails } from './TransactionDetails';
 
 export interface TransactionRequestProps {
@@ -32,6 +30,7 @@ const APP_ORIGINS_TO_EXCLUDE_FROM_ANALYTICS = ['https://iota8192.ethoswallet.xyz
 
 export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     const addressForTransaction = txRequest.tx.account;
+    const activeAddress = useActiveAddress();
     const { data: accountForTransaction } = useAccountByAddress(addressForTransaction);
     const signer = useSigner(accountForTransaction);
     const dispatch = useAppDispatch();
@@ -99,6 +98,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         isLoading={isDryRunLoading}
                         isError={isDryRunError}
                         summary={summary}
+                        renderExplorerLink={ExplorerLinkHelper}
                     />
                     <GasFees
                         sender={addressForTransaction}
@@ -106,6 +106,8 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         isEstimate
                         isError={isError}
                         isPending={isDryRunLoading}
+                        activeAddress={activeAddress}
+                        renderExplorerLink={ExplorerLinkHelper}
                     />
                     <TransactionDetails sender={addressForTransaction} transaction={transaction} />
                 </div>
