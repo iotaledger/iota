@@ -82,7 +82,7 @@ export function ValidatorLogo({
             <Card type={type} onClick={onClick}>
                 <CardImage>
                     <ImageIcon
-                        src={null}
+                        src={validatorMeta?.imageUrl ?? null}
                         label={validatorName}
                         fallback={validatorName}
                         size={ImageIconSize.Large}

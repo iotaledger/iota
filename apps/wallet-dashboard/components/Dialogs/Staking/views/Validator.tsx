@@ -28,9 +28,10 @@ export function Validator({
     isSelected,
     showAction = true,
 }: ValidatorProps) {
-    const { name, newValidator, isAtRisk, apy, isApyApproxZero } = useValidatorInfo({
-        validatorAddress: address,
-    });
+    const { name, newValidator, isAtRisk, apy, isApyApproxZero, validatorSummary } =
+        useValidatorInfo({
+            validatorAddress: address,
+        });
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">
@@ -47,7 +48,12 @@ export function Validator({
     return (
         <Card type={isSelected ? CardType.Filled : CardType.Default} onClick={handleClick}>
             <CardImage>
-                <ImageIcon src={null} label={name} fallback={name} size={ImageIconSize.Large} />
+                <ImageIcon
+                    src={validatorSummary?.imageUrl ?? null}
+                    label={name}
+                    fallback={name}
+                    size={ImageIconSize.Large}
+                />
             </CardImage>
             <CardBody title={name} subtitle={subtitle} isTextTruncated />
             {showAction && (
