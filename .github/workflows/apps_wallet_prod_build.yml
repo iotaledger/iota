@@ -61,9 +61,8 @@ jobs:
             echo "No previous tag found. Skipping changelog generation."
             echo "changelog=No previous tag found. Changelog generation skipped." >> $GITHUB_OUTPUT
           else
+            echo "## Changelog" >> CHANGELOG.md
             git log ${{ env.PREV_TAG }}..${{ env.CURRENT_TAG }} --pretty=format:"- %s by @%an in #%h" -- ./apps/wallet > CHANGELOG.md
-            changelog=$(cat CHANGELOG.md)
-            echo "changelog=$changelog" >> $GITHUB_OUTPUT
           fi
 
       - name: Get version from tag
@@ -72,17 +71,13 @@ jobs:
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # pin@v2.1.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHANGELOG: ${{ steps.generate_changelog.outputs.changelog }}
         with:
           tag_name: ${{ env.CURRENT_TAG }}
           name: IOTA Wallet v${{ steps.version.outputs.version }}
-          body: |
-            ## Changelog
-            {{ env.CHANGELOG }}
           draft: true
           prerelease: false
+          body_path: CHANGELOG.md
+
       - name: Upload artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
         with:
