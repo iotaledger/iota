@@ -910,7 +910,7 @@ module iota_system::timelocked_stake_tests {
     }
 
     #[test]
-    fun test_timelock_validator_target_reward_higher_than_computation_reward() {
+    fun test_timelock_validator_subsidy_higher_than_computation_charge() {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
@@ -948,7 +948,7 @@ module iota_system::timelocked_stake_tests {
     }
 
     #[test]
-    fun test_timelock_validator_target_reward_lower_than_computation_reward() {
+    fun test_timelock_validator_subsidy_lower_than_computation_charge() {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
