@@ -20,7 +20,7 @@ const getTransactionTransactionState = (tx: IotaTransactionBlockResponse): Trans
     return TransactionState.Pending;
 };
 
-export const getTransactionFlow = (
+export const getTransactionAction = (
     transaction: IotaTransactionBlockResponse,
     currentAddress: string,
 ) => {
@@ -33,7 +33,7 @@ export const getExtendedTransaction = (
     address: string,
 ): ExtendedTransaction => {
     return {
-        action: getTransactionFlow(tx, address),
+        action: getTransactionAction(tx, address),
         state: getTransactionTransactionState(tx),
         timestamp: tx.timestampMs ? parseTimestamp(tx.timestampMs) : undefined,
         raw: tx,
