@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
@@ -18,7 +18,7 @@ pub const DISPLAY_VERSION_UPDATED_EVENT_NAME: &IdentStr = ident_str!("VersionUpd
 
 // TODO: add tests to keep in sync
 /// Rust version of the Move iota::display::Display type
-#[derive(Debug, Deserialize, Clone, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct DisplayObject {
     pub id: UID,
     pub fields: VecMap<String, String>,

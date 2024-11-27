@@ -619,6 +619,9 @@ SystemParametersV1
 IotaSystemStateV1
 	public struct
 	0x3::iota_system_state_inner
+IotaSystemStateV2
+	public struct
+	0x3::iota_system_state_inner
 SystemEpochInfoEventV1
 	public struct
 	0x3::iota_system_state_inner
@@ -626,6 +629,9 @@ create
 	public(package) fun
 	0x3::iota_system_state_inner
 create_system_parameters
+	public(package) fun
+	0x3::iota_system_state_inner
+v1_to_v2
 	public(package) fun
 	0x3::iota_system_state_inner
 request_add_validator_candidate
@@ -671,6 +677,27 @@ report_validator_impl
 	fun
 	0x3::iota_system_state_inner
 undo_report_validator_impl
+	fun
+	0x3::iota_system_state_inner
+new_system_display
+	public(package) fun
+	0x3::iota_system_state_inner
+new_system_display_with_fields
+	public(package) fun
+	0x3::iota_system_state_inner
+insert_system_display_object
+	public(package) fun
+	0x3::iota_system_state_inner
+borrow_system_display_object
+	public(package) fun
+	0x3::iota_system_state_inner
+borrow_system_display_object_mut
+	public(package) fun
+	0x3::iota_system_state_inner
+contains_system_display_object
+	public(package) fun
+	0x3::iota_system_state_inner
+system_display_object_key
 	fun
 	0x3::iota_system_state_inner
 rotate_operation_cap
@@ -892,6 +919,24 @@ active_validator_addresses
 load_iota_system_admin_cap
 	public(package) fun
 	0x3::iota_system
+new_system_display
+	public(package) fun
+	0x3::iota_system
+new_system_display_with_fields
+	public(package) fun
+	0x3::iota_system
+insert_system_display_object
+	public(package) fun
+	0x3::iota_system
+borrow_system_display_object
+	public(package) fun
+	0x3::iota_system
+borrow_system_display_object_mut
+	public(package) fun
+	0x3::iota_system
+contains_system_display_object
+	public(package) fun
+	0x3::iota_system
 advance_epoch
 	fun
 	0x3::iota_system
@@ -1000,6 +1045,15 @@ allocate_tokens
 activate_validators
 	fun
 	0x3::genesis
+create_staked_iota_display_v1
+	fun
+	0x3::system_display
+create_timelocked_staked_iota_display_v1
+	fun
+	0x3::system_display
+create_timelocked_iota_display_v1
+	fun
+	0x3::system_display
 secp256k1_ecrecover
 	public fun
 	0x2::ecdsa_k1
@@ -2230,6 +2284,12 @@ get_entry_by_idx_mut
 remove_entry_by_idx
 	public fun
 	0x2::vec_map
+IotaSystemAdminCap
+	public struct
+	0x2::system_admin_cap
+new_system_admin_cap
+	fun
+	0x2::system_admin_cap
 Publisher
 	public struct
 	0x2::package
@@ -2329,6 +2389,12 @@ new
 new_with_fields
 	public fun
 	0x2::display
+system_new
+	public fun
+	0x2::display
+system_new_with_fields
+	public fun
+	0x2::display
 create_and_keep
 	public entry fun
 	0x2::display
@@ -2348,6 +2414,9 @@ remove
 	public entry fun
 	0x2::display
 is_authorized
+	public fun
+	0x2::display
+id
 	public fun
 	0x2::display
 version
@@ -2995,12 +3064,6 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
-IotaSystemAdminCap
-	public struct
-	0x2::system_admin_cap
-new_system_admin_cap
-	fun
-	0x2::system_admin_cap
 Table
 	public struct
 	0x2::table

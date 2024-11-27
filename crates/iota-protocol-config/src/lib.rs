@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 1;
+pub const MAX_PROTOCOL_VERSION: u64 = 2;
 
 // Record history of protocol version allocations here:
 //
@@ -180,6 +180,18 @@ struct FeatureFlags {
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
+
+    // Enable the `StakedIota` display object V1.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_staked_iota_display_v1: bool,
+
+    // Enable the `TimelockedStakedIota` display object V1.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_timelocked_staked_iota_display_v1: bool,
+
+    // Enable the `Timelock<Balance<IOTA>>` display object V1.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_timelocked_iota_display_v1: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1050,6 +1062,18 @@ impl ProtocolConfig {
     pub fn rethrow_serialization_type_layout_errors(&self) -> bool {
         self.feature_flags.rethrow_serialization_type_layout_errors
     }
+
+    pub fn enable_staked_iota_display_v1(&self) -> bool {
+        self.feature_flags.enable_staked_iota_display_v1
+    }
+
+    pub fn enable_timelocked_staked_iota_display_v1(&self) -> bool {
+        self.feature_flags.enable_timelocked_staked_iota_display_v1
+    }
+
+    pub fn enable_timelocked_iota_display_v1(&self) -> bool {
+        self.feature_flags.enable_timelocked_iota_display_v1
+    }
 }
 
 #[cfg(not(msim))]
@@ -1632,13 +1656,16 @@ impl ProtocolConfig {
         }
 
         // Ignore this check for the fake versions for
-        // `test_choose_next_system_packages`. TODO: remove the never_loop
-        // attribute when the version 2 is added.
-        #[allow(clippy::never_loop)]
+        // `test_choose_next_system_packages`.
         #[cfg(not(msim))]
         for cur in 2..=version.0 {
             match cur {
                 1 => unreachable!(),
+                2 => {
+                    cfg.feature_flags.enable_staked_iota_display_v1 = true;
+                    cfg.feature_flags.enable_timelocked_staked_iota_display_v1 = true;
+                    cfg.feature_flags.enable_timelocked_iota_display_v1 = true;
+                }
 
                 // Use this template when making changes:
                 //
