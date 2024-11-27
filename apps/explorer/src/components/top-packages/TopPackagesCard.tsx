@@ -11,17 +11,17 @@ import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { TopPackagesTable } from './TopPackagesTable';
 import { Panel, Title } from '@iota/apps-ui-kit';
 
-type DateFilter = '3D' | '7D' | '30D';
+type DateFilter = '3d' | '1w' | '1m';
 type ApiDateFilter = 'rank3Days' | 'rank7Days' | 'rank30Days';
 export const FILTER_TO_API_FILTER: Record<DateFilter, ApiDateFilter> = {
-    '3D': 'rank3Days',
-    '7D': 'rank7Days',
-    '30D': 'rank30Days',
+    '3d': 'rank3Days',
+    '1w': 'rank7Days',
+    '1m': 'rank30Days',
 };
 
 export function TopPackagesCard(): JSX.Element {
     const rpc = useEnhancedRpcClient();
-    const [selectedFilter, setSelectedFilter] = useState<DateFilter>('3D');
+    const [selectedFilter, setSelectedFilter] = useState<DateFilter>('3d');
 
     const { data, isPending } = useQuery({
         queryKey: ['top-packages', selectedFilter],
@@ -35,9 +35,10 @@ export function TopPackagesCard(): JSX.Element {
             <div className="relative">
                 <div className="absolute right-0 mr-2 mt-2">
                     <FilterList
-                        options={['3D', '7D', '30D']}
+                        options={Object.keys(FILTER_TO_API_FILTER) as DateFilter[]}
                         selected={selectedFilter}
                         onSelected={(val) => setSelectedFilter(val)}
+                        filtersAsChip
                     />
                 </div>
                 <Title
@@ -45,7 +46,9 @@ export function TopPackagesCard(): JSX.Element {
                     tooltipText="Popular packages is recomputed on epoch changes."
                 />
                 <ErrorBoundary>
-                    <TopPackagesTable data={filteredData} isLoading={isPending} />
+                    <div className="p-md--rs">
+                        <TopPackagesTable data={filteredData} isLoading={isPending} />
+                    </div>
                 </ErrorBoundary>
             </div>
         </Panel>
