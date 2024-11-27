@@ -12,6 +12,8 @@ export type CardActionProps = {
     onClick?: () => void;
     icon?: React.ReactNode;
     iconAfterText?: boolean;
+    buttonType?: ButtonType;
+    buttonDisabled?: boolean;
 };
 
 export function CardAction({
@@ -21,6 +23,8 @@ export function CardAction({
     title,
     icon,
     iconAfterText,
+    buttonType = ButtonType.Outlined,
+    buttonDisabled,
 }: CardActionProps) {
     function handleActionClick(event: React.MouseEvent) {
         event?.stopPropagation();
@@ -58,12 +62,13 @@ export function CardAction({
         return (
             <div className="shrink-0">
                 <Button
-                    type={ButtonType.Outlined}
+                    type={buttonType}
                     size={ButtonSize.Small}
                     text={title}
                     onClick={handleActionClick}
                     icon={icon}
                     iconAfterText={iconAfterText}
+                    disabled={buttonDisabled}
                 />
             </div>
         );
