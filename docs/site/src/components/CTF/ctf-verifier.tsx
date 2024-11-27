@@ -5,6 +5,7 @@ import {
 } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import clsx from 'clsx';
 
 // Define props interface
 interface ChallengeVerifierProps {
@@ -45,14 +46,15 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
   };
 
   return (
-    <div>
+    <div className='flex'>
       <input
         type="text"
         value={inputText}
         onChange={(e) => setInputText(e.target.value)}
         placeholder="Enter Flag Object Id"
+        className="input-field mr-2"
       />
-      <button onClick={handleSubmit} disabled={loading}>
+      <button onClick={handleSubmit} className={clsx("button", { "button-disabled": loading })}>
         {loading ? 'Loading...' : 'Submit'}
       </button>
 
