@@ -127,7 +127,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         Some(get_indexer_db_url(None)),
         cluster.rpc_url().to_string(),
         ReaderWriterConfig::writer_mode(None),
-        Some(temp.clone()),
+        None,
         database_name,
     )
     .await;
