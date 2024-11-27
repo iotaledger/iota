@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Collapsible } from '_src/ui/app/shared/collapse';
+import { Collapsible } from '@iota/core';
 import { type ReactNode } from 'react';
 
 type TokenListProps = {
