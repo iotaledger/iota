@@ -71,6 +71,8 @@ jobs:
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # pin@v2.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ env.CURRENT_TAG }}
           name: IOTA Wallet v${{ steps.version.outputs.version }}
