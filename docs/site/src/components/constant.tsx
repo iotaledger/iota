@@ -216,7 +216,7 @@ export interface NetworkProps {
   httpRestApi: string;
   eventApi: string;
   permaNodeApi: string;
-  faucet?: string;
+  faucetUrl?: string;
   explorer: string;
   evm: AddEthereumChainParameter;
   evmCustom: {
