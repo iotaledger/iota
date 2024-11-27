@@ -9,15 +9,16 @@ import {
     parseAmount,
     useCoinMetadata,
     useFormatCoin,
+    StakeTransactionInfo,
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
 import { memo, useEffect, useMemo } from 'react';
 import { useActiveAddress, useTransactionDryRun } from '../../hooks';
 import { type FormValues } from './StakingCard';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
-import { StakeTxnInfo } from '../../components/receipt-card/StakeTxnInfo';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { Exclamation } from '@iota/ui-icons';
+import { ExplorerLinkHelper } from '../../components';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -103,7 +104,12 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     icon={<Exclamation />}
                 />
             ) : null}
-            <StakeTxnInfo startEpoch={epoch} gasSummary={transaction ? gasSummary : undefined} />
+            <StakeTransactionInfo
+                startEpoch={epoch}
+                activeAddress={activeAddress}
+                gasSummary={transaction ? gasSummary : undefined}
+                renderExplorerLink={ExplorerLinkHelper}
+            />
         </Form>
     );
 }

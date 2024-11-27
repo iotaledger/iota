@@ -1,11 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaObjectChangeWithDisplay } from '..';
+import { IotaObjectChangesWithDisplay } from '..';
 import { IotaObjectChange } from '@iota/iota-sdk/client';
 
 type ObjectChangeWithObjectType = Extract<
-    IotaObjectChange | IotaObjectChangeWithDisplay,
+    IotaObjectChange | IotaObjectChangesWithDisplay,
     { objectType: string }
 >;
 

@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ObjectChangesByOwner, IotaObjectChangeWithDisplay } from './getObjectChangeSummary';
+import { IotaObjectChangesWithDisplay, ObjectChangesByOwner } from '../../types';
 import { getOwnerType } from './getOwnerType';
 
-const getOwner = (change: IotaObjectChangeWithDisplay) => {
+const getOwner = (change: IotaObjectChangesWithDisplay) => {
     // published changes don't have an owner
     if ('owner' in change && typeof change.owner === 'object') {
         if ('AddressOwner' in change.owner) return change.owner.AddressOwner;
@@ -15,7 +15,7 @@ const getOwner = (change: IotaObjectChangeWithDisplay) => {
     return '';
 };
 
-export const groupByOwner = (changes: IotaObjectChangeWithDisplay[]) =>
+export const groupByOwner = (changes: IotaObjectChangesWithDisplay[]) =>
     changes.reduce((acc, change) => {
         const owner = getOwner(change);
         if (!acc[owner])

@@ -10,12 +10,10 @@ import { useMemo } from 'react';
 import { getBalanceChangeSummary } from '../utils/transaction/getBalanceChangeSummary';
 import { getGasSummary } from '../utils/transaction/getGasSummary';
 import { getLabel } from '../utils/transaction/getLabel';
-import {
-    getObjectChangeSummary,
-    IotaObjectChangeWithDisplay,
-} from '../utils/transaction/getObjectChangeSummary';
+import { getObjectChangeSummary } from '../utils/transaction/getObjectChangeSummary';
 import { getObjectDisplayLookup } from '../utils/transaction/getObjectDisplayLookup';
 import { useMultiGetObjects } from './useMultiGetObjects';
+import { IotaObjectChangesWithDisplay } from '../types';
 
 export function useTransactionSummary({
     transaction,
@@ -42,7 +40,7 @@ export function useTransactionSummary({
                 display: 'objectId' in change ? lookup?.get(change.objectId) : null,
             })),
         [lookup, objectChanges],
-    ) as IotaObjectChangeWithDisplay[];
+    ) as IotaObjectChangesWithDisplay[];
 
     const summary = useMemo(() => {
         if (!transaction) return null;

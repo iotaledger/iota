@@ -5,8 +5,8 @@
 import { TypeTagSerializer, type TypeTag } from '@iota/iota-sdk/bcs';
 import { type TransactionArgument, type Commands } from '@iota/iota-sdk/transactions/';
 import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
-import { Collapsible } from '_src/ui/app/shared/collapse';
 import { TitleSize } from '@iota/apps-ui-kit';
+import { Collapsible } from '@iota/core';
 
 type TransactionType = ReturnType<(typeof Commands)[keyof typeof Commands]>;
 type MakeMoveVecTransaction = ReturnType<(typeof Commands)['MakeMoveVec']>;
