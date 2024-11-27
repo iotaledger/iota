@@ -109,7 +109,7 @@ export function DetailsView({
                     <Card type={CardType.Filled}>
                         <CardImage>
                             <ImageIcon
-                                src={imageUrl}
+                                src={validatorSummary?.imageUrl ?? null}
                                 label={validatorName}
                                 fallback={validatorName}
                                 size={ImageIconSize.Large}

@@ -39,7 +39,6 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         currentEpoch,
         validatorSummary,
         name: validatorSummary?.name || '',
-        imageUrl: validatorSummary?.imageUrl || '',
         stakingPoolActivationEpoch,
         commission,
         newValidator,
