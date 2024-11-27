@@ -6,7 +6,7 @@
 import React, { useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, RouteLink, SendAssetPopup, VisualAssetDetailsCard } from '@/components';
-import { isAssetTransferable, useGetObject } from '@iota/core';
+import { useIsAssetTransferable, useGetObject } from '@iota/core';
 import { usePopups } from '@/hooks';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
@@ -15,6 +15,7 @@ const VisualAssetDetailPage = () => {
     const params = useParams();
     const objectId = params.objectId as string;
     const { data: asset } = useGetObject(objectId);
+    const { data: isAssetTransferable } = useIsAssetTransferable(asset?.data);
     const activeAccount = useCurrentAccount();
 
     const { openPopup, closePopup } = usePopups();
@@ -25,8 +26,6 @@ const VisualAssetDetailPage = () => {
         }
     }, [asset, openPopup, closePopup]);
 
-    const assetIsTransferable = asset?.data ? isAssetTransferable(asset?.data) : false;
-
     return (
         <div className="flex h-full w-full flex-col space-y-4 px-40">
             <RouteLink path={ASSETS_ROUTE.path} title="Back" />
@@ -35,7 +34,7 @@ const VisualAssetDetailPage = () => {
             ) : (
                 <div className="flex justify-center p-20">Asset not found</div>
             )}
-            {assetIsTransferable && activeAccount ? (
+            {isAssetTransferable && activeAccount ? (
                 <Button onClick={showSendAssetPopup}>Send Asset</Button>
             ) : null}
         </div>
