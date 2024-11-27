@@ -39,6 +39,16 @@ pub struct ValidatorSetV2 {
     pub extra_fields: Bag,
 }
 
+impl ValidatorSetV2 {
+    pub fn iter_committee_members(&self) -> impl Iterator<Item = &ValidatorV1> {
+        self.committee_members.iter().map(|&index| {
+            self.active_validators
+                .get(index as usize)
+                .expect("committee corrupt")
+        })
+    }
+}
+
 /// Rust version of the Move iota_system::iota_system::IotaSystemStateV2 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct IotaSystemStateV2 {
@@ -107,8 +117,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
         let validators = self
             .validators
-            .active_validators
-            .iter()
+            .iter_committee_members()
             .map(|validator| {
                 let verified_metadata = validator.verified_metadata();
                 let name = verified_metadata.iota_pubkey_bytes();
@@ -147,8 +156,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             self.epoch_start_timestamp_ms,
             self.parameters.epoch_duration_ms,
             self.validators
-                .active_validators
-                .iter()
+                .iter_committee_members()
                 .map(|validator| {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {

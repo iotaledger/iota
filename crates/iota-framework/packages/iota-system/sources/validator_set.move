@@ -162,7 +162,6 @@ module iota_system::validator_set {
         validator_set_v2::import(
             total_stake,
             active_validators,
-            vector[], // empty committee members
             pending_active_validators,
             pending_removals,
             staking_pool_mappings,

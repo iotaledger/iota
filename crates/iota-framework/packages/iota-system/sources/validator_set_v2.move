@@ -128,7 +128,6 @@ module iota_system::validator_set_v2 {
     public(package) fun import(
         total_stake: u64,
         active_validators: vector<ValidatorV1>,
-        committee_members: vector<u64>,
         pending_active_validators: TableVec<ValidatorV1>,
         pending_removals: vector<u64>,
         staking_pool_mappings: Table<ID, address>,
@@ -137,10 +136,10 @@ module iota_system::validator_set_v2 {
         at_risk_validators: VecMap<address, u64>,
         extra_fields: Bag,
     ): ValidatorSet {
-        ValidatorSet {
+        let mut validators = ValidatorSet {
             total_stake,
             active_validators,
-            committee_members,
+            committee_members: vector[],
             pending_active_validators,
             pending_removals,
             staking_pool_mappings,
@@ -148,7 +147,9 @@ module iota_system::validator_set_v2 {
             validator_candidates,
             at_risk_validators,
             extra_fields,
-        }
+        };
+        validators.select_committee_members();
+        validators
     }
 
     public(package) fun new(init_active_validators: vector<ValidatorV1>, ctx: &mut TxContext): ValidatorSet {
@@ -174,6 +175,7 @@ module iota_system::validator_set_v2 {
             extra_fields: bag::new(ctx),
         };
         voting_power::set_voting_power(&mut validators.active_validators);
+        validators.select_committee_members();
         validators
     }
 
@@ -434,6 +436,8 @@ module iota_system::validator_set_v2 {
         // At this point, self.active_validators are updated for next epoch.
         // Now we process the staged validator metadata.
         effectuate_staged_metadata(self);
+
+        self.select_committee_members();
     }
 
     fun update_and_process_low_stake_departures(
@@ -1210,5 +1214,10 @@ module iota_system::validator_set_v2 {
             i = i + 1;
         };
         res
+    }
+
+    public(package) fun select_committee_members(self: &mut ValidatorSet) {
+        self.committee_members = vector[];
+        self.active_validators.length().do!(|i| self.committee_members.push_back(i));
     }
 }
