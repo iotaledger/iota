@@ -4,10 +4,17 @@
 import { AssetCategory } from '@/lib/enums';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetTileLink } from '@/components';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
+import { useEffect, useRef } from 'react';
+import { useOnScreen } from '@iota/core';
+import cl from 'clsx';
 
 interface AssetListProps {
     assets: IotaObjectData[];
     selectedCategory: AssetCategory;
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    fetchNextPage: () => void;
     onClick: (asset: IotaObjectData) => void;
 }
 
@@ -20,10 +27,23 @@ const ASSET_LAYOUT: Record<AssetCategory, string> = {
 export function AssetList({
     assets,
     selectedCategory,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
     onClick,
 }: AssetListProps): React.JSX.Element {
+    const observerElem = useRef<HTMLDivElement | null>(null);
+    const { isIntersecting } = useOnScreen(observerElem);
+    const isSpinnerVisible = isFetchingNextPage && hasNextPage;
+
+    useEffect(() => {
+        if (isIntersecting && hasNextPage && !isFetchingNextPage && fetchNextPage) {
+            fetchNextPage();
+        }
+    }, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
+
     return (
-        <div className={ASSET_LAYOUT[selectedCategory]}>
+        <div className={cl('max-h-[600px]', ASSET_LAYOUT[selectedCategory])}>
             {assets.map((asset) => (
                 <AssetTileLink
                     key={asset.digest}
@@ -32,6 +52,13 @@ export function AssetList({
                     onClick={onClick}
                 />
             ))}
+            <div ref={observerElem}>
+                {isSpinnerVisible ? (
+                    <div className="mt-1 flex h-full w-full justify-center">
+                        <LoadingIndicator />
+                    </div>
+                ) : null}
+            </div>
         </div>
     );
 }
