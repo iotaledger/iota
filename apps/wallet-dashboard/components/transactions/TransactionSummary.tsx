@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type TransactionSummary as TransactionSummaryType, GasSummary } from '@iota/core';
+import { type TransactionSummaryType, GasSummary } from '@iota/core';
 import { BalanceChanges, ObjectChanges } from '@iota/core';
 import { ExplorerLink } from '../ExplorerLink';
 

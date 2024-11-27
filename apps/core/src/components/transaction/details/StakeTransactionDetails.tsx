@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaEvent } from '@iota/iota-sdk/client';
-import { formatPercentageDisplay, GasSummaryType } from '../../../utils';
+import { formatPercentageDisplay } from '../../../utils';
 import { useGetValidatorsApy } from '../../../hooks';
 import { TransactionAmount } from '../amount';
 import { StakeTransactionInfo } from '../info';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import type { RenderExplorerLink, RenderValidatorLogo } from '../../../types';
+import type { GasSummaryType, RenderExplorerLink, RenderValidatorLogo } from '../../../types';
 
 interface StakeTransactionDetailsProps {
     event: IotaEvent;
