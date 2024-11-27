@@ -31,14 +31,14 @@ function HomeDashboardPage(): JSX.Element {
         <main className="flex h-screen">
             <div className="relative hidden sm:flex md:w-1/3">
                 <video
+                    key={theme}
+                    src={videoSrc}
                     autoPlay
                     muted
                     loop
                     className="absolute right-0 top-0 h-full w-full min-w-fit object-cover"
                     disableRemotePlayback
-                >
-                    <source src={videoSrc} type="video/mp4" />
-                </video>
+                ></video>
             </div>
             <div className="flex h-full w-full flex-col items-center justify-between p-md sm:p-2xl">
                 <IotaLogoWeb width={130} height={32} />
