@@ -2,7 +2,7 @@
 
 graphql-transport is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol. 
 
-> **Note**: This technology is currently available **only on Testnet and Devnet**, and is **not yet supported on Mainnet**.
+> **Note**: This package is currently supported in **only on Testnet and Devnet**, and is **not yet supported in Mainnet**.
 
 This package provides a `IotaTransport` that enables `IotaClient` to make requests using the RPC 2.0
 (GraphQL) API instead of the JSON RPC API.
