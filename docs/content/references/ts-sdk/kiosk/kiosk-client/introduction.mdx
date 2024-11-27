@@ -7,15 +7,10 @@ Kiosk Client is the base for all Kiosk SDK functionality.
 
 ## Creating a kiosk client
 
-You can follow the example to create a `KioskClient`. The client currently supports `MAINNET` and
-`TESTNET`. View next section for usage in other networks.
-
-_IOTA Kiosk rules and extensions are not supported in Devnet due to network wipes (that would
-require constantly changing the package IDs)._
-
+You can follow the example to create a `KioskClient`. View next section for usage in custom networks.
 
 ```typescript
-import { KioskClient, Network } from '@iota/kiosk';
+import { KioskClient } from '@iota/kiosk';
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 // We need a IOTA Client. You can re-use the IotaClient of your project
@@ -25,20 +20,20 @@ const client = new IotaClient({ url: getFullnodeUrl('testnet') });
 // Now we can use it to create a kiosk Client.
 const kioskClient = new KioskClient({
     client,
-    network: Network.TESTNET,
+    network: 'testnet,
 });
 ```
 
-### Using KioskClient on devnet or localnet
+### Using KioskClient on custom networks
 
-To use all the functionality of Kiosk SDK outside of `MAINNET` and `TESTNET`, use `Network.CUSTOM`
+To use all the functionality of Kiosk SDK outside of official networks, use `custom`
 as the network, and pass the `packageIds` for the rules and extensions you want to use.
 
 ```typescript
 // constructing it for custom network use.
 const kioskClient = new KioskClient({
     client,
-    network: Network.CUSTOM,
+    network: 'custom',
     packageIds: {
         kioskLockRulePackageId: '0x...',
         royaltyRulePackageId: '0x...',
