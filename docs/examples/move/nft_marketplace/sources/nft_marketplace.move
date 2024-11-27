@@ -54,7 +54,7 @@ module nft_marketplace::nft_marketplace {
     /// fee, denominated in basis points (100_00 = 100%, 1 = 0.01%).
     /// - min_amount - the minimum amount to be paid as a fee if the relative
     /// amount is lower than this setting.
-    public fun setup_royalties<T: key + store>(policy: &mut TransferPolicy<T>, cap: &TransferPolicyCap<T>, amount_bp: u16, min_amount: u64, ctx: &mut TxContext) {
+    public fun setup_royalties<T: key + store>(policy: &mut TransferPolicy<T>, cap: &TransferPolicyCap<T>, amount_bp: u16, min_amount: u64) {
         royalty_rule::add<T>(policy, cap, amount_bp, min_amount);
     }
 
