@@ -143,8 +143,9 @@ use crate::{
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
     execution_cache::{
-        ExecutionCacheCommit, ExecutionCacheReconfigAPI, ExecutionCacheTraitPointers,
-        ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TransactionCacheRead,
+        CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
+        ExecutionCacheTraitPointers, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI,
+        TransactionCacheRead,
     },
     execution_driver::execution_process,
     metrics::{LatencyObserver, RateTracker},
@@ -2735,6 +2736,10 @@ impl AuthorityState {
         &self.execution_cache_trait_pointers.accumulator_store
     }
 
+    pub fn get_checkpoint_cache(&self) -> &Arc<dyn CheckpointCache> {
+        &self.execution_cache_trait_pointers.checkpoint_cache
+    }
+
     pub fn get_state_sync_store(&self) -> &Arc<dyn StateSyncAPI> {
         &self.execution_cache_trait_pointers.state_sync_store
     }
@@ -3142,15 +3147,6 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    fn get_transaction_checkpoint_sequence(
-        &self,
-        digest: &TransactionDigest,
-        epoch_store: &AuthorityPerEpochStore,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        epoch_store.get_transaction_checkpoint(digest)
-    }
-
-    #[instrument(level = "trace", skip_all)]
     pub fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
@@ -3166,7 +3162,7 @@ impl AuthorityState {
         digest: &TransactionDigest,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Option<VerifiedCheckpoint>> {
-        let checkpoint = self.get_transaction_checkpoint_sequence(digest, epoch_store)?;
+        let checkpoint = epoch_store.get_transaction_checkpoint(digest)?;
         let Some(checkpoint) = checkpoint else {
             return Ok(None);
         };
@@ -4981,6 +4977,15 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
+    async fn get_transaction_perpetual_checkpoint(
+        &self,
+        digest: TransactionDigest,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        self.get_checkpoint_cache()
+            .get_transaction_perpetual_checkpoint(&digest)
+            .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
+    }
+
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -4991,14 +4996,18 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .map_err(Into::into)
     }
 
-    async fn multi_get_transaction_checkpoint(
+    async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
-        Ok(self
-            .epoch_store
-            .load()
-            .multi_get_transaction_checkpoint(digests)?)
+        let res = self
+            .get_checkpoint_cache()
+            .multi_get_transactions_perpetual_checkpoints(digests)?;
+
+        Ok(res
+            .into_iter()
+            .map(|maybe| maybe.map(|(_epoch, checkpoint)| checkpoint))
+            .collect())
     }
 }
 

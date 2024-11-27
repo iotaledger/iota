@@ -12,6 +12,14 @@ body,
     position: relative;
 }
 
+:root {
+    @apply bg-neutral-98;
+}
+
+:root.dark {
+    @apply bg-neutral-4;
+}
+
 @layer base {
     body {
         @apply antialiased;

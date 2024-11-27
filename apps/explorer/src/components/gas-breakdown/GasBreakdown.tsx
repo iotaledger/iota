@@ -57,13 +57,13 @@ function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
 function GasInfo({ label, info }: { label: string; info?: React.ReactNode }) {
     return (
         <div className="flex flex-col gap-2 md:flex-row md:gap-10">
-            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
                 {label}
             </span>
             {info ? (
                 info
             ) : (
-                <span className="text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                <span className="text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
                     --
                 </span>
             )}
@@ -91,7 +91,11 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
     const isSponsored = gasData.isSponsored;
 
     return (
-        <CollapsibleCard collapsible render={({ isOpen }) => <Title title="Gas & Storage Fee" />}>
+        <CollapsibleCard
+            collapsible
+            render={({ isOpen }) => <Title title="Gas & Storage Fee" />}
+            hideBorder
+        >
             <div className="px-md--rs pb-lg pt-xs">
                 <Accordion hideBorder>
                     <AccordionContent isExpanded>
