@@ -6,9 +6,6 @@ on:
     tags:
       - "wallet-v[0-9]+.[0-9]+.[0-9]+"
 
-permissions:
-  contents: write
-
 env:
   DEFAULT_NETWORK: ${{ secrets.WALLET_PROD_DEFAULT_NETWORK }}
   IOTA_NETWORKS: ${{ secrets.WALLET_PROD_IOTA_NETWORKS }}
@@ -18,7 +15,7 @@ env:
 jobs:
   wallet-prod-build:
     permissions:
-      contents: read
+      contents: write
     runs-on: [self-hosted]
     steps:
       - name: Checking out the repository
