@@ -15,7 +15,7 @@ env:
 jobs:
   wallet-prod-build:
     permissions:
-      contents: read
+      contents: write
     runs-on: [self-hosted]
     steps:
       - name: Checking out the repository
