@@ -45,5 +45,6 @@ export function useIsAssetTransferable(obj: IotaObjectData | null | undefined) {
 
             return structAbilities.includes('Store');
         },
+        enabled: !!packageId && !!moduleName && !!functionName,
     });
 }
