@@ -1203,6 +1203,7 @@ async fn prompt_if_no_config(
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
             // Get an existing address or generate a new one
             let active_address = if let Some(existing_address) = keystore.addresses().first() {
+                println!("Using existing address: {existing_address} as active address.");
                 *existing_address
             } else {
                 let key_scheme = if accept_defaults {
