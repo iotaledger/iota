@@ -459,7 +459,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             } => Err(IotaError::UserInput {
                 error: UserInputError::GasPriceUnderRGP {
                     gas_price: self.gas_price,
-                    reference_gas_price: reference_gas_price,
+                    reference_gas_price,
                 },
             }),
             RunInfo {
