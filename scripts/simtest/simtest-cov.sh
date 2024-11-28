@@ -27,7 +27,7 @@ find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA 
   --sparse \
   --output target/simtest.profdata
 
-if [ $? -ne 0]; then
+if [ $? -ne 0 ]; then
   echo "Error detected despite `--ignore-run-fail`. Trying to salvage the situation:"
   echo "Scanning for corrupted .profraw files. This might take a while."
   find target/llvm-cov-target -name '*.profraw' | while read file; do

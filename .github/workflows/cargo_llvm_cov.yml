@@ -69,7 +69,7 @@ jobs:
             --output target/nextest.profdata
           set -e
 
-          if [ $? -ne 0]; then
+          if [ $? -ne 0 ]; then
             echo "Error detected despite `--ignore-run-fail`. Trying to salvage the situation:"
             echo "Scanning for corrupted .profraw files. This might take a while."
             find target/llvm-cov-target -name '*.profraw' | while read file; do
@@ -131,15 +131,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload coverage to Coveralls
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: target/lcov.info
-          flag-name: nextest+simtest
-          fail-on-error: true
-
-      - name: Upload coverage data to Codecov
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -147,3 +139,11 @@ jobs:
           flags: nextest+simtest
           fail_ci_if_error: false
           verbose: true
+
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: target/lcov.info
+          flag-name: nextest+simtest
+          fail-on-error: true
