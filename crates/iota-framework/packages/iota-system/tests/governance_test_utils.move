@@ -114,7 +114,7 @@ module iota_system::governance_test_utils {
     }
 
     public fun advance_epoch(scenario: &mut Scenario) {
-        advance_epoch_with_reward_amounts(0, 0, scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
     }
 
     public fun advance_epoch_with_reward_amounts_return_rebate(
@@ -134,18 +134,18 @@ module iota_system::governance_test_utils {
         storage_rebate
     }
 
-    /// Advances the epoch with the given reward amounts and setting validator_subsidy equal to the computation charge.
-    public fun advance_epoch_with_reward_amounts(
-        storage_charge: u64, computation_charge: u64, scenario: &mut Scenario
+    /// Advances the epoch with the given storage charge and setting validator_subsidy, computation charge and computation charge burned all equal to the specified amount.
+    public fun advance_epoch_with_balanced_reward_amounts(
+        storage_charge: u64, computation_charge_and_subsidy_amount: u64, scenario: &mut Scenario
     ) {
-        advance_epoch_with_target_reward_amounts(computation_charge, storage_charge, computation_charge, scenario)
+        advance_epoch_with_amounts(computation_charge_and_subsidy_amount, storage_charge, computation_charge_and_subsidy_amount, computation_charge_and_subsidy_amount, scenario)
     }
 
-    /// Advances the epoch with the given validator target reward and storage and computation charge amounts.
-    public fun advance_epoch_with_target_reward_amounts(
-        validator_subsidy: u64, storage_charge: u64, computation_charge: u64, scenario: &mut Scenario
+    /// Advances the epoch with the given validator subsidy, storage charge, computation charge and computation charge burned amounts.
+    public fun advance_epoch_with_amounts(
+        validator_subsidy: u64, storage_charge: u64, computation_charge: u64, computation_charge_burned: u64, scenario: &mut Scenario
     ) {
-        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(validator_subsidy * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, scenario);
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(validator_subsidy * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, computation_charge_burned * NANOS_PER_IOTA, 0, 0, scenario);
         test_utils::destroy(storage_rebate)
     }
 
