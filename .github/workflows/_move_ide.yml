@@ -1,9 +1,9 @@
-name: Move IDE Tests
+name: Move IDE
 
 on: workflow_call
 
 concurrency:
-  group: move-ide-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: move-ide-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install dependencies and start Xvfb (emulate display)
+      - name: Install dependencies and start Xvfb (emulate a display so VS Code can be started)
         working-directory: ./external-crates/move/crates/move-analyzer/editors/code
         run: |
           sudo apt install libgtk-3-0 -y
@@ -56,10 +56,10 @@ jobs:
           /usr/bin/Xvfb :99 -screen 0 1024x768x24 &
           sleep 1
           ps aux | grep Xvfb --color=always | grep -v grep
-          npm install && npm install --save-dev @types/node @types/semver
           sudo add-apt-repository ppa:kisak/kisak-mesa -y
           sudo apt update
           sudo apt upgrade -y
+          npm install && npm install --save-dev @types/node @types/semver
 
       - name: Build move-analyzer
         run: |
@@ -70,10 +70,10 @@ jobs:
       - name: Run npm test
         working-directory: ./external-crates/move/crates/move-analyzer/editors/code
         shell: bash
-        run: DISPLAY=:99.0 npm run test
+        run: DISPLAY=:99.0 npm run pretest && npm run test
 
-  move-ide-build:
-    name: Move IDE build
+  move-vscode-extension-build:
+    name: Move VSCode extension build
     runs-on: [self-hosted]
 
     steps:
@@ -94,34 +94,3 @@ jobs:
       - name: Build VSCode extension
         working-directory: ./external-crates/move/crates/move-analyzer/editors/code
         run: npm run package
-
-  move-ide-build-with-binaries:
-    name: Move IDE build with released binaries
-    runs-on: [self-hosted]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-        with:
-          ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
-
-      - name: Setup Node
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        working-directory: ./external-crates/move/crates/move-analyzer/editors/code
-        run: |
-          npm install
-          npm install --save-dev @types/node @types/semver
-          npm install -g vsce
-          sudo apt install zsh -y
-
-      - name: Build VSCode extensions
-        working-directory: ./external-crates/move/crates/move-analyzer/editors/code
-        run: ./scripts/create.sh -pkg
-
-      - name: Print built files
-        working-directory: ./external-crates/move/crates/move-analyzer/editors/code
-        run: echo *.vsix
