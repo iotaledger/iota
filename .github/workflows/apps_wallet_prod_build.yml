@@ -62,7 +62,7 @@ jobs:
             echo "changelog=No previous tag found. Changelog generation skipped." >> $GITHUB_OUTPUT
           else
             echo "## Changelog" >> CHANGELOG.md
-            git log ${{ env.PREV_TAG }}..${{ env.CURRENT_TAG }} --pretty=format:"- %s by @%an in #%h" -- ./apps/wallet > CHANGELOG.md
+            git log ${{ env.PREV_TAG }}..${{ env.CURRENT_TAG }} --pretty=format:"- %s in #%h" -- ./apps/wallet > CHANGELOG.md
           fi
 
       - name: Get version from tag
