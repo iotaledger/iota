@@ -70,7 +70,7 @@ jobs:
       - name: Run npm test
         working-directory: ./external-crates/move/crates/move-analyzer/editors/code
         shell: bash
-        run: DISPLAY=:99.0 npm run pretest && npm run test
+        run: npm run pretest && DISPLAY=:99.0 npm run test
 
   move-vscode-extension-build:
     name: Move VSCode extension build
