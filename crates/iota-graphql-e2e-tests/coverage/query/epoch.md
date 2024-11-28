@@ -105,5 +105,3 @@ tested by [crates/iota-graphql-e2e-tests/tests/consistency/epochs/checkpoints.mo
   }
 }
 ```
-
-

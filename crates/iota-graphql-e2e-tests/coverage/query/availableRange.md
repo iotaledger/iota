@@ -40,3 +40,4 @@ tested by [crates/iota-graphql-e2e-tests/tests/available_range/available_range.m
   }
 }
 ```
+

@@ -1,6 +1,6 @@
 Query: `executeTransactionBlock`
 
-```
+```graphql
 mutation {
   executeTransactionBlock(txBytes: $tx, signatures: $sigs) {
     effects {
@@ -92,7 +92,7 @@ mutation {
 
 tested by [crates/iota-graphql-rpc/tests/e2e_tests.rs](../../../iota-graphql-rpc/tests/e2e_tests.rs):
 
-```
+```graphql
 {
   executeTransactionBlock(txBytes: $tx, signatures: $sigs) {
     effects {
@@ -107,7 +107,7 @@ tested by [crates/iota-graphql-rpc/tests/e2e_tests.rs](../../../iota-graphql-rpc
 
 tested by [crates/iota-graphql-rpc/tests/e2e_tests.rs](../../../iota-graphql-rpc/tests/e2e_tests.rs):
 
-```
+```graphql
 mutation {
   executeTransactionBlock(txBytes: "{}", signatures: "{}") {
     effects {
