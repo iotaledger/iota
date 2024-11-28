@@ -22,6 +22,11 @@ iota client call \
     --function default
 ```
 
+After publishing, export the following variables:
+
+- `KIOSK_ID`: The ID of installed Kiosk object.
+- `KIOSK_CAP_ID`: The ID if the installed Kiosk's onwer cap
+
 ### 3. Publish `nft_marketplace` package
 
 #### 3.1(Optional) Publish Kiosk rules modules if these are not present in the network you are using
@@ -29,19 +34,17 @@ iota client call \
 Publish Kiosk rules modules(package):
 
 ```bash
-iota client publish iota/kiosk
+iota client publish $IOTA_REPO_DIR/kiosk
 ```
 
 After publishing, export the following variable:
 
 - `RULES_PACKAGE_ID`: The ID of rules package.
 
-#### 3.2 Publish marketplace extension
-
-Publish the marketplace_extension.move module:
+#### 3.2 Publish marketplace package
 
 ```bash
-iota client publish iota/docs/examples/move/nft_marketplace
+iota client publish $IOTA_REPO_DIR/docs/examples/move/nft_marketplace
 ```
 
 After publishing, export the following variables:
