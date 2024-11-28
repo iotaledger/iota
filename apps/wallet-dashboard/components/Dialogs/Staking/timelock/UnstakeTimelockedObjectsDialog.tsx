@@ -54,7 +54,7 @@ export function UnstakeTimelockedObjectsDialog({
     const { data: timelockedUnstakeTx, isPending: isUnstakeTxLoading } =
         useTimelockedUnstakeTransaction(stakedIotaIds, currentAddress);
 
-    async function handleTimelockedUnstake(): Promise<void> {
+    function handleTimelockedUnstake(): void {
         if (!timelockedUnstakeTx) return;
 
         signAndExecuteTransaction(
@@ -101,11 +101,15 @@ export function UnstakeTimelockedObjectsDialog({
                     <Button
                         onClick={handleTimelockedUnstake}
                         text="Unstake"
-                        icon={isTransactionPending ? <LoadingIndicator /> : undefined}
+                        icon={
+                            isTransactionPending || isUnstakeTxLoading ? (
+                                <LoadingIndicator />
+                            ) : undefined
+                        }
                         disabled={
                             !timelockedUnstakeTx || isTransactionPending || isUnstakeTxLoading
                         }
-                        type={ButtonType.Primary}
+                        type={ButtonType.Secondary}
                         fullWidth
                     />
                 </LayoutFooter>
