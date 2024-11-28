@@ -1,3 +1,11 @@
+/// NFT renting is a mechanism that allows individuals without ownership or possession of a specific 
+/// NFT to temporarily utilize or experience it. 
+/// The rental_extension module provides an API that facilitates lending or borrowing through the following operations:
+///  - List for renting
+///  - Delist from renting
+///  - Rent
+///  - Borrow by reference and borrow by value
+///  - Reclaim for the lender
 module nft_marketplace::rental_extension {
 
     // iota imports
@@ -22,11 +30,10 @@ module nft_marketplace::rental_extension {
     const ENotEnoughCoins: u64 = 2;
     const EInvalidKiosk: u64 = 3;
     const ERentingPeriodNotOver: u64 = 4;
-    const EObjectNotExist: u64 = 5;
     const ETotalPriceOverflow: u64 = 6;
 
     // === Constants ===
-    const PERMISSIONS: u128 = 11;
+    const ALLOW_PLACE_AND_LOCK: u128 = 11;
     const SECONDS_IN_A_DAY: u64 = 86400;
     const MAX_BASIS_POINTS: u16 = 10_000;
     const MAX_VALUE_U64: u64 = 0xff_ff_ff_ff__ff_ff_ff_ff;
@@ -93,13 +100,13 @@ module nft_marketplace::rental_extension {
 
     // === Public Functions ===
 
-    /// Enables someone to install the Marketplace extension in their Kiosk.
+    /// Enables someone to install the Rental extension in their Kiosk.
     public fun install(
         kiosk: &mut Kiosk,
         cap: &KioskOwnerCap,
         ctx: &mut TxContext,
     ) {
-        kiosk_extension::add(Rental {}, kiosk, cap, PERMISSIONS, ctx);
+        kiosk_extension::add(Rental {}, kiosk, cap, ALLOW_PLACE_AND_LOCK, ctx);
     }
 
      /// Remove the extension from the Kiosk. Can only be performed by the owner,
@@ -148,6 +155,8 @@ module nft_marketplace::rental_extension {
     ) {
         assert!(kiosk_extension::is_installed<Rental>(kiosk), EExtensionNotInstalled);
 
+        let max_price_per_day = MAX_VALUE_U64 / duration;
+        assert!(price_per_day <= max_price_per_day, ETotalPriceOverflow);
         kiosk.set_owner(cap, ctx);
         kiosk.list<T>(cap, item_id, 0);
 
@@ -218,18 +227,12 @@ module nft_marketplace::rental_extension {
 
         let mut rentable = take_from_bag<T, Listed>(renter_kiosk, Listed { id: item_id });
 
-        let max_price_per_day = MAX_VALUE_U64 / rentable.duration;
-        assert!(rentable.price_per_day <= max_price_per_day, ETotalPriceOverflow);
         let total_price = rentable.price_per_day * rentable.duration;
 
         let coin_value = coin.value();
         assert!(coin_value == total_price, ENotEnoughCoins);
 
-        // Calculate fees_amount using the given basis points amount (percentage), ensuring the
-        // result fits into a 64-bit unsigned integer.
-        let mut fees_amount = coin_value as u128;
-        fees_amount = fees_amount * (rental_policy.amount_bp as u128);
-        fees_amount = fees_amount / (MAX_BASIS_POINTS as u128);
+        let fees_amount = calculate_fees_amount(coin_value as u128, rental_policy.amount_bp as u128);
 
         let fees = coin.split(fees_amount as u64, ctx);
 
@@ -368,12 +371,22 @@ module nft_marketplace::rental_extension {
 
     // === Private Functions ===
 
+    // Calculate fees_amount using the given basis points amount (percentage), ensuring the
+    // result fits into a 64-bit unsigned integer.
+    fun calculate_fees_amount(coin_value: u128, rental_amount_bp: u128): u128 {
+
+        let mut fees_amount = coin_value as u128;
+        fees_amount = fees_amount * (rental_amount_bp as u128);
+        fees_amount = fees_amount / (MAX_BASIS_POINTS as u128);
+
+        fees_amount
+    }
+    
     fun take_from_bag<T: key + store, Key: store + copy + drop>(
         kiosk: &mut Kiosk,
         item: Key,
     ) : Rentable<T> {
         let ext_storage_mut = kiosk_extension::storage_mut(Rental {}, kiosk);
-        assert!(bag::contains(ext_storage_mut, item), EObjectNotExist);
         bag::remove<Key, Rentable<T>>(
             ext_storage_mut,
             item,
