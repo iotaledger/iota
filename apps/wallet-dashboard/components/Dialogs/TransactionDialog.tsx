@@ -27,8 +27,11 @@ export function TransactionDialogView({
     onClose,
     onBack,
 }: TransactionViewProps): React.JSX.Element | null {
-    const { data: transaction, summary } = useGetTransactionWithSummary(txDigest ?? '');
     const activeAddress = useCurrentAccount()?.address ?? '';
+    const { data: transaction, summary } = useGetTransactionWithSummary(
+        txDigest ?? '',
+        activeAddress,
+    );
 
     return (
         <DialogLayout>

@@ -56,6 +56,7 @@ export function TransactionReceipt({
 
                     {unstakeTypeTransaction ? (
                         <UnstakeTransactionInfo
+                            activeAddress={activeAddress}
                             event={unstakeTypeTransaction}
                             gasSummary={summary?.gas}
                             renderExplorerLink={renderExplorerLink}

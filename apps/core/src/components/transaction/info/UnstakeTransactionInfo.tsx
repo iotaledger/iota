@@ -10,9 +10,9 @@ import type { GasSummaryType, RenderExplorerLink, RenderValidatorLogo } from '..
 import { useFormatCoin } from '../../../hooks';
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { GasSummary } from '../../..';
-import { useCurrentAccount } from '@iota/dapp-kit';
 
 interface UnstakeTransactionInfoProps {
+    activeAddress: string | null;
     event: IotaEvent;
     gasSummary?: GasSummaryType;
     renderValidatorLogo: RenderValidatorLogo;
@@ -20,12 +20,12 @@ interface UnstakeTransactionInfoProps {
 }
 
 export function UnstakeTransactionInfo({
+    activeAddress,
     event,
     gasSummary,
     renderValidatorLogo: ValidatorLogo,
     renderExplorerLink,
 }: UnstakeTransactionInfoProps) {
-    const activeAddress = useCurrentAccount()?.address;
     const json = event.parsedJson as {
         principal_amount?: number;
         reward_amount?: number;
