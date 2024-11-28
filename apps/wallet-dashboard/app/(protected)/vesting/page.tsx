@@ -14,9 +14,9 @@ import {
     TimelockedStakedObjectsGrouped,
 } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
-import { useFeature } from '@growthbook/growthbook-react';
 import {
-    Feature,
+    ImageIcon,
+    ImageIconSize,
     TIMELOCK_IOTA_TYPE,
     useGetActiveValidatorsInfo,
     useGetAllOwnedObjects,
@@ -24,6 +24,17 @@ import {
     useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import {
+    Panel,
+    Title,
+    DisplayStats,
+    Card,
+    CardImage,
+    CardBody,
+    CardAction,
+    CardActionType,
+    ButtonType,
+} from '@iota/apps-ui-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -142,79 +153,88 @@ function VestingDashboardPage(): JSX.Element {
     }, [router, supplyIncreaseVestingEnabled]);
 
     return (
-        <div className="flex flex-row">
-            <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
-                <h1>VESTING</h1>
-                <div className="flex flex-row space-x-4">
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Total Vested</span>
-                        <span>{vestingSchedule.totalVested}</span>
+        <div className="flex flex-row gap-lg">
+            <Panel>
+                <Title title="Vesting" />
+                <div className="flex flex-col px-lg py-sm">
+                    <div className="flex flex-row gap-md">
+                        <DisplayStats label="Total Vested" value={vestingSchedule.totalVested} />
+                        <DisplayStats label="Total Locked" value={vestingSchedule.totalLocked} />
                     </div>
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Total Locked</span>
-                        <span>{vestingSchedule.totalLocked}</span>
+                    <div className="mt-md flex flex-row gap-md">
+                        <DisplayStats
+                            label="Available Claiming"
+                            value={vestingSchedule.availableClaiming}
+                        />
+                        <DisplayStats
+                            label="Available Staking"
+                            value={vestingSchedule.availableStaking}
+                        />
                     </div>
-                </div>
-                <hr />
-                <div className="flex flex-row space-x-4">
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Available Claiming</span>
-                        <span>{vestingSchedule.availableClaiming}</span>
-                    </div>
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Available Staking</span>
-                        <span>{vestingSchedule.availableStaking}</span>
-                    </div>
-                </div>
-            </div>
-            <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
-                <h1>Staked Vesting</h1>
-                <div className="flex flex-row space-x-4">
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Your stake</span>
-                        <span>{vestingSchedule.totalStaked}</span>
-                    </div>
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Total Unlocked</span>
-                        <span>{vestingSchedule.totalUnlocked}</span>
-                    </div>
-                </div>
-                <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                    {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
-                        return (
-                            <div
-                                key={
-                                    timelockedStakedObject.validatorAddress +
-                                    timelockedStakedObject.stakeRequestEpoch +
-                                    timelockedStakedObject.label
-                                }
-                                className="flex w-full flex-row items-center justify-center space-x-4"
-                            >
-                                <span>
-                                    Validator:{' '}
-                                    {getValidatorByAddress(timelockedStakedObject.validatorAddress)
-                                        ?.name || timelockedStakedObject.validatorAddress}
-                                </span>
-                                <span>
-                                    Stake Request Epoch: {timelockedStakedObject.stakeRequestEpoch}
-                                </span>
-                                <span>Stakes: {timelockedStakedObject.stakes.length}</span>
-
-                                <Button onClick={() => handleUnstake(timelockedStakedObject)}>
-                                    Unstake
-                                </Button>
+                    {/* TODO */}
+                    <div>
+                        {account?.address && (
+                            <div className="flex flex-row space-x-4">
+                                {vestingSchedule.availableClaiming ? (
+                                    <Button onClick={handleCollect}>Collect</Button>
+                                ) : null}
                             </div>
-                        );
-                    })}
-                </div>
-                {account?.address && (
-                    <div className="flex flex-row space-x-4">
-                        {vestingSchedule.availableClaiming ? (
-                            <Button onClick={handleCollect}>Collect</Button>
-                        ) : null}
+                        )}
                     </div>
-                )}
-            </div>
+                </div>
+            </Panel>
+            <Panel>
+                <Title title="Staked Vesting" />
+                <div className="flex flex-col px-lg py-sm">
+                    <div className="flex flex-row gap-md">
+                        <DisplayStats label="Your stake" value={vestingSchedule.totalStaked} />
+                        <DisplayStats
+                            label="Total Unlocked"
+                            value={vestingSchedule.totalUnlocked}
+                        />
+                    </div>
+                </div>
+                <div className="flex flex-col px-lg py-sm">
+                    <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
+                        {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
+                            const name =
+                                getValidatorByAddress(timelockedStakedObject.validatorAddress)
+                                    ?.name || timelockedStakedObject.validatorAddress;
+                            return (
+                                <Card
+                                    key={
+                                        timelockedStakedObject.validatorAddress +
+                                        timelockedStakedObject.stakeRequestEpoch +
+                                        timelockedStakedObject.label
+                                    }
+                                >
+                                    <CardImage>
+                                        <ImageIcon
+                                            src={null}
+                                            label={name}
+                                            fallback={name}
+                                            size={ImageIconSize.Large}
+                                        />
+                                    </CardImage>
+                                    <CardBody title={name} subtitle={'1000 IOTA'} isTextTruncated />
+                                    {/* TODO */}
+                                    <CardAction
+                                        type={CardActionType.SupportingText}
+                                        title="Start Earning"
+                                        subtitle={timelockedStakedObject.stakeRequestEpoch}
+                                    />
+                                    <CardAction
+                                        type={CardActionType.Button}
+                                        buttonType={ButtonType.Primary}
+                                        title="Unstake"
+                                        onClick={() => handleUnstake(timelockedStakedObject)}
+                                    />
+                                </Card>
+                            );
+                        })}
+                    </div>
+                </div>
+            </Panel>
         </div>
     );
 }
