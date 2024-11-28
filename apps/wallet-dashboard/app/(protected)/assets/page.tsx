@@ -10,7 +10,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
-import { AssetsDialog, AssetsDialogView, useAssetsDialog } from '@/components/Dialogs/Assets';
+import { AssetsDialog, AssetsDialogView } from '@/components/Dialogs/Assets';
 
 const OBJECTS_PER_REQ = 50;
 
@@ -26,7 +26,7 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {
-    const { view, setView } = useAssetsDialog();
+    const [view, setView] = useState<AssetsDialogView | undefined>(AssetsDialogView.Details);
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
     const account = useCurrentAccount();

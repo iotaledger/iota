@@ -8,7 +8,7 @@ import { useCurrentAccount } from '@iota/dapp-kit';
 import { createNftSendValidationSchema } from '@iota/core';
 import { DetailsView, SendView } from './views';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { AssetsDialogView } from './hooks';
+import { AssetsDialogView } from './constants';
 import { useCreateSendAssetTransaction, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
