@@ -1,6 +1,6 @@
 Query: `availableRange`
 
-```
+```graphql
 {
   availableRange {
     first {
@@ -15,7 +15,7 @@ Query: `availableRange`
 
 tested by [crates/iota-graphql-e2e-tests/tests/available_range/available_range.move](../../../iota-graphql-e2e-tests/tests/available_range/available_range.move):
 
-```
+```graphql
 //# run-graphql
 {
   availableRange {

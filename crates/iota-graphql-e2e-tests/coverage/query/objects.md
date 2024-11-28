@@ -1,6 +1,6 @@
 Query: `objects`
 
-```
+```graphql
 {
   objects(first: null, last: null, after: null, filter: null) {
     edges {
@@ -99,7 +99,7 @@ Query: `objects`
 
 tested by [crates/iota-graphql-e2e-tests/tests/consistency/performance/many_objects.move](../../../iota-graphql-e2e-tests/tests/consistency/performance/many_objects.move):
 
-```
+```graphql
 //# run-graphql
 {
   last_2: objects(last: 2, filter: {type: "@{Test}"}) {
@@ -146,7 +146,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/consistency/performance/many_obje
 
 tested by [crates/iota-graphql-e2e-tests/tests/consistency/objects_pagination.move](../../../iota-graphql-e2e-tests/tests/consistency/objects_pagination.move):
 
-```
+```graphql
 //# run-graphql --cursors @{obj_6_0,2}
 {
   before_obj_6_0_at_checkpoint_2: objects(filter: {type: "@{Test}"}, before: "@{cursor_0}") {
@@ -167,7 +167,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/consistency/objects_pagination.mo
 
 tested by [crates/iota-graphql-e2e-tests/coverage/query/objects.md](../../../iota-graphql-e2e-tests/coverage/query/objects.md):
 
-```
+```graphql
 //# run-graphql
 {
   objects(filter: {type: "0x2::coin"}) {

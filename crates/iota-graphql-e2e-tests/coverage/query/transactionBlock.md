@@ -1,6 +1,6 @@
 Query: `transactionBlock`
 
-```
+```graphql
 {
   transactionBlock(digest: "63X49x2QuuYNduExZWoJjfXut3s3WDWZ7Tr7nXJu32ZT") {
     digest

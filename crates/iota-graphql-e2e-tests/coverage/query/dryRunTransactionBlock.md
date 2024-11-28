@@ -1,6 +1,6 @@
 Query: `dryRunTransactionBlock`
 
-```
+```graphql
 {
   dryRunTransactionBlock(
     txBytes: "AAIAIC3Pg7fIBNN95RZluYu1Ll8icKxoO/oGYoEAfLP0szGAAAjoAwAAAAAAAAICAAEBAQABAQIAAAEAAA=="
@@ -62,7 +62,7 @@ Query: `dryRunTransactionBlock`
 
 tested by [crates/iota-graphql-rpc/tests/e2e_tests.rs](../../../iota-graphql-rpc/tests/e2e_tests.rs):
 
-```
+```graphql
 {
     dryRunTransactionBlock(txBytes: $tx, txMeta: {}) {
         results {

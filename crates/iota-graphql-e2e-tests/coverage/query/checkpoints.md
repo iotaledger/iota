@@ -1,6 +1,6 @@
 Query: `checkpoints`
 
-```
+```graphql
 {
   checkpoints {
     edges {
@@ -50,7 +50,7 @@ Query: `checkpoints`
 
 tested by [crates/iota-graphql-e2e-tests/tests/limits/output_node_estimation.move](../../../iota-graphql-e2e-tests/tests/limits/output_node_estimation.move):
 
-```
+```graphql
 //# run-graphql --show-usage
 # build on previous example with nested connection
 {
@@ -70,7 +70,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/limits/output_node_estimation.mov
 
 tested by [crates/iota-graphql-e2e-tests/tests/consistency/checkpoints/transaction_blocks.move](../../../iota-graphql-e2e-tests/tests/consistency/checkpoints/transaction_blocks.move):
 
-```
+```graphql
 {
   checkpoints {
     nodes {

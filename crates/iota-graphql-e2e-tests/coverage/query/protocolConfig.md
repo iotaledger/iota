@@ -1,6 +1,6 @@
 Query: `protocolConfig`
 
-```
+```graphql
 {
   protocolConfig(protocolVersion: 1) {
     protocolVersion
@@ -30,7 +30,7 @@ Query: `protocolConfig`
 
 tested by [crates/iota-graphql-e2e-tests/tests/epoch/protocol_configs.move](../../../iota-graphql-e2e-tests/tests/epoch/protocol_configs.move):
 
-```
+```graphql
 //# run-graphql
 {
     protocolConfig {

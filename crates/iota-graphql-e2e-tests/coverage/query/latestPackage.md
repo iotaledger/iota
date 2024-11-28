@@ -1,6 +1,6 @@
 Query: `latestPackage`
 
-```
+```graphql
 {
   latestPackage(address: "0x1") {
     address
@@ -190,7 +190,7 @@ Query: `latestPackage`
 
 tested by [crates/iota-graphql-e2e-tests/tests/packages/versioning.move](../../../iota-graphql-e2e-tests/tests/packages/versioning.move):
 
-```
+```graphql
 //# run-graphql
 {
     latestPackage(address: "@{P0}") {

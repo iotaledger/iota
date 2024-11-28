@@ -1,6 +1,6 @@
 Query: `events`
 
-```
+```graphql
 {
   events(first: null, last: null, after: null, before: null, filter: null) {
     edges {
@@ -16,7 +16,7 @@ Query: `events`
 
 tested by [crates/iota-graphql-e2e-tests/tests/event_connection/no_filter.move](../../../iota-graphql-e2e-tests/tests/event_connection/no_filter.move):
 
-```
+```graphql
 //# run-graphql
 {
     events {

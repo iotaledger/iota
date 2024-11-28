@@ -1,6 +1,6 @@
 Query: `checkpoint`
 
-```
+```graphql
 {
   checkpoint {
     digest
@@ -46,7 +46,7 @@ Query: `checkpoint`
 
 tested by [crates/iota-graphql-e2e-tests/tests/call/simple.move](../../../iota-graphql-e2e-tests/tests/call/simple.move):
 
-```
+```graphql
 //# run-graphql
 {
   checkpoint {
@@ -57,7 +57,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/call/simple.move](../../../iota-g
 
 tested by [crates/iota-graphql-e2e-tests/tests/transactions/at_checkpoint.move](../../../iota-graphql-e2e-tests/tests/transactions/at_checkpoint.move):
 
-```
+```graphql
 //# run-graphql
 {   # Via a checkpoint query
     c0: checkpoint(id: { sequenceNumber: 0 }) { transactionBlocks { nodes { ...Tx } } }

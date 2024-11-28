@@ -1,6 +1,6 @@
 Query: `package`
 
-```
+```graphql
 {
   packages(first: null, last: 5, after: null, filter: null) {
     edges {
@@ -194,7 +194,7 @@ Query: `package`
 
 tested by [crates/iota-graphql-e2e-tests/tests/packages/versioning.move](../../../iota-graphql-e2e-tests/tests/packages/versioning.move):
 
-```
+```graphql
 //# run-graphql
 {   # Querying packages with checkpoint bounds
     before: packages(first: 10, filter: { beforeCheckpoint: 1 }) {

@@ -1,6 +1,6 @@
 Query: `epoch`
 
-```
+```graphql
 {
   epoch(id: 1) {
     epochId
@@ -55,7 +55,7 @@ Query: `epoch`
 
 tested by [crates/iota-graphql-e2e-tests/tests/validator/validator.move](../../../iota-graphql-e2e-tests/tests/validator/validator.move):
 
-```
+```graphql
 {
   epoch(id: 1) {
     validatorSet {
@@ -71,7 +71,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/validator/validator.move](../../.
 
 tested by [crates/iota-graphql-e2e-tests/tests/consistency/epochs/checkpoints.move](../../../iota-graphql-e2e-tests/tests/consistency/epochs/checkpoints.move):
 
-```
+```graphql
 //# run-graphql --cursors {"s":3,"c":4} {"s":7,"c":8} {"s":9,"c":10}
 # View checkpoints before the last checkpoint in each epoch, from the perspective of the first
 # checkpoint in the next epoch.

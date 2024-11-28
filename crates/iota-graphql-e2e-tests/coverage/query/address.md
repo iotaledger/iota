@@ -1,18 +1,18 @@
 Query: `address`
 
-```
+```graphql
 {
   address(address: "0x1") {
     address
-		objects {
-		  edges {
-		    node {
-		      digest
-		      storageRebate
-		      bcs
-		    }
-		  }
-		}
+    objects {
+      edges {
+        node {
+          digest
+          storageRebate
+          bcs
+        }
+      }
+    }
     balance {
       coinObjectCount
       totalBalance
@@ -61,7 +61,7 @@ Query: `address`
 
 tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](../../../iota-graphql-e2e-tests/tests/call/owned_objects.move):
 
-```
+```graphql
 //# run-graphql
 {
   address(address: "0x42") {
@@ -85,7 +85,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](../../..
 
 tested by [crates/iota-graphql-e2e-tests/tests/transaction_block_effects/balance_changes.move](../../../iota-graphql-e2e-tests/tests/transaction_block_effects/balance_changes.move):
 
-```
+```graphql
 //# run-graphql
 {
   address(address: "@{C}") {
@@ -115,7 +115,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/transaction_block_effects/balance
 
 tested by [crates/iota-graphql-e2e-tests/tests/consistency/coins.move](../../../iota-graphql-e2e-tests/tests/consistency/coins.move):
 
-```
+```graphql
 //# run-graphql
 {
   queryCoins: coins(type: "@{P0}::fake::FAKE") {
@@ -174,7 +174,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/consistency/coins.move](../../../
 
 tested by [crates/iota-graphql-e2e-tests/tests/consistency/staked_iota.move](../../../iota-graphql-e2e-tests/tests/consistency/staked_iota.move):
 
-```
+```graphql
 //# run-graphql
 {
   address(address: "@{C}") {

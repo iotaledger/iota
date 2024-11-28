@@ -1,6 +1,6 @@
 Query: `owner`
 
-```
+```graphql
 {
   owner(address: "0x1") {
     address
@@ -67,7 +67,7 @@ Query: `owner`
 
 tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](../../../iota-graphql-e2e-tests/tests/call/owned_objects.move):
 
-```
+```graphql
 //# run-graphql
 {
   owner(address: "0x42") {
@@ -91,7 +91,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](../../..
 
 tested by [crates/iota-graphql-e2e-tests/tests/call/dynamic_fields.move](../../../iota-graphql-e2e-tests/tests/call/dynamic_fields.move):
 
-```
+```graphql
 //# run-graphql
 {
   owner(address: "@{obj_2_0}") {

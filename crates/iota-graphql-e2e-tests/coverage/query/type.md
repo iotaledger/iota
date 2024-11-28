@@ -1,6 +1,6 @@
 Query: `type`
 
-```
+```graphql
 {
   type(type: "vector<u64>") {
     repr
@@ -14,7 +14,7 @@ Query: `type`
 
 tested by [crates/iota-graphql-e2e-tests/coverage/query/type.md](../../../iota-graphql-e2e-tests/coverage/query/type.md):
 
-```
+```graphql
 //# run-graphql
 # Happy path -- primitive type with generic parameter
 

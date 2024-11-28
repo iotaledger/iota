@@ -1,6 +1,6 @@
 Query: `type`
 
-```
+```graphql
 {
   coins {
     edges {
@@ -103,7 +103,7 @@ Query: `type`
 
 tested by [crates/iota-graphql-e2e-tests/tests/objects/coin.move](../../../iota-graphql-e2e-tests/tests/objects/coin.move):
 
-```
+```graphql
 //# run-graphql
 fragment C on Coin {
   coinBalance

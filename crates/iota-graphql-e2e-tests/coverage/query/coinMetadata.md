@@ -1,6 +1,6 @@
 Query: `coinMetadata`
 
-```
+```graphql
 {
   coinMetadata(coinType: "@{test}::fake::FAKE") {
     digest
@@ -18,7 +18,7 @@ Query: `coinMetadata`
 
 tested by [crates/iota-graphql-e2e-tests/tests/call/coin_metadata.move](../../../iota-graphql-e2e-tests/tests/call/coin_metadata.move):
 
-```
+```graphql
 //# run-graphql
 {
   coinMetadata(coinType: "@{test}::fake::FAKE") {
