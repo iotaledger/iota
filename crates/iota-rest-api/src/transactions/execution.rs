@@ -163,7 +163,7 @@ async fn execute_transaction(
 #[derive(Debug, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct ExecuteTransactionQueryParameters {
     // TODO once transaction finality support is more fully implemented up and down the stack, add
-    // back in this parameter, which will be mutally-exclusive with the other parameters. When
+    // back in this parameter, which will be mutually-exclusive with the other parameters. When
     // `true` will submit the txn and return a `202 Accepted` response with no payload.
     // effects: Option<bool>,
     /// Request `TransactionEvents` be included in the Response.

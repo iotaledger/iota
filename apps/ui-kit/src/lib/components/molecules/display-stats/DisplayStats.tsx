@@ -92,7 +92,7 @@ export function DisplayStats({
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
             <div className="flex w-full flex-row items-baseline gap-xxs">
-                <span className={cx(valueClass)}>{value}</span>
+                <span className={cx('break-all', valueClass)}>{value}</span>
                 {supportingLabel && (
                     <span className={cx('opacity-40', supportingLabelTextClass)}>
                         {supportingLabel}

@@ -135,7 +135,9 @@ impl Drop for IotaNodeHandle {
     fn drop(&mut self) {
         if self.shutdown_on_drop {
             let node_id = self.inner().sim_state.sim_node.id();
-            iota_simulator::runtime::Handle::try_current().map(|h| h.delete_node(node_id));
+            if let Some(h) = iota_simulator::runtime::Handle::try_current() {
+                h.delete_node(node_id);
+            }
         }
     }
 }

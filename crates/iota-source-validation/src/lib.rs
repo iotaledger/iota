@@ -338,7 +338,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
             at: Some(AccountAddress::ZERO),
             ..
         }) {
-            return Err(Error::ZeroOnChainAddresSpecifiedFailure.into());
+            return Err(Error::ZeroOnChainAddressSpecifiedFailure.into());
         }
 
         let local = mode.local(package)?;
