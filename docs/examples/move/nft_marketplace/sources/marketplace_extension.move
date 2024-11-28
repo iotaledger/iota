@@ -1,4 +1,4 @@
-module nft_marketplace::nft_marketplace {
+module nft_marketplace::marketplace_extension {
     // iota imports
     use iota::{
         kiosk::{Kiosk, KioskOwnerCap, purchase},
@@ -17,6 +17,7 @@ module nft_marketplace::nft_marketplace {
     // === Errors ===
     const EExtensionNotInstalled: u64 = 0;
     const EWrongPaymentRoyalties: u64 = 1;
+    const ENotEnoughPaymentAmount: u64 = 2;
 
     // === Constants ===
     const ALLOW_PLACE_AND_LOCK: u128 = 11;
@@ -64,6 +65,7 @@ module nft_marketplace::nft_marketplace {
         let ItemPrice { price } = take_from_bag<T, Listed>(kiosk,  Listed { id: item_id });
         
         let payment_amount_value = payment.value();
+        assert!(payment_amount_value >= price, ENotEnoughPaymentAmount);
         let coin_price = payment.split(price, ctx);
         
         let (item, mut transfer_request) = purchase(kiosk, item_id, coin_price);

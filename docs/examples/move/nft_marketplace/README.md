@@ -1,6 +1,6 @@
 # Marketplace Guide
 
-The `nft_marketplace.move` module provides a straightforward implementation of a marketplace extension. To utilize it, follow the steps outlined below.
+The `marketplace_extension.move` module provides a straightforward implementation of a marketplace extension. To utilize it, follow the steps outlined below.
 The `item_for_market.move` contains mocked item data for use within the marketplace.
 The `rental_extension.move` is an extension adds functionality to enable item rentals.
 
@@ -38,7 +38,7 @@ After publishing, export the following variable:
 
 #### 3.2 Publish marketplace extension
 
-Publish the nft_marketplace.move module:
+Publish the marketplace_extension.move module:
 
 ```bash
 iota client publish iota/docs/examples/move/nft_marketplace
@@ -95,7 +95,7 @@ Install the marketplace extension on the created kiosk using the command:
 ```bash
 iota client call \
     --package $MARKETPLACE_PACKAGE_ID \
-    --module nft_marketplace \
+    --module marketplace_extension \
     --function install \
     --args $KIOSK_ID $KIOSK_CAP_ID
 ```
@@ -107,7 +107,7 @@ Set the price for the item:
 ```bash
 iota client call \
     --package $MARKETPLACE_PACKAGE_ID \
-    --module nft_marketplace \
+    --module marketplace_extension \
     --function set_price \
     --args $KIOSK_ID $KIOSK_CAP_ID $CLOTHING_STORE_ITEM_ID 50000 \
     --type-args "$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans"
@@ -122,7 +122,7 @@ Set royalties for the item:
 ```bash
 iota client call \
     --package $MARKETPLACE_PACKAGE_ID \
-    --module nft_marketplace \
+    --module marketplace_extension \
     --function setup_royalties \
     --args $ITEM_TRANS_POLICY $ITEM_TRANS_POLICY_CAP 5000 2000 \
     --type-args "$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans"
@@ -134,7 +134,7 @@ iota client call \
 
 ```bash
 iota client ptb \
---move-call $MARKETPLACE_PACKAGE_ID::nft_marketplace::get_item_price "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$CLOTHING_STORE_ITEM_ID --assign item_price \
+--move-call $MARKETPLACE_PACKAGE_ID::marketplace_extension::get_item_price "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$CLOTHING_STORE_ITEM_ID --assign item_price \
 ```
 
 #### 9.2(Optional) Calculate rolyalties of the Item:
@@ -157,7 +157,7 @@ Here, when we buy an item, we pay the owner the item's price. If the royalty rul
 To purchase the item:
 
 ```bash
---move-call $MARKETPLACE_PACKAGE_ID::nft_marketplace::buy_item "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$ITEM_TRANS_POLICY @$CLOTHING_STORE_ITEM_ID payment_coins.0 --assign purchased_item
+--move-call $MARKETPLACE_PACKAGE_ID::marketplace_extension::buy_item "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$ITEM_TRANS_POLICY @$CLOTHING_STORE_ITEM_ID payment_coins.0 --assign purchased_item
 ```
 
 #### 9.5 Transfer an Item to the buyer:
@@ -170,10 +170,10 @@ The final purchase PTB request, including royalties, should look like this:
 
 ```bash
 iota client ptb \
---move-call $MARKETPLACE_PACKAGE_ID::nft_marketplace::get_item_price "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$CLOTHING_STORE_ITEM_ID --assign item_price \
+--move-call $MARKETPLACE_PACKAGE_ID::marketplace_extension::get_item_price "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$CLOTHING_STORE_ITEM_ID --assign item_price \
 --move-call $RULES_PACKAGE_ID::royalty_rule::fee_amount "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$ITEM_TRANS_POLICY item_price --assign royalties_amount \
 --split-coins gas "[item_price, royalties_amount]" --assign payment_coins \
 --merge-coins payment_coins.0 "[payment_coins.1]" \
---move-call $MARKETPLACE_PACKAGE_ID::nft_marketplace::buy_item "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$ITEM_TRANS_POLICY @$CLOTHING_STORE_ITEM_ID payment_coins.0 --assign purchased_item \
+--move-call $MARKETPLACE_PACKAGE_ID::marketplace_extension::buy_item "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$ITEM_TRANS_POLICY @$CLOTHING_STORE_ITEM_ID payment_coins.0 --assign purchased_item \
 --move-call 0x2::transfer::public_transfer "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" purchased_item @<buyer address>
 ```

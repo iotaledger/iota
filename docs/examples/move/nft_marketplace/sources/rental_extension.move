@@ -155,7 +155,8 @@ module nft_marketplace::rental_extension {
     ) {
         assert!(kiosk_extension::is_installed<Rental>(kiosk), EExtensionNotInstalled);
 
-        assert!(price_per_day * duration <= MAX_VALUE_U64, ETotalPriceOverflow);
+        let max_price_per_day = MAX_VALUE_U64 / duration;
+        assert!(price_per_day <= max_price_per_day, ETotalPriceOverflow);
         kiosk.set_owner(cap, ctx);
         kiosk.list<T>(cap, item_id, 0);
 
