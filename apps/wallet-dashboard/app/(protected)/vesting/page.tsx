@@ -7,6 +7,7 @@ import { Banner, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
+    getLastSupplyIncreaseVestingPayout,
     getVestingOverview,
     groupTimelockedStakedObjects,
     isTimelockedUnlockable,
@@ -35,6 +36,7 @@ import {
 import {
     Theme,
     TIMELOCK_IOTA_TYPE,
+    useFormatCoin,
     useGetActiveValidatorsInfo,
     useGetAllOwnedObjects,
     useGetTimelockedStakedObjects,
@@ -43,10 +45,11 @@ import {
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Calendar, StarHex } from '@iota/ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -63,6 +66,8 @@ function VestingDashboardPage(): JSX.Element {
     const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
+
+    const [countdown, setCountdown] = useState<string | null>(null);
 
     const videoSrc =
         theme === Theme.Dark
@@ -83,13 +88,46 @@ function VestingDashboardPage(): JSX.Element {
         Number(currentEpochMs),
     );
 
+    const [formattedTotalVested, vestedSymbol] = useFormatCoin(
+        vestingSchedule.totalVested,
+        IOTA_TYPE_ARG,
+    );
+
+    const [formattedTotalLocked, lockedSymbol] = useFormatCoin(
+        vestingSchedule.totalLocked,
+        IOTA_TYPE_ARG,
+    );
+    const lastPayout = getLastSupplyIncreaseVestingPayout([
+        ...timelockedMapped,
+        ...timelockedstakedMapped,
+    ]);
+
+    const currentTimestampMs = Date.now();
+
+    const timeRemainingMs =
+        lastPayout?.expirationTimestampMs && currentTimestampMs - lastPayout.expirationTimestampMs;
+
+    useEffect(() => {
+        if (timeRemainingMs) {
+            const days = Math.floor(timeRemainingMs / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((timeRemainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((timeRemainingMs % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeRemainingMs % (1000 * 60)) / 1000);
+            setCountdown(`${days} days ${hours} hours ${minutes} minutes ${seconds} seconds`);
+        }
+    }, [timeRemainingMs, countdown]);
+
+    const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(
+        vestingSchedule.availableClaiming,
+        IOTA_TYPE_ARG,
+    );
+
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
         return activeValidators?.find(
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }
-    console.log('timelockedMapped', timelockedMapped);
-    console.log('timelockedstakedMapped', timelockedstakedMapped);
+
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
         isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
     );
@@ -167,7 +205,6 @@ function VestingDashboardPage(): JSX.Element {
             router.push('/');
         }
     }, [router, supplyIncreaseVestingEnabled]);
-    console.log('vestingSchedule', vestingSchedule);
 
     return (
         <div className="flex w-full max-w-xl flex-col gap-lg justify-self-center">
@@ -177,13 +214,13 @@ function VestingDashboardPage(): JSX.Element {
                     <div className="flex h-24 flex-row gap-4">
                         <DisplayStats
                             label="Total Vested"
-                            value={vestingSchedule.totalVested}
-                            supportingLabel="IOTA"
+                            value={formattedTotalVested}
+                            supportingLabel={vestedSymbol}
                         />
                         <DisplayStats
                             label="Total Locked"
-                            value={vestingSchedule.totalLocked}
-                            supportingLabel="IOTA"
+                            value={formattedTotalLocked}
+                            supportingLabel={lockedSymbol}
                             tooltipText="Total amount of IOTA that is still locked in your account."
                             tooltipPosition={TooltipPosition.Right}
                         />
@@ -193,7 +230,7 @@ function VestingDashboardPage(): JSX.Element {
                             <StarHex className="h-5 w-5 text-primary-30 dark:text-primary-80" />
                         </CardImage>
                         <CardBody
-                            title={vestingSchedule.availableClaiming.toString()}
+                            title={`${formattedAvailableClaiming} ${availableClaimingSymbol}`}
                             subtitle="Available Rewards"
                         />
                         <CardAction
@@ -213,7 +250,7 @@ function VestingDashboardPage(): JSX.Element {
                         </CardImage>
                         <CardBody
                             title={vestingSchedule.availableStaking.toString()}
-                            subtitle="Next payout in"
+                            subtitle={`Next payout in ${countdown}`}
                         />
                         <CardAction
                             type={CardActionType.Button}
