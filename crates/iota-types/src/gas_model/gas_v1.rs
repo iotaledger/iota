@@ -379,7 +379,8 @@ mod checked {
                     computation_units = ((computation_units / gas_rounding) + 1) * gas_rounding;
                 }
             } else {
-                computation_units = get_bucket_cost(&self.cost_table.computation_bucket, computation_units);
+                computation_units =
+                    get_bucket_cost(&self.cost_table.computation_bucket, computation_units);
             };
             let computation_cost = computation_units * self.gas_price;
             if self.gas_budget <= computation_cost {

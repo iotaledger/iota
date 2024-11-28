@@ -379,7 +379,8 @@ mod checked {
                     computation_units = ((computation_units / gas_rounding) + 1) * gas_rounding;
                 }
             } else {
-                computation_units = get_bucket_cost(&self.cost_table.computation_bucket, computation_units);
+                computation_units =
+                    get_bucket_cost(&self.cost_table.computation_bucket, computation_units);
             };
             let computation_cost = computation_units * self.gas_price;
             if self.gas_budget <= computation_cost {
@@ -395,8 +396,10 @@ mod checked {
         /// of the gas meter. We use initial budget, combined with
         /// remaining gas and storage cost to derive computation cost.
         fn summary(&self) -> GasCostSummary {
-            // compute computation cost burned and storage rebate, both rebate and non refundable fee
-            let computation_cost_burned = self.computation_cost * self.reference_gas_price / self.gas_price;
+            // compute computation cost burned and storage rebate, both rebate and non
+            // refundable fee
+            let computation_cost_burned =
+                self.computation_cost * self.reference_gas_price / self.gas_price;
             let storage_rebate = self.storage_rebate();
             let sender_rebate = sender_rebate(storage_rebate, self.rebate_rate);
             assert!(sender_rebate <= storage_rebate);

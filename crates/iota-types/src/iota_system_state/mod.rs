@@ -265,7 +265,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
                     },
                 )?;
             Ok(IotaSystemState::V1(result))
-        },
+        }
         2 => {
             let result: IotaSystemStateV2 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(

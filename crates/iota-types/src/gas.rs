@@ -20,8 +20,7 @@ pub mod checked {
         effects::{TransactionEffects, TransactionEffectsAPI},
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{
-            gas_v1::IotaGasStatus as IotaGasStatusV1,
-            gas_v2::IotaGasStatus as IotaGasStatusV2,
+            gas_v1::IotaGasStatus as IotaGasStatusV1, gas_v2::IotaGasStatus as IotaGasStatusV2,
             tables::GasStatus,
         },
         iota_serde::{BigInt, Readable},

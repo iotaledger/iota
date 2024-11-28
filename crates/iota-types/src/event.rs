@@ -142,7 +142,7 @@ impl Event {
         self.type_.address == IOTA_SYSTEM_ADDRESS
             && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
             && (self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
-            || self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2"))
+                || self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2"))
     }
 }
 
