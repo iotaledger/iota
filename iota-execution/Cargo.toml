@@ -12,18 +12,18 @@ iota-adapter-latest = { path = "latest/iota-adapter" }
 iota-adapter-v1 = { path = "v1/iota-adapter" }
 # iota-adapter-$CUT = { path = "$CUT/iota-adapter" }
 iota-move-natives-latest = { path = "latest/iota-move-natives" }
+iota-move-natives-v1 = { path = "v1/iota-move-natives" }
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-iota-move-natives-v1 = { path = "v1/iota-move-natives" }
 # iota-move-natives-$CUT = { path = "$CUT/iota-move-natives" }
 iota-verifier-latest = { path = "latest/iota-verifier" }
-move-binary-format.workspace = true
 iota-verifier-v1 = { path = "v1/iota-verifier" }
+move-binary-format.workspace = true
 # iota-verifier-$CUT = { path = "$CUT/iota-verifier" }
 move-bytecode-verifier-latest = { path = "../external-crates/move/crates/move-bytecode-verifier", package = "move-bytecode-verifier" }
 move-bytecode-verifier-meter.workspace = true
-move-vm-config.workspace = true
 move-bytecode-verifier-v1 = { path = "../external-crates/move/move-execution/v1/crates/move-bytecode-verifier" }
+move-vm-config.workspace = true
 # move-bytecode-verifier-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-bytecode-verifier" }
 move-vm-runtime-latest = { path = "../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
 move-vm-runtime-v1 = { path = "../external-crates/move/move-execution/v1/crates/move-vm-runtime" }
