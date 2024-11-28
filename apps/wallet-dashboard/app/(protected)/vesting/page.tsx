@@ -3,8 +3,8 @@
 
 'use client';
 
-import { Button, TimelockedUnstakePopup } from '@/components';
-import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
+import { Button } from '@/components';
+import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
     getVestingOverview,
@@ -27,15 +27,17 @@ import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { UnstakeTimelockedObjectsDialog } from '@/components/Dialogs/Staking/timelock';
 
-function VestingDashboardPage(): JSX.Element {
+export default function VestingDashboardPage(): JSX.Element {
+    const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
+        useState<TimelockedStakedObjectsGrouped | null>(null);
     const account = useCurrentAccount();
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
     const { addNotification } = useNotifications();
-    const { openPopup, closePopup } = usePopups();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
@@ -92,6 +94,7 @@ function VestingDashboardPage(): JSX.Element {
                     ],
                 });
             });
+        setTimelockedObjectsToUnstake(null);
     }
 
     const handleCollect = () => {
@@ -118,21 +121,7 @@ function VestingDashboardPage(): JSX.Element {
     };
 
     function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
-        const validatorInfo = getValidatorByAddress(delegatedTimelockedStake.validatorAddress);
-        if (!account || !validatorInfo) {
-            addNotification('Cannot create transaction', NotificationType.Error);
-            return;
-        }
-
-        openPopup(
-            <TimelockedUnstakePopup
-                accountAddress={account.address}
-                delegatedStake={delegatedTimelockedStake}
-                validatorInfo={validatorInfo}
-                closePopup={closePopup}
-                onSuccess={handleOnSuccess}
-            />,
-        );
+        setTimelockedObjectsToUnstake(delegatedTimelockedStake);
     }
 
     useEffect(() => {
@@ -142,81 +131,91 @@ function VestingDashboardPage(): JSX.Element {
     }, [router, supplyIncreaseVestingEnabled]);
 
     return (
-        <div className="flex flex-row">
-            <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
-                <h1>VESTING</h1>
-                <div className="flex flex-row space-x-4">
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Total Vested</span>
-                        <span>{vestingSchedule.totalVested}</span>
-                    </div>
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Total Locked</span>
-                        <span>{vestingSchedule.totalLocked}</span>
-                    </div>
-                </div>
-                <hr />
-                <div className="flex flex-row space-x-4">
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Available Claiming</span>
-                        <span>{vestingSchedule.availableClaiming}</span>
-                    </div>
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Available Staking</span>
-                        <span>{vestingSchedule.availableStaking}</span>
-                    </div>
-                </div>
-            </div>
-            <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
-                <h1>Staked Vesting</h1>
-                <div className="flex flex-row space-x-4">
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Your stake</span>
-                        <span>{vestingSchedule.totalStaked}</span>
-                    </div>
-                    <div className="flex flex-col items-center rounded-lg border p-4">
-                        <span>Total Unlocked</span>
-                        <span>{vestingSchedule.totalUnlocked}</span>
-                    </div>
-                </div>
-                <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                    {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
-                        return (
-                            <div
-                                key={
-                                    timelockedStakedObject.validatorAddress +
-                                    timelockedStakedObject.stakeRequestEpoch +
-                                    timelockedStakedObject.label
-                                }
-                                className="flex w-full flex-row items-center justify-center space-x-4"
-                            >
-                                <span>
-                                    Validator:{' '}
-                                    {getValidatorByAddress(timelockedStakedObject.validatorAddress)
-                                        ?.name || timelockedStakedObject.validatorAddress}
-                                </span>
-                                <span>
-                                    Stake Request Epoch: {timelockedStakedObject.stakeRequestEpoch}
-                                </span>
-                                <span>Stakes: {timelockedStakedObject.stakes.length}</span>
-
-                                <Button onClick={() => handleUnstake(timelockedStakedObject)}>
-                                    Unstake
-                                </Button>
-                            </div>
-                        );
-                    })}
-                </div>
-                {account?.address && (
+        <>
+            <div className="flex flex-row">
+                <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
+                    <h1>VESTING</h1>
                     <div className="flex flex-row space-x-4">
-                        {vestingSchedule.availableClaiming ? (
-                            <Button onClick={handleCollect}>Collect</Button>
-                        ) : null}
+                        <div className="flex flex-col items-center rounded-lg border p-4">
+                            <span>Total Vested</span>
+                            <span>{vestingSchedule.totalVested}</span>
+                        </div>
+                        <div className="flex flex-col items-center rounded-lg border p-4">
+                            <span>Total Locked</span>
+                            <span>{vestingSchedule.totalLocked}</span>
+                        </div>
                     </div>
-                )}
+                    <hr />
+                    <div className="flex flex-row space-x-4">
+                        <div className="flex flex-col items-center rounded-lg border p-4">
+                            <span>Available Claiming</span>
+                            <span>{vestingSchedule.availableClaiming}</span>
+                        </div>
+                        <div className="flex flex-col items-center rounded-lg border p-4">
+                            <span>Available Staking</span>
+                            <span>{vestingSchedule.availableStaking}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
+                    <h1>Staked Vesting</h1>
+                    <div className="flex flex-row space-x-4">
+                        <div className="flex flex-col items-center rounded-lg border p-4">
+                            <span>Your stake</span>
+                            <span>{vestingSchedule.totalStaked}</span>
+                        </div>
+                        <div className="flex flex-col items-center rounded-lg border p-4">
+                            <span>Total Unlocked</span>
+                            <span>{vestingSchedule.totalUnlocked}</span>
+                        </div>
+                    </div>
+                    <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
+                        {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
+                            return (
+                                <div
+                                    key={
+                                        timelockedStakedObject.validatorAddress +
+                                        timelockedStakedObject.stakeRequestEpoch +
+                                        timelockedStakedObject.label
+                                    }
+                                    className="flex w-full flex-row items-center justify-center space-x-4"
+                                >
+                                    <span>
+                                        Validator:{' '}
+                                        {getValidatorByAddress(
+                                            timelockedStakedObject.validatorAddress,
+                                        )?.name || timelockedStakedObject.validatorAddress}
+                                    </span>
+                                    <span>
+                                        Stake Request Epoch:{' '}
+                                        {timelockedStakedObject.stakeRequestEpoch}
+                                    </span>
+                                    <span>Stakes: {timelockedStakedObject.stakes.length}</span>
+
+                                    <Button onClick={() => handleUnstake(timelockedStakedObject)}>
+                                        Unstake
+                                    </Button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {account?.address && (
+                        <div className="flex flex-row space-x-4">
+                            {vestingSchedule.availableClaiming ? (
+                                <Button onClick={handleCollect}>Collect</Button>
+                            ) : null}
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+
+            {timelockedObjectsToUnstake && (
+                <UnstakeTimelockedObjectsDialog
+                    groupedTimelockedObjects={timelockedObjectsToUnstake}
+                    onClose={() => setTimelockedObjectsToUnstake(null)}
+                    onSuccess={(tx) => handleOnSuccess(tx.digest)}
+                />
+            )}
+        </>
     );
 }
-
-export default VestingDashboardPage;
