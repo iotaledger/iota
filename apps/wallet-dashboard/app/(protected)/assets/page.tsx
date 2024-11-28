@@ -27,8 +27,8 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 
 export default function AssetsDashboardPage(): React.JSX.Element {
     const [view, setView] = useState<AssetsDialogView | undefined>(AssetsDialogView.Details);
-    const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const account = useCurrentAccount();
     const { data, isFetching, fetchNextPage, hasNextPage } = useGetOwnedObjects(
         account?.address,
@@ -52,13 +52,14 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         }
     }
 
-    function handleClickAsset(asset: IotaObjectData) {
+    function onClickAsset(asset: IotaObjectData) {
         setSelectedAsset(asset);
         setView(AssetsDialogView.Details);
     }
 
-    function handleCloseDialog() {
+    function onCloseDialog() {
         setSelectedAsset(null);
+        setView(undefined);
     }
 
     return (
@@ -79,7 +80,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 <AssetList
                     assets={assets}
                     selectedCategory={selectedCategory}
-                    onClick={handleClickAsset}
+                    onClick={onClickAsset}
                     hasNextPage={hasNextPage}
                     isFetchingNextPage={isFetching}
                     fetchNextPage={fetchNextPage}
@@ -89,7 +90,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                         view={view}
                         setView={setView}
                         isOpen={!!selectedAsset}
-                        handleClose={handleCloseDialog}
+                        onClose={onCloseDialog}
                         asset={selectedAsset}
                     />
                 )}

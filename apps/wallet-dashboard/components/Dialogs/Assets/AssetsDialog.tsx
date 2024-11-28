@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 
 interface AssetsDialogProps {
     isOpen: boolean;
-    handleClose: () => void;
+    onClose: () => void;
     asset: IotaObjectData | null;
     view: AssetsDialogView;
     setView: (view: AssetsDialogView | undefined) => void;
@@ -32,7 +32,7 @@ const INITIAL_VALUES: FormValues = {
 
 export function AssetsDialog({
     isOpen,
-    handleClose,
+    onClose,
     asset,
     setView,
     view,
@@ -44,7 +44,7 @@ export function AssetsDialog({
     const { addNotification } = useNotifications();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
 
-    function handleDetailsSend() {
+    function onDetailsSend() {
         setView(AssetsDialogView.Send);
     }
 
@@ -87,15 +87,11 @@ export function AssetsDialog({
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={() => handleClose()}>
+        <Dialog open={isOpen} onOpenChange={() => onClose()}>
             <FormikProvider value={formik}>
                 <>
                     {view === AssetsDialogView.Details && asset && (
-                        <DetailsView
-                            asset={asset}
-                            handleClose={handleClose}
-                            handleSend={handleDetailsSend}
-                        />
+                        <DetailsView asset={asset} onClose={onClose} onSend={onDetailsSend} />
                     )}
                     {view === AssetsDialogView.Send && asset && (
                         <SendView asset={asset} onClose={onSendClose} onBack={onSendBack} />

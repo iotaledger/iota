@@ -20,11 +20,11 @@ import { useCurrentAccount } from '@iota/dapp-kit';
 
 interface DetailsViewProps {
     asset: IotaObjectData;
-    handleClose: () => void;
-    handleSend: () => void;
+    onClose: () => void;
+    onSend: () => void;
 }
 
-export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps) {
+export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
     const account = useCurrentAccount();
 
     const senderAddress = account?.address ?? '';
@@ -53,7 +53,7 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
 
     return (
         <Layout>
-            <Header title="Asset" onClose={handleClose} titleCentered />
+            <Header title="Asset" onClose={onClose} titleCentered />
             <LayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
@@ -174,12 +174,7 @@ export function DetailsView({ handleClose, asset, handleSend }: DetailsViewProps
                             />
                         </div>
                     ) : (
-                        <Button
-                            disabled={!isTransferable}
-                            onClick={handleSend}
-                            text="Send"
-                            fullWidth
-                        />
+                        <Button disabled={!isTransferable} onClick={onSend} text="Send" fullWidth />
                     )}
                 </div>
             </LayoutFooter>
