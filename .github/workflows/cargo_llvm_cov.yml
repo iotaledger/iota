@@ -54,28 +54,30 @@ jobs:
             $LLVM_PROFDATA --version
             echo "LLVM_PROFDATA=$LLVM_PROFDATA" >> $GITHUB_ENV
           else
-            echo "Error: llvm-profdata not found at $LLVM_PROFDATA, or is not executable."
+            echo "🚨 Error 🚨: llvm-profdata not found at $LLVM_PROFDATA, or is not executable."
             exit 1
           fi
 
-          # TEMP: check if sccache is on the image
+      - name: Install sccache
+        run: |
+          cargo install sccache
+          echo -e "\n[build]\nrustc-wrapper = \"sccache\"" >> $HOME/.cargo/config.toml
           echo "sccache: $(which sccache)" 
-          echo "$RUSTC_WRAPPER"
-          if [ -s "$HOME/.cargo/config.toml" ]; then
-            cat "$HOME/.cargo/config.toml"
-          fi
+          cat "$HOME/.cargo/config.toml"
 
       - name: Run code coverage (nextest)
         run: |
-          set +x
           set +e
 
+          echo "Generating coverage data (.profraw files)."
           IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --no-report nextest -vv
 
+          echo "Trying to merge .profraw files."
           if ! (find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 "$LLVM_PROFDATA" merge \
             --failure-mode=warn \
             --sparse \
             --output target/nextest.profdata); then
+            echo "Merging failed."
 
             echo "Scanning for corrupted .profraw files. This might take a while."
             find target/llvm-cov-target -name '*.profraw' | while read file; do
@@ -87,27 +89,34 @@ jobs:
               fi
             done
 
+            echo "Trying to merge remaining .profraw files."
             find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
               --failure-mode=warn \
               --sparse \
               --output target/nextest.profdata
           fi
 
-          [ -s "target/nextest.profdata" ] || exit 1
+          if [ -s "target/nextest.profdata" ]; then
+            echo "Successfully collected nextest coverage data."
+          else
+            echo "🚨 Error 🚨: Collecting nexttest coverage failed." 
+            exit 1
+          fi
 
       - name: Run code coverage (simtest)
         run: |
-          set +x
-
           git clean -fd
 
           set +e
+          echo "Generating coverage data (.profraw files)."
           ./scripts/simtest/simtest-cov.sh
 
+          echo "Trying to merge .profraw files."
           if ! (find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 "$LLVM_PROFDATA" merge \
             --failure-mode=warn \
             --sparse \
             --output target/simtest.profdata); then
+            echo "Merging failed."
 
             echo "Scanning for corrupted .profraw files. This might take a while."
             find target/llvm-cov-target -name '*.profraw' | while read file; do
@@ -119,13 +128,16 @@ jobs:
               fi
             done
 
+            echo "Trying to merge remaining .profraw files."
             find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
               --failure-mode=warn \
               --sparse \
               --output target/simtest.profdata
           fi
 
-          if [ ! -s "target/simtest.profdata" ]; then
+          if [ -s "target/simtest.profdata" ]; then
+            echo "Successfully collected simtest coverage data."
+          else
             echo "🚨 Warning 🚨: Collecting simtest coverage failed." 
           fi
 
@@ -134,13 +146,16 @@ jobs:
           cd target
 
           if [ -s "simtest.profdata" ]; then
+            echo "Merging nextest and simtest coverage data."
             $LLVM_PROFDATA merge --failure-mode=warn --sparse nextest.profdata simtest.profdata --output merged.profdata
           else
+            echo "Using only nextest coverage data."
             mv nextest.profdata merged.profdata
           fi
 
           [ -s "merged.profdata" ] || exit 1
 
+          echo "Creating report (lcov.info)."
           LLVM_PROFILE_FILE="merged.profdata" cargo llvm-cov report \
             --lcov \
             --output-path lcov.info \
