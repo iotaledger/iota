@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
+    IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL, IOTA_LOCAL_NETWORK_URL,
+    IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
 };
 
 #[serde_as]
@@ -100,6 +101,7 @@ pub struct IotaEnv {
     /// Basic HTTP access authentication in the format of username:password, if
     /// needed.
     pub(crate) basic_auth: Option<String>,
+    pub(crate) faucet: Option<String>,
 }
 
 impl IotaEnv {
@@ -109,6 +111,7 @@ impl IotaEnv {
             rpc: rpc.into(),
             ws: None,
             basic_auth: None,
+            faucet: None,
         }
     }
 
@@ -128,6 +131,15 @@ impl IotaEnv {
 
     pub fn set_basic_auth(&mut self, basic_auth: impl Into<Option<String>>) {
         self.basic_auth = basic_auth.into();
+    }
+
+    pub fn with_faucet(mut self, faucet: impl Into<Option<String>>) -> Self {
+        self.set_faucet(faucet);
+        self
+    }
+
+    pub fn set_faucet(&mut self, faucet: impl Into<Option<String>>) {
+        self.faucet = faucet.into();
     }
 
     pub async fn create_rpc_client(
@@ -167,6 +179,7 @@ impl IotaEnv {
             rpc: IOTA_DEVNET_URL.into(),
             ws: None,
             basic_auth: None,
+            faucet: Some(IOTA_DEVNET_GAS_URL.into()),
         }
     }
     pub fn testnet() -> Self {
@@ -175,6 +188,7 @@ impl IotaEnv {
             rpc: IOTA_TESTNET_URL.into(),
             ws: None,
             basic_auth: None,
+            faucet: Some(IOTA_TESTNET_GAS_URL.into()),
         }
     }
 
@@ -184,6 +198,7 @@ impl IotaEnv {
             rpc: IOTA_LOCAL_NETWORK_URL.into(),
             ws: None,
             basic_auth: None,
+            faucet: Some(IOTA_LOCAL_NETWORK_GAS_URL.into()),
         }
     }
 }
@@ -199,9 +214,13 @@ impl Display for IotaEnv {
         }
         if let Some(basic_auth) = &self.basic_auth {
             writeln!(writer)?;
-            write!(writer, "Basic Auth: {}", basic_auth)?;
+            write!(writer, "Basic Auth: {basic_auth}")?;
         }
-        write!(f, "{}", writer)
+        if let Some(faucet) = &self.faucet {
+            writeln!(writer)?;
+            write!(writer, "Faucet URL: {faucet}")?;
+        }
+        write!(f, "{writer}")
     }
 }
 
