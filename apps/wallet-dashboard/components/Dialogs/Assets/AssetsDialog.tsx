@@ -7,19 +7,16 @@ import { FormikProvider, useFormik } from 'formik';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { createNftSendValidationSchema } from '@iota/core';
 import { DetailsView, SendView } from './views';
-import { IotaObjectData } from '@iota/iota-sdk/client';
-import { AssetsDialogView } from './constants';
+import { AssetsDialogView } from './interfaces';
 import { useCreateSendAssetTransaction, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
 import { useRouter } from 'next/navigation';
 
 interface AssetsDialogProps {
-    isOpen: boolean;
-    handleClose: () => void;
-    asset: IotaObjectData | null;
+    onClose: () => void;
     view: AssetsDialogView;
-    setView: (view: AssetsDialogView | undefined) => void;
+    setView: (view: AssetsDialogView) => void;
 }
 
 export interface FormValues {
@@ -30,22 +27,24 @@ const INITIAL_VALUES: FormValues = {
     to: '',
 };
 
-export function AssetsDialog({
-    isOpen,
-    handleClose,
-    asset,
-    setView,
-    view,
-}: AssetsDialogProps): JSX.Element {
-    const account = useCurrentAccount();
-    const activeAddress = account?.address ?? '';
-    const objectId = asset?.objectId ?? '';
+export function AssetsDialog({ onClose, setView, view }: AssetsDialogProps): JSX.Element {
     const router = useRouter();
+    const account = useCurrentAccount();
     const { addNotification } = useNotifications();
+
+    const isOpen = !!view.asset?.objectId;
+    const activeAddress = account?.address ?? '';
+    const objectId = view.asset?.objectId ?? '';
+
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
 
-    function handleDetailsSend() {
-        setView(AssetsDialogView.Send);
+    function onDetailsSend() {
+        if (view.type === 'details') {
+            setView({
+                ...view,
+                type: 'send',
+            });
+        }
     }
 
     const { mutation: sendAsset } = useCreateSendAssetTransaction(
@@ -78,28 +77,25 @@ export function AssetsDialog({
         }
     }
 
-    function onSendClose() {
-        setView(undefined);
-    }
-
     function onSendBack() {
-        setView(AssetsDialogView.Details);
+        if (view.type === 'send') {
+            setView({
+                ...view,
+                type: 'details',
+            });
+        }
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={() => handleClose()}>
+        <Dialog open={isOpen} onOpenChange={() => onClose()}>
             <FormikProvider value={formik}>
                 <>
-                    {view === AssetsDialogView.Details && asset && (
-                        <DetailsView
-                            asset={asset}
-                            handleClose={handleClose}
-                            handleSend={handleDetailsSend}
-                        />
-                    )}
-                    {view === AssetsDialogView.Send && asset && (
-                        <SendView asset={asset} onClose={onSendClose} onBack={onSendBack} />
-                    )}
+                    {view.type === 'details' ? (
+                        <DetailsView asset={view.asset} onClose={onClose} onSend={onDetailsSend} />
+                    ) : undefined}
+                    {view.type === 'send' ? (
+                        <SendView asset={view.asset} onClose={onClose} onBack={onSendBack} />
+                    ) : undefined}
                 </>
             </FormikProvider>
         </Dialog>

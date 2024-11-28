@@ -26,9 +26,8 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {
-    const [view, setView] = useState<AssetsDialogView | undefined>(AssetsDialogView.Details);
+    const [view, setView] = useState<AssetsDialogView>({ type: 'close', asset: undefined });
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
-    const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
     const account = useCurrentAccount();
     const { data, isFetching, fetchNextPage, hasNextPage } = useGetOwnedObjects(
         account?.address,
@@ -52,13 +51,15 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         }
     }
 
-    function handleClickAsset(asset: IotaObjectData) {
-        setSelectedAsset(asset);
-        setView(AssetsDialogView.Details);
+    function onClickAsset(asset: IotaObjectData) {
+        setView({
+            type: 'details',
+            asset,
+        });
     }
 
-    function handleCloseDialog() {
-        setSelectedAsset(null);
+    function onCloseDialog() {
+        setView({ type: 'close', asset: undefined });
     }
 
     return (
@@ -79,20 +80,12 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 <AssetList
                     assets={assets}
                     selectedCategory={selectedCategory}
-                    onClick={handleClickAsset}
+                    onClick={onClickAsset}
                     hasNextPage={hasNextPage}
                     isFetchingNextPage={isFetching}
                     fetchNextPage={fetchNextPage}
                 />
-                {view && (
-                    <AssetsDialog
-                        view={view}
-                        setView={setView}
-                        isOpen={!!selectedAsset}
-                        handleClose={handleCloseDialog}
-                        asset={selectedAsset}
-                    />
-                )}
+                <AssetsDialog view={view} setView={setView} onClose={onCloseDialog} />
             </div>
         </Panel>
     );
