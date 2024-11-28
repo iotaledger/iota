@@ -7,7 +7,7 @@ import Transport from '@ledgerhq/hw-transport';
 import { log } from '@ledgerhq/logs';
 import { Subject } from 'rxjs';
 
-const SPECULOS_API_DEFAULT_PORT = '5000';
+const SPECULOS_API_DEFAULT_PORT = '5001';
 
 export type SpeculosHttpTransportOpts = {
     apiPort?: string;
