@@ -163,7 +163,3 @@ tested by [crates/iota-graphql-e2e-tests/tests/call/dynamic_fields.move](../../.
   }
 }
 ```
-
-tested by [crates/iota-graphql-e2e-tests/tests/objects/received.move](../../../iota-graphql-e2e-tests/tests/objects/received.move):
-
-```
