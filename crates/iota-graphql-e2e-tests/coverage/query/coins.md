@@ -2,7 +2,7 @@ Query: `type`
 
 ```graphql
 {
-  coins {
+  coins(first: null, last: null, after: null) {
     edges {
       node {
         address

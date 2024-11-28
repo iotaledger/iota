@@ -2,7 +2,7 @@ Query: `checkpoint`
 
 ```graphql
 {
-  checkpoint {
+  checkpoint(id: null) {
     digest
     sequenceNumber
     timestamp

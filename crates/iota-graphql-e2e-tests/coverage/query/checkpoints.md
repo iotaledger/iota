@@ -2,7 +2,7 @@ Query: `checkpoints`
 
 ```graphql
 {
-  checkpoints {
+  checkpoints(after: null, first: null, last: null, before: null) {
     edges {
       node {
         digest

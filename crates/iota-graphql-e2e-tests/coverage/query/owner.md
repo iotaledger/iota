@@ -2,7 +2,7 @@ Query: `owner`
 
 ```graphql
 {
-  owner(address: "0x1") {
+  owner(address: "0x1", rootVersion: null) {
     address
     objects {
       edges {
