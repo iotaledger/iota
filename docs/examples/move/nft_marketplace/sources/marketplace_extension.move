@@ -62,20 +62,34 @@ module nft_marketplace::marketplace_extension {
     /// Buy listed item with the indicated price and pay royalties if needed
     public fun buy_item<T: key + store>(kiosk: &mut Kiosk, policy: &mut TransferPolicy<T>, item_id: object::ID, mut payment: Coin<IOTA>, ctx: &mut TxContext): T {
         assert!(kiosk_extension::is_installed<Marketplace>(kiosk), EExtensionNotInstalled);
+
+        // Get item price
         let ItemPrice { price } = take_from_bag<T, Listed>(kiosk,  Listed { id: item_id });
-        
+
+        // Compute the value of the coin in input
         let payment_amount_value = payment.value();
+
+        // If the payment_amount_value is less than the item price, the request is invalid.
         assert!(payment_amount_value >= price, ENotEnoughPaymentAmount);
+
+        // Prepare the payment coin for the purchase (if no royalties are present then the
+        // remaining balance will be 0 after this operation)
         let coin_price = payment.split(price, ctx);
-        
+
+        // Purchase and create the transfer request
         let (item, mut transfer_request) = purchase(kiosk, item_id, coin_price);
+
+        // If the royalty is present, then update the request with a royalty payment
         if (policy.has_rule<T, RoyaltyRule>()) { 
             let royalties_value = royalty_rule::fee_amount(policy, price);
             assert!(payment_amount_value == price + royalties_value, EWrongPaymentRoyalties);
             royalty_rule::pay(policy, &mut transfer_request, payment);
         } else {
+            // Else clean the input coin (if the input payment amount is not exact, this will fail)
             payment.destroy_zero();
         };
+
+        // Confirm the request
         transfer_policy::confirm_request(policy, transfer_request);
         item
     }
