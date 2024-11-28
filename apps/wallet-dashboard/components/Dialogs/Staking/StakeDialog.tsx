@@ -47,7 +47,7 @@ interface StakeDialogProps {
     onSuccess?: (digest: string) => void;
     isOpen: boolean;
     handleClose: () => void;
-    view: StakeDialogView;
+    view?: StakeDialogView;
     setView?: (view: StakeDialogView) => void;
     stakedDetails?: ExtendedDelegatedStake | null;
 

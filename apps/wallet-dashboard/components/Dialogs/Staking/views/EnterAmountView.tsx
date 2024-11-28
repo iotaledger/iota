@@ -88,8 +88,6 @@ function EnterAmountView({
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
-    const shouldShowInsufficientRemainingFundsWarning =
-        maxTokenFormatted >= values.amount && !hasEnoughRemaingBalance;
 
     return (
         <Layout>
@@ -134,7 +132,7 @@ function EnterAmountView({
                                     );
                                 }}
                             </Field>
-                            {shouldShowInsufficientRemainingFundsWarning ? (
+                            {!hasEnoughRemaingBalance ? (
                                 <div className="mt-md">
                                     <InfoBox
                                         type={InfoBoxType.Error}
