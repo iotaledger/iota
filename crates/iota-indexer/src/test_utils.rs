@@ -44,7 +44,7 @@ pub async fn start_test_indexer<T: R2D2Connection + Send + 'static>(
     db_url: Option<String>,
     rpc_url: String,
     reader_writer_config: ReaderWriterConfig,
-    data_ingestion_path: PathBuf,
+    data_ingestion_path: Option<PathBuf>,
     new_database: Option<&str>,
 ) -> (PgIndexerStore<T>, JoinHandle<Result<(), IndexerError>>) {
     start_test_indexer_impl(
@@ -53,7 +53,7 @@ pub async fn start_test_indexer<T: R2D2Connection + Send + 'static>(
         reader_writer_config,
         // reset_database
         false,
-        Some(data_ingestion_path),
+        data_ingestion_path,
         CancellationToken::new(),
         new_database,
     )
@@ -86,11 +86,14 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
 
     let mut config = IndexerConfig {
         db_url: Some(db_url.clone().into()),
+        // As fallback sync mechanism enable Rest Api if `data_ingestion_path` was not provided
+        remote_store_url: data_ingestion_path
+            .is_none()
+            .then_some(format!("{rpc_url}/api/v1")),
         rpc_client_url: rpc_url,
         reset_db: true,
         fullnode_sync_worker: true,
         rpc_server_worker: false,
-        remote_store_url: None,
         data_ingestion_path,
         ..Default::default()
     };

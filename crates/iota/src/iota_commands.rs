@@ -755,7 +755,7 @@ async fn start(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::writer_mode(None),
-            data_ingestion_path.clone(),
+            Some(data_ingestion_path.clone()),
             None,
         )
         .await;
@@ -766,7 +766,7 @@ async fn start(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::reader_mode(indexer_address.to_string()),
-            data_ingestion_path,
+            Some(data_ingestion_path),
             None,
         )
         .await;
@@ -1201,29 +1201,36 @@ async fn prompt_if_no_config(
                 .unwrap_or(&iota_config_dir()?)
                 .join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
-            let key_scheme = if accept_defaults {
-                SignatureScheme::ED25519
+            // Get an existing address or generate a new one
+            let active_address = if let Some(existing_address) = keystore.addresses().first() {
+                println!("Using existing address {existing_address} as active address.");
+                *existing_address
             } else {
+                let key_scheme = if accept_defaults {
+                    SignatureScheme::ED25519
+                } else {
+                    println!(
+                        "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):"
+                    );
+                    match SignatureScheme::from_flag(read_line()?.trim()) {
+                        Ok(s) => s,
+                        Err(e) => return Err(anyhow!("{e}")),
+                    }
+                };
+                let (new_address, phrase, scheme) =
+                    keystore.generate_and_add_new_key(key_scheme, None, None, None)?;
+                let alias = keystore.get_alias_by_address(&new_address)?;
                 println!(
-                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):"
+                    "Generated new keypair and alias for address with scheme {:?} [{alias}: {new_address}]",
+                    scheme.to_string()
                 );
-                match SignatureScheme::from_flag(read_line()?.trim()) {
-                    Ok(s) => s,
-                    Err(e) => return Err(anyhow!("{e}")),
-                }
+                println!("Secret Recovery Phrase : [{phrase}]");
+                new_address
             };
-            let (new_address, phrase, scheme) =
-                keystore.generate_and_add_new_key(key_scheme, None, None, None)?;
-            let alias = keystore.get_alias_by_address(&new_address)?;
-            println!(
-                "Generated new keypair and alias for address with scheme {:?} [{alias}: {new_address}]",
-                scheme.to_string()
-            );
-            println!("Secret Recovery Phrase : [{phrase}]");
             let alias = env.alias().clone();
             IotaClientConfig::new(keystore)
                 .with_envs([env])
-                .with_active_address(new_address)
+                .with_active_address(active_address)
                 .with_active_env(alias)
                 .persisted(wallet_conf_path)
                 .save()?;
