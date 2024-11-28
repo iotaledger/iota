@@ -58,18 +58,24 @@ jobs:
             exit 1
           fi
 
+          # TEMP: check if sccache is on the image
+          echo "sccache: $(which sccache)" 
+          echo "$RUSTC_WRAPPER"
+          if [ -s "$HOME/.cargo/config.toml" ]; then
+            cat "$HOME/.cargo/config.toml"
+          fi
+
       - name: Run code coverage (nextest)
         run: |
           set +e
+
           IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --no-report nextest -vv
 
-          find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
+          if ! find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
             --failure-mode=warn \
             --sparse \
-            --output target/nextest.profdata
+            --output target/nextest.profdata; then
 
-          if [ $? -ne 0 ]; then
-            echo "Error detected despite `--ignore-run-fail`. Trying to salvage the situation:"
             echo "Scanning for corrupted .profraw files. This might take a while."
             find target/llvm-cov-target -name '*.profraw' | while read file; do
               if ! "$LLVM_PROFDATA" show "$file" > /dev/null 2>&1; then
@@ -93,15 +99,14 @@ jobs:
           git clean -fd
 
           set +e
+
           ./scripts/simtest/simtest-cov.sh
 
-          find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
+          if ! find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
             --failure-mode=warn \
             --sparse \
-            --output target/simtest.profdata
+            --output target/simtest.profdata; then
 
-          if [ $? -ne 0 ]; then
-            echo "Error detected despite `--ignore-run-fail`. Trying to salvage the situation:"
             echo "Scanning for corrupted .profraw files. This might take a while."
             find target/llvm-cov-target -name '*.profraw' | while read file; do
               if ! "$LLVM_PROFDATA" show "$file" > /dev/null 2>&1; then
@@ -120,7 +125,6 @@ jobs:
 
           if [ ! -s "target/simtest.profdata" ]; then
             echo "🚨 Warning 🚨: Collecting simtest coverage failed." 
-            exit 0
           fi
 
       - name: Create report (lcov.info)
