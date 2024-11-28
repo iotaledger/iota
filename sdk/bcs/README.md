@@ -1,8 +1,8 @@
 # BCS - Binary Canonical Serialization
 
-BCS is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
+`@iota/bcs` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
 
-> **Note**: This package is currently supported in **only in Testnet and Devnet**, and is **not yet supported in Mainnet**.
+> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
 
 This small and lightweight library implements
 [Binary Canonical Serialization (BCS)](https://github.com/zefchain/bcs) in TypeScript, making BCS
