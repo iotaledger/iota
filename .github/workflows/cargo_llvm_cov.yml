@@ -67,14 +67,15 @@ jobs:
 
       - name: Run code coverage (nextest)
         run: |
+          set +x
           set +e
 
           IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --no-report nextest -vv
 
-          if ! find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
+          if ! (find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 "$LLVM_PROFDATA" merge \
             --failure-mode=warn \
             --sparse \
-            --output target/nextest.profdata; then
+            --output target/nextest.profdata); then
 
             echo "Scanning for corrupted .profraw files. This might take a while."
             find target/llvm-cov-target -name '*.profraw' | while read file; do
@@ -96,16 +97,17 @@ jobs:
 
       - name: Run code coverage (simtest)
         run: |
+          set +x
+
           git clean -fd
 
           set +e
-
           ./scripts/simtest/simtest-cov.sh
 
-          if ! find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
+          if ! (find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 "$LLVM_PROFDATA" merge \
             --failure-mode=warn \
             --sparse \
-            --output target/simtest.profdata; then
+            --output target/simtest.profdata); then
 
             echo "Scanning for corrupted .profraw files. This might take a while."
             find target/llvm-cov-target -name '*.profraw' | while read file; do
