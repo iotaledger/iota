@@ -186,6 +186,38 @@ fn query_events_supported_events() {
 }
 
 #[test]
+fn query_validator_epoch_info_event() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        cluster.force_new_epoch().await;
+
+        let result = client.query_events(EventFilter::MoveEventType("0x0000000000000000000000000000000000000000000000000000000000000003::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().data.len() > 0);
+
+        let result = client.query_events(EventFilter::MoveEventType("0x3::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().data.len() > 0);
+
+        let result = client.query_events(EventFilter::MoveEventType("0x03::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().data.len() > 0);
+
+        let result = client.query_events(EventFilter::MoveEventType("0x1::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().data.len() == 0);
+    });
+}
+
+#[test]
 fn test_get_owned_objects() -> Result<(), anyhow::Error> {
     let ApiTestSetup {
         runtime,
