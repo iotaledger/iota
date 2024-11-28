@@ -201,19 +201,19 @@ fn query_validator_epoch_info_event() {
 
         let result = client.query_events(EventFilter::MoveEventType("0x0000000000000000000000000000000000000000000000000000000000000003::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
         assert!(result.is_ok());
-        assert!(result.unwrap().data.len() > 0);
+        assert!(!result.unwrap().data.is_empty());
 
         let result = client.query_events(EventFilter::MoveEventType("0x3::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
         assert!(result.is_ok());
-        assert!(result.unwrap().data.len() > 0);
+        assert!(!result.unwrap().data.is_empty());
 
-        let result = client.query_events(EventFilter::MoveEventType("0x03::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
+        let result = client.query_events(EventFilter::MoveEventType("0x0003::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
         assert!(result.is_ok());
-        assert!(result.unwrap().data.len() > 0);
+        assert!(!result.unwrap().data.is_empty());
 
         let result = client.query_events(EventFilter::MoveEventType("0x1::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
         assert!(result.is_ok());
-        assert!(result.unwrap().data.len() == 0);
+        assert!(result.unwrap().data.is_empty());
     });
 }
 
