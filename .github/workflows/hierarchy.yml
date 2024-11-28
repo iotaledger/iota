@@ -22,6 +22,7 @@ jobs:
       isMove: ${{ steps.diff.outputs.isMove }}
       isDoc: ${{ steps.diff.outputs.isDoc }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
+      isExternalCrates: ${{ steps.diff.outputs.isExternalCrates }}
       isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
       isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota-sdk')) }}
@@ -148,3 +149,12 @@ jobs:
       - typos
     uses: ./.github/workflows/_ledgernano.yml
     secrets: inherit
+
+  move-ide:
+    if: (!cancelled() && !failure()) && needs.diff.outputs.isExternalCrates == 'true' && github.event.pull_request.draft == false
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    uses: ./.github/workflows/_move_ide.yml
