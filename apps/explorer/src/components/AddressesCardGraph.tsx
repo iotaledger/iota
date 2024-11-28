@@ -8,7 +8,8 @@ import { useMemo } from 'react';
 import { useGetAddressMetrics } from '~/hooks/useGetAddressMetrics';
 import { useGetAllEpochAddressMetrics } from '~/hooks/useGetAllEpochAddressMetrics';
 import { LabelTextSize, TooltipPosition } from '@iota/apps-ui-kit';
-import { StatisticsPanel, GraphTooltip } from './StatisticsPanel';
+import { StatisticsPanel } from './StatisticsPanel';
+import { GraphTooltipContent } from './GraphTooltipContent';
 
 const GRAPH_DATA_FIELD = 'cumulativeAddresses';
 const GRAPH_DATA_TEXT = 'Total addresses';
@@ -18,7 +19,13 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JS
     const totalFormatted = formatAmount(data[GRAPH_DATA_FIELD]);
 
     const overline = `${dateFormatted}, Epoch ${data.epoch}`;
-    return <GraphTooltip overline={overline} title={totalFormatted} subtitle={GRAPH_DATA_TEXT} />;
+    return (
+        <GraphTooltipContent
+            overline={overline}
+            title={totalFormatted}
+            subtitle={GRAPH_DATA_TEXT}
+        />
+    );
 }
 
 const FALLBACK = '--';

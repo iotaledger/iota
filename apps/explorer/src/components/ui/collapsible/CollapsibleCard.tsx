@@ -25,6 +25,7 @@ export interface CollapsibleCardProps {
     hideBorder?: boolean;
     render?: ({ isOpen }: { isOpen: boolean }) => ReactNode;
     supportingTitleElement?: ReactNode;
+    isTransparentPanel?: boolean;
 }
 
 export function CollapsibleCard({
@@ -38,6 +39,7 @@ export function CollapsibleCard({
     hideBorder,
     render,
     supportingTitleElement,
+    isTransparentPanel,
 }: CollapsibleCardProps) {
     const [open, setOpen] = useState(!initialClose);
     return collapsible ? (
@@ -69,7 +71,7 @@ export function CollapsibleCard({
             </Accordion>
         </div>
     ) : (
-        <Panel hasBorder={!hideBorder}>
+        <Panel hasBorder={!hideBorder} bgColor={isTransparentPanel ? 'bg-transparent' : undefined}>
             <Title size={titleSize} title={title ?? ''} />
             <div>{children}</div>
             {footer && (
