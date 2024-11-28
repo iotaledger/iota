@@ -60,7 +60,7 @@ Query: `dryRunTransactionBlock`
 }
 ```
 
-tested by [crates/iota-graphql-rpc/tests/e2e_tests.rs](crates/iota-graphql-rpc/tests/e2e_tests.rs):
+tested by [crates/iota-graphql-rpc/tests/e2e_tests.rs](../../../iota-graphql-rpc/tests/e2e_tests.rs):
 
 ```
 {

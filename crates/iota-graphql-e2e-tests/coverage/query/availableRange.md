@@ -13,7 +13,7 @@ Query: `availableRange`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/available_range/available_range.move](crates/iota-graphql-e2e-tests/tests/available_range/available_range.move):
+tested by [crates/iota-graphql-e2e-tests/tests/available_range/available_range.move](../../../iota-graphql-e2e-tests/tests/available_range/available_range.move):
 
 ```
 //# run-graphql

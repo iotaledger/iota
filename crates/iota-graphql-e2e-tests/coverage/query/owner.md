@@ -65,7 +65,7 @@ Query: `owner`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](crates/iota-graphql-e2e-tests/tests/call/owned_objects.move):
+tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](../../../iota-graphql-e2e-tests/tests/call/owned_objects.move):
 
 ```
 //# run-graphql
@@ -89,7 +89,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](crates/i
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/call/dynamic_fields.move](crates/iota-graphql-e2e-tests/tests/call/dynamic_fields.move):
+tested by [crates/iota-graphql-e2e-tests/tests/call/dynamic_fields.move](../../../iota-graphql-e2e-tests/tests/call/dynamic_fields.move):
 
 ```
 //# run-graphql

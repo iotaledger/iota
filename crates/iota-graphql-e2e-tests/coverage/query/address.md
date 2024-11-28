@@ -59,7 +59,7 @@ Query: `address`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](crates/iota-graphql-e2e-tests/tests/call/owned_objects.move):
+tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](../../../iota-graphql-e2e-tests/tests/call/owned_objects.move):
 
 ```
 //# run-graphql
@@ -83,7 +83,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/call/owned_objects.move](crates/i
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/transaction_block_effects/balance_changes.move](crates/iota-graphql-e2e-tests/tests/transaction_block_effects/balance_changes.move):
+tested by [crates/iota-graphql-e2e-tests/tests/transaction_block_effects/balance_changes.move](../../../iota-graphql-e2e-tests/tests/transaction_block_effects/balance_changes.move):
 
 ```
 //# run-graphql
@@ -113,7 +113,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/transaction_block_effects/balance
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/consistency/coins.move](crates/iota-graphql-e2e-tests/tests/consistency/coins.move):
+tested by [crates/iota-graphql-e2e-tests/tests/consistency/coins.move](../../../iota-graphql-e2e-tests/tests/consistency/coins.move):
 
 ```
 //# run-graphql
@@ -172,7 +172,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/consistency/coins.move](crates/io
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/consistency/staked_iota.move](crates/iota-graphql-e2e-tests/tests/consistency/staked_iota.move):
+tested by [crates/iota-graphql-e2e-tests/tests/consistency/staked_iota.move](../../../iota-graphql-e2e-tests/tests/consistency/staked_iota.move):
 
 ```
 //# run-graphql

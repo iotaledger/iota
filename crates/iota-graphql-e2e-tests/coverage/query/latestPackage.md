@@ -188,7 +188,7 @@ Query: `latestPackage`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/packages/versioning.move](crates/iota-graphql-e2e-tests/tests/packages/versioning.move):
+tested by [crates/iota-graphql-e2e-tests/tests/packages/versioning.move](../../../iota-graphql-e2e-tests/tests/packages/versioning.move):
 
 ```
 //# run-graphql

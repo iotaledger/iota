@@ -97,7 +97,7 @@ Query: `objects`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/consistency/performance/many_objects.move](crates/iota-graphql-e2e-tests/tests/consistency/performance/many_objects.move):
+tested by [crates/iota-graphql-e2e-tests/tests/consistency/performance/many_objects.move](../../../iota-graphql-e2e-tests/tests/consistency/performance/many_objects.move):
 
 ```
 //# run-graphql
@@ -144,7 +144,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/consistency/performance/many_obje
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/consistency/objects_pagination.move](crates/iota-graphql-e2e-tests/tests/consistency/objects_pagination.move):
+tested by [crates/iota-graphql-e2e-tests/tests/consistency/objects_pagination.move](../../../iota-graphql-e2e-tests/tests/consistency/objects_pagination.move):
 
 ```
 //# run-graphql --cursors @{obj_6_0,2}
@@ -165,7 +165,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/consistency/objects_pagination.mo
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/coverage/query/objects.md](crates/iota-graphql-e2e-tests/coverage/query/objects.md):
+tested by [crates/iota-graphql-e2e-tests/coverage/query/objects.md](../../../iota-graphql-e2e-tests/coverage/query/objects.md):
 
 ```
 //# run-graphql

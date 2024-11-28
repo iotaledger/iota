@@ -77,7 +77,7 @@ Query: `transactionBlocks`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/consistency/balances.move](crates/iota-graphql-e2e-tests/tests/consistency/balances.move):
+tested by [crates/iota-graphql-e2e-tests/tests/consistency/balances.move](../../../iota-graphql-e2e-tests/tests/consistency/balances.move):
 
 ```
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
@@ -104,7 +104,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/consistency/balances.move](crates
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/transaction_block_effects/object_changes.move](crates/iota-graphql-e2e-tests/tests/transaction_block_effects/object_changes.move):
+tested by [crates/iota-graphql-e2e-tests/tests/transaction_block_effects/object_changes.move](../../../iota-graphql-e2e-tests/tests/transaction_block_effects/object_changes.move):
 
 ```
 //# run-graphql
@@ -129,7 +129,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/transaction_block_effects/object_
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/consistency/epochs/transaction_blocks.move](crates/iota-graphql-e2e-tests/tests/consistency/epochs/transaction_blocks.move):
+tested by [crates/iota-graphql-e2e-tests/tests/consistency/epochs/transaction_blocks.move](../../../iota-graphql-e2e-tests/tests/consistency/epochs/transaction_blocks.move):
 
 ```
 //# run-graphql --cursors {"t":5,"i":false,"c":6}

@@ -28,7 +28,7 @@ Query: `protocolConfig`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/epoch/protocol_configs.move](crates/iota-graphql-e2e-tests/tests/epoch/protocol_configs.move):
+tested by [crates/iota-graphql-e2e-tests/tests/epoch/protocol_configs.move](../../../iota-graphql-e2e-tests/tests/epoch/protocol_configs.move):
 
 ```
 //# run-graphql

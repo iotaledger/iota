@@ -16,7 +16,7 @@ Query: `coinMetadata`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/call/coin_metadata.move](crates/iota-graphql-e2e-tests/tests/call/coin_metadata.move):
+tested by [crates/iota-graphql-e2e-tests/tests/call/coin_metadata.move](../../../iota-graphql-e2e-tests/tests/call/coin_metadata.move):
 
 ```
 //# run-graphql

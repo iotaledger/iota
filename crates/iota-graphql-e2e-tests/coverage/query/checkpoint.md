@@ -44,7 +44,7 @@ Query: `checkpoint`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/call/simple.move](crates/iota-graphql-e2e-tests/tests/call/simple.move):
+tested by [crates/iota-graphql-e2e-tests/tests/call/simple.move](../../../iota-graphql-e2e-tests/tests/call/simple.move):
 
 ```
 //# run-graphql
@@ -55,7 +55,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/call/simple.move](crates/iota-gra
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/transactions/at_checkpoint.move](crates/iota-graphql-e2e-tests/tests/transactions/at_checkpoint.move):
+tested by [crates/iota-graphql-e2e-tests/tests/transactions/at_checkpoint.move](../../../iota-graphql-e2e-tests/tests/transactions/at_checkpoint.move):
 
 ```
 //# run-graphql

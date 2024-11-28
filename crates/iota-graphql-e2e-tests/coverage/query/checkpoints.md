@@ -48,7 +48,7 @@ Query: `checkpoints`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/limits/output_node_estimation.move](crates/iota-graphql-e2e-tests/tests/limits/output_node_estimation.move):
+tested by [crates/iota-graphql-e2e-tests/tests/limits/output_node_estimation.move](../../../iota-graphql-e2e-tests/tests/limits/output_node_estimation.move):
 
 ```
 //# run-graphql --show-usage
@@ -68,7 +68,7 @@ tested by [crates/iota-graphql-e2e-tests/tests/limits/output_node_estimation.mov
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/consistency/checkpoints/transaction_blocks.move](crates/iota-graphql-e2e-tests/tests/consistency/checkpoints/transaction_blocks.move):
+tested by [crates/iota-graphql-e2e-tests/tests/consistency/checkpoints/transaction_blocks.move](../../../iota-graphql-e2e-tests/tests/consistency/checkpoints/transaction_blocks.move):
 
 ```
 {

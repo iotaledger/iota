@@ -25,7 +25,7 @@ Query: `serviceConfig`
 }
 ```
 
-tested by [crates/iota-graphql-e2e-tests/tests/call/simple.move](crates/iota-graphql-e2e-tests/tests/call/simple.move):
+tested by [crates/iota-graphql-e2e-tests/tests/call/simple.move](../../../iota-graphql-e2e-tests/tests/call/simple.move):
 
 ```
 //# run-graphql
