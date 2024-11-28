@@ -121,11 +121,11 @@ pub struct MovePackage {
 #[repr(u8)]
 #[derive(Display, Debug, Clone, Copy)]
 pub enum UpgradePolicy {
-    #[display(fmt = "COMPATIBLE")]
+    #[display("COMPATIBLE")]
     Compatible = 0,
-    #[display(fmt = "ADDITIVE")]
+    #[display("ADDITIVE")]
     Additive = 128,
-    #[display(fmt = "DEP_ONLY")]
+    #[display("DEP_ONLY")]
     DepOnly = 192,
 }
 

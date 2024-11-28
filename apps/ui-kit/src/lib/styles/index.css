@@ -45,6 +45,25 @@
     .text-label-md {
         font-variant-alternates: 'ss01';
     }
+
+    input:-webkit-autofill,
+    input:-webkit-autofill:enabled,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+        @apply appearance-none !bg-transparent !bg-none;
+        @apply !text-neutral-92 dark:!text-neutral-10;
+        transition: background-color 5000s ease-in-out 0s;
+        -webkit-text-fill-color: theme('colors.neutral.92') !important;
+    }
+
+    :root:not(.dark) {
+        input:-webkit-autofill,
+        input:-webkit-autofill:enabled,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-text-fill-color: theme('colors.neutral.10') !important;
+        }
+    }
 }
 
 @layer utilities {

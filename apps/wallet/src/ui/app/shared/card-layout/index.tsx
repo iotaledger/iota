@@ -35,7 +35,9 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
             ) : null}
             {subtitle ? (
                 <div className="mb-md text-center">
-                    <span className="text-label-md text-neutral-10">{subtitle}</span>
+                    <span className="text-label-md text-neutral-10 dark:text-neutral-92">
+                        {subtitle}
+                    </span>
                 </div>
             ) : null}
             {children}
