@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ArrowRight } from '@iota/ui-icons';
-import { Button, ButtonSize, ButtonType } from '@/components/atoms/button';
+import { Button, ButtonSize, ButtonType } from '../../atoms/button';
 import { CardActionType } from './card.enums';
 
 export type CardActionProps = {
@@ -12,7 +12,7 @@ export type CardActionProps = {
     onClick?: () => void;
     icon?: React.ReactNode;
     iconAfterText?: boolean;
-    buttonType?: ButtonType;
+    buttonType?: ButtonType | undefined;
     buttonDisabled?: boolean;
 };
 
@@ -23,7 +23,7 @@ export function CardAction({
     title,
     icon,
     iconAfterText,
-    buttonType = ButtonType.Outlined,
+    buttonType,
     buttonDisabled,
 }: CardActionProps) {
     function handleActionClick(event: React.MouseEvent) {
