@@ -9,7 +9,7 @@ on:
         description: "Branch / commit to test"
         type: string
         required: false
-        default: ''
+        default: ""
 
 jobs:
   llvm-cov:
@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
         with:
-            ref: ${{ github.event.inputs.sui_repo_ref || github.ref }}
+          ref: ${{ github.event.inputs.sui_repo_ref || github.ref }}
 
       - uses: bmwill/rust-cache@fb63fcd7a959767755b88b5af2f5cbf65fb8a127 # pin@v1
 
@@ -93,7 +93,7 @@ jobs:
           if [ -s "target/nextest.profdata" ]; then
             echo "Successfully collected nextest coverage data."
           else
-            echo "🚨 Error 🚨: Collecting nexttest coverage failed." 
+            echo "🚨 Error 🚨: Collecting nexttest coverage failed."
             exit 1
           fi
 
@@ -124,7 +124,7 @@ jobs:
           if [ -s "target/simtest.profdata" ]; then
             echo "Successfully collected simtest coverage data."
           else
-            echo "🚨 Warning 🚨: Collecting simtest coverage failed." 
+            echo "🚨 Warning 🚨: Collecting simtest coverage failed."
           fi
 
       - name: Create report (lcov.info)
@@ -149,7 +149,6 @@ jobs:
 
           echo "Removing absolute path prefix: ${{ github.workspace }} from report."
           sed --in-place "s#${{ github.workspace }}#.#g" lcov.info
-
 
       - name: Backup report
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
