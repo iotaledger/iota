@@ -7,11 +7,11 @@ import React from 'react';
 interface BannerProps {
     videoSrc: string;
     title: string;
-    subTitle?: string;
+    subtitle?: string;
     onButtonClick: () => void;
     buttonText: string;
 }
-export function Banner({ videoSrc, title, subTitle, onButtonClick, buttonText }: BannerProps) {
+export function Banner({ videoSrc, title, subtitle, onButtonClick, buttonText }: BannerProps) {
     return (
         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
             <div className="flex h-full w-full justify-between ">
@@ -21,7 +21,7 @@ export function Banner({ videoSrc, title, subTitle, onButtonClick, buttonText }:
                             {title}
                         </span>
                         <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                            {subTitle}
+                            {subtitle}
                         </span>
                     </div>
                     <div>

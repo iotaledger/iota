@@ -7,7 +7,7 @@ import { Banner, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
-    getLastSupplyIncreaseVestingPayout,
+    getSupplyIncreaseVestingPayout,
     getVestingOverview,
     groupTimelockedStakedObjects,
     isTimelockedUnlockable,
@@ -97,7 +97,7 @@ function VestingDashboardPage(): JSX.Element {
         vestingSchedule.totalLocked,
         IOTA_TYPE_ARG,
     );
-    const lastPayout = getLastSupplyIncreaseVestingPayout([
+    const lastPayout = getSupplyIncreaseVestingPayout([
         ...timelockedMapped,
         ...timelockedstakedMapped,
     ]);
@@ -270,7 +270,7 @@ function VestingDashboardPage(): JSX.Element {
                     <Banner
                         videoSrc={videoSrc}
                         title="Stake Vested Tokens"
-                        subTitle="Earn Rewards"
+                        subtitle="Earn Rewards"
                         onButtonClick={() => {
                             /*Add stake vested tokens dialog flow*/
                         }}

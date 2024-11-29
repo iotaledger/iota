@@ -1,9 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { StakeDialog } from '../Dialogs';
+import { StakeDialog, useStakeDialog } from '../Dialogs';
 import { Theme, useTheme } from '@iota/core';
-import { useStakeDialog } from '../Dialogs/Staking/hooks/useStakeDialog';
 import { Banner } from '../Banner';
 
 export function StartStaking() {
@@ -29,7 +28,7 @@ export function StartStaking() {
             <Banner
                 videoSrc={videoSrc}
                 title="Start Staking"
-                subTitle="Earn Rewards"
+                subtitle="Earn Rewards"
                 onButtonClick={handleNewStake}
                 buttonText="Stake"
             />
