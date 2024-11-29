@@ -5,61 +5,61 @@ global:
 scrape_configs:
   - job_name: "prometheus"
     static_configs:
-      - targets: ["localhost:9090"]
+      - targets: [ "localhost:9090" ]
   - job_name: "Validator_0"
     static_configs:
-      - targets: ["host.docker.internal:9284"]
+      - targets: [ "validator-1:9184" ]
         labels:
           host: validator0
           network: local
   - job_name: "Validator_1"
     static_configs:
-      - targets: ["host.docker.internal:9285"]
+      - targets: [ "validator-2:9184" ]
         labels:
           host: validator1
           network: local
   - job_name: "Validator_2"
     static_configs:
-      - targets: ["host.docker.internal:9286"]
+      - targets: [ "validator-3:9184" ]
         labels:
           host: validator2
           network: local
   - job_name: "Validator_3"
     static_configs:
-      - targets: ["host.docker.internal:9287"]
+      - targets: [ validator-4:9184" ]
         labels:
           host: validator3
           network: local
-  - job_name: "Client_1"
+  - job_name: "Fullnode_0"
     static_configs:
-      - targets: ["host.docker.internal:9184"]
+      - targets: [ "fullnode-1:9184" ]
         labels:
-          host: client1
+          host: fullnode0
           network: local
-  - job_name: "Client_2"
+  - job_name: "Fullnode_1"
     static_configs:
-      - targets: ["host.docker.internal:9185"]
+      - targets: [ "fullnode-2:9184" ]
         labels:
-          host: client2
+          host: fullnode1
           network: local
-  - job_name: "Client_3"
+  - job_name: "Fullnode_2"
     static_configs:
-      - targets: ["host.docker.internal:9186"]
+      - targets: [ "fullnode-3:9184" ]
         labels:
-          host: client3
+          host: fullnode2
           network: local
-  - job_name: "Client_4"
+  - job_name: "Fullnode_3"
     static_configs:
-      - targets: ["host.docker.internal:9187"]
+      - targets: [ "fullnode-4:9184" ]
         labels:
-          host: client4
+          host: fullnode3
           network: local
   - job_name: "tempo"
     static_configs:
-      - targets: ["tempo:3200"]
-  - job_name: "node"
+      - targets: [ "tempo:3200" ]
+  - job_name: "node-exporter"
     static_configs:
-      - targets: ["host.docker.internal:9100"]
+      - targets: [ "host.docker.internal:9100" ]
         labels:
           host: node
           network: local

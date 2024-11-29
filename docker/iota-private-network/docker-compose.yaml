@@ -216,7 +216,7 @@ services:
       - --amount=10000000000
     ports:
       - "127.0.0.1:5003:5003/tcp"
-      - "0.0.0.0:9188:9184/tcp"
+      - "127.0.0.1:9188:9184/tcp"
     volumes:
       - ./configs/faucet:/root/.iota/iota_config
       - ./data/faucet-1:/wal
