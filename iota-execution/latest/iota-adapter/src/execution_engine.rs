@@ -10,9 +10,7 @@ mod checked {
     use std::{collections::HashSet, sync::Arc};
 
     use iota_move_natives::all_natives;
-    use iota_protocol_config::{
-        LimitThresholdCrossed, ProtocolConfig, ProtocolVersion, check_limit_by_meter,
-    };
+    use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
@@ -868,7 +866,7 @@ mod checked {
         let params = AdvanceEpochParams {
             epoch: change_epoch.epoch,
             next_protocol_version: change_epoch.protocol_version,
-            validator_subsidy: protocol_config.validator_subsidy(),
+            validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch.storage_charge,
             computation_charge: change_epoch.computation_charge,
             computation_charge_burned: change_epoch.computation_charge_burned,
