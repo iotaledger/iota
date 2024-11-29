@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "0 1 * * *" # every day at 1am (UTC)
   workflow_dispatch:
+    inputs:
+      sui_repo_ref:
+        description: "Branch / commit to test"
+        type: string
+        required: false
+        default: ''
 
 jobs:
   llvm-cov:
@@ -31,6 +37,9 @@ jobs:
       CARGO_NET_RETRY: 10
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        with:
+            ref: ${{ github.event.inputs.sui_repo_ref || github.ref }}
+
       - uses: bmwill/rust-cache@fb63fcd7a959767755b88b5af2f5cbf65fb8a127 # pin@v1
 
       - name: Install cargo-llvm-cov
@@ -172,15 +181,6 @@ jobs:
           path: target/lcov.info
           if-no-files-found: error
           retention-days: 30
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: target/lcov.info
-          flags: nextest+simtest
-          fail_ci_if_error: false
-          verbose: true
 
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
