@@ -232,14 +232,16 @@ function VestingDashboardPage(): JSX.Element {
                 )}
             </div>
             <StakeDialog
-                isTimelockedStaking
+                isTimelockedStaking={true}
                 stakedDetails={selectedStake}
+                onSuccess={handleOnSuccess}
                 isOpen={isDialogStakeOpen}
                 handleClose={handleCloseStakeDialog}
                 view={stakeDialogView}
                 setView={setStakeDialogView}
                 selectedValidator={selectedValidator}
                 setSelectedValidator={setSelectedValidator}
+                maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
             />
         </div>
     );

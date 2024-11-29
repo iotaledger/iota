@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useMemo } from 'react';
-import { EnterAmountView, SelectValidatorView } from './views';
+import { EnterAmountView, EnterTimelockedAmountView, SelectValidatorView } from './views';
 import {
     useNotifications,
     useNewStakeTransaction,
@@ -35,6 +35,7 @@ export enum StakeDialogView {
     Details = 'Details',
     SelectValidator = 'SelectValidator',
     EnterAmount = 'EnterAmount',
+    EnterTimelockedAmount = 'EnterTimelockedAmount',
     Unstake = 'Unstake',
 }
 
@@ -50,7 +51,7 @@ interface StakeDialogProps {
     view?: StakeDialogView;
     setView?: (view: StakeDialogView) => void;
     stakedDetails?: ExtendedDelegatedStake | null;
-
+    maxStakableTimelockedAmount?: bigint;
     selectedValidator?: string;
     setSelectedValidator?: (validator: string) => void;
 }
@@ -63,6 +64,7 @@ export function StakeDialog({
     view,
     setView,
     stakedDetails,
+    maxStakableTimelockedAmount,
     selectedValidator = '',
     setSelectedValidator,
 }: StakeDialogProps): JSX.Element {
@@ -79,13 +81,13 @@ export function StakeDialog({
     const validationSchema = useMemo(
         () =>
             createValidationSchema(
-                coinBalance,
+                maxStakableTimelockedAmount ?? coinBalance,
                 coinSymbol,
                 coinDecimals,
                 view === StakeDialogView.Unstake,
                 minimumStake,
             ),
-        [coinBalance, coinSymbol, coinDecimals, view, minimumStake],
+        [maxStakableTimelockedAmount, coinBalance, coinSymbol, coinDecimals, view, minimumStake],
     );
 
     const formik = useFormik({
@@ -101,7 +103,6 @@ export function StakeDialog({
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-
     let groupedTimelockObjects: GroupedTimelockObject[] = [];
     if (isTimelockedStaking && timelockedObjects && currentEpochMs) {
         groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
@@ -135,7 +136,11 @@ export function StakeDialog({
 
     function selectValidatorHandleNext(): void {
         if (selectedValidator) {
-            setView?.(StakeDialogView.EnterAmount);
+            setView?.(
+                isTimelockedStaking
+                    ? StakeDialogView.EnterTimelockedAmount
+                    : StakeDialogView.EnterAmount,
+            );
         }
     }
 
@@ -206,6 +211,18 @@ export function StakeDialog({
                     {view === StakeDialogView.EnterAmount && (
                         <EnterAmountView
                             selectedValidator={selectedValidator}
+                            handleClose={handleClose}
+                            onBack={handleBack}
+                            onStake={handleStake}
+                            gasBudget={newStakeData?.gasBudget}
+                            isTransactionLoading={isTransactionLoading}
+                        />
+                    )}
+                    {view === StakeDialogView.EnterTimelockedAmount && (
+                        <EnterTimelockedAmountView
+                            selectedValidator={selectedValidator}
+                            maxStakableTimelockedAmount={maxStakableTimelockedAmount ?? BigInt(0)}
+                            hasGroupedTimelockObjects={groupedTimelockObjects.length > 0}
                             handleClose={handleClose}
                             onBack={handleBack}
                             onStake={handleStake}
