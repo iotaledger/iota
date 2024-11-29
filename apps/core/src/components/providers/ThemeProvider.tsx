@@ -34,7 +34,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
         setThemePreference(getThemePreference());
         
         // Make the theme preference listener wait 
-        // untl the preference is loaded in the next render
+        // until the preference is loaded in the next render
         isLoadingPreference = true;
     }, []);
 
