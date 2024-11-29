@@ -23,3 +23,4 @@ export * from './ExplorerLink';
 export * from './Dialogs';
 export * from './ValidatorStakingData';
 export * from './tiles';
+export * from './Toaster';

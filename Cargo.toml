@@ -348,11 +348,7 @@ rocksdb = { version = "0.21.0", default-features = false, features = [
   "multi-threaded-cf",
 ] }
 rstest = "0.16.0"
-rustls = { version = "0.23", default-features = false, features = [
-  "std",
-  "tls12",
-  "ring",
-] }
+rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
 schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"
 serde = { version = "1.0.144", features = ["derive", "rc"] }
