@@ -5,7 +5,7 @@
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
+import { useNFTBasicData, useNftDetails, Collapsible, useIsAssetTransferable } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -22,18 +22,19 @@ function NFTDetailsPage() {
         isNftLoading,
         ownerAddress,
         objectData,
-        isTransferable,
         metaKeys,
         metaValues,
         formatMetaValue,
         isContainedInKiosk,
         kioskItem,
     } = useNftDetails(nftId || '', accountAddress);
-
+    const { data: isAssetTransferable, isLoading: isCheckingAssetTransferability } =
+        useIsAssetTransferable(objectData);
     const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
     const isGuardLoading = useUnlockedGuard();
-    const isPending = isNftLoading || isPendingMeta || isGuardLoading;
+    const isPending =
+        isNftLoading || isPendingMeta || isGuardLoading || isCheckingAssetTransferability;
 
     function handleMoreAboutKiosk() {
         window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
@@ -194,7 +195,7 @@ function NFTDetailsPage() {
                                     ) : (
                                         <div className="flex flex-1 items-end">
                                             <Button
-                                                disabled={!isTransferable}
+                                                disabled={!isAssetTransferable}
                                                 onClick={handleSend}
                                                 text="Send"
                                                 fullWidth
