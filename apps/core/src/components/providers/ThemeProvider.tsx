@@ -23,8 +23,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
 
     const [systemTheme, setSystemTheme] = useState<Theme>(Theme.Light);
     const [themePreference, setThemePreference] = useState<ThemePreference>(ThemePreference.System);
-
-    let isLoadingPreference = false;
+    const [isLoadingPreference, setIsLoadingPreference] = useState(true);
 
     // Load the theme values on client
     useEffect(() => {
@@ -35,7 +34,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
 
         // Make the theme preference listener wait
         // until the preference is loaded in the next render
-        isLoadingPreference = true;
+        setIsLoadingPreference(false);
     }, []);
 
     // When the theme preference changes..
