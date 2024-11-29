@@ -23,7 +23,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
 
     const [systemTheme, setSystemTheme] = useState<Theme>(Theme.Light);
     const [themePreference, setThemePreference] = useState<ThemePreference>(ThemePreference.System);
-    
+
     let isLoadingPreference = false;
 
     // Load the theme values on client
@@ -32,8 +32,8 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
 
         setSystemTheme(getSystemTheme());
         setThemePreference(getThemePreference());
-        
-        // Make the theme preference listener wait 
+
+        // Make the theme preference listener wait
         // until the preference is loaded in the next render
         isLoadingPreference = true;
     }, []);
