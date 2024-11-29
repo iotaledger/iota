@@ -41,8 +41,6 @@ services:
       - ./configs/validators/validator-1-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-1:/opt/iota/db:rw
-    ports:
-      - "0.0.0.0:9284:9184/tcp"
 
   validator-2:
     <<: *common-validator
@@ -55,8 +53,6 @@ services:
       - ./configs/validators/validator-2-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-2:/opt/iota/db:rw
-    ports:
-      - "0.0.0.0:9285:9184/tcp"
 
   validator-3:
     <<: *common-validator
@@ -69,8 +65,6 @@ services:
       - ./configs/validators/validator-3-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-3:/opt/iota/db:rw
-    ports:
-      - "0.0.0.0:9286:9184/tcp"
 
   validator-4:
     <<: *common-validator
@@ -83,8 +77,6 @@ services:
       - ./configs/validators/validator-4-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-4:/opt/iota/db:rw
-    ports:
-      - "0.0.0.0:9287:9184/tcp"
 
   fullnode-1:
     <<: *common-fullnode
@@ -101,7 +93,7 @@ services:
       - "9000"
     ports:
       - "127.0.0.1:9000:9000/tcp"
-      - "0.0.0.0:9184:9184/tcp"
+      - "127.0.0.1:9184:9184/tcp"
 
   fullnode-2:
     <<: *common-fullnode
@@ -116,7 +108,7 @@ services:
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
     ports:
       - "127.0.0.1:9001:9000/tcp"
-      - "0.0.0.0:9185:9184/tcp"
+      - "127.0.0.1:9185:9184/tcp"
 
   fullnode-3:
     <<: *common-fullnode
@@ -131,7 +123,7 @@ services:
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
     ports:
       - "127.0.0.1:9002:9000/tcp"
-      - "0.0.0.0:9186:9184/tcp"
+      - "127.0.0.1:9186:9184/tcp"
 
   fullnode-4:
     <<: *common-fullnode
@@ -146,7 +138,7 @@ services:
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
     ports:
       - "127.0.0.1:9003:9000/tcp"
-      - "0.0.0.0:9187:9184/tcp"
+      - "127.0.0.1:9187:9184/tcp"
 
   indexer-1:
     image: iota-indexer

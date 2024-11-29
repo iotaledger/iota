@@ -2,10 +2,12 @@ version: "3"
 services:
   tempo:
     image: grafana/tempo:latest
-    command: ["-config.file=/etc/tempo.yaml"]
+    command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - ${TMPDIR}/tempo-data:/tmp/tempo
+    networks:
+      iota-network:
     ports:
       - "14268:14268" # jaeger ingest
       - "3200:3200" # tempo
@@ -20,6 +22,8 @@ services:
       - --config.file=/etc/prometheus.yaml
       - --web.enable-remote-write-receiver
       - --enable-feature=exemplar-storage
+    networks:
+      iota-network:
     volumes:
       - ./prometheus.yaml:/etc/prometheus.yaml
     ports:
@@ -29,6 +33,8 @@ services:
 
   grafana:
     image: grafana/grafana:10.1.1
+    networks:
+      iota-network:
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
       - ./dashboards:/etc/grafana/provisioning/dashboards
@@ -44,6 +50,8 @@ services:
     image: prom/node-exporter:latest
     container_name: node-exporter
     restart: unless-stopped
+    networks:
+      iota-network:
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -55,3 +63,9 @@ services:
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
     ports:
       - "9100:9100"
+networks:
+  iota-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
