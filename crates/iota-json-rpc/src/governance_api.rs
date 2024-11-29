@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cmp::max, collections::BTreeMap, sync::Arc};
+use std::{cmp::max, collections::BTreeMap, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
@@ -33,6 +33,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
+use serde::Deserialize;
 use statrs::statistics::{Data, Median};
 use tracing::{info, instrument};
 
@@ -198,8 +199,8 @@ impl GovernanceReadApi {
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
             .into_iter()
-            // Try to find for any pending active validator
-            .chain(pending_validator_exchange_rate(&self.state)?.into_iter())
+            // Try to find for any pending and candidate validator exchange rate
+            .chain(pending_and_candidate_validators_exchange_rate(&self.state)?.into_iter())
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -616,15 +617,20 @@ fn validator_exchange_rates(
     Ok(exchange_rates)
 }
 
-/// Check if there is any pending validator and get its exchange rates
-fn pending_validator_exchange_rate(
+/// Check if there is any `Pending` and `Candidate` validators and get its
+/// exchange rates, this two states of a validator lifecycle can manifest
+/// during an epoch or multiple ones, is essential to not cache this data,
+/// while exchange rates for `Active` and `Inactive` validators is OK to do
+/// so because those states are manifested on epoch change.
+fn pending_and_candidate_validators_exchange_rate(
     state: &Arc<dyn StateRead>,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
     let system_state = state.get_system_state()?;
     let object_store = state.get_object_store();
+    let system_state_summary = system_state.clone().into_iota_system_state_summary();
 
     // Try to find for any pending active validator
-    let tables = system_state
+    let mut tables = system_state
         .get_pending_active_validators(object_store)?
         .into_iter()
         .map(|pending_active_validator| {
@@ -638,8 +644,34 @@ fn pending_validator_exchange_rate(
         })
         .collect::<Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>>();
 
+    // Try to find for validator candidate and get its exchange rates
+    for (_, df) in state.get_dynamic_fields(
+        system_state_summary.validator_candidates_id,
+        None,
+        system_state_summary.validator_candidates_size as usize,
+    )? {
+        let raw_address =
+            String::deserialize(df.name.value).map_err(|err| IotaError::from(err.to_string()))?;
+        let validator_address = IotaAddress::from_str(&raw_address)?;
+
+        let validator_summary = get_validator_from_table(
+            object_store,
+            system_state_summary.validator_candidates_id,
+            &validator_address,
+        )?;
+
+        tables.push((
+            validator_summary.iota_address,
+            validator_summary.staking_pool_id,
+            validator_summary.exchange_rates_id,
+            validator_summary.exchange_rates_size,
+            false,
+        ));
+    }
+
     validator_exchange_rates(state, tables)
 }
+
 #[derive(Clone, Debug)]
 pub struct ValidatorExchangeRates {
     pub address: IotaAddress,
