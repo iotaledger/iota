@@ -19,4 +19,4 @@ export SIMTEST_STATIC_INIT_MOVE=$root_dir"/examples/move/basics"
 MSIM_WATCHDOG_TIMEOUT_MS=60000 MSIM_TEST_SEED=1 cargo llvm-cov --ignore-run-fail --no-report nextest -vv
 
 # remove the patch
-git checkout .cargo/config Cargo.toml Cargo.lock
+git checkout .cargo/config.toml Cargo.toml Cargo.lock
