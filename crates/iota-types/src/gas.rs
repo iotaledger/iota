@@ -19,10 +19,7 @@ pub mod checked {
         ObjectID,
         effects::{TransactionEffects, TransactionEffectsAPI},
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{
-            gas_v1::IotaGasStatus as IotaGasStatusV1, gas_v2::IotaGasStatus as IotaGasStatusV2,
-            tables::GasStatus,
-        },
+        gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         iota_serde::{BigInt, Readable},
         object::Object,
         transaction::ObjectReadResult,
@@ -58,7 +55,6 @@ pub mod checked {
     #[derive(Debug)]
     pub enum IotaGasStatus {
         V1(IotaGasStatusV1),
-        V2(IotaGasStatusV2),
     }
 
     impl IotaGasStatus {
@@ -86,21 +82,12 @@ pub mod checked {
                 .into());
             }
 
-            if config.fixed_base_fee() {
-                Ok(Self::V2(IotaGasStatusV2::new_with_budget(
-                    gas_budget,
-                    gas_price,
-                    reference_gas_price,
-                    config,
-                )))
-            } else {
-                Ok(Self::V1(IotaGasStatusV1::new_with_budget(
-                    gas_budget,
-                    gas_price,
-                    reference_gas_price,
-                    config,
-                )))
-            }
+            Ok(Self::V1(IotaGasStatusV1::new_with_budget(
+                gas_budget,
+                gas_price,
+                reference_gas_price,
+                config,
+            )))
         }
 
         pub fn new_unmetered() -> Self {
@@ -118,7 +105,6 @@ pub mod checked {
         ) -> UserInputResult {
             match self {
                 Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
-                Self::V2(status) => status.check_gas_balance(gas_objs, gas_budget),
             }
         }
     }

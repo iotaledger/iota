@@ -10,7 +10,9 @@ mod checked {
     use std::{collections::HashSet, sync::Arc};
 
     use iota_move_natives::all_natives;
-    use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
+    use iota_protocol_config::{
+        LimitThresholdCrossed, ProtocolConfig, ProtocolVersion, check_limit_by_meter,
+    };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
@@ -784,6 +786,7 @@ mod checked {
     pub fn construct_advance_epoch_pt(
         mut builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
+        protocol_version: u64,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         // Step 1: Create storage and computation charges.
         let (storage_charges, computation_charges) = mint_epoch_rewards_in_pt(&mut builder, params);
@@ -796,7 +799,8 @@ mod checked {
             storage_charges,
             computation_charges,
         ];
-        let call_arg_arguments = vec![
+
+        let mut call_arg_vec = vec![
             CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()),
             CallArg::IOTA_SYSTEM_MUT,
             CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
@@ -805,10 +809,16 @@ mod checked {
             CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()),
-        ]
-        .into_iter()
-        .map(|a| builder.input(a))
-        .collect::<Result<_, _>>();
+        ];
+        if protocol_version > 1 {
+            call_arg_vec.push(CallArg::Pure(
+                bcs::to_bytes(&params.computation_charge_burned).unwrap(),
+            ));
+        }
+        let call_arg_arguments = call_arg_vec
+            .into_iter()
+            .map(|a| builder.input(a))
+            .collect::<Result<_, _>>();
 
         assert_invariant!(
             call_arg_arguments.is_ok(),
@@ -867,7 +877,8 @@ mod checked {
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
         };
-        let advance_epoch_pt = construct_advance_epoch_pt(builder, &params)?;
+        let advance_epoch_pt =
+            construct_advance_epoch_pt(builder, &params, protocol_config.version.as_u64())?;
         let result = programmable_transactions::execution::execute::<execution_mode::System>(
             protocol_config,
             metrics.clone(),

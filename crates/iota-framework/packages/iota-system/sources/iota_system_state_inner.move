@@ -763,11 +763,11 @@ module iota_system::iota_system_state_inner {
         validator_subsidy: u64,
         mut storage_charge: Balance<IOTA>,
         mut computation_charge: Balance<IOTA>,
-        mut computation_charge_burned: u64,
         mut storage_rebate_amount: u64,
         mut non_refundable_storage_fee_amount: u64,
         reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
         epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
+        mut computation_charge_burned: u64,
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;

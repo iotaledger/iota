@@ -1310,7 +1310,7 @@
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
-                "fixed_base_fee": false,
+                "protocol_defined_base_fee": false,
                 "hardened_otw_check": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,

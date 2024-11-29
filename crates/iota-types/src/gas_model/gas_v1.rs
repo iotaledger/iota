@@ -188,7 +188,7 @@ mod checked {
         // `final_computation_cost = total_computation_cost * gas_price / reference_gas_price`
         gas_price: u64,
         // reference gas price as defined in protocol config.
-        // if `fixed_base_fee' is enabled, this is a mandatory base fee paid to the protocol.
+        // if `protocol_defined_base_fee' is enabled, this is a mandatory base fee paid to the protocol.
         reference_gas_price: u64,
         // Gas price for storage. This is a multiplier on the final charge
         // as related to the storage gas price defined in the system
@@ -396,15 +396,17 @@ mod checked {
         /// of the gas meter. We use initial budget, combined with
         /// remaining gas and storage cost to derive computation cost.
         fn summary(&self) -> GasCostSummary {
-            // compute storage rebate, both rebate and non refundable fee
+            // compute computation cost burned and storage rebate, both rebate and non
+            // refundable fee
+            let computation_cost_burned =
+                self.computation_cost * self.reference_gas_price / self.gas_price;
             let storage_rebate = self.storage_rebate();
             let sender_rebate = sender_rebate(storage_rebate, self.rebate_rate);
             assert!(sender_rebate <= storage_rebate);
             let non_refundable_storage_fee = storage_rebate - sender_rebate;
             GasCostSummary {
                 computation_cost: self.computation_cost,
-                // entire computation cost is burned.
-                computation_cost_burned: self.computation_cost,
+                computation_cost_burned,
                 storage_cost: self.storage_cost(),
                 storage_rebate: sender_rebate,
                 non_refundable_storage_fee,

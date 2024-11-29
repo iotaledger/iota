@@ -181,9 +181,9 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
 
-    // Enable a fixed, protocol-defined base gas price for all transactions.
+    // Enable a protocol-defined base gas price for all transactions.
     #[serde(skip_serializing_if = "is_false")]
-    fixed_base_fee: bool,
+    protocol_defined_base_fee: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1036,8 +1036,8 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
-    pub fn fixed_base_fee(&self) -> bool {
-        self.feature_flags.fixed_base_fee
+    pub fn protocol_defined_base_fee(&self) -> bool {
+        self.feature_flags.protocol_defined_base_fee
     }
 
     pub fn max_transaction_size_bytes(&self) -> u64 {
@@ -1647,7 +1647,7 @@ impl ProtocolConfig {
                 1 => unreachable!(),
                 2 => {
                     cfg.execution_version = Some(2);
-                    cfg.feature_flags.fixed_base_fee = true;
+                    cfg.feature_flags.protocol_defined_base_fee = true;
                     cfg.base_gas_price = Some(1000);
                 }
 

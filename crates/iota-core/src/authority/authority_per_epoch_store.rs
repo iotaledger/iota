@@ -1093,7 +1093,7 @@ impl AuthorityPerEpochStore {
 
     pub fn reference_gas_price(&self) -> u64 {
         // Determine what to use as reference gas price based on protocol config.
-        if self.protocol_config().fixed_base_fee() {
+        if self.protocol_config().protocol_defined_base_fee() {
             self.protocol_config().base_gas_price()
         } else {
             self.epoch_start_state().reference_gas_price()
