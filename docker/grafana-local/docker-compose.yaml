@@ -65,7 +65,5 @@ services:
       - "9100:9100"
 networks:
   iota-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.0.0.0/24
+    external:
+      name: iota-private-network_iota-network
