@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -11,18 +11,13 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
 import { useCreateSendAssetTransaction, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
-import { ASSETS_ROUTE } from '@/lib/constants/routes.constants';
-import { useRouter } from 'next/navigation';
 
 interface AssetsDialogProps {
-    isOpen: boolean;
     onClose: () => void;
-    asset: IotaObjectData | null;
-    view: AssetsDialogView;
-    setView: (view: AssetsDialogView | undefined) => void;
+    asset: IotaObjectData;
 }
 
-export interface FormValues {
+interface FormValues {
     to: string;
 }
 
@@ -30,23 +25,13 @@ const INITIAL_VALUES: FormValues = {
     to: '',
 };
 
-export function AssetsDialog({
-    isOpen,
-    onClose,
-    asset,
-    setView,
-    view,
-}: AssetsDialogProps): JSX.Element {
+export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): JSX.Element {
+    const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
     const account = useCurrentAccount();
     const activeAddress = account?.address ?? '';
     const objectId = asset?.objectId ?? '';
-    const router = useRouter();
     const { addNotification } = useNotifications();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
-
-    function onDetailsSend() {
-        setView(AssetsDialogView.Send);
-    }
 
     const { mutation: sendAsset } = useCreateSendAssetTransaction(
         objectId,
@@ -62,8 +47,9 @@ export function AssetsDialog({
     });
 
     function onSendAssetSuccess() {
+        setView(AssetsDialogView.Details);
+        onCloseCb();
         addNotification('Transfer transaction successful', NotificationType.Success);
-        router.push(ASSETS_ROUTE.path + '/assets');
     }
 
     function onSendAssetError() {
@@ -78,23 +64,26 @@ export function AssetsDialog({
         }
     }
 
-    function onSendClose() {
-        setView(undefined);
+    function onDetailsSend() {
+        setView(AssetsDialogView.Send);
     }
 
-    function onSendBack() {
+    function onSendViewBack() {
         setView(AssetsDialogView.Details);
     }
-
+    function onClose() {
+        setView(AssetsDialogView.Details);
+        onCloseCb();
+    }
     return (
-        <Dialog open={isOpen} onOpenChange={() => onClose()}>
+        <Dialog open onOpenChange={onClose}>
             <FormikProvider value={formik}>
                 <>
-                    {view === AssetsDialogView.Details && asset && (
+                    {view === AssetsDialogView.Details && (
                         <DetailsView asset={asset} onClose={onClose} onSend={onDetailsSend} />
                     )}
-                    {view === AssetsDialogView.Send && asset && (
-                        <SendView asset={asset} onClose={onSendClose} onBack={onSendBack} />
+                    {view === AssetsDialogView.Send && (
+                        <SendView asset={asset} onClose={onClose} onBack={onSendViewBack} />
                     )}
                 </>
             </FormikProvider>

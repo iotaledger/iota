@@ -11,6 +11,7 @@ import {
     Header,
     VisualAssetCard,
     VisualAssetType,
+    Title,
 } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/ui-icons';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -47,7 +48,7 @@ export function SendView({ asset, onClose, onBack }: SendViewProps) {
                     </div>
                     <div className="flex w-full flex-col gap-md">
                         <div className="flex flex-col items-center gap-xxxs">
-                            <span className="text-title-lg text-neutral-10">{nftName}</span>
+                            <Title title={nftName} />
                         </div>
                         <AddressInput name="to" placeholder="Enter Address" />
                     </div>

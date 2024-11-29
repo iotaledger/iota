@@ -1,11 +1,19 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useGetNFTMeta, useOwnedNFT, useNFTBasicData, useGetKioskContents } from './';
+import {
+    useGetNFTMeta,
+    useOwnedNFT,
+    useNFTBasicData,
+    useGetKioskContents,
+    useIsAssetTransferable,
+} from './';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { isAssetTransferable, truncateString } from '../utils';
+import { truncateString } from '../utils';
+
+type NftField = { keys: string[]; values: string[] };
 
 type NftFields = {
-    metadata?: { fields?: { attributes?: { fields?: { keys: string[]; values: string[] } } } };
+    metadata?: { fields?: { attributes?: { fields?: NftField } } };
 };
 
 export function useNftDetails(nftId: string, accountAddress: string | null) {
@@ -15,7 +23,7 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
     const isContainedInKiosk = data?.lookup.get(nftId!);
     const kioskItem = data?.list.find((k) => k.data?.objectId === nftId);
 
-    const isTransferable = isAssetTransferable(objectData);
+    const { data: isTransferable } = useIsAssetTransferable(objectData);
 
     const { nftFields } = useNFTBasicData(objectData);
 
@@ -29,13 +37,13 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
         (nftFields as NftFields)?.metadata?.fields?.attributes?.fields ||
         Object.entries(nftFields ?? {})
             .filter(([key]) => key !== 'id')
-            .reduce(
+            .reduce<NftField>(
                 (acc, [key, value]) => {
                     acc.keys.push(key);
                     acc.values.push(value as string);
                     return acc;
                 },
-                { keys: [] as string[], values: [] as string[] },
+                { keys: [], values: [] },
             );
 
     const ownerAddress =
