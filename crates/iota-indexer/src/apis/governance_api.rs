@@ -346,7 +346,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
     }
 
     /// Cached exchange rates for validators for the given epoch, the cache size
-    /// is 1, it will be cleared when the epoch changes. rates are in
+    /// is 1, it will be cleared when the epoch changes. Rates are in
     /// descending order by epoch.
     pub async fn exchange_rates(
         &self,
