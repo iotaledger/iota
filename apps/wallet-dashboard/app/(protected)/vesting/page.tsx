@@ -42,6 +42,8 @@ import {
     useGetTimelockedStakedObjects,
     useTheme,
     useUnlockTimelockedObjectsTransaction,
+    useCountdown,
+    Feature,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
@@ -49,7 +51,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Calendar, StarHex } from '@iota/ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -67,15 +69,12 @@ function VestingDashboardPage(): JSX.Element {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 
-    const [countdown, setCountdown] = useState<string | null>(null);
-
     const videoSrc =
         theme === Theme.Dark
             ? 'https://files.iota.org/media/tooling/wallet-dashboard-staking-dark.mp4'
             : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4';
 
-    // const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
-    const supplyIncreaseVestingEnabled = true;
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
@@ -97,28 +96,23 @@ function VestingDashboardPage(): JSX.Element {
         vestingSchedule.totalLocked,
         IOTA_TYPE_ARG,
     );
-    const lastPayout = getSupplyIncreaseVestingPayout([
-        ...timelockedMapped,
-        ...timelockedstakedMapped,
-    ]);
 
-    const currentTimestampMs = Date.now();
+    const lastPayout = getSupplyIncreaseVestingPayout(
+        [...timelockedMapped, ...timelockedstakedMapped],
+        false,
+    );
 
-    const timeRemainingMs =
-        lastPayout?.expirationTimestampMs && currentTimestampMs - lastPayout.expirationTimestampMs;
-
-    useEffect(() => {
-        if (timeRemainingMs) {
-            const days = Math.floor(timeRemainingMs / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((timeRemainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((timeRemainingMs % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((timeRemainingMs % (1000 * 60)) / 1000);
-            setCountdown(`${days} days ${hours} hours ${minutes} minutes ${seconds} seconds`);
-        }
-    }, [timeRemainingMs, countdown]);
+    const formattedLastPayoutExpirationTime = useCountdown(
+        Number(lastPayout?.expirationTimestampMs),
+    );
 
     const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(
         vestingSchedule.availableClaiming,
+        IOTA_TYPE_ARG,
+    );
+
+    const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin(
+        lastPayout?.amount,
         IOTA_TYPE_ARG,
     );
 
@@ -235,7 +229,7 @@ function VestingDashboardPage(): JSX.Element {
                         />
                         <CardAction
                             type={CardActionType.Button}
-                            onClick={() => console.log('Collect')}
+                            onClick={handleCollect}
                             title="Collect"
                             buttonType={ButtonType.Primary}
                             buttonDisabled={
@@ -249,12 +243,18 @@ function VestingDashboardPage(): JSX.Element {
                             <Calendar className="h-5 w-5 text-primary-30 dark:text-primary-80" />
                         </CardImage>
                         <CardBody
-                            title={vestingSchedule.availableStaking.toString()}
-                            subtitle={`Next payout in ${countdown}`}
+                            title={`${formattedNextPayout} ${nextPayoutSymbol}`}
+                            subtitle={`Next payout ${
+                                lastPayout?.expirationTimestampMs
+                                    ? formattedLastPayoutExpirationTime
+                                    : ''
+                            }`}
                         />
                         <CardAction
                             type={CardActionType.Button}
-                            onClick={handleCollect}
+                            onClick={() => {
+                                /*Open schedule dialog*/
+                            }}
                             title="See All"
                             buttonType={ButtonType.Secondary}
                             buttonDisabled={
