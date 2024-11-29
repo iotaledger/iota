@@ -70,7 +70,7 @@ After creation, export the following variable:
 ### 5. Create a Transfer Policy
 
 `TransferPolicy` is a generic shared object acting as a central authority enforcing everyone to check their purchase is valid against the defined policy before the purchased item is transferred to the buyers. Object is specified by concrete type.
-`default` function creates `TransferPolicy` object and an OwnerCap, then transferring them to the caller.
+`default` function creates `TransferPolicy` object and an `TransferPolicyCap`, then transferring them to the caller.
 
 `TransferPolicyCap` object serves as proof of ownership of the `TransferPolicy` object.
 A capability granting the owner permission to `add/remove` rules as well as to `withdraw` and `destroy_and_withdraw` the `TransferPolicy`.
