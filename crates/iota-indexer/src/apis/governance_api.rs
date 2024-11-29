@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{Cached, SizedCache};
@@ -17,12 +17,14 @@ use iota_open_rpc::Module;
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID},
     committee::EpochId,
+    error::IotaError,
     governance::StakedIota,
     iota_serde::BigInt,
     iota_system_state::{PoolTokenExchangeRate, iota_system_state_summary::IotaSystemStateSummary},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
+use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
@@ -62,7 +64,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
             self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let exchange_rate_table = exchange_rates(self, &system_state_summary).await?;
+        let exchange_rate_table = self.exchange_rates(&system_state_summary).await?;
 
         let apys = iota_json_rpc::governance_api::calculate_apys(exchange_rate_table);
 
@@ -167,10 +169,15 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         let system_state_summary = self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let rates = exchange_rates(self, &system_state_summary)
+        let rates = self
+            .exchange_rates(&system_state_summary)
             .await?
             .into_iter()
-            .chain(self.pending_validators_exchange_rate().await?.into_iter())
+            .chain(
+                self.pending_and_candidate_validators_exchange_rate(&system_state_summary)
+                    .await?
+                    .into_iter(),
+            )
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -226,7 +233,8 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         let system_state_summary = self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let rates = exchange_rates(self, &system_state_summary)
+        let rates = self
+            .exchange_rates(&system_state_summary)
             .await?
             .into_iter()
             .map(|rates| (rates.pool_id, rates))
@@ -337,12 +345,98 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         Ok(exchange_rates)
     }
 
-    /// Check if there is any pending validator and get its exchange rates
-    pub async fn pending_validators_exchange_rate(
+    /// Cached exchange rates for validators for the given epoch, the cache size
+    /// is 1, it will be cleared when the epoch changes. rates are in
+    /// descending order by epoch.
+    pub async fn exchange_rates(
         &self,
+        system_state_summary: &IotaSystemStateSummary,
+    ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
+        let epoch = system_state_summary.epoch;
+
+        let mut cache = self.exchange_rates_cache.lock().await;
+
+        // Check if the exchange rates for the current epoch are cached
+        if let Some(cached_rates) = cache.cache_get(&epoch) {
+            return Ok(cached_rates.clone());
+        }
+
+        // Cache miss: compute exchange rates
+        let exchange_rates = self.compute_exchange_rates(system_state_summary).await?;
+
+        // Store in cache
+        cache.cache_set(epoch, exchange_rates.clone());
+
+        Ok(exchange_rates)
+    }
+
+    /// Compute Exchange Rates for Active & Inactive validators
+    async fn compute_exchange_rates(
+        &self,
+        system_state_summary: &IotaSystemStateSummary,
+    ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
+        // Get validator rate tables
+        let mut tables = vec![];
+
+        for validator in &system_state_summary.active_validators {
+            tables.push((
+                validator.iota_address,
+                validator.staking_pool_id,
+                validator.exchange_rates_id,
+                validator.exchange_rates_size,
+                true,
+            ));
+        }
+
+        // Get inactive validator rate tables
+        for df in self
+            .inner
+            .get_dynamic_fields_in_blocking_task(
+                system_state_summary.inactive_pools_id,
+                None,
+                system_state_summary.inactive_pools_size as usize,
+            )
+            .await?
+        {
+            let pool_id: iota_types::id::ID = bcs::from_bytes(&df.bcs_name).map_err(|e| {
+                iota_types::error::IotaError::ObjectDeserialization {
+                    error: e.to_string(),
+                }
+            })?;
+            let inactive_pools_id = system_state_summary.inactive_pools_id;
+            let validator = self
+                .inner
+                .spawn_blocking(move |this| {
+                    iota_types::iota_system_state::get_validator_from_table(
+                        &this,
+                        inactive_pools_id,
+                        &pool_id,
+                    )
+                })
+                .await?;
+            tables.push((
+                validator.iota_address,
+                validator.staking_pool_id,
+                validator.exchange_rates_id,
+                validator.exchange_rates_size,
+                false,
+            ));
+        }
+
+        self.validator_exchange_rates(tables).await
+    }
+
+    /// Check if there is any `Pending` and `Candidate` validators and get its
+    /// exchange rates, this two states of a validator lifecycle can manifest
+    /// during an epoch or multiple ones, is essential to not cache this data,
+    /// while exchange rates for `Active` and `Inactive` validators is OK to do
+    /// so because those states are manifested on epoch change.
+    pub async fn pending_and_candidate_validators_exchange_rate(
+        &self,
+        system_state_summary: &IotaSystemStateSummary,
     ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
         // Try to find for any pending active validator
-        let tables = self
+        let mut tables = self
             .inner
             .pending_active_validators()
             .await?
@@ -357,6 +451,42 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
                 )
             })
             .collect::<Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>>();
+
+        // Get inactive validator rate tables
+        for df in self
+            .inner
+            .get_dynamic_fields_in_blocking_task(
+                system_state_summary.validator_candidates_id,
+                None,
+                system_state_summary.validator_candidates_size as usize,
+            )
+            .await?
+        {
+            let raw_address = String::deserialize(df.name.value)
+                .map_err(|err| IotaError::from(err.to_string()))?;
+            let validator_address = IotaAddress::from_str(&raw_address)?;
+
+            let validator_candidates_id = system_state_summary.validator_candidates_id;
+
+            let validator_candidate = self
+                .inner
+                .spawn_blocking(move |this| {
+                    iota_types::iota_system_state::get_validator_from_table(
+                        &this,
+                        validator_candidates_id,
+                        &validator_address,
+                    )
+                })
+                .await?;
+
+            tables.push((
+                validator_candidate.iota_address,
+                validator_candidate.staking_pool_id,
+                validator_candidate.exchange_rates_id,
+                validator_candidate.exchange_rates_size,
+                false,
+            ));
+        }
 
         self.validator_exchange_rates(tables).await
     }
@@ -386,86 +516,6 @@ fn stake_status(
     } else {
         StakeStatus::Pending
     }
-}
-
-/// Cached exchange rates for validators for the given epoch, the cache size is
-/// 1, it will be cleared when the epoch changes. rates are in descending order
-/// by epoch.
-pub async fn exchange_rates(
-    state: &GovernanceReadApi<impl R2D2Connection>,
-    system_state_summary: &IotaSystemStateSummary,
-) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
-    let epoch = system_state_summary.epoch;
-
-    let mut cache = state.exchange_rates_cache.lock().await;
-
-    // Check if the exchange rates for the current epoch are cached
-    if let Some(cached_rates) = cache.cache_get(&epoch) {
-        return Ok(cached_rates.clone());
-    }
-
-    // Cache miss: compute exchange rates
-    let exchange_rates = compute_exchange_rates(state, system_state_summary).await?;
-
-    // Store in cache
-    cache.cache_set(epoch, exchange_rates.clone());
-
-    Ok(exchange_rates)
-}
-
-pub async fn compute_exchange_rates(
-    state: &GovernanceReadApi<impl R2D2Connection>,
-    system_state_summary: &IotaSystemStateSummary,
-) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
-    // Get validator rate tables
-    let mut tables = vec![];
-
-    for validator in &system_state_summary.active_validators {
-        tables.push((
-            validator.iota_address,
-            validator.staking_pool_id,
-            validator.exchange_rates_id,
-            validator.exchange_rates_size,
-            true,
-        ));
-    }
-
-    // Get inactive validator rate tables
-    for df in state
-        .inner
-        .get_dynamic_fields_in_blocking_task(
-            system_state_summary.inactive_pools_id,
-            None,
-            system_state_summary.inactive_pools_size as usize,
-        )
-        .await?
-    {
-        let pool_id: iota_types::id::ID = bcs::from_bytes(&df.bcs_name).map_err(|e| {
-            iota_types::error::IotaError::ObjectDeserialization {
-                error: e.to_string(),
-            }
-        })?;
-        let inactive_pools_id = system_state_summary.inactive_pools_id;
-        let validator = state
-            .inner
-            .spawn_blocking(move |this| {
-                iota_types::iota_system_state::get_validator_from_table(
-                    &this,
-                    inactive_pools_id,
-                    &pool_id,
-                )
-            })
-            .await?;
-        tables.push((
-            validator.iota_address,
-            validator.staking_pool_id,
-            validator.exchange_rates_id,
-            validator.exchange_rates_size,
-            false,
-        ));
-    }
-
-    state.validator_exchange_rates(tables).await
 }
 
 #[async_trait]
