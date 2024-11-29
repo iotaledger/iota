@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useGetNFTMeta, useOwnedNFT, useNFTBasicData, useGetKioskContents } from './';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { isAssetTransferable, truncateString } from '../utils';
+import { truncateString } from '../utils';
+import { useIsAssetTransferable } from './useIsAssetTransferable';
 
 type NftFields = {
     metadata?: { fields?: { attributes?: { fields?: { keys: string[]; values: string[] } } } };
@@ -15,7 +16,7 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
     const isContainedInKiosk = data?.lookup.get(nftId!);
     const kioskItem = data?.list.find((k) => k.data?.objectId === nftId);
 
-    const isTransferable = isAssetTransferable(objectData);
+    const isTransferable = useIsAssetTransferable(objectData);
 
     const { nftFields } = useNFTBasicData(objectData);
 
