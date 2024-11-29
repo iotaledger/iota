@@ -26,7 +26,7 @@ scrape_configs:
           network: local
   - job_name: "Validator_3"
     static_configs:
-      - targets: [ validator-4:9184" ]
+      - targets: [ "validator-4:9184" ]
         labels:
           host: validator3
           network: local
