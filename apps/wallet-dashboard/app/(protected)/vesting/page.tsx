@@ -87,6 +87,15 @@ function VestingDashboardPage(): JSX.Element {
         Number(currentEpochMs),
     );
 
+    const lastPayout = getSupplyIncreaseVestingPayout(
+        [...timelockedMapped, ...timelockedstakedMapped],
+        false,
+    );
+
+    const formattedLastPayoutExpirationTime = useCountdown(
+        Number(lastPayout?.expirationTimestampMs),
+    );
+
     const [formattedTotalVested, vestedSymbol] = useFormatCoin(
         vestingSchedule.totalVested,
         IOTA_TYPE_ARG,
@@ -95,15 +104,6 @@ function VestingDashboardPage(): JSX.Element {
     const [formattedTotalLocked, lockedSymbol] = useFormatCoin(
         vestingSchedule.totalLocked,
         IOTA_TYPE_ARG,
-    );
-
-    const lastPayout = getSupplyIncreaseVestingPayout(
-        [...timelockedMapped, ...timelockedstakedMapped],
-        false,
-    );
-
-    const formattedLastPayoutExpirationTime = useCountdown(
-        Number(lastPayout?.expirationTimestampMs),
     );
 
     const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(

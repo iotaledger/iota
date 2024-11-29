@@ -43,4 +43,4 @@ function formatCountdown(totalMilliseconds: number) {
     if (seconds > 0 || timeUnits.length === 0) timeUnits.push(`${seconds}s`);
 
     return timeUnits.join(' ');
-};
+}
