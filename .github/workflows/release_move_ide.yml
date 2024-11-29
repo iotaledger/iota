@@ -1,0 +1,112 @@
+name: Release Move IDE to VS Marketplace
+
+on:
+  ## Allow triggering this workflow manually via GitHub CLI/web
+  workflow_dispatch:
+  push:
+    branches:
+      - "dev-tools/publish-move-ide"
+
+env:
+  CARGO_TERM_COLOR: always
+  # Disable incremental compilation.
+  #
+  # Incremental compilation is useful as part of an edit-build-test-edit cycle,
+  # as it lets the compiler avoid recompiling code that hasn't changed. However,
+  # on CI, we're not making small edits; we're almost always building the entire
+  # project from scratch. Thus, incremental compilation on CI actually
+  # introduces *additional* overhead to support making future builds
+  # faster...but no future builds will ever occur in any given CI environment.
+  #
+  # See https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
+  # for details.
+  CARGO_INCREMENTAL: 0
+  # Allow more retries for network requests in cargo (downloading crates) and
+  # rustup (installing toolchains). This should help to reduce flaky CI failures
+  # from transient network timeouts or other issues.
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
+  TMP_BUILD_DIR: "./tmp/"
+
+jobs:
+  build-move-analyzer:
+    name: Build move-analyzer
+    strategy:
+      matrix:
+        os: [
+          self-hosted, # ubuntu-x86_64
+          macos-latest, # macos-arm64
+          macos-latest-large, # macos-x86_64
+          windows-latest, # windows-x86_64
+        ]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - name: Set os/arch variables (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: bash
+        run: |
+          export arch=$(uname -m)
+          export os_type="windows-${arch}"
+          echo "os_type=${os_type}" >> $GITHUB_ENV
+          echo "extention=$(echo ".exe")" >> $GITHUB_ENV
+
+      - name: Set os/arch variables (self hosted ubuntu)
+        if: ${{ matrix.os == 'self-hosted' }}
+        shell: bash
+        run: |
+          export arch=$(uname -m)
+          export os_type="linux-${arch}"
+          echo "os_type=${os_type}" >> $GITHUB_ENV
+
+      - name: Set os/arch variables
+        if: ${{ matrix.os == 'macos-latest' }}
+        shell: bash
+        run: |
+          export arch=$(uname -m)
+          export system_os=$(echo ${{ matrix.os }} | cut -d- -f1)
+          export os_type="${system_os}-${arch}"
+          echo "os_type=${system_os}-${arch}" >> $GITHUB_ENV
+
+      - name: Install nexttest (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+        with:
+          tool: nextest
+
+      - name: Cargo build for ${{ matrix.os }} platform
+        shell: bash
+        run: |
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --bin move-analyzer --release
+
+      - name: Rename binaries for ${{ matrix.os }}
+        shell: bash
+        run: |
+          mkdir -p ${{ env.TMP_BUILD_DIR }}
+          mv ./target/release/move-analyzer${{ env.extention }} ${{ env.TMP_BUILD_DIR }}/move-analyzer-${{ matrix.os }}${{ env.extention }}
+
+      - name: Print built files
+        run: ls -R ${{ env.TMP_BUILD_DIR }}
+
+      - name: Upload move-analyzer binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-move-analyzer
+          path: ${{ env.TMP_BUILD_DIR }}
+          if-no-files-found: error
+
+  collect-move-analyzer-binaries:
+    name: Collect move-analyzer binaries
+    needs: build-move-analyzer
+    runs-on: self-hosted
+    steps:
+      - name: Download move-analyzer binaries
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Print downloaded files
+        run: ls -R
