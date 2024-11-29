@@ -6,7 +6,7 @@ import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { isAssetTransferable, useGetKioskContents, useGetNFTMeta, Collapsible } from '@iota/core';
+import { useIsAssetTransferable, useGetKioskContents, useGetNFTMeta, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -23,7 +23,8 @@ function NFTDetailsPage() {
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
     const { data: objectData, isPending: isNftLoading } = useOwnedNFT(nftId || '', accountAddress);
-    const isTransferable = isAssetTransferable(objectData);
+    const { data: isAssetTransferable, isLoading: isCheckingAssetTransferability } =
+        useIsAssetTransferable(objectData);
     const { nftFields, fileExtensionType, filePath } = useNFTBasicData(objectData);
     const address = useActiveAddress();
     const { data } = useGetKioskContents(address);
@@ -54,7 +55,8 @@ function NFTDetailsPage() {
             objectData.owner.AddressOwner) ||
         '';
     const isGuardLoading = useUnlockedGuard();
-    const isPending = isNftLoading || isPendingDisplay || isGuardLoading;
+    const isPending =
+        isNftLoading || isPendingDisplay || isGuardLoading || isCheckingAssetTransferability;
 
     function handleMoreAboutKiosk() {
         window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
@@ -240,7 +242,7 @@ function NFTDetailsPage() {
                                     ) : (
                                         <div className="flex flex-1 items-end">
                                             <Button
-                                                disabled={!isTransferable}
+                                                disabled={!isAssetTransferable}
                                                 onClick={handleSend}
                                                 text="Send"
                                                 fullWidth
