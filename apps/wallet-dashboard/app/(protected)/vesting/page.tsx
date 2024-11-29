@@ -3,7 +3,7 @@
 
 'use client';
 
-import { Button, TimelockedUnstakePopup } from '@/components';
+import { TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
@@ -14,16 +14,20 @@ import {
     TimelockedStakedObjectsGrouped,
 } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
+import { useFeature } from '@growthbook/growthbook-react';
 import {
+    Feature,
     ImageIcon,
     ImageIconSize,
     TIMELOCK_IOTA_TYPE,
+    useFormatCoin,
     useGetActiveValidatorsInfo,
     useGetAllOwnedObjects,
     useGetTimelockedStakedObjects,
     useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { Stake } from '@iota/ui-icons';
 import {
     Panel,
     Title,
@@ -33,12 +37,15 @@ import {
     CardBody,
     CardAction,
     CardActionType,
+    ImageShape,
+    CardType,
     ButtonType,
 } from '@iota/apps-ui-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -55,6 +62,7 @@ function VestingDashboardPage(): JSX.Element {
     const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
+    console.log('dd', timelockedStakedObjects);
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
@@ -73,6 +81,33 @@ function VestingDashboardPage(): JSX.Element {
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }
+    const [totalVestedFormatted, totalVestedSymbol] = useFormatCoin(
+        vestingSchedule.totalVested,
+        IOTA_TYPE_ARG,
+    );
+    const [totalLockedFormatted, totalLockedSymbol] = useFormatCoin(
+        vestingSchedule.totalLocked,
+        IOTA_TYPE_ARG,
+    );
+    const [availableClaimingFormatted, availableClaimingSymbol] = useFormatCoin(
+        vestingSchedule.availableClaiming,
+        IOTA_TYPE_ARG,
+    );
+
+    const [availableStakingFormatted, availableStakingSymbol] = useFormatCoin(
+        vestingSchedule.availableStaking,
+        IOTA_TYPE_ARG,
+    );
+
+    const [totalStakedFormatted, totalStakedSymbol] = useFormatCoin(
+        vestingSchedule.totalStaked,
+        IOTA_TYPE_ARG,
+    );
+
+    const [totalUnlockedFormatted, totalUnlockedSymbol] = useFormatCoin(
+        vestingSchedule.totalUnlocked,
+        IOTA_TYPE_ARG,
+    );
 
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
         isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
@@ -156,30 +191,47 @@ function VestingDashboardPage(): JSX.Element {
         <div className="flex flex-row gap-lg">
             <Panel>
                 <Title title="Vesting" />
-                <div className="flex flex-col px-lg py-sm">
+                <div className="flex flex-col gap-md px-lg py-sm">
                     <div className="flex flex-row gap-md">
-                        <DisplayStats label="Total Vested" value={vestingSchedule.totalVested} />
-                        <DisplayStats label="Total Locked" value={vestingSchedule.totalLocked} />
+                        <DisplayStats
+                            label="Total Vested"
+                            value={`${totalVestedFormatted} ${totalVestedSymbol}`}
+                        />
+                        <DisplayStats
+                            label="Total Locked"
+                            value={`${totalLockedFormatted} ${totalLockedSymbol}`}
+                        />
                     </div>
                     <div className="mt-md flex flex-row gap-md">
                         <DisplayStats
                             label="Available Claiming"
-                            value={vestingSchedule.availableClaiming}
+                            value={`${availableClaimingFormatted} ${availableClaimingSymbol}`}
                         />
                         <DisplayStats
                             label="Available Staking"
-                            value={vestingSchedule.availableStaking}
+                            value={`${availableStakingFormatted} ${availableStakingSymbol}`}
                         />
                     </div>
-                    {/* TODO */}
-                    <div>
-                        {account?.address && (
-                            <div className="flex flex-row space-x-4">
-                                {vestingSchedule.availableClaiming ? (
-                                    <Button onClick={handleCollect}>Collect</Button>
-                                ) : null}
-                            </div>
-                        )}
+
+                    <div className="">
+                        {account?.address && vestingSchedule.availableClaiming ? (
+                            <Card type={CardType.Outlined}>
+                                <CardImage shape={ImageShape.SquareRounded}>
+                                    <Stake />
+                                </CardImage>
+                                <CardBody
+                                    title={`${availableClaimingFormatted} ${availableClaimingSymbol}`}
+                                    subtitle={`Available Rewards`}
+                                    isTextTruncated
+                                />
+                                <CardAction
+                                    buttonType={ButtonType.Primary}
+                                    type={CardActionType.Button}
+                                    title="Collect"
+                                    onClick={handleCollect}
+                                />
+                            </Card>
+                        ) : null}
                     </div>
                 </div>
             </Panel>
@@ -187,55 +239,103 @@ function VestingDashboardPage(): JSX.Element {
                 <Title title="Staked Vesting" />
                 <div className="flex flex-col px-lg py-sm">
                     <div className="flex flex-row gap-md">
-                        <DisplayStats label="Your stake" value={vestingSchedule.totalStaked} />
+                        <DisplayStats
+                            label="Your stake"
+                            value={`${totalStakedFormatted} ${totalStakedSymbol}`}
+                        />
                         <DisplayStats
                             label="Total Unlocked"
-                            value={vestingSchedule.totalUnlocked}
+                            value={`${totalUnlockedFormatted} ${totalUnlockedSymbol}`}
                         />
                     </div>
                 </div>
                 <div className="flex flex-col px-lg py-sm">
                     <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
                         {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
-                            const name =
-                                getValidatorByAddress(timelockedStakedObject.validatorAddress)
-                                    ?.name || timelockedStakedObject.validatorAddress;
                             return (
-                                <Card
+                                <TimelockedStakedObject
                                     key={
                                         timelockedStakedObject.validatorAddress +
                                         timelockedStakedObject.stakeRequestEpoch +
                                         timelockedStakedObject.label
                                     }
-                                >
-                                    <CardImage>
-                                        <ImageIcon
-                                            src={null}
-                                            label={name}
-                                            fallback={name}
-                                            size={ImageIconSize.Large}
-                                        />
-                                    </CardImage>
-                                    <CardBody title={name} subtitle={'1000 IOTA'} isTextTruncated />
-                                    {/* TODO */}
-                                    <CardAction
-                                        type={CardActionType.SupportingText}
-                                        title="Start Earning"
-                                        subtitle={timelockedStakedObject.stakeRequestEpoch}
-                                    />
-                                    <CardAction
-                                        type={CardActionType.Button}
-                                        buttonType={ButtonType.Primary}
-                                        title="Unstake"
-                                        onClick={() => handleUnstake(timelockedStakedObject)}
-                                    />
-                                </Card>
+                                    getValidatorByAddress={getValidatorByAddress}
+                                    timelockedStakedObject={timelockedStakedObject}
+                                    handleUnstake={handleUnstake}
+                                />
                             );
                         })}
                     </div>
                 </div>
             </Panel>
         </div>
+    );
+}
+
+interface TimelockedStakedObjectProps {
+    timelockedStakedObject: TimelockedStakedObjectsGrouped;
+    handleUnstake: (timelockedStakedObject: TimelockedStakedObjectsGrouped) => void;
+    getValidatorByAddress: (validatorAddress: string) => IotaValidatorSummary | undefined;
+}
+function TimelockedStakedObject({
+    getValidatorByAddress,
+    timelockedStakedObject,
+    handleUnstake,
+}: TimelockedStakedObjectProps) {
+    const name =
+        getValidatorByAddress(timelockedStakedObject.validatorAddress)?.name ||
+        timelockedStakedObject.validatorAddress;
+    const sum = timelockedStakedObject.stakes.reduce(
+        (acc, stake) => {
+            const estimatedReward = stake.status === 'Active' ? stake.estimatedReward : 0;
+
+            return {
+                principal: Number(stake.principal) + acc.principal,
+                estimatedReward: Number(estimatedReward) + acc.estimatedReward,
+            };
+        },
+        {
+            principal: 0,
+            estimatedReward: 0,
+        },
+    );
+
+    const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin(sum.principal, IOTA_TYPE_ARG);
+    const [estimatedRewardFormatted, estimatedRewardSymbol] = useFormatCoin(
+        sum.estimatedReward,
+        IOTA_TYPE_ARG,
+    );
+
+    const supportingText = (() => {
+        if (timelockedStakedObject.stakes.every((s) => s.status === 'Active')) {
+            return {
+                title: 'Estimated Reward',
+                subtitle: `${estimatedRewardFormatted} ${estimatedRewardSymbol}`,
+            };
+        }
+
+        return {
+            title: 'Stake Request Epoch',
+            subtitle: timelockedStakedObject.stakeRequestEpoch,
+        };
+    })();
+
+    return (
+        <Card onClick={() => handleUnstake(timelockedStakedObject)}>
+            <CardImage>
+                <ImageIcon src={null} label={name} fallback={name} size={ImageIconSize.Large} />
+            </CardImage>
+            <CardBody
+                title={name}
+                subtitle={`${sumPrincipalFormatted} ${sumPrincipalSymbol}`}
+                isTextTruncated
+            />
+            <CardAction
+                type={CardActionType.SupportingText}
+                title={supportingText.title}
+                subtitle={supportingText.subtitle}
+            />
+        </Card>
     );
 }
 
