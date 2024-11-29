@@ -29,12 +29,12 @@ import { getFullnodeUrl, IotaClient, Network } from '@iota/iota-sdk/client';
 
 // We need a IOTA Client. You can re-use the IotaClient of your project
 // (it's not recommended to create a new one).
-const client = new IotaClient({ url: getFullnodeUrl(Network.TESTNET) });
+const client = new IotaClient({ url: getFullnodeUrl(Network.Testnet) });
 
 // Now we can use it to create a kiosk Client.
 const kioskClient = new KioskClient({
     client,
-    network: Network.TESTNET,
+    network: Network.Testnet,
 });
 ```
 
