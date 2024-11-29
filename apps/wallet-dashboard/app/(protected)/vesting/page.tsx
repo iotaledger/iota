@@ -63,7 +63,6 @@ function VestingDashboardPage(): JSX.Element {
         stakeDialogView,
         setStakeDialogView,
         selectedStake,
-        // setSelectedStake,
         selectedValidator,
         setSelectedValidator,
         handleCloseStakeDialog,
