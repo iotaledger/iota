@@ -9,7 +9,7 @@ use async_graphql::{
     dataloader::Loader,
     *,
 };
-use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
+use iota_indexer::apis::GovernanceReadApi;
 use iota_json_rpc::governance_api::median_apy_from_exchange_rates;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
@@ -75,8 +75,8 @@ impl Loader<u64> for Db {
             .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
         let governance_api = GovernanceReadApi::new(self.inner.clone());
 
-        let pending_validators_exchange_rate = governance_api
-            .pending_validators_exchange_rate()
+        let pending_and_candidate_validators_exchange_rate = governance_api
+            .pending_and_candidate_validators_exchange_rate(&latest_iota_system_state)
             .await
             .map_err(|e| {
                 Error::Internal(format!(
@@ -84,11 +84,12 @@ impl Loader<u64> for Db {
                 ))
             })?;
 
-        let mut exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
+        let mut exchange_rates = governance_api
+            .exchange_rates(&latest_iota_system_state)
             .await
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
 
-        exchange_rates.extend(pending_validators_exchange_rate.into_iter());
+        exchange_rates.extend(pending_and_candidate_validators_exchange_rate.into_iter());
 
         let mut results = BTreeMap::new();
 
