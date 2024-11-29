@@ -23,6 +23,8 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
 
     const [systemTheme, setSystemTheme] = useState<Theme>(Theme.Light);
     const [themePreference, setThemePreference] = useState<ThemePreference>(ThemePreference.System);
+    
+    let isLoadingPreference = false;
 
     // Load the theme values on client
     useEffect(() => {
@@ -30,11 +32,15 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
 
         setSystemTheme(getSystemTheme());
         setThemePreference(getThemePreference());
+        
+        // Make the theme preference listener wait 
+        // untl the preference is loaded in the next render
+        isLoadingPreference = true;
     }, []);
 
     // When the theme preference changes..
     useEffect(() => {
-        if (typeof window === 'undefined') return;
+        if (typeof window === 'undefined' || isLoadingPreference) return;
 
         // Update localStorage with the new preference
         localStorage.setItem(storageKey, themePreference);
@@ -49,7 +55,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
             systemThemeMatcher.addEventListener('change', handleSystemThemeChange);
             return () => systemThemeMatcher.removeEventListener('change', handleSystemThemeChange);
         }
-    }, [themePreference, storageKey]);
+    }, [themePreference, storageKey, isLoadingPreference]);
 
     // Derive the active theme from the preference
     const theme = (() => {
