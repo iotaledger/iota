@@ -80,7 +80,7 @@ impl Loader<u64> for Db {
             .await
             .map_err(|e| {
                 Error::Internal(format!(
-                    "Error fetching pending validators exchange rates. {e}"
+                    "Error fetching pending and candidate validators exchange rates. {e}"
                 ))
             })?;
 
