@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Write,
+    future::Future,
 };
 
 use async_graphql::{
@@ -1250,68 +1251,74 @@ impl Loader<HistoricalKey> for Db {
     type Value = Object;
     type Error = Error;
 
-    async fn load(&self, keys: &[HistoricalKey]) -> Result<HashMap<HistoricalKey, Object>, Error> {
-        use objects_history::dsl as h;
-        use objects_version::dsl as v;
+    fn load(
+        &self,
+        keys: &[HistoricalKey],
+    ) -> impl Future<Output = Result<HashMap<HistoricalKey, Object>, Error>> + Send {
+        async move {
+            use objects_history::dsl as h;
+            use objects_version::dsl as v;
 
-        let id_versions: BTreeSet<_> = keys
-            .iter()
-            .map(|key| (key.id.into_vec(), key.version as i64))
-            .collect();
+            let id_versions: BTreeSet<_> = keys
+                .iter()
+                .map(|key| (key.id.into_vec(), key.version as i64))
+                .collect();
 
-        let objects: Vec<StoredHistoryObject> = self
-            .execute(move |conn| {
-                conn.results(move || {
-                    let mut query = h::objects_history
-                        .inner_join(
-                            v::objects_version.on(v::cp_sequence_number
-                                .eq(h::checkpoint_sequence_number)
-                                .and(v::object_id.eq(h::object_id))
-                                .and(v::object_version.eq(h::object_version))),
-                        )
-                        .select(StoredHistoryObject::as_select())
-                        .into_boxed();
+            let objects: Vec<StoredHistoryObject> = self
+                .execute(move |conn| {
+                    conn.results(move || {
+                        let mut query = h::objects_history
+                            .inner_join(
+                                v::objects_version.on(v::cp_sequence_number
+                                    .eq(h::checkpoint_sequence_number)
+                                    .and(v::object_id.eq(h::object_id))
+                                    .and(v::object_version.eq(h::object_version))),
+                            )
+                            .select(StoredHistoryObject::as_select())
+                            .into_boxed();
 
-                    for (id, version) in id_versions.iter().cloned() {
-                        query =
-                            query.or_filter(v::object_id.eq(id).and(v::object_version.eq(version)));
-                    }
+                        for (id, version) in id_versions.iter().cloned() {
+                            query = query
+                                .or_filter(v::object_id.eq(id).and(v::object_version.eq(version)));
+                        }
 
-                    query
+                        query
+                    })
                 })
-            })
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?;
+                .await
+                .map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?;
 
-        let mut id_version_to_stored = BTreeMap::new();
-        for stored in objects {
-            let key = (addr(&stored.object_id)?, stored.object_version as u64);
-            id_version_to_stored.insert(key, stored);
-        }
-
-        let mut result = HashMap::new();
-        for key in keys {
-            let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) else {
-                continue;
-            };
-
-            // Filter by key's checkpoint viewed at here. Doing this in memory because it
-            // should be quite rare that this query actually filters something,
-            // but encoding it in SQL is complicated.
-            if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
-                continue;
+            let mut id_version_to_stored = BTreeMap::new();
+            for stored in objects {
+                let key = (addr(&stored.object_id)?, stored.object_version as u64);
+                id_version_to_stored.insert(key, stored);
             }
 
-            let object = Object::try_from_stored_history_object(
-                stored.clone(),
-                key.checkpoint_viewed_at,
-                // This conversion will use the object's own version as the `Object::root_version`.
-                None,
-            )?;
-            result.insert(*key, object);
-        }
+            let mut result = HashMap::new();
+            for key in keys {
+                let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) else {
+                    continue;
+                };
 
-        Ok(result)
+                // Filter by key's checkpoint viewed at here. Doing this in memory because it
+                // should be quite rare that this query actually filters something,
+                // but encoding it in SQL is complicated.
+                if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                    continue;
+                }
+
+                let object = Object::try_from_stored_history_object(
+                    stored.clone(),
+                    key.checkpoint_viewed_at,
+                    // This conversion will use the object's own version as the
+                    // `Object::root_version`.
+                    None,
+                )?;
+                result.insert(*key, object);
+            }
+
+            Ok(result)
+        }
     }
 }
 
@@ -1320,98 +1327,100 @@ impl Loader<ParentVersionKey> for Db {
     type Value = Object;
     type Error = Error;
 
-    async fn load(
+    fn load(
         &self,
         keys: &[ParentVersionKey],
-    ) -> Result<HashMap<ParentVersionKey, Object>, Error> {
-        // Group keys by checkpoint viewed at and parent version -- we'll issue a
-        // separate query for each group.
-        #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
-        struct GroupKey {
-            checkpoint_viewed_at: u64,
-            parent_version: u64,
-        }
+    ) -> impl Future<Output = Result<HashMap<ParentVersionKey, Object>, Error>> + Send {
+        async move {
+            // Group keys by checkpoint viewed at and parent version -- we'll issue a
+            // separate query for each group.
+            #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
+            struct GroupKey {
+                checkpoint_viewed_at: u64,
+                parent_version: u64,
+            }
 
-        let mut keys_by_cursor_and_parent_version: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
-        for key in keys {
-            let group_key = GroupKey {
-                checkpoint_viewed_at: key.checkpoint_viewed_at,
-                parent_version: key.parent_version,
-            };
-
-            keys_by_cursor_and_parent_version
-                .entry(group_key)
-                .or_default()
-                .insert(key.id.into_vec());
-        }
-
-        // Issue concurrent reads for each group of keys.
-        let futures = keys_by_cursor_and_parent_version
-            .into_iter()
-            .map(|(group_key, ids)| {
-                self.execute(move |conn| {
-                    let stored: Vec<StoredHistoryObject> = conn.results(move || {
-                        use objects_history::dsl as h;
-                        use objects_version::dsl as v;
-
-                        h::objects_history
-                            .inner_join(
-                                v::objects_version.on(v::cp_sequence_number
-                                    .eq(h::checkpoint_sequence_number)
-                                    .and(v::object_id.eq(h::object_id))
-                                    .and(v::object_version.eq(h::object_version))),
-                            )
-                            .select(StoredHistoryObject::as_select())
-                            .filter(v::object_id.eq_any(ids.iter().cloned()))
-                            .filter(v::object_version.le(group_key.parent_version as i64))
-                            .distinct_on(v::object_id)
-                            .order_by(v::object_id)
-                            .then_order_by(v::object_version.desc())
-                            .into_boxed()
-                    })?;
-
-                    Ok::<_, diesel::result::Error>(
-                        stored
-                            .into_iter()
-                            .map(|stored| (group_key, stored))
-                            .collect::<Vec<_>>(),
-                    )
-                })
-            });
-
-        // Wait for the reads to all finish, and gather them into the result map.
-        let groups = futures::future::join_all(futures).await;
-
-        let mut results = HashMap::new();
-        for group in groups {
-            for (group_key, stored) in
-                group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
-            {
-                // This particular object is invalid -- it didn't exist at the checkpoint we are
-                // viewing at.
-                if group_key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
-                    continue;
-                }
-
-                let object = Object::try_from_stored_history_object(
-                    stored,
-                    group_key.checkpoint_viewed_at,
-                    // If `LatestAtKey::parent_version` is set, it must have been correctly
-                    // propagated from the `Object::root_version` of some object.
-                    Some(group_key.parent_version),
-                )?;
-
-                let key = ParentVersionKey {
-                    id: object.address,
-                    checkpoint_viewed_at: group_key.checkpoint_viewed_at,
-                    parent_version: group_key.parent_version,
+            let mut keys_by_cursor_and_parent_version: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
+            for key in keys {
+                let group_key = GroupKey {
+                    checkpoint_viewed_at: key.checkpoint_viewed_at,
+                    parent_version: key.parent_version,
                 };
 
-                results.insert(key, object);
+                keys_by_cursor_and_parent_version
+                    .entry(group_key)
+                    .or_default()
+                    .insert(key.id.into_vec());
             }
-        }
 
-        Ok(results)
+            // Issue concurrent reads for each group of keys.
+            let futures = keys_by_cursor_and_parent_version
+                .into_iter()
+                .map(|(group_key, ids)| {
+                    self.execute(move |conn| {
+                        let stored: Vec<StoredHistoryObject> = conn.results(move || {
+                            use objects_history::dsl as h;
+                            use objects_version::dsl as v;
+
+                            h::objects_history
+                                .inner_join(
+                                    v::objects_version.on(v::cp_sequence_number
+                                        .eq(h::checkpoint_sequence_number)
+                                        .and(v::object_id.eq(h::object_id))
+                                        .and(v::object_version.eq(h::object_version))),
+                                )
+                                .select(StoredHistoryObject::as_select())
+                                .filter(v::object_id.eq_any(ids.iter().cloned()))
+                                .filter(v::object_version.le(group_key.parent_version as i64))
+                                .distinct_on(v::object_id)
+                                .order_by(v::object_id)
+                                .then_order_by(v::object_version.desc())
+                                .into_boxed()
+                        })?;
+
+                        Ok::<_, diesel::result::Error>(
+                            stored
+                                .into_iter()
+                                .map(|stored| (group_key, stored))
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                });
+
+            // Wait for the reads to all finish, and gather them into the result map.
+            let groups = futures::future::join_all(futures).await;
+
+            let mut results = HashMap::new();
+            for group in groups {
+                for (group_key, stored) in
+                    group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
+                {
+                    // This particular object is invalid -- it didn't exist at the checkpoint we are
+                    // viewing at.
+                    if group_key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                        continue;
+                    }
+
+                    let object = Object::try_from_stored_history_object(
+                        stored,
+                        group_key.checkpoint_viewed_at,
+                        // If `LatestAtKey::parent_version` is set, it must have been correctly
+                        // propagated from the `Object::root_version` of some object.
+                        Some(group_key.parent_version),
+                    )?;
+
+                    let key = ParentVersionKey {
+                        id: object.address,
+                        checkpoint_viewed_at: group_key.checkpoint_viewed_at,
+                        parent_version: group_key.parent_version,
+                    };
+
+                    results.insert(key, object);
+                }
+            }
+
+            Ok(results)
+        }
     }
 }
 
@@ -1420,74 +1429,79 @@ impl Loader<LatestAtKey> for Db {
     type Value = Object;
     type Error = Error;
 
-    async fn load(&self, keys: &[LatestAtKey]) -> Result<HashMap<LatestAtKey, Object>, Error> {
-        // Group keys by checkpoint viewed at -- we'll issue a separate query for each
-        // group.
-        let mut keys_by_cursor_and_parent_version: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
+    fn load(
+        &self,
+        keys: &[LatestAtKey],
+    ) -> impl Future<Output = Result<HashMap<LatestAtKey, Object>, Error>> + Send {
+        async move {
+            // Group keys by checkpoint viewed at -- we'll issue a separate query for each
+            // group.
+            let mut keys_by_cursor_and_parent_version: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
 
-        for key in keys {
-            keys_by_cursor_and_parent_version
-                .entry(key.checkpoint_viewed_at)
-                .or_default()
-                .insert(key.id);
-        }
-
-        // Issue concurrent reads for each group of keys.
-        let futures =
-            keys_by_cursor_and_parent_version
-                .into_iter()
-                .map(|(checkpoint_viewed_at, ids)| {
-                    self.execute_repeatable(move |conn| {
-                        let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)?
-                        else {
-                            return Ok::<Vec<(u64, StoredHistoryObject)>, diesel::result::Error>(
-                                vec![],
-                            );
-                        };
-
-                        let filter = ObjectFilter {
-                            object_ids: Some(ids.iter().cloned().collect()),
-                            ..Default::default()
-                        };
-
-                        Ok(conn
-                            .results(move || {
-                                build_objects_query(
-                                    View::Consistent,
-                                    range,
-                                    &Page::bounded(ids.len() as u64),
-                                    |q| filter.apply(q),
-                                    |q| q,
-                                )
-                                .into_boxed()
-                            })?
-                            .into_iter()
-                            .map(|r| (checkpoint_viewed_at, r))
-                            .collect())
-                    })
-                });
-
-        // Wait for the reads to all finish, and gather them into the result map.
-        let groups = futures::future::join_all(futures).await;
-
-        let mut results = HashMap::new();
-        for group in groups {
-            for (checkpoint_viewed_at, stored) in
-                group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
-            {
-                let object =
-                    Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?;
-
-                let key = LatestAtKey {
-                    id: object.address,
-                    checkpoint_viewed_at,
-                };
-
-                results.insert(key, object);
+            for key in keys {
+                keys_by_cursor_and_parent_version
+                    .entry(key.checkpoint_viewed_at)
+                    .or_default()
+                    .insert(key.id);
             }
-        }
 
-        Ok(results)
+            // Issue concurrent reads for each group of keys.
+            let futures =
+                keys_by_cursor_and_parent_version
+                    .into_iter()
+                    .map(|(checkpoint_viewed_at, ids)| {
+                        self.execute_repeatable(move |conn| {
+                            let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)?
+                            else {
+                                return Ok::<Vec<(u64, StoredHistoryObject)>, diesel::result::Error>(
+                                    vec![],
+                                );
+                            };
+
+                            let filter = ObjectFilter {
+                                object_ids: Some(ids.iter().cloned().collect()),
+                                ..Default::default()
+                            };
+
+                            Ok(conn
+                                .results(move || {
+                                    build_objects_query(
+                                        View::Consistent,
+                                        range,
+                                        &Page::bounded(ids.len() as u64),
+                                        |q| filter.apply(q),
+                                        |q| q,
+                                    )
+                                    .into_boxed()
+                                })?
+                                .into_iter()
+                                .map(|r| (checkpoint_viewed_at, r))
+                                .collect())
+                        })
+                    });
+
+            // Wait for the reads to all finish, and gather them into the result map.
+            let groups = futures::future::join_all(futures).await;
+
+            let mut results = HashMap::new();
+            for group in groups {
+                for (checkpoint_viewed_at, stored) in
+                    group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
+                {
+                    let object =
+                        Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?;
+
+                    let key = LatestAtKey {
+                        id: object.address,
+                        checkpoint_viewed_at,
+                    };
+
+                    results.insert(key, object);
+                }
+            }
+
+            Ok(results)
+        }
     }
 }
 

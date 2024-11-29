@@ -4,6 +4,7 @@
 
 use std::{
     collections::{BTreeSet, HashMap},
+    future::Future,
     sync::Arc,
 };
 
@@ -55,29 +56,34 @@ impl Loader<PackageKey> for Db {
     type Value = Arc<Package>;
     type Error = PackageResolverError;
 
-    async fn load(&self, keys: &[PackageKey]) -> Result<HashMap<PackageKey, Arc<Package>>> {
-        use packages::dsl;
+    fn load(
+        &self,
+        keys: &[PackageKey],
+    ) -> impl Future<Output = Result<HashMap<PackageKey, Arc<Package>>>> + Send {
+        async move {
+            use packages::dsl;
 
-        let ids: BTreeSet<_> = keys.iter().map(|PackageKey(id)| id.to_vec()).collect();
-        let stored_packages: Vec<StoredPackage> = self
-            .execute(move |conn| {
-                conn.results(move || {
-                    dsl::packages.filter(dsl::package_id.eq_any(ids.iter().cloned()))
+            let ids: BTreeSet<_> = keys.iter().map(|PackageKey(id)| id.to_vec()).collect();
+            let stored_packages: Vec<StoredPackage> = self
+                .execute(move |conn| {
+                    conn.results(move || {
+                        dsl::packages.filter(dsl::package_id.eq_any(ids.iter().cloned()))
+                    })
                 })
-            })
-            .await
-            .map_err(|e| PackageResolverError::Store {
-                store: STORE,
-                source: Arc::new(e),
-            })?;
+                .await
+                .map_err(|e| PackageResolverError::Store {
+                    store: STORE,
+                    source: Arc::new(e),
+                })?;
 
-        let mut id_to_package = HashMap::new();
-        for stored_package in stored_packages {
-            let move_package = bcs::from_bytes(&stored_package.move_package)?;
-            let package = Package::read_from_package(&move_package)?;
-            id_to_package.insert(PackageKey(*move_package.id()), Arc::new(package));
+            let mut id_to_package = HashMap::new();
+            for stored_package in stored_packages {
+                let move_package = bcs::from_bytes(&stored_package.move_package)?;
+                let package = Package::read_from_package(&move_package)?;
+                id_to_package.insert(PackageKey(*move_package.id()), Arc::new(package));
+            }
+
+            Ok(id_to_package)
         }
-
-        Ok(id_to_package)
     }
 }
