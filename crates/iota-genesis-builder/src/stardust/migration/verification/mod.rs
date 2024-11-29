@@ -13,6 +13,8 @@ use iota_types::in_memory_storage::InMemoryStorage;
 use self::created_objects::CreatedObjects;
 use crate::stardust::{migration::executor::FoundryLedgerData, types::output_header::OutputHeader};
 
+use super::address_swap::AddressSwapMap;
+
 pub mod alias;
 pub mod basic;
 pub mod created_objects;
@@ -27,6 +29,7 @@ pub(crate) fn verify_outputs<'a>(
     target_milestone_timestamp: u32,
     total_supply: u64,
     storage: &InMemoryStorage,
+    addresss_swap_map: &mut AddressSwapMap
 ) -> anyhow::Result<()> {
     let mut total_value = 0;
     for (header, output) in outputs {
@@ -41,6 +44,7 @@ pub(crate) fn verify_outputs<'a>(
             target_milestone_timestamp,
             storage,
             &mut total_value,
+            addresss_swap_map
         )?;
     }
     ensure!(
@@ -58,6 +62,7 @@ fn verify_output(
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
     total_value: &mut u64,
+    addresss_swap_map: &mut AddressSwapMap,
 ) -> anyhow::Result<()> {
     match output {
         Output::Alias(output) => alias::verify_alias_output(
@@ -67,6 +72,7 @@ fn verify_output(
             foundry_data,
             storage,
             total_value,
+            addresss_swap_map
         ),
         Output::Basic(output) => basic::verify_basic_output(
             header.output_id(),
@@ -76,6 +82,7 @@ fn verify_output(
             target_milestone_timestamp,
             storage,
             total_value,
+            addresss_swap_map
         ),
         Output::Foundry(output) => foundry::verify_foundry_output(
             header.output_id(),
@@ -84,6 +91,7 @@ fn verify_output(
             foundry_data,
             storage,
             total_value,
+            addresss_swap_map
         ),
         Output::Nft(output) => nft::verify_nft_output(
             header.output_id(),
@@ -92,6 +100,7 @@ fn verify_output(
             foundry_data,
             storage,
             total_value,
+            addresss_swap_map
         ),
         // Treasury outputs aren't used since Stardust, so no need to verify anything here.
         Output::Treasury(_) => return Ok(()),

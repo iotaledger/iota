@@ -13,14 +13,12 @@ use move_core_types::language_storage::ModuleId;
 
 use crate::stardust::{
     migration::{
-        executor::FoundryLedgerData,
-        verification::{
-            CreatedObjects,
+        address_swap::AddressSwapMap, executor::FoundryLedgerData, verification::{
             util::{
                 truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
                 verify_parent, verify_shared_object,
-            },
-        },
+            }, CreatedObjects
+        }
     },
     native_token::package_data::NativeTokenPackageData,
     types::token_scheme::SimpleTokenSchemeU64,
@@ -33,6 +31,7 @@ pub(super) fn verify_foundry_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
+    addresss_swap_map: &mut AddressSwapMap
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())
@@ -54,7 +53,7 @@ pub(super) fn verify_foundry_output(
         .as_coin_maybe()
         .ok_or_else(|| anyhow!("expected a coin"))?;
 
-    verify_address_owner(alias_address, created_coin_obj, "coin")?;
+    verify_address_owner(alias_address, created_coin_obj, "coin", addresss_swap_map)?;
     verify_coin(output.amount(), &created_coin)?;
     *total_value += created_coin.value();
 
@@ -239,6 +238,7 @@ pub(super) fn verify_foundry_output(
         alias_address,
         coin_manager_treasury_cap_obj,
         "coin manager treasury cap",
+        addresss_swap_map,
     )?;
 
     verify_parent(&output_id, alias_address, storage)?;
