@@ -20,7 +20,7 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     };
 
     return (
-        <div className="h-full">
+        <div className="min-h-full">
             <div className="fixed left-0 top-0 z-50 h-full">
                 <Sidebar />
             </div>

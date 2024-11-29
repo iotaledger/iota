@@ -1,6 +1,6 @@
-Documentation:
+documentation:
   - changed-files:
       - any-glob-to-any-file: docs/content/**/*
-iota-explorer:
+explorer:
   - changed-files:
-      - any-glob-to-any-file: explorer/**/*
+      - any-glob-to-any-file: apps/explorer/**/*
