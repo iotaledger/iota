@@ -13,12 +13,15 @@ use move_core_types::language_storage::ModuleId;
 
 use crate::stardust::{
     migration::{
-        address_swap::AddressSwapMap, executor::FoundryLedgerData, verification::{
+        address_swap_map::AddressSwapMap,
+        executor::FoundryLedgerData,
+        verification::{
+            CreatedObjects,
             util::{
                 truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
                 verify_parent, verify_shared_object,
-            }, CreatedObjects
-        }
+            },
+        },
     },
     native_token::package_data::NativeTokenPackageData,
     types::token_scheme::SimpleTokenSchemeU64,
@@ -31,7 +34,7 @@ pub(super) fn verify_foundry_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &AddressSwapMap
+    addresss_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())

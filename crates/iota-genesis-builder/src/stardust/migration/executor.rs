@@ -19,18 +19,34 @@ use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
 use iota_types::{
-    balance::Balance, base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext}, coin_manager::{CoinManager, CoinManagerTreasuryCap}, collection_types::Bag, dynamic_field::Field, id::UID, in_memory_storage::InMemoryStorage, inner_temporary_store::InnerTemporaryStore, metrics::LimitsMetrics, move_package::{MovePackage, TypeOrigin, UpgradeCap}, object::{Object, Owner}, programmable_transaction_builder::ProgrammableTransactionBuilder, stardust::{
+    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
+    balance::Balance,
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
+    coin_manager::{CoinManager, CoinManagerTreasuryCap},
+    collection_types::Bag,
+    dynamic_field::Field,
+    id::UID,
+    in_memory_storage::InMemoryStorage,
+    inner_temporary_store::InnerTemporaryStore,
+    metrics::LimitsMetrics,
+    move_package::{MovePackage, TypeOrigin, UpgradeCap},
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::{
         coin_type::CoinType,
-        output::{foundry::create_foundry_amount_coin, Nft},
+        output::{Nft, foundry::create_foundry_amount_coin},
         stardust_to_iota_address, stardust_to_iota_address_owner,
-    }, timelock::timelock, transaction::{
+    },
+    timelock::timelock,
+    transaction::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
-    }, TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID
+    },
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_latest::move_vm::MoveVM;
 
+use super::address_swap_map::AddressSwapMap;
 use crate::{
     process_package,
     stardust::{
@@ -41,8 +57,6 @@ use crate::{
         types::{output_header::OutputHeader, token_scheme::SimpleTokenSchemeU64},
     },
 };
-
-use super::address_swap::AddressSwapMap;
 
 /// Creates the objects that map to the stardust UTXO ledger.
 ///
@@ -305,9 +319,14 @@ impl Executor {
 
         // TODO: We should ensure that no circular ownership exists.
         let mut alias_output_owner = stardust_to_iota_address_owner(alias.governor_address())?;
-        if let Some(owner) = addresss_swap_map.get_destination_address(alias_output_owner.get_owner_address()?) {
+        if let Some(owner) =
+            addresss_swap_map.get_destination_address(alias_output_owner.get_owner_address()?)
+        {
             // TODO remove print
-            println!("Alias swap is happening: from {} to {}", alias_output_owner, owner);
+            println!(
+                "Alias swap is happening: from {} to {}",
+                alias_output_owner, owner
+            );
             alias_output_owner = Owner::AddressOwner(*owner);
         }
 
@@ -559,7 +578,10 @@ impl Executor {
         let mut basic_objects_owner = stardust_to_iota_address(basic_output.address())?;
         if let Some(owner) = addresss_swap_map.get_destination_address(basic_objects_owner) {
             // TODO remove print
-            println!("Basic swap is happening: from {} to {}", basic_objects_owner, owner);
+            println!(
+                "Basic swap is happening: from {} to {}",
+                basic_objects_owner, owner
+            );
             basic_objects_owner = *owner;
         }
 
@@ -571,7 +593,8 @@ impl Executor {
 
         let object = if basic.is_simple_coin(target_milestone_timestamp_sec) {
             if !basic_output.native_tokens().is_empty() {
-                let coins = self.create_native_token_coins(basic_output.native_tokens(), basic_objects_owner)?;
+                let coins = self
+                    .create_native_token_coins(basic_output.native_tokens(), basic_objects_owner)?;
                 created_objects.set_native_tokens(coins)?;
             }
             let amount_coin = basic.into_genesis_coin_object(
@@ -624,9 +647,14 @@ impl Executor {
         let mut created_objects = CreatedObjects::default();
 
         let mut basic_output_owner: IotaAddress = basic_output.address().to_string().parse()?;
-        if let Some(owner) = addresss_swap_map.get_destination_address(stardust_to_iota_address(basic_output.address())?) {
+        if let Some(owner) = addresss_swap_map
+            .get_destination_address(stardust_to_iota_address(basic_output.address())?)
+        {
             // TODO remove print
-            println!("Basic timelock swap is happening: from {} to {}", basic_output_owner, owner);
+            println!(
+                "Basic timelock swap is happening: from {} to {}",
+                basic_output_owner, owner
+            );
             basic_output_owner = *owner;
         }
 
@@ -668,13 +696,21 @@ impl Executor {
         let mut nft_output_owner_address: IotaAddress = stardust_to_iota_address(nft.address())?;
         if let Some(owner) = addresss_swap_map.get_destination_address(nft_output_owner_address) {
             // TODO remove print
-            println!("Nft output swap is happening: from {} to {}", nft_output_owner_address, owner);
+            println!(
+                "Nft output swap is happening: from {} to {}",
+                nft_output_owner_address, owner
+            );
             nft_output_owner_address = *owner;
         }
         let mut nft_output_owner = stardust_to_iota_address_owner(nft.address())?;
-        if let Some(owner) = addresss_swap_map.get_destination_address(nft_output_owner.get_owner_address()?) {
+        if let Some(owner) =
+            addresss_swap_map.get_destination_address(nft_output_owner.get_owner_address()?)
+        {
             // TODO remove print
-            println!("Nft swap is happening: from {} to {}", nft_output_owner, owner);
+            println!(
+                "Nft swap is happening: from {} to {}",
+                nft_output_owner, owner
+            );
             nft_output_owner = Owner::AddressOwner(*owner);
         }
 

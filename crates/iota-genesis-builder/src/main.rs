@@ -23,7 +23,9 @@ use iota_sdk::types::block::{
         unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
     },
 };
-use iota_types::{base_types::IotaAddress, stardust::coin_type::CoinType, timelock::timelock::is_vested_reward};
+use iota_types::{
+    base_types::IotaAddress, stardust::coin_type::CoinType, timelock::timelock::is_vested_reward,
+};
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 

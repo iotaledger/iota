@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod address_swap_map;
 mod executor;
-pub mod address_swap;
 #[allow(clippy::module_inception)]
 mod migration;
 mod migration_target_network;

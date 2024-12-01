@@ -18,13 +18,15 @@ use iota_types::{
 };
 
 use crate::stardust::migration::{
-    address_swap::AddressSwapMap, executor::FoundryLedgerData, verification::{
+    address_swap_map::AddressSwapMap,
+    executor::FoundryLedgerData,
+    verification::{
         created_objects::CreatedObjects,
         util::{
             verify_address_owner, verify_issuer_feature, verify_metadata_feature,
             verify_native_tokens, verify_parent, verify_sender_feature,
         },
-    }
+    },
 };
 
 pub(super) fn verify_alias_output(

@@ -28,7 +28,8 @@ use iota_types::{
 use tracing::warn;
 
 use crate::stardust::{
-    migration::{address_swap::AddressSwapMap, executor::FoundryLedgerData}, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
+    migration::{address_swap_map::AddressSwapMap, executor::FoundryLedgerData},
+    types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
 };
 
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
@@ -279,10 +280,12 @@ pub(super) fn verify_address_owner(
     owning_address: &Address,
     obj: &Object,
     name: &str,
-    address_swap_map: &AddressSwapMap
+    address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     let mut expected_owner = stardust_to_iota_address_owner(owning_address)?;
-    if let Some(owner) = address_swap_map.get_destination_address(stardust_to_iota_address_owner(owning_address)?.get_owner_address()?){
+    if let Some(owner) = address_swap_map.get_destination_address(
+        stardust_to_iota_address_owner(owning_address)?.get_owner_address()?,
+    ) {
         expected_owner = Owner::AddressOwner(*owner);
     }
     ensure!(

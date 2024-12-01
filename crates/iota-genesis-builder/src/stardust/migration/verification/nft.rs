@@ -16,7 +16,9 @@ use iota_types::{
 };
 
 use crate::stardust::migration::{
-    address_swap::AddressSwapMap, executor::FoundryLedgerData, verification::{
+    address_swap_map::AddressSwapMap,
+    executor::FoundryLedgerData,
+    verification::{
         created_objects::CreatedObjects,
         util::{
             verify_address_owner, verify_expiration_unlock_condition, verify_issuer_feature,
@@ -24,7 +26,7 @@ use crate::stardust::migration::{
             verify_storage_deposit_unlock_condition, verify_tag_feature,
             verify_timelock_unlock_condition,
         },
-    }
+    },
 };
 
 pub(super) fn verify_nft_output(
@@ -61,7 +63,12 @@ pub(super) fn verify_nft_output(
             created_output_obj.owner,
         );
     } else {
-        verify_address_owner(output.address(), created_output_obj, "nft output", addresss_swap_map)?;
+        verify_address_owner(
+            output.address(),
+            created_output_obj,
+            "nft output",
+            addresss_swap_map,
+        )?;
     }
 
     // NFT Owner
