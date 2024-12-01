@@ -20,6 +20,8 @@ impl AddressSwapMap {
 }
 
 pub fn init_address_swap_map(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
+    let current_dir = std::env::current_dir()?;
+    let file_path= current_dir.join(file_path);
     let mut reader = csv::Reader::from_path(file_path)?;
     let mut addresses = HashMap::new();
 

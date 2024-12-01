@@ -107,7 +107,7 @@ impl Migration {
         &mut self,
         outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     ) -> Result<()> {
-        let mut addresss_swap_map = init_address_swap_map("/Users/pk/repos/kinesis/crates/iota-genesis-builder/src/stardust/migration/address_swap.csv")?;
+        let addresss_swap_map = init_address_swap_map("crates/iota-genesis-builder/src/stardust/migration/address_swap.csv")?;
         info!("Addresss swap is succeed.");
         let (mut foundries, mut outputs) = outputs.into_iter().fold(
             (Vec::new(), Vec::new()),
@@ -130,13 +130,13 @@ impl Migration {
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
-        self.migrate_outputs(&outputs, &mut addresss_swap_map)?;
+        self.migrate_outputs(&outputs, &addresss_swap_map)?;
         let outputs = outputs
             .into_iter()
             .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
             .collect::<Vec<_>>();
         info!("Verifying ledger state...");
-        self.verify_ledger_state(&outputs, &mut addresss_swap_map)?;
+        self.verify_ledger_state(&outputs, &addresss_swap_map)?;
 
         Ok(())
     }
@@ -193,7 +193,7 @@ impl Migration {
     fn  migrate_outputs<'a>(
         &mut self,
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
-        addresss_swap_map: &mut AddressSwapMap,
+        addresss_swap_map: &AddressSwapMap,
     ) -> Result<()> {
         for (header, output) in outputs {
             let created = match output {
@@ -241,7 +241,7 @@ impl Migration {
     pub fn verify_ledger_state<'a>(
         &self,
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
-        addresss_swap_map: &mut AddressSwapMap,
+        addresss_swap_map: &AddressSwapMap,
     ) -> Result<()> {
         verify_outputs(
             outputs,
