@@ -13,6 +13,7 @@ use iota_sdk::{
 };
 use iota_types::{
     TypeTag,
+    address_swap_map::AddressSwapMap,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     coin::Coin,
@@ -23,6 +24,7 @@ use iota_types::{
     stardust::{
         output::{Alias, Nft, unlock_conditions},
         stardust_to_iota_address, stardust_to_iota_address_owner,
+        stardust_to_iota_address_owner_maybe_swap,
     },
 };
 use tracing::warn;
@@ -279,8 +281,11 @@ pub(super) fn verify_address_owner(
     owning_address: &Address,
     obj: &Object,
     name: &str,
+    address_swap_map: &mut AddressSwapMap,
 ) -> Result<()> {
-    let expected_owner = stardust_to_iota_address_owner(owning_address)?;
+    let expected_owner =
+        stardust_to_iota_address_owner_maybe_swap(owning_address, address_swap_map)?;
+
     ensure!(
         obj.owner == expected_owner,
         "{name} owner mismatch: found {}, expected {}",

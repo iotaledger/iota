@@ -15,6 +15,7 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
+    address_swap_map::{AddressSwapMap, init_address_swap_map},
     balance::Balance,
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
@@ -74,6 +75,7 @@ pub struct Migration {
     /// The coin type to use in order to migrate outputs. Can only be equal to
     /// `Iota` at the moment. Is fixed for the entire migration process.
     coin_type: CoinType,
+    address_swap_map: AddressSwapMap,
 }
 
 impl Migration {
@@ -85,6 +87,10 @@ impl Migration {
         target_network: MigrationTargetNetwork,
         coin_type: CoinType,
     ) -> Result<Self> {
+        // Can be implemented through cli argument
+        let address_swap_map = init_address_swap_map(
+            "crates/iota-genesis-builder/src/stardust/migration/address_swap.csv",
+        )?;
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
             target_network,
@@ -96,6 +102,7 @@ impl Migration {
             executor,
             output_objects_map: Default::default(),
             coin_type,
+            address_swap_map,
         })
     }
 
@@ -135,7 +142,7 @@ impl Migration {
             .collect::<Vec<_>>();
         info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
-
+        self.address_swap_map.verify_all_addresses_swapped();
         Ok(())
     }
 
@@ -194,14 +201,18 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             let created = match output {
-                Output::Alias(alias) => {
-                    self.executor
-                        .create_alias_objects(header, alias, self.coin_type)?
-                }
-                Output::Nft(nft) => {
-                    self.executor
-                        .create_nft_objects(header, nft, self.coin_type)?
-                }
+                Output::Alias(alias) => self.executor.create_alias_objects(
+                    header,
+                    alias,
+                    self.coin_type,
+                    &mut self.address_swap_map,
+                )?,
+                Output::Nft(nft) => self.executor.create_nft_objects(
+                    header,
+                    nft,
+                    self.coin_type,
+                    &mut self.address_swap_map,
+                )?,
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
@@ -214,6 +225,7 @@ impl Migration {
                             header.output_id(),
                             basic,
                             self.target_milestone_timestamp_sec,
+                            &mut self.address_swap_map,
                         )?
                     } else {
                         self.executor.create_basic_objects(
@@ -221,6 +233,7 @@ impl Migration {
                             basic,
                             self.target_milestone_timestamp_sec,
                             &self.coin_type,
+                            &mut self.address_swap_map,
                         )?
                     }
                 }
@@ -234,7 +247,7 @@ impl Migration {
     /// Verify the ledger state represented by the objects in
     /// [`InMemoryStorage`](iota_types::in_memory_storage::InMemoryStorage).
     pub fn verify_ledger_state<'a>(
-        &self,
+        &mut self,
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
     ) -> Result<()> {
         verify_outputs(
@@ -244,6 +257,7 @@ impl Migration {
             self.target_milestone_timestamp_sec,
             self.total_supply,
             self.executor.store(),
+            &mut self.address_swap_map,
         )?;
         Ok(())
     }

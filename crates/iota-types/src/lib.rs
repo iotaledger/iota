@@ -32,6 +32,7 @@ use crate::{
 pub mod error;
 
 pub mod accumulator;
+pub mod address_swap_map;
 pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
