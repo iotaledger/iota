@@ -1162,6 +1162,7 @@ fn get_total_transaction_blocks() {
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, checkpoint).await;
+
         let total_transaction_blocks = client.get_total_transaction_blocks().await.unwrap();
 
         let fullnode_checkpoint = cluster

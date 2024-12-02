@@ -4,8 +4,7 @@
 
 import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
-import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
-import { parseAmount, useCoinMetadata } from '@iota/core';
+import { parseAmount, useCoinMetadata, useFormatCoin } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 
@@ -27,6 +26,7 @@ export function PreviewTransfer({
     const accountAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
+    const [formattedGasBudgetEstimation, gasToken] = useFormatCoin(gasBudget, coinType);
 
     return (
         <div className="flex w-full flex-col gap-md">
@@ -64,7 +64,8 @@ export function PreviewTransfer({
                 <Divider />
                 <KeyValueInfo
                     keyText={'Est. Gas Fees'}
-                    value={`${gasBudget} ${GAS_SYMBOL}`}
+                    value={formattedGasBudgetEstimation}
+                    supportingLabel={gasToken}
                     fullwidth
                 />
             </div>

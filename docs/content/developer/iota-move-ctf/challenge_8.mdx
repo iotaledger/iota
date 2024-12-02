@@ -1,0 +1,56 @@
+
+import ChallengeVerifier  from '@site/src/components/CTF/ctf-verifier';
+
+
+
+
+# Challenge 8: Flash!
+
+In this challenge, you will explore a decentralized exchange (DEX) with a critical flaw you can exploit to capture the flag. This exchange operates with two tokens—CTFA and CTFB—and features a vault that allows users to take flash loans. Your objective is to manipulate the token balances effectively to obtain the flag by using the vulnerabilities in the DEX's flash loan mechanism. 
+To solve this challenge, you will have to have a deep understanding of [programmable transaction blocks (PTBs)](../iota-101/transactions/ptb/programmable-transaction-blocks-overview.mdx) and how to build them using the [TS SDK](../iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk.mdx) or the [CLI](../../references/cli/ptb.mdx).
+
+## Deployed Contract Addresses:
+```
+MintA<0xfd9284dd49737957297ebb10a9bbf73964453696c037b9e59f0fb4d23fc13aee::ctfa::CTFA>: 0x87cde5710a62e890058cf841ac3efa9f7b9db7a34f59c07621f994addbf06b9a
+MintB<0xfd9284dd49737957297ebb10a9bbf73964453696c037b9e59f0fb4d23fc13aee::ctfb::CTFB>: 0x4395d877fb46f8f9929a090eab7c1a69ec3fadcc5dbd491c0cc04716a8e18164
+Package: 0xfd9284dd49737957297ebb10a9bbf73964453696c037b9e59f0fb4d23fc13aee
+CoinMetadata<0xfd9284dd49737957297ebb10a9bbf73964453696c037b9e59f0fb4d23fc13aee::ctfa::CTFA>: 0xcf7289e7211f6df0d63f4485bf5b3978ce58f3a55c1989811033f88ed586f35a
+CoinMetadata<0xfd9284dd49737957297ebb10a9bbf73964453696c037b9e59f0fb4d23fc13aee::ctfb::CTFB>: 0x475243f98ca1707225743502003d34b207ffc8b6f6b0bd2e8531eee0555f6085
+```
+
+## Contracts
+
+### `firstcoin.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_8/sources/firstcoin.move
+```
+
+### `secondcoin.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_8/sources/secondcoin.move
+```
+
+### `vault.move`
+```move file=<rootDir>/docs/examples/move/ctf/challenge_8/sources/vault.move
+```
+
+Good luck in capturing your eighth flag!
+
+
+## Related Articles
+This challenge will test your understanding of the Object Model, the Coin Standard, and PTBs. You will need to use your knowledge of these concepts to exploit the DEX's flash loan mechanism and capture the flag.
+
+- [Coin Standard](../standards/coin.mdx)
+- [Object Model](../iota-101/objects/object-model.mdx)
+- [Programmable Transaction Blocks](../iota-101/transactions/ptb/programmable-transaction-blocks-overview.mdx)
+- [IOTA CLI reference](../../references/cli/ptb.mdx)
+- [IOTA TS SDK reference](../iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk.mdx)
+
+
+
+:::tip
+The DEX programmer pulled an all-nighter before writing the flash loan mechanism, making a critical mistake.
+:::
+
+
+
+
+<ChallengeVerifier expectedObjectType="0xfd9284dd49737957297ebb10a9bbf73964453696c037b9e59f0fb4d23fc13aee::vault::Flag" />

@@ -1053,12 +1053,12 @@ impl ProtocolConfig {
 }
 
 #[cfg(not(msim))]
-static POISON_VERSION_METHODS: AtomicBool = AtomicBool::new(false);
+static POISON_VERSION_METHODS: AtomicBool = const { AtomicBool::new(false) };
 
 // Use a thread local in sim tests for test isolation.
 #[cfg(msim)]
 thread_local! {
-    static POISON_VERSION_METHODS: AtomicBool = AtomicBool::new(false);
+    static POISON_VERSION_METHODS: AtomicBool = const { AtomicBool::new(false) };
 }
 
 // Instantiations for each protocol version.

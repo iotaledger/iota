@@ -16,8 +16,7 @@ use crate::{
     error::{Error, IotaRpcResult},
 };
 
-/// Defines methods to fetch, query, or subscribe to events
-/// on the Iota network.
+/// Defines methods to fetch, query, or subscribe to events on the Iota network.
 #[derive(Clone)]
 pub struct EventApi {
     api: Arc<RpcClient>,
@@ -78,8 +77,8 @@ impl EventApi {
         Ok(self.api.http.get_events(digest).await?)
     }
 
-    /// Get a list of filtered events. The response is paginated and can be
-    /// ordered ascending or descending.
+    /// Get a list of filtered events.
+    /// The response is paginated and can be ordered ascending or descending.
     ///
     /// For a list of possible event filters, see [EventFilter].
     pub async fn query_events(
