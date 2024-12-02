@@ -35,8 +35,8 @@ export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): J
 
     const { mutation: sendAsset } = useCreateSendAssetTransaction(
         objectId,
-        onSendAssetSuccess,
-        onSendAssetError,
+        onSendAsset,
+        onSendAsset,
     );
 
     const formik = useFormik<FormValues>({
@@ -46,20 +46,17 @@ export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): J
         validateOnChange: true,
     });
 
-    function onSendAssetSuccess() {
+    function onSendAsset() {
         setView(AssetsDialogView.Details);
         onCloseCb();
-        addNotification('Transfer transaction successful', NotificationType.Success);
-    }
-
-    function onSendAssetError() {
-        addNotification('Transfer transaction failed', NotificationType.Error);
     }
 
     async function onSubmit(values: FormValues) {
         try {
             await sendAsset.mutateAsync(values.to);
+            addNotification('Transfer transaction successful', NotificationType.Success);
         } catch (error) {
+            console.log(error);
             addNotification('Transfer transaction failed', NotificationType.Error);
         }
     }
