@@ -1,7 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DAYS_PER_WEEK, MILLISECONDS_PER_DAY, DAYS_PER_YEAR } from '@iota/core';
+import {
+    DAYS_PER_WEEK,
+    MILLISECONDS_PER_DAY,
+    DAYS_PER_YEAR,
+} from '@iota/core/constants/time.constants';
 import { TimelockedObject } from '../interfaces';
 import { getMockedTimelockedStakedObjectsWithDynamicDate } from '../utils/vesting/getMockedTimelockedStakedObjectsWithDynamicDate';
 import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
