@@ -37,7 +37,8 @@ use iota_types::{
     transaction::{
         Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, GenesisObject,
         InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-        SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
+        SenderSignedData, SystemDisplayTransactionKind, TransactionData, TransactionDataAPI,
+        TransactionKind,
     },
 };
 use move_binary_format::CompiledModule;
@@ -528,6 +529,11 @@ impl IotaTransactionBlockKind {
                             ) => IotaEndOfEpochTransactionKind::BridgeCommitteeUpdate(
                                 bridge_shared_version,
                             ),
+                            EndOfEpochTransactionKind::SystemDisplay(vec) => {
+                                IotaEndOfEpochTransactionKind::SystemDisplay(
+                                    vec.into_iter().map(|t| t.into()).collect(),
+                                )
+                            }
                         })
                         .collect(),
                 })
@@ -611,6 +617,11 @@ impl IotaTransactionBlockKind {
                             }
                             EndOfEpochTransactionKind::BridgeCommitteeInit(seq) => {
                                 IotaEndOfEpochTransactionKind::BridgeCommitteeUpdate(seq)
+                            }
+                            EndOfEpochTransactionKind::SystemDisplay(vec) => {
+                                IotaEndOfEpochTransactionKind::SystemDisplay(
+                                    vec.into_iter().map(|t| t.into()).collect(),
+                                )
                             }
                         })
                         .collect(),
@@ -1609,12 +1620,37 @@ pub struct IotaEndOfEpochTransaction {
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub enum IotaSystemDisplayTransactionKind {
+    StakedIotaV1,
+    TimelockedStakedIotaV1,
+    TimelockedIotaV1,
+}
+
+impl From<SystemDisplayTransactionKind> for IotaSystemDisplayTransactionKind {
+    fn from(input: SystemDisplayTransactionKind) -> Self {
+        match input {
+            SystemDisplayTransactionKind::StakedIotaV1 => {
+                IotaSystemDisplayTransactionKind::StakedIotaV1
+            }
+            SystemDisplayTransactionKind::TimelockedStakedIotaV1 => {
+                IotaSystemDisplayTransactionKind::TimelockedStakedIotaV1
+            }
+            SystemDisplayTransactionKind::TimelockedIotaV1 => {
+                IotaSystemDisplayTransactionKind::TimelockedIotaV1
+            }
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
     BridgeStateCreate(CheckpointDigest),
     BridgeCommitteeUpdate(SequenceNumber),
+    SystemDisplay(Vec<IotaSystemDisplayTransactionKind>),
 }
 
 #[serde_as]

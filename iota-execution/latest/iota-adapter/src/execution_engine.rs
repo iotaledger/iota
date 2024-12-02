@@ -16,7 +16,7 @@ mod checked {
     use iota_types::{
         BRIDGE_ADDRESS, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID,
         IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
-        IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -46,7 +46,9 @@ mod checked {
         id::UID,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
-            ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams, IOTA_SYSTEM_MODULE_NAME,
+            ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams, CREATE_STAKED_IOTA_DISPLAY_V1,
+            CREATE_TIMELOCKED_IOTA_DISPLAY_V1, CREATE_TIMELOCKED_STAKED_IOTA_DISPLAY_V1,
+            IOTA_SYSTEM_DISPLAY_MODULE_NAME, IOTA_SYSTEM_MODULE_NAME,
         },
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
@@ -57,7 +59,8 @@ mod checked {
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
-            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
+            ProgrammableTransaction, RandomnessStateUpdate, SystemDisplayTransactionKind,
+            TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -696,6 +699,9 @@ mod checked {
                             assert!(protocol_config.should_try_to_finalize_bridge_committee());
                             builder = setup_bridge_committee_update(builder, bridge_shared_version)
                         }
+                        EndOfEpochTransactionKind::SystemDisplay(txs) => {
+                            builder = setup_system_display_objects(builder, protocol_config, txs)
+                        }
                     }
                 }
                 unreachable!(
@@ -1231,5 +1237,65 @@ mod checked {
             gas_charger,
             pt,
         )
+    }
+
+    /// Configures a `ProgrammableTransactionBuilder` to update the system
+    /// display objects.
+    fn setup_system_display_objects(
+        mut builder: ProgrammableTransactionBuilder,
+        protocol_config: &ProtocolConfig,
+        txs: Vec<SystemDisplayTransactionKind>,
+    ) -> ProgrammableTransactionBuilder {
+        for tx in txs {
+            match tx {
+                SystemDisplayTransactionKind::StakedIotaV1 => {
+                    assert!(protocol_config.enable_staked_iota_display_v1());
+
+                    let system_state = builder
+                        .obj(ObjectArg::IOTA_SYSTEM_MUT)
+                        .expect("Unable to create System State object arg!");
+
+                    builder.programmable_move_call(
+                        IOTA_SYSTEM_ADDRESS.into(),
+                        IOTA_SYSTEM_DISPLAY_MODULE_NAME.to_owned(),
+                        CREATE_STAKED_IOTA_DISPLAY_V1.to_owned(),
+                        vec![],
+                        vec![system_state],
+                    );
+                }
+                SystemDisplayTransactionKind::TimelockedStakedIotaV1 => {
+                    assert!(protocol_config.enable_timelocked_staked_iota_display_v1());
+
+                    let system_state = builder
+                        .obj(ObjectArg::IOTA_SYSTEM_MUT)
+                        .expect("Unable to create System State object arg!");
+
+                    builder.programmable_move_call(
+                        IOTA_SYSTEM_ADDRESS.into(),
+                        IOTA_SYSTEM_DISPLAY_MODULE_NAME.to_owned(),
+                        CREATE_TIMELOCKED_STAKED_IOTA_DISPLAY_V1.to_owned(),
+                        vec![],
+                        vec![system_state],
+                    );
+                }
+                SystemDisplayTransactionKind::TimelockedIotaV1 => {
+                    assert!(protocol_config.enable_timelocked_iota_display_v1());
+
+                    let system_state = builder
+                        .obj(ObjectArg::IOTA_SYSTEM_MUT)
+                        .expect("Unable to create System State object arg!");
+
+                    builder.programmable_move_call(
+                        IOTA_SYSTEM_ADDRESS.into(),
+                        IOTA_SYSTEM_DISPLAY_MODULE_NAME.to_owned(),
+                        CREATE_TIMELOCKED_IOTA_DISPLAY_V1.to_owned(),
+                        vec![],
+                        vec![system_state],
+                    );
+                }
+            }
+        }
+
+        builder
     }
 }
