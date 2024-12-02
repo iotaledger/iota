@@ -13,6 +13,7 @@ use iota_sdk::{
 };
 use iota_types::{
     TypeTag,
+    address_swap_map::AddressSwapMap,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     coin::Coin,
@@ -23,13 +24,13 @@ use iota_types::{
     stardust::{
         output::{Alias, Nft, unlock_conditions},
         stardust_to_iota_address, stardust_to_iota_address_owner,
+        stardust_to_iota_address_owner_maybe_swap,
     },
 };
 use tracing::warn;
 
 use crate::stardust::{
-    migration::{address_swap_map::AddressSwapMap, executor::FoundryLedgerData},
-    types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
+    migration::executor::FoundryLedgerData, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
 };
 
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
@@ -280,14 +281,11 @@ pub(super) fn verify_address_owner(
     owning_address: &Address,
     obj: &Object,
     name: &str,
-    address_swap_map: &AddressSwapMap,
+    address_swap_map: &mut AddressSwapMap,
 ) -> Result<()> {
-    let mut expected_owner = stardust_to_iota_address_owner(owning_address)?;
-    if let Some(owner) = address_swap_map.get_destination_address(
-        stardust_to_iota_address_owner(owning_address)?.get_owner_address()?,
-    ) {
-        expected_owner = Owner::AddressOwner(*owner);
-    }
+    let expected_owner =
+        stardust_to_iota_address_owner_maybe_swap(owning_address, address_swap_map)?;
+
     ensure!(
         obj.owner == expected_owner,
         "{name} owner mismatch: found {}, expected {}",

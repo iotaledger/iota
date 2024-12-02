@@ -20,6 +20,7 @@ use iota_sdk::types::block::output::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
+    address_swap_map::AddressSwapMap,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
     coin_manager::{CoinManager, CoinManagerTreasuryCap},
@@ -35,7 +36,7 @@ use iota_types::{
     stardust::{
         coin_type::CoinType,
         output::{Nft, foundry::create_foundry_amount_coin},
-        stardust_to_iota_address, stardust_to_iota_address_owner,
+        stardust_to_iota_address_maybe_swap, stardust_to_iota_address_owner_maybe_swap,
     },
     timelock::timelock,
     transaction::{
@@ -46,7 +47,6 @@ use iota_types::{
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_latest::move_vm::MoveVM;
 
-use super::address_swap_map::AddressSwapMap;
 use crate::{
     process_package,
     stardust::{
@@ -308,7 +308,7 @@ impl Executor {
         header: &OutputHeader,
         alias: &AliasOutput,
         coin_type: CoinType,
-        addresss_swap_map: &AddressSwapMap,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -318,17 +318,8 @@ impl Executor {
         let move_alias = iota_types::stardust::output::Alias::try_from_stardust(alias_id, alias)?;
 
         // TODO: We should ensure that no circular ownership exists.
-        let mut alias_output_owner = stardust_to_iota_address_owner(alias.governor_address())?;
-        if let Some(owner) =
-            addresss_swap_map.get_destination_address(alias_output_owner.get_owner_address()?)
-        {
-            // TODO remove print
-            println!(
-                "Alias swap is happening: from {} to {}",
-                alias_output_owner, owner
-            );
-            alias_output_owner = Owner::AddressOwner(*owner);
-        }
+        let alias_output_owner =
+            stardust_to_iota_address_owner_maybe_swap(alias.governor_address(), address_swap_map)?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
@@ -570,20 +561,13 @@ impl Executor {
         basic_output: &BasicOutput,
         target_milestone_timestamp_sec: u32,
         coin_type: &CoinType,
-        addresss_swap_map: &AddressSwapMap,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut basic =
             iota_types::stardust::output::BasicOutput::new(header.new_object_id(), basic_output)?;
 
-        let mut basic_objects_owner = stardust_to_iota_address(basic_output.address())?;
-        if let Some(owner) = addresss_swap_map.get_destination_address(basic_objects_owner) {
-            // TODO remove print
-            println!(
-                "Basic swap is happening: from {} to {}",
-                basic_objects_owner, owner
-            );
-            basic_objects_owner = *owner;
-        }
+        let basic_objects_owner =
+            stardust_to_iota_address_maybe_swap(basic_output.address(), address_swap_map)?;
 
         let mut created_objects = CreatedObjects::default();
 
@@ -642,21 +626,12 @@ impl Executor {
         output_id: OutputId,
         basic_output: &BasicOutput,
         target_milestone_timestamp: u32,
-        addresss_swap_map: &AddressSwapMap,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
-        let mut basic_output_owner: IotaAddress = basic_output.address().to_string().parse()?;
-        if let Some(owner) = addresss_swap_map
-            .get_destination_address(stardust_to_iota_address(basic_output.address())?)
-        {
-            // TODO remove print
-            println!(
-                "Basic timelock swap is happening: from {} to {}",
-                basic_output_owner, owner
-            );
-            basic_output_owner = *owner;
-        }
+        let basic_output_owner: IotaAddress =
+            stardust_to_iota_address_maybe_swap(basic_output.address(), address_swap_map)?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
@@ -683,7 +658,7 @@ impl Executor {
         header: &OutputHeader,
         nft: &NftOutput,
         coin_type: CoinType,
-        addresss_swap_map: &AddressSwapMap,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -693,26 +668,11 @@ impl Executor {
         let move_nft = Nft::try_from_stardust(nft_id, nft)?;
 
         // TODO: We should ensure that no circular ownership exists.
-        let mut nft_output_owner_address: IotaAddress = stardust_to_iota_address(nft.address())?;
-        if let Some(owner) = addresss_swap_map.get_destination_address(nft_output_owner_address) {
-            // TODO remove print
-            println!(
-                "Nft output swap is happening: from {} to {}",
-                nft_output_owner_address, owner
-            );
-            nft_output_owner_address = *owner;
-        }
-        let mut nft_output_owner = stardust_to_iota_address_owner(nft.address())?;
-        if let Some(owner) =
-            addresss_swap_map.get_destination_address(nft_output_owner.get_owner_address()?)
-        {
-            // TODO remove print
-            println!(
-                "Nft swap is happening: from {} to {}",
-                nft_output_owner, owner
-            );
-            nft_output_owner = Owner::AddressOwner(*owner);
-        }
+        let nft_output_owner_address: IotaAddress =
+            stardust_to_iota_address_maybe_swap(nft.address(), address_swap_map)?;
+
+        let nft_output_owner =
+            stardust_to_iota_address_owner_maybe_swap(nft.address(), address_swap_map)?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);

@@ -7,6 +7,7 @@ use anyhow::{anyhow, bail, ensure};
 use iota_sdk::types::block::output as stardust;
 use iota_types::{
     TypeTag,
+    address_swap_map::AddressSwapMap,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
@@ -18,7 +19,6 @@ use iota_types::{
 };
 
 use crate::stardust::migration::{
-    address_swap_map::AddressSwapMap,
     executor::FoundryLedgerData,
     verification::{
         created_objects::CreatedObjects,
@@ -36,7 +36,7 @@ pub(super) fn verify_alias_output(
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &AddressSwapMap,
+    addresss_swap_map: &mut AddressSwapMap,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 

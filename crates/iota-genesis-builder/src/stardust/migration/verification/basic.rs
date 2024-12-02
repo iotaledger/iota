@@ -7,6 +7,7 @@ use anyhow::{Result, anyhow, ensure};
 use iota_sdk::types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
     TypeTag,
+    address_swap_map::AddressSwapMap,
     balance::Balance,
     coin::Coin,
     dynamic_field::Field,
@@ -19,7 +20,6 @@ use iota_types::{
 };
 
 use crate::stardust::migration::{
-    address_swap_map::AddressSwapMap,
     executor::FoundryLedgerData,
     verification::{
         created_objects::CreatedObjects,
@@ -40,7 +40,7 @@ pub(super) fn verify_basic_output(
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &AddressSwapMap,
+    addresss_swap_map: &mut AddressSwapMap,
 ) -> Result<()> {
     // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
     if is_timelocked_vested_reward(output_id, output, target_milestone_timestamp) {

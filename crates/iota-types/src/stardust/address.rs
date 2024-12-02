@@ -3,7 +3,7 @@
 
 use iota_stardust_sdk::types::block::address::Address;
 
-use crate::{base_types::IotaAddress, object::Owner};
+use crate::{address_swap_map::AddressSwapMap, base_types::IotaAddress, object::Owner};
 
 /// Converts a ["Stardust" `Address`](Address) to a [`IotaAddress`].
 ///
@@ -23,4 +23,26 @@ pub fn stardust_to_iota_address_owner(
     stardust_address: impl Into<Address>,
 ) -> anyhow::Result<Owner> {
     stardust_to_iota_address(stardust_address.into()).map(Owner::AddressOwner)
+}
+
+pub fn stardust_to_iota_address_owner_maybe_swap(
+    stardust_address: impl Into<Address>,
+    address_swap_map: &mut AddressSwapMap,
+) -> anyhow::Result<Owner> {
+    let mut address = stardust_to_iota_address(stardust_address)?;
+    if let Some(addr) = address_swap_map.get_destination_address(address) {
+        address = *addr;
+    }
+    Ok(Owner::AddressOwner(address))
+}
+
+pub fn stardust_to_iota_address_maybe_swap(
+    stardust_address: impl Into<Address>,
+    address_swap_map: &mut AddressSwapMap,
+) -> anyhow::Result<IotaAddress> {
+    let mut address: IotaAddress = stardust_to_iota_address(stardust_address)?;
+    if let Some(addr) = address_swap_map.get_destination_address(address) {
+        address = *addr;
+    }
+    Ok(address)
 }

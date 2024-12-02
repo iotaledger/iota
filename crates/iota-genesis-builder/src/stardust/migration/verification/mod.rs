@@ -8,10 +8,9 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{Output, OutputId, TokenId};
-use iota_types::in_memory_storage::InMemoryStorage;
+use iota_types::{address_swap_map::AddressSwapMap, in_memory_storage::InMemoryStorage};
 
 use self::created_objects::CreatedObjects;
-use super::address_swap_map::AddressSwapMap;
 use crate::stardust::{migration::executor::FoundryLedgerData, types::output_header::OutputHeader};
 
 pub mod alias;
@@ -28,7 +27,7 @@ pub(crate) fn verify_outputs<'a>(
     target_milestone_timestamp: u32,
     total_supply: u64,
     storage: &InMemoryStorage,
-    addresss_swap_map: &AddressSwapMap,
+    addresss_swap_map: &mut AddressSwapMap,
 ) -> anyhow::Result<()> {
     let mut total_value = 0;
     for (header, output) in outputs {
@@ -61,7 +60,7 @@ fn verify_output(
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &AddressSwapMap,
+    addresss_swap_map: &mut AddressSwapMap,
 ) -> anyhow::Result<()> {
     match output {
         Output::Alias(output) => alias::verify_alias_output(

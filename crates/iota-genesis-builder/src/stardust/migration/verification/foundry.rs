@@ -6,14 +6,13 @@ use std::collections::HashMap;
 use anyhow::{Result, anyhow, ensure};
 use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
-    Identifier, base_types::IotaAddress, coin_manager::CoinManager,
-    in_memory_storage::InMemoryStorage, object::Owner,
+    Identifier, address_swap_map::AddressSwapMap, base_types::IotaAddress,
+    coin_manager::CoinManager, in_memory_storage::InMemoryStorage, object::Owner,
 };
 use move_core_types::language_storage::ModuleId;
 
 use crate::stardust::{
     migration::{
-        address_swap_map::AddressSwapMap,
         executor::FoundryLedgerData,
         verification::{
             CreatedObjects,
@@ -34,7 +33,7 @@ pub(super) fn verify_foundry_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &AddressSwapMap,
+    addresss_swap_map: &mut AddressSwapMap,
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())

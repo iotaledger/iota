@@ -7,6 +7,7 @@ use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
     TypeTag,
+    address_swap_map::AddressSwapMap,
     balance::Balance,
     base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
@@ -16,7 +17,6 @@ use iota_types::{
 };
 
 use crate::stardust::migration::{
-    address_swap_map::AddressSwapMap,
     executor::FoundryLedgerData,
     verification::{
         created_objects::CreatedObjects,
@@ -36,7 +36,7 @@ pub(super) fn verify_nft_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &AddressSwapMap,
+    addresss_swap_map: &mut AddressSwapMap,
 ) -> anyhow::Result<()> {
     let created_output_obj = created_objects.output().and_then(|id| {
         storage

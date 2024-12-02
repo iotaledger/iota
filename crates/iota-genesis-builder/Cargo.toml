@@ -14,7 +14,6 @@ workspace = true
 anyhow.workspace = true
 bcs.workspace = true
 bigdecimal = "0.4"
-csv = "1.2"
 camino.workspace = true
 clap.workspace = true
 fastcrypto.workspace = true
