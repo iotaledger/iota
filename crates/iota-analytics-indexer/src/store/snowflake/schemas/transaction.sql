@@ -31,6 +31,7 @@ CREATE OR REPLACE TABLE TRANSACTION
     gas_budget                 NUMBER(20, 0) NOT NULL,
     total_gas_cost             NUMBER(20, 0) NOT NULL,
     computation_cost           NUMBER(20, 0) NOT NULL,
+    computation_cost_burned    NUMBER(20, 0) NOT NULL,
     storage_cost               NUMBER(20, 0) NOT NULL,
     storage_rebate             NUMBER(20, 0) NOT NULL,
     non_refundable_storage_fee NUMBER(20, 0) NOT NULL,
@@ -66,7 +67,7 @@ CREATE
                                input, shared_input, gas_coins,
                                created, mutated, deleted, transfers, split_coins, merge_coins, publish, upgrade, others,
                                move_calls, packages, gas_owner, gas_object_id, gas_object_sequence, gas_object_digest,
-                               gas_budget, total_gas_cost, computation_cost, storage_cost, storage_rebate,
+                               gas_budget, total_gas_cost, computation_cost, computation_cost_burned, storage_cost, storage_rebate,
                                non_refundable_storage_fee,
                                gas_price, raw_transaction, has_zklogin_sig, has_upgraded_multisig
             )
@@ -101,6 +102,7 @@ CREATE
                          t.$1:gas_budget                 as gas_budget,
                          t.$1:total_gas_cost             as total_gas_cost,
                          t.$1:computation_cost           as computation_cost,
+                         t.$1:computation_cost_burned    as computation_cost_burned,
                          t.$1:storage_cost               as storage_cost,
                          t.$1:storage_rebate             as storage_rebate,
                          t.$1:non_refundable_storage_fee as non_refundable_storage_fee,
