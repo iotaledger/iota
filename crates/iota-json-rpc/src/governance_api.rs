@@ -692,7 +692,7 @@ fn candidate_validators_exchange_rate(
 ///
 /// # Example
 ///
-/// ```rust
+/// ```text
 /// // Get inactive validators
 /// let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
 /// let _ = validator_summary_from_system_state(
@@ -708,7 +708,7 @@ fn candidate_validators_exchange_rate(
 ///
 /// # Example
 ///
-/// ```rust
+/// ```text
 /// // Get candidate validators
 /// let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
 /// let _ = validator_summary_from_system_state(
