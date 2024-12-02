@@ -14,7 +14,7 @@ export function useCountdown(initialTimestamp: number | null): string {
 
     useEffect(() => {
         if (timeRemainingMs <= 0 && initialTimestamp) {
-            setTimeRemainingMs(initialTimestamp && Date.now() - initialTimestamp);
+            setTimeRemainingMs(Date.now() - initialTimestamp);
         }
         const interval = setInterval(() => {
             setTimeRemainingMs((prev) => prev - MILLISECONDS_PER_SECOND);

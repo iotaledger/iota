@@ -7,7 +7,7 @@ import { Banner, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
-    getSupplyIncreaseVestingPayout,
+    getSupplyIncreaseVestingPayoutByExpiration,
     getVestingOverview,
     groupTimelockedStakedObjects,
     isTimelockedUnlockable,
@@ -87,13 +87,13 @@ function VestingDashboardPage(): JSX.Element {
         Number(currentEpochMs),
     );
 
-    const lastPayout = getSupplyIncreaseVestingPayout(
+    const nextPayout = getSupplyIncreaseVestingPayoutByExpiration(
         [...timelockedMapped, ...timelockedstakedMapped],
         false,
     );
 
     const formattedLastPayoutExpirationTime = useCountdown(
-        Number(lastPayout?.expirationTimestampMs),
+        Number(nextPayout?.expirationTimestampMs),
     );
 
     const [formattedTotalVested, vestedSymbol] = useFormatCoin(
@@ -112,7 +112,7 @@ function VestingDashboardPage(): JSX.Element {
     );
 
     const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin(
-        lastPayout?.amount,
+        nextPayout?.amount,
         IOTA_TYPE_ARG,
     );
 
@@ -245,7 +245,7 @@ function VestingDashboardPage(): JSX.Element {
                         <CardBody
                             title={`${formattedNextPayout} ${nextPayoutSymbol}`}
                             subtitle={`Next payout ${
-                                lastPayout?.expirationTimestampMs
+                                nextPayout?.expirationTimestampMs
                                     ? formattedLastPayoutExpirationTime
                                     : ''
                             }`}
