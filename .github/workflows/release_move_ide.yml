@@ -82,13 +82,27 @@ jobs:
         run: |
           [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --bin move-analyzer --release
 
+      # Filenames need to match external-crates/move/crates/move-analyzer/editors/code/scripts/create_from_local.sh
       - name: Rename binaries for ${{ matrix.os }}
         shell: bash
         run: |
-          mkdir -p ${{ env.TMP_BUILD_DIR }}
-          mv ./target/release/move-analyzer${{ env.extention }} ${{ env.TMP_BUILD_DIR }}/move-analyzer-${{ matrix.os }}${{ env.extention }}
+          if [ ${{ matrix.os }} == "macos-latest" ]; then
+            OS_TARGET="macos-arm64"
+          elif [ ${{ matrix.os }} == "macos-latest-large" ]; then
+            OS_TARGET="macos-x86_64"
+          elif [ ${{ matrix.os }} == "windows-latest" ]; then
+            OS_TARGET="windows-x86_64"
+          elif [ ${{ matrix.os }} == "self-hosted" ]; then
+            OS_TARGET="ubuntu-x86_64"
+          else
+            echo "Unknown OS" ${{ matrix.os }}
+            exit 1
+          fi
 
-      - name: Print built files
+          mkdir -p ${{ env.TMP_BUILD_DIR }}
+          mv ./target/release/move-analyzer${{ env.extention }} ${{ env.TMP_BUILD_DIR }}/move-analyzer-$OS_TARGET${{ env.extention }}
+
+      - name: Print built file
         run: ls -R ${{ env.TMP_BUILD_DIR }}
 
       - name: Upload move-analyzer binary
@@ -107,6 +121,25 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
+          path: "external-crates/move/crates/move-analyzer/editors/code/move-analyzer-binaries"
 
-      - name: Print downloaded files
-        run: ls -R
+      - name: Print downloaded binaries
+        run: ls -R external-crates/move/crates/move-analyzer/editors/code/move-analyzer-binaries
+
+      - name: Setup Node
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: ./external-crates/move/crates/move-analyzer/editors/code
+        run: |
+          npm install
+          npm install --save-dev @types/node @types/semver
+          npm install -g vsce
+          sudo apt install zsh -y
+
+      # TODO: change to publish -pub with the VS_MARKETPLACE_TOKEN secret for   -p, --pat <token>               Personal Access Token (defaults to VSCE_PAT environment variable)
+      - name: Build vsce with binaries
+        working-directory: external-crates/move/crates/move-analyzer/editors/code/
+        run: ./scripts/create_from_local.sh -pkg move-analyzer-binaries
