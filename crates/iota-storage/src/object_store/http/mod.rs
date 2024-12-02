@@ -23,7 +23,7 @@ use crate::object_store::{
     http::{gcs::GoogleCloudStorage, local::LocalStorage, s3::AmazonS3},
 };
 
-// http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
+// https://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
 //
 // Do not URI-encode any of the unreserved characters that RFC 3986 defines:
 // A-Z, a-z, 0-9, hyphen ( - ), underscore ( _ ), period ( . ), and tilde ( ~ ).
