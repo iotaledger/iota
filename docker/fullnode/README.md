@@ -51,7 +51,9 @@ p2p-config:
 
 ### Download the IOTA Genesis Blob
 
-The genesis blob defines the IOTA network configuration. Before starting the Full Node, download the latest `genesis.blob` file to ensure compatibility with your version of IOTA.
+The genesis blob defines the IOTA network configuration. Before starting the Full Node, download the latest
+`genesis.blob` file to ensure compatibility with your version of IOTA. Keep in mind that the [IOTA Mainnet](https://wiki.iota.org/build/networks-endpoints/#iota) runs the
+[Stardust Protocol](https://wiki.iota.org/learn/protocols/stardust/introduction/) at the moment, so only Testnet and Devnet blobs are available.
 
 - [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
   `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
@@ -59,10 +61,6 @@ The genesis blob defines the IOTA network configuration. Before starting the Ful
   `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
 - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
   `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
-- [Mainnet genesis blob](https://github.com/iotaledger/iota/TODO):
-  `curl -fLJO TODO`
-- [Mainnet migration blob](https://github.com/iotaledger/iota/TODO):
-  `curl -fLJO TODO`
 
 ## Start Your IOTA Full Node
 
