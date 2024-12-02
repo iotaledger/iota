@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { truncateString } from './truncateString';
+import { truncateString } from '@iota/core';
 
 export function formatAccountName(
     nickname: string | undefined | null,
