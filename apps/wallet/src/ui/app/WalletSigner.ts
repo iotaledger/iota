@@ -52,7 +52,10 @@ export abstract class WalletSigner {
         if (isTransaction(transaction)) {
             // If the sender has not yet been set on the transaction, then set it.
             // NOTE: This allows for signing transactions with mismatched senders, which is important for sponsored transactions.
-            transaction.setSenderIfNotSet(await this.getAddress());
+            if (!transaction.getData().sender) {
+                transaction.setSender(await this.getAddress());
+            }
+
             return await transaction.build({
                 client: this.client,
             });
@@ -84,13 +87,12 @@ export abstract class WalletSigner {
         transactionBlock: Uint8Array | Transaction;
         options?: IotaTransactionBlockResponseOptions;
     }): Promise<IotaTransactionBlockResponse> {
-        const bytes = await this.prepareTransaction(input.transactionBlock);
         const signed = await this.signTransaction({
-            transaction: bytes,
+            transaction: input.transactionBlock,
         });
 
         return this.client.executeTransactionBlock({
-            transactionBlock: bytes,
+            transactionBlock: signed.bytes,
             signature: signed.signature,
             options: input.options,
         });
