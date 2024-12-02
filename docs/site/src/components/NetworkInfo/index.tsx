@@ -35,13 +35,13 @@ function L1(props: NetworkProps) {
             <CodeBlock>{props.permaNodeApi}</CodeBlock>
           </td>
         </tr>
-        {props.faucet && (
+        {props.faucetUrl && (
           <tr>
             <th>Faucet</th>
             <td>
-              <a href={props.faucet} target='_blank' rel='noopener noreferrer'>
-                {props.faucet}
-              </a>
+              <CodeBlock>
+                {props.faucetUrl}
+              </CodeBlock>
             </td>
           </tr>
         )}
@@ -81,13 +81,13 @@ function Testnet(props: NetworkProps) {
             <CodeBlock>{props.permaNodeApi}</CodeBlock>
           </td>
         </tr>
-        {props.faucet && (
+        {props.faucetUrl && (
           <tr>
             <th>Faucet</th>
             <td>
-              <a href={props.faucet} target='_blank' rel='noopener noreferrer'>
-                {props.faucet}
-              </a>
+              <CodeBlock>
+                {props.faucetUrl}
+              </CodeBlock>
             </td>
           </tr>
         )}
@@ -127,13 +127,13 @@ function Devnet(props: NetworkProps) {
             <CodeBlock>{props.permaNodeApi}</CodeBlock>
           </td>
         </tr>
-        {props.faucet && (
+        {props.faucetUrl && (
           <tr>
             <th>Faucet</th>
             <td>
-              <a href={props.faucet} target='_blank' rel='noopener noreferrer'>
-                {props.faucet}
-              </a>
+              <CodeBlock>
+                {props.faucetUrl}
+              </CodeBlock>
             </td>
           </tr>
         )}
@@ -294,13 +294,13 @@ function Move(props: MoveProps) {
             <CodeBlock>{props.jsonRpcWebsocketUrl}</CodeBlock>
           </td>
         </tr>
-        {props.faucet && (
+        {props.faucetUrl && (
           <tr>
             <th>Faucet URL</th>
             <td>
-              <a href={props.faucetUrl} target="_blank" rel="noopener noreferrer">
+              <CodeBlock>
                 {props.faucetUrl}
-              </a>
+              </CodeBlock>
             </td>
           </tr>
         )}
