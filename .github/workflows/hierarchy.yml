@@ -116,8 +116,8 @@ jobs:
     uses: ./.github/workflows/_e2e.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
-      isWallet: ${{ needs.diff.outputs.isWallet == 'true' }}
-      isExplorer: true
+      isWallet: true
+      isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
