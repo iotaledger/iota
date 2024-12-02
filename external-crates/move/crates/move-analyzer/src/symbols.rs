@@ -68,28 +68,28 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use crossbeam::channel::Sender;
-use derivative::*;
 use im::ordmap::OrdMap;
 use lsp_server::{Request, RequestId};
 use lsp_types::{
-    request::GotoTypeDefinitionParams, Diagnostic, DocumentSymbol, DocumentSymbolParams,
-    GotoDefinitionParams, Hover, HoverContents, HoverParams, Location, MarkupContent, MarkupKind,
-    Position, Range, ReferenceParams, SymbolKind,
+    Diagnostic, DocumentSymbol, DocumentSymbolParams, GotoDefinitionParams, Hover, HoverContents,
+    HoverParams, Location, MarkupContent, MarkupKind, Position, Range, ReferenceParams, SymbolKind,
+    request::GotoTypeDefinitionParams,
 };
 use move_command_line_common::files::FileHash;
 use move_compiler::{
-    command_line::compiler::{construct_pre_compiled_lib, FullyCompiledProgram},
+    PASS_CFGIR, PASS_PARSER, PASS_TYPING,
+    command_line::compiler::{FullyCompiledProgram, construct_pre_compiled_lib},
     editions::{Edition, FeatureGate, Flavor},
     expansion::ast::{self as E, AbilitySet, ModuleIdent, ModuleIdent_, Value, Value_, Visibility},
     linters::LintLevel,
-    naming::ast::{DatatypeTypeParameter, StructFields, Type, TypeName_, Type_, VariantFields},
+    naming::ast::{DatatypeTypeParameter, StructFields, Type, Type_, TypeName_, VariantFields},
     parser::ast as P,
     shared::{
+        Identifier, Name, NamedAddressMap,
         files::{FileId, MappedFiles},
         unique_map::UniqueMap,
-        Identifier, Name, NamedAddressMap,
     },
     typing::{
         ast::{
@@ -99,7 +99,6 @@ use move_compiler::{
         visitor::TypingVisitorContext,
     },
     unit_test::filter_test_members::UNIT_TEST_POISON_FUN_NAME,
-    PASS_CFGIR, PASS_PARSER, PASS_TYPING,
 };
 use move_ir_types::location::*;
 use move_package::{
@@ -112,8 +111,8 @@ use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 use url::Url;
 use vfs::{
-    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
     VfsPath,
+    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
 };
 
 use crate::{
@@ -327,16 +326,23 @@ pub struct MemberDef {
 }
 
 /// Definition of a local (or parameter)
-#[allow(clippy::non_canonical_partial_ord_impl)]
-#[derive(Derivative, Debug, Clone, Eq, PartialEq)]
-#[derivative(PartialOrd, Ord)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct LocalDef {
     /// Location of the definition
     pub def_loc: Loc,
     /// Type of definition
-    #[derivative(PartialOrd = "ignore")]
-    #[derivative(Ord = "ignore")]
     pub def_type: Type,
+}
+
+impl PartialOrd for LocalDef {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for LocalDef {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.def_loc.cmp(&other.def_loc)
+    }
 }
 
 /// Information about call sites relevant to the IDE
@@ -1660,14 +1666,11 @@ pub fn get_symbols(
                 eprintln!("created pre-compiled libs for {:?}", pkg_path);
                 mapped_files.extend_with_duplicates(libs.files.clone());
                 let deps = Arc::new(libs);
-                pkg_deps.insert(
-                    pkg_path.to_path_buf(),
-                    PrecompiledPkgDeps {
-                        manifest_hash,
-                        deps_hash,
-                        deps: deps.clone(),
-                    },
-                );
+                pkg_deps.insert(pkg_path.to_path_buf(), PrecompiledPkgDeps {
+                    manifest_hash,
+                    deps_hash,
+                    deps: deps.clone(),
+                });
                 deps
             }),
         };
@@ -2125,16 +2128,13 @@ fn get_mod_outer_defs(
 
         // process the struct itself
         let field_names = field_defs.iter().map(|f| sp(f.loc, f.name)).collect();
-        structs.insert(
-            *name,
-            MemberDef {
-                name_loc,
-                info: MemberDefInfo::Struct {
-                    field_defs,
-                    positional,
-                },
+        structs.insert(*name, MemberDef {
+            name_loc,
+            info: MemberDefInfo::Struct {
+                field_defs,
+                positional,
             },
-        );
+        });
         let pub_struct = edition
             .map(|e| e.supports(FeatureGate::PositionalFields))
             .unwrap_or(false);
@@ -2204,13 +2204,10 @@ fn get_mod_outer_defs(
             );
         }
         // process the enum itself
-        enums.insert(
-            *name,
-            MemberDef {
-                name_loc,
-                info: MemberDefInfo::Enum { variants_info },
-            },
-        );
+        enums.insert(*name, MemberDef {
+            name_loc,
+            info: MemberDefInfo::Enum { variants_info },
+        });
         let enum_doc_string = extract_doc_string(files, file_id_to_lines, &name_loc, None);
         def_info.insert(
             name_loc,
@@ -2227,13 +2224,10 @@ fn get_mod_outer_defs(
     }
 
     for (name_loc, name, c) in &mod_def.constants {
-        constants.insert(
-            *name,
-            MemberDef {
-                name_loc,
-                info: MemberDefInfo::Const,
-            },
-        );
+        constants.insert(*name, MemberDef {
+            name_loc,
+            info: MemberDefInfo::Const,
+        });
         let doc_string = extract_doc_string(files, file_id_to_lines, &name_loc, None);
         def_info.insert(
             name_loc,
@@ -2282,20 +2276,17 @@ fn get_mod_outer_defs(
             fun.signature.return_type.clone(),
             doc_string,
         );
-        functions.insert(
-            *name,
-            MemberDef {
-                name_loc,
-                info: MemberDefInfo::Fun {
-                    attrs: fun
-                        .attributes
-                        .clone()
-                        .iter()
-                        .map(|(_loc, name, _attr)| name.to_string())
-                        .collect(),
-                },
+        functions.insert(*name, MemberDef {
+            name_loc,
+            info: MemberDefInfo::Fun {
+                attrs: fun
+                    .attributes
+                    .clone()
+                    .iter()
+                    .map(|(_loc, name, _attr)| name.to_string())
+                    .collect(),
             },
-        );
+        });
         def_info.insert(name_loc, fun_info);
     }
 
