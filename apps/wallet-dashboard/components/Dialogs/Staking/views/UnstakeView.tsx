@@ -30,7 +30,7 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { Loader, Warning } from '@iota/ui-icons';
 import { useUnstakeTransaction } from '@/hooks';
 import { ValidatorStakingData } from '@/components';
-import { Layout, LayoutFooter, LayoutBody } from './Layout';
+import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout/Layout';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
@@ -129,9 +129,9 @@ export function UnstakeView({
     }
 
     return (
-        <Layout>
+        <DialogLayout>
             <Header title="Unstake" onClose={handleClose} onBack={handleClose} titleCentered />
-            <LayoutBody>
+            <DialogLayoutBody>
                 <div className="flex flex-col gap-y-md">
                     <ValidatorStakingData
                         validatorAddress={extendedStake.validatorAddress}
@@ -180,9 +180,9 @@ export function UnstakeView({
                         </div>
                     </Panel>
                 </div>
-            </LayoutBody>
+            </DialogLayoutBody>
 
-            <LayoutFooter>
+            <DialogLayoutFooter>
                 <Button
                     type={ButtonType.Secondary}
                     fullWidth
@@ -196,7 +196,7 @@ export function UnstakeView({
                     }
                     iconAfterText
                 />
-            </LayoutFooter>
-        </Layout>
+            </DialogLayoutFooter>
+        </DialogLayout>
     );
 }
