@@ -683,12 +683,12 @@ fn candidate_validators_exchange_rate(
 /// `Pending` validators, we need to access dynamic fields within specific
 /// tables.
 ///
-/// To retrieve validator status information, this function utilizes a
-/// `table_id` defined by an `ObjectID` and a `limit` to specify the number of
-/// records to fetch. Both the `table_id` and `limit` are obtained from
-/// `IotaSystemStateSummary`. Additionally, a `key` is extracted from the
-/// `table_id`'s `DynamicFieldInfo` to identify the specific validator within
-/// the table.
+/// To retrieve validator status information, this function utilizes the
+/// corresponding `table_id` (an `ObjectID` value) and a `limit` to specify the
+/// number of records to fetch. Both the `table_id` and `limit` can be obtained
+/// from `IotaSystemStateSummary` in the caller. Additionally, keys are
+/// extracted from the table `DynamicFieldInfo` values according to the `key`
+/// closure. This helps in identifying the specific validator within the table.
 ///
 /// # Example
 ///
