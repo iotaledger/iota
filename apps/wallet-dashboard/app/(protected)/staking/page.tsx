@@ -26,7 +26,7 @@ import {
     useTotalDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-    StakingCard,
+    StakedCard,
     useFormatCoin,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
@@ -139,7 +139,7 @@ function StakingDashboardPage(): JSX.Element {
                                         delegations
                                             ?.filter(({ inactiveValidator }) => inactiveValidator)
                                             .map((delegation) => (
-                                                <StakingCard
+                                                <StakedCard
                                                     extendedStake={delegation}
                                                     currentEpoch={Number(system.epoch)}
                                                     key={delegation.stakedIotaId}
@@ -153,7 +153,7 @@ function StakingDashboardPage(): JSX.Element {
                                         delegations
                                             ?.filter(({ inactiveValidator }) => !inactiveValidator)
                                             .map((delegation) => (
-                                                <StakingCard
+                                                <StakedCard
                                                     extendedStake={delegation}
                                                     currentEpoch={Number(system.epoch)}
                                                     key={delegation.stakedIotaId}

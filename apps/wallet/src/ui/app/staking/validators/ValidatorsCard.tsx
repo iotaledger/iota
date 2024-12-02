@@ -11,7 +11,7 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
     useFormatCoin,
-    StakingCard,
+    StakedCard,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
@@ -140,11 +140,12 @@ validator to start earning rewards again."
                     </div>
                 ) : null}
                 <div className="w-full gap-2">
+                    hey
                     {system &&
                         delegations
                             ?.filter(({ inactiveValidator }) => inactiveValidator)
                             .map((delegation) => (
-                                <StakingCard
+                                <StakedCard
                                     extendedStake={delegation}
                                     currentEpoch={Number(system.epoch)}
                                     key={delegation.stakedIotaId}
@@ -162,11 +163,12 @@ validator to start earning rewards again."
                 </div>
 
                 <div className="w-full gap-2">
+                    hey
                     {system &&
                         delegations
                             ?.filter(({ inactiveValidator }) => !inactiveValidator)
                             .map((delegation) => (
-                                <StakingCard
+                                <StakedCard
                                     extendedStake={delegation}
                                     currentEpoch={Number(system.epoch)}
                                     key={delegation.stakedIotaId}
