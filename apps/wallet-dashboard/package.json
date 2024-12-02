@@ -12,7 +12,7 @@
         "test": "jest"
     },
     "engines": {
-        "node": ">= v18.17.0"
+        "node": ">= 20"
     },
     "dependencies": {
         "@growthbook/growthbook": "^1.0.0",
