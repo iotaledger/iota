@@ -675,13 +675,13 @@ fn candidate_validators_exchange_rate(
     validator_exchange_rates(state, tables)
 }
 
-/// Fetches validator status information from `StateRead` for validators not
-/// included in `IotaSystemStateSummary`.
+/// Fetches validator status information from `StateRead`.
 ///
+/// This makes sense for validators not included in `IotaSystemStateSummary`.
 /// `IotaSystemStateSummary` only contains information about `Active`
 /// validators. To retrieve information about `Inactive`, `Candidate`, and
 /// `Pending` validators, we need to access dynamic fields within specific
-/// tables.
+/// Move tables.
 ///
 /// To retrieve validator status information, this function utilizes the
 /// corresponding `table_id` (an `ObjectID` value) and a `limit` to specify the
