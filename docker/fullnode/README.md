@@ -1,6 +1,6 @@
 # Use Docker to Run an IOTA Full Node Locally
 
-Use this guide to install and configure an IOTA Full Node locally using Docker for testing. These instructions are valid for the following operating system and processor combinations:
+Use this guide to install and configure an IOTA Full Node locally using Docker for testing. The instructions apply to the following operating system and processor combinations:
 
 - Linux/AMD64
 - Darwin/AMD64
