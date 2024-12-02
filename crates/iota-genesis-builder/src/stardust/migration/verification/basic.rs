@@ -18,6 +18,7 @@ use iota_types::{
     },
 };
 
+use super::util::TokensAmountCounter;
 use crate::stardust::migration::{
     executor::FoundryLedgerData,
     verification::{
@@ -38,7 +39,7 @@ pub(super) fn verify_basic_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
 ) -> Result<()> {
     // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
     if is_timelocked_vested_reward(output_id, output, target_milestone_timestamp) {
@@ -69,7 +70,7 @@ pub(super) fn verify_basic_output(
             created_timelock.locked().value(),
             output.amount()
         );
-        *total_value += created_timelock.locked().value();
+        tokens_counter.update_total_value_for_iota(created_timelock.locked().value());
 
         // Label
         let label = created_timelock
@@ -130,7 +131,7 @@ pub(super) fn verify_basic_output(
             created_output.balance.value(),
             output.amount()
         );
-        *total_value += created_output.balance.value();
+        tokens_counter.update_total_value_for_iota(created_output.balance.value());
 
         // Native Tokens
         verify_native_tokens::<Field<String, Balance>>(
@@ -139,6 +140,7 @@ pub(super) fn verify_basic_output(
             created_output.native_tokens,
             created_objects.native_tokens().ok(),
             storage,
+            tokens_counter,
         )?;
 
         // Storage Deposit Return Unlock Condition
@@ -193,7 +195,7 @@ pub(super) fn verify_basic_output(
 
         verify_address_owner(output.address(), created_coin_obj, "coin")?;
         verify_coin(output.amount(), &created_coin)?;
-        *total_value += created_coin.value();
+        tokens_counter.update_total_value_for_iota(created_coin.value());
 
         // Native Tokens
         verify_native_tokens::<(TypeTag, Coin)>(
@@ -202,6 +204,7 @@ pub(super) fn verify_basic_output(
             None,
             created_objects.native_tokens().ok(),
             storage,
+            tokens_counter,
         )?;
     }
 

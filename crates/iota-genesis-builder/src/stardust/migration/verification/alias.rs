@@ -17,6 +17,7 @@ use iota_types::{
     },
 };
 
+use super::util::TokensAmountCounter;
 use crate::stardust::migration::{
     executor::FoundryLedgerData,
     verification::{
@@ -34,7 +35,7 @@ pub(super) fn verify_alias_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
@@ -90,7 +91,7 @@ pub(super) fn verify_alias_output(
         created_output.balance.value(),
         output.amount()
     );
-    *total_value += created_output.balance.value();
+    tokens_counter.update_total_value_for_iota(created_output.balance.value());
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(
@@ -99,6 +100,7 @@ pub(super) fn verify_alias_output(
         created_output.native_tokens,
         created_objects.native_tokens().ok(),
         storage,
+        tokens_counter,
     )?;
 
     // Legacy State Controller
