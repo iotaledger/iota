@@ -42,8 +42,8 @@ test('staking', async ({ page, extensionUrl }) => {
     });
     await page.getByText(`${STAKE_AMOUNT} IOTA`).click();
 
-    await expect(page.getByTestId('stake-card')).toBeVisible({ timeout: LONG_TIMEOUT });
-    await page.getByTestId('stake-card').click();
+    await expect(page.getByTestId('staked-card')).toBeVisible({ timeout: LONG_TIMEOUT });
+    await page.getByTestId('staked-card').click();
     await page.getByText('Unstake').click();
     await page.getByRole('button', { name: 'Unstake' }).click();
 
