@@ -406,6 +406,204 @@ upgrade_to_latest
 version
 	fun
 	0x3::validator_wrapper
+ValidatorSet
+	public struct
+	0x3::validator_set_v2
+ValidatorEpochInfoEventV1
+	public struct
+	0x3::validator_set_v2
+ValidatorJoinEvent
+	public struct
+	0x3::validator_set_v2
+ValidatorLeaveEvent
+	public struct
+	0x3::validator_set_v2
+import
+	public(package) fun
+	0x3::validator_set_v2
+new
+	public(package) fun
+	0x3::validator_set_v2
+request_add_validator_candidate
+	public(package) fun
+	0x3::validator_set_v2
+request_remove_validator_candidate
+	public(package) fun
+	0x3::validator_set_v2
+request_add_validator
+	public(package) fun
+	0x3::validator_set_v2
+assert_no_pending_or_active_duplicates
+	public(package) fun
+	0x3::validator_set_v2
+request_remove_validator
+	public(package) fun
+	0x3::validator_set_v2
+request_add_stake
+	public(package) fun
+	0x3::validator_set_v2
+request_withdraw_stake
+	public(package) fun
+	0x3::validator_set_v2
+request_set_commission_rate
+	public(package) fun
+	0x3::validator_set_v2
+advance_epoch
+	public(package) fun
+	0x3::validator_set_v2
+update_and_process_low_stake_departures
+	fun
+	0x3::validator_set_v2
+effectuate_staged_metadata
+	fun
+	0x3::validator_set_v2
+derive_reference_gas_price
+	public fun
+	0x3::validator_set_v2
+total_stake
+	public fun
+	0x3::validator_set_v2
+validator_total_stake_amount
+	public fun
+	0x3::validator_set_v2
+validator_stake_amount
+	public fun
+	0x3::validator_set_v2
+validator_voting_power
+	public fun
+	0x3::validator_set_v2
+validator_staking_pool_id
+	public fun
+	0x3::validator_set_v2
+staking_pool_mappings
+	public fun
+	0x3::validator_set_v2
+pool_exchange_rates
+	public(package) fun
+	0x3::validator_set_v2
+next_epoch_validator_count
+	public(package) fun
+	0x3::validator_set_v2
+is_active_validator_by_iota_address
+	public(package) fun
+	0x3::validator_set_v2
+is_duplicate_with_active_validator
+	fun
+	0x3::validator_set_v2
+is_duplicate_validator
+	public(package) fun
+	0x3::validator_set_v2
+count_duplicates_vec
+	fun
+	0x3::validator_set_v2
+is_duplicate_with_pending_validator
+	fun
+	0x3::validator_set_v2
+count_duplicates_tablevec
+	fun
+	0x3::validator_set_v2
+get_candidate_or_active_validator_mut
+	fun
+	0x3::validator_set_v2
+find_validator
+	fun
+	0x3::validator_set_v2
+find_validator_from_table_vec
+	fun
+	0x3::validator_set_v2
+get_validator_indices
+	fun
+	0x3::validator_set_v2
+get_validator_mut
+	public(package) fun
+	0x3::validator_set_v2
+get_active_or_pending_or_candidate_validator_mut
+	fun
+	0x3::validator_set_v2
+get_validator_mut_with_verified_cap
+	public(package) fun
+	0x3::validator_set_v2
+get_validator_mut_with_ctx
+	public(package) fun
+	0x3::validator_set_v2
+get_validator_mut_with_ctx_including_candidates
+	public(package) fun
+	0x3::validator_set_v2
+get_validator_ref
+	fun
+	0x3::validator_set_v2
+get_active_or_pending_or_candidate_validator_ref
+	public(package) fun
+	0x3::validator_set_v2
+get_active_validator_ref
+	public fun
+	0x3::validator_set_v2
+get_pending_validator_ref
+	public fun
+	0x3::validator_set_v2
+verify_cap
+	public(package) fun
+	0x3::validator_set_v2
+process_pending_removals
+	fun
+	0x3::validator_set_v2
+process_validator_departure
+	fun
+	0x3::validator_set_v2
+clean_report_records_leaving_validator
+	fun
+	0x3::validator_set_v2
+process_pending_validators
+	fun
+	0x3::validator_set_v2
+sort_removal_list
+	fun
+	0x3::validator_set_v2
+process_pending_stakes_and_withdraws
+	fun
+	0x3::validator_set_v2
+calculate_total_stakes
+	fun
+	0x3::validator_set_v2
+adjust_stake_and_gas_price
+	fun
+	0x3::validator_set_v2
+compute_reward_adjustments
+	fun
+	0x3::validator_set_v2
+compute_slashed_validators
+	fun
+	0x3::validator_set_v2
+compute_unadjusted_reward_distribution
+	fun
+	0x3::validator_set_v2
+compute_adjusted_reward_distribution
+	fun
+	0x3::validator_set_v2
+distribute_reward
+	fun
+	0x3::validator_set_v2
+emit_validator_epoch_events
+	fun
+	0x3::validator_set_v2
+sum_voting_power_by_addresses
+	public fun
+	0x3::validator_set_v2
+active_validators
+	public fun
+	0x3::validator_set_v2
+is_validator_candidate
+	public fun
+	0x3::validator_set_v2
+is_inactive_validator
+	public fun
+	0x3::validator_set_v2
+active_validator_addresses
+	public(package) fun
+	0x3::validator_set_v2
+select_committee_members
+	public(package) fun
+	0x3::validator_set_v2
 ValidatorSetV1
 	public struct
 	0x3::validator_set
@@ -419,6 +617,9 @@ ValidatorLeaveEvent
 	public struct
 	0x3::validator_set
 new
+	public(package) fun
+	0x3::validator_set
+v1_to_v2
 	public(package) fun
 	0x3::validator_set
 request_add_validator_candidate
@@ -616,6 +817,9 @@ total_balance
 SystemParametersV1
 	public struct
 	0x3::iota_system_state_inner
+IotaSystemStateV2
+	public struct
+	0x3::iota_system_state_inner
 IotaSystemStateV1
 	public struct
 	0x3::iota_system_state_inner
@@ -626,6 +830,9 @@ create
 	public(package) fun
 	0x3::iota_system_state_inner
 create_system_parameters
+	public(package) fun
+	0x3::iota_system_state_inner
+v1_to_v2
 	public(package) fun
 	0x3::iota_system_state_inner
 request_add_validator_candidate

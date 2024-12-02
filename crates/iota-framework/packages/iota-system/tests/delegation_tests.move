@@ -9,7 +9,7 @@ module iota_system::stake_tests {
     use iota_system::iota_system::IotaSystemState;
     use iota_system::staking_pool::{Self, StakedIota, PoolTokenExchangeRate};
     use iota::test_utils::assert_eq;
-    use iota_system::validator_set;
+    use iota_system::validator_set_v2 as validator_set;
     use iota::test_utils;
     use iota::table::Table;
 

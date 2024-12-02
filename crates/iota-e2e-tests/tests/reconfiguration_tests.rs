@@ -847,7 +847,7 @@ async fn safe_mode_reconfig_test() {
     let system_state = test_cluster.wait_for_epoch(Some(1)).await;
     assert!(!system_state.safe_mode());
     assert_eq!(system_state.epoch(), 1);
-    assert_eq!(system_state.system_state_version(), 1);
+    assert_eq!(system_state.system_state_version(), 2);
 
     let prev_epoch_start_timestamp = system_state.epoch_start_timestamp_ms();
 
@@ -876,7 +876,7 @@ async fn safe_mode_reconfig_test() {
     let system_state = test_cluster.wait_for_epoch(Some(3)).await;
     assert!(!system_state.safe_mode());
     assert_eq!(system_state.epoch(), 3);
-    assert_eq!(system_state.system_state_version(), 1);
+    assert_eq!(system_state.system_state_version(), 2);
 }
 
 async fn add_validator_candidate(

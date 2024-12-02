@@ -49,13 +49,13 @@ module iota_system::iota_system {
     use iota::system_admin_cap::IotaSystemAdminCap;
     use iota_system::validator::ValidatorV1;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
-    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1};
+    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1, IotaSystemStateV2 as IotaSystemStateLatest};
     use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::dynamic_field;
     use iota::vec_map::VecMap;
 
     #[test_only] use iota::balance;
-    #[test_only] use iota_system::validator_set::ValidatorSetV1;
+    #[test_only] use iota_system::validator_set_v2::ValidatorSet as ValidatorSetLatest;
     #[test_only] use iota::vec_set::VecSet;
 
     public struct IotaSystemState has key {
@@ -548,16 +548,23 @@ module iota_system::iota_system {
         storage_rebate
     }
 
-    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateV1 {
+    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateLatest {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
+    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateLatest {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
-        let inner: &mut IotaSystemStateV1 = dynamic_field::borrow_mut(
+    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateLatest {
+        if (self.version == 1) {
+            let old_version: IotaSystemStateV1 = dynamic_field::remove(&mut self.id, self.version);
+            let new_version = old_version.v1_to_v2();
+            self.version = 2;
+            dynamic_field::add(&mut self.id, self.version, new_version);
+        };
+
+        let inner: &mut IotaSystemStateLatest = dynamic_field::borrow_mut(
             &mut self.id,
             self.version
         );
@@ -624,7 +631,7 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Return the current validator set
-    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetV1 {
+    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetLatest {
         let self = load_system_state(wrapper);
         self.validators()
     }
