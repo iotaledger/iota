@@ -10,6 +10,9 @@ outputs:
   isMove:
     description: True when changes happened to the Move code
     value: "${{ steps.diff.outputs.isMove }}"
+  isExternalCrates:
+    description: True when changes happened in external crates
+    value: "${{ steps.diff.outputs.isExternalCrates }}"
   isReleaseNotesEligible:
     description: True when changes happened in Release Notes eligible paths
     value: "${{ steps.diff.outputs.isReleaseNotesEligible }}"
@@ -40,6 +43,7 @@ runs:
             - "Cargo.toml"
             - "Cargo.lock"
             - ".config/nextest.toml"
+            - "rust-toolchain.toml"
           isDoc:
             - "docs/content/**"
             - "docs/site/**"
@@ -55,6 +59,8 @@ runs:
             - "examples/**"
             - "iota_programmability/**"
             - ".github/workflows/_move_tests.yml"
+          isExternalCrates:
+            - "external-crates/move/crates/**"
           isReleaseNotesEligible:
             - "consensus/**"
             - "crates/**"

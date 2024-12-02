@@ -5,7 +5,7 @@
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
-import { getCustomNetwork } from '_src/shared/api-env';
+import { getCustomNetwork } from '@iota/core';
 import { getAllNetworks, Network, type NetworkConfiguration } from '@iota/iota-sdk/client';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';

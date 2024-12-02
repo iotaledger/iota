@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAppSelector } from '_hooks';
-import { getCustomNetwork } from '_src/shared/api-env';
+import { getCustomNetwork } from '@iota/core';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { FaucetRateLimitError } from '@iota/iota-sdk/faucet';
 import { toast } from 'react-hot-toast';

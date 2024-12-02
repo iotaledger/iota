@@ -24,10 +24,8 @@ interface OwnObjectContainerProps {
 
 function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Element {
     return (
-        <div className="w-full min-w-[150px] basis-1/2 md:min-w-[210px] md:basis-1/3">
-            <div className="rounded-xl p-xs hover:bg-neutral-92">
-                <ObjectLink display="block" objectId={id} label={children} />
-            </div>
+        <div className="rounded-xl p-xs hover:bg-neutral-92 dark:hover:bg-neutral-12">
+            <ObjectLink display="block" objectId={id} label={children} />
         </div>
     );
 }
@@ -84,17 +82,19 @@ export function SmallThumbnailsView({
     limit,
 }: SmallThumbnailsViewProps): JSX.Element {
     return (
-        <div className="flex h-full flex-row flex-wrap overflow-auto">
-            {loading && <SmallThumbnailsViewLoading limit={limit} />}
-            {data?.map((obj, index) => {
-                const id = obj.data?.objectId;
+        <div className="h-full overflow-auto">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-y-xxs">
+                {loading && <SmallThumbnailsViewLoading limit={limit} />}
+                {data?.map((obj) => {
+                    const id = obj.data?.objectId;
 
-                return (
-                    <OwnObjectContainer key={id} id={id!}>
-                        <SmallThumbnail obj={obj} />
-                    </OwnObjectContainer>
-                );
-            })}
+                    return (
+                        <OwnObjectContainer key={id} id={id!}>
+                            <SmallThumbnail obj={obj} />
+                        </OwnObjectContainer>
+                    );
+                })}
+            </div>
         </div>
     );
 }
