@@ -20,7 +20,7 @@ export const DEFAULT_WALLET_FILTER = (wallet: WalletWithRequiredFeatures) =>
 
 export const DEFAULT_PREFERRED_WALLETS = [IOTA_WALLET_NAME];
 
-const WALLET_CHROME_EXTENSION_ID = 'TODO';
+const WALLET_CHROME_EXTENSION_ID = 'iidjkmdceolghepehaaddojmnjnkkija';
 
 export const WALLET_DOWNLOAD_URL =
     'https://chromewebstore.google.com/detail/' + WALLET_CHROME_EXTENSION_ID;
