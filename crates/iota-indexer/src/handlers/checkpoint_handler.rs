@@ -18,7 +18,7 @@ use iota_types::{
     base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::TransactionEffectsAPI,
-    event::SystemEpochInfoEventV1,
+    event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_system_state::{
         IotaSystemStateTrait, get_iota_system_state,
         iota_system_state_summary::IotaSystemStateSummary,
@@ -230,19 +230,33 @@ where
         let system_state: IotaSystemStateSummary =
             get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
 
-        let epoch_event = transactions
+        let event = transactions
             .iter()
             .flat_map(|t| t.events.as_ref().map(|e| &e.data))
             .flatten()
-            .find(|ev| ev.is_system_epoch_info_event())
+            .find(|ev| ev.is_system_epoch_info_event_v1() || ev.is_system_epoch_info_event_v2())
+            .map(|ev| {
+                if ev.is_system_epoch_info_event_v1() {
+                    SystemEpochInfoEvent::V1(
+                        bcs::from_bytes::<SystemEpochInfoEventV1>(&ev.contents).expect(
+                            "event deserialization should succeed as type was pre-validated",
+                        ),
+                    )
+                } else {
+                    SystemEpochInfoEvent::V2(
+                        bcs::from_bytes::<SystemEpochInfoEventV2>(&ev.contents).expect(
+                            "event deserialization should succeed as type was pre-validated",
+                        ),
+                    )
+                }
+            })
             .unwrap_or_else(|| {
                 panic!(
                     "Can't find SystemEpochInfoEventV1 in epoch end checkpoint {}",
                     checkpoint_summary.sequence_number()
                 )
             });
-
-        let event = bcs::from_bytes::<SystemEpochInfoEventV1>(&epoch_event.contents)?;
+;
 
         // Now we just entered epoch X, we want to calculate the diff between
         // TotalTransactionsByEndOfEpoch(X-1) and TotalTransactionsByEndOfEpoch(X-2).

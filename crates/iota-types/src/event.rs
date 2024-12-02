@@ -138,11 +138,16 @@ impl Event {
         })
     }
 
-    pub fn is_system_epoch_info_event(&self) -> bool {
+    pub fn is_system_epoch_info_event_v1(&self) -> bool {
         self.type_.address == IOTA_SYSTEM_ADDRESS
             && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && (self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
-                || self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2"))
+            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
+    }
+
+    pub fn is_system_epoch_info_event_v2(&self) -> bool {
+        self.type_.address == IOTA_SYSTEM_ADDRESS
+            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
+            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2")
     }
 }
 
@@ -161,6 +166,12 @@ impl Event {
             contents: vec![],
         }
     }
+}
+
+#[derive(Deserialize)]
+pub enum SystemEpochInfoEvent {
+    V1(SystemEpochInfoEventV1),
+    V2(SystemEpochInfoEventV2),
 }
 
 // Event emitted in move code `fun advance_epoch` in protocol V1

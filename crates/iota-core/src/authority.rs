@@ -65,7 +65,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEventV2},
+    event::{Event, EventID, SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -4508,7 +4508,7 @@ impl AuthorityState {
         epoch_start_timestamp_ms: CheckpointTimestamp,
     ) -> anyhow::Result<(
         IotaSystemState,
-        Option<SystemEpochInfoEventV2>,
+        Option<SystemEpochInfoEvent>,
         TransactionEffects,
     )> {
         let mut txns = Vec::new();
@@ -4636,15 +4636,28 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
-        // Find the SystemEpochInfoEventV2 emitted by the advance_epoch transaction.
+        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
             .data
             .iter()
-            .find(|event| event.is_system_epoch_info_event())
+            .find(|event| {
+                event.is_system_epoch_info_event_v1() || event.is_system_epoch_info_event_v2()
+            })
             .map(|event| {
-                bcs::from_bytes::<SystemEpochInfoEventV2>(&event.contents)
-                    .expect("event deserialization should succeed as type was pre-validated")
+                if event.is_system_epoch_info_event_v1() {
+                    SystemEpochInfoEvent::V1(
+                        bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents).expect(
+                            "event deserialization should succeed as type was pre-validated",
+                        ),
+                    )
+                } else {
+                    SystemEpochInfoEvent::V2(
+                        bcs::from_bytes::<SystemEpochInfoEventV2>(&event.contents).expect(
+                            "event deserialization should succeed as type was pre-validated",
+                        ),
+                    )
+                }
             });
         // The system epoch info event can be `None` in case if the `advance_epoch`
         // Move function call failed and was executed in the safe mode.

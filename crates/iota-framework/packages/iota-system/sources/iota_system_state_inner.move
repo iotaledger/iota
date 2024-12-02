@@ -159,6 +159,11 @@ module iota_system::iota_system_state_inner {
         extra_fields: Bag,
     }
 
+    public enum SystemEpochInfoEvent has copy, drop {
+        V1(SystemEpochInfoEventV1),
+        V2(SystemEpochInfoEventV2),
+    }
+
     #[allow(unused_field)]
     /// The first version of the event containing system-level epoch information,
     /// emitted during the epoch advancement transaction.
@@ -176,6 +181,8 @@ module iota_system::iota_system_state_inner {
         minted_tokens_amount: u64,
     }
 
+    
+    #[allow(unused_field)]
     /// The second version of the event containing system-level epoch information,
     /// emitted during the epoch advancement transaction.
     public struct SystemEpochInfoEventV2 has copy, drop {
