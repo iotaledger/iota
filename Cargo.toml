@@ -190,12 +190,12 @@ strip = 'none'
 opt-level = 2
 
 [profile.simulator]
-inherits = "test"
 debug = true
 debug-assertions = true
-overflow-checks = true
+inherits = "test"
 # opt-level 1 gives >5x speedup for simulator tests without slowing down build times very much.
 opt-level = 1
+overflow-checks = true
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'] }
