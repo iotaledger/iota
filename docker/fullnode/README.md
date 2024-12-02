@@ -38,7 +38,7 @@ p2p-config:
         peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
 ```
 
-#### Tesnet
+#### Testnet
 
 ```yaml
 p2p-config:
@@ -111,7 +111,7 @@ docker compose down --volumes
 ### View Activity on Your Local Full Node with IOTA Explorer
 
 The IOTA Explorer supports connecting to any network as long as it has `https` enabled. To view activity on your local
-Full Node, open the URL: [hhttps://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select Custom
+Full Node, open the URL: [https://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select Custom
 RPC URL from the network dropdown in the top right.
 
 ### View Resource Usage (CPU and Memory)
