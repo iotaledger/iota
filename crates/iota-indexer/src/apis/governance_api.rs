@@ -19,7 +19,6 @@ use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID},
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
-    error::IotaError,
     governance::StakedIota,
     id::ID,
     iota_serde::BigInt,
@@ -424,14 +423,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
             .validator_summary_from_system_state(
                 system_state_summary.inactive_pools_id,
                 system_state_summary.inactive_pools_size,
-                |df| {
-                    bcs::from_bytes::<ID>(&df.bcs_name).map_err(|e| {
-                        IotaError::ObjectDeserialization {
-                            error: e.to_string(),
-                        }
-                        .into()
-                    })
-                },
+                |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
             )
             .await?;
 
@@ -479,22 +471,57 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
             .validator_summary_from_system_state(
                 system_state_summary.validator_candidates_id,
                 system_state_summary.validator_candidates_size,
-                |df| {
-                    bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(|err| {
-                        IotaError::ObjectDeserialization {
-                            error: err.to_string(),
-                        }
-                        .into()
-                    })
-                },
+                |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
             )
             .await?;
 
         self.validator_exchange_rates(tables).await
     }
 
-    /// An utility function to gather `Candidate` and `Inactive` validator
-    /// status information from the system state
+    /// Fetches validator status information from `StateRead` for validators not
+    /// included in `IotaSystemStateSummary`.
+    ///
+    /// `IotaSystemStateSummary` only contains information about `Active`
+    /// validators. To retrieve information about `Inactive`, `Candidate`, and
+    /// `Pending` validators, we need to access dynamic fields within specific
+    /// tables.
+    ///
+    /// To retrieve validator status information, this function utilizes a
+    /// `table_id` defined by an `ObjectID` and a `limit` to specify the number
+    /// of records to fetch. Both the `table_id` and `limit` are obtained
+    /// from `IotaSystemStateSummary`. Additionally, a `key` is extracted
+    /// from the `table_id`'s `DynamicFieldInfo` to identify the specific
+    /// validator within the table.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// // Get inactive validators
+    /// let system_state_summary = self.get_latest_iota_system_state().await?;
+    /// let _ = self.validator_summary_from_system_state(
+    ///        // ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool
+    ///        system_state_summary.inactive_pools_id,
+    ///        // Number of inactive staking pools
+    ///        system_state_summary.inactive_pools_size,
+    ///        // Extract the `ID` of the `Inactive` validator from the `DynamicFieldInfo` in the `system_state_summary.inactive_pools_id` table
+    ///        |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+    /// ).await?;
+    /// ```
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// // Get candidate validators
+    /// let system_state_summary = self.get_latest_iota_system_state().await?;
+    /// let _ = self.validator_summary_from_system_state(
+    ///        // ID of the object that stores preactive validators, mapping their addresses to their Validator structs
+    ///        system_state_summary.validator_candidates_id,
+    ///        // Number of preactive validators
+    ///        system_state_summary.validator_candidates_size,
+    ///        // Extract the `IotaAddress` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
+    ///        |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+    /// ).await?;
+    /// ```
     async fn validator_summary_from_system_state<K, F>(
         &self,
         table_id: ObjectID,
