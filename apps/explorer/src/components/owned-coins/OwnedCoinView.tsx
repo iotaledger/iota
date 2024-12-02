@@ -10,6 +10,7 @@ import { CoinIcon } from './CoinIcon';
 import { type CoinBalanceVerified } from './OwnedCoins';
 import CoinsPanel from './OwnedCoinsPanel';
 import {
+    ButtonType,
     Card,
     CardAction,
     CardActionType,
@@ -57,6 +58,7 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                     title={`${coin.coinObjectCount} Object` + (coin.coinObjectCount > 1 ? 's' : '')}
                     icon={<ArrowUp className={clsx({ 'rotate-180': !areCoinDetailsOpen })} />}
                     iconAfterText
+                    buttonType={ButtonType.Outlined}
                 />
             </Card>
             {areCoinDetailsOpen && (
