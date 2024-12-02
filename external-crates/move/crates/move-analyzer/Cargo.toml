@@ -12,7 +12,7 @@ anyhow.workspace = true
 clap.workspace = true
 codespan-reporting.workspace = true
 crossbeam.workspace = true
-derivative.workspace = true
+derive_more = { workspace = true, features = ["full"] }
 dunce.workspace = true
 im.workspace = true
 itertools.workspace = true

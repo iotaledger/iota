@@ -12,17 +12,17 @@ use std::{
 };
 
 use ethnum::U256 as EthnumU256;
-use num::{bigint::Sign, BigInt};
+use num::{BigInt, bigint::Sign};
 // This U256 impl was chosen for now but we are open to changing it as needed
 use primitive_types::U256 as PrimitiveU256;
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::strategy::BoxedStrategy;
 use rand::{
-    distributions::{
-        uniform::{SampleUniform, UniformSampler},
-        Distribution, Standard,
-    },
     Rng,
+    distributions::{
+        Distribution, Standard,
+        uniform::{SampleUniform, UniformSampler},
+    },
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uint::FromStrRadixErr;
@@ -312,9 +312,7 @@ impl U256 {
 
     /// U256 to 32 little endian bytes
     pub fn to_le_bytes(self) -> [u8; U256_NUM_BYTES] {
-        let mut bytes = [0u8; U256_NUM_BYTES];
-        self.0.to_little_endian(&mut bytes);
-        bytes
+        self.0.to_little_endian()
     }
 
     /// Leading zeros of the number
