@@ -21,7 +21,7 @@ export function CloseButton({ onClick }: CloseButtonProps): JSX.Element {
         <button
             onClick={onClick}
             type="button"
-            className="absolute right-0 top-0 p-4 text-steel hover:text-steel-darker"
+            className="text-steel absolute right-0 top-0 p-4 hover:text-neutral-60"
         >
             <Close className="h-3 w-3" />
         </button>
@@ -37,7 +37,7 @@ export function ModalBody({ children }: ModalChildrenProps): JSX.Element {
 }
 
 export function ModalContent({ children }: ModalChildrenProps): JSX.Element {
-    return <div className="flex flex-col rounded-lg bg-gray-40 p-5">{children}</div>;
+    return <div className="bg-gray-40 flex flex-col rounded-lg p-5">{children}</div>;
 }
 
 export function ModalHeading({ children }: ModalChildrenProps): JSX.Element {
