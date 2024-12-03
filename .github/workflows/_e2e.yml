@@ -26,6 +26,9 @@ concurrency:
   group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  RUST_LOG: warn
+
 jobs:
   # Run e2e test against localnet built on the develop branch
   localnet:
@@ -64,7 +67,7 @@ jobs:
       - name: Set env
         run: |
           echo "VITE_IOTA_BIN=$PWD/target/debug/iota" >> $GITHUB_ENV
-          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_LOG=warn RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
+          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
 
       - name: Run TS SDK e2e tests
         if: inputs.isTypescriptSDK || inputs.isRust || github.ref_name == 'develop'
@@ -105,7 +108,7 @@ jobs:
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
 
       - name: Run Local net
-        run: RUST_LOG=warn cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
+        run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
       - name: Build Wallet
         if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK || github.ref_name == 'develop'
