@@ -33,11 +33,7 @@ export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): J
     const { addNotification } = useNotifications();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
 
-    const { mutation: sendAsset } = useCreateSendAssetTransaction(
-        objectId,
-        onSendAsset,
-        onSendAsset,
-    );
+    const { mutation: sendAsset } = useCreateSendAssetTransaction(objectId);
 
     const formik = useFormik<FormValues>({
         initialValues: INITIAL_VALUES,
@@ -46,17 +42,13 @@ export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): J
         validateOnChange: true,
     });
 
-    function onSendAsset() {
-        setView(AssetsDialogView.Details);
-        onCloseCb();
-    }
-
     async function onSubmit(values: FormValues) {
         try {
             await sendAsset.mutateAsync(values.to);
+            setView(AssetsDialogView.Details);
+            onCloseCb();
             addNotification('Transfer transaction successful', NotificationType.Success);
         } catch (error) {
-            console.log(error);
             addNotification('Transfer transaction failed', NotificationType.Error);
         }
     }
