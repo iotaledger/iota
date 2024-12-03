@@ -5,8 +5,8 @@ on:
     - cron: "0 1 * * *" # every day at 1am (UTC)
   workflow_dispatch:
     inputs:
-      sui_repo_ref:
-        description: "Branch / commit to test"
+      branch-or-commit:
+        description: "Branch or commit to test code coverage."
         type: string
         required: false
         default: ""
@@ -150,7 +150,7 @@ jobs:
           sed --in-place "s#${{ github.workspace }}#.#g" lcov.info
 
       - name: Backup report
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: lcov.info
           path: target/lcov.info
@@ -158,7 +158,7 @@ jobs:
           retention-days: 30
 
       - name: Upload coverage to Coveralls
-        uses: coverallsapp/github-action@v2
+        uses: coverallsapp/github-action@cfd0633edbd2411b532b808ba7a8b5e04f76d2c8 # v2.3.4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: target/lcov.info
