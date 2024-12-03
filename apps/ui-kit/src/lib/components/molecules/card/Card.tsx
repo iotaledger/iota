@@ -32,6 +32,10 @@ export interface CardProps {
      * Use case: When the card is wrapped with a Link component
      */
     isHoverable?: boolean;
+    /**
+     * The 'data-testid' attribute value (used in e2e tests)
+     */
+    testId?: string;
 }
 
 export function Card({
@@ -40,6 +44,7 @@ export function Card({
     isHoverable,
     onClick,
     children,
+    testId,
 }: CardProps) {
     return (
         <div
@@ -53,6 +58,7 @@ export function Card({
                     'cursor-pointer': onClick,
                 },
             )}
+            data-testid={testId}
         >
             {children}
         </div>
