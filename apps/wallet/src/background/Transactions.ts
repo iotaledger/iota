@@ -82,7 +82,7 @@ class Transactions {
         if (!txResult) {
             throw new Error('Sign message result is empty');
         }
-        if (!('bytes' in txResult)) {
+        if (!('messageBytes' in txResult)) {
             throw new Error('Sign message error, unknown result');
         }
         return txResult as IotaSignPersonalMessageOutput;
