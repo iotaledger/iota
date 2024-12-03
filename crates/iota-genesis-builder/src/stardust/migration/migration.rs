@@ -138,7 +138,7 @@ impl Migration {
             .collect::<Vec<_>>();
         info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
-        self.address_swap_map.verify_all_addresses_swapped();
+        self.address_swap_map.verify_all_addresses_swapped()?;
         Ok(())
     }
 

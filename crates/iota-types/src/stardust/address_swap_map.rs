@@ -3,10 +3,10 @@
 
 use std::{collections::HashMap, str::FromStr};
 
+use anyhow::anyhow;
 use serde::Deserialize;
 
 use crate::base_types::IotaAddress;
-
 type OriginAddress = IotaAddress;
 type DestinationAddress = IotaAddress;
 
@@ -38,14 +38,15 @@ impl AddressSwapMap {
 
     /// Verifies that all addresses have been swapped at least once.
     /// Panics if any address is not swapped.
-    pub fn verify_all_addresses_swapped(&self) {
-        if !self
+    pub fn verify_all_addresses_swapped(&self) -> anyhow::Result<()> {
+        if let Some((addr, _)) = self
             .address_swapped_at_least_once
-            .values()
-            .all(|is_swapped| *is_swapped)
+            .iter()
+            .find(|(_, &is_swapped)| !is_swapped)
         {
-            panic!("Not all addresses have been swapped");
+            return Err(anyhow::anyhow!("address to swap not found: {:?}", addr));
         }
+        Ok(())
     }
 }
 
