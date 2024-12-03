@@ -12,8 +12,11 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    stardust::output::{
-        ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Alias, AliasOutput,
+    stardust::{
+        address_swap_map::AddressSwapMap,
+        output::{
+            ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Alias, AliasOutput,
+        },
     },
 };
 
@@ -35,6 +38,7 @@ pub(super) fn verify_alias_output(
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
+    address_swap_map: &mut AddressSwapMap,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
@@ -53,6 +57,7 @@ pub(super) fn verify_alias_output(
         output.governor_address(),
         created_output_obj,
         "alias output",
+        address_swap_map,
     )?;
 
     // Alias Owner

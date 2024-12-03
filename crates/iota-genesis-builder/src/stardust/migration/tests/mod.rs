@@ -23,7 +23,7 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    stardust::coin_type::CoinType,
+    stardust::{address_swap_map::AddressSwapMap, coin_type::CoinType},
     transaction::{Argument, CheckedInputObjects, ObjectArg},
 };
 use move_binary_format::errors::VMError;
@@ -63,8 +63,13 @@ fn run_migration(
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     coin_type: CoinType,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration =
-        Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet, coin_type)?;
+    let mut migration = Migration::new(
+        1,
+        total_supply,
+        MigrationTargetNetwork::Mainnet,
+        coin_type,
+        AddressSwapMap::default(),
+    )?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }
