@@ -1,7 +1,7 @@
 # Marketplace Guide
 
 The `marketplace_extension.move` module provides a straightforward implementation of a marketplace extension. To utilize it, follow the steps outlined below.
-The `item_for_market.move` contains mocked item data for use within the marketplace.
+The `clothing_store.move` contains mocked item data for use within the marketplace.
 The `rental_extension.move` is an extension adds functionality to enable item rentals.
 
 ## Steps to Use the Marketplace
@@ -25,7 +25,7 @@ iota client call \
 After publishing, export the following variables:
 
 - `KIOSK_ID`: The ID of installed Kiosk object.
-- `KIOSK_CAP_ID`: The ID if the installed Kiosk's onwer cap
+- `KIOSK_CAP_ID`: The ID of the installed Kiosk's owner cap
 
 ### 3. Publish `nft_marketplace` package
 
@@ -143,7 +143,7 @@ iota client ptb \
 --move-call $MARKETPLACE_PACKAGE_ID::marketplace_extension::get_item_price "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$KIOSK_ID @$CLOTHING_STORE_ITEM_ID --assign item_price \
 ```
 
-#### 9.2(Optional) Calculate rolyalties of the Item:
+#### 9.2(Optional) Calculate royalties of the Item:
 
 ```bash
 --move-call $RULES_PACKAGE_ID::royalty_rule::fee_amount "<$MARKETPLACE_PACKAGE_ID::clothing_store::Jeans>" @$ITEM_TRANS_POLICY item_price --assign royalties_amount \
