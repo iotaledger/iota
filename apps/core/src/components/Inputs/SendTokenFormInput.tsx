@@ -19,6 +19,7 @@ export interface SendTokenInputProps {
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
+    isPayAllIota: boolean;
 }
 
 export function SendTokenFormInput({
@@ -30,6 +31,7 @@ export function SendTokenFormInput({
     onActionClick,
     isMaxActionDisabled,
     name,
+    isPayAllIota,
 }: SendTokenInputProps) {
     const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
     const { data: gasBudgetEstimation } = useGasBudgetEstimation({
@@ -38,7 +40,7 @@ export function SendTokenFormInput({
         activeAddress,
         to: to,
         amount: values.amount,
-        isPayAllIota: values.isPayAllIota,
+        isPayAllIota,
     });
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin(
         gasBudgetEstimation,
@@ -61,8 +63,8 @@ export function SendTokenFormInput({
 
     // gasBudgetEstimation should change when the amount above changes
     useEffect(() => {
-        setFieldValue('gasBudgetEst', formattedGasBudgetEstimation, false);
-    }, [formattedGasBudgetEstimation, setFieldValue, values.amount]);
+        setFieldValue('gasBudgetEst', gasBudgetEstimation, false);
+    }, [gasBudgetEstimation, setFieldValue, values.amount]);
 
     return (
         <Input
@@ -74,7 +76,7 @@ export function SendTokenFormInput({
             placeholder="0.00"
             label="Send Amount"
             suffix={` ${symbol}`}
-            prefix={values.isPayAllIota ? '~ ' : undefined}
+            prefix={isPayAllIota ? '~ ' : undefined}
             allowNegative={false}
             errorMessage={errorMessage}
             amountCounter={!errorMessage ? (coins ? gasAmount : '--') : undefined}

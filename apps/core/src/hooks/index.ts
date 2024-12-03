@@ -24,6 +24,7 @@ export * from './useGetKioskContents';
 export * from './useZodForm';
 export * from './useElementDimensions';
 export * from './useIotaCoinData';
+export * from './useIsAssetTransferable';
 export * from './useLocalStorage';
 export * from './useTokenPrice';
 export * from './useKioskClient';
@@ -41,5 +42,6 @@ export * from './useGasBudgetEstimation';
 export * from './useTransactionData';
 export * from './useGetStakingValidatorDetails';
 export * from './useCursorPagination';
+export * from './useTheme';
 
 export * from './stake';

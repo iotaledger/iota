@@ -153,12 +153,14 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                 </div>
             ) : (
                 <div className="flex h-full flex-col">
-                    <Title
-                        title={coinBalanceHeader}
-                        trailingElement={
-                            hasCoinsBalance && <CoinsFilter filterOptions={filterOptions} />
-                        }
-                    />
+                    <div className="flex flex-col justify-center sm:min-h-[72px]">
+                        <Title
+                            title={coinBalanceHeader}
+                            trailingElement={
+                                hasCoinsBalance && <CoinsFilter filterOptions={filterOptions} />
+                            }
+                        />
+                    </div>
                     {hasCoinsBalance ? (
                         <>
                             <div className="relative overflow-y-auto p-sm--rs pt-0">
@@ -213,14 +215,25 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                             )}
                         </>
                     ) : (
-                        <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
-                            <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
-                                No Coins Owned
-                            </span>
-                        </div>
+                        <NoObjectsOwnedMessage objectType="Coins" />
                     )}
                 </div>
             )}
+        </div>
+    );
+}
+
+interface NoObjectsOwnedMessageProps {
+    objectType: string;
+}
+export function NoObjectsOwnedMessage({
+    objectType,
+}: NoObjectsOwnedMessageProps): React.JSX.Element {
+    return (
+        <div className="flex h-full items-center justify-center md:h-coinsAndAssetsContainer">
+            <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
+                No {objectType} Owned
+            </span>
         </div>
     );
 }
