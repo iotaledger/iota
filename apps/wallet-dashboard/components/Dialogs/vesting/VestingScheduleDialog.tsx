@@ -22,7 +22,7 @@ export function VestingScheduleDialog({
                 containerId="overlay-portal-container"
                 customWidth="max-w-md sm:max-w-xl md:max-w-5xl w-full"
             >
-                <Header title="Rewards Shedule" onClose={() => setOpen(false)} titleCentered />
+                <Header title="Rewards Schedule" onClose={() => setOpen(false)} titleCentered />
                 <DialogBody>
                     <div className="h-[440px] overflow-y-auto">
                         <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 md:grid-cols-4">
