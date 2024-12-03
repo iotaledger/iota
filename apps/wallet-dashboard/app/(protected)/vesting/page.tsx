@@ -94,12 +94,10 @@ function VestingDashboardPage(): JSX.Element {
         [...timelockedMapped, ...timelockedstakedMapped],
         false,
     );
-console.log('timeloackedMapped', timelockedMapped)
+
     const vestingPortfolio =
-        nextPayout && buildSupplyIncreaseVestingSchedule(nextPayout, Date.now());
-console.log('vestingSchedule', vestingSchedule);
-console.log('vestingPortfolio', vestingPortfolio)
-console.log('nextPayout', nextPayout)
+        nextPayout && buildSupplyIncreaseVestingSchedule(nextPayout, Number(currentEpochMs));
+
     const formattedLastPayoutExpirationTime = useCountdown(
         Number(nextPayout?.expirationTimestampMs),
     );
