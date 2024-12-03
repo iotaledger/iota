@@ -15,6 +15,7 @@ interface AssetListProps {
     hasNextPage: boolean;
     isFetchingNextPage: boolean;
     fetchNextPage: () => void;
+    onClick: (asset: IotaObjectData) => void;
 }
 
 const ASSET_LAYOUT: Record<AssetCategory, string> = {
@@ -29,6 +30,7 @@ export function AssetList({
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    onClick,
 }: AssetListProps): React.JSX.Element {
     const observerElem = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(observerElem);
@@ -43,7 +45,12 @@ export function AssetList({
     return (
         <div className={cl('max-h-[600px]', ASSET_LAYOUT[selectedCategory])}>
             {assets.map((asset) => (
-                <AssetTileLink key={asset.digest} asset={asset} type={selectedCategory} />
+                <AssetTileLink
+                    key={asset.digest}
+                    asset={asset}
+                    type={selectedCategory}
+                    onClick={onClick}
+                />
             ))}
             <div ref={observerElem}>
                 {isSpinnerVisible ? (

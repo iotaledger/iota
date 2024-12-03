@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetKioskContents, useGetObject } from '@iota/core';
+import { useGetKioskContents, useGetObject } from './';
 import { useMemo } from 'react';
 
 export function useOwnedNFT(nftObjectId: string | null, address: string | null) {

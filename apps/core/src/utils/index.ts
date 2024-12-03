@@ -20,6 +20,7 @@ export * from './getDelegationDataByStakeId';
 export * from './api-env';
 export * from './getExplorerPaths';
 export * from './getExplorerLink';
+export * from './truncateString';
 
 export * from './stake';
 export * from './transaction';
