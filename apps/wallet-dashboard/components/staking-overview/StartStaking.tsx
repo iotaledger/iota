@@ -47,6 +47,7 @@ export function StartStaking() {
                 </div>
                 <div className="relative w-full overflow-hidden">
                     <video
+                        key={videoSrc}
                         src={videoSrc}
                         autoPlay
                         loop
