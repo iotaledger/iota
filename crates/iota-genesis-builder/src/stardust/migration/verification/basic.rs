@@ -40,7 +40,7 @@ pub(super) fn verify_basic_output(
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &mut AddressSwapMap,
+    address_swap_map: &mut AddressSwapMap,
 ) -> Result<()> {
     // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
     if is_timelocked_vested_reward(output_id, output, target_milestone_timestamp) {
@@ -126,7 +126,7 @@ pub(super) fn verify_basic_output(
                 output.address(),
                 created_output_obj,
                 "basic output",
-                addresss_swap_map,
+                address_swap_map,
             )?;
         }
 
@@ -198,12 +198,7 @@ pub(super) fn verify_basic_output(
             .as_coin_maybe()
             .ok_or_else(|| anyhow!("expected a coin"))?;
 
-        verify_address_owner(
-            output.address(),
-            created_coin_obj,
-            "coin",
-            addresss_swap_map,
-        )?;
+        verify_address_owner(output.address(), created_coin_obj, "coin", address_swap_map)?;
         verify_coin(output.amount(), &created_coin)?;
         *total_value += created_coin.value();
 

@@ -33,7 +33,7 @@ pub(super) fn verify_foundry_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &mut AddressSwapMap,
+    address_swap_map: &mut AddressSwapMap,
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())
@@ -55,7 +55,7 @@ pub(super) fn verify_foundry_output(
         .as_coin_maybe()
         .ok_or_else(|| anyhow!("expected a coin"))?;
 
-    verify_address_owner(alias_address, created_coin_obj, "coin", addresss_swap_map)?;
+    verify_address_owner(alias_address, created_coin_obj, "coin", address_swap_map)?;
     verify_coin(output.amount(), &created_coin)?;
     *total_value += created_coin.value();
 
@@ -240,7 +240,7 @@ pub(super) fn verify_foundry_output(
         alias_address,
         coin_manager_treasury_cap_obj,
         "coin manager treasury cap",
-        addresss_swap_map,
+        address_swap_map,
     )?;
 
     verify_parent(&output_id, alias_address, storage)?;

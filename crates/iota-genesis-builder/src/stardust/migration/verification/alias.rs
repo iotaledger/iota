@@ -38,7 +38,7 @@ pub(super) fn verify_alias_output(
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    addresss_swap_map: &mut AddressSwapMap,
+    address_swap_map: &mut AddressSwapMap,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
@@ -57,7 +57,7 @@ pub(super) fn verify_alias_output(
         output.governor_address(),
         created_output_obj,
         "alias output",
-        addresss_swap_map,
+        address_swap_map,
     )?;
 
     // Alias Owner
