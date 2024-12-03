@@ -6,7 +6,12 @@ import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useIsAssetTransferable, useGetKioskContents, useGetNFTMeta, Collapsible } from '@iota/core';
+import {
+    useIsAssetTransferable,
+    useGetKioskContents,
+    useGetNFTMeta,
+    Collapsible,
+} from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
