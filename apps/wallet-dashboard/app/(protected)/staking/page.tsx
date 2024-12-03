@@ -3,9 +3,7 @@
 
 'use client';
 
-import { AmountBox, Box, StakeCard, StakeDialog, Button } from '@/components';
-import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
-
+import { AmountBox, Box, StakeCard, StakeDialog, Button, useStakeDialog } from '@/components';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,

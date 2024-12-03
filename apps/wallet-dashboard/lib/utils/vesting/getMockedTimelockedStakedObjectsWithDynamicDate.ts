@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MILLISECONDS_PER_DAY } from '../../constants';
+import { MILLISECONDS_PER_DAY } from '@iota/core/constants/time.constants';
 import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
 
 /**
