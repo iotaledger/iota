@@ -326,7 +326,7 @@ export interface GetValidatorsApyParams {}
 /** Return list of events for a specified query criteria. */
 export interface QueryEventsParams {
     /**
-     * The event query criteria. See [Event filter](https://docs.iota.io/build/event_api#event-filters)
+     * The event query criteria. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters)
      * documentation for examples.
      */
     query: RpcTypes.IotaEventFilter;
@@ -353,7 +353,7 @@ export type QueryTransactionBlocksParams = {
 export interface SubscribeEventParams {
     /**
      * The filter criteria of the event stream. See
-     * [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
+     * [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.
      */
     filter: RpcTypes.IotaEventFilter;
 }
@@ -413,7 +413,7 @@ export interface UnsafeMoveCallParams {
     typeArguments: string[];
     /**
      * the arguments to be passed into the Move function, in
-     * [IotaJson](https://docs.iota.io/build/iota-json) format
+     * [IotaJson](https://docs.iota.org/references/iota-api) format
      */
     arguments: unknown[];
     /**
