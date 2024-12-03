@@ -4,9 +4,10 @@
 
 import MigratePopup from '@/components/Popup/Popups/MigratePopup';
 import { useGetCurrentEpochStartTimestamp, usePopups } from '@/hooks';
-import { groupStardustObjectsByMigrationStatus } from '@/lib/utils';
+import { summarizeMigrationValues, groupStardustObjectsByMigrationStatus } from '@/lib/utils';
 import {
     Button,
+    ButtonSize,
     ButtonType,
     Card,
     CardBody,
@@ -19,10 +20,12 @@ import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
+    useFormatCoin,
     useGetAllOwnedObjects,
 } from '@iota/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { Assets, Clock, IotaLogoMark, Tokens } from '@iota/ui-icons';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface MigrationDisplayCard {
     title: string;
@@ -99,33 +102,45 @@ function MigrationDashboardPage(): JSX.Element {
         );
     }
 
+    const {
+        accumulatedIotaAmount: accumulatedTimelockedIotaAmount,
+        totalNativeTokens,
+        totalVisualAssets,
+    } = summarizeMigrationValues({
+        basicOutputObjects: migratableBasicOutputs,
+        nftOutputObjects: migratableNftOutputs,
+        epochUnix: Number(currentEpochMs),
+        address,
+    });
+
+    const [timelockedIotaTokens, symbol] = useFormatCoin(
+        accumulatedTimelockedIotaAmount,
+        IOTA_TYPE_ARG,
+    );
+
     const MIGRATION_CARDS: MigrationDisplayCard[] = [
         {
-            title: '10,000,000 IOTA',
+            title: `${timelockedIotaTokens} ${symbol}`,
             subtitle: 'IOTA Tokens',
             icon: IotaLogoMark,
         },
         {
-            title: `${migratableBasicOutputs.length}`,
+            title: `${totalNativeTokens}`,
             subtitle: 'Native Tokens',
             icon: Tokens,
         },
         {
-            title: `${migratableNftOutputs.length}`,
+            title: `${totalVisualAssets}`,
             subtitle: 'Visual Assets',
             icon: Assets,
         },
     ];
 
+    const timelockedAssetsAmount = unmigratableBasicOutputs.length + unmigratableNftOutputs.length;
     const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCard[] = [
         {
-            title: `${unmigratableBasicOutputs.length}`,
-            subtitle: 'Time-locked Tokens',
-            icon: Clock,
-        },
-        {
-            title: `${unmigratableNftOutputs.length}`,
-            subtitle: 'Time-locked Assets',
+            title: `${timelockedAssetsAmount}`,
+            subtitle: 'Time-locked',
             icon: Clock,
         },
     ];
@@ -142,12 +157,13 @@ function MigrationDashboardPage(): JSX.Element {
                                     text="Migrate All"
                                     disabled={!hasMigratableObjects}
                                     onClick={openMigratePopup}
+                                    size={ButtonSize.Small}
                                 />
                             }
                         />
                         <div className="flex flex-col gap-xs p-md--rs">
                             {MIGRATION_CARDS.map((card) => (
-                                <Card key={card.title}>
+                                <Card key={card.subtitle}>
                                     <CardImage shape={ImageShape.SquareRounded}>
                                         <card.icon />
                                     </CardImage>
