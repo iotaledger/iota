@@ -78,8 +78,6 @@ jobs:
             if ! "$LLVM_PROFDATA" show "$file" > /dev/null 2>&1; then
               echo "$file: corruped -> removing"
               rm "$file"
-            else
-              echo "$file: good"
             fi
           done
 
@@ -109,8 +107,6 @@ jobs:
             if ! "$LLVM_PROFDATA" show "$file" > /dev/null 2>&1; then
               echo "$file: corruped -> removing"
               rm "$file"
-            else
-              echo "$file: good"
             fi
           done
 
