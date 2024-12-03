@@ -3,9 +3,10 @@
 
 'use client';
 
-import { Banner, TimelockedUnstakePopup } from '@/components';
+import { Banner, TimelockedUnstakePopup, VestingScheduleDialog } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
+    buildSupplyIncreaseVestingSchedule,
     formatDelegatedTimelockedStake,
     getSupplyIncreaseVestingPayoutByExpiration,
     getVestingOverview,
@@ -51,13 +52,14 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Calendar, StarHex } from '@iota/ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
+    const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { addNotification } = useNotifications();
     const { openPopup, closePopup } = usePopups();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
@@ -74,7 +76,8 @@ function VestingDashboardPage(): JSX.Element {
             ? 'https://files.iota.org/media/tooling/wallet-dashboard-staking-dark.mp4'
             : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4';
 
-    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
+    // const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
+    const supplyIncreaseVestingEnabled = true;
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
@@ -91,7 +94,12 @@ function VestingDashboardPage(): JSX.Element {
         [...timelockedMapped, ...timelockedstakedMapped],
         false,
     );
-
+console.log('timeloackedMapped', timelockedMapped)
+    const vestingPortfolio =
+        nextPayout && buildSupplyIncreaseVestingSchedule(nextPayout, Date.now());
+console.log('vestingSchedule', vestingSchedule);
+console.log('vestingPortfolio', vestingPortfolio)
+console.log('nextPayout', nextPayout)
     const formattedLastPayoutExpirationTime = useCountdown(
         Number(nextPayout?.expirationTimestampMs),
     );
@@ -194,12 +202,15 @@ function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    function openReceiveTokenPopup(): void {
+        setIsVestingScheduleDialogOpen(true);
+    }
+
     useEffect(() => {
         if (!supplyIncreaseVestingEnabled) {
             router.push('/');
         }
     }, [router, supplyIncreaseVestingEnabled]);
-
     return (
         <div className="flex w-full max-w-xl flex-col gap-lg justify-self-center">
             <Panel>
@@ -252,17 +263,19 @@ function VestingDashboardPage(): JSX.Element {
                         />
                         <CardAction
                             type={CardActionType.Button}
-                            onClick={() => {
-                                /*Open schedule dialog*/
-                            }}
+                            onClick={openReceiveTokenPopup}
                             title="See All"
                             buttonType={ButtonType.Secondary}
-                            buttonDisabled={
-                                !vestingSchedule.availableStaking ||
-                                vestingSchedule.availableStaking === 0
-                            }
+                            buttonDisabled={!vestingSchedule}
                         />
                     </Card>
+                    {vestingPortfolio && (
+                        <VestingScheduleDialog
+                            open={isVestingScheduleDialogOpen}
+                            setOpen={setIsVestingScheduleDialogOpen}
+                            vestingPortfolio={vestingPortfolio}
+                        />
+                    )}
                 </div>
             </Panel>
             {timelockedstakedMapped.length === 0 ? (
