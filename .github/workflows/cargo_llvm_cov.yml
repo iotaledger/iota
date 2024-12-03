@@ -48,7 +48,7 @@ jobs:
           tool: nextest,cargo-llvm-cov
 
       - name: Set Swap Space
-        uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17  # v1.0.2
+        uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17 # v1.0.2
         with:
           size: 256G
 
