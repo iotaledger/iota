@@ -15,7 +15,7 @@ export function MigrationOverview() {
             : 'https://files.iota.org/media/tooling/wallet-dashboard-migration-light.mp4';
 
     function handleButtonClick() {
-        router.push('/migrate');
+        router.push('/migrations');
     }
     return (
         <Banner
