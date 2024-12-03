@@ -13,7 +13,6 @@ use iota_sdk::{
 };
 use iota_types::{
     TypeTag,
-    address_swap_map::AddressSwapMap,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     coin::Coin,
@@ -22,9 +21,9 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     object::{Object, Owner},
     stardust::{
+        address_swap_map::AddressSwapMap,
         output::{Alias, Nft, unlock_conditions},
-        stardust_to_iota_address, stardust_to_iota_address_owner,
-        stardust_to_iota_address_owner_maybe_swap,
+        stardust_to_iota_address, stardust_to_iota_address_owner_maybe_swap,
     },
 };
 use tracing::warn;

@@ -20,7 +20,6 @@ use iota_sdk::types::block::output::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
-    address_swap_map::AddressSwapMap,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
     coin_manager::{CoinManager, CoinManagerTreasuryCap},
@@ -31,9 +30,10 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
     move_package::{MovePackage, TypeOrigin, UpgradeCap},
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{
+        address_swap_map::AddressSwapMap,
         coin_type::CoinType,
         output::{Nft, foundry::create_foundry_amount_coin},
         stardust_to_iota_address_maybe_swap, stardust_to_iota_address_owner_maybe_swap,

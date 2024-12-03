@@ -15,12 +15,11 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
-    address_swap_map::{AddressSwapMap, init_address_swap_map},
     balance::Balance,
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
     object::Object,
-    stardust::coin_type::CoinType,
+    stardust::{address_swap_map::AddressSwapMap, coin_type::CoinType},
     timelock::timelock::{self, TimeLock, is_timelocked_balance},
 };
 use move_binary_format::file_format_common::VERSION_MAX;
@@ -86,11 +85,8 @@ impl Migration {
         total_supply: u64,
         target_network: MigrationTargetNetwork,
         coin_type: CoinType,
+        address_swap_map: AddressSwapMap,
     ) -> Result<Self> {
-        // Can be implemented through cli argument
-        let address_swap_map = init_address_swap_map(
-            "crates/iota-genesis-builder/src/stardust/migration/address_swap.csv",
-        )?;
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
             target_network,

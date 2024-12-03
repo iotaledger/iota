@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::HashMap, str::FromStr};
 
 use serde::Deserialize;
@@ -7,7 +10,7 @@ use crate::base_types::IotaAddress;
 type OriginAddress = IotaAddress;
 type DestinationAddress = IotaAddress;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct AddressSwapMap {
     addresses: HashMap<OriginAddress, DestinationAddress>,
     address_swapped_at_least_once: HashMap<OriginAddress, bool>,

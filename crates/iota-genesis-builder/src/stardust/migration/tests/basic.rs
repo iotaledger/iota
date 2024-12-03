@@ -20,7 +20,8 @@ use iota_sdk::types::block::{
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     stardust::{
-        coin_type::CoinType, output::basic::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address,
+        address_swap_map::AddressSwapMap, coin_type::CoinType,
+        output::basic::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address,
     },
 };
 
@@ -53,6 +54,7 @@ fn basic_simple_coin_id() {
         1_000_000,
         MigrationTargetNetwork::Mainnet,
         CoinType::Iota,
+        AddressSwapMap::default(),
     )
     .unwrap();
     migration
@@ -103,6 +105,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
             1_000_000,
             MigrationTargetNetwork::Mainnet,
             CoinType::Iota,
+            AddressSwapMap::default(),
         )
         .unwrap();
         migration
@@ -139,6 +142,7 @@ fn basic_id() {
         1_000_000,
         MigrationTargetNetwork::Mainnet,
         CoinType::Iota,
+        AddressSwapMap::default(),
     )
     .unwrap();
     migration
@@ -183,6 +187,7 @@ fn basic_simple_coin_migration_with_native_token() {
         1_000_000,
         MigrationTargetNetwork::Mainnet,
         CoinType::Iota,
+        AddressSwapMap::default(),
     )
     .unwrap();
     migration.run_migration(outputs).unwrap();
@@ -225,6 +230,7 @@ fn basic_simple_coin_migration_with_native_tokens() {
         1_000_000,
         MigrationTargetNetwork::Mainnet,
         CoinType::Iota,
+        AddressSwapMap::default(),
     )
     .unwrap();
     migration.run_migration(outputs.clone()).unwrap();

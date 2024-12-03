@@ -7,12 +7,12 @@ use anyhow::{Result, anyhow, ensure};
 use iota_sdk::types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
     TypeTag,
-    address_swap_map::AddressSwapMap,
     balance::Balance,
     coin::Coin,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::Owner,
+    stardust::address_swap_map::AddressSwapMap,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
         timelock::{TimeLock, is_timelocked_vested_reward},

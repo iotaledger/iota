@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{Output, OutputId, TokenId};
-use iota_types::{address_swap_map::AddressSwapMap, in_memory_storage::InMemoryStorage};
+use iota_types::{in_memory_storage::InMemoryStorage, stardust::address_swap_map::AddressSwapMap};
 
 use self::created_objects::CreatedObjects;
 use crate::stardust::{migration::executor::FoundryLedgerData, types::output_header::OutputHeader};

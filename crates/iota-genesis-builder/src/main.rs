@@ -4,7 +4,7 @@
 //! Creating a stardust objects snapshot out of a Hornet snapshot.
 //! TIP that defines the Hornet snapshot file format:
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
-use std::{collections::BTreeMap, fs::File, io::BufWriter, str::FromStr};
+use std::{collections::BTreeMap, fs::File, io::BufWriter};
 
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
@@ -24,7 +24,8 @@ use iota_sdk::types::block::{
     },
 };
 use iota_types::{
-    base_types::IotaAddress, stardust::coin_type::CoinType, timelock::timelock::is_vested_reward,
+    stardust::{address_swap_map::init_address_swap_map, coin_type::CoinType},
+    timelock::timelock::is_vested_reward,
 };
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -44,6 +45,8 @@ enum Snapshot {
     Iota {
         #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
         snapshot_path: String,
+        #[clap(long, help = "Path to the address swap map file")]
+        address_swap_map_path: String,
         #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
         target_network: MigrationTargetNetwork,
     },
@@ -58,11 +61,17 @@ fn main() -> Result<()> {
 
     // Parse the CLI arguments
     let cli = Cli::parse();
-    let (snapshot_path, target_network, coin_type) = match cli.snapshot {
+    let (snapshot_path, address_swap_map_path, target_network, coin_type) = match cli.snapshot {
         Snapshot::Iota {
             snapshot_path,
+            address_swap_map_path,
             target_network,
-        } => (snapshot_path, target_network, CoinType::Iota),
+        } => (
+            snapshot_path,
+            address_swap_map_path,
+            target_network,
+            CoinType::Iota,
+        ),
     };
 
     // Start the Hornet snapshot parser
@@ -75,12 +84,14 @@ fn main() -> Result<()> {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
     };
 
+    let address_swap_map = init_address_swap_map(&address_swap_map_path)?;
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
         snapshot_parser.target_milestone_timestamp(),
         total_supply,
         target_network,
         coin_type,
+        address_swap_map,
     )?;
 
     // Prepare the writer for the objects snapshot

@@ -3,7 +3,8 @@
 
 use iota_stardust_sdk::types::block::address::Address;
 
-use crate::{address_swap_map::AddressSwapMap, base_types::IotaAddress, object::Owner};
+use super::address_swap_map::AddressSwapMap;
+use crate::{base_types::IotaAddress, object::Owner};
 
 /// Converts a ["Stardust" `Address`](Address) to a [`IotaAddress`].
 ///

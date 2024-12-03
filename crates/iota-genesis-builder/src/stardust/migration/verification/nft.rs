@@ -7,13 +7,15 @@ use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
     TypeTag,
-    address_swap_map::AddressSwapMap,
     balance::Balance,
     base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    stardust::output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
+    stardust::{
+        address_swap_map::AddressSwapMap,
+        output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
+    },
 };
 
 use crate::stardust::migration::{
