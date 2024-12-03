@@ -76,8 +76,7 @@ function VestingDashboardPage(): JSX.Element {
             ? 'https://files.iota.org/media/tooling/wallet-dashboard-staking-dark.mp4'
             : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4';
 
-    // const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
-    const supplyIncreaseVestingEnabled = true;
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
