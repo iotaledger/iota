@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["NON_RECOVERABLE_ERROR_MSG"],"enum":["EffectsFinalityInfo","ExecuteTransactionRequestType","QuorumDriverError"],"struct":["ExecuteTransactionRequestV1","ExecuteTransactionResponseV1","FinalizedEffects","QuorumDriverResponse"],"type":["GroupedErrors","IsTransactionExecutedLocally","QuorumDriverEffectsQueueResult","QuorumDriverResult"]};
