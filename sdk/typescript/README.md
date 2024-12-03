@@ -5,6 +5,10 @@ For more complete docs, visit the
 
 # IOTA TypeScript SDK
 
+`@iota/iota-sdk` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
+
+> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
+
 This is the IOTA TypeScript SDK built on the IOTA
 [JSON RPC API](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx).
 It provides utility classes and functions for applications to sign transactions and interact with
@@ -91,7 +95,7 @@ npx vitest txn-builder.test.ts
 Troubleshooting:
 
 If you see errors like `ECONNRESET or "socket hang up"`, run `node -v` to make sure your node
-version is `v18.x.x`. Refer to this
+version is `v20.x.x`. Refer to this
 [guide](https://blog.logrocket.com/how-switch-node-js-versions-nvm/) to switch node version.
 
 Some more follow up here is if you used homebrew to install node, there could be multiple paths to
