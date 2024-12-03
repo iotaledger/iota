@@ -5,7 +5,7 @@ import React from 'react';
 import { Button, Header } from '@iota/apps-ui-kit';
 
 import { Validator } from './Validator';
-import { Layout, LayoutBody, LayoutFooter } from './Layout';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout/Layout';
 
 interface SelectValidatorViewProps {
     validators: string[];
@@ -23,9 +23,9 @@ function SelectValidatorView({
     handleClose,
 }: SelectValidatorViewProps): JSX.Element {
     return (
-        <Layout>
+        <DialogLayout>
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
-            <LayoutBody>
+            <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
                     <div className="flex w-full flex-col">
                         {validators.map((validator) => (
@@ -38,18 +38,18 @@ function SelectValidatorView({
                         ))}
                     </div>
                 </div>
-            </LayoutBody>
+            </DialogLayoutBody>
             {!!selectedValidator && (
-                <LayoutFooter>
+                <DialogLayoutFooter>
                     <Button
                         fullWidth
                         data-testid="select-validator-cta"
                         onClick={onNext}
                         text="Next"
                     />
-                </LayoutFooter>
+                </DialogLayoutFooter>
             )}
-        </Layout>
+        </DialogLayout>
     );
 }
 

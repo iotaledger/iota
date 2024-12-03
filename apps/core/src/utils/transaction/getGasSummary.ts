@@ -1,27 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import {
+import type {
     DryRunTransactionBlockResponse,
-    GasCostSummary,
-    IotaGasData,
     IotaTransactionBlockResponse,
     TransactionEffects,
 } from '@iota/iota-sdk/client';
-
-type Optional<T> = {
-    [K in keyof T]?: T[K];
-};
-
-export type GasSummaryType =
-    | (GasCostSummary &
-          Optional<IotaGasData> & {
-              totalGas?: string;
-              owner?: string;
-              isSponsored: boolean;
-              gasUsed: GasCostSummary;
-          })
-    | null;
+import type { GasSummaryType } from '../../types';
 
 export function getGasSummary(
     transaction: IotaTransactionBlockResponse | DryRunTransactionBlockResponse,

@@ -11,6 +11,7 @@ export * from './PasswordInputDialog';
 export * from './SectionHeader';
 export * from './SummaryCard';
 export * from './WalletListSelect';
+export * from './ExplorerLinkHelper';
 export * from './accounts';
 export * from './active-coins-card';
 export * from './error-boundary';
