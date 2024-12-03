@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
-          ref: ${{ github.event.inputs.sui_repo_ref || github.ref }}
+          ref: ${{ github.event.inputs.branch-or-commit || github.ref }}
 
       - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
 
@@ -71,7 +71,7 @@ jobs:
           set +e
 
           echo "Generating coverage data (.profraw files)."
-          IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --no-report nextest -vv
+          IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --no-report nextest
 
           echo "Scanning for corrupted .profraw files. This might take a while."
           find target/llvm-cov-target -name '*.profraw' | while read file; do
