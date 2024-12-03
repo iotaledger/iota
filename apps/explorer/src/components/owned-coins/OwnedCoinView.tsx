@@ -58,7 +58,6 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                     title={`${coin.coinObjectCount} Object` + (coin.coinObjectCount > 1 ? 's' : '')}
                     icon={<ArrowUp className={clsx({ 'rotate-180': !areCoinDetailsOpen })} />}
                     iconAfterText
-                    buttonType={ButtonType.Outlined}
                 />
             </Card>
             {areCoinDetailsOpen && (

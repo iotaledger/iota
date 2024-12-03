@@ -12,7 +12,7 @@ export type CardActionProps = {
     onClick?: () => void;
     icon?: React.ReactNode;
     iconAfterText?: boolean;
-    buttonType?: ButtonType | undefined;
+    buttonType?: ButtonType;
     buttonDisabled?: boolean;
 };
 
@@ -62,7 +62,7 @@ export function CardAction({
         return (
             <div className="shrink-0">
                 <Button
-                    type={buttonType}
+                    type={buttonType || ButtonType.Outlined}
                     size={ButtonSize.Small}
                     text={title}
                     onClick={handleActionClick}
