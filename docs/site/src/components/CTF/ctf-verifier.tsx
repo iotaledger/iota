@@ -46,7 +46,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
   };
 
   return (
-    <div className='flex'>
+    <div className='flex items-center'>
       <input
         type="text"
         value={inputText}
@@ -58,7 +58,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
         {loading ? 'Loading...' : 'Submit'}
       </button>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className='text-red-500 text-center mb-0 ml-2'>{error}</p>}
 
       {coins && (
         <div>
