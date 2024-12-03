@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ArrowRight } from '@iota/ui-icons';
-import { Button, ButtonSize, ButtonType } from '@/components/atoms/button';
 import { CardActionType } from './card.enums';
+import { Button, ButtonSize, ButtonType } from '../../atoms/button';
 
 export type CardActionProps = {
     title?: string;

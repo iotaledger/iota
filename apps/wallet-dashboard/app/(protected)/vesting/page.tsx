@@ -7,7 +7,7 @@ import { Banner, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
-    getSupplyIncreaseVestingPayoutByExpiration,
+    getLatestOrEarliestSupplyIncreaseVestingPayout,
     getVestingOverview,
     groupTimelockedStakedObjects,
     isTimelockedUnlockable,
@@ -87,7 +87,7 @@ function VestingDashboardPage(): JSX.Element {
         Number(currentEpochMs),
     );
 
-    const nextPayout = getSupplyIncreaseVestingPayoutByExpiration(
+    const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...timelockedMapped, ...timelockedstakedMapped],
         false,
     );
