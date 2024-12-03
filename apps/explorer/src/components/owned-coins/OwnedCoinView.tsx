@@ -9,7 +9,6 @@ import { useState } from 'react';
 import { type CoinBalanceVerified } from './OwnedCoins';
 import CoinsPanel from './OwnedCoinsPanel';
 import {
-    ButtonType,
     Card,
     CardAction,
     CardActionType,
