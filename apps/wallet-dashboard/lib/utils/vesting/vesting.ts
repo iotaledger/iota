@@ -122,12 +122,14 @@ export function buildSupplyIncreaseVestingSchedule(
 
     const payoutsCount = getSupplyIncreaseVestingPayoutsCount(userType);
 
-    return Array.from({ length: payoutsCount }).map((_, i) => ({
-        amount: referencePayout.amount,
-        expirationTimestampMs:
-            referencePayout.expirationTimestampMs -
-            SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS * i,
-    }));
+    return Array.from({ length: payoutsCount })
+        .map((_, i) => ({
+            amount: referencePayout.amount,
+            expirationTimestampMs:
+                referencePayout.expirationTimestampMs -
+                SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS * i,
+        }))
+        .sort((a, b) => a.expirationTimestampMs - b.expirationTimestampMs);
 }
 
 export function getVestingOverview(

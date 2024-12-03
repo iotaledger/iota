@@ -4,6 +4,7 @@
 import { DisplayStats, DisplayStatsType } from '@iota/apps-ui-kit';
 import { useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { LockLocked } from '@iota/ui-icons';
 
 interface VestingScheduleBoxProps {
     amount: number;
@@ -18,15 +19,10 @@ export function VestingScheduleBox({
     const isLocked = expirationTimestampMs > Date.now();
     return (
         <DisplayStats
-            label={
-                <>
-                    <span>{new Date(expirationTimestampMs).toLocaleString()}</span>
-                    {/* Show lock icon if it's a future date */}
-                    {isLocked && <span>Look</span>}
-                </>
-            }
+            label={new Date(expirationTimestampMs).toLocaleString()}
             value={`${formattedAmountVested} ${amountVestedSymbol}`}
             type={isLocked ? DisplayStatsType.Default : DisplayStatsType.Secondary}
+            icon={isLocked && <LockLocked className="h-4 w-4" />}
         />
     );
 }
