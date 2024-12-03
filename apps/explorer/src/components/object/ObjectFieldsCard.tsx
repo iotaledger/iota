@@ -156,7 +156,7 @@ export function ObjectFieldsCard({
                                                 <div className="overflow-hidden text-ellipsis">
                                                     {suggestion.label}
                                                 </div>
-                                                <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
+                                                <div className="text-caption text-steel break-words pl-xs font-medium uppercase">
                                                     {suggestion.type}
                                                 </div>
                                             </ListItem>
