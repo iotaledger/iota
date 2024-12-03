@@ -42,7 +42,7 @@ import {
     useGetTimelockedStakedObjects,
     useTheme,
     useUnlockTimelockedObjectsTransaction,
-    useCountdown,
+    useCountdownByTimestamp,
     Feature,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
@@ -92,7 +92,7 @@ function VestingDashboardPage(): JSX.Element {
         false,
     );
 
-    const formattedLastPayoutExpirationTime = useCountdown(
+    const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
     );
 

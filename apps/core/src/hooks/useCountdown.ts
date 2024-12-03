@@ -9,12 +9,12 @@ import {
     MILLISECONDS_PER_SECOND,
 } from '../constants';
 
-export function useCountdown(initialTimestamp: number | null): string {
+export function useCountdownByTimestamp(initialTimestamp: number | null): string {
     const [timeRemainingMs, setTimeRemainingMs] = useState<number>(0);
 
     useEffect(() => {
         if (timeRemainingMs <= 0 && initialTimestamp) {
-            setTimeRemainingMs(Date.now() - initialTimestamp);
+            setTimeRemainingMs(initialTimestamp - Date.now());
         }
         const interval = setInterval(() => {
             setTimeRemainingMs((prev) => prev - MILLISECONDS_PER_SECOND);
