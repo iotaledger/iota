@@ -36,20 +36,19 @@ jobs:
       # from transient network timeouts or other issues.
       CARGO_NET_RETRY: 10
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           ref: ${{ github.event.inputs.sui_repo_ref || github.ref }}
 
-      - uses: bmwill/rust-cache@fb63fcd7a959767755b88b5af2f5cbf65fb8a127 # pin@v1
+      - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@125e82eef6e60d2b0c20d4d1f4cf81db37f68bf3 # pin@cargo-llvm-cov
-
-      - name: Install nextest
-        uses: taiki-e/install-action@7e58f89e24a544d88f7a74c6eed8a3df3fd4c658 # pin@nextest
+      - name: Install nextest and cargo-llvm-cov
+        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
+        with:
+          tool: nextest,cargo-llvm-cov
 
       - name: Set Swap Space
-        uses: actionhippie/swap-space@v1
+        uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17  # v1.0.2
         with:
           size: 256G
 
