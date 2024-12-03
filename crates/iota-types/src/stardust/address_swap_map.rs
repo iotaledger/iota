@@ -3,7 +3,6 @@
 
 use std::{collections::HashMap, str::FromStr};
 
-use anyhow::anyhow;
 use serde::Deserialize;
 
 use crate::base_types::IotaAddress;
@@ -23,17 +22,13 @@ impl AddressSwapMap {
         &mut self,
         origin_address: OriginAddress,
     ) -> Option<&DestinationAddress> {
-        self.addresses
-            .get(&origin_address)
-            .map(|destination_address| {
-                // Mark the origin address as swapped
-                if let Some(swapped_flag) =
-                    self.address_swapped_at_least_once.get_mut(&origin_address)
-                {
-                    *swapped_flag = true;
-                }
-                destination_address
-            })
+        self.addresses.get(&origin_address).inspect(|_| {
+            // Mark the origin address as swapped
+            if let Some(swapped_flag) = self.address_swapped_at_least_once.get_mut(&origin_address)
+            {
+                *swapped_flag = true;
+            }
+        })
     }
 
     /// Verifies that all addresses have been swapped at least once.
