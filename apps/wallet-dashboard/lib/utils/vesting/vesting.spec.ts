@@ -76,7 +76,9 @@ describe('build supply increase staker vesting portfolio', () => {
         const timelockedStakedObjects = mockedTimelockedStackedObjectsWithDynamicDate;
         const extendedTimelockedStakedObjects =
             formatDelegatedTimelockedStake(timelockedStakedObjects);
-        const lastPayout = getSupplyIncreaseVestingPayoutByExpiration(extendedTimelockedStakedObjects);
+        const lastPayout = getSupplyIncreaseVestingPayoutByExpiration(
+            extendedTimelockedStakedObjects,
+        );
 
         expect(lastPayout).toBeDefined();
 

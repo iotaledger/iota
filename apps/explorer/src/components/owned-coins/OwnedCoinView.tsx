@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@iota/core';
+import { useFormatCoin, ImageIconSize, CoinIcon } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 import { useState } from 'react';
-import { CoinIcon } from './CoinIcon';
 import { type CoinBalanceVerified } from './OwnedCoins';
 import CoinsPanel from './OwnedCoinsPanel';
 import {
@@ -20,7 +19,6 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ArrowUp, RecognizedBadge } from '@iota/ui-icons';
-import { ImageIconSize } from '../ui';
 
 type OwnedCoinViewProps = {
     coin: CoinBalanceVerified;
@@ -58,7 +56,6 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                     title={`${coin.coinObjectCount} Object` + (coin.coinObjectCount > 1 ? 's' : '')}
                     icon={<ArrowUp className={clsx({ 'rotate-180': !areCoinDetailsOpen })} />}
                     iconAfterText
-                    buttonType={ButtonType.Outlined}
                 />
             </Card>
             {areCoinDetailsOpen && (
