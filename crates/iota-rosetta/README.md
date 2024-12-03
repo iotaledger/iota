@@ -45,7 +45,7 @@ This will generate the `rosetta-cli.json` and `iota.ros` file to be used by the 
 #### 1. CD into the Dockerfile directory
 
 ```shell
-cd <iota project directory>/crate/iota-rosetta/docker/iota-rosetta-local
+cd <iota project directory>/docker/iota-rosetta-local
 ```
 
 #### 2. Build the image
