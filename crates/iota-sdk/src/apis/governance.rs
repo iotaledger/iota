@@ -54,9 +54,9 @@ impl GovernanceApi {
 
     /// Get the latest IOTA system state object on-chain.
     ///
-    /// Use this method to access system information, such as the current
-    /// epoch, the protocol version, the reference gas price, the total
-    /// stake, active validators, and much more.
+    /// Use this method to access system information, such as the current epoch,
+    /// the protocol version, the reference gas price, the total stake, active
+    /// validators, and much more.
     pub async fn get_latest_iota_system_state(&self) -> IotaRpcResult<IotaSystemStateSummary> {
         Ok(self.api.http.get_latest_iota_system_state().await?)
     }

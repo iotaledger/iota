@@ -1,12 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import React from 'react';
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
 import { CoinStruct } from '@iota/iota-sdk/client';
-import { useGasBudgetEstimation } from '../../hooks';
+import { useFormatCoin, useGasBudgetEstimation } from '../../hooks';
 import { useEffect } from 'react';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export interface SendTokenInputProps {
     coins: CoinStruct[];
@@ -17,6 +19,7 @@ export interface SendTokenInputProps {
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
+    isPayAllIota: boolean;
 }
 
 export function SendTokenFormInput({
@@ -28,16 +31,21 @@ export function SendTokenFormInput({
     onActionClick,
     isMaxActionDisabled,
     name,
+    isPayAllIota,
 }: SendTokenInputProps) {
     const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
-    const gasBudgetEstimation = useGasBudgetEstimation({
+    const { data: gasBudgetEstimation } = useGasBudgetEstimation({
         coinDecimals,
         coins: coins ?? [],
         activeAddress,
         to: to,
         amount: values.amount,
-        isPayAllIota: values.isPayAllIota,
+        isPayAllIota,
     });
+    const [formattedGasBudgetEstimation, gasToken] = useFormatCoin(
+        gasBudgetEstimation,
+        IOTA_TYPE_ARG,
+    );
 
     const [field, meta, helpers] = useField<string>(name);
     const errorMessage = meta.error;
@@ -48,6 +56,10 @@ export function SendTokenFormInput({
             Max
         </ButtonPill>
     );
+
+    const gasAmount = formattedGasBudgetEstimation
+        ? formattedGasBudgetEstimation + ' ' + gasToken
+        : undefined;
 
     // gasBudgetEstimation should change when the amount above changes
     useEffect(() => {
@@ -64,10 +76,10 @@ export function SendTokenFormInput({
             placeholder="0.00"
             label="Send Amount"
             suffix={` ${symbol}`}
-            prefix={values.isPayAllIota ? '~ ' : undefined}
+            prefix={isPayAllIota ? '~ ' : undefined}
             allowNegative={false}
             errorMessage={errorMessage}
-            amountCounter={!errorMessage ? (coins ? gasBudgetEstimation : '--') : undefined}
+            amountCounter={!errorMessage ? (coins ? gasAmount : '--') : undefined}
             trailingElement={renderAction()}
             decimalScale={coinDecimals ? undefined : 0}
             thousandSeparator

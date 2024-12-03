@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export * from './isAssetTransferable';
 export * from './calculateStakeShare';
 export * from './chunkArray';
 export * from './formatAmount';
@@ -25,3 +24,4 @@ export * from './getExplorerLink';
 export * from './stake';
 export * from './transaction';
 export * from './validation';
+export * from './migration';
