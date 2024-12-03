@@ -3,7 +3,8 @@
 
 'use client';
 
-import { Button, TimelockedUnstakePopup } from '@/components';
+import { Button, StakeDialog, TimelockedUnstakePopup } from '@/components';
+import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
@@ -56,6 +57,17 @@ function VestingDashboardPage(): JSX.Element {
         [...timelockedMapped, ...timelockedstakedMapped],
         Number(currentEpochMs),
     );
+
+    const {
+        isDialogStakeOpen,
+        stakeDialogView,
+        setStakeDialogView,
+        selectedStake,
+        selectedValidator,
+        setSelectedValidator,
+        handleCloseStakeDialog,
+        handleNewStake,
+    } = useStakeDialog();
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
         return activeValidators?.find(
@@ -212,9 +224,24 @@ function VestingDashboardPage(): JSX.Element {
                         {vestingSchedule.availableClaiming ? (
                             <Button onClick={handleCollect}>Collect</Button>
                         ) : null}
+                        {vestingSchedule.availableStaking ? (
+                            <Button onClick={handleNewStake}>Stake</Button>
+                        ) : null}
                     </div>
                 )}
             </div>
+            <StakeDialog
+                isTimelockedStaking={true}
+                stakedDetails={selectedStake}
+                onSuccess={handleOnSuccess}
+                isOpen={isDialogStakeOpen}
+                handleClose={handleCloseStakeDialog}
+                view={stakeDialogView}
+                setView={setStakeDialogView}
+                selectedValidator={selectedValidator}
+                setSelectedValidator={setSelectedValidator}
+                maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+            />
         </div>
     );
 }
