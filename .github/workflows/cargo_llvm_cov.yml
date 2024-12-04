@@ -145,14 +145,6 @@ jobs:
           echo "Removing absolute path prefix: ${{ github.workspace }} from report."
           sed --in-place "s#${{ github.workspace }}#.#g" lcov.info
 
-      - name: Backup report
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        with:
-          name: lcov.info
-          path: target/lcov.info
-          if-no-files-found: error
-          retention-days: 30
-
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@cfd0633edbd2411b532b808ba7a8b5e04f76d2c8 # v2.3.4
         with:
