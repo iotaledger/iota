@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetObject } from './';
+import { useGetObject } from '.';
 import { useMemo } from 'react';
 
 export type NFTMetadata = {
@@ -11,7 +11,7 @@ export type NFTMetadata = {
     url: string;
 };
 
-export function useGetNFTMeta(objectID: string) {
+export function useGetNFTDisplay(objectID: string) {
     const resp = useGetObject(objectID);
     const nftMeta = useMemo(() => {
         if (!resp.data) return null;

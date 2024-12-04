@@ -32,7 +32,7 @@ export * from './useQueryTransactionsByAddress';
 export * from './useGetTransaction';
 export * from './useExtendedTransactionSummary';
 export * from './useSortedCoinsByCategories';
-export * from './useGetNFTMeta';
+export * from './useGetNFTDisplay';
 export * from './useIotaAddressValidation';
 export * from './useUnlockTimelockedObjectsTransaction';
 export * from './useGetAllOwnedObjects';
@@ -43,6 +43,9 @@ export * from './useTransactionData';
 export * from './useGetStakingValidatorDetails';
 export * from './useCursorPagination';
 export * from './useTheme';
+export * from './useNFTBasicData';
+export * from './useOwnedNFT';
+export * from './useNftDetails';
 export * from './useCountdownByTimestamp';
 
 export * from './stake';
