@@ -150,9 +150,15 @@ test.describe('Wallet interface', () => {
             await expect(approve).toBeVisible();
             await expect(approve).toBeEnabled();
         });
-        test('signing message works', async () => {
+        test('signing message works', async ({ context }) => {
+            const newPage = context.waitForEvent('page');
             await demoPage.getByRole('button', { name: 'Sign message' }).click();
-            await expect(demoPage.getByText('Error')).not.toBeVisible();
+            const walletPage = await newPage;
+            const sign = walletPage.getByRole('button', {
+                name: 'Sign',
+            });
+            await expect(sign).toBeVisible();
+            await expect(sign).toBeEnabled();
         });
         test.describe('and using wrong account', () => {
             test.beforeEach(async () => {
