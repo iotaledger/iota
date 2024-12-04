@@ -335,6 +335,7 @@ function VestingDashboardPage(): JSX.Element {
                     </div>
                 </div>
             )}
+            <Button onClick={() => handleNewStake()} text="Stake" />
             <StakeDialog
                 isTimelockedStaking={true}
                 stakedDetails={selectedStake}
