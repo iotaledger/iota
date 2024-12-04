@@ -32,6 +32,7 @@ test.describe('Wallet API', () => {
                 name: 'Sign',
             })
             .click();
+        await demoPage.waitForTimeout(3000);
         await expect(demoPage.getByText('Error')).toHaveCount(0);
     });
 });
