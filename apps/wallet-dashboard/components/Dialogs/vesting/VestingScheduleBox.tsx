@@ -22,7 +22,7 @@ export function VestingScheduleBox({
     const isLocked = expirationTimestampMs > Number(currentEpochMs);
     return (
         <DisplayStats
-            label={new Date(expirationTimestampMs).toLocaleString()}
+            label={new Date(expirationTimestampMs).toLocaleDateString()}
             value={`${formattedAmountVested} ${amountVestedSymbol}`}
             type={isLocked ? DisplayStatsType.Default : DisplayStatsType.Secondary}
             icon={isLocked && <LockLocked className="h-4 w-4" />}
