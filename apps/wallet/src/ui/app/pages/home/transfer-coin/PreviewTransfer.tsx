@@ -6,7 +6,7 @@ import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { parseAmount, useCoinMetadata, useFormatCoin } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export type PreviewTransferProps = {
     coinType: string;
@@ -26,7 +26,7 @@ export function PreviewTransfer({
     const accountAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
-    const [formattedGasBudgetEstimation, gasToken] = useFormatCoin(gasBudget, coinType);
+    const [formattedGasBudgetEstimation, gasToken] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
 
     return (
         <div className="flex w-full flex-col gap-md">

@@ -22,4 +22,4 @@ jobs:
         with:
           repo-token: ${{ secrets.TEAM_LABELER_TOKEN }}
           organization-name: iotaledger
-          ignore-labels: devs, iota-foundation, iota-sdk, hornet, boxfish
+          ignore-labels: devs, iota-foundation, iota-sdk, hornet, boxfish, firefly
