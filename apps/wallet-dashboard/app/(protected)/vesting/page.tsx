@@ -94,8 +94,13 @@ function VestingDashboardPage(): JSX.Element {
         false,
     );
 
+    const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+        [...timelockedMapped, ...timelockedstakedMapped],
+        true,
+    );
+
     const vestingPortfolio =
-        nextPayout && buildSupplyIncreaseVestingSchedule(nextPayout, Number(currentEpochMs));
+        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
@@ -263,7 +268,7 @@ function VestingDashboardPage(): JSX.Element {
                             onClick={openReceiveTokenPopup}
                             title="See All"
                             buttonType={ButtonType.Secondary}
-                            buttonDisabled={!vestingSchedule}
+                            buttonDisabled={!vestingPortfolio}
                         />
                     </Card>
                     {vestingPortfolio && (
