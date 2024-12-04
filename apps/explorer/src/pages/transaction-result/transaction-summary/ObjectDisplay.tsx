@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Card, CardAction, CardActionType, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
+import { ImageIcon } from '@iota/core';
 import { type DisplayFieldsResponse } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/ui-icons';
 import { useState } from 'react';
-import { ImageIcon, ObjectModal } from '~/components/ui';
+import { ObjectModal } from '~/components/ui';
 
 interface ObjectDisplayProps {
     objectId: string;
