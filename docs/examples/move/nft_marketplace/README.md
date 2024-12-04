@@ -105,7 +105,7 @@ After publishing, export the following variables:
 
 ### 6. Install the Extension on the Kiosk
 
-The [`install`](https://github.com/iotaledger/iota/blob/sc-platform/Create-an-example-NFT-marketplace-using-the-Kiosk-framework/docs/examples/move/nft_marketplace/sources/marketplace_extension.move#L39-L45) function enables the installation of the Marketplace extension in a kiosk.
+The [`install`](https://github.com/iotaledger/iota/blob/develop/docs/examples/move/nft_marketplace/sources/marketplace_extension.move#L39-L45) function enables the installation of the Marketplace extension in a kiosk.
 Under the hood, it invokes `kiosk_extension::add`, which adds an extension to the Kiosk via a [dynamic field](https://docs.iota.org/developer/iota-101/objects/dynamic-fields/).
 You can install the marketplace extension on the created kiosk using the following command:
 
@@ -119,7 +119,7 @@ iota client call \
 
 ### 7. Set a Price for the Item
 
-You can use the [`set_price`](https://github.com/iotaledger/iota/blob/sc-platform/Create-an-example-NFT-marketplace-using-the-Kiosk-framework/docs/examples/move/nft_marketplace/sources/marketplace_extension.move#L98-L114) function to set the price for the item:
+You can use the [`set_price`](https://github.com/iotaledger/iota/blob/develop/docs/examples/move/nft_marketplace/sources/marketplace_extension.move#L98-L114) function to set the price for the item:
 
 ```bash
 iota client call \
@@ -134,7 +134,7 @@ iota client call \
 
 Royalties are a percentage of the item's price or revenue paid to the owner for using or selling their asset.
 
-You can use the [`set_royalties`](https://github.com/iotaledger/iota/blob/sc-platform/Create-an-example-NFT-marketplace-using-the-Kiosk-framework/docs/examples/move/nft_marketplace/sources/marketplace_extension.move#L58-L60) function to set royalties for the item:
+You can use the [`set_royalties`](https://github.com/iotaledger/iota/blob/develop/docs/examples/move/nft_marketplace/sources/marketplace_extension.move#L58-L60) function to set royalties for the item:
 
 ```bash
 iota client call \
@@ -150,7 +150,7 @@ iota client call \
 #### 9.1 Get the Item Price
 
 You can use the following [Programmable Transaction Block](https://docs.iota.org/developer/iota-101/transactions/ptb/programmable-transaction-blocks-overview) to call the
-[`get_item_price`](https://github.com/iotaledger/iota/blob/sc-platform/Create-an-example-NFT-marketplace-using-the-Kiosk-framework/docs/examples/move/nft_marketplace/sources/marketplace_extension.move#L116-L127)
+[`get_item_price`](https://github.com/iotaledger/iota/blob/develop/docs/examples/move/nft_marketplace/sources/marketplace_extension.move#L116-L127)
 and assign it to an `item_price` variable. In this case, the Jeans item:
 
 ```bash
