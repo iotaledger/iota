@@ -28,6 +28,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 
 export function getLatestOrEarliestSupplyIncreaseVestingPayout(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
+    currentEpochTimestamp: number,
     useLastPayout: boolean = true,
 ): SupplyIncreaseVestingPayout | undefined {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
@@ -41,7 +42,7 @@ export function getLatestOrEarliestSupplyIncreaseVestingPayout(
     let payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
 
     if (!useLastPayout) {
-        payouts = payouts.filter((payout) => payout.expirationTimestampMs >= Date.now());
+        payouts = payouts.filter((payout) => payout.expirationTimestampMs >= currentEpochTimestamp);
     }
 
     return payouts.sort((a, b) =>

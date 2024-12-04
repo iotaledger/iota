@@ -91,11 +91,13 @@ function VestingDashboardPage(): JSX.Element {
 
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...timelockedMapped, ...timelockedstakedMapped],
+        Number(currentEpochMs),
         false,
     );
 
     const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...timelockedMapped, ...timelockedstakedMapped],
+        Number(currentEpochMs),
         true,
     );
 
