@@ -9,46 +9,22 @@ import {
     StakingOverview,
     MigrationOverview,
 } from '@/components';
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
-import { groupStardustObjectsByMigrationStatus } from '@/lib/utils';
+import { useStardustMigratableObjects } from '@/lib/utils';
 import { useFeature } from '@growthbook/growthbook-react';
-import {
-    Feature,
-    STARDUST_BASIC_OUTPUT_TYPE,
-    STARDUST_NFT_OUTPUT_TYPE,
-    useGetAllOwnedObjects,
-} from '@iota/core';
+import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import clsx from 'clsx';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
-
     const address = account?.address || '';
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
-    const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_BASIC_OUTPUT_TYPE,
-    });
-    const { data: nftOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_NFT_OUTPUT_TYPE,
-    });
-    const { migratable: migratableBasicOutputs } = groupStardustObjectsByMigrationStatus(
-        basicOutputObjects ?? [],
-        Number(currentEpochMs),
-        address,
-    );
-
-    const { migratable: migratableNftOutputs } = groupStardustObjectsByMigrationStatus(
-        nftOutputObjects ?? [],
-        Number(currentEpochMs),
-        address,
-    );
+    const { migratableBasicOutputs, migratableNftOutputs } = useStardustMigratableObjects(address);
 
     const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
     const needsMigration =
-        (migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0) &&
-        stardustMigrationEnabled;
+        stardustMigrationEnabled &&
+        (migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0);
 
     return (
         <main className="flex flex-1 flex-col items-center space-y-8 py-md">
