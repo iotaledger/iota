@@ -274,6 +274,8 @@ pub enum IotaCommand {
         #[clap(long, name = "iota|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
+        #[clap(long, help = "Specify the delegator address")]
+        delegator: Option<String>,
     },
     /// Create an IOTA Genesis Ceremony with multiple remote validators.
     GenesisCeremony(Ceremony),
@@ -411,6 +413,7 @@ impl IotaCommand {
                 num_validators,
                 local_migration_snapshots: with_local_migration_snapshot,
                 remote_migration_snapshots: with_remote_migration_snapshot,
+                delegator,
             } => {
                 genesis(
                     from_config,
@@ -423,6 +426,7 @@ impl IotaCommand {
                     num_validators,
                     with_local_migration_snapshot,
                     with_remote_migration_snapshot,
+                    delegator,
                 )
                 .await
             }
@@ -684,6 +688,7 @@ async fn start(
                 DEFAULT_NUMBER_OF_AUTHORITIES,
                 local_migration_snapshots,
                 remote_migration_snapshots,
+                None,
             )
             .await?;
         }
@@ -887,6 +892,7 @@ async fn genesis(
     num_validators: usize,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
+    delegator: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
         // if a directory is specified, it must exist (it
@@ -987,6 +993,16 @@ async fn genesis(
         .into_iter()
         .map(SnapshotSource::S3);
     genesis_conf.migration_sources = local_snapshots.chain(remote_snapshots).collect();
+
+    // A delegator must be supplied when migration snapshots are provided.
+    if !genesis_conf.migration_sources.is_empty() {
+        if let Some(delegator) = delegator {
+            // Add a delegator account to the genesis.
+            genesis_conf = genesis_conf.add_delegator(delegator);
+        } else {
+            bail!("A delegator must be supplied when migration snapshots are provided.");
+        }
+    }
 
     // Adds an extra faucet account to the genesis
     if with_faucet {

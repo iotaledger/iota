@@ -88,10 +88,6 @@ mod stake;
 pub mod stardust;
 pub mod validator_info;
 
-// TODO: Lazy static `stardust_to_iota_address`
-pub const IF_STARDUST_ADDRESS: &str =
-    "iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr";
-
 const GENESIS_BUILDER_COMMITTEE_DIR: &str = "committee";
 pub const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
 const GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE: &str = "token-distribution-schedule";
@@ -118,6 +114,7 @@ pub struct Builder {
     genesis_stake: GenesisStake,
     migration_sources: Vec<SnapshotSource>,
     migration_tx_data: Option<MigrationTxData>,
+    delegator: Option<String>,
 }
 
 impl Default for Builder {
@@ -139,7 +136,13 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources: Default::default(),
             migration_tx_data: Default::default(),
+            delegator: None,
         }
+    }
+
+    pub fn with_delegator(mut self, delegator: String) -> Self {
+        self.delegator = Some(delegator);
+        self
     }
 
     /// Checks if the genesis to be built has no migration or if it includes
@@ -255,18 +258,21 @@ impl Builder {
     /// contains migrated objects.
     fn create_and_cache_genesis_stake(&mut self) -> anyhow::Result<()> {
         if !self.migration_objects.is_empty() {
-            let delegator =
-                stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
-                    .unwrap();
-            // TODO: check whether we need to start with
-            // VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
-            let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
-            self.genesis_stake = delegate_genesis_stake(
-                self.validators.values(),
-                delegator,
-                &self.migration_objects,
-                minimum_stake,
-            )?;
+            if let Some(if_delegator_address) = &self.delegator {
+                let delegator = stardust_to_iota_address(
+                    Address::try_from_bech32(if_delegator_address).unwrap(),
+                )
+                .unwrap();
+                // TODO: check whether we need to start with
+                // VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
+                let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
+                self.genesis_stake = delegate_genesis_stake(
+                    self.validators.values(),
+                    delegator,
+                    &self.migration_objects,
+                    minimum_stake,
+                )?;
+            }
         }
         Ok(())
     }
@@ -820,6 +826,7 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources,
             migration_tx_data,
+            delegator: None,
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
