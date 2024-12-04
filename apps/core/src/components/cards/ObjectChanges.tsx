@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import React from 'react';
+import React, { useState } from 'react';
 import {
     getObjectChangeLabel,
     type ObjectChangesByOwner,
@@ -24,22 +24,17 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { useState } from 'react';
 import { TriangleDown } from '@iota/ui-icons';
 import { RenderExplorerLink } from '../../types';
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
     ownerKey: string;
-    display?: boolean;
     renderExplorerLink: RenderExplorerLink;
+    display?: boolean;
 }
 
-export function ObjectDetail({
-    change,
-    display,
-    renderExplorerLink: ExplorerLink,
-}: ObjectDetailProps) {
+export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: ObjectDetailProps) {
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }

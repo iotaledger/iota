@@ -3,7 +3,7 @@
 
 export interface ValidatorLogoProps {
     address: string;
+    isSelected: boolean;
     showActiveStatus?: boolean;
     activeEpoch?: string;
-    isSelected: boolean;
 }

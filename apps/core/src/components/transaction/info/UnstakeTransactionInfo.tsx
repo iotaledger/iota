@@ -14,9 +14,9 @@ import { GasSummary } from '../../..';
 interface UnstakeTransactionInfoProps {
     activeAddress: string | null;
     event: IotaEvent;
-    gasSummary?: GasSummaryType;
     renderValidatorLogo: RenderValidatorLogo;
     renderExplorerLink: RenderExplorerLink;
+    gasSummary?: GasSummaryType;
 }
 
 export function UnstakeTransactionInfo({

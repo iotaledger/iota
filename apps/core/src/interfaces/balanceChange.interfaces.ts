@@ -4,7 +4,7 @@
 export type BalanceChange = {
     coinType: string;
     amount: string;
+    unRecognizedToken: boolean;
     recipient?: string;
     owner?: string;
-    unRecognizedToken: boolean;
 };

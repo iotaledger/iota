@@ -9,8 +9,8 @@ import { ArrowTopRight } from '@iota/ui-icons';
 import { RenderExplorerLink } from '../../types';
 
 interface ObjectChangeDisplayProps {
-    change?: IotaObjectChangeWithDisplay;
     renderExplorerLink: RenderExplorerLink;
+    change?: IotaObjectChangeWithDisplay;
 }
 export function ObjectChangeDisplay({
     change,

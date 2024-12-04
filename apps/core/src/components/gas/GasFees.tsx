@@ -8,12 +8,12 @@ import { Collapsible, GasSummary, type RenderExplorerLink, type GasSummaryType }
 
 interface GasFeesProps {
     activeAddress: string | null | undefined;
+    renderExplorerLink: RenderExplorerLink;
     sender?: string;
     gasSummary?: GasSummaryType;
     isEstimate?: boolean;
     isPending?: boolean;
     isError?: boolean;
-    renderExplorerLink: RenderExplorerLink;
 }
 const DEFAULT_TITLE = 'Gas Fees';
 

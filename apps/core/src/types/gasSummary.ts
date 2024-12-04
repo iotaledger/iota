@@ -10,9 +10,9 @@ type Optional<T> = {
 export type GasSummaryType =
     | (GasCostSummary &
           Optional<IotaGasData> & {
-              totalGas?: string;
-              owner?: string;
               isSponsored: boolean;
               gasUsed: GasCostSummary;
+              totalGas?: string;
+              owner?: string;
           })
     | null;

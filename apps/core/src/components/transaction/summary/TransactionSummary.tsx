@@ -9,10 +9,10 @@ import { RenderExplorerLink } from '../../../types';
 
 interface TransactionSummaryProps {
     summary: TransactionSummaryType;
+    renderExplorerLink: RenderExplorerLink;
     isLoading?: boolean;
     isError?: boolean;
     isDryRun?: boolean;
-    renderExplorerLink: RenderExplorerLink;
 }
 
 export function TransactionSummary({

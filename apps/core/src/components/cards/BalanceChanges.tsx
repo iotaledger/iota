@@ -13,8 +13,8 @@ import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
 
 interface BalanceChangesProps {
-    changes?: BalanceChangeSummary;
     renderExplorerLink: RenderExplorerLink;
+    changes?: BalanceChangeSummary;
 }
 
 export function BalanceChanges({ changes, renderExplorerLink: ExplorerLink }: BalanceChangesProps) {

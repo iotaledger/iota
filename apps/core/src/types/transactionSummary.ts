@@ -5,10 +5,10 @@
 import type { GasSummaryType, BalanceChangeSummary, ObjectChangeSummary } from '.';
 
 export type TransactionSummaryType = {
+    balanceChanges: BalanceChangeSummary;
+    objectSummary: ObjectChangeSummary | null;
     digest?: string;
     sender?: string;
     timestamp?: string | null;
-    balanceChanges: BalanceChangeSummary;
     gas?: GasSummaryType;
-    objectSummary: ObjectChangeSummary | null;
 } | null;

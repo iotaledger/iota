@@ -8,11 +8,11 @@ import { type GasSummaryType, useStakeTxnInfo, GasSummary } from '../../../';
 import { RenderExplorerLink } from '../../../types';
 
 interface StakeTransactionInfoProps {
+    activeAddress: string | null;
+    renderExplorerLink: RenderExplorerLink;
     apy?: string;
     startEpoch?: string | number;
     gasSummary?: GasSummaryType;
-    activeAddress: string | null;
-    renderExplorerLink: RenderExplorerLink;
 }
 
 export function StakeTransactionInfo({

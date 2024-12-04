@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { useState, type ReactNode } from 'react';
 import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '@iota/apps-ui-kit';
-import { useState, type ReactNode } from 'react';
 
-interface CollapsibleProps {
+interface CollapsibleProps extends React.PropsWithChildren {
     title?: string;
     defaultOpen?: boolean;
-    children: ReactNode | ReactNode[];
     isOpen?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     titleSize?: TitleSize;

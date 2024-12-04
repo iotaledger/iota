@@ -10,12 +10,12 @@ import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { KeyValueInfo } from '@iota/apps-ui-kit';
 
 interface GasSummaryProps {
+    renderExplorerLink: RenderExplorerLink;
+    activeAddress: string | null | undefined;
     sender?: string | null;
     gasSummary?: GasSummaryType;
     isPending?: boolean;
     isError?: boolean;
-    renderExplorerLink: RenderExplorerLink;
-    activeAddress: string | null | undefined;
 }
 
 export function GasSummary({

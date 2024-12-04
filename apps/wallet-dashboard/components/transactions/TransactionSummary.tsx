@@ -7,10 +7,10 @@ import { ExplorerLink } from '../ExplorerLink';
 
 interface TransactionSummaryProps {
     summary: TransactionSummaryType;
+    activeAddress: string | null | undefined;
     isLoading?: boolean;
     isError?: boolean;
     showGasSummary?: boolean;
-    activeAddress: string | null | undefined;
 }
 
 export default function TransactionSummary({
