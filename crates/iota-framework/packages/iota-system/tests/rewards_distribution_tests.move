@@ -588,6 +588,7 @@ module iota_system::rewards_distribution_tests {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
+        let initial_supply = total_supply(scenario);
 
         // need to advance epoch so validator's staking starts counting
         advance_epoch(scenario);
@@ -617,7 +618,8 @@ module iota_system::rewards_distribution_tests {
 
         // Without reward slashing, the validator's stakes should be [100+450, 200+600, 300+900, 400+900]
         // after the last epoch advancement.
-        // Since 60 IOTA, or 10% of validator_2's rewards (600) are slashed, she only has 800 - 60 = 740 now.
+        // Since 60 IOTA, or 10% of validator_2's rewards (600) are slashed, she only has 200 + 600 - 60 = 740 now.
+        // Note that the slashed rewards are not distributed to the other validators.
         assert_validator_self_stake_amounts(
             validator_addrs(),
             vector[
@@ -632,9 +634,12 @@ module iota_system::rewards_distribution_tests {
         unstake(STAKER_ADDR_1, 0, scenario);
         unstake(STAKER_ADDR_2, 0, scenario);
 
-        // Same analysis as above. Delegator 1 gets 450 additional IOTA, and 10% of staker 2's rewards (30 IOTA) are slashed.
+        // Same analysis as above. Delegator 1 gets 450 IOTA, and 10% of staker 2's rewards (30 IOTA) are slashed.
         assert!(total_iota_balance(STAKER_ADDR_1, scenario) == (100 + 450) * NANOS_PER_IOTA);
         assert!(total_iota_balance(STAKER_ADDR_2, scenario) == (100 + 300 - 30) * NANOS_PER_IOTA);
+
+        // Ensure that the slashed rewards are burned.
+        assert_eq(total_supply(scenario), initial_supply - 90 * NANOS_PER_IOTA);
         scenario_val.end();
     }
 
@@ -643,6 +648,7 @@ module iota_system::rewards_distribution_tests {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
+        let initial_supply = total_supply(scenario);
 
         // need to advance epoch so validator's staking starts counting
         advance_epoch(scenario);
@@ -686,7 +692,11 @@ module iota_system::rewards_distribution_tests {
 
         // Same analysis as above. Staker 1 gets 450 IOTA as rewards, and since all of staker 2's rewards are slashed she only gets back her principal.
         assert!(total_iota_balance(STAKER_ADDR_1, scenario) == (100 + 450) * NANOS_PER_IOTA);
-        assert!(total_iota_balance(STAKER_ADDR_2, scenario) == 100 * NANOS_PER_IOTA);
+        assert!(total_iota_balance(STAKER_ADDR_2, scenario) == (100 + 300 - 300) * NANOS_PER_IOTA);
+
+        // Ensure that the slashed rewards are burned.
+        assert_eq(total_supply(scenario), initial_supply - 900 * NANOS_PER_IOTA);
+
         scenario_val.end();
     }
 
@@ -695,6 +705,7 @@ module iota_system::rewards_distribution_tests {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
+        let initial_supply = total_supply(scenario);
 
         // Put 300 IOTA into the storage fund. This should not change the pools' stake or give rewards.
         advance_epoch_with_reward_amounts(300, 0, scenario);
@@ -749,6 +760,9 @@ module iota_system::rewards_distribution_tests {
         // Staker 2 gets (375 - 75) * 1/5 = 60 IOTA of rewards.
         assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), (100 + 60) * NANOS_PER_IOTA);
 
+        // Ensure that the slashed rewards are burned.
+        assert_eq(total_supply(scenario), initial_supply - 75 * NANOS_PER_IOTA);
+
         scenario_val.end();
     }
 
@@ -759,6 +773,7 @@ module iota_system::rewards_distribution_tests {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
+        let initial_supply = total_supply(scenario);
 
         slash_all_validators(scenario);
 
@@ -783,6 +798,9 @@ module iota_system::rewards_distribution_tests {
 
         // The entire 1000 IOTA of storage charges should go to the object rebate portion of the storage fund.
         assert_eq(system_state.get_storage_fund_object_rebates(), 1000 * NANOS_PER_IOTA);
+
+        // Ensure that the slashed rewards are burned.
+        assert_eq(system_state.get_total_iota_supply(), initial_supply - 500 * NANOS_PER_IOTA);
 
         test_scenario::return_shared(system_state);
         scenario_val.end();
