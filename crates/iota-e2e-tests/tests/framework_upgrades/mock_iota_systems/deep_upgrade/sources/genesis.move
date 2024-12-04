@@ -7,7 +7,7 @@ module iota_system::genesis {
 
     use iota::balance;
     use iota::iota::IotaTreasuryCap;
-    use iota::timelock::SystemTimelockCap;
+    use iota::system_admin_cap::IotaSystemAdminCap;
 
     use iota_system::iota_system;
     use iota_system::validator;
@@ -67,7 +67,7 @@ module iota_system::genesis {
         genesis_validators: vector<GenesisValidatorMetadata>,
         _token_distribution_schedule: TokenDistributionSchedule,
         _timelock_genesis_label: Option<String>,
-        system_timelock_cap: SystemTimelockCap,
+        iota_system_admin_cap: IotaSystemAdminCap,
         ctx: &mut TxContext,
     ) {
         assert!(tx_context::epoch(ctx) == 0, 0);
@@ -118,7 +118,7 @@ module iota_system::genesis {
             genesis_chain_parameters.protocol_version,
             genesis_chain_parameters.chain_start_timestamp_ms,
             genesis_chain_parameters.epoch_duration_ms,
-            system_timelock_cap,
+            iota_system_admin_cap,
             ctx,
         );
     }

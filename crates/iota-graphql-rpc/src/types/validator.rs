@@ -9,7 +9,8 @@ use async_graphql::{
     dataloader::Loader,
     *,
 };
-use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
+use futures::TryFutureExt;
+use iota_indexer::apis::GovernanceReadApi;
 use iota_json_rpc::governance_api::median_apy_from_exchange_rates;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
@@ -37,6 +38,7 @@ use crate::{
         validator_credentials::ValidatorCredentials,
     },
 };
+
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
     pub validator_summary: NativeIotaValidatorSummary,
@@ -74,9 +76,32 @@ impl Loader<u64> for Db {
             .await
             .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
         let governance_api = GovernanceReadApi::new(self.inner.clone());
-        let exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
+
+        let (candidate_rates, pending_rates) = tokio::try_join!(
+            governance_api
+                .candidate_validators_exchange_rate(&latest_iota_system_state)
+                .map_err(|e| {
+                    Error::Internal(format!(
+                        "Error fetching candidate validators exchange rates. {e}"
+                    ))
+                }),
+            governance_api
+                .pending_validators_exchange_rate()
+                .map_err(|e| {
+                    Error::Internal(format!(
+                        "Error fetching pending validators exchange rates. {e}"
+                    ))
+                })
+        )?;
+
+        let mut exchange_rates = governance_api
+            .exchange_rates(&latest_iota_system_state)
             .await
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
+
+        exchange_rates.extend(candidate_rates.into_iter());
+        exchange_rates.extend(pending_rates.into_iter());
+
         let mut results = BTreeMap::new();
 
         // The requested epoch is the epoch for which we want to compute the APY. For

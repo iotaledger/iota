@@ -13,8 +13,7 @@ interface ChallengeVerifierProps {
 
 // Define network configurations
 const NETWORKS = {
-  devnet: { url: getFullnodeUrl('devnet') },
-  alphanet: { url: 'https://api.iota-rebased-alphanet.iota.cafe:443' },
+  testnet: { url: getFullnodeUrl('testnet') },
 };
 
 // Main ChallengeVerifier component
@@ -30,7 +29,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
     setCoins(null);
 
     try {
-      const client = new IotaClient({ url: NETWORKS.alphanet.url });
+      const client = new IotaClient({ url: NETWORKS.testnet.url });
       const result = await client.getObject({ id: inputText, options: { showType: true } });
 
       const message = result.data.type === expectedObjectType

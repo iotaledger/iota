@@ -2,12 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, io::Read, path::PathBuf};
+use std::{
+    fs::{self},
+    io::Read,
+    path::PathBuf,
+};
 
 use anyhow::anyhow;
 use iota_light_client::{
     construct::construct_proof,
     proof::{Proof, ProofTarget, verify_proof},
+    utils::{CheckpointsList, read_checkpoint_list},
 };
 use iota_rest_api::CheckpointData;
 use iota_types::{
@@ -25,6 +30,25 @@ async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<Check
     let data: CheckpointData =
         bcs::from_bytes(&buffer).map_err(|e| anyhow!("Unable to parse checkpoint file: {}", e))?;
     Ok(data)
+}
+
+async fn read_test_data() -> (Committee, CheckpointData) {
+    let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    d.push("example_config/checkpoints.yaml");
+
+    let checkpoints_list: CheckpointsList =
+        read_checkpoint_list(d).expect("reading the checkpoints.yaml should not fail");
+
+    let committee_seq = checkpoints_list
+        .checkpoints
+        .first()
+        .expect("there should be a first checkpoint in the checkpoints.yaml");
+    let seq = checkpoints_list
+        .checkpoints
+        .get(1)
+        .expect("there should be a second checkpoint in the checkpoints.yaml");
+
+    read_data(*committee_seq, *seq).await
 }
 
 async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) {
@@ -64,7 +88,7 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
 
 #[tokio::test]
 async fn check_can_read_test_data() {
-    let (_committee, full_checkpoint) = read_data(532, 801).await;
+    let (_committee, full_checkpoint) = read_test_data().await;
     assert!(
         full_checkpoint
             .checkpoint_summary
@@ -75,7 +99,7 @@ async fn check_can_read_test_data() {
 
 #[tokio::test]
 async fn test_new_committee() {
-    let (committee, full_checkpoint) = read_data(532, 801).await;
+    let (committee, full_checkpoint) = read_test_data().await;
 
     let new_committee_data = full_checkpoint
         .checkpoint_summary
@@ -110,7 +134,7 @@ async fn test_new_committee() {
 // Fail if the new committee does not match the target of the proof
 #[tokio::test]
 async fn test_incorrect_new_committee() {
-    let (committee, full_checkpoint) = read_data(532, 801).await;
+    let (committee, full_checkpoint) = read_test_data().await;
 
     let committee_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
@@ -124,7 +148,7 @@ async fn test_incorrect_new_committee() {
 // Fail if the certificate is incorrect even if no proof targets are given
 #[tokio::test]
 async fn test_fail_incorrect_cert() {
-    let (_committee, full_checkpoint) = read_data(532, 801).await;
+    let (_committee, full_checkpoint) = read_test_data().await;
 
     let new_committee_data = full_checkpoint
         .checkpoint_summary
@@ -164,7 +188,7 @@ async fn test_fail_incorrect_cert() {
 
 #[tokio::test]
 async fn test_object_target_fail_no_data() {
-    let (committee, full_checkpoint) = read_data(532, 801).await;
+    let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let sample_ref = sample_object.compute_object_reference();
@@ -180,7 +204,7 @@ async fn test_object_target_fail_no_data() {
 
 #[tokio::test]
 async fn test_object_target_success() {
-    let (committee, full_checkpoint) = read_data(532, 801).await;
+    let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let sample_ref = sample_object.compute_object_reference();
@@ -193,7 +217,7 @@ async fn test_object_target_success() {
 
 #[tokio::test]
 async fn test_object_target_fail_wrong_object() {
-    let (committee, full_checkpoint) = read_data(532, 801).await;
+    let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let wrong_object: Object = full_checkpoint.transactions[1].output_objects[1].clone();
@@ -214,7 +238,7 @@ async fn test_object_target_fail_wrong_object() {
 
 #[tokio::test]
 async fn test_event_target_fail_no_data() {
-    let (committee, full_checkpoint) = read_data(532, 801).await;
+    let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_event: Event = full_checkpoint.transactions[1]
         .events
@@ -238,7 +262,7 @@ async fn test_event_target_fail_no_data() {
 
 #[tokio::test]
 async fn test_event_target_success() {
-    let (committee, full_checkpoint) = read_data(532, 801).await;
+    let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_event: Event = full_checkpoint.transactions[1]
         .events
@@ -259,7 +283,7 @@ async fn test_event_target_success() {
 
 #[tokio::test]
 async fn test_event_target_fail_bad_event() {
-    let (committee, full_checkpoint) = read_data(532, 801).await;
+    let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_event: Event = full_checkpoint.transactions[1]
         .events

@@ -16,7 +16,7 @@ import { useIotaLedgerClient } from './components/ledger/IotaLedgerClientProvide
 import { useAccounts } from './hooks/useAccounts';
 import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
 import { useBackgroundClient } from './hooks/useBackgroundClient';
-// import { useInitialPageView } from './hooks/useInitialPageView';
+import { useInitialPageView } from './hooks/useInitialPageView';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
 import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
@@ -80,7 +80,7 @@ const App = () => {
         dispatch(setNavVisibility(menuVisible));
     }, [location, dispatch]);
 
-    // useInitialPageView();
+    useInitialPageView();
     const { data: accounts } = useAccounts();
     const allLedgerWithoutPublicKey = useMemo(
         () =>

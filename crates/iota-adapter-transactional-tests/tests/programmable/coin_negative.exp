@@ -7,7 +7,7 @@ task 1, lines 9-21:
 //# publish --sender A
 created: object(1,0), object(1,1), object(1,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 10617200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10594400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 23-25:
 //# programmable --sender A --inputs object(1,2) 1 @A
@@ -16,7 +16,7 @@ task 2, lines 23-25:
 created: object(2,0)
 mutated: object(0,0), object(1,2)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, storage_cost: 4012800,  storage_rebate: 2690400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3990000,  storage_rebate: 2675200, non_refundable_storage_fee: 0
 
 task 3, lines 27-28:
 //# programmable --sender A --inputs object(2,0) 2
@@ -28,4 +28,4 @@ task 4, lines 30-31:
 //# programmable --sender A --inputs 18446744073709551615  --gas-budget 10000000000
 //> SplitCoins(Gas, [Input(0)])
 Error: Transaction Effects Status: Insufficient coin balance for operation.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InsufficientCoinBalance, source: Some("balance: 299989985060400 required: 18446744073709551615"), command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InsufficientCoinBalance, source: Some("balance: 299989985090800 required: 18446744073709551615"), command: Some(0) } }

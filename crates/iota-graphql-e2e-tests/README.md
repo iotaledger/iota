@@ -1,6 +1,14 @@
 End-to-end tests for GraphQL service, built on top of the transactional test
 runner.
 
+# Testing through the transactional test runner
+
+This crate specifically tests GraphQL queries in an e2e manner against the Indexer database.
+The tests are executed through the [transactional test runner](../iota-transactional-test-runner), mediated by the [test.rs](tests/tests.rs) module.
+
+Each test is defined in a `.move` file, which contains various statements that are executed in a transactional manner.
+In addition to the `.move` file, there is a corresponding `.exp` file that contains the expected output of the transactional test.
+
 # Local Set-up
 
 These tests require a running instance of the `postgres` service, with a

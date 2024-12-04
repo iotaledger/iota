@@ -79,14 +79,14 @@ const Parameters = (props) => {
   return (
     <div className="border-b mb-8">
       {hasParams && (
-        <div className="grid grid-cols-6 ml-4">
-          <div className="rounded-tl-lg rounded-bl-lg col-span-2 p-2 bg-iota-blue dark:bg-iota-blue-dark text-iota-gray-95 dark:text-iota-gray-50 font-bold">
+        <div className="grid grid-cols-6 ml-4 bg-iota-hero-dark rounded-lg">
+          <div className="col-span-2 p-2 text-white font-bold">
             Name&lt;Type&gt;
           </div>
-          <div className="p-2 bg-iota-blue dark:bg-iota-blue-dark text-iota-gray-95 dark:text-iota-gray-50 text-iota-gray-35 font-bold">
+          <div className="p-2 text-white font-bold">
             Required
           </div>
-          <div className="rounded-tr-lg rounded-br-lg col-span-3 p-2 bg-iota-blue dark:bg-iota-blue-dark text-iota-gray-95 dark:text-iota-gray-50 text-iota-gray-35 font-bold">
+          <div className="col-span-3 p-2 text-white font-bold">
             Description
           </div>
         </div>

@@ -405,6 +405,8 @@ mod checked {
             let non_refundable_storage_fee = storage_rebate - sender_rebate;
             GasCostSummary {
                 computation_cost: self.computation_cost,
+                // entire computation cost is burned.
+                computation_cost_burned: self.computation_cost,
                 storage_cost: self.storage_cost(),
                 storage_rebate: sender_rebate,
                 non_refundable_storage_fee,

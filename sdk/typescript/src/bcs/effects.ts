@@ -118,6 +118,7 @@ const ExecutionStatus = bcs.enum('ExecutionStatus', {
 
 const GasCostSummary = bcs.struct('GasCostSummary', {
     computationCost: bcs.u64(),
+    computationCostBurned: bcs.u64(),
     storageCost: bcs.u64(),
     storageRebate: bcs.u64(),
     nonRefundableStorageFee: bcs.u64(),

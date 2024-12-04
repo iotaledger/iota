@@ -84,14 +84,41 @@ diesel database reset --database-url="postgres://postgres:postgrespw@localhost/i
 
 ### Running tests
 
-To run the tests, a running postgres instance is required. The crate provides following tests currently:
+To run the tests, a running postgres instance is required.
+
+```sh
+docker run --name iota-indexer-tests -e POSTGRES_PASSWORD=postgrespw -e POSTGRES_USER=postgres -e POSTGRES_DB=iota_indexer -d -p 5432:5432 postgres
+```
+
+The crate provides following tests currently:
 
 - unit tests for DB models (objects, events) which test the conversion between the database representation and the Rust representation of the objects and events.
 - unit tests for the DB query filters, which test the conversion of filters to the correct SQL queries.
 - integration tests (see [ingestion_tests](tests/ingestion_tests.rs)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
+- rpc tests (see [rpc-tests](tests/rpc-tests/main.rs))
+
+> [!NOTE]
+> rpc tests which relies on postgres for every test it applies migrations, we need to run tests sequencially to avoid errors
 
 ```sh
-cargo nextest --features pg_integration --test-threads 1
+# run tests requiring only postgres integration
+cargo test --features pg_integration -- --test-threads 1
+# run rpc tests with shared runtime
+cargo test --profile simulator --features shared_test_runtime
+```
+
+For a better testing experience is possible to use [nextest](https://nexte.st/)
+
+> [!NOTE]
+> rpc tests which rely on a shared runtime are not supported with `nextest`
+>
+> This is because `cargo nextest` process-per-test execution model makes extremely difficult to share state and resources between tests.
+>
+> On the other hand `cargo test` does not run tests in separate processes by default. This means that tests can share state and resources.
+
+```sh
+# run tests requiring only postgres integration
+cargo nextest run --features pg_integration --test-threads 1
 ```
 
 ## Steps to run locally with TiDB (experimental)

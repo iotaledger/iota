@@ -498,6 +498,7 @@ FullCheckpointContents:
 GasCostSummary:
   STRUCT:
     - computationCost: U64
+    - computationCostBurned: U64
     - storageCost: U64
     - storageRebate: U64
     - nonRefundableStorageFee: U64
@@ -591,7 +592,6 @@ MoveObject:
   STRUCT:
     - type_:
         TYPENAME: MoveObjectType
-    - has_public_transfer: BOOL
     - version:
         TYPENAME: SequenceNumber
     - contents: BYTES

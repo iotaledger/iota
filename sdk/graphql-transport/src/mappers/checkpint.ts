@@ -36,6 +36,7 @@ export function mapGraphQLCheckpointToRpcCheckpoint(
         epoch: String(checkpoint.epoch?.epochId),
         epochRollingGasCostSummary: {
             computationCost: checkpoint.rollingGasSummary?.computationCost,
+            computationCostBurned: checkpoint.rollingGasSummary?.computationCostBurned,
             nonRefundableStorageFee: checkpoint.rollingGasSummary?.nonRefundableStorageFee,
             storageCost: checkpoint.rollingGasSummary?.storageCost,
             storageRebate: checkpoint.rollingGasSummary?.storageRebate,

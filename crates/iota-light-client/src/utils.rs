@@ -32,7 +32,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     sync_checkpoint_list_to_latest(config).await?;
 
     // Get the local checkpoint list
-    let checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
+    let checkpoints_list: CheckpointsList = read_checkpoint_list_from_config(config)?;
 
     // Load the genesis committee
     let mut genesis_path = config.checkpoint_summary_dir.clone();
@@ -138,7 +138,7 @@ pub async fn download_checkpoint_summary(
 /// between the latest on the list and the latest checkpoint.
 pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<()> {
     // Get the local checkpoint list
-    let mut checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
+    let mut checkpoints_list: CheckpointsList = read_checkpoint_list_from_config(config)?;
     let mut last_epoch = 0;
     let mut last_checkpoint_seq = 0;
 
@@ -270,7 +270,7 @@ pub async fn get_verified_effects_and_events(
     let full_check_point = get_full_checkpoint(config, seq).await?;
 
     // Load the list of stored checkpoints
-    let checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
+    let checkpoints_list: CheckpointsList = read_checkpoint_list_from_config(config)?;
 
     // find the stored checkpoint before the seq checkpoint
     let prev_ckp_id = checkpoints_list
@@ -406,12 +406,16 @@ pub struct CheckpointsList {
     pub checkpoints: Vec<u64>,
 }
 
-pub fn read_checkpoint_list(config: &Config) -> anyhow::Result<CheckpointsList> {
+pub fn read_checkpoint_list(file_path: PathBuf) -> anyhow::Result<CheckpointsList> {
+    // Read the resulting file and parse the yaml checkpoint list
+    let reader = fs::File::open(&file_path)?;
+    Ok(serde_yaml::from_reader(reader)?)
+}
+
+pub fn read_checkpoint_list_from_config(config: &Config) -> anyhow::Result<CheckpointsList> {
     let mut checkpoints_path = config.checkpoint_summary_dir.clone();
     checkpoints_path.push("checkpoints.yaml");
-    // Read the resulting file and parse the yaml checkpoint list
-    let reader = fs::File::open(&checkpoints_path)?;
-    Ok(serde_yaml::from_reader(reader)?)
+    read_checkpoint_list(checkpoints_path)
 }
 
 pub fn read_checkpoint(

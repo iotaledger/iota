@@ -49,7 +49,7 @@ async fn advance_epoch_tx_test() {
             let (_system_state, _system_epoch_info_event, effects) = state
                 .create_and_execute_advance_epoch_tx(
                     &state.epoch_store_for_testing(),
-                    &GasCostSummary::new(0, 0, 0, 0),
+                    &GasCostSummary::new(0, 0, 0, 0, 0),
                     0, // checkpoint
                     0, // epoch_start_timestamp_ms
                 )

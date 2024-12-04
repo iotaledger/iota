@@ -14,7 +14,7 @@ import {
 
 const BRANCH = 'develop';
 const MAJOR = 2024;
-const MINOR = 10;
+const MINOR = 11;
 const PATCH = 0;
 
 const VERSION = `${MAJOR}.${MINOR}.${PATCH}`;

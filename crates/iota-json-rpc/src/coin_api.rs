@@ -460,9 +460,14 @@ mod tests {
                 checkpoint_contents_by_digest: &[CheckpointContentsDigest],
             ) -> IotaResult<KVStoreCheckpointData>;
 
+            async fn get_transaction_perpetual_checkpoint(
+                &self,
+                digest: TransactionDigest,
+            ) -> IotaResult<Option<CheckpointSequenceNumber>>;
+
             async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> IotaResult<Option<Object>>;
 
-            async fn multi_get_transaction_checkpoint(
+            async fn multi_get_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
@@ -1427,6 +1432,7 @@ mod tests {
                     validator_low_stake_grace_period: Default::default(),
                     extra_fields: Default::default(),
                 },
+                iota_system_admin_cap: Default::default(),
                 reference_gas_price: Default::default(),
                 validator_report_records: VecMap {
                     contents: Default::default(),

@@ -71,7 +71,7 @@ export function UserApproveContainer({
             </div>
             <div className="sticky bottom-0 z-10">
                 <div
-                    className={cn('flex items-center bg-white p-md pt-sm', {
+                    className={cn('flex items-center bg-neutral-100 p-md pt-sm dark:bg-neutral-6', {
                         'flex-row-reverse': isWarning,
                     })}
                 >

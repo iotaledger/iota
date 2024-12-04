@@ -1050,7 +1050,6 @@ export const RPC_METHODS: {
                         };
                         type: string;
                     }),
-                    hasPublicTransfer: parent?.asMoveObject?.hasPublicTransfer!,
                 },
                 digest: parent?.digest!,
                 objectId: parent?.address,

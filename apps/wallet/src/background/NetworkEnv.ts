@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type NetworkEnvType } from '_src/shared/api-env';
+import { type NetworkEnvType } from '@iota/core';
 import { isValidUrl } from '_src/shared/utils';
 import { getDefaultNetwork, Network } from '@iota/iota-sdk/client';
 import mitt from 'mitt';

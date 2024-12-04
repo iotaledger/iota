@@ -95,7 +95,7 @@ async fn address_unlock_condition(
     // This object id was fetched manually. It refers to an Alias Output object that
     // owns a NftOutput.
     let alias_output_object_id = ObjectID::from_hex_literal(
-        "0x3b35e67750b8e4ccb45b2fc4a6a26a6d97e74c37a532f17177e6324ab93eaca6",
+        "0xe6bf3ef78d57eb36d7959b64a272c3581cdaeb93a1f1bf1068651901e3b1e91a",
     )?;
 
     let alias_output_object = iota_client

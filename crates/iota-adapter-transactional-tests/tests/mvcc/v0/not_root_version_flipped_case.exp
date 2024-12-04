@@ -7,7 +7,7 @@ task 1, lines 9-54:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 7432800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7425200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 56-58:
 //# programmable --sender P1 --inputs @P1
@@ -15,7 +15,7 @@ task 2, lines 56-58:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2181200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 61-64:
 //# view-object 2,0
@@ -35,7 +35,7 @@ task 4, lines 66-68:
 //> TransferObjects([Result(0)], Input(0))
 created: object(4,0), object(4,1)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 3663200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3640400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 5, line 70:
 //# view-object 4,0
@@ -55,7 +55,7 @@ task 6, lines 72-73:
 //# programmable --sender P2 --inputs object(4,1)
 //> 0: test::m::bump(Input(0));
 mutated: object(0,1), object(4,0), object(4,1)
-gas summary: computation_cost: 1000000, storage_cost: 3663200,  storage_rebate: 3663200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3640400,  storage_rebate: 3640400, non_refundable_storage_fee: 0
 
 task 7, lines 75-78:
 //# view-object 4,0
@@ -80,7 +80,7 @@ task 8, lines 80-85:
 created: object(8,0)
 mutated: object(_), object(2,0)
 wrapped: object(4,1)
-gas summary: computation_cost: 500000, storage_cost: 4126800,  storage_rebate: 2416800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 500000, computation_cost_burned: 500000, storage_cost: 4104000,  storage_rebate: 2401600, non_refundable_storage_fee: 0
 
 task 9, lines 87-91:
 //# programmable --sender P2 --inputs object(2,0)@2 object(4,1)@2 0 --dev-inspect
@@ -90,7 +90,7 @@ task 9, lines 87-91:
 created: object(8,0)
 mutated: object(_), object(2,0)
 wrapped: object(4,1)
-gas summary: computation_cost: 500000, storage_cost: 4126800,  storage_rebate: 2416800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 500000, computation_cost_burned: 500000, storage_cost: 4104000,  storage_rebate: 2401600, non_refundable_storage_fee: 0
 
 task 10, lines 93-97:
 //# programmable --sender P2 --inputs object(2,0)@2 object(4,1)@2 1 --dev-inspect

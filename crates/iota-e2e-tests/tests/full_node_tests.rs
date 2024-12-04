@@ -93,8 +93,8 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     let context = &mut test_cluster.wallet;
 
     let sender = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .addresses()
         .first()
         .cloned()
@@ -159,14 +159,14 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
     let tx = to_sender_signed_transaction_with_multi_signers(tx_data, vec![
         test_cluster
             .wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .get_key(&sender)
             .unwrap(),
         test_cluster
             .wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .get_key(&sponsor)
             .unwrap(),
     ]);
@@ -526,8 +526,8 @@ async fn do_test_full_node_sync_flood() {
                 let context = &mut context.lock().await;
 
                 let sender = context
-                    .config
-                    .keystore
+                    .config()
+                    .keystore()
                     .addresses()
                     .first()
                     .cloned()
@@ -817,12 +817,12 @@ async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     context
-        .config
-        .keystore
+        .config_mut()
+        .keystore_mut()
         .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
     context
-        .config
-        .keystore
+        .config_mut()
+        .keystore_mut()
         .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
@@ -1122,8 +1122,8 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     let context = &mut test_cluster.wallet;
 
     let sender = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .addresses()
         .first()
         .cloned()
@@ -1161,8 +1161,10 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
         rgp,
     )
     .unwrap();
-    let tx =
-        to_sender_signed_transaction(tx_data, context.config.keystore.get_key(&sender).unwrap());
+    let tx = to_sender_signed_transaction(
+        tx_data,
+        context.config().keystore().get_key(&sender).unwrap(),
+    );
 
     let digest = *tx.digest();
     let _res = transaction_orchestrator

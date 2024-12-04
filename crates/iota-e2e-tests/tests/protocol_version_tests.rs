@@ -129,7 +129,7 @@ mod sim_only_tests {
             .build()
             .await;
 
-        let validator = test_cluster.get_validator_pubkeys()[0].clone();
+        let validator = test_cluster.get_validator_pubkeys()[0];
         test_cluster.stop_node(&validator);
 
         assert_eq!(
@@ -343,12 +343,6 @@ mod sim_only_tests {
         let to_wrap1 = create_obj(&cluster).await;
         let to_transfer1 = create_obj(&cluster).await;
 
-        // Instances of the type that existed before will not have public transfer
-        // despite now having store
-        assert!(!has_public_transfer(&cluster, &to_wrap0.0).await);
-        assert!(!has_public_transfer(&cluster, &to_transfer0.0).await);
-        assert!(has_public_transfer(&cluster, &to_wrap1.0).await);
-        assert!(has_public_transfer(&cluster, &to_transfer1.0).await);
         // Instances of the type that existed before and new instances are able to take
         // advantage of the newly introduced ability
         wrap_obj(&cluster, to_wrap0).await;
@@ -488,7 +482,7 @@ mod sim_only_tests {
     }
 
     async fn create_obj(cluster: &TestCluster) -> ObjectRef {
-        execute_creating(cluster, {
+        *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
@@ -506,11 +500,10 @@ mod sim_only_tests {
         .await
         .first()
         .unwrap()
-        .clone()
     }
 
     async fn wrap_obj(cluster: &TestCluster, obj: ObjectRef) -> ObjectRef {
-        execute_creating(cluster, {
+        *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
@@ -527,7 +520,6 @@ mod sim_only_tests {
         .await
         .first()
         .unwrap()
-        .clone()
     }
 
     async fn transfer_obj(
@@ -575,9 +567,9 @@ mod sim_only_tests {
             .unwrap();
 
         let results = response.results.unwrap();
-        let return_ = &results.first().unwrap().return_values.first().unwrap().0;
+        let return_val = &results.first().unwrap().return_values.first().unwrap().0;
 
-        bcs::from_bytes(&return_).unwrap()
+        bcs::from_bytes(return_val).unwrap()
     }
 
     async fn execute_creating(
@@ -616,11 +608,11 @@ mod sim_only_tests {
     }
 
     async fn expect_upgrade_failed(cluster: &TestCluster) {
-        monitor_version_change(&cluster, START /* expected proto version */).await;
+        monitor_version_change(cluster, START /* expected proto version */).await;
     }
 
     async fn expect_upgrade_succeeded(cluster: &TestCluster) {
-        monitor_version_change(&cluster, FINISH /* expected proto version */).await;
+        monitor_version_change(cluster, FINISH /* expected proto version */).await;
     }
 
     async fn get_framework_upgrade_versions(
@@ -671,15 +663,6 @@ mod sim_only_tests {
                     .unwrap()
             })
             .await
-    }
-
-    async fn has_public_transfer(cluster: &TestCluster, object_id: &ObjectID) -> bool {
-        get_object(&cluster, object_id)
-            .await
-            .data
-            .try_as_move()
-            .unwrap()
-            .has_public_transfer()
     }
 
     #[sim_test]

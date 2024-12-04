@@ -1,9 +1,13 @@
 # Docs site
 
 For more complete docs, visit the
-[IOTA TypeScript SDK docs](https://wiki.iota.org/references/ts-sdk/)
+[IOTA TypeScript SDK docs](https://docs.iota.org/references/ts-sdk/typescript/)
 
 # IOTA TypeScript SDK
+
+`@iota/iota-sdk` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
+
+> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
 
 This is the IOTA TypeScript SDK built on the IOTA
 [JSON RPC API](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx).
@@ -91,7 +95,7 @@ npx vitest txn-builder.test.ts
 Troubleshooting:
 
 If you see errors like `ECONNRESET or "socket hang up"`, run `node -v` to make sure your node
-version is `v18.x.x`. Refer to this
+version is `v20.x.x`. Refer to this
 [guide](https://blog.logrocket.com/how-switch-node-js-versions-nvm/) to switch node version.
 
 Some more follow up here is if you used homebrew to install node, there could be multiple paths to
@@ -126,7 +130,7 @@ await client.getCoins({
 
 For local development, you can run `cargo run --bin --with-faucet --force-regenesis` to spin up a
 local network with a local validator, a fullnode, and a faucet server. Refer to
-[this guide](https://wiki.iota.org/build/iota-local-network) for more information.
+[this guide](https://docs.iota.org/developer/getting-started/local-network) for more information.
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
@@ -172,7 +176,7 @@ await requestIotaFromFaucetV0({
 ## Writing APIs
 
 For a primer for building transactions, refer to
-[this guide](https://wiki.iota.org/build/prog-trans-ts-sdk).
+[this guide](https://docs.iota.org/references/ts-sdk/typescript/transaction-building/basics).
 
 ### Transfer Object
 

@@ -1,10 +1,14 @@
 # IOTA dApp Kit
 
+`@iota/dapp-kit` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
+
+> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
+
 The IOTA dApp Kit is a set of React components, hooks, and utilities that make it easy to build a
 dApp for the IOTA ecosystem. It provides hooks and components for querying data from the IOTA
 blockchain, and connecting to IOTA wallets.
 
-See https://wiki.iota.org/references/ts-sdk/typescript for full documentation
+See https://docs.iota.org/references/ts-sdk/typescript for full documentation
 
 ### Core Features
 
@@ -68,7 +72,7 @@ dApp up and running.
 To use our provided UI components, you will need to import the dApp Kit's CSS stylesheet into your
 dApp as shown below. For more information regarding customization options, check out the respective
 documentation pages for the components and
-[themes](https://wiki.iota.org/references/ts-sdk/dapp-kit/themes).
+[themes](https://docs.iota.org/references/ts-sdk/dapp-kit/themes).
 
 ```tsx
 import '@iota/dapp-kit/dist/index.css';

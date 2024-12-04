@@ -4,7 +4,8 @@
 
 import { DropdownPosition, Select, SelectSize } from '@iota/apps-ui-kit';
 import { useState } from 'react';
-import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
+import { PlaceholderTable, TableCard } from '~/components/ui';
+import { useCursorPagination } from '@iota/core';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
