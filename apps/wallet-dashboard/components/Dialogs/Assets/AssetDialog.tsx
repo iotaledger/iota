@@ -14,6 +14,7 @@ import { NotificationType } from '@/stores/notificationStore';
 
 interface AssetsDialogProps {
     onClose: () => void;
+    onSent?: () => void;
     asset: IotaObjectData;
 }
 
@@ -25,7 +26,7 @@ const INITIAL_VALUES: FormValues = {
     to: '',
 };
 
-export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): JSX.Element {
+export function AssetDialog({ onClose, onSent, asset }: AssetsDialogProps): JSX.Element {
     const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
     const account = useCurrentAccount();
     const activeAddress = account?.address ?? '';
@@ -33,11 +34,7 @@ export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): J
     const { addNotification } = useNotifications();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
 
-    const { mutation: sendAsset } = useCreateSendAssetTransaction(
-        objectId,
-        onSendAssetSuccess,
-        onSendAssetError,
-    );
+    const { mutation: sendAsset } = useCreateSendAssetTransaction(objectId);
 
     const formik = useFormik<FormValues>({
         initialValues: INITIAL_VALUES,
@@ -46,20 +43,15 @@ export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): J
         validateOnChange: true,
     });
 
-    function onSendAssetSuccess() {
-        setView(AssetsDialogView.Details);
-        onCloseCb();
-        addNotification('Transfer transaction successful', NotificationType.Success);
-    }
-
-    function onSendAssetError() {
-        addNotification('Transfer transaction failed', NotificationType.Error);
-    }
-
     async function onSubmit(values: FormValues) {
         try {
             await sendAsset.mutateAsync(values.to);
-        } catch (error) {
+            addNotification('Transfer transaction successful', NotificationType.Success);
+            onClose();
+            setView(AssetsDialogView.Details);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            onSent?.();
+        } catch {
             addNotification('Transfer transaction failed', NotificationType.Error);
         }
     }
@@ -71,19 +63,19 @@ export function AssetDialog({ onClose: onCloseCb, asset }: AssetsDialogProps): J
     function onSendViewBack() {
         setView(AssetsDialogView.Details);
     }
-    function onClose() {
+    function onOpenChange() {
         setView(AssetsDialogView.Details);
-        onCloseCb();
+        onClose();
     }
     return (
-        <Dialog open onOpenChange={onClose}>
+        <Dialog open onOpenChange={onOpenChange}>
             <FormikProvider value={formik}>
                 <>
                     {view === AssetsDialogView.Details && (
-                        <DetailsView asset={asset} onClose={onClose} onSend={onDetailsSend} />
+                        <DetailsView asset={asset} onClose={onOpenChange} onSend={onDetailsSend} />
                     )}
                     {view === AssetsDialogView.Send && (
-                        <SendView asset={asset} onClose={onClose} onBack={onSendViewBack} />
+                        <SendView asset={asset} onClose={onOpenChange} onBack={onSendViewBack} />
                     )}
                 </>
             </FormikProvider>
