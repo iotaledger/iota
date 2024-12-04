@@ -34,7 +34,7 @@ export function StakingData({ stakingData }: StakingDataProps) {
                 <div className="w-1/2 text-primary-80">
                     <LabelText
                         size={LabelTextSize.Large}
-                        label="Staked LAna"
+                        label="Staked"
                         text={stakeResult.isPending ? '-' : `${formattedDelegatedStake}`}
                         supportingLabel={stakeSymbol}
                     />
