@@ -37,7 +37,7 @@ COPY --from=ca-certificates . /
 
 COPY . /iota
 
-WORKDIR iota
+WORKDIR "/iota"
 
 RUN cargo fetch
 
