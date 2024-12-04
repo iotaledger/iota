@@ -516,6 +516,35 @@ async fn get_object_not_found() {
 }
 
 #[sim_test]
+async fn get_transaction_block_timestamp() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
+
+    let transaction = cluster
+        .transfer_object(
+            address,
+            address,
+            object_ids[0],
+            gas,
+            Some(Default::default()),
+        )
+        .await
+        .unwrap();
+
+    cluster.force_new_epoch().await;
+
+    let rpc_transaction_block = http_client
+        .get_transaction_block(transaction.digest, Some(Default::default()))
+        .await
+        .unwrap();
+
+    assert!(rpc_transaction_block.timestamp_ms.is_some());
+}
+
+#[sim_test]
 async fn get_transaction_block() {
     get_transaction_block_with_options(IotaTransactionBlockResponseOptions::default()).await;
 }

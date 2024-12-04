@@ -63,6 +63,7 @@ pub struct ExecutionCacheTraitPointers {
     pub object_store: Arc<dyn ObjectStore + Send + Sync>,
     pub reconfig_api: Arc<dyn ExecutionCacheReconfigAPI>,
     pub accumulator_store: Arc<dyn AccumulatorStore>,
+    pub checkpoint_cache: Arc<dyn CheckpointCache>,
     pub state_sync_store: Arc<dyn StateSyncAPI>,
     pub cache_commit: Arc<dyn ExecutionCacheCommit>,
     pub testing_api: Arc<dyn TestingAPI>,
@@ -79,6 +80,7 @@ impl ExecutionCacheTraitPointers {
             + ObjectStore
             + ExecutionCacheReconfigAPI
             + AccumulatorStore
+            + CheckpointCache
             + StateSyncAPI
             + ExecutionCacheCommit
             + TestingAPI
@@ -93,6 +95,7 @@ impl ExecutionCacheTraitPointers {
             object_store: cache.clone(),
             reconfig_api: cache.clone(),
             accumulator_store: cache.clone(),
+            checkpoint_cache: cache.clone(),
             state_sync_store: cache.clone(),
             cache_commit: cache.clone(),
             testing_api: cache.clone(),
@@ -655,6 +658,32 @@ pub trait ExecutionCacheWrite: Send + Sync {
     ) -> BoxFuture<'a, IotaResult>;
 }
 
+pub trait CheckpointCache: Send + Sync {
+    // TODO: In addition to the methods below, this will eventually
+    // include access to the CheckpointStore.
+
+    // Note, the methods below were deemed deprecated before.
+    // Currently, they are only used to implement `get_transaction_block`
+    // for JSON RPC `ReadApi`.
+
+    fn get_transaction_perpetual_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>>;
+
+    fn multi_get_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
+
+    fn insert_finalized_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+        epoch: EpochId,
+        sequence: CheckpointSequenceNumber,
+    ) -> IotaResult;
+}
+
 pub trait ExecutionCacheReconfigAPI: Send + Sync {
     fn insert_genesis_object(&self, object: Object) -> IotaResult;
     fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult;
@@ -800,6 +829,33 @@ macro_rules! implement_storage_traits {
 // store.
 macro_rules! implement_passthrough_traits {
     ($implementor: ident) => {
+        impl CheckpointCache for $implementor {
+            fn get_transaction_perpetual_checkpoint(
+                &self,
+                digest: &TransactionDigest,
+            ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+                self.store.get_transaction_perpetual_checkpoint(digest)
+            }
+
+            fn multi_get_transactions_perpetual_checkpoints(
+                &self,
+                digests: &[TransactionDigest],
+            ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+                self.store
+                    .multi_get_transactions_perpetual_checkpoints(digests)
+            }
+
+            fn insert_finalized_transactions_perpetual_checkpoints(
+                &self,
+                digests: &[TransactionDigest],
+                epoch: EpochId,
+                sequence: CheckpointSequenceNumber,
+            ) -> IotaResult {
+                self.store
+                    .insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
+            }
+        }
+
         impl ExecutionCacheReconfigAPI for $implementor {
             fn insert_genesis_object(&self, object: Object) -> IotaResult {
                 self.store.insert_genesis_object(object)
@@ -900,6 +956,7 @@ pub trait ExecutionCacheAPI:
     + ExecutionCacheWrite
     + ExecutionCacheCommit
     + ExecutionCacheReconfigAPI
+    + CheckpointCache
     + StateSyncAPI
 {
 }

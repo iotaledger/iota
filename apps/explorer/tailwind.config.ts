@@ -11,6 +11,7 @@ import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive
 export default {
     presets: [preset, uiKitResponsivePreset],
     content: ['./src/**/*.{js,jsx,ts,tsx}', './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}'],
+    darkMode: 'selector',
     theme: {
         // This COLOR are duplicated from @iota/core tailwind.config.ts!!!
         // They are repeated here cause uiKitResponsivePreset overwrites the colors, and they are still used throughout Explorer
