@@ -11,10 +11,11 @@ import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 interface ExpandableListProps {
     items: ReactNode[];
     defaultItemsToShow: number;
+    initialShowAll?: boolean;
 }
 
-export function ExpandableList({ items, defaultItemsToShow }: ExpandableListProps) {
-    const [showAll, setShowAll] = useState(false);
+export function ExpandableList({ items, defaultItemsToShow, initialShowAll }: ExpandableListProps) {
+    const [showAll, setShowAll] = useState(initialShowAll || false);
 
     const itemsDisplayed = useMemo(
         () => (showAll ? items : items?.slice(0, defaultItemsToShow)),

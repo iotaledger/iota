@@ -176,21 +176,14 @@ export function ObjectChangeEntry({
                                     {!!changes.changesWithDisplay.length && (
                                         <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
                                             <ExpandableList
+                                                initialShowAll={isOpen}
                                                 defaultItemsToShow={5}
-                                                items={
-                                                    isOpen
-                                                        ? changes.changesWithDisplay.map(
-                                                              (change) => (
-                                                                  <ObjectChangeDisplay
-                                                                      change={change}
-                                                                      renderExplorerLink={
-                                                                          ExplorerLink
-                                                                      }
-                                                                  />
-                                                              ),
-                                                          )
-                                                        : []
-                                                }
+                                                items={changes.changesWithDisplay.map((change) => (
+                                                    <ObjectChangeDisplay
+                                                        change={change}
+                                                        renderExplorerLink={ExplorerLink}
+                                                    />
+                                                ))}
                                             />
                                         </div>
                                     )}
@@ -198,17 +191,14 @@ export function ObjectChangeEntry({
                                     <div className="flex w-full flex-col gap-2">
                                         <ExpandableList
                                             defaultItemsToShow={5}
-                                            items={
-                                                open
-                                                    ? changes.changes.map((change) => (
-                                                          <ObjectDetail
-                                                              renderExplorerLink={ExplorerLink}
-                                                              ownerKey={owner}
-                                                              change={change}
-                                                          />
-                                                      ))
-                                                    : []
-                                            }
+                                            initialShowAll={isOpen}
+                                            items={changes.changes.map((change) => (
+                                                <ObjectDetail
+                                                    renderExplorerLink={ExplorerLink}
+                                                    ownerKey={owner}
+                                                    change={change}
+                                                />
+                                            ))}
                                         />
                                     </div>
                                 </>
