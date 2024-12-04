@@ -87,7 +87,7 @@ export function PasswordInputDialog({
                             </span>
                         </div>
                     </div>
-                    <div className="flex flex-nowrap gap-3.75 self-stretch">
+                    <div className="gap-3.75 flex flex-nowrap self-stretch">
                         {showBackButton ? (
                             <Button
                                 size={ButtonSize.Small}
