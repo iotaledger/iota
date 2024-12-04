@@ -26,7 +26,7 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
             </div>
 
             <div className="container relative flex min-h-screen flex-col">
-                <div className="sticky top-0">
+                <div className="sticky top-0 z-10 backdrop-blur-lg">
                     <TopNav />
                 </div>
                 <div className="flex-1 py-md--rs">{children}</div>
