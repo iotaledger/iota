@@ -40,7 +40,6 @@ export type FormValues = typeof INITIAL_VALUES;
 export type SubmitProps = {
     to: string;
     amount: string;
-    coinIds: string[];
     coins: CoinStruct[];
     gasBudgetEst: string;
 };
@@ -100,16 +99,12 @@ export function SendTokenForm({
     const formattedTokenBalance = tokenBalance.replace(/,/g, '');
 
     async function handleFormSubmit({ to, amount, gasBudgetEst }: FormValues) {
-        if (!coins || !iotaCoins) return;
-        const coinsIDs = [...coins]
-            .sort((a, b) => Number(b.balance) - Number(a.balance))
-            .map(({ coinObjectId }) => coinObjectId);
+        if (!coins) return;
 
         const data = {
             to,
             amount,
             coins,
-            coinIds: coinsIDs,
             gasBudgetEst,
         };
         onSubmit(data);

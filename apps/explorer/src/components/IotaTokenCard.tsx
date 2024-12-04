@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Panel } from '@iota/apps-ui-kit';
-import { COIN_GECKO_IOTA_URL, useIotaCoinData } from '@iota/core';
-import { ButtonOrLink, ImageIconSize } from '~/components/ui';
-import { CoinIcon } from './owned-coins';
+import { COIN_GECKO_IOTA_URL, CoinIcon, ImageIconSize, useIotaCoinData } from '@iota/core';
+import { ButtonOrLink } from '~/components/ui';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function IotaTokenCard(): JSX.Element {

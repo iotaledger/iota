@@ -96,7 +96,7 @@ function AppWrapper() {
                             >
                                 <KioskClientProvider>
                                     <AccountsFormProvider>
-                                        <ThemeProvider appId="wallet">
+                                        <ThemeProvider appId="iota-wallet">
                                             <UnlockAccountProvider>
                                                 <div
                                                     className={cn(
