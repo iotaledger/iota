@@ -147,6 +147,7 @@ export function getVestingOverview(
             totalUnlocked: 0,
             totalLocked: 0,
             totalStaked: 0,
+            totalEarned: 0,
             availableClaiming: 0,
             availableStaking: 0,
         };
@@ -173,6 +174,12 @@ export function getVestingOverview(
         0,
     );
 
+    const totalEarned = timelockedStakedObjects
+        .filter((t) => t.status === 'Active')
+        .reduce((acc, current) => {
+            return acc + Number(current.estimatedReward);
+        }, 0);
+
     const timelockedObjects = vestingObjects.filter(isTimelockedObject);
 
     const totalAvailableClaimingAmount = timelockedObjects.reduce(
@@ -196,6 +203,7 @@ export function getVestingOverview(
         totalUnlocked: totalUnlockedVestedAmount,
         totalLocked: totalLockedAmount,
         totalStaked: totalStaked,
+        totalEarned: totalEarned,
         availableClaiming: totalAvailableClaimingAmount,
         availableStaking: totalAvailableStakingAmount,
     };

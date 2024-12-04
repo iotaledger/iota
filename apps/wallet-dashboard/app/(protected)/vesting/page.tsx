@@ -31,6 +31,7 @@ import {
     ImageType,
     ImageShape,
     ButtonType,
+    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import {
     Theme,
@@ -66,7 +67,10 @@ function VestingDashboardPage(): JSX.Element {
     const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-    const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
+
+    const { data: timelockedStakedObjects, isLoading: istimelockedStakedObjectsLoading } =
+        useGetTimelockedStakedObjects(account?.address || '');
+
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 
@@ -128,8 +132,8 @@ function VestingDashboardPage(): JSX.Element {
         IOTA_TYPE_ARG,
     );
 
-    const [totalUnlockedFormatted, totalUnlockedSymbol] = useFormatCoin(
-        vestingSchedule.totalUnlocked,
+    const [totalEarnedFormatted, totalEarnedSymbol] = useFormatCoin(
+        vestingSchedule.totalEarned,
         IOTA_TYPE_ARG,
     );
 
@@ -212,7 +216,7 @@ function VestingDashboardPage(): JSX.Element {
     }, [router, supplyIncreaseVestingEnabled]);
 
     return (
-        <div className="flex w-full max-w-4xl items-stretch gap-xl justify-self-center">
+        <div className="flex w-full max-w-4xl items-stretch gap-lg justify-self-center">
             <div className="flex w-1/2">
                 <Panel>
                     <Title title="Vesting" size={TitleSize.Medium} />
@@ -279,7 +283,11 @@ function VestingDashboardPage(): JSX.Element {
                 </Panel>
             </div>
             <div className="flex w-1/2">
-                {timelockedstakedMapped.length === 0 ? (
+                {istimelockedStakedObjectsLoading ? (
+                    <div className="flex w-full items-start justify-center">
+                        <LoadingIndicator />
+                    </div>
+                ) : timelockedstakedMapped.length === 0 ? (
                     <Banner
                         videoSrc={videoSrc}
                         title="Stake Vested Tokens"
@@ -300,7 +308,7 @@ function VestingDashboardPage(): JSX.Element {
                                 />
                                 <DisplayStats
                                     label="Earned"
-                                    value={`${totalUnlockedFormatted} ${totalUnlockedSymbol}`}
+                                    value={`${totalEarnedFormatted} ${totalEarnedSymbol}`}
                                 />
                             </div>
                         </div>

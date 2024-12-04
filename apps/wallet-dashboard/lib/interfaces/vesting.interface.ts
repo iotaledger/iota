@@ -18,6 +18,7 @@ export interface VestingOverview {
     totalUnlocked: number;
     totalLocked: number;
     totalStaked: number;
+    totalEarned: number;
     availableClaiming: number;
     availableStaking: number;
 }
