@@ -15,7 +15,7 @@ env:
 jobs:
   wallet-prod-build:
     permissions:
-      contents: read
+      contents: write
     runs-on: [self-hosted]
     steps:
       - name: Checking out the repository
@@ -59,11 +59,10 @@ jobs:
         run: |
           if [ "${{ env.PREV_TAG }}" = "none" ]; then
             echo "No previous tag found. Skipping changelog generation."
-            echo "changelog=No previous tag found. Changelog generation skipped." >> $GITHUB_ENV
+            echo "changelog=No previous tag found. Changelog generation skipped." >> $GITHUB_OUTPUT
           else
-            git log ${{ env.PREV_TAG }}..${{ env.CURRENT_TAG }} --pretty=format:"- %s by @%an in #%h" -- ./apps/wallet > CHANGELOG.md
-            changelog=$(cat CHANGELOG.md)
-            echo "changelog=$changelog" >> $GITHUB_ENV
+            echo "## Changelog" >> CHANGELOG.md
+            git log ${{ env.PREV_TAG }}..${{ env.CURRENT_TAG }} --pretty=format:"- %s in #%h" -- ./apps/wallet > CHANGELOG.md
           fi
 
       - name: Get version from tag
@@ -71,17 +70,16 @@ jobs:
         run: echo "::set-output name=version::${GITHUB_REF#refs/tags/wallet-v}"
 
       - name: Create GitHub Release
-        uses: elgohr/Github-Release-Action@c5ea99036abb741a89f8bf1f2cd7fba845e3313a # v5.0.0
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ env.CURRENT_TAG }}
-          release_name: IOTA Wallet v${{ steps.version.outputs.version }}
-          body: |
-            ## Changelog
-            {{ env.changelog }}
+          name: IOTA Wallet v${{ steps.version.outputs.version }}
           draft: true
           prerelease: false
+          body_path: CHANGELOG.md
+
       - name: Upload artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:

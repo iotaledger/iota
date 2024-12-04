@@ -2,22 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '@iota/core';
-import { determineCountDownText } from '_src/ui/app/shared/countdown-timer';
-import {
-    type ExtendedDelegatedStake,
-    TimeUnit,
-    useFormatCoin,
-    useGetTimeBeforeEpochNumber,
-    useTimeAgo,
-    ImageIcon,
-} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
-
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { ImageIcon } from '../icon';
+import { determineCountDownText, ExtendedDelegatedStake } from '../../utils';
+import { TimeUnit, useFormatCoin, useGetTimeBeforeEpochNumber, useTimeAgo } from '../../hooks';
+import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '../../constants';
+import React from 'react';
 
 export enum StakeState {
     WarmUp = 'WARM_UP',
@@ -35,21 +28,22 @@ const STATUS_COPY: { [key in StakeState]: string } = {
     [StakeState.InActive]: 'Inactive',
 };
 
-interface StakeCardProps {
+interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
     currentEpoch: number;
     inactiveValidator?: boolean;
+    onClick: () => void;
 }
 
 // For delegationsRequestEpoch n  through n + 2, show Start Earning
 // Show epoch number or date/time for n + 3 epochs
-export function StakeCard({
+export function StakedCard({
     extendedStake,
     currentEpoch,
     inactiveValidator = false,
-}: StakeCardProps) {
-    const { stakedIotaId, principal, stakeRequestEpoch, estimatedReward, validatorAddress } =
-        extendedStake;
+    onClick,
+}: StakedCardProps) {
+    const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
 
     // TODO: Once two step withdraw is available, add cool down and withdraw now logic
     // For cool down epoch, show Available to withdraw add rewards to principal
@@ -115,32 +109,20 @@ export function StakeCard({
     };
 
     return (
-        <Link
-            data-testid="stake-card"
-            to={`/stake/delegation-detail?${new URLSearchParams({
-                validator: validatorAddress,
-                staked: stakedIotaId,
-            }).toString()}`}
-            className="no-underline"
-        >
-            <Card type={CardType.Default} isHoverable>
-                <CardImage>
-                    <ImageIcon
-                        src={validatorMeta?.imageUrl || null}
-                        label={validatorMeta?.name || ''}
-                        fallback={validatorMeta?.name || ''}
-                    />
-                </CardImage>
-                <CardBody
-                    title={validatorMeta?.name || ''}
-                    subtitle={`${principalStaked} ${symbol}`}
+        <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>
+            <CardImage>
+                <ImageIcon
+                    src={validatorMeta?.imageUrl || null}
+                    label={validatorMeta?.name || ''}
+                    fallback={validatorMeta?.name || ''}
                 />
-                <CardAction
-                    title={rewardTime()}
-                    subtitle={STATUS_COPY[delegationState]}
-                    type={CardActionType.SupportingText}
-                />
-            </Card>
-        </Link>
+            </CardImage>
+            <CardBody title={validatorMeta?.name || ''} subtitle={`${principalStaked} ${symbol}`} />
+            <CardAction
+                title={rewardTime()}
+                subtitle={STATUS_COPY[delegationState]}
+                type={CardActionType.SupportingText}
+            />
+        </Card>
     );
 }
