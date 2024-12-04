@@ -39,12 +39,13 @@ function ValidatorWithImage({
             }
             label={
                 <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
-                    <div className="h-8 w-8">
+                    <div className="h-8 w-8 shrink-0">
                         <ImageIcon
                             src={validator.imageUrl}
                             label={validator.name}
                             fallback={validator.name}
-                            size={validator.imageUrl ? ImageIconSize.Full : ImageIconSize.Medium}
+                            size={ImageIconSize.Medium}
+                            rounded
                         />
                     </div>
                     <span

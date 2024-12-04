@@ -8,12 +8,12 @@ import {
     type ObjectChangeSummary,
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
+    Collapsible,
 } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
 import { ExpandableList } from '../../ExpandableList';
 import { ObjectChangeDisplay } from './objectSummary/ObjectChangeDisplay';
-import { Collapsible } from '../../collapse';
 import {
     Badge,
     BadgeType,
