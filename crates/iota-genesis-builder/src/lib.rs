@@ -272,6 +272,8 @@ impl Builder {
                     &self.migration_objects,
                     minimum_stake,
                 )?;
+            } else {
+                bail!("A genesis with migrated state should have a delegator assigned");
             }
         }
         Ok(())
