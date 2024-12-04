@@ -21,7 +21,7 @@ export function useCountdownByTimestamp(initialTimestamp: number | null): string
         }, MILLISECONDS_PER_SECOND);
 
         return () => clearInterval(interval);
-    }, [timeRemainingMs, initialTimestamp]);
+    }, [initialTimestamp]);
     const formattedCountdown = formatCountdown(timeRemainingMs);
     return formattedCountdown;
 }
