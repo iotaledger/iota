@@ -45,7 +45,10 @@ enum Snapshot {
     Iota {
         #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
         snapshot_path: String,
-        #[clap(long, help = "Path to the address swap map file")]
+        #[clap(
+            long,
+            help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an IotaAddress present in the Hornet full-snapshot and in the second column an IotaAddress that will be used for the swap."
+        )]
         address_swap_map_path: String,
         #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
         target_network: MigrationTargetNetwork,

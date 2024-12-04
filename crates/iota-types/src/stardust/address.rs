@@ -26,6 +26,12 @@ pub fn stardust_to_iota_address_owner(
     stardust_to_iota_address(stardust_address.into()).map(Owner::AddressOwner)
 }
 
+/// Converts a ["Stardust" `Address`](Address) to an [`Owner`] by first
+/// converting it to an [`IotaAddress`] and then checking against the provided
+/// `AddressSwapMap` for potential address substitutions.
+///
+/// If the address exists in the `AddressSwapMap`, it is swapped with the mapped
+/// destination address before being wrapped into an [`Owner`].
 pub fn stardust_to_iota_address_owner_maybe_swap(
     stardust_address: impl Into<Address>,
     address_swap_map: &mut AddressSwapMap,
@@ -37,6 +43,11 @@ pub fn stardust_to_iota_address_owner_maybe_swap(
     Ok(Owner::AddressOwner(address))
 }
 
+/// Converts a ["Stardust" `Address`](Address) to an [`IotaAddress`] and checks
+/// against the provided `AddressSwapMap` for potential address substitutions.
+///
+/// If the address exists in the `AddressSwapMap`, it is swapped with the mapped
+/// destination address before being returned as an [`IotaAddress`].
 pub fn stardust_to_iota_address_maybe_swap(
     stardust_address: impl Into<Address>,
     address_swap_map: &mut AddressSwapMap,

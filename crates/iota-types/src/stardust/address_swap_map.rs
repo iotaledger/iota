@@ -32,7 +32,7 @@ impl AddressSwapMap {
     }
 
     /// Verifies that all addresses have been swapped at least once.
-    /// Panics if any address is not swapped.
+    /// Returns an error if any address is not swapped.
     pub fn verify_all_addresses_swapped(&self) -> anyhow::Result<()> {
         if let Some((addr, _)) = self
             .address_swapped_at_least_once
@@ -45,6 +45,28 @@ impl AddressSwapMap {
     }
 }
 
+/// Initializes an [`AddressSwapMap`] by reading address pairs from a CSV file.
+///
+/// The function expects the file to contain two columns: the origin address
+/// (first column) and the destination address (second column). These are parsed
+/// into a [`HashMap`] that maps origin addresses to destination addresses.
+///
+/// Additionally, a separate [`HashMap`] is created to track whether each origin
+/// address has been swapped at least once, initialized to `false` for all
+/// entries.
+///
+/// # Parameters
+/// - `file_path`: The relative path to the CSV file containing the address
+///   mappings.
+///
+/// # Returns
+/// - An [`AddressSwapMap`] containing the parsed mappings and the tracking
+///   state.
+///
+/// # Errors
+/// - Returns an error if the file cannot be found, read, or parsed correctly.
+/// - Returns an error if the origin or destination addresses cannot be parsed
+///   into `IotaAddress`.
 pub fn init_address_swap_map(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
     let current_dir = std::env::current_dir()?;
     let file_path = current_dir.join(file_path);
