@@ -283,9 +283,7 @@ function VestingDashboardPage(): JSX.Element {
                         videoSrc={videoSrc}
                         title="Stake Vested Tokens"
                         subtitle="Earn Rewards"
-                        onButtonClick={() => {
-                            /*Add stake vested tokens dialog flow*/
-                        }}
+                        onButtonClick={() => handleNewStake()}
                         buttonText="Stake"
                     />
                 </>
@@ -333,9 +331,9 @@ function VestingDashboardPage(): JSX.Element {
                             );
                         })}
                     </div>
+                    <Button onClick={() => handleNewStake()} text="Stake" />
                 </div>
             )}
-            <Button onClick={() => handleNewStake()} text="Stake" />
             <StakeDialog
                 isTimelockedStaking={true}
                 stakedDetails={selectedStake}
