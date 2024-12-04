@@ -38,7 +38,11 @@ export function getLatestOrEarliestSupplyIncreaseVestingPayout(
 
     const vestingPayoutMap = supplyIncreaseVestingObjectsToPayoutMap(vestingObjects);
 
-    const payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
+    let payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
+
+    if (!useLastPayout) {
+        payouts = payouts.filter((payout) => payout.expirationTimestampMs >= Date.now());
+    }
 
     return payouts.sort((a, b) =>
         useLastPayout
