@@ -26,7 +26,7 @@ const INITIAL_VALUES: FormValues = {
     to: '',
 };
 
-export function AssetDialog({ onClose: onCloseCb, onSent, asset }: AssetsDialogProps): JSX.Element {
+export function AssetDialog({ onClose, onSent, asset }: AssetsDialogProps): JSX.Element {
     const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
     const account = useCurrentAccount();
     const activeAddress = account?.address ?? '';
@@ -47,7 +47,7 @@ export function AssetDialog({ onClose: onCloseCb, onSent, asset }: AssetsDialogP
         try {
             await sendAsset.mutateAsync(values.to);
             addNotification('Transfer transaction successful', NotificationType.Success);
-            onCloseCb();
+            onClose();
             setView(AssetsDialogView.Details);
             await new Promise((resolve) => setTimeout(resolve, 1000));
             onSent?.();
@@ -63,19 +63,19 @@ export function AssetDialog({ onClose: onCloseCb, onSent, asset }: AssetsDialogP
     function onSendViewBack() {
         setView(AssetsDialogView.Details);
     }
-    function onClose() {
+    function onOpenChange() {
         setView(AssetsDialogView.Details);
-        onCloseCb();
+        onClose();
     }
     return (
-        <Dialog open onOpenChange={onClose}>
+        <Dialog open onOpenChange={onOpenChange}>
             <FormikProvider value={formik}>
                 <>
                     {view === AssetsDialogView.Details && (
-                        <DetailsView asset={asset} onClose={onClose} onSend={onDetailsSend} />
+                        <DetailsView asset={asset} onClose={onOpenChange} onSend={onDetailsSend} />
                     )}
                     {view === AssetsDialogView.Send && (
-                        <SendView asset={asset} onClose={onClose} onBack={onSendViewBack} />
+                        <SendView asset={asset} onClose={onOpenChange} onBack={onSendViewBack} />
                     )}
                 </>
             </FormikProvider>
