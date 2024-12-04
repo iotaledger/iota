@@ -63,6 +63,7 @@ jobs:
           else
             echo "## Changelog" > CHANGELOG.md
             git log ${{ env.PREV_TAG }}..${{ env.CURRENT_TAG }} --pretty=format:"- %s in #%h" -- ./apps/wallet >> CHANGELOG.md
+            cat CHANGELOG.md
           fi
 
       - name: Get version from tag
