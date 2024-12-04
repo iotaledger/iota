@@ -40,7 +40,7 @@ export function TransactionData({ transaction }: TransactionDataProps): JSX.Elem
             </section>
 
             {isProgrammableTransaction && (
-                <section className="flex w-full flex-1 flex-col gap-3 md:min-w-transactionColumn md:gap-6">
+                <section className="md:min-w-transactionColumn flex w-full flex-1 flex-col gap-3 md:gap-6">
                     <div data-testid="transactions-card">
                         <TransactionsCard transactions={programmableTxn.transactions} />
                     </div>

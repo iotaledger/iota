@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ArrowRight } from '@iota/ui-icons';
-import { Button, ButtonSize } from '@/components/atoms/button';
 import { CardActionType } from './card.enums';
-import { ButtonType } from '../../atoms/button';
+import { Button, ButtonSize, ButtonType } from '../../atoms/button';
 
 export type CardActionProps = {
     title?: string;
@@ -14,6 +13,7 @@ export type CardActionProps = {
     icon?: React.ReactNode;
     iconAfterText?: boolean;
     buttonType?: ButtonType;
+    buttonDisabled?: boolean;
 };
 
 export function CardAction({
@@ -24,6 +24,7 @@ export function CardAction({
     icon,
     iconAfterText,
     buttonType,
+    buttonDisabled,
 }: CardActionProps) {
     function handleActionClick(event: React.MouseEvent) {
         event?.stopPropagation();
@@ -67,6 +68,7 @@ export function CardAction({
                     onClick={handleActionClick}
                     icon={icon}
                     iconAfterText={iconAfterText}
+                    disabled={buttonDisabled}
                 />
             </div>
         );
