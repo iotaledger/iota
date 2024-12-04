@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { ExplorerLinkType, useNftDetails, Collapsible } from '@iota/core';
+import { ExplorerLinkType, useNftDetails, Collapsible, useNFTBasicData } from '@iota/core';
 import {
     Button,
     ButtonType,
@@ -41,7 +41,9 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
         formatMetaValue,
         isContainedInKiosk,
         kioskItem,
+        objectData,
     } = useNftDetails(objectId, senderAddress);
+    const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
     function handleMoreAboutKiosk() {
         window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
@@ -127,6 +129,15 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                                         fullwidth
                                     />
                                 )}
+                                <KeyValueInfo
+                                    keyText="Media Type"
+                                    value={
+                                        filePath && fileExtensionType.name && fileExtensionType.type
+                                            ? `${fileExtensionType.name} ${fileExtensionType.type}`
+                                            : '-'
+                                    }
+                                    fullwidth
+                                />
                             </div>
                         </Collapsible>
                         {metaKeys.length ? (

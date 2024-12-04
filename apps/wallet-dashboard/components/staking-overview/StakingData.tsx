@@ -31,7 +31,7 @@ export function StakingData({ stakingData }: StakingDataProps) {
         <Panel>
             <Title title="Staking" />
             <div className="flex h-full w-full items-center gap-md p-md--rs">
-                <div className="w-1/2">
+                <div className="w-1/2 text-primary-80">
                     <LabelText
                         size={LabelTextSize.Large}
                         label="Staked"

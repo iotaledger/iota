@@ -7,3 +7,4 @@ export * from './Inputs';
 export * from './QR';
 export * from './collapsible';
 export * from './providers';
+export * from './stake';
