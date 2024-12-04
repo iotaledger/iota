@@ -12,8 +12,7 @@ import {
     PageTemplate,
 } from '_components';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { Collapsible } from '_src/ui/app/shared/collapse';
-import { useGetKioskContents } from '@iota/core';
+import { useGetKioskContents, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import cl from 'clsx';
