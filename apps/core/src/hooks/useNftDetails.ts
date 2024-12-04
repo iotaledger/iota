@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import {
-    useGetNFTMeta,
+    useGetNFTDisplay,
     useOwnedNFT,
     useNFTBasicData,
     useGetKioskContents,
@@ -23,14 +23,15 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
     const isContainedInKiosk = data?.lookup.get(nftId!);
     const kioskItem = data?.list.find((k) => k.data?.objectId === nftId);
 
-    const { data: isTransferable } = useIsAssetTransferable(objectData);
+    const { data: isAssetTransferable, isLoading: isCheckingAssetTransferability } =
+        useIsAssetTransferable(objectData);
 
     const { nftFields } = useNFTBasicData(objectData);
 
-    const { data: nftMeta, isPending: isPendingMeta } = useGetNFTMeta(nftId);
+    const { data: nftDisplayData, isPending: isPendingNftDislpay } = useGetNFTDisplay(nftId);
 
-    const nftName = nftMeta?.name || formatAddress(nftId);
-    const nftImageUrl = nftMeta?.imageUrl || '';
+    const nftName = nftDisplayData?.name || formatAddress(nftId);
+    const nftImageUrl = nftDisplayData?.imageUrl || '';
 
     // Extract either the attributes, or use the top-level NFT fields:
     const { keys: metaKeys, values: metaValues } =
@@ -75,19 +76,23 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
         }
     }
 
+    const isLoading = isNftLoading || isCheckingAssetTransferability || isPendingNftDislpay;
+
     return {
+        isLoading,
         objectData,
         isNftLoading,
         nftName,
         nftImageUrl,
         ownerAddress,
-        isTransferable,
+        isCheckingAssetTransferability,
+        isAssetTransferable,
         metaKeys,
         metaValues,
         formatMetaValue,
         isContainedInKiosk,
         kioskItem,
-        nftMeta,
-        isPendingMeta,
+        nftDisplayData,
+        isPendingNftDislpay,
     };
 }

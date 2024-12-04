@@ -33,9 +33,9 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
     const {
         nftName,
         nftImageUrl,
-        nftMeta,
+        nftDisplayData,
         ownerAddress,
-        isTransferable,
+        isAssetTransferable,
         metaKeys,
         metaValues,
         formatMetaValue,
@@ -44,11 +44,12 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
     } = useNftDetails(objectId, senderAddress);
 
     function handleMoreAboutKiosk() {
-        window.open('https://wiki.iota.org/', '_blank');
+        window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
     }
 
     function handleMarketplace() {
-        window.open('https://wiki.iota.org/', '_blank');
+        // TODO: https://github.com/iotaledger/iota/issues/4024
+        window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
     }
 
     return (
@@ -71,32 +72,32 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                     <div className="flex w-full flex-col gap-md">
                         <div className="flex flex-col gap-xxxs">
                             <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
-                                {nftMeta?.name}
+                                {nftDisplayData?.name}
                             </span>
-                            {nftMeta?.description ? (
+                            {nftDisplayData?.description ? (
                                 <span className="text-body-md text-neutral-60">
-                                    {nftMeta?.description}
+                                    {nftDisplayData?.description}
                                 </span>
                             ) : null}
                         </div>
 
-                        {(nftMeta?.projectUrl || !!nftMeta?.creator) && (
+                        {(nftDisplayData?.projectUrl || !!nftDisplayData?.creator) && (
                             <div className="flex flex-col gap-xs">
-                                {nftMeta?.projectUrl && (
+                                {nftDisplayData?.projectUrl && (
                                     <KeyValueInfo
                                         keyText="Website"
                                         value={
-                                            <Link href={nftMeta?.projectUrl}>
-                                                {nftMeta?.projectUrl}
+                                            <Link href={nftDisplayData?.projectUrl}>
+                                                {nftDisplayData?.projectUrl}
                                             </Link>
                                         }
                                         fullwidth
                                     />
                                 )}
-                                {nftMeta?.creator && (
+                                {nftDisplayData?.creator && (
                                     <KeyValueInfo
                                         keyText="Creator"
-                                        value={nftMeta?.creator ?? '-'}
+                                        value={nftDisplayData?.creator ?? '-'}
                                         fullwidth
                                     />
                                 )}
@@ -174,7 +175,12 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                             />
                         </div>
                     ) : (
-                        <Button disabled={!isTransferable} onClick={onSend} text="Send" fullWidth />
+                        <Button
+                            disabled={!isAssetTransferable}
+                            onClick={onSend}
+                            text="Send"
+                            fullWidth
+                        />
                     )}
                 </div>
             </LayoutFooter>

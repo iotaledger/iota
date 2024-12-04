@@ -14,7 +14,6 @@ import { NotificationType } from '@/stores/notificationStore';
 
 interface AssetsDialogProps {
     onClose: () => void;
-    onSent?: () => void;
     asset: IotaObjectData;
 }
 
@@ -26,7 +25,7 @@ const INITIAL_VALUES: FormValues = {
     to: '',
 };
 
-export function AssetDialog({ onClose, onSent, asset }: AssetsDialogProps): JSX.Element {
+export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element {
     const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
     const account = useCurrentAccount();
     const activeAddress = account?.address ?? '';
@@ -49,8 +48,6 @@ export function AssetDialog({ onClose, onSent, asset }: AssetsDialogProps): JSX.
             addNotification('Transfer transaction successful', NotificationType.Success);
             onClose();
             setView(AssetsDialogView.Details);
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            onSent?.();
         } catch {
             addNotification('Transfer transaction failed', NotificationType.Error);
         }
