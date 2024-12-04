@@ -2,7 +2,7 @@
   "name": "iota-move",
   "displayName": "IOTA Move",
   "description": "A Move language integrated development environment for IOTA.",
-  "publisher": "iota-foundation",
+  "publisher": "iotaledger",
   "icon": "images/move.png",
   "license": "Apache-2.0",
   "version": "1.0.0",

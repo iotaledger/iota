@@ -36,7 +36,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                             },
                         ]}
                     >
-                        <ThemeProvider appId="dashboard">
+                        <ThemeProvider appId="iota-dashboard">
                             <PopupProvider>
                                 {children}
                                 <Toaster />
