@@ -30,7 +30,7 @@ function GasAmount({ amount }: GasProps): JSX.Element | null {
             <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                 {formattedAmount} {symbol}
             </span>
-            <span className="flex flex-wrap items-center text-body font-medium text-neutral-70">
+            <span className="flex flex-wrap items-center text-body-md font-medium text-neutral-70">
                 {BigInt(amount)?.toLocaleString()} (nano)
             </span>
         </div>

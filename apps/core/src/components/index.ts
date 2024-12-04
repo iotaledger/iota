@@ -8,7 +8,7 @@ export * from './icon';
 export * from './Inputs';
 export * from './QR';
 export * from './transaction';
-export * from './collapsible';
 export * from './buttons';
-
+export * from './collapsible';
 export * from './providers';
+export * from './stake';

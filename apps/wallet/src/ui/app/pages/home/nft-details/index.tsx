@@ -4,64 +4,34 @@
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
-import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import {
-    useIsAssetTransferable,
-    useGetKioskContents,
-    useGetNFTMeta,
-    Collapsible,
-} from '@iota/core';
+import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
-import { truncateString } from '_src/ui/app/helpers';
-
-type NftFields = {
-    metadata?: { fields?: { attributes?: { fields?: { keys: string[]; values: string[] } } } };
-};
 
 function NFTDetailsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
-    const { data: objectData, isPending: isNftLoading } = useOwnedNFT(nftId || '', accountAddress);
-    const { data: isAssetTransferable, isLoading: isCheckingAssetTransferability } =
-        useIsAssetTransferable(objectData);
-    const { nftFields, fileExtensionType, filePath } = useNFTBasicData(objectData);
-    const address = useActiveAddress();
-    const { data } = useGetKioskContents(address);
+    const {
+        nftDisplayData,
+        isLoading,
+        ownerAddress,
+        objectData,
+        metaKeys,
+        metaValues,
+        formatMetaValue,
+        isContainedInKiosk,
+        kioskItem,
+        isAssetTransferable,
+    } = useNftDetails(nftId || '', accountAddress);
+    const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
-    const isContainedInKiosk = data?.lookup.get(nftId!);
-    const kioskItem = data?.list.find((k) => k.data?.objectId === nftId);
-
-    // Extract either the attributes, or use the top-level NFT fields:
-    const metaFields =
-        (nftFields as NftFields)?.metadata?.fields?.attributes?.fields ||
-        Object.entries(nftFields ?? {})
-            .filter(([key]) => key !== 'id')
-            .reduce(
-                (acc, [key, value]) => {
-                    acc.keys.push(key);
-                    acc.values.push(value as string);
-                    return acc;
-                },
-                { keys: [] as string[], values: [] as string[] },
-            );
-    const metaKeys: string[] = metaFields ? metaFields.keys : [];
-    const metaValues = metaFields ? metaFields.values : [];
-    const { data: nftDisplayData, isPending: isPendingDisplay } = useGetNFTMeta(nftId || '');
-    const ownerAddress =
-        (objectData?.owner &&
-            typeof objectData?.owner === 'object' &&
-            'AddressOwner' in objectData.owner &&
-            objectData.owner.AddressOwner) ||
-        '';
     const isGuardLoading = useUnlockedGuard();
-    const isPending =
-        isNftLoading || isPendingDisplay || isGuardLoading || isCheckingAssetTransferability;
+    const isPending = isLoading || isGuardLoading;
 
     function handleMoreAboutKiosk() {
         window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
@@ -74,28 +44,6 @@ function NFTDetailsPage() {
 
     function handleSend() {
         navigate(`/nft-transfer/${nftId}`);
-    }
-
-    function formatMetaValue(value: string | object) {
-        if (typeof value === 'object') {
-            return {
-                value: JSON.stringify(value),
-                valueLink: undefined,
-            };
-        } else {
-            if (value.includes('http')) {
-                return {
-                    value: value.startsWith('http')
-                        ? truncateString(value, 20, 8)
-                        : formatAddress(value),
-                    valueLink: value,
-                };
-            }
-            return {
-                value: value,
-                valueLink: undefined,
-            };
-        }
     }
 
     return (
@@ -140,31 +88,29 @@ function NFTDetailsPage() {
                                                 </span>
                                             ) : null}
                                         </div>
-                                        {nftDisplayData?.projectUrl ||
-                                            (nftDisplayData?.creator && (
-                                                <div className="flex flex-col gap-xs">
-                                                    {nftDisplayData?.projectUrl && (
-                                                        <KeyValueInfo
-                                                            keyText="Website"
-                                                            value={
-                                                                <Link
-                                                                    to={nftDisplayData?.projectUrl}
-                                                                >
-                                                                    {nftDisplayData?.projectUrl}
-                                                                </Link>
-                                                            }
-                                                            fullwidth
-                                                        />
-                                                    )}
-                                                    {nftDisplayData?.creator && (
-                                                        <KeyValueInfo
-                                                            keyText="Creator"
-                                                            value={nftDisplayData?.creator ?? '-'}
-                                                            fullwidth
-                                                        />
-                                                    )}
-                                                </div>
-                                            ))}
+                                        {(nftDisplayData?.projectUrl ||
+                                            nftDisplayData?.creator) && (
+                                            <div className="flex flex-col gap-xs">
+                                                {nftDisplayData?.projectUrl && (
+                                                    <KeyValueInfo
+                                                        keyText="Website"
+                                                        value={
+                                                            <Link to={nftDisplayData?.projectUrl}>
+                                                                {nftDisplayData?.projectUrl}
+                                                            </Link>
+                                                        }
+                                                        fullwidth
+                                                    />
+                                                )}
+                                                {nftDisplayData?.creator && (
+                                                    <KeyValueInfo
+                                                        keyText="Creator"
+                                                        value={nftDisplayData?.creator ?? '-'}
+                                                        fullwidth
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex flex-col gap-md">
                                         <Collapsible defaultOpen title="Details">

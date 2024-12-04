@@ -6,6 +6,7 @@ import { useTransactionData } from '_src/ui/app/hooks';
 import { type Transaction } from '@iota/iota-sdk/transactions';
 import { Command } from './Command';
 import { Input } from './Input';
+import { Collapsible } from '@iota/core';
 import {
     ButtonSegment,
     ButtonSegmentType,
@@ -21,7 +22,6 @@ import {
 import { useEffect, useState } from 'react';
 import { Loading } from '_src/ui/app/components';
 import { Warning } from '@iota/ui-icons';
-import { Collapsible } from '@iota/core';
 
 interface TransactionDetailsProps {
     sender?: string;
