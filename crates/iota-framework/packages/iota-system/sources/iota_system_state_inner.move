@@ -758,7 +758,7 @@ module iota_system::iota_system_state_inner {
         mut computation_charges: Balance<IOTA>,
         iota_treasury_cap: &mut iota::iota::IotaTreasuryCap,
         ctx: &TxContext,
-    ): (Balance<IOTA>) {
+    ): Balance<IOTA> {
         if (computation_charges.value() < validator_target_reward) {
             let amount_to_mint = validator_target_reward - computation_charges.value();
             let balance_to_mint = iota_treasury_cap.mint_balance(amount_to_mint, ctx);
