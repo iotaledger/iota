@@ -3,7 +3,7 @@
 
 'use client';
 
-import { Button } from '@/components';
+import { Button, UnstakeTimelockedObjectsDialog } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
@@ -28,7 +28,6 @@ import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { UnstakeTimelockedObjectsDialog } from '@/components/Dialogs/Staking/timelock';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =

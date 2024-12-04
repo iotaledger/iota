@@ -3,16 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, useFormatCoin } from '@iota/core';
+import { CoinFormat, formatAndNormalizeObjectType, useFormatCoin } from '@iota/core';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
-import {
-    formatAddress,
-    formatDigest,
-    formatType,
-    IOTA_TYPE_ARG,
-    normalizeStructTag,
-    parseStructTag,
-} from '@iota/iota-sdk/utils';
+import { formatAddress, formatDigest, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ArrowTopRight } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -94,27 +87,7 @@ interface TypeCardCardProps {
 }
 
 function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
-    const { address, module, typeParams, ...rest } = parseStructTag(objectType);
-
-    const formattedTypeParams = typeParams.map((typeParam) => {
-        if (typeof typeParam === 'string') {
-            return typeParam;
-        } else {
-            return {
-                ...typeParam,
-                address: formatAddress(typeParam.address),
-            };
-        }
-    });
-
-    const structTag = {
-        address: formatAddress(address),
-        module,
-        typeParams: formattedTypeParams,
-        ...rest,
-    };
-
-    const normalizedStructTag = formatType(normalizeStructTag(structTag));
+    const { address, structTag: normalizedStructTag } = formatAndNormalizeObjectType(objectType);
     return (
         <DisplayStats
             label="Type"

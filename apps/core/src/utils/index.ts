@@ -21,6 +21,7 @@ export * from './getDelegationDataByStakeId';
 export * from './api-env';
 export * from './getExplorerPaths';
 export * from './getExplorerLink';
+export * from './formatAndNormalizeObjectType';
 
 export * from './stake';
 export * from './transaction';
