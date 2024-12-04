@@ -51,11 +51,11 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
       - run: cargo build --bin iota --features indexer --profile dev
       - name: Install Nodejs
-        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # pin@v4
+        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
         with:
           node-version: "20"
           cache: "pnpm"
@@ -92,7 +92,7 @@ jobs:
       - name: Run Explorer e2e tests
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || github.ref_name == 'develop'
         run: pnpm --filter iota-explorer playwright test
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: playwright-report-explorer
@@ -118,7 +118,7 @@ jobs:
         if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
 
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: playwright-report-wallet
