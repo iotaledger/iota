@@ -32,7 +32,7 @@ export * from './useQueryTransactionsByAddress';
 export * from './useGetTransaction';
 export * from './useExtendedTransactionSummary';
 export * from './useSortedCoinsByCategories';
-export * from './useGetNFTMeta';
+export * from './useGetNFTDisplay';
 export * from './useIotaAddressValidation';
 export * from './useUnlockTimelockedObjectsTransaction';
 export * from './useGetAllOwnedObjects';

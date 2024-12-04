@@ -11,7 +11,7 @@ export type NFTMetadata = {
     url: string;
 };
 
-export function useGetNFTMeta(objectID: string) {
+export function useGetNFTDisplay(objectID: string) {
     const resp = useGetObject(objectID);
     const nftMeta = useMemo(() => {
         if (!resp.data) return null;

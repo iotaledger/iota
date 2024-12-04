@@ -29,7 +29,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const account = useCurrentAccount();
-    const { data, isFetching, fetchNextPage, hasNextPage, refetch } = useGetOwnedObjects(
+    const { data, isFetching, fetchNextPage, hasNextPage } = useGetOwnedObjects(
         account?.address,
         undefined,
         OBJECTS_PER_REQ,
@@ -51,7 +51,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         }
     }
 
-    function onClickAsset(asset: IotaObjectData) {
+    function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
     }
 
@@ -73,17 +73,13 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 <AssetList
                     assets={assets}
                     selectedCategory={selectedCategory}
-                    onClick={onClickAsset}
+                    onClick={onAssetClick}
                     hasNextPage={hasNextPage}
                     isFetchingNextPage={isFetching}
                     fetchNextPage={fetchNextPage}
                 />
                 {selectedAsset && (
-                    <AssetDialog
-                        onClose={() => setSelectedAsset(null)}
-                        onSent={() => refetch()}
-                        asset={selectedAsset}
-                    />
+                    <AssetDialog onClose={() => setSelectedAsset(null)} asset={selectedAsset} />
                 )}
             </div>
         </Panel>

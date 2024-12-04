@@ -5,7 +5,7 @@
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useNFTBasicData, useNftDetails, Collapsible, useIsAssetTransferable } from '@iota/core';
+import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -17,9 +17,8 @@ function NFTDetailsPage() {
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
     const {
-        nftMeta,
-        isPendingMeta,
-        isNftLoading,
+        nftDisplayData,
+        isLoading,
         ownerAddress,
         objectData,
         metaKeys,
@@ -27,14 +26,12 @@ function NFTDetailsPage() {
         formatMetaValue,
         isContainedInKiosk,
         kioskItem,
+        isAssetTransferable,
     } = useNftDetails(nftId || '', accountAddress);
-    const { data: isAssetTransferable, isLoading: isCheckingAssetTransferability } =
-        useIsAssetTransferable(objectData);
     const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
     const isGuardLoading = useUnlockedGuard();
-    const isPending =
-        isNftLoading || isPendingMeta || isGuardLoading || isCheckingAssetTransferability;
+    const isPending = isLoading || isGuardLoading;
 
     function handleMoreAboutKiosk() {
         window.open('https://docs.iota.org/references/ts-sdk/kiosk/', '_blank');
@@ -83,31 +80,32 @@ function NFTDetailsPage() {
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col gap-xxxs">
                                             <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
-                                                {nftMeta?.name}
+                                                {nftDisplayData?.name}
                                             </span>
-                                            {nftMeta?.description ? (
+                                            {nftDisplayData?.description ? (
                                                 <span className="text-body-md text-neutral-60">
-                                                    {nftMeta?.description}
+                                                    {nftDisplayData?.description}
                                                 </span>
                                             ) : null}
                                         </div>
-                                        {(nftMeta?.projectUrl || nftMeta?.creator) && (
+                                        {(nftDisplayData?.projectUrl ||
+                                            nftDisplayData?.creator) && (
                                             <div className="flex flex-col gap-xs">
-                                                {nftMeta?.projectUrl && (
+                                                {nftDisplayData?.projectUrl && (
                                                     <KeyValueInfo
                                                         keyText="Website"
                                                         value={
-                                                            <Link to={nftMeta?.projectUrl}>
-                                                                {nftMeta?.projectUrl}
+                                                            <Link to={nftDisplayData?.projectUrl}>
+                                                                {nftDisplayData?.projectUrl}
                                                             </Link>
                                                         }
                                                         fullwidth
                                                     />
                                                 )}
-                                                {nftMeta?.creator && (
+                                                {nftDisplayData?.creator && (
                                                     <KeyValueInfo
                                                         keyText="Creator"
-                                                        value={nftMeta?.creator ?? '-'}
+                                                        value={nftDisplayData?.creator ?? '-'}
                                                         fullwidth
                                                     />
                                                 )}
