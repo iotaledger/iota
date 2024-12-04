@@ -21,7 +21,7 @@ import type {
     SignTransactionRequest,
     SignTransactionResponse,
 } from '_payloads/transactions';
-import { getCustomNetwork, type NetworkEnvType } from '_src/shared/api-env';
+import { getCustomNetwork, type NetworkEnvType } from '@iota/core';
 import { type SignMessageRequest } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { isWalletStatusChangePayload } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { getNetwork, Network, type ChainType } from '@iota/iota-sdk/client';

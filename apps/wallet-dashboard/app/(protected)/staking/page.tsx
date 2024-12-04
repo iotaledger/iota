@@ -3,8 +3,7 @@
 
 'use client';
 
-import { AmountBox, Box, StakeCard, StakeDialog, StakeDetailsPopup, Button } from '@/components';
-import { usePopups } from '@/hooks';
+import { AmountBox, Box, StakeCard, StakeDialog, Button, useStakeDialog } from '@/components';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,
@@ -17,13 +16,23 @@ import {
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useState } from 'react';
+import { StakeDialogView } from '@/components/Dialogs/Staking/StakeDialog';
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
-    const [isDialogStakeOpen, setIsDialogStakeOpen] = useState(false);
 
-    const { openPopup, closePopup } = usePopups();
+    const {
+        isDialogStakeOpen,
+        stakeDialogView,
+        setStakeDialogView,
+        selectedStake,
+        setSelectedStake,
+        selectedValidator,
+        setSelectedValidator,
+        handleCloseStakeDialog,
+        handleNewStake,
+    } = useStakeDialog();
+
     const { data: delegatedStakeData } = useGetDelegatedStake({
         address: account?.address || '',
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -43,11 +52,9 @@ function StakingDashboardPage(): JSX.Element {
     );
 
     const viewStakeDetails = (extendedStake: ExtendedDelegatedStake) => {
-        openPopup(<StakeDetailsPopup extendedStake={extendedStake} onClose={closePopup} />);
+        setStakeDialogView(StakeDialogView.Details);
+        setSelectedStake(extendedStake);
     };
-    function handleNewStake() {
-        setIsDialogStakeOpen(true);
-    }
 
     return (
         <>
@@ -78,7 +85,17 @@ function StakingDashboardPage(): JSX.Element {
                 </Box>
                 <Button onClick={handleNewStake}>New Stake</Button>
             </div>
-            <StakeDialog isOpen={isDialogStakeOpen} setOpen={setIsDialogStakeOpen} />;
+            {isDialogStakeOpen && stakeDialogView && (
+                <StakeDialog
+                    stakedDetails={selectedStake}
+                    isOpen={isDialogStakeOpen}
+                    handleClose={handleCloseStakeDialog}
+                    view={stakeDialogView}
+                    setView={setStakeDialogView}
+                    selectedValidator={selectedValidator}
+                    setSelectedValidator={setSelectedValidator}
+                />
+            )}
         </>
     );
 }
