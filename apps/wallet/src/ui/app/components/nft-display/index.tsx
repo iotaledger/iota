@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading, NftImage } from '_components';
-import { isKioskOwnerToken, useGetNFTMeta, useGetObject, useKioskClient } from '@iota/core';
+import { isKioskOwnerToken, useGetNFTDisplay, useGetObject, useKioskClient } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
@@ -42,7 +42,7 @@ export function NFTDisplayCard({
     onIconClick,
 }: NFTDisplayCardProps) {
     const { data: objectData } = useGetObject(objectId);
-    const { data: nftMeta, isPending } = useGetNFTMeta(objectId);
+    const { data: nftMeta, isPending } = useGetNFTDisplay(objectId);
     const nftName = nftMeta?.name || formatAddress(objectId);
     const nftImageUrl = nftMeta?.imageUrl || '';
     const video = useResolveVideo(objectData);
