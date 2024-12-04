@@ -40,7 +40,7 @@ pub(super) fn verify_basic_output(
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    address_swap_map: &mut AddressSwapMap,
+    address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
     if is_timelocked_vested_reward(output_id, output, target_milestone_timestamp) {

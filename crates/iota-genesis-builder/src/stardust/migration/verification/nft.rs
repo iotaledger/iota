@@ -38,7 +38,7 @@ pub(super) fn verify_nft_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    address_swap_map: &mut AddressSwapMap,
+    address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     let created_output_obj = created_objects.output().and_then(|id| {
         storage

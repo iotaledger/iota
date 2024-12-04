@@ -280,7 +280,7 @@ pub(super) fn verify_address_owner(
     owning_address: &Address,
     obj: &Object,
     name: &str,
-    address_swap_map: &mut AddressSwapMap,
+    address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     let expected_owner =
         stardust_to_iota_address_owner_maybe_swap(owning_address, address_swap_map)?;

@@ -201,13 +201,13 @@ impl Migration {
                     header,
                     alias,
                     self.coin_type,
-                    &mut self.address_swap_map,
+                    &self.address_swap_map,
                 )?,
                 Output::Nft(nft) => self.executor.create_nft_objects(
                     header,
                     nft,
                     self.coin_type,
-                    &mut self.address_swap_map,
+                    &self.address_swap_map,
                 )?,
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
@@ -221,7 +221,7 @@ impl Migration {
                             header.output_id(),
                             basic,
                             self.target_milestone_timestamp_sec,
-                            &mut self.address_swap_map,
+                            &self.address_swap_map,
                         )?
                     } else {
                         self.executor.create_basic_objects(
@@ -229,7 +229,7 @@ impl Migration {
                             basic,
                             self.target_milestone_timestamp_sec,
                             &self.coin_type,
-                            &mut self.address_swap_map,
+                            &self.address_swap_map,
                         )?
                     }
                 }
@@ -253,7 +253,7 @@ impl Migration {
             self.target_milestone_timestamp_sec,
             self.total_supply,
             self.executor.store(),
-            &mut self.address_swap_map,
+            &self.address_swap_map,
         )?;
         Ok(())
     }

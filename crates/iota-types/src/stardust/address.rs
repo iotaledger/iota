@@ -34,7 +34,7 @@ pub fn stardust_to_iota_address_owner(
 /// destination address before being wrapped into an [`Owner`].
 pub fn stardust_to_iota_address_owner_maybe_swap(
     stardust_address: impl Into<Address>,
-    address_swap_map: &mut AddressSwapMap,
+    address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<Owner> {
     let mut address = stardust_to_iota_address(stardust_address)?;
     if let Some(addr) = address_swap_map.get_destination_address(address) {
@@ -50,7 +50,7 @@ pub fn stardust_to_iota_address_owner_maybe_swap(
 /// destination address before being returned as an [`IotaAddress`].
 pub fn stardust_to_iota_address_maybe_swap(
     stardust_address: impl Into<Address>,
-    address_swap_map: &mut AddressSwapMap,
+    address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<IotaAddress> {
     let mut address: IotaAddress = stardust_to_iota_address(stardust_address)?;
     if let Some(addr) = address_swap_map.get_destination_address(address) {

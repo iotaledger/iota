@@ -33,7 +33,7 @@ pub(super) fn verify_foundry_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
-    address_swap_map: &mut AddressSwapMap,
+    address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())

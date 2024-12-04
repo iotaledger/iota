@@ -308,7 +308,7 @@ impl Executor {
         header: &OutputHeader,
         alias: &AliasOutput,
         coin_type: CoinType,
-        address_swap_map: &mut AddressSwapMap,
+        address_swap_map: &AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -561,7 +561,7 @@ impl Executor {
         basic_output: &BasicOutput,
         target_milestone_timestamp_sec: u32,
         coin_type: &CoinType,
-        address_swap_map: &mut AddressSwapMap,
+        address_swap_map: &AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut basic =
             iota_types::stardust::output::BasicOutput::new(header.new_object_id(), basic_output)?;
@@ -626,7 +626,7 @@ impl Executor {
         output_id: OutputId,
         basic_output: &BasicOutput,
         target_milestone_timestamp: u32,
-        address_swap_map: &mut AddressSwapMap,
+        address_swap_map: &AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -658,7 +658,7 @@ impl Executor {
         header: &OutputHeader,
         nft: &NftOutput,
         coin_type: CoinType,
-        address_swap_map: &mut AddressSwapMap,
+        address_swap_map: &AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
