@@ -4,3 +4,4 @@
 export * from './timelock';
 
 export * from './StakeDialog';
+export * from './hooks';

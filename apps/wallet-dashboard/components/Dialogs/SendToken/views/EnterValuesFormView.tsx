@@ -77,23 +77,21 @@ function FormInputs({
     coins,
     queryResult,
 }: FormInputsProps): React.JSX.Element {
-    const isPayAllIota =
-        parseAmount(values.amount, coinDecimals) === coinBalance && coinType === IOTA_TYPE_ARG;
+    const formattedAmount = parseAmount(values.amount, coinDecimals);
+    const isPayAllIota = formattedAmount === coinBalance && coinType === IOTA_TYPE_ARG;
 
     const hasEnoughBalance =
         isPayAllIota ||
         iotaBalance >
             BigInt(values.gasBudgetEst ?? '0') +
-                parseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', coinDecimals);
+                (coinType === IOTA_TYPE_ARG ? formattedAmount : 0n);
 
     async function onMaxTokenButtonClick() {
         await setFieldValue('amount', formattedTokenBalance);
     }
 
     const isMaxActionDisabled =
-        parseAmount(values.amount, coinDecimals) === coinBalance ||
-        queryResult.isPending ||
-        !coinBalance;
+        formattedAmount === coinBalance || queryResult.isPending || !coinBalance;
 
     return (
         <div className="flex h-full w-full flex-col">
@@ -199,19 +197,10 @@ export function EnterValuesFormView({
     }
 
     async function handleFormSubmit({ to, amount, gasBudgetEst }: FormDataValues) {
-        if (!coins || !iotaCoins) return;
-        const coinsIDs = [...coins]
-            .sort((a, b) => Number(b.balance) - Number(a.balance))
-            .map(({ coinObjectId }) => coinObjectId);
-
         const formattedAmount = parseAmount(amount, coinDecimals).toString();
-
         const data = {
             to,
-            amount,
-            formattedAmount,
-            coins,
-            coinIds: coinsIDs,
+            amount: formattedAmount,
             gasBudgetEst,
         };
         setFormData(data);

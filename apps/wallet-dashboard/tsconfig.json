@@ -24,7 +24,8 @@
             "@/app/*": ["./app/*"],
             "@/components/*": ["./components/*"],
             "@/hooks/*": ["./hooks/*"],
-            "@/stores/*": ["./stores/*"]
+            "@/stores/*": ["./stores/*"],
+            "@iota/core/constants/*": ["./../core/src/constants/*"]
         }
     },
     "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
