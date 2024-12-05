@@ -6,6 +6,7 @@
 import {
     Banner,
     StakeDialog,
+    StakeDialogView,
     TimelockedUnstakePopup,
     useStakeDialog,
     VestingScheduleDialog,
@@ -37,6 +38,7 @@ import {
     CardType,
     ImageType,
     ImageShape,
+    Button,
     ButtonType,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
@@ -330,7 +332,19 @@ function VestingDashboardPage(): JSX.Element {
                     />
                 ) : (
                     <Panel>
-                        <Title title="Staked Vesting" />
+                        <Title
+                            title="Staked Vesting"
+                            trailingElement={
+                                <Button
+                                    type={ButtonType.Primary}
+                                    text="Stake"
+                                    onClick={() => {
+                                        setStakeDialogView(StakeDialogView.SelectValidator);
+                                    }}
+                                />
+                            }
+                        />
+
                         <div className="flex flex-col px-lg py-sm">
                             <div className="flex flex-row gap-md">
                                 <DisplayStats
@@ -364,7 +378,7 @@ function VestingDashboardPage(): JSX.Element {
                     </Panel>
                 )}
                 <StakeDialog
-                    isTimelockedStaking={true}
+                    isTimelockedStaking
                     stakedDetails={selectedStake}
                     onSuccess={handleOnSuccess}
                     isOpen={isDialogStakeOpen}
