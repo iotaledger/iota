@@ -46,10 +46,10 @@ function Search(): JSX.Element {
             isLoading={isPending || debouncedQuery !== query}
             suggestions={results}
             renderSuggestion={(suggestion) => (
-                <div className="flex cursor-pointer justify-between bg-neutral-98">
+                <div className="flex cursor-pointer justify-between">
                     <ListItem hideBottomBorder>
                         <div className="overflow-hidden text-ellipsis">{suggestion.label}</div>
-                        <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
+                        <div className="text-caption text-steel break-words pl-xs font-medium uppercase">
                             {suggestion.type}
                         </div>
                     </ListItem>

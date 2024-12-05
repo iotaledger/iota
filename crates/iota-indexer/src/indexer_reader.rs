@@ -1161,7 +1161,8 @@ impl<U: R2D2Connection> IndexerReader<U> {
                     )
                 }
                 EventFilter::MoveEventType(struct_tag) => {
-                    format!("event_type = '{}'", struct_tag)
+                    let formatted_struct_tag = struct_tag.to_canonical_string(true);
+                    format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
                     let package_module_prefix = format!("{}::{}", package.to_hex_literal(), module);

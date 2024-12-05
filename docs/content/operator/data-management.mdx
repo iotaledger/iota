@@ -6,7 +6,7 @@ description: A high-level description of data management on the IOTA network tha
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/data-management.json';
 
-Managing the data on your IOTA Full node is critical to ensuring a healthy IOTA network. This topic provides a high-level description of data management on IOTA Full nodes that you can use to optimize your Full node configuration. For more information about IOTA Full nodes, such as pruning policies and archival settings, see [Run an IOTA Full Node](iota-full-node.mdx).
+Managing the data on your IOTA Full node is critical to ensuring a healthy IOTA network. This topic provides a high-level description of data management on IOTA Full nodes that you can use to optimize your Full node configuration. For more information about IOTA Full nodes, such as pruning policies and archival settings, see [Run an IOTA Full Node](iota-full-node/overview.mdx).
 
 ## Basic IOTA Full node functionality
 
@@ -75,7 +75,7 @@ As described previously, sustainable disk usage requires IOTA Full nodes to prun
 
 Both transaction and object pruners run in the background. The logical deletion of entries from RocksDB ultimately triggers the physical compaction of data on disk, which is governed by RocksDB background jobs: the pruning effect on disk usage is not immediate and might take multiple days.
 
-To learn more about object pruning policies, see  [Object pruning](iota-full-node.mdx#object-pruning). You can configure the pruner in two modes:
+To learn more about object pruning policies, see  [Object pruning](iota-full-node/monitoring-and-pruning.mdx#object-pruning). You can configure the pruner in two modes:
 * **aggressive pruning** (`num-epochs-to-retain: 0`): Preferred option. IOTA prunes old object versions as soon as possible.
 * **epoch-based pruning** (`num-epochs-to-retain: X`): IOTA prunes old object versions after X epochs.
 
@@ -85,7 +85,7 @@ Testing indicates that aggressive pruning results in more efficient Full Node op
 
 :::
 
-To learn more about transaction pruning policies, see  [Transaction pruning](iota-full-node.mdx#transaction-pruning). To configure transaction pruning, specify the `num-epochs-to-retain-for-checkpoints: X` config option. The checkpoints, including their transactions, effects and events are pruned up to X epochs ago. We suggest setting transaction pruning to 2 epochs.
+To learn more about transaction pruning policies, see  [Transaction pruning](iota-full-node/monitoring-and-pruning.mdx#transaction-pruning). To configure transaction pruning, specify the `num-epochs-to-retain-for-checkpoints: X` config option. The checkpoints, including their transactions, effects and events are pruned up to X epochs ago. We suggest setting transaction pruning to 2 epochs.
 
 ### Set an archiving watermark
 
