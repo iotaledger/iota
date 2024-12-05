@@ -5,7 +5,7 @@ import React from 'react';
 import { Button, Header } from '@iota/apps-ui-kit';
 
 import { Validator } from './Validator';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout/Layout';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
 interface SelectValidatorViewProps {
     validators: string[];

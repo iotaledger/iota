@@ -30,7 +30,7 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { Loader, Warning } from '@iota/ui-icons';
 import { useUnstakeTransaction } from '@/hooks';
 import { ValidatorStakingData } from '@/components';
-import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout/Layout';
+import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;

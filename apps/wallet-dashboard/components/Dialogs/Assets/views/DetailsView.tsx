@@ -13,7 +13,7 @@ import {
 } from '@iota/apps-ui-kit';
 import Link from 'next/link';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout/Layout';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { ExplorerLink } from '@/components/ExplorerLink';
 import { useCurrentAccount } from '@iota/dapp-kit';

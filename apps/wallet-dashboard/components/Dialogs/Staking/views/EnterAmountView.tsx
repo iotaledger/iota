@@ -30,7 +30,7 @@ import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 
 import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout/Layout';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
 export interface FormValues {
     amount: string;

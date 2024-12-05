@@ -4,7 +4,7 @@
 import React from 'react';
 import { AddressInput, useNftDetails } from '@iota/core';
 import { useFormikContext } from 'formik';
-import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout/Layout';
+import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import {
     Button,
     ButtonHtmlType,

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Header, LoadingIndicator } from '@iota/apps-ui-kit';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from './layout/Layout';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from './layout';
 import { ExplorerLink } from '../ExplorerLink';
 import {
     ExplorerLinkType,

@@ -30,7 +30,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/ui-icons';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout/Layout';
+import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
 interface StakeDialogProps {
     stakedDetails: ExtendedDelegatedStake;
