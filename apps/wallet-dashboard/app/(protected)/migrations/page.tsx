@@ -4,7 +4,10 @@
 
 import MigratePopup from '@/components/Popup/Popups/MigratePopup';
 import { useGetCurrentEpochStartTimestamp, usePopups } from '@/hooks';
-import { summarizeMigrationValues, groupStardustObjectsByMigrationStatus } from '@/lib/utils';
+import {
+    summarizeMigratableObjectValues,
+    groupStardustObjectsByMigrationStatus,
+} from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -106,10 +109,9 @@ function MigrationDashboardPage(): JSX.Element {
         accumulatedIotaAmount: accumulatedTimelockedIotaAmount,
         totalNativeTokens,
         totalVisualAssets,
-    } = summarizeMigrationValues({
-        basicOutputObjects: migratableBasicOutputs,
-        nftOutputObjects: migratableNftOutputs,
-        epochUnix: Number(currentEpochMs),
+    } = summarizeMigratableObjectValues({
+        migratableBasicOutputs,
+        migratableNftOutputs,
         address,
     });
 

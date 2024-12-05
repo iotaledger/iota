@@ -47,81 +47,49 @@ export function groupStardustObjectsByMigrationStatus(
     return { migratable, unmigratable };
 }
 
-export function getTotalTimelockedAmount(stardustOutputObjects: IotaObjectData[]): number {
-    let totalTimelockedAmount = 0;
-
-    for (const outputObject of stardustOutputObjects) {
-        const outputObjectFields = extractOutputFields(outputObject);
-
-        totalTimelockedAmount += parseInt(outputObjectFields.balance);
-
-        totalTimelockedAmount += parseInt(outputObjectFields.balance);
-        const depositReturnAmount = calculateStorageDepositReturn(outputObjectFields);
-
-        if (depositReturnAmount) {
-            totalTimelockedAmount += depositReturnAmount;
-        }
-    }
-
-    return totalTimelockedAmount;
-}
-
 interface MigratableObjectsData {
     totalNativeTokens: number;
     totalVisualAssets: number;
     accumulatedIotaAmount: number;
 }
 
-export function summarizeMigrationValues({
-    basicOutputObjects,
-    nftOutputObjects,
-    epochUnix,
+export function summarizeMigratableObjectValues({
+    migratableBasicOutputs,
+    migratableNftOutputs,
     address,
 }: {
-    basicOutputObjects: IotaObjectData[];
-    nftOutputObjects: IotaObjectData[];
-    epochUnix: number;
+    migratableBasicOutputs: IotaObjectData[];
+    migratableNftOutputs: IotaObjectData[];
     address: string;
 }): MigratableObjectsData {
     let totalNativeTokens = 0;
     let totalIotaAmount = 0;
 
-    const totalVisualAssets = nftOutputObjects.length;
-    const outputObjects = [...basicOutputObjects, ...nftOutputObjects];
+    const totalVisualAssets = migratableNftOutputs.length;
+    const outputObjects = [...migratableBasicOutputs, ...migratableNftOutputs];
 
     for (const output of outputObjects) {
         const outputObjectFields = extractOutputFields(output);
 
         totalIotaAmount += parseInt(outputObjectFields.balance);
         totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
-
-        if (outputObjectFields.expiration_uc) {
-            const unlockableAddress = getUnlockableAddressFromUnlockConditions(
-                outputObjectFields.expiration_uc,
-                epochUnix,
-            );
-
-            // Only add the return amount if the unlockable address is the current address
-            if (unlockableAddress === address) {
-                const depositReturnAmount = calculateStorageDepositReturn(outputObjectFields) ?? 0;
-                totalIotaAmount += depositReturnAmount;
-            }
-        }
+        totalIotaAmount += extractStorageDepositReturnAmount(outputObjectFields, address) || 0;
     }
 
     return { totalNativeTokens, totalVisualAssets, accumulatedIotaAmount: totalIotaAmount };
 }
 
-function calculateStorageDepositReturn({
-    storage_deposit_return_uc,
-}: CommonOutputObjectWithUc): number | undefined {
+function extractStorageDepositReturnAmount(
+    { storage_deposit_return_uc }: CommonOutputObjectWithUc,
+    address: string,
+): number | null {
     if (
-        storage_deposit_return_uc &&
-        'fields' in storage_deposit_return_uc &&
-        'return_amount' in storage_deposit_return_uc.fields
+        storage_deposit_return_uc?.fields &&
+        storage_deposit_return_uc?.fields.return_address === address
     ) {
         return parseInt(storage_deposit_return_uc?.fields.return_amount);
     }
+    return null;
 }
 
 function extractOutputFields(outputObject: IotaObjectData): CommonOutputObjectWithUc {
@@ -130,13 +98,4 @@ function extractOutputFields(outputObject: IotaObjectData): CommonOutputObjectWi
             fields: CommonOutputObjectWithUc;
         }
     ).fields;
-}
-
-function getUnlockableAddressFromUnlockConditions(
-    unlockCondition: Exclude<CommonOutputObjectWithUc['expiration_uc'], null | undefined>,
-    epochUnix: number,
-): string {
-    return unlockCondition.fields.unix_time <= epochUnix
-        ? unlockCondition.fields.return_address
-        : unlockCondition.fields.owner;
 }
