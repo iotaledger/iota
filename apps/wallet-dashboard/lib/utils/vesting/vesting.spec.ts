@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { MILLISECONDS_PER_HOUR } from '@iota/core/constants/time.constants';
 import {
     mockedTimelockedStackedObjectsWithDynamicDate,
     MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS,
@@ -8,10 +9,8 @@ import {
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
     SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
 } from '../../constants';
-
 import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../interfaces';
 import { formatDelegatedTimelockedStake, isTimelockedObject } from '../timelock';
-
 import {
     getVestingOverview,
     buildSupplyIncreaseVestingSchedule as buildVestingPortfolio,
@@ -20,7 +19,7 @@ import {
     getSupplyIncreaseVestingUserType,
 } from './vesting';
 
-const MOCKED_CURRENT_EPOCH_TIMESTAMP = 1733340503570; // Wednesday, 04 December 2024 19:28:23
+const MOCKED_CURRENT_EPOCH_TIMESTAMP = Date.now() + MILLISECONDS_PER_HOUR * 6; // 6 hours later
 
 describe('get last supply increase vesting payout', () => {
     it('should get the object with highest expirationTimestampMs', () => {
