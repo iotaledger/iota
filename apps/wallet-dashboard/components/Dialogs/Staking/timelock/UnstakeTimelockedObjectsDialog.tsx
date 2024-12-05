@@ -4,7 +4,8 @@
 import clsx from 'clsx';
 import type { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ValidatorStakingData } from '@/components';
-import { Validator } from '@/components/Dialogs/Staking/views/Validator';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { Validator } from '../views/Validator';
 import { useState } from 'react';
 import { useNotifications, useTimelockedUnstakeTransaction } from '@/hooks';
 import {
@@ -22,7 +23,6 @@ import {
 } from '@iota/dapp-kit';
 import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
-import { Layout, LayoutBody, LayoutFooter } from '@/components/Dialogs/Staking/views/Layout';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     TitleSize,
@@ -91,9 +91,9 @@ export function UnstakeTimelockedObjectsDialog({
 
     return (
         <Dialog open onOpenChange={onClose}>
-            <Layout>
+            <DialogLayout>
                 <Header title="Unstake" onClose={onClose} />
-                <LayoutBody>
+                <DialogLayoutBody>
                     <div className="flex flex-col gap-md">
                         <Validator
                             address={groupedTimelockedObjects.validatorAddress}
@@ -107,8 +107,8 @@ export function UnstakeTimelockedObjectsDialog({
                             handleCopySuccess={handleCopySuccess}
                         />
                     </div>
-                </LayoutBody>
-                <LayoutFooter>
+                </DialogLayoutBody>
+                <DialogLayoutFooter>
                     <Button
                         onClick={handleTimelockedUnstake}
                         text="Unstake"
@@ -123,8 +123,8 @@ export function UnstakeTimelockedObjectsDialog({
                         type={ButtonType.Secondary}
                         fullWidth
                     />
-                </LayoutFooter>
-            </Layout>
+                </DialogLayoutFooter>
+            </DialogLayout>
         </Dialog>
     );
 }
