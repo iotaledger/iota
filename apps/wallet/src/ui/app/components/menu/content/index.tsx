@@ -16,6 +16,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { AutoLockAccounts } from './AutoLockAccounts';
 import { NetworkSettings } from './NetworkSettings';
 import WalletSettingsMenuList from './WalletSettingsMenuList';
+import { ThemeSettings } from './ThemeSettings';
 
 const CLOSE_KEY_CODES: string[] = ['Escape'];
 
@@ -42,13 +43,14 @@ function MenuContent() {
     }
 
     return (
-        <div className="absolute inset-0 z-50 flex flex-col justify-items-stretch overflow-y-auto rounded-t-xl bg-white px-2.5 pb-8">
+        <div className="absolute inset-0 z-50 flex flex-col justify-items-stretch overflow-y-auto rounded-t-xl bg-neutral-100 px-2.5 pb-8 dark:bg-neutral-6">
             <ErrorBoundary>
                 <MainLocationContext.Provider value={mainLocation}>
                     <Routes location={menuUrl || ''}>
                         <Route path="/" element={<WalletSettingsMenuList />} />
                         <Route path="/network" element={<NetworkSettings />} />
                         <Route path="/auto-lock" element={<AutoLockAccounts />} />
+                        <Route path="/theme" element={<ThemeSettings />} />
                         <Route path="*" element={<Navigate to={menuHomeUrl} replace={true} />} />
                     </Routes>
                 </MainLocationContext.Provider>

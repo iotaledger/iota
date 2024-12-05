@@ -1,57 +1,60 @@
-# Build application
-#
-# Copy in all crates, Cargo.toml and Cargo.lock unmodified,
-# and build the application.
-FROM rust:bullseye AS builder
+# Build image (the specific rust version can also be passed, e.g. "1.82-bookworm")
+ARG RUST_IMAGE_VERSION=bookworm
+FROM rust:${RUST_IMAGE_VERSION} AS builder
+
 ARG PROFILE=release
+ARG CARGO_BUILD_FEATURES
+# The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
-WORKDIR "$WORKDIR/iota"
 
-RUN apt-get update && apt-get install -y cmake clang
+WORKDIR "/iota"
 
-# TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-RUN --mount=type=ssh <<EOT
-  set -e
-  echo "Setting Git SSH protocol"
-  (
-    set +e
-    ssh -T git@github.com
-    if [ ! "$?" = "1" ]; then
-      echo "No GitHub SSH key loaded, exiting..."
-      exit 1
-    fi
-  )
-EOT
-ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+# Install build dependencies, including clang and lld for faster linking
+RUN apt update && apt install -y cmake clang lld
 
-COPY Cargo.toml Cargo.lock ./
+# Configure Rust to use clang and lld as the linker
+RUN mkdir -p ~/.cargo && \
+    echo -e "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\nrustflags = [\"-C\", \"link-arg=-fuse-ld=lld\"]" > ~/.cargo/config.toml
+
+# Install additional dependencies
+RUN apt install -y libpq5 libpq-dev ca-certificates
+
+# Copy in all crates, Cargo.toml, and Cargo.lock
 COPY consensus consensus
 COPY crates crates
-COPY iota-execution iota-execution
-COPY external-crates external-crates
 COPY docs docs
+COPY external-crates external-crates
+COPY iota-execution iota-execution
+COPY Cargo.toml Cargo.lock ./
 
-# TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin iota-node
+RUN cargo build --profile ${PROFILE} --bin iota-node --features ${CARGO_BUILD_FEATURES:=default}
 
-# Copy the built binary to the working directory depending on the profile, so we can copy it to the runtime image
-RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota-node ./
+# Copy the built binary to the working directory depending on the output folder of the profile,
+# so we can copy it to the runtime image
+RUN if [ -d target/release ]; then \
+  TARGET_DIR="target/release"; \
+elif [ -d target/debug ]; then \
+  TARGET_DIR="target/debug"; \
+else \
+  echo "Error: No build directory found"; \
+  exit 1; \
+fi && \
+mv $TARGET_DIR/iota-node ./;
 
-# Production Image
-FROM debian:bullseye-slim AS runtime
+# Production image
+FROM debian:bookworm-slim AS runtime
 
-# Use jemalloc as memory allocator
-RUN apt-get update && apt-get install -y libjemalloc-dev ca-certificates curl
+ARG WORKDIR="/iota"
+WORKDIR "$WORKDIR"
+
+# Install runtime dependencies and tools
+RUN apt update && apt install -y libpq5 ca-certificates curl
+
+# Install jemalloc as the default allocator
+RUN apt install -y libjemalloc-dev
 ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libjemalloc.so
 
-WORKDIR "$WORKDIR/iota"
-
-# Both bench and release profiles copy from release dir
-COPY --from=builder /iota/iota-node /opt/iota/bin/iota-node
-
-# Support legacy usages of /usr/local/bin/iota-node
 COPY --from=builder /iota/iota-node /usr/local/bin
 
 ARG BUILD_DATE

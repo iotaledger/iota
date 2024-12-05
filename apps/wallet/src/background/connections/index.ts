@@ -6,7 +6,7 @@ import { createMessage } from '_messages';
 import type { SetNetworkPayload } from '_payloads/network';
 import type { Permission } from '_payloads/permissions';
 import type { WalletStatusChange, WalletStatusChangePayload } from '_payloads/wallet-status-change';
-import type { NetworkEnvType } from '_src/shared/api-env';
+import type { NetworkEnvType } from '@iota/core';
 import { type UIAccessibleEntityType } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import Browser from 'webextension-polyfill';
 
