@@ -212,7 +212,7 @@ const developer = [
     {
         type: 'category',
         label: 'NFT',
-        items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft'],
+        items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft', 'developer/iota-101/nft/marketplace'],
     },
     {
         type: 'category',
