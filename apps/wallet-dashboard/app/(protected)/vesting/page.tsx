@@ -3,9 +3,16 @@
 
 'use client';
 
-import { Banner, TimelockedUnstakePopup } from '@/components';
+import {
+    Banner,
+    StakeDialog,
+    TimelockedUnstakePopup,
+    useStakeDialog,
+    VestingScheduleDialog,
+} from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
+    buildSupplyIncreaseVestingSchedule,
     formatDelegatedTimelockedStake,
     getLatestOrEarliestSupplyIncreaseVestingPayout,
     getVestingOverview,
@@ -51,13 +58,14 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Calendar, StarHex } from '@iota/ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
+    const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { addNotification } = useNotifications();
     const { openPopup, closePopup } = usePopups();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
@@ -87,10 +95,31 @@ function VestingDashboardPage(): JSX.Element {
         Number(currentEpochMs),
     );
 
+    const {
+        isDialogStakeOpen,
+        stakeDialogView,
+        setStakeDialogView,
+        selectedStake,
+        selectedValidator,
+        setSelectedValidator,
+        handleCloseStakeDialog,
+        handleNewStake,
+    } = useStakeDialog();
+
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...timelockedMapped, ...timelockedstakedMapped],
+        Number(currentEpochMs),
         false,
     );
+
+    const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+        [...timelockedMapped, ...timelockedstakedMapped],
+        Number(currentEpochMs),
+        true,
+    );
+
+    const vestingPortfolio =
+        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
@@ -194,12 +223,15 @@ function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    function openReceiveTokenPopup(): void {
+        setIsVestingScheduleDialogOpen(true);
+    }
+
     useEffect(() => {
         if (!supplyIncreaseVestingEnabled) {
             router.push('/');
         }
     }, [router, supplyIncreaseVestingEnabled]);
-
     return (
         <div className="flex w-full max-w-xl flex-col gap-lg justify-self-center">
             <Panel>
@@ -252,17 +284,19 @@ function VestingDashboardPage(): JSX.Element {
                         />
                         <CardAction
                             type={CardActionType.Button}
-                            onClick={() => {
-                                /*Open schedule dialog*/
-                            }}
+                            onClick={openReceiveTokenPopup}
                             title="See All"
                             buttonType={ButtonType.Secondary}
-                            buttonDisabled={
-                                !vestingSchedule.availableStaking ||
-                                vestingSchedule.availableStaking === 0
-                            }
+                            buttonDisabled={!vestingPortfolio}
                         />
                     </Card>
+                    {vestingPortfolio && (
+                        <VestingScheduleDialog
+                            open={isVestingScheduleDialogOpen}
+                            setOpen={setIsVestingScheduleDialogOpen}
+                            vestingPortfolio={vestingPortfolio}
+                        />
+                    )}
                 </div>
             </Panel>
             {timelockedstakedMapped.length === 0 ? (
@@ -271,9 +305,7 @@ function VestingDashboardPage(): JSX.Element {
                         videoSrc={videoSrc}
                         title="Stake Vested Tokens"
                         subtitle="Earn Rewards"
-                        onButtonClick={() => {
-                            /*Add stake vested tokens dialog flow*/
-                        }}
+                        onButtonClick={() => handleNewStake()}
                         buttonText="Stake"
                     />
                 </>
@@ -321,8 +353,21 @@ function VestingDashboardPage(): JSX.Element {
                             );
                         })}
                     </div>
+                    <Button onClick={() => handleNewStake()} text="Stake" />
                 </div>
             )}
+            <StakeDialog
+                isTimelockedStaking={true}
+                stakedDetails={selectedStake}
+                onSuccess={handleOnSuccess}
+                isOpen={isDialogStakeOpen}
+                handleClose={handleCloseStakeDialog}
+                view={stakeDialogView}
+                setView={setStakeDialogView}
+                selectedValidator={selectedValidator}
+                setSelectedValidator={setSelectedValidator}
+                maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+            />
         </div>
     );
 }

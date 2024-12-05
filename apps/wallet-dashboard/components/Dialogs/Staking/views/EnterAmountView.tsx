@@ -30,7 +30,7 @@ import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 
 import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
-import { Layout, LayoutBody, LayoutFooter } from './Layout';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
 export interface FormValues {
     amount: string;
@@ -88,13 +88,11 @@ function EnterAmountView({
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
-    const shouldShowInsufficientRemainingFundsWarning =
-        maxTokenFormatted >= values.amount && !hasEnoughRemaingBalance;
 
     return (
-        <Layout>
+        <DialogLayout>
             <Header title="Enter amount" onClose={handleClose} onBack={onBack} titleCentered />
-            <LayoutBody>
+            <DialogLayoutBody>
                 <div className="flex w-full flex-col justify-between">
                     <div>
                         <div className="mb-md">
@@ -134,7 +132,7 @@ function EnterAmountView({
                                     );
                                 }}
                             </Field>
-                            {shouldShowInsufficientRemainingFundsWarning ? (
+                            {!hasEnoughRemaingBalance ? (
                                 <div className="mt-md">
                                     <InfoBox
                                         type={InfoBoxType.Error}
@@ -169,8 +167,8 @@ function EnterAmountView({
                         </Panel>
                     </div>
                 </div>
-            </LayoutBody>
-            <LayoutFooter>
+            </DialogLayoutBody>
+            <DialogLayoutFooter>
                 <div className="flex w-full justify-between gap-sm">
                     <Button fullWidth type={ButtonType.Secondary} onClick={onBack} text="Back" />
                     <Button
@@ -181,8 +179,8 @@ function EnterAmountView({
                         text="Stake"
                     />
                 </div>
-            </LayoutFooter>
-        </Layout>
+            </DialogLayoutFooter>
+        </DialogLayout>
     );
 }
 
