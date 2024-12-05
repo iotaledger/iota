@@ -10,7 +10,7 @@ function withProviders(
     // Work around server-side pre-rendering
     const queryClient = new QueryClient();
     const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
+        testnet: { url: getFullnodeUrl('devnet') },
     };
 
     return () => {

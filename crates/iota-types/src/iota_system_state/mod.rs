@@ -438,7 +438,7 @@ pub mod advance_epoch_result_injection {
 
     thread_local! {
         /// Override the result of advance_epoch in the range [start, end).
-        static OVERRIDE: RefCell<Option<(EpochId, EpochId)>>  = RefCell::new(None);
+        static OVERRIDE: RefCell<Option<(EpochId, EpochId)>>  = const { RefCell::new(None) };
     }
 
     /// Override the result of advance_epoch transaction if new epoch is in the

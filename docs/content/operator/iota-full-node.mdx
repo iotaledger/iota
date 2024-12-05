@@ -111,6 +111,7 @@ Open a terminal or console to the `iota` directory you downloaded in the previou
 1. Install the required prerequisites.
 1. Make a copy of the [Full node YAML template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml):
     `cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml`
+
 1. Download the genesis and migration blob for the network to use:
     - [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
         `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
@@ -247,7 +248,6 @@ If you followed the instructions for Building from Source, use the following ste
         `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
     - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
         `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
-        ```
 1. Update your `fullnode.yaml` configuration file, if needed.
 1. Recompile your IOTA Full node with the same command as in [Compiling the node](#compiling-the-node):
 1. Restart your IOTA Full node:

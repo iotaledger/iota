@@ -171,7 +171,7 @@ export const Networks = {
     indexerRpc: 'https://indexer.testnet.iota.cafe',
     graphqlRpc: 'https://graphql.testnet.iota.cafe',
     faucetUrl: 'https://faucet.testnet.iota.cafe',
-    explorerUrl: 'https://explorer.iota.cafe/?network=testnet'
+    explorerUrl: 'https://explorer.rebased.iota.org/?network=testnet'
   },
   iota_move_devnet: {
     baseToken: 'IOTA Token (no value)',
@@ -180,7 +180,7 @@ export const Networks = {
     indexerRpc: 'https://indexer.devnet.iota.cafe',
     graphqlRpc: 'https://graphql.devnet.iota.cafe',
     faucetUrl: 'https://faucet.devnet.iota.cafe',
-    explorerUrl: 'https://explorer.iota.cafe/?network=devnet'
+    explorerUrl: 'https://explorer.rebased.iota.org/?network=devnet'
   },
   iota_localnet: {
     baseToken:"IOTA Token", 

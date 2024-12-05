@@ -96,14 +96,13 @@ pub struct ValidatorMetadataV1 {
     pub extra_fields: Bag,
 }
 
-#[derive(derivative::Derivative, Clone, Eq, PartialEq)]
-#[derivative(Debug)]
+#[derive(derive_more::Debug, Clone, Eq, PartialEq)]
 pub struct VerifiedValidatorMetadataV1 {
     pub iota_address: IotaAddress,
     pub authority_pubkey: AuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,
-    #[derivative(Debug = "ignore")]
+    #[debug(skip)]
     pub proof_of_possession_bytes: Vec<u8>,
     pub name: String,
     pub description: String,

@@ -4,7 +4,8 @@
 
 import { ExternalLink } from '_components';
 import type { ReactNode } from 'react';
-import { useExplorerLink, type ExplorerLinkConfig } from '../../hooks/useExplorerLink';
+import { type ExplorerLinkConfig, ExplorerLinkType } from '@iota/core';
+import { useExplorerLink } from '_hooks';
 import st from './ExplorerLink.module.scss';
 import clsx from 'clsx';
 import { ArrowTopRight } from '@iota/ui-icons';
@@ -43,6 +44,6 @@ export function ExplorerLink({
     );
 }
 
-export * from './ExplorerLinkType';
+export { ExplorerLinkType };
 
 export default ExplorerLink;

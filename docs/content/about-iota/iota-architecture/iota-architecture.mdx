@@ -1,6 +1,7 @@
 ---
 title: IOTA Architecture
 ---
+import ThemedImage from '@theme/ThemedImage';
 
 IOTA shares some similarities with other blockchains but is unique in many ways. Use the topics in this section to understand the features that define the IOTA network.
 
@@ -16,11 +17,12 @@ Life of a Transaction details the transitions that all transactions on IOTA go t
 
 Go to [Life of a Transaction](transaction-lifecycle.mdx).
 
-## Mempool and Consensus Engines
+## Consensus
 
-Narwhal and Bullshark combine to form the basis of the IOTA mempool and consensus engine. This topic offers a brief introduction to the technologies that keep the activities on IOTA synchronized and secure.
+Every transaction on IOTA is sequenced by consensus, where validators agree to the same order of execution of the transactions, even if a minority of them are down or are malicious actors that want to harm the network and users.
+IOTA currently uses the [Mysticeti](https://arxiv.org/pdf/2310.14821) consensus algorithm.
 
-Go to [Mempool and Consensus Engines](consensus.mdx).
+Go to [Consensus](consensus.mdx).
 
 ## Protocol Upgrades
 
@@ -39,4 +41,10 @@ The core components are:
 - [IOTA RPC](../../references/iota-api)
 - [IOTA CLI](../../references/cli)
 
-![IOTA Architecture](/img/concepts/execution-architecture/iota-architecture.svg)
+<ThemedImage
+    alt='IOTA Architecture'
+    sources={{
+    light: '/img/concepts/execution-architecture/iota-architecture.svg',
+    dark: '/img/concepts/execution-architecture/dark/iota-architecture.svg',
+    }}
+/>

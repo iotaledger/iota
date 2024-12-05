@@ -6,19 +6,31 @@ This document focuses on running the Iota Node software as a Validator.
 
 ## Contents
 
+- [Overview](#overview)
+- [Contents](#contents)
 - [Requirements](#requirements)
 - [Deployment](#deployment)
 - [Configuration](#configuration)
 - [Connectivity](#connectivity)
+- [Network Buffer](#network-buffer)
+  - [Option 1: With /etc/sysctl.d/](#option-1-with-etcsysctld)
+  - [Option 2: With sysctl command](#option-2-with-sysctl-command)
+  - [Verification](#verification)
 - [Storage](#storage)
 - [Key Management](#key-management)
 - [Monitoring](#monitoring)
-  - [Logs](#logs)
   - [Metrics](#metrics)
+  - [Logs](#logs)
   - [Dashboards](#dashboards)
 - [Software Updates](#software-updates)
 - [State Sync](#state-sync)
 - [Chain Operations](#chain-operations)
+  - [Updating On-chain Metadata](#updating-on-chain-metadata)
+  - [Operation Cap](#operation-cap)
+  - [Updating the Gas Price Survey Quote](#updating-the-gas-price-survey-quote)
+  - [Reporting/Un-reporting Validators](#reportingun-reporting-validators)
+  - [Joining the Validator Set](#joining-the-validator-set)
+  - [Leaving the Validator Set](#leaving-the-validator-set)
 - [Private Security Fixes](#private-security-fixes)
 
 </div>
@@ -322,7 +334,7 @@ iota client call --package 0x3 --module iota_system --function update_validator_
 ```
 
 <!-- Will be fixed by issue 1867. -->
-<!-- See the full list of metadata `update_*` functions starting [from here](<TODO_WIKI_URL>/references/framework/iota-system/iota_system#function-update_validator_name). -->
+<!-- See the full list of metadata `update_*` functions starting [from here](https://docs.iota.org/references/framework/iota-system/iota_system#function-update_validator_name). -->
 
 ### Operation Cap
 
@@ -350,7 +362,7 @@ To get the current valid `Cap` object's ID of a validator, use the Iota Client C
 setting the holder as the active address.
 
 <!-- Will be fixed by issue 1867. -->
-<!-- Or go to the [explorer](https://<TODO_EXPLORER_URL>/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
+<!-- Or go to the [explorer](https://explorer.rebased.iota.org/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
 
 ### Updating the Gas Price Survey Quote
 
