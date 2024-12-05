@@ -61,12 +61,15 @@ impl AddressSwapMap {
     /// Verifies that all addresses have been swapped at least once.
     /// Returns an error if any address is not swapped.
     pub fn verify_all_addresses_swapped(&self) -> anyhow::Result<()> {
-        if let Some(addr) = self.addresses.values().find(|a| !a.is_swapped()) {
-            return Err(anyhow::anyhow!(
-                "address has not been swapped: {:?}",
-                addr.address()
-            ));
+        let unswapped_addresses = self
+            .addresses
+            .values()
+            .filter_map(|a| (!a.is_swapped()).then_some(a.address()))
+            .collect::<Vec<_>>();
+        if !unswapped_addresses.is_empty() {
+            anyhow::bail!("unswapped addresses: {:?}", unswapped_addresses);
         }
+
         Ok(())
     }
 
@@ -131,6 +134,13 @@ impl AddressSwapMap {
     /// containing the destination address and a flag initialized to
     /// `false`.
     ///
+    /// # Example CSV File
+    /// ```csv
+    /// Origin,Destination
+    /// iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr,0x7f1c8e2fdb9a5c348a4e793bc0a612b2879d4e5bc3a846b2f22c7a3f9b46d2ce
+    /// iota1qp7h2lkjhs6tk3uvlxqfjhlfw34atv63eqkpru356p6sgvr76eufyz1opkh,0x42d8c182eb1f3b2366d353eed4eb02a31d1d7982c0fd44683811d7036be3a85e
+    /// ```
+    ///
     /// # Parameters
     /// - `file_path`: The relative path to the CSV file containing the address
     ///   mappings.
@@ -146,16 +156,31 @@ impl AddressSwapMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = csv::Reader::from_path(file_path)?;
+        let mut reader = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .from_path(file_path)?;
         let mut addresses = HashMap::new();
+        verify_headers(reader.headers()?)?;
 
-        for result in reader.records() {
+        // Skip headers raw
+        for result in reader.records().skip(1) {
             let record = result?;
-            let origin: OriginAddress = record[0].parse()?;
+            let origin: OriginAddress =
+                stardust_to_iota_address(StardustAddress::try_from_bech32(&record[0])?)?;
             let destination: DestinationAddress = DestinationAddress::new(record[1].parse()?);
             addresses.insert(origin, destination);
         }
 
         Ok(AddressSwapMap { addresses })
     }
+}
+
+fn verify_headers(headers: &csv::StringRecord) -> Result<(), anyhow::Error> {
+    const LEFT_HEADER: &str = "Origin";
+    const RIGHT_HEADER: &str = "Destination";
+
+    if &headers[0] != LEFT_HEADER && &headers[1] != RIGHT_HEADER {
+        anyhow::bail!("Invalid CSV headers");
+    }
+    Ok(())
 }
