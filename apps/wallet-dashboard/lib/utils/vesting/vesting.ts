@@ -142,7 +142,10 @@ export function getVestingOverview(
     currentEpochTimestamp: number,
 ): VestingOverview {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
-    const latestPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(vestingObjects);
+    const latestPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+        vestingObjects,
+        currentEpochTimestamp,
+    );
 
     if (vestingObjects.length === 0 || !latestPayout) {
         return {
