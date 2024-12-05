@@ -1,6 +1,11 @@
 name: Rust tests
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      changedCrates:
+        type: string
+        required: false
 
 concurrency:
   group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -21,21 +26,8 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
-  changes:
-    runs-on: [self-hosted]
-    outputs:
-      components: ${{ steps.filter.outputs.changes }}
-    steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
-        id: filter
-        with:
-          list-files: "json"
-          filters: .github/crates-filters.yml
-
   test:
     name: Test rust crates
-    needs: changes
     if: (!cancelled())
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
@@ -44,13 +36,13 @@ jobs:
       IOTA_SKIP_SIMTESTS: 1
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
         with:
           tool: nextest
       - name: cargo test
         run: |
-          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+          array=(${{ inputs.changedCrates }})
 
           result=""
 
@@ -80,7 +72,7 @@ jobs:
     runs-on: [self-hosted]
 
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Run Cargo Udeps
         run: cargo +nightly ci-udeps ${{ matrix.flags }}
 
@@ -97,8 +89,8 @@ jobs:
           - [self-hosted]
       fail-fast: false
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # Pin v4
-      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
         with:
           tool: nextest
       - name: benchmark (smoke)
@@ -111,7 +103,7 @@ jobs:
         run: |
           cargo doc --all-features --workspace --no-deps
       - name: Install cargo-hakari, and cache the binary
-        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # pin@v3
+        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # v3.1.1
         with:
           crate: cargo-hakari
           locked: true
@@ -126,19 +118,18 @@ jobs:
 
   simtest:
     name: Simtest rust
-    needs: changes
     timeout-minutes: 45
     runs-on: [self-hosted]
     env:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
         with:
           tool: nextest
       - name: setup filter
         run: |
-          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+          array=(${{ inputs.changedCrates }})
 
           result=""
 
@@ -168,39 +159,38 @@ jobs:
 
           eval ${command}
 
-  # # Disabled
-  # rosetta-validation:
-  #   timeout-minutes: 45
-  #   runs-on: [self-hosted]
-  #   steps:
-  #     - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+  rosetta-validation:
+    timeout-minutes: 45
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
-  #     - name: Setup environment
-  #       run: .github/scripts/rosetta/setup.sh
-  #       shell: bash
+      - name: Setup environment
+        run: .github/scripts/rosetta/setup.sh
+        shell: bash
 
-  #     - name: Start local IOTA network
-  #       run: |
-  #         iota start --no-full-node &
-  #       shell: bash
+      - name: Start local IOTA network
+        run: |
+          iota start --no-full-node &
+        shell: bash
 
-  #     - name: Start Rosetta servers
-  #       run: .github/scripts/rosetta/start_rosetta.sh
-  #       shell: bash
+      - name: Start Rosetta servers
+        run: .github/scripts/rosetta/start_rosetta.sh
+        shell: bash
 
-  #     - name: Sleep for 20 seconds
-  #       run: sleep 20s
-  #       shell: bash
+      - name: Sleep for 20 seconds
+        run: sleep 20s
+        shell: bash
 
-  #     - name: Run check:construction test
-  #       run: |
-  #         ./bin/rosetta-cli --configuration-file rosetta_cli.json check:construction
-  #       shell: bash
+      - name: Run check:construction test
+        run: |
+          ./bin/rosetta-cli --configuration-file rosetta_cli.json check:construction
+        shell: bash
 
-  #     - name: Run check:data test
-  #       run: |
-  #         ./bin/rosetta-cli --configuration-file rosetta_cli.json check:data
-  #       shell: bash
+      - name: Run check:data test
+        run: |
+          ./bin/rosetta-cli --configuration-file rosetta_cli.json check:data
+        shell: bash
 
   graphql-rpc:
     name: graphql-rpc
@@ -225,8 +215,8 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
         with:
           tool: nextest
       - name: Install postgresql-client

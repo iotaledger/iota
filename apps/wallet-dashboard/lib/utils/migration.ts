@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { CommonOutputObjectWithUc } from '@iota/core';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { CommonOutputObjectWithUc } from '../interfaces/migration.interface';
 
 export type StardustMigrationGroupedObjects = {
     migratable: IotaObjectData[];

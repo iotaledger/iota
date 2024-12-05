@@ -594,7 +594,7 @@ import { homedir } from 'os';
 import path from 'path';
 
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 
 const sender = execSync(`${IOTA} client active-address`, { encoding: 'utf8' }).trim();
 const signer = (() => {
@@ -606,7 +606,7 @@ const signer = (() => {
     );
 
     for (const priv of keystore) {
-        const raw = fromB64(priv);
+        const raw = fromBase64(priv);
         if (raw[0] !== 0) {
             continue;
         }
@@ -708,7 +708,7 @@ import { fileURLToPath } from 'url';
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 
 const IOTA = 'iota';
 const POLICY_PACKAGE_ID = '<POLICY-PACKAGE>';
@@ -722,7 +722,7 @@ const signer = (() => {
     );
 
     for (const priv of keystore) {
-        const raw = fromB64(priv);
+        const raw = fromBase64(priv);
         if (raw[0] !== 0) {
             continue;
         }
@@ -963,7 +963,7 @@ import { fileURLToPath } from 'url';
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction, UpgradePolicy } from '@iota/iota-sdk/transactions';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 
 const IOTA = 'iota';
 const POLICY_PACKAGE_ID = '<POLICY-PACKAGE>';
@@ -979,7 +979,7 @@ const signer = (() => {
     );
 
     for (const priv of keystore) {
-        const raw = fromB64(priv);
+        const raw = fromBase64(priv);
         if (raw[0] !== 0) {
             continue;
         }

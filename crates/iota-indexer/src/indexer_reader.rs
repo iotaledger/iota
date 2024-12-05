@@ -63,7 +63,7 @@ use crate::{
     },
     schema::{
         address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
-        objects_snapshot, transactions,
+        objects_snapshot, packages, transactions,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -1161,7 +1161,8 @@ impl<U: R2D2Connection> IndexerReader<U> {
                     )
                 }
                 EventFilter::MoveEventType(struct_tag) => {
-                    format!("event_type = '{}'", struct_tag)
+                    let formatted_struct_tag = struct_tag.to_canonical_string(true);
+                    format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
                     let package_module_prefix = format!("{}::{}", package.to_hex_literal(), module);
@@ -1509,10 +1510,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_network_metrics(&self) -> IndexerResult<NetworkMetrics> {
-        let metrics = run_query!(&self.pool, |conn| {
+        let mut metrics = run_query!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
+        if metrics.total_packages == -1 {
+            // this implies that the estimate is not available in the db
+            // so we fallback to the more expensive count query
+            metrics.total_packages = run_query!(&self.pool, |conn| {
+                packages::dsl::packages.count().get_result::<i64>(conn)
+            })?;
+        }
         Ok(metrics.into())
     }
 

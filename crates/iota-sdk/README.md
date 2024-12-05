@@ -1,4 +1,4 @@
-This crate provides the IOTA Rust SDK, containing APIs to interact with the IOTA network. Auto-generated documentation for this crate is [here](https://github.com/iotaledger/iota/iota_sdk/index.html).
+This crate provides the IOTA Rust SDK, containing APIs to interact with the IOTA network. Auto-generated documentation for this crate is [here](https://iotaledger.github.io/iota/iota_sdk/index.html).
 
 ## Getting started
 

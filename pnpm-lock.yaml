@@ -20,6 +20,7 @@ overrides:
   eslint: 8.57.1
   mermaid@10.9.1: 10.9.3
   http-proxy-middleware: 2.0.7
+  cross-spawn: 7.0.5
 
 importers:
 
@@ -222,6 +223,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.0
         version: 3.9.0(react-hook-form@7.53.0(react@18.3.1))
+      '@iota/apps-ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
@@ -231,6 +235,9 @@ importers:
       '@iota/kiosk':
         specifier: workspace:*
         version: link:../../sdk/kiosk
+      '@iota/ui-icons':
+        specifier: workspace:*
+        version: link:../ui-icons
       '@sentry/react':
         specifier: ^7.59.2
         version: 7.119.0(react@18.3.1)
@@ -240,6 +247,12 @@ importers:
       bignumber.js:
         specifier: ^9.1.1
         version: 9.1.2
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      formik:
+        specifier: ^2.4.2
+        version: 2.4.6(react@18.3.1)
       qrcode.react:
         specifier: ^4.0.1
         version: 4.0.1(react@18.3.1)
@@ -1021,6 +1034,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      formik:
+        specifier: ^2.4.2
+        version: 2.4.6(react@18.3.1)
       next:
         specifier: 14.2.10
         version: 14.2.10(@babel/core@7.25.2)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.79.3)
@@ -1382,6 +1398,9 @@ importers:
       markdown-to-jsx:
         specifier: ^7.4.7
         version: 7.5.0(react@18.3.1)
+      plugin-image-zoom:
+        specifier: github:flexanalytics/plugin-image-zoom
+        version: https://codeload.github.com/flexanalytics/plugin-image-zoom/tar.gz/8e1b866c79ed6d42cefc4c52f851f1dfd1d0c7de
       postcss:
         specifier: ^8.4.31
         version: 8.4.47
@@ -9010,11 +9029,8 @@ packages:
     resolution: {integrity: sha512-Pcw1JTvZLSJH83iiGWt6fRcT+BjZlCDRVwYLbUcHzv/CRpB7r0MlSrGbIyQvVSNyGnbt7G4AXuyCiDR3POvZ1A==}
     engines: {node: '>=16.0.0'}
 
-  cross-spawn@5.1.0:
-    resolution: {integrity: sha512-pTgQJ5KC0d2hcY8eyL1IzlBPYjTkyH72XRZPnLyKus2mBfNjQs3klqbJU2VILqZryAZUt9JOb3h/mWMy23/f5A==}
-
-  cross-spawn@7.0.3:
-    resolution: {integrity: sha512-iRDPJKUPVEND7dHPO8rkbOnPpyDygcDFtWjpeWNCgy8WP2rXcxXL8TskReQl6OrB2G7+UJrags1q15Fudc7G6w==}
+  cross-spawn@7.0.5:
+    resolution: {integrity: sha512-ZVJrKKYunU38/76t0RMOulHOnUcbU9GbpWKAOZ0mhjr7CX6FVrH+4FrAapSOekrgFQ3f/8gwMEuIft0aKq6Hug==}
     engines: {node: '>= 8'}
 
   crypto-random-string@2.0.0:
@@ -12096,9 +12112,6 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
-  lru-cache@4.1.5:
-    resolution: {integrity: sha512-sWZlbEP2OsHNkXrMl5GYk/jKk70MBng6UU4YI/qGDYbgf6YbP4EvmqISbXCoJiRKs+1bSpFHVgQxvJ17F2li5g==}
-
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
@@ -12281,6 +12294,9 @@ packages:
   media-typer@0.3.0:
     resolution: {integrity: sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==}
     engines: {node: '>= 0.6'}
+
+  medium-zoom@1.1.0:
+    resolution: {integrity: sha512-ewyDsp7k4InCUp3jRmwHBRFGyjBimKps/AJLjRSox+2q/2H4p/PNpQf+pwONWlJiOudkBXtbdmVbFjqyybfTmQ==}
 
   mem@5.1.1:
     resolution: {integrity: sha512-qvwipnozMohxLXG1pOqoLiZKNkC4r4qqRucSoDwXowsNGDSULiqFTRUF05vcZWnwJSG22qTsynQhxbaMtnX9gw==}
@@ -13275,6 +13291,10 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  plugin-image-zoom@https://codeload.github.com/flexanalytics/plugin-image-zoom/tar.gz/8e1b866c79ed6d42cefc4c52f851f1dfd1d0c7de:
+    resolution: {tarball: https://codeload.github.com/flexanalytics/plugin-image-zoom/tar.gz/8e1b866c79ed6d42cefc4c52f851f1dfd1d0c7de}
+    version: 1.1.0
+
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
@@ -13911,9 +13931,6 @@ packages:
     resolution: {integrity: sha512-0VnamPPYHl4uaU/nSFeZZpR21QAWRz+sRv4iW9+v/GS/J5U5iZB5BNN6J0RMoOvdx2gWM2+ZFMIm58q24e4UYA==}
     engines: {node: '>= 0.10'}
     hasBin: true
-
-  pseudomap@1.0.2:
-    resolution: {integrity: sha512-b/YwNhb8lk1Zz2+bXXpS/LK9OisiZZ1SNsSLxN1x2OXVEhW2Ckr/7mWE5vrC1ZTiJlD9g19jWszTmJsB+oEpFQ==}
 
   psl@1.9.0:
     resolution: {integrity: sha512-E/ZsdU4HLs/68gYzgGTkMicWTLPdAftJLfJFlLUAAKZGkStNU72sZjT66SnMDVOfOWY/YAoiD7Jxa9iHvngcag==}
@@ -14817,17 +14834,9 @@ packages:
   shallowequal@1.1.0:
     resolution: {integrity: sha512-y0m1JoUZSlPAjXVtPPW70aZWfIL/dSP7AFkRnniLCrK/8MDKog3TySTBmckD+RObVxH0v4Tox67+F14PdED2oQ==}
 
-  shebang-command@1.2.0:
-    resolution: {integrity: sha512-EV3L1+UQWGor21OmnvojK36mhg+TyIKDh3iFBKBohr5xeXIhNBcx8oWdgkTEEQ+BEFFYdLRuqMfd5L84N1V5Vg==}
-    engines: {node: '>=0.10.0'}
-
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
     engines: {node: '>=8'}
-
-  shebang-regex@1.0.0:
-    resolution: {integrity: sha512-wpoSFAxys6b2a2wHZ1XpDSgD7N9iVjg29Ph9uV/uaP9Ex/KXlkTZTeddxDPSYQpgvzKLGJke2UU0AzoGCjNIvQ==}
-    engines: {node: '>=0.10.0'}
 
   shebang-regex@3.0.0:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
@@ -16685,9 +16694,6 @@ packages:
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
-
-  yallist@2.1.2:
-    resolution: {integrity: sha512-ncTzHV7NvsQZkYe1DW7cbDLm0YpzHmZF5r/iyP3ZnQtMiJ+pjzisCiMNI+Sj+xQF5pXhSHxSB3uDbsBTzY/c2A==}
 
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
@@ -21408,7 +21414,7 @@ snapshots:
       '@oclif/errors': 1.3.6
       '@types/semver': 7.5.8
       cli-ux: 5.6.7
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       debug: 4.3.7(supports-color@8.1.1)
       filesize: 6.4.0
       fs-extra: 9.1.0
@@ -23182,7 +23188,7 @@ snapshots:
       '@yarnpkg/libzip': 2.3.0
       chalk: 4.1.2
       commander: 6.2.1
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       detect-indent: 6.1.0
       envinfo: 7.14.0
       execa: 5.1.1
@@ -23225,7 +23231,7 @@ snapshots:
       '@storybook/node-logger': 7.6.20
       '@storybook/types': 7.6.20
       '@types/cross-spawn': 6.0.6
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       globby: 11.1.0
       jscodeshift: 0.15.2(@babel/preset-env@7.25.4(@babel/core@7.25.2))
       lodash: 4.17.21
@@ -26541,7 +26547,7 @@ snapshots:
 
   cross-env@7.0.3:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
 
   cross-fetch@3.1.8:
     dependencies:
@@ -26559,13 +26565,7 @@ snapshots:
     dependencies:
       tslib: 2.7.0
 
-  cross-spawn@5.1.0:
-    dependencies:
-      lru-cache: 4.1.5
-      shebang-command: 1.2.0
-      which: 1.3.1
-
-  cross-spawn@7.0.3:
+  cross-spawn@7.0.5:
     dependencies:
       path-key: 3.1.1
       shebang-command: 2.0.0
@@ -27836,7 +27836,7 @@ snapshots:
       '@ungap/structured-clone': 1.2.0
       ajv: 6.12.6
       chalk: 4.1.2
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       debug: 4.3.7(supports-color@8.1.1)
       doctrine: 3.0.0
       escape-string-regexp: 4.0.0
@@ -27969,7 +27969,7 @@ snapshots:
 
   execa@4.1.0:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       get-stream: 5.2.0
       human-signals: 1.1.1
       is-stream: 2.0.1
@@ -27981,7 +27981,7 @@ snapshots:
 
   execa@5.1.1:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       get-stream: 6.0.1
       human-signals: 2.1.0
       is-stream: 2.0.1
@@ -27993,7 +27993,7 @@ snapshots:
 
   execa@8.0.1:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       get-stream: 8.0.1
       human-signals: 5.0.0
       is-stream: 3.0.0
@@ -28294,7 +28294,7 @@ snapshots:
 
   foreground-child@3.3.0:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       signal-exit: 4.1.0
 
   forever-agent@0.6.1: {}
@@ -30459,11 +30459,6 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
-  lru-cache@4.1.5:
-    dependencies:
-      pseudomap: 1.0.2
-      yallist: 2.1.2
-
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
@@ -30790,6 +30785,8 @@ snapshots:
       '@babel/runtime': 7.25.6
 
   media-typer@0.3.0: {}
+
+  medium-zoom@1.1.0: {}
 
   mem@5.1.1:
     dependencies:
@@ -31678,7 +31675,7 @@ snapshots:
       '@blakeembrey/template': 1.2.0
       arg: 4.1.3
       chokidar: 3.6.0
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       ignore: 5.3.2
       tree-kill: 1.2.2
 
@@ -31906,7 +31903,7 @@ snapshots:
   password-prompt@1.1.3:
     dependencies:
       ansi-escapes: 4.3.2
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
 
   path-browserify@1.0.1: {}
 
@@ -32054,6 +32051,10 @@ snapshots:
       playwright-core: 1.47.2
     optionalDependencies:
       fsevents: 2.3.2
+
+  plugin-image-zoom@https://codeload.github.com/flexanalytics/plugin-image-zoom/tar.gz/8e1b866c79ed6d42cefc4c52f851f1dfd1d0c7de:
+    dependencies:
+      medium-zoom: 1.1.0
 
   pluralize@8.0.0: {}
 
@@ -32679,8 +32680,6 @@ snapshots:
     dependencies:
       event-stream: 3.3.4
 
-  pseudomap@1.0.2: {}
-
   psl@1.9.0: {}
 
   pump@2.0.1:
@@ -32802,7 +32801,7 @@ snapshots:
       address: 1.2.2
       browserslist: 4.24.0
       chalk: 4.1.2
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       detect-port-alt: 1.1.6
       escape-string-regexp: 4.0.0
       filesize: 8.0.7
@@ -33793,15 +33792,9 @@ snapshots:
 
   shallowequal@1.1.0: {}
 
-  shebang-command@1.2.0:
-    dependencies:
-      shebang-regex: 1.0.0
-
   shebang-command@2.0.0:
     dependencies:
       shebang-regex: 3.0.0
-
-  shebang-regex@1.0.0: {}
 
   shebang-regex@3.0.0: {}
 
@@ -33959,7 +33952,7 @@ snapshots:
 
   spawndamnit@2.0.0:
     dependencies:
-      cross-spawn: 5.1.0
+      cross-spawn: 7.0.5
       signal-exit: 3.0.7
 
   spdx-correct@3.2.0:
@@ -35924,7 +35917,7 @@ snapshots:
       '@webpack-cli/serve': 2.0.5(webpack-cli@5.1.4(webpack@5.95.0))(webpack@5.95.0(@swc/core@1.7.28)(webpack-cli@5.1.4))
       colorette: 2.0.20
       commander: 10.0.1
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       envinfo: 7.14.0
       fastest-levenshtein: 1.0.16
       import-local: 3.2.0
@@ -36306,8 +36299,6 @@ snapshots:
   y18n@4.0.3: {}
 
   y18n@5.0.8: {}
-
-  yallist@2.1.2: {}
 
   yallist@3.1.1: {}
 

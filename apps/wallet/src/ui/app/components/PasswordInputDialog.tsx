@@ -68,7 +68,7 @@ export function PasswordInputDialog({
             {({ isSubmitting, isValid, errors }) => (
                 <Form
                     className={classNames('flex flex-1 flex-col flex-nowrap items-center gap-7.5', {
-                        'bg-white': background,
+                        'bg-neutral-100 dark:bg-neutral-6': background,
                         'px-5 pt-10': spacing,
                     })}
                 >
@@ -87,7 +87,7 @@ export function PasswordInputDialog({
                             </span>
                         </div>
                     </div>
-                    <div className="flex flex-nowrap gap-3.75 self-stretch">
+                    <div className="gap-3.75 flex flex-nowrap self-stretch">
                         {showBackButton ? (
                             <Button
                                 size={ButtonSize.Small}
