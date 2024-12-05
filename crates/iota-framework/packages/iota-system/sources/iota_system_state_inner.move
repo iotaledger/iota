@@ -769,7 +769,7 @@ module iota_system::iota_system_state_inner {
             let balance_to_burn = computation_charges.split(actual_amount_to_burn);
             iota_treasury_cap.burn_balance(balance_to_burn, ctx);
         };
-        (computation_charges, burnt_tokens_amount, minted_tokens_amount)
+        (computation_charges, minted_tokens_amount, burnt_tokens_amount)
     }
 
     /// Return the current epoch number. Useful for applications that need a coarse-grained concept of time,
