@@ -73,11 +73,11 @@ impl AddressSwapMap {
         Ok(())
     }
 
-    /// Converts a ["Stardust" `Address`](Address) to an [`Owner`] by first
+    /// Converts a [`StardustAddress`] to an [`Owner`] by first
     /// converting it to an [`IotaAddress`] and then checking against the
-    /// provided `AddressSwapMap` for potential address substitutions.
+    /// swap map for potential address substitutions.
     ///
-    /// If the address exists in the `AddressSwapMap`, it is swapped with the
+    /// If the address exists in the swap map, it is swapped with the
     /// mapped destination address before being wrapped into an [`Owner`].
     pub fn stardust_to_iota_address_owner(
         &self,
@@ -90,11 +90,11 @@ impl AddressSwapMap {
         Ok(Owner::AddressOwner(address))
     }
 
-    /// Converts a ["Stardust" `Address`](Address) to an [`Owner`] by first
+    /// Converts a [`StardustAddress`] to an [`Owner`] by first
     /// converting it to an [`IotaAddress`] and then checking against the
-    /// provided `AddressSwapMap` for potential address substitutions.
+    /// swap map for potential address substitutions.
     ///
-    /// If the address exists in the `AddressSwapMap`, it is swapped with the
+    /// If the address exists in the swap map, it is swapped with the
     /// mapped destination address before being wrapped into an [`Owner`].
     pub fn swap_stardust_to_iota_address_owner(
         &mut self,
@@ -107,11 +107,11 @@ impl AddressSwapMap {
         Ok(Owner::AddressOwner(address))
     }
 
-    /// Converts a ["Stardust" `Address`](Address) to an [`IotaAddress`] and
-    /// checks against the provided `AddressSwapMap` for potential address
+    /// Converts a [`StardustAddress`] to an [`IotaAddress`] and
+    /// checks against the swap map for potential address
     /// substitutions.
     ///
-    /// If the address exists in the `AddressSwapMap`, it is swapped with the
+    /// If the address exists in the swap map, it is swapped with the
     /// mapped destination address before being returned as an
     /// [`IotaAddress`].
     pub fn swap_stardust_to_iota_address(
@@ -152,7 +152,7 @@ impl AddressSwapMap {
     /// - Returns an error if the file cannot be found, read, or parsed
     ///   correctly.
     /// - Returns an error if the origin or destination addresses cannot be
-    ///   parsed into `IotaAddress`.
+    ///   parsed into an [`IotaAddress`].
     pub fn from_csv(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
