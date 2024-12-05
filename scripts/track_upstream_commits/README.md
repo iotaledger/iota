@@ -29,11 +29,13 @@ options:
 ## Example
 
 input:
+
 ```bash
 ./run.sh --since "2024-09-05" --until "2024-10-26" --codeowner "node"
 ```
 
 output:
+
 ```
 Parsing the CODEOWNERS file...
 First commit: bb778828e36d53a7d91a27e55109f2f45621badc
