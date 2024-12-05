@@ -252,7 +252,6 @@ const config = {
           {
             label: "TS SDK",
             to: "references/ts-sdk/typescript/",
-            activeBaseRegex: "references/ts-sdk/*"
           },
           {
             label: "IOTA Identity",
