@@ -28,17 +28,18 @@ import {
     StakedCard,
     useFormatCoin,
 } from '@iota/core';
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
 import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-function StakingDashboardPage(): JSX.Element {
+function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const activeValidators = (system as IotaSystemStateSummary)?.activeValidators;
+    const iotaClient = useIotaClient();
 
     const {
         isDialogStakeOpen,
@@ -52,7 +53,7 @@ function StakingDashboardPage(): JSX.Element {
         handleNewStake,
     } = useStakeDialog();
 
-    const { data: delegatedStakeData } = useGetDelegatedStake({
+    const { data: delegatedStakeData, refetch: refetchDelegatedStakes } = useGetDelegatedStake({
         address: account?.address || '',
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -90,6 +91,14 @@ function StakingDashboardPage(): JSX.Element {
         setStakeDialogView(StakeDialogView.Details);
         setSelectedStake(extendedStake);
     };
+
+    function handleOnStakeSuccess(digest: string): void {
+        iotaClient
+            .waitForTransaction({
+                digest,
+            })
+            .then(() => refetchDelegatedStakes());
+    }
 
     return (
         <div className="flex justify-center">
@@ -164,6 +173,7 @@ function StakingDashboardPage(): JSX.Element {
                         </div>
                         <StakeDialog
                             stakedDetails={selectedStake}
+                            onSuccess={handleOnStakeSuccess}
                             isOpen={isDialogStakeOpen}
                             handleClose={handleCloseStakeDialog}
                             view={stakeDialogView}
