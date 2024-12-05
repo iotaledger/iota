@@ -674,12 +674,11 @@ module iota_system::iota_system_state_inner {
 
         let storage_charge_value = storage_charge.value();
         let computation_charge = computation_reward.value();
-        let mut burnt_tokens_amount = computation_charge;
 
        // Mints or burns tokens depending on the target reward.
        // Since not all rewards are distributed in case of slashed validators,
        // tokens might be minted here and burnt in the same epoch change.
-        let mut total_validator_rewards = match_computation_reward_to_target_reward(
+        let (mut total_validator_rewards, minted_tokens_amount, mut burnt_tokens_amount) = match_computation_reward_to_target_reward(
             validator_target_reward,
             computation_reward,
             &mut self.iota_treasury_cap,
@@ -737,7 +736,7 @@ module iota_system::iota_system_state_inner {
                 total_gas_fees: computation_charge,
                 total_stake_rewards_distributed,
                 burnt_tokens_amount,
-                minted_tokens_amount: validator_target_reward,
+                minted_tokens_amount,
             }
         );
         self.safe_mode = false;
@@ -758,17 +757,19 @@ module iota_system::iota_system_state_inner {
         mut computation_charges: Balance<IOTA>,
         iota_treasury_cap: &mut iota::iota::IotaTreasuryCap,
         ctx: &TxContext,
-    ): Balance<IOTA> {
-        if (computation_charges.value() < validator_target_reward) {
-            let amount_to_mint = validator_target_reward - computation_charges.value();
-            let balance_to_mint = iota_treasury_cap.mint_balance(amount_to_mint, ctx);
+    ): (Balance<IOTA>, u64, u64) {
+        let burnt_tokens_amount = computation_charges.value();
+        let minted_tokens_amount = validator_target_reward;
+        if (burnt_tokens_amount < minted_tokens_amount) {
+            let actual_amount_to_mint = minted_tokens_amount - burnt_tokens_amount;
+            let balance_to_mint = iota_treasury_cap.mint_balance(actual_amount_to_mint, ctx);
             computation_charges.join(balance_to_mint);
-        } else if (computation_charges.value() > validator_target_reward) {
-            let amount_to_burn = computation_charges.value() - validator_target_reward;
-            let balance_to_burn = computation_charges.split(amount_to_burn);
+        } else if (burnt_tokens_amount > minted_tokens_amount) {
+            let actual_amount_to_burn = burnt_tokens_amount - minted_tokens_amount;
+            let balance_to_burn = computation_charges.split(actual_amount_to_burn);
             iota_treasury_cap.burn_balance(balance_to_burn, ctx);
         };
-        computation_charges
+        (computation_charges, burnt_tokens_amount, minted_tokens_amount)
     }
 
     /// Return the current epoch number. Useful for applications that need a coarse-grained concept of time,
