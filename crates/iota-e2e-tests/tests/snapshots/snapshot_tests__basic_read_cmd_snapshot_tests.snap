@@ -1,0 +1,192 @@
+---
+source: crates/iota-e2e-tests/tests/snapshot_tests.rs
+expression: "run_one(cmds, context).await?"
+snapshot_kind: text
+---
+[
+  "iota client objects {ME}",
+  [
+    {
+      "data": {
+        "objectId": "0x0961eaacb436dd206f65eb1f4cd4c5a8c73be2cb0b24a2964eca932fd15c98b7",
+        "version": "1",
+        "digest": "2RYTKSpCHh3sYN8q5XSLVvyduSVXreewceYBJ2zgFbQp",
+        "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+        "owner": {
+          "AddressOwner": "0x43805ee3ad08540d9895ef4b916515f8dd00f561efdfde4f3650e910f35cc5ed"
+        },
+        "previousTransaction": "3Q2YEZ27udZFJbifL2j2C1Z3PXFzcGYiKtT8E9KMvaVM",
+        "storageRebate": "0",
+        "content": {
+          "dataType": "moveObject",
+          "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+          "fields": {
+            "balance": "30000000000000000",
+            "id": {
+              "id": "0x0961eaacb436dd206f65eb1f4cd4c5a8c73be2cb0b24a2964eca932fd15c98b7"
+            }
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "objectId": "0x7001d487239f98b59a168f425c9ed4d54bea715536ec733192b89f51a1ee2006",
+        "version": "1",
+        "digest": "ChXsSvMeKJsZXVZwjFLaqS9vEWdo3gYhGpsCdkmj8zMR",
+        "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+        "owner": {
+          "AddressOwner": "0x43805ee3ad08540d9895ef4b916515f8dd00f561efdfde4f3650e910f35cc5ed"
+        },
+        "previousTransaction": "3Q2YEZ27udZFJbifL2j2C1Z3PXFzcGYiKtT8E9KMvaVM",
+        "storageRebate": "0",
+        "content": {
+          "dataType": "moveObject",
+          "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+          "fields": {
+            "balance": "30000000000000000",
+            "id": {
+              "id": "0x7001d487239f98b59a168f425c9ed4d54bea715536ec733192b89f51a1ee2006"
+            }
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "objectId": "0x7f9828d9cc2564b34fadaa8f63facbfaacc06fdbc7d621c63570a6ffd56f6813",
+        "version": "1",
+        "digest": "3exvVi38md3fKxFM2vFHZomyaFers12hL2dcnAn4g8uF",
+        "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+        "owner": {
+          "AddressOwner": "0x43805ee3ad08540d9895ef4b916515f8dd00f561efdfde4f3650e910f35cc5ed"
+        },
+        "previousTransaction": "3Q2YEZ27udZFJbifL2j2C1Z3PXFzcGYiKtT8E9KMvaVM",
+        "storageRebate": "0",
+        "content": {
+          "dataType": "moveObject",
+          "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+          "fields": {
+            "balance": "30000000000000000",
+            "id": {
+              "id": "0x7f9828d9cc2564b34fadaa8f63facbfaacc06fdbc7d621c63570a6ffd56f6813"
+            }
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "objectId": "0xb9067eb2c0a2dc2bdd761e07b6bc18ced4236baa1afead3315612d5e28a60c66",
+        "version": "1",
+        "digest": "J9V1h33RNoFjopJ4PdqZ6cC5mmn6BMX7FAABYYcGiKFb",
+        "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+        "owner": {
+          "AddressOwner": "0x43805ee3ad08540d9895ef4b916515f8dd00f561efdfde4f3650e910f35cc5ed"
+        },
+        "previousTransaction": "3Q2YEZ27udZFJbifL2j2C1Z3PXFzcGYiKtT8E9KMvaVM",
+        "storageRebate": "0",
+        "content": {
+          "dataType": "moveObject",
+          "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+          "fields": {
+            "balance": "30000000000000000",
+            "id": {
+              "id": "0xb9067eb2c0a2dc2bdd761e07b6bc18ced4236baa1afead3315612d5e28a60c66"
+            }
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "objectId": "0xf327eed174f09cd77300a4200e74ad42f8a86de686fe5264d47b3583a592b360",
+        "version": "1",
+        "digest": "6rGwQrJmWdn1BRkxUw5tpFqcqimLdWGee3QD2dh6Tbb6",
+        "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+        "owner": {
+          "AddressOwner": "0x43805ee3ad08540d9895ef4b916515f8dd00f561efdfde4f3650e910f35cc5ed"
+        },
+        "previousTransaction": "3Q2YEZ27udZFJbifL2j2C1Z3PXFzcGYiKtT8E9KMvaVM",
+        "storageRebate": "0",
+        "content": {
+          "dataType": "moveObject",
+          "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+          "fields": {
+            "balance": "30000000000000000",
+            "id": {
+              "id": "0xf327eed174f09cd77300a4200e74ad42f8a86de686fe5264d47b3583a592b360"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "iota client objects 0x0000000000000000000000000000000000000000000000000000000000000000",
+  [],
+  "iota client object 0x5",
+  [
+    {
+      "data": {
+        "objectId": "0x0000000000000000000000000000000000000000000000000000000000000005",
+        "version": "1",
+        "digest": "9tur65cc1pQd8KUMMYFmSywqscunJkqcDq77ZJNM7SRF",
+        "type": "0x3::iota_system::IotaSystemState",
+        "owner": {
+          "Shared": {
+            "initial_shared_version": 1
+          }
+        },
+        "previousTransaction": "3Q2YEZ27udZFJbifL2j2C1Z3PXFzcGYiKtT8E9KMvaVM",
+        "storageRebate": "0",
+        "content": {
+          "dataType": "moveObject",
+          "type": "0x3::iota_system::IotaSystemState",
+          "fields": {
+            "id": {
+              "id": "0x0000000000000000000000000000000000000000000000000000000000000005"
+            },
+            "version": "1"
+          }
+        }
+      }
+    }
+  ],
+  "iota client object 0x5 --bcs",
+  [
+    {
+      "data": {
+        "objectId": "0x0000000000000000000000000000000000000000000000000000000000000005",
+        "version": "1",
+        "digest": "9tur65cc1pQd8KUMMYFmSywqscunJkqcDq77ZJNM7SRF",
+        "type": "0x3::iota_system::IotaSystemState",
+        "owner": {
+          "Shared": {
+            "initial_shared_version": 1
+          }
+        },
+        "previousTransaction": "3Q2YEZ27udZFJbifL2j2C1Z3PXFzcGYiKtT8E9KMvaVM",
+        "storageRebate": "0",
+        "bcs": {
+          "dataType": "moveObject",
+          "type": "0x3::iota_system::IotaSystemState",
+          "version": 1,
+          "bcsBytes": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUBAAAAAAAAAA=="
+        }
+      }
+    }
+  ],
+  "iota client object 0x0000000000000000000000000000000000000000000000000000000000000000",
+  [
+    {
+      "error": {
+        "code": "notExists",
+        "object_id": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  ],
+  "iota client tx-block 5zibcom3dMckjyN16ygFwr5XNa9Exi1MmY3BQs984x1N",
+  "ErrorObject { code: InvalidParams, message: \"Could not find the referenced transaction [TransactionDigest(5zibcom3dMckjyN16ygFwr5XNa9Exi1MmY3BQs984x1N)].\", data: None }",
+  "iota client tx-block 11111111111111111111111111111111",
+  "ErrorObject { code: InvalidParams, message: \"Could not find the referenced transaction [TransactionDigest(11111111111111111111111111111111)].\", data: None }"
+]
