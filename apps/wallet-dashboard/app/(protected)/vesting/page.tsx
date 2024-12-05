@@ -3,7 +3,7 @@
 
 'use client';
 
-import { UnstakeTimelockedObjectsDialog, Banner } from '@/components';
+import { UnstakeTimelockedObjectsDialog, Banner, StakeDialog, useStakeDialog } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
@@ -87,6 +87,17 @@ export default function VestingDashboardPage(): JSX.Element {
         [...timelockedMapped, ...timelockedstakedMapped],
         Number(currentEpochMs),
     );
+
+    const {
+        isDialogStakeOpen,
+        stakeDialogView,
+        setStakeDialogView,
+        selectedStake,
+        selectedValidator,
+        setSelectedValidator,
+        handleCloseStakeDialog,
+        handleNewStake,
+    } = useStakeDialog();
 
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...timelockedMapped, ...timelockedstakedMapped],
@@ -260,9 +271,7 @@ export default function VestingDashboardPage(): JSX.Element {
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"
                             subtitle="Earn Rewards"
-                            onButtonClick={() => {
-                                /*Add stake vested tokens dialog flow*/
-                            }}
+                            onButtonClick={() => handleNewStake()}
                             buttonText="Stake"
                         />
                     </>
@@ -274,44 +283,57 @@ export default function VestingDashboardPage(): JSX.Element {
                                 <span>Your stake</span>
                                 <span>{vestingSchedule.totalStaked}</span>
                             </div>
-                            <div className="flex flex-col items-center rounded-lg border p-4">
-                                <span>Total Unlocked</span>
-                                <span>{vestingSchedule.totalUnlocked}</span>
+                            <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
+                                {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
+                                    return (
+                                        <div
+                                            key={
+                                                timelockedStakedObject.validatorAddress +
+                                                timelockedStakedObject.stakeRequestEpoch +
+                                                timelockedStakedObject.label
+                                            }
+                                            className="flex w-full flex-row items-center justify-center space-x-4"
+                                        >
+                                            <span>
+                                                Validator:{' '}
+                                                {getValidatorByAddress(
+                                                    timelockedStakedObject.validatorAddress,
+                                                )?.name || timelockedStakedObject.validatorAddress}
+                                            </span>
+                                            <span>
+                                                Stake Request Epoch:{' '}
+                                                {timelockedStakedObject.stakeRequestEpoch}
+                                            </span>
+                                            <span>
+                                                Stakes: {timelockedStakedObject.stakes.length}
+                                            </span>
+
+                                            <Button
+                                                onClick={() =>
+                                                    handleUnstake(timelockedStakedObject)
+                                                }
+                                                text="Unstake"
+                                            />
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
-                        <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                            {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
-                                return (
-                                    <div
-                                        key={
-                                            timelockedStakedObject.validatorAddress +
-                                            timelockedStakedObject.stakeRequestEpoch +
-                                            timelockedStakedObject.label
-                                        }
-                                        className="flex w-full flex-row items-center justify-center space-x-4"
-                                    >
-                                        <span>
-                                            Validator:{' '}
-                                            {getValidatorByAddress(
-                                                timelockedStakedObject.validatorAddress,
-                                            )?.name || timelockedStakedObject.validatorAddress}
-                                        </span>
-                                        <span>
-                                            Stake Request Epoch:{' '}
-                                            {timelockedStakedObject.stakeRequestEpoch}
-                                        </span>
-                                        <span>Stakes: {timelockedStakedObject.stakes.length}</span>
-
-                                        <Button
-                                            onClick={() => handleUnstake(timelockedStakedObject)}
-                                            text="Unstake"
-                                        />
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <Button onClick={() => handleNewStake()} text="Stake" />
                     </div>
                 )}
+                <StakeDialog
+                    isTimelockedStaking={true}
+                    stakedDetails={selectedStake}
+                    onSuccess={handleOnSuccess}
+                    isOpen={isDialogStakeOpen}
+                    handleClose={handleCloseStakeDialog}
+                    view={stakeDialogView}
+                    setView={setStakeDialogView}
+                    selectedValidator={selectedValidator}
+                    setSelectedValidator={setSelectedValidator}
+                    maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+                />
             </div>
 
             {timelockedObjectsToUnstake && (

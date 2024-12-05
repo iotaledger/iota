@@ -28,7 +28,9 @@ export function TransactionSummary({
                 <div className="flex flex-col gap-3">
                     {isDryRun && (
                         <div className="pl-4.5">
-                            <span className="text-title-lg">Do you approve these actions?</span>
+                            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+                                Do you approve these actions?
+                            </span>
                         </div>
                     )}
                     <BalanceChanges changes={summary?.balanceChanges} />
