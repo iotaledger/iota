@@ -2,14 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import preset from '@iota/core/tailwind.config';
 import { type Config } from 'tailwindcss';
 import animatePlugin from 'tailwindcss-animate';
 // Note: exception for the tailwind preset import
 import uiKitStaticPreset from '../../apps/ui-kit/src/lib/tailwind/static.preset';
 
 export default {
-    presets: [preset, uiKitStaticPreset],
+    presets: [uiKitStaticPreset],
     content: ['./src/**/*.{js,jsx,ts,tsx}', './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}'],
     theme: {
         extend: {
