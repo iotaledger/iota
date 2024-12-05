@@ -14,9 +14,8 @@ import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-u
 import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
-import { Collapsible } from '_app/shared/collapse';
 import { useFeature } from '@growthbook/growthbook-react';
-import { Feature } from '@iota/core';
+import { Feature, Collapsible } from '@iota/core';
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {

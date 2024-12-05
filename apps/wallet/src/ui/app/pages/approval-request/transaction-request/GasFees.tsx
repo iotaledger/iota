@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TitleSize, Badge, BadgeType, Title, Panel } from '@iota/apps-ui-kit';
-import { Collapsible } from '_src/ui/app/shared/collapse';
 import { GasSummary } from '_src/ui/app/shared/transaction-summary/cards/GasSummary';
-import { type GasSummaryType } from '@iota/core';
+import { type GasSummaryType, Collapsible } from '@iota/core';
 
 interface GasFeesProps {
     sender?: string;

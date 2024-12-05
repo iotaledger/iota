@@ -75,6 +75,7 @@ export { default as SortByDefault } from './SortByDefault';
 export { default as SortByDown } from './SortByDown';
 export { default as SortByUp } from './SortByUp';
 export { default as Stake } from './Stake';
+export { default as StarHex } from './StarHex';
 export { default as SwapAccount } from './SwapAccount';
 export { default as ThumbUp } from './ThumbUp';
 export { default as Tokens } from './Tokens';
