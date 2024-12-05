@@ -2,14 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import {
-    useFormatCoin,
-    useBalance,
-    CoinFormat,
-    parseAmount,
-    useCoinMetadata,
-    useStakeTxnInfo,
-} from '@iota/core';
+import { useFormatCoin, CoinFormat, useStakeTxnInfo } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
@@ -25,39 +18,38 @@ import {
     InfoBox,
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
-import { Exclamation } from '@iota/ui-icons';
+import { Exclamation, Loader } from '@iota/ui-icons';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 
 import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout/Layout';
+import { Layout, LayoutBody, LayoutFooter } from './Layout';
 
 export interface FormValues {
     amount: string;
 }
 
-interface EnterAmountViewProps {
+interface EnterTimelockedAmountViewProps {
     selectedValidator: string;
+    maxStakableTimelockedAmount: bigint;
     onBack: () => void;
     onStake: () => void;
-    showActiveStatus?: boolean;
     gasBudget?: string | number | null;
     handleClose: () => void;
+    hasGroupedTimelockObjects?: boolean;
     isTransactionLoading?: boolean;
 }
 
-function EnterAmountView({
+function EnterTimelockedAmountView({
     selectedValidator: selectedValidatorAddress,
+    maxStakableTimelockedAmount,
+    hasGroupedTimelockObjects,
     onBack,
     onStake,
-    gasBudget = 0,
+    gasBudget,
     handleClose,
     isTransactionLoading,
-}: EnterAmountViewProps): JSX.Element {
-    const coinType = IOTA_TYPE_ARG;
-    const { data: metadata } = useCoinMetadata(coinType);
-    const decimals = metadata?.decimals ?? 0;
-
+}: EnterTimelockedAmountViewProps): JSX.Element {
     const account = useCurrentAccount();
     const accountAddress = account?.address;
 
@@ -65,34 +57,24 @@ function EnterAmountView({
     const amount = values.amount;
 
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const { data: iotaBalance } = useBalance(accountAddress!);
-    const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
+    const [gas, symbol] = useFormatCoin(gasBudget ?? 0, IOTA_TYPE_ARG);
 
-    const gasBudgetBigInt = BigInt(gasBudget ?? 0);
-    const [gas, symbol] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
-
-    const maxTokenBalance = coinBalance - gasBudgetBigInt;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
-        maxTokenBalance,
+        maxStakableTimelockedAmount,
         IOTA_TYPE_ARG,
         CoinFormat.FULL,
     );
 
-    const caption = isTransactionLoading
-        ? '--'
-        : `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
+    const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,
     );
 
-    const hasEnoughRemaingBalance =
-        maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
-
     return (
-        <DialogLayout>
+        <Layout>
             <Header title="Enter amount" onClose={handleClose} onBack={onBack} titleCentered />
-            <DialogLayoutBody>
+            <LayoutBody>
                 <div className="flex w-full flex-col justify-between">
                     <div>
                         <div className="mb-md">
@@ -127,16 +109,16 @@ function EnterAmountView({
                                             errorMessage={
                                                 values.amount && meta.error ? meta.error : undefined
                                             }
-                                            caption={coinBalance ? caption : ''}
+                                            caption={caption}
                                         />
                                     );
                                 }}
                             </Field>
-                            {!hasEnoughRemaingBalance ? (
+                            {!hasGroupedTimelockObjects && !isTransactionLoading ? (
                                 <div className="mt-md">
                                     <InfoBox
                                         type={InfoBoxType.Error}
-                                        supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                                        supportingText="It is not possible to combine timelocked objects to stake the entered amount. Please try a different amount."
                                         style={InfoBoxStyle.Elevated}
                                         icon={<Exclamation />}
                                     />
@@ -167,21 +149,32 @@ function EnterAmountView({
                         </Panel>
                     </div>
                 </div>
-            </DialogLayoutBody>
-            <DialogLayoutFooter>
+            </LayoutBody>
+            <LayoutFooter>
                 <div className="flex w-full justify-between gap-sm">
                     <Button fullWidth type={ButtonType.Secondary} onClick={onBack} text="Back" />
                     <Button
                         fullWidth
                         type={ButtonType.Primary}
+                        disabled={
+                            !amount ||
+                            !!errors?.amount ||
+                            isTransactionLoading ||
+                            !hasGroupedTimelockObjects
+                        }
                         onClick={onStake}
-                        disabled={!amount || !!errors?.amount}
                         text="Stake"
+                        icon={
+                            isTransactionLoading ? (
+                                <Loader className="animate-spin" data-testid="loading-indicator" />
+                            ) : null
+                        }
+                        iconAfterText
                     />
                 </div>
-            </DialogLayoutFooter>
-        </DialogLayout>
+            </LayoutFooter>
+        </Layout>
     );
 }
 
-export default EnterAmountView;
+export default EnterTimelockedAmountView;
