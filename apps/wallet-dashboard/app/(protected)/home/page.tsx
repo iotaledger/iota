@@ -20,12 +20,14 @@ function HomeDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
 
+    const { migratableBasicOutputs, migratableNftOutputs } =
+        useGetStardustMigratableObjects(address);
+
     const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
-    const { migratableBasicOutputs, migratableNftOutputs } = useGetStardustMigratableObjects(
-        address,
-        stardustMigrationEnabled,
-    );
-    const needsMigration = migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0;
+    const needsMigration = stardustMigrationEnabled
+        ? (stardustMigrationEnabled && migratableBasicOutputs.length > 0) ||
+          migratableNftOutputs.length > 0
+        : false;
     return (
         <main className="flex flex-1 flex-col items-center space-y-8 py-md">
             {connectionStatus === 'connected' && account && (
