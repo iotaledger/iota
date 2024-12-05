@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout iota repo develop branch
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           fetch-depth: 0
           ref: develop
@@ -63,7 +63,7 @@ jobs:
           echo "release_notes=${rel_notes}" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # pin@v4
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -78,7 +78,7 @@ jobs:
           echo "slack_id=$(echo ${slack_id} | tr -d '"')" >> $GITHUB_ENV
 
       - name: Post to a Slack channel
-        uses: slackapi/slack-github-action@34c3fd73326693ef04728f8611669d918a2d781d # pin@v1.19.0
+        uses: slackapi/slack-github-action@34c3fd73326693ef04728f8611669d918a2d781d # v1.19.0
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         with:

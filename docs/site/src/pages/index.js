@@ -116,7 +116,7 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="./operator/iota-full-node"
+              to="./operator/iota-full-node/overview"
             >
               Run a IOTA Full node
               <span className="block bg-auto bg-[url(/img/index/right-arrow.svg)]"></span>
