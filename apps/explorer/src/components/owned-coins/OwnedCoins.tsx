@@ -230,7 +230,7 @@ export function NoObjectsOwnedMessage({
     objectType,
 }: NoObjectsOwnedMessageProps): React.JSX.Element {
     return (
-        <div className="flex h-full items-center justify-center md:h-coinsAndAssetsContainer">
+        <div className="md:h-coinsAndAssetsContainer flex h-full items-center justify-center">
             <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
                 No {objectType} Owned
             </span>
