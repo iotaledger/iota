@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cost_table_for_version"]};
