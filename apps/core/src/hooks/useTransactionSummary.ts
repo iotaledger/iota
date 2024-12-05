@@ -7,14 +7,14 @@ import {
 } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
-import { getBalanceChangeSummary } from '../utils/transaction/getBalanceChangeSummary';
-import { getGasSummary } from '../utils/transaction/getGasSummary';
-import { getLabel } from '../utils/transaction/getLabel';
+import { IotaObjectChangeWithDisplay } from '../types';
 import {
+    getBalanceChangeSummary,
+    getGasSummary,
+    getLabel,
     getObjectChangeSummary,
-    IotaObjectChangeWithDisplay,
-} from '../utils/transaction/getObjectChangeSummary';
-import { getObjectDisplayLookup } from '../utils/transaction/getObjectDisplayLookup';
+    getObjectDisplayLookup,
+} from '../utils';
 import { useMultiGetObjects } from './useMultiGetObjects';
 
 export function useTransactionSummary({
