@@ -9,7 +9,7 @@ import {
     StakingOverview,
     MigrationOverview,
 } from '@/components';
-import { useStardustMigratableObjects } from '@/lib/utils';
+import { useGetStardustMigratableObjects } from '@/hooks';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
@@ -19,12 +19,14 @@ function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
     const address = account?.address || '';
-    const { migratableBasicOutputs, migratableNftOutputs } = useStardustMigratableObjects(address);
+    const { migratableBasicOutputs, migratableNftOutputs } =
+        useGetStardustMigratableObjects(address);
 
     const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
-    const needsMigration =
-        stardustMigrationEnabled &&
-        (migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0);
+    const needsMigration = stardustMigrationEnabled
+        ? (stardustMigrationEnabled && migratableBasicOutputs.length > 0) ||
+          migratableNftOutputs.length > 0
+        : false;
 
     return (
         <main className="flex flex-1 flex-col items-center space-y-8 py-md">

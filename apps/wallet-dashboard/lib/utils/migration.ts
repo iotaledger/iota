@@ -1,13 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
-import {
-    CommonOutputObjectWithUc,
-    STARDUST_BASIC_OUTPUT_TYPE,
-    STARDUST_NFT_OUTPUT_TYPE,
-    useGetAllOwnedObjects,
-} from '@iota/core';
+import { CommonOutputObjectWithUc } from '@iota/core';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 
 export type StardustMigrationGroupedObjects = {
@@ -54,30 +48,4 @@ export function groupStardustObjectsByMigrationStatus(
     }
 
     return { migratable, unmigratable };
-}
-
-export function useStardustMigratableObjects(address: string): {
-    migratableBasicOutputs: IotaObjectData[];
-    migratableNftOutputs: IotaObjectData[];
-} {
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
-    const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_BASIC_OUTPUT_TYPE,
-    });
-    const { data: nftOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_NFT_OUTPUT_TYPE,
-    });
-    const { migratable: migratableBasicOutputs } = groupStardustObjectsByMigrationStatus(
-        basicOutputObjects ?? [],
-        Number(currentEpochMs),
-        address,
-    );
-
-    const { migratable: migratableNftOutputs } = groupStardustObjectsByMigrationStatus(
-        nftOutputObjects ?? [],
-        Number(currentEpochMs),
-        address,
-    );
-
-    return { migratableBasicOutputs, migratableNftOutputs };
 }
