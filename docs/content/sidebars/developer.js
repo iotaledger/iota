@@ -304,7 +304,8 @@ const developer = [
                 ],
             },
             'contribute',
-        ]
+        ],
+    },
     {
         type: 'category',
         label: 'Cryptography',
