@@ -303,7 +303,7 @@ const developer = [
                     },
                 ],
             },
-            'contribute',
+            'developer/iota-identity/contribute',
         ],
     },
     {
