@@ -3,7 +3,7 @@
 'use client';
 import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { Card, CardImage, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
-import { useFormatCoin, ImageIcon, ImageIconSize } from '@iota/core';
+import { useFormatCoin, ImageIcon, ImageIconSize, useStakeRewardStatus } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 
@@ -11,50 +11,48 @@ export interface StakedTimelockObjectProps {
     timelockedStakedObject: TimelockedStakedObjectsGrouped;
     handleUnstake: (timelockedStakedObject: TimelockedStakedObjectsGrouped) => void;
     getValidatorByAddress: (validatorAddress: string) => IotaValidatorSummary | undefined;
+    currentEpoch: number;
 }
 
 export function StakedTimelockObject({
     getValidatorByAddress,
     timelockedStakedObject,
     handleUnstake,
+    currentEpoch,
 }: StakedTimelockObjectProps) {
     const name =
         getValidatorByAddress(timelockedStakedObject.validatorAddress)?.name ||
         timelockedStakedObject.validatorAddress;
-    const sum = timelockedStakedObject.stakes.reduce(
+
+    // TODO probably we could calculate estimated reward on grouping stage.
+    const summary = timelockedStakedObject.stakes.reduce(
         (acc, stake) => {
             const estimatedReward = stake.status === 'Active' ? stake.estimatedReward : 0;
 
             return {
                 principal: Number(stake.principal) + acc.principal,
                 estimatedReward: Number(estimatedReward) + acc.estimatedReward,
+                stakeRequestEpoch: stake.stakeRequestEpoch,
             };
         },
         {
             principal: 0,
             estimatedReward: 0,
+            stakeRequestEpoch: '',
         },
     );
 
-    const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin(sum.principal, IOTA_TYPE_ARG);
-    const [estimatedRewardFormatted, estimatedRewardSymbol] = useFormatCoin(
-        sum.estimatedReward,
+    const supportingText = useStakeRewardStatus({
+        currentEpoch,
+        stakeRequestEpoch: summary.stakeRequestEpoch,
+        estimatedReward: summary.estimatedReward,
+        inactiveValidator: false,
+    });
+
+    const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin(
+        summary.principal,
         IOTA_TYPE_ARG,
     );
-
-    const supportingText = (() => {
-        if (timelockedStakedObject.stakes.every((s) => s.status === 'Active')) {
-            return {
-                title: 'Estimated Reward',
-                subtitle: `${estimatedRewardFormatted} ${estimatedRewardSymbol}`,
-            };
-        }
-
-        return {
-            title: 'Stake Request Epoch',
-            subtitle: timelockedStakedObject.stakeRequestEpoch,
-        };
-    })();
 
     return (
         <Card onClick={() => handleUnstake(timelockedStakedObject)}>

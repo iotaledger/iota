@@ -54,7 +54,12 @@ import {
     useCountdownByTimestamp,
     Feature,
 } from '@iota/core';
-import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import {
+    useCurrentAccount,
+    useIotaClient,
+    useIotaClientQuery,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Calendar, StarHex } from '@iota/ui-icons';
@@ -68,6 +73,7 @@ function VestingDashboardPage(): JSX.Element {
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { addNotification } = useNotifications();
     const { openPopup, closePopup } = usePopups();
@@ -359,20 +365,24 @@ function VestingDashboardPage(): JSX.Element {
                         </div>
                         <div className="flex flex-col px-lg py-sm">
                             <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                                {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
-                                    return (
-                                        <StakedTimelockObject
-                                            key={
-                                                timelockedStakedObject.validatorAddress +
-                                                timelockedStakedObject.stakeRequestEpoch +
-                                                timelockedStakedObject.label
-                                            }
-                                            getValidatorByAddress={getValidatorByAddress}
-                                            timelockedStakedObject={timelockedStakedObject}
-                                            handleUnstake={handleUnstake}
-                                        />
-                                    );
-                                })}
+                                {system &&
+                                    timelockedStakedObjectsGrouped?.map(
+                                        (timelockedStakedObject) => {
+                                            return (
+                                                <StakedTimelockObject
+                                                    key={
+                                                        timelockedStakedObject.validatorAddress +
+                                                        timelockedStakedObject.stakeRequestEpoch +
+                                                        timelockedStakedObject.label
+                                                    }
+                                                    getValidatorByAddress={getValidatorByAddress}
+                                                    timelockedStakedObject={timelockedStakedObject}
+                                                    handleUnstake={handleUnstake}
+                                                    currentEpoch={Number(system.epoch)}
+                                                />
+                                            );
+                                        },
+                                    )}
                             </div>
                         </div>
                     </Panel>
