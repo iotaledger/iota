@@ -4,7 +4,10 @@
 
 import MigratePopup from '@/components/Popup/Popups/MigratePopup';
 import { useGetCurrentEpochStartTimestamp, usePopups } from '@/hooks';
-import { summarizeMigrationValues, groupStardustObjectsByMigrationStatus } from '@/lib/utils';
+import {
+    summarizeMigratableObjectValues,
+    groupStardustObjectsByMigrationStatus,
+} from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -117,10 +120,9 @@ function MigrationDashboardPage(): JSX.Element {
         accumulatedIotaAmount: accumulatedTimelockedIotaAmount,
         totalNativeTokens,
         totalVisualAssets,
-    } = summarizeMigrationValues({
-        basicOutputObjects: migratableBasicOutputs,
-        nftOutputObjects: migratableNftOutputs,
-        epochUnix: Number(currentEpochMs),
+    } = summarizeMigratableObjectValues({
+        migratableBasicOutputs,
+        migratableNftOutputs,
         address,
     });
 
@@ -217,6 +219,21 @@ function MigrationDashboardPage(): JSX.Element {
                         />
                         <div className="flex flex-col gap-xs p-md--rs">
                             {MIGRATION_CARDS.map((card) => (
+                                <Card key={card.subtitle}>
+                                    <CardImage shape={ImageShape.SquareRounded}>
+                                        <card.icon />
+                                    </CardImage>
+                                    <CardBody title={card.title} subtitle={card.subtitle} />
+                                </Card>
+                            ))}
+                            <Button text="See All" type={ButtonType.Ghost} fullWidth />
+                        </div>
+                    </Panel>
+
+                    <Panel>
+                        <Title title="Time-locked Assets" />
+                        <div className="flex flex-col gap-xs p-md--rs">
+                            {TIMELOCKED_ASSETS_CARDS.map((card) => (
                                 <Card key={card.subtitle}>
                                     <CardImage shape={ImageShape.SquareRounded}>
                                         <card.icon />

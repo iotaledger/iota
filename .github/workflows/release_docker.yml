@@ -33,17 +33,26 @@ jobs:
     environment: release
     steps:
       - name: Checkout code
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - name: Read Rust toolchain version from TOML
+        id: read_toolchain
+        run: |
+          TOOLCHAIN_VERSION=$(grep -oE 'channel = "[^"]+' ./rust-toolchain.toml | sed 's/channel = "//')
+          echo "TOOLCHAIN_VERSION=${TOOLCHAIN_VERSION}" >> $GITHUB_ENV
+
+      - name: Log Rust toolchain version
+        run: echo "Rust toolchain version is ${{ env.TOOLCHAIN_VERSION }}"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # pin@v3
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # pin@v3
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
 
       - name: Docker meta for iota-node
         id: meta-node
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
         with:
           images: iotaledger/iota-node
           # mapping semver tags to networks
@@ -61,7 +70,7 @@ jobs:
             type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Login to Docker Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
@@ -74,10 +83,12 @@ jobs:
           echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Build and push Docker image for iota-node
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # pin@v6
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
           context: .
           file: docker/iota-node/Dockerfile
+          build-args: |
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
           platforms: linux/amd64
           tags: ${{ steps.meta-node.outputs.tags }}
           push: true
@@ -92,17 +103,26 @@ jobs:
     environment: release
     steps:
       - name: Checkout code
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - name: Read Rust toolchain version from TOML
+        id: read_toolchain
+        run: |
+          TOOLCHAIN_VERSION=$(grep -oE 'channel = "[^"]+' ./rust-toolchain.toml | sed 's/channel = "//')
+          echo "TOOLCHAIN_VERSION=${TOOLCHAIN_VERSION}" >> $GITHUB_ENV
+
+      - name: Log Rust toolchain version
+        run: echo "Rust toolchain version is ${{ env.TOOLCHAIN_VERSION }}"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # pin@v3
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # pin@v3
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
 
       - name: Docker meta for iota-indexer
         id: meta-indexer
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
         with:
           images: iotaledger/iota-indexer
           # mapping semver tags to networks
@@ -120,7 +140,7 @@ jobs:
             type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Login to Docker Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
@@ -133,10 +153,12 @@ jobs:
           echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Build and push Docker image for iota-indexer
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # pin@v6
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
           context: .
           file: docker/iota-indexer/Dockerfile
+          build-args: |
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
           platforms: linux/amd64
           tags: ${{ steps.meta-indexer.outputs.tags }}
           push: true
@@ -151,17 +173,26 @@ jobs:
     environment: release
     steps:
       - name: Checkout code
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - name: Read Rust toolchain version from TOML
+        id: read_toolchain
+        run: |
+          TOOLCHAIN_VERSION=$(grep -oE 'channel = "[^"]+' ./rust-toolchain.toml | sed 's/channel = "//')
+          echo "TOOLCHAIN_VERSION=${TOOLCHAIN_VERSION}" >> $GITHUB_ENV
+
+      - name: Log Rust toolchain version
+        run: echo "Rust toolchain version is ${{ env.TOOLCHAIN_VERSION }}"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # pin@v3
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # pin@v3
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
 
       - name: Docker meta for iota-tools
         id: meta-tools
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
         with:
           images: iotaledger/iota-tools
           # mapping semver tags to networks
@@ -179,7 +210,7 @@ jobs:
             type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Login to Docker Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
@@ -192,10 +223,12 @@ jobs:
           echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Build and push Docker image for iota-tools
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # pin@v6
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
           context: .
           file: docker/iota-tools/Dockerfile
+          build-args: |
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
           platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
@@ -210,17 +243,26 @@ jobs:
     environment: release
     steps:
       - name: Checkout code
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - name: Read Rust toolchain version from TOML
+        id: read_toolchain
+        run: |
+          TOOLCHAIN_VERSION=$(grep -oE 'channel = "[^"]+' ./rust-toolchain.toml | sed 's/channel = "//')
+          echo "TOOLCHAIN_VERSION=${TOOLCHAIN_VERSION}" >> $GITHUB_ENV
+
+      - name: Log Rust toolchain version
+        run: echo "Rust toolchain version is ${{ env.TOOLCHAIN_VERSION }}"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # pin@v3
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # pin@v3
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
 
       - name: Docker meta for iota-graphql-rpc
         id: meta-tools
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # pin@v5
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
         with:
           images: iotaledger/iota-graphql-rpc
           # mapping semver tags to networks
@@ -238,7 +280,7 @@ jobs:
             type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Login to Docker Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
@@ -251,10 +293,12 @@ jobs:
           echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Build and push Docker image for iota-graphql-rpc
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # pin@v6
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
           context: .
           file: docker/iota-graphql-rpc/Dockerfile
+          build-args: |
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
           platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true

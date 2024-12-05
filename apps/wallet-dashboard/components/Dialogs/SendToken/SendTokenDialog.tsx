@@ -7,7 +7,7 @@ import { CoinBalance } from '@iota/iota-sdk/client';
 import { useSendCoinTransaction, useNotifications } from '@/hooks';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { NotificationType } from '@/stores/notificationStore';
-import { useGetAllCoins } from '@iota/core';
+import { CoinFormat, useFormatCoin, useGetAllCoins } from '@iota/core';
 import { Dialog, DialogBody, DialogContent, DialogPosition, Header } from '@iota/apps-ui-kit';
 import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
@@ -33,19 +33,22 @@ function SendTokenDialogBody({
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>(coin);
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
+    const [fullAmount] = useFormatCoin(formData.amount, selectedCoin.coinType, CoinFormat.FULL);
     const { addNotification } = useNotifications();
 
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
 
     const { mutateAsync: signAndExecuteTransaction, isPending } = useSignAndExecuteTransaction();
+    const isPayAllIota =
+        selectedCoin.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG;
 
     const { data: transaction } = useSendCoinTransaction(
         coinsData || [],
-        selectedCoin?.coinType,
+        selectedCoin.coinType,
         activeAddress,
         formData.to,
-        formData.formattedAmount,
-        selectedCoin?.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG,
+        formData.amount,
+        isPayAllIota,
     );
 
     function handleTransfer() {
@@ -74,6 +77,11 @@ function SendTokenDialogBody({
     }
 
     function onBack(): void {
+        // The amount is formatted when submitting the enterValuesForm, so it is necessary to return to the previous value when backing out
+        setFormData({
+            ...formData,
+            amount: fullAmount,
+        });
         setStep(FormStep.EnterValues);
     }
 
@@ -103,10 +111,7 @@ function SendTokenDialogBody({
                             senderAddress={activeAddress}
                             isPending={isPending}
                             coinType={selectedCoin.coinType}
-                            isPayAllIota={
-                                selectedCoin.totalBalance === formData.amount &&
-                                selectedCoin.coinType === IOTA_TYPE_ARG
-                            }
+                            isPayAllIota={isPayAllIota}
                         />
                     )}
                 </DialogBody>

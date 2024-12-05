@@ -4,11 +4,10 @@
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Loading, NFTDisplayCard, Overlay } from '_components';
-import { useOwnedNFT } from '_hooks';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { TransferNFTForm } from './TransferNFTForm';
-import { useIsAssetTransferable } from '@iota/core';
+import { useOwnedNFT, useIsAssetTransferable } from '@iota/core';
 
 function NftTransferPage() {
     const { nftId } = useParams();

@@ -10,6 +10,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
+import { AssetDialog } from '@/components/Dialogs/Assets';
 
 const OBJECTS_PER_REQ = 50;
 
@@ -25,6 +26,7 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {
+    const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const account = useCurrentAccount();
     const { data, isFetching, fetchNextPage, hasNextPage } = useGetOwnedObjects(
@@ -49,6 +51,10 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         }
     }
 
+    function onAssetClick(asset: IotaObjectData) {
+        setSelectedAsset(asset);
+    }
+
     return (
         <Panel>
             <Title title="Assets" size={TitleSize.Medium} />
@@ -67,10 +73,14 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 <AssetList
                     assets={assets}
                     selectedCategory={selectedCategory}
+                    onClick={onAssetClick}
                     hasNextPage={hasNextPage}
                     isFetchingNextPage={isFetching}
                     fetchNextPage={fetchNextPage}
                 />
+                {selectedAsset && (
+                    <AssetDialog onClose={() => setSelectedAsset(null)} asset={selectedAsset} />
+                )}
             </div>
         </Panel>
     );
