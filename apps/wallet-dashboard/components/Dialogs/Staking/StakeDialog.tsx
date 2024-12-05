@@ -39,8 +39,8 @@ const INITIAL_VALUES = {
 interface StakeDialogProps {
     isOpen: boolean;
     handleClose: () => void;
-    view?: StakeDialogView;
-    setView?: (view: StakeDialogView) => void;
+    view: StakeDialogView | undefined;
+    setView: (view: StakeDialogView) => void;
     stakedDetails?: ExtendedDelegatedStake | null;
     maxStakableTimelockedAmount?: bigint;
     isTimelockedStaking?: boolean;
@@ -161,6 +161,7 @@ export function StakeDialog({
             },
             {
                 onSuccess: (tx) => {
+                    onSuccess?.(tx.digest);
                     addNotification('Stake transaction has been sent');
                     setTxDigest(tx.digest);
                     setView?.(StakeDialogView.TransactionDetails);
