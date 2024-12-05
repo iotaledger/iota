@@ -226,7 +226,14 @@ function MigrationDashboardPage(): JSX.Element {
                                     <CardBody title={card.title} subtitle={card.subtitle} />
                                 </Card>
                             ))}
-                            <Button text="See All" type={ButtonType.Ghost} fullWidth />
+                            <Button
+                                text="See All"
+                                type={ButtonType.Ghost}
+                                fullWidth
+                                onClick={() =>
+                                    setSelectedObjectsCategory(ObjectDetailsCategory.Migration)
+                                }
+                            />
                         </div>
                     </Panel>
 
@@ -246,36 +253,13 @@ function MigrationDashboardPage(): JSX.Element {
                                 type={ButtonType.Ghost}
                                 fullWidth
                                 onClick={() =>
-                                    setSelectedObjectsCategory(ObjectDetailsCategory.Migration)
-                                }
-                            />
-                        </div>
-                    </Panel>
-
-                    <Panel>
-                        <Title title="Time-locked Assets" />
-                        <div className="flex h-full flex-col gap-xs p-md--rs">
-                            <div className="flex flex-1 flex-col gap-xs">
-                                {TIMELOCKED_ASSETS_CARDS.map((card) => (
-                                    <Card key={card.subtitle}>
-                                        <CardImage shape={ImageShape.SquareRounded}>
-                                            <card.icon />
-                                        </CardImage>
-                                        <CardBody title={card.title} subtitle={card.subtitle} />
-                                    </Card>
-                                ))}
-                            </div>
-                            <Button
-                                text="See All"
-                                type={ButtonType.Ghost}
-                                fullWidth
-                                onClick={() =>
                                     setSelectedObjectsCategory(ObjectDetailsCategory.TimeLocked)
                                 }
                             />
                         </div>
                     </Panel>
                 </div>
+
                 {selectedObjectsCategory && objects && (
                     <MigrationObjectsPanel
                         objects={objects}
