@@ -3,9 +3,16 @@
 
 'use client';
 
-import { UnstakeTimelockedObjectsDialog, Banner, StakeDialog, useStakeDialog } from '@/components';
+import {
+    UnstakeTimelockedObjectsDialog,
+    Banner,
+    StakeDialog,
+    useStakeDialog,
+    VestingScheduleDialog,
+} from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import {
+    buildSupplyIncreaseVestingSchedule,
     formatDelegatedTimelockedStake,
     getLatestOrEarliestSupplyIncreaseVestingPayout,
     getVestingOverview,
@@ -60,6 +67,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
+    const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { addNotification } = useNotifications();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: activeValidators } = useGetActiveValidatorsInfo();
@@ -101,8 +109,18 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...timelockedMapped, ...timelockedstakedMapped],
+        Number(currentEpochMs),
         false,
     );
+
+    const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+        [...timelockedMapped, ...timelockedstakedMapped],
+        Number(currentEpochMs),
+        true,
+    );
+
+    const vestingPortfolio =
+        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
@@ -193,12 +211,15 @@ export default function VestingDashboardPage(): JSX.Element {
         setTimelockedObjectsToUnstake(delegatedTimelockedStake);
     }
 
+    function openReceiveTokenPopup(): void {
+        setIsVestingScheduleDialogOpen(true);
+    }
+
     useEffect(() => {
         if (!supplyIncreaseVestingEnabled) {
             router.push('/');
         }
     }, [router, supplyIncreaseVestingEnabled]);
-
     return (
         <>
             <div className="flex w-full max-w-xl flex-col gap-lg justify-self-center">
@@ -252,17 +273,19 @@ export default function VestingDashboardPage(): JSX.Element {
                             />
                             <CardAction
                                 type={CardActionType.Button}
-                                onClick={() => {
-                                    /*Open schedule dialog*/
-                                }}
+                                onClick={openReceiveTokenPopup}
                                 title="See All"
                                 buttonType={ButtonType.Secondary}
-                                buttonDisabled={
-                                    !vestingSchedule.availableStaking ||
-                                    vestingSchedule.availableStaking === 0
-                                }
+                                buttonDisabled={!vestingPortfolio}
                             />
                         </Card>
+                        {vestingPortfolio && (
+                            <VestingScheduleDialog
+                                open={isVestingScheduleDialogOpen}
+                                setOpen={setIsVestingScheduleDialogOpen}
+                                vestingPortfolio={vestingPortfolio}
+                            />
+                        )}
                     </div>
                 </Panel>
                 {timelockedstakedMapped.length === 0 ? (
@@ -283,41 +306,41 @@ export default function VestingDashboardPage(): JSX.Element {
                                 <span>Your stake</span>
                                 <span>{vestingSchedule.totalStaked}</span>
                             </div>
-                            <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                                {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
-                                    return (
-                                        <div
-                                            key={
-                                                timelockedStakedObject.validatorAddress +
-                                                timelockedStakedObject.stakeRequestEpoch +
-                                                timelockedStakedObject.label
-                                            }
-                                            className="flex w-full flex-row items-center justify-center space-x-4"
-                                        >
-                                            <span>
-                                                Validator:{' '}
-                                                {getValidatorByAddress(
-                                                    timelockedStakedObject.validatorAddress,
-                                                )?.name || timelockedStakedObject.validatorAddress}
-                                            </span>
-                                            <span>
-                                                Stake Request Epoch:{' '}
-                                                {timelockedStakedObject.stakeRequestEpoch}
-                                            </span>
-                                            <span>
-                                                Stakes: {timelockedStakedObject.stakes.length}
-                                            </span>
-
-                                            <Button
-                                                onClick={() =>
-                                                    handleUnstake(timelockedStakedObject)
-                                                }
-                                                text="Unstake"
-                                            />
-                                        </div>
-                                    );
-                                })}
+                            <div className="flex flex-col items-center rounded-lg border p-4">
+                                <span>Total Unlocked</span>
+                                <span>{vestingSchedule.totalUnlocked}</span>
                             </div>
+                        </div>
+                        <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
+                            {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
+                                return (
+                                    <div
+                                        key={
+                                            timelockedStakedObject.validatorAddress +
+                                            timelockedStakedObject.stakeRequestEpoch +
+                                            timelockedStakedObject.label
+                                        }
+                                        className="flex w-full flex-row items-center justify-center space-x-4"
+                                    >
+                                        <span>
+                                            Validator:{' '}
+                                            {getValidatorByAddress(
+                                                timelockedStakedObject.validatorAddress,
+                                            )?.name || timelockedStakedObject.validatorAddress}
+                                        </span>
+                                        <span>
+                                            Stake Request Epoch:{' '}
+                                            {timelockedStakedObject.stakeRequestEpoch}
+                                        </span>
+                                        <span>Stakes: {timelockedStakedObject.stakes.length}</span>
+
+                                        <Button
+                                            onClick={() => handleUnstake(timelockedStakedObject)}
+                                            text="Unstake"
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                         <Button onClick={() => handleNewStake()} text="Stake" />
                     </div>
@@ -335,7 +358,6 @@ export default function VestingDashboardPage(): JSX.Element {
                     maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
                 />
             </div>
-
             {timelockedObjectsToUnstake && (
                 <UnstakeTimelockedObjectsDialog
                     groupedTimelockedObjects={timelockedObjectsToUnstake}
