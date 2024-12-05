@@ -3,7 +3,13 @@
 
 'use client';
 
-import { Banner, TimelockedUnstakePopup, VestingScheduleDialog } from '@/components';
+import {
+    Banner,
+    StakeDialog,
+    TimelockedUnstakePopup,
+    useStakeDialog,
+    VestingScheduleDialog,
+} from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     buildSupplyIncreaseVestingSchedule,
@@ -88,6 +94,17 @@ function VestingDashboardPage(): JSX.Element {
         [...timelockedMapped, ...timelockedstakedMapped],
         Number(currentEpochMs),
     );
+
+    const {
+        isDialogStakeOpen,
+        stakeDialogView,
+        setStakeDialogView,
+        selectedStake,
+        selectedValidator,
+        setSelectedValidator,
+        handleCloseStakeDialog,
+        handleNewStake,
+    } = useStakeDialog();
 
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...timelockedMapped, ...timelockedstakedMapped],
@@ -288,9 +305,7 @@ function VestingDashboardPage(): JSX.Element {
                         videoSrc={videoSrc}
                         title="Stake Vested Tokens"
                         subtitle="Earn Rewards"
-                        onButtonClick={() => {
-                            /*Add stake vested tokens dialog flow*/
-                        }}
+                        onButtonClick={() => handleNewStake()}
                         buttonText="Stake"
                     />
                 </>
@@ -338,8 +353,21 @@ function VestingDashboardPage(): JSX.Element {
                             );
                         })}
                     </div>
+                    <Button onClick={() => handleNewStake()} text="Stake" />
                 </div>
             )}
+            <StakeDialog
+                isTimelockedStaking={true}
+                stakedDetails={selectedStake}
+                onSuccess={handleOnSuccess}
+                isOpen={isDialogStakeOpen}
+                handleClose={handleCloseStakeDialog}
+                view={stakeDialogView}
+                setView={setStakeDialogView}
+                selectedValidator={selectedValidator}
+                setSelectedValidator={setSelectedValidator}
+                maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+            />
         </div>
     );
 }

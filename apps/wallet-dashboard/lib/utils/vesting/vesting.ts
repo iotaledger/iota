@@ -188,7 +188,7 @@ export function getVestingOverview(
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs > currentEpochTimestamp &&
-            current.locked.value > MIN_STAKING_THRESHOLD
+            current.locked.value >= MIN_STAKING_THRESHOLD
                 ? acc + current.locked.value
                 : acc,
         0,
