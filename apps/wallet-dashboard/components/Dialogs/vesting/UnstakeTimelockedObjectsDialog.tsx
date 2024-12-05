@@ -4,8 +4,8 @@
 import clsx from 'clsx';
 import type { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ValidatorStakingData } from '@/components';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { Validator } from '../views/Validator';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../layout';
+import { Validator } from '../Staking/views/Validator';
 import { useState } from 'react';
 import { useNotifications, useTimelockedUnstakeTransaction } from '@/hooks';
 import {

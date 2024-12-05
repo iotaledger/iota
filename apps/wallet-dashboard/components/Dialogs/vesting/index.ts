@@ -3,3 +3,4 @@
 
 export * from './VestingScheduleDialog';
 export * from './VestingScheduleBox';
+export * from './UnstakeTimelockedObjectsDialog';

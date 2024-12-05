@@ -56,7 +56,6 @@ import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Calendar, StarHex } from '@iota/ui-icons';
-import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -64,17 +63,20 @@ export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
         useState<TimelockedStakedObjectsGrouped | null>(null);
     const account = useCurrentAccount();
-    const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { addNotification } = useNotifications();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: activeValidators } = useGetActiveValidatorsInfo();
-    const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
-        StructType: TIMELOCK_IOTA_TYPE,
-    });
-    const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
+    const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
+        account?.address || '',
+        {
+            StructType: TIMELOCK_IOTA_TYPE,
+        },
+    );
+    const { data: timelockedStakedObjects, refetch: refetchTimelockedStakedObjects } =
+        useGetTimelockedStakedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 
@@ -163,25 +165,16 @@ export default function VestingDashboardPage(): JSX.Element {
     );
 
     function handleOnSuccess(digest: string): void {
+        setTimelockedObjectsToUnstake(null);
+
         iotaClient
             .waitForTransaction({
                 digest,
             })
             .then(() => {
-                queryClient.invalidateQueries({
-                    queryKey: ['get-timelocked-staked-objects', account?.address],
-                });
-                queryClient.invalidateQueries({
-                    queryKey: [
-                        'get-all-owned-objects',
-                        account?.address,
-                        {
-                            StructType: TIMELOCK_IOTA_TYPE,
-                        },
-                    ],
-                });
+                refetchTimelockedStakedObjects();
+                refetchGetAllOwnedObjects();
             });
-        setTimelockedObjectsToUnstake(null);
     }
 
     const handleCollect = () => {
