@@ -242,16 +242,21 @@ const config = {
             to: "developer",
           },
           {
-            label: "TS SDK",
-            to: "references/ts-sdk/typescript/",
-          },
-          {
             label: "Node Operators",
             to: "operator",
           },
           {
             label: "References",
             to: "references",
+          },
+          {
+            label: "TS SDK",
+            to: "references/ts-sdk/typescript/",
+            activeBaseRegex: "references/ts-sdk/*"
+          },
+          {
+            label: "IOTA Identity",
+            to: "iota-identity/welcome/",
           },
         ],
       },
