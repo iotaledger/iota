@@ -20,6 +20,8 @@ import {
     getSupplyIncreaseVestingUserType,
 } from './vesting';
 
+const MOCKED_CURRENT_EPOCH_TIMESTAMP = 1733340503570; // Wednesday, 04 December 2024 19:28:23
+
 describe('get last supply increase vesting payout', () => {
     it('should get the object with highest expirationTimestampMs', () => {
         const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
@@ -30,7 +32,10 @@ describe('get last supply increase vesting payout', () => {
                 MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS.length - 1
             ];
 
-        const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(timelockedObjects);
+        const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+            timelockedObjects,
+            MOCKED_CURRENT_EPOCH_TIMESTAMP,
+        );
 
         expect(lastPayout?.expirationTimestampMs).toEqual(expectedObject.expirationTimestampMs);
         expect(lastPayout?.amount).toEqual(expectedObject.locked.value);
@@ -61,7 +66,10 @@ describe('build supply increase staker vesting portfolio', () => {
     it('should build with mocked timelocked objects', () => {
         const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
 
-        const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(timelockedObjects);
+        const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+            timelockedObjects,
+            MOCKED_CURRENT_EPOCH_TIMESTAMP,
+        );
 
         expect(lastPayout).toBeDefined();
 
@@ -78,6 +86,7 @@ describe('build supply increase staker vesting portfolio', () => {
             formatDelegatedTimelockedStake(timelockedStakedObjects);
         const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
             extendedTimelockedStakedObjects,
+            MOCKED_CURRENT_EPOCH_TIMESTAMP,
         );
 
         expect(lastPayout).toBeDefined();
@@ -96,7 +105,10 @@ describe('build supply increase staker vesting portfolio', () => {
             formatDelegatedTimelockedStake(timelockedStakedObjects);
         const mixedObjects = [...timelockedObjects, ...extendedTimelockedStakedObjects];
 
-        const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(mixedObjects);
+        const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+            mixedObjects,
+            MOCKED_CURRENT_EPOCH_TIMESTAMP,
+        );
         expect(lastPayout).toBeDefined();
 
         const vestingPortfolio = buildVestingPortfolio(lastPayout!, Date.now());
@@ -209,7 +221,10 @@ describe('vesting overview', () => {
             formatDelegatedTimelockedStake(timelockedStakedObjects);
         const mixedObjects = [...timelockedObjects, ...extendedTimelockedStakedObjects];
 
-        const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(mixedObjects)!;
+        const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+            mixedObjects,
+            MOCKED_CURRENT_EPOCH_TIMESTAMP,
+        )!;
         const totalAmount =
             (SUPPLY_INCREASE_STAKER_VESTING_DURATION *
                 SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
