@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { EnterAmountView, EnterTimelockedAmountView, SelectValidatorView } from './views';
 import {
     useNotifications,
@@ -29,14 +29,8 @@ import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView, UnstakeView } from './views';
 import { FormValues } from './views/EnterAmountView';
-
-export enum StakeDialogView {
-    Details = 'Details',
-    SelectValidator = 'SelectValidator',
-    EnterAmount = 'EnterAmount',
-    EnterTimelockedAmount = 'EnterTimelockedAmount',
-    Unstake = 'Unstake',
-}
+import { TransactionDialogView } from '../TransactionDialog';
+import { StakeDialogView } from './enums/view.enums';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -45,8 +39,8 @@ const INITIAL_VALUES = {
 interface StakeDialogProps {
     isOpen: boolean;
     handleClose: () => void;
-    view?: StakeDialogView;
-    setView?: (view: StakeDialogView) => void;
+    view: StakeDialogView | undefined;
+    setView: (view: StakeDialogView) => void;
     stakedDetails?: ExtendedDelegatedStake | null;
     maxStakableTimelockedAmount?: bigint;
     isTimelockedStaking?: boolean;
@@ -71,6 +65,7 @@ export function StakeDialog({
     const senderAddress = account?.address ?? '';
     const { data: iotaBalance } = useBalance(senderAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
+    const [txDigest, setTxDigest] = useState<string>('');
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const coinDecimals = metadata?.decimals ?? 0;
@@ -166,19 +161,16 @@ export function StakeDialog({
             },
             {
                 onSuccess: (tx) => {
-                    if (onSuccess) {
-                        onSuccess(tx.digest);
-                    }
+                    onSuccess?.(tx.digest);
+                    addNotification('Stake transaction has been sent');
+                    setTxDigest(tx.digest);
+                    setView?.(StakeDialogView.TransactionDetails);
+                },
+                onError: () => {
+                    addNotification('Stake transaction was not sent', NotificationType.Error);
                 },
             },
-        )
-            .then(() => {
-                handleClose();
-                addNotification('Stake transaction has been sent');
-            })
-            .catch(() => {
-                addNotification('Stake transaction was not sent', NotificationType.Error);
-            });
+        );
     }
 
     function onSubmit(_: FormValues, { resetForm }: FormikHelpers<FormValues>) {
@@ -235,6 +227,9 @@ export function StakeDialog({
                             handleClose={handleClose}
                             showActiveStatus
                         />
+                    )}
+                    {view === StakeDialogView.TransactionDetails && (
+                        <TransactionDialogView txDigest={txDigest} onClose={handleClose} />
                     )}
                 </>
             </FormikProvider>
