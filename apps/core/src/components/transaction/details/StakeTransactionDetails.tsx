@@ -11,10 +11,10 @@ import type { GasSummaryType, RenderExplorerLink, RenderValidatorLogo } from '..
 
 interface StakeTransactionDetailsProps {
     event: IotaEvent;
+    activeAddress: string | null;
     renderExplorerLink: RenderExplorerLink;
     renderValidatorLogo: RenderValidatorLogo;
     gasSummary?: GasSummaryType;
-    activeAddress: string | null;
 }
 
 export function StakeTransactionDetails({
