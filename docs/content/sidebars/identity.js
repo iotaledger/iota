@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 const identity = [
-    'iota-identity/welcome',
+    'iota-identity/index',
     {
         type: 'category',
         label: 'Getting Started',

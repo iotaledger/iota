@@ -256,7 +256,7 @@ const config = {
           },
           {
             label: "IOTA Identity",
-            to: "iota-identity/welcome/",
+            to: "iota-identity",
           },
         ],
       },
