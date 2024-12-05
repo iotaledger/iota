@@ -51,8 +51,6 @@ import {
     useUnlockTimelockedObjectsTransaction,
     useCountdownByTimestamp,
     Feature,
-    ImageIcon,
-    ImageIconSize,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
@@ -61,6 +59,7 @@ import { Calendar, StarHex } from '@iota/ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { StakedTimelockObject } from '@/components';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -348,7 +347,7 @@ function VestingDashboardPage(): JSX.Element {
                             <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
                                 {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
                                     return (
-                                        <TimelockedStakedObject
+                                        <StakedTimelockObject
                                             key={
                                                 timelockedStakedObject.validatorAddress +
                                                 timelockedStakedObject.stakeRequestEpoch +
@@ -378,73 +377,6 @@ function VestingDashboardPage(): JSX.Element {
                 />
             </div>
         </div>
-    );
-}
-
-interface TimelockedStakedObjectProps {
-    timelockedStakedObject: TimelockedStakedObjectsGrouped;
-    handleUnstake: (timelockedStakedObject: TimelockedStakedObjectsGrouped) => void;
-    getValidatorByAddress: (validatorAddress: string) => IotaValidatorSummary | undefined;
-}
-function TimelockedStakedObject({
-    getValidatorByAddress,
-    timelockedStakedObject,
-    handleUnstake,
-}: TimelockedStakedObjectProps) {
-    const name =
-        getValidatorByAddress(timelockedStakedObject.validatorAddress)?.name ||
-        timelockedStakedObject.validatorAddress;
-    const sum = timelockedStakedObject.stakes.reduce(
-        (acc, stake) => {
-            const estimatedReward = stake.status === 'Active' ? stake.estimatedReward : 0;
-
-            return {
-                principal: Number(stake.principal) + acc.principal,
-                estimatedReward: Number(estimatedReward) + acc.estimatedReward,
-            };
-        },
-        {
-            principal: 0,
-            estimatedReward: 0,
-        },
-    );
-
-    const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin(sum.principal, IOTA_TYPE_ARG);
-    const [estimatedRewardFormatted, estimatedRewardSymbol] = useFormatCoin(
-        sum.estimatedReward,
-        IOTA_TYPE_ARG,
-    );
-
-    const supportingText = (() => {
-        if (timelockedStakedObject.stakes.every((s) => s.status === 'Active')) {
-            return {
-                title: 'Estimated Reward',
-                subtitle: `${estimatedRewardFormatted} ${estimatedRewardSymbol}`,
-            };
-        }
-
-        return {
-            title: 'Stake Request Epoch',
-            subtitle: timelockedStakedObject.stakeRequestEpoch,
-        };
-    })();
-
-    return (
-        <Card onClick={() => handleUnstake(timelockedStakedObject)}>
-            <CardImage>
-                <ImageIcon src={null} label={name} fallback={name} size={ImageIconSize.Large} />
-            </CardImage>
-            <CardBody
-                title={name}
-                subtitle={`${sumPrincipalFormatted} ${sumPrincipalSymbol}`}
-                isTextTruncated
-            />
-            <CardAction
-                type={CardActionType.SupportingText}
-                title={supportingText.title}
-                subtitle={supportingText.subtitle}
-            />
-        </Card>
     );
 }
 

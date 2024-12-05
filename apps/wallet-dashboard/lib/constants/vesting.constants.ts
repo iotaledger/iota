@@ -24,7 +24,7 @@ export const MIN_STAKING_THRESHOLD = 1_000_000_000;
 
 // https://github.com/iotaledger/iota/blob/b0db487868fd5d61241a43eb8bc9886d7c1be1c9/crates/iota-types/src/timelock/stardust_upgrade_label.rs#L12
 export const SUPPLY_INCREASE_VESTING_LABEL =
-    '000000000000000000000000000000000000000000000000000000000000107a::stardust_upgrade_label::STARDUST_UPGRADE_LABEL';
+    '5ce90ecfdd8ca868860806ebe284bc3470a7c8c9eb56dc0fed93ccd80f3b0e6a::stardust_upgrade_label::STARDUST_UPGRADE_LABEL';
 
 export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject[] = [
     {
