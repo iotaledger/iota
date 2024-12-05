@@ -303,11 +303,7 @@ const developer = [
                     },
                 ],
             },
-            'glossary',
             'contribute',
-            'workflow',
-            'contact',
-            'faq',
         ]
     {
         type: 'category',
