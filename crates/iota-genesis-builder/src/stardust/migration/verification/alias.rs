@@ -12,23 +12,23 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    stardust::{
-        address_swap_map::AddressSwapMap,
-        output::{
-            ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Alias, AliasOutput,
-        },
+    stardust::output::{
+        ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Alias, AliasOutput,
     },
 };
 
-use crate::stardust::migration::{
-    executor::FoundryLedgerData,
-    verification::{
-        created_objects::CreatedObjects,
-        util::{
-            verify_address_owner, verify_issuer_feature, verify_metadata_feature,
-            verify_native_tokens, verify_parent, verify_sender_feature,
+use crate::stardust::{
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{
+            created_objects::CreatedObjects,
+            util::{
+                verify_address_owner, verify_issuer_feature, verify_metadata_feature,
+                verify_native_tokens, verify_parent, verify_sender_feature,
+            },
         },
     },
+    types::address_swap_map::AddressSwapMap,
 };
 
 pub(super) fn verify_alias_output(
