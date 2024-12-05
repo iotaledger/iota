@@ -52,6 +52,13 @@ impl AddressSwapMap {
 /// into a [`HashMap`] that maps origin addresses to tuples containing the
 /// destination address and a flag initialized to `false`.
 ///
+/// # Example CSV File
+/// ```csv
+/// Origin,Destination
+/// iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr,0x7f1c8e2fdb9a5c348a4e793bc0a612b2879d4e5bc3a846b2f22c7a3f9b46d2ce
+/// iota1qp7h2lkjhs6tk3uvlxqfjhlfw34atv63eqkpru356p6sgvr76eufyz1opkh,0x42d8c182eb1f3b2366d353eed4eb02a31d1d7982c0fd44683811d7036be3a85e
+/// ```
+///
 /// # Parameters
 /// - `file_path`: The relative path to the CSV file containing the address
 ///   mappings.
