@@ -89,5 +89,5 @@ test('check balance changes in Activity', async ({ page, extensionUrl }) => {
     await page.getByTestId('nav-activity').click();
     await expect(page.getByTestId('link-to-txn').first()).toBeVisible({ timeout });
     await page.getByTestId('link-to-txn').first().click();
-    await expect(page.getByText(`Successfully sent`, { exact: false })).toBeVisible();
+    await expect(page.getByText(`Successfully received`, { exact: false })).toBeVisible();
 });
