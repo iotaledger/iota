@@ -51,12 +51,13 @@ export function ReviewValuesFormView({
                             {Number(amount) !== 0 ? (
                                 <Card type={CardType.Filled}>
                                     <CardImage type={ImageType.BgSolid}>
-                                        <CoinIcon
-                                            coinType={coinType}
-                                            size={ImageIconSize.Small}
-                                            rounded
-                                            hasCoinWrapper
-                                        />
+                                        <div className="flex h-full w-full items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10 dark:text-neutral-92">
+                                            <CoinIcon
+                                                coinType={coinType}
+                                                rounded
+                                                size={ImageIconSize.Small}
+                                            />
+                                        </div>
                                     </CardImage>
                                     <CardBody
                                         title={`${isPayAllIota ? '~' : ''}${roundedAmount} ${symbol}`}

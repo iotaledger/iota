@@ -12,7 +12,6 @@ import {
     CardType,
     ImageType,
 } from '@iota/apps-ui-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface TxnAmountProps {
     amount: string | number | bigint;
@@ -30,11 +29,7 @@ export function TxnAmount({ amount, coinType, subtitle, approximation }: TxnAmou
         <Card type={CardType.Filled}>
             <CardImage type={ImageType.BgSolid}>
                 <div className="flex h-full w-full items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10 dark:text-neutral-92">
-                    <CoinIcon
-                        coinType={coinType}
-                        rounded
-                        size={coinType === IOTA_TYPE_ARG ? ImageIconSize.Small : ImageIconSize.Full}
-                    />
+                    <CoinIcon coinType={coinType} rounded size={ImageIconSize.Small} />
                 </div>
             </CardImage>
             <CardBody
