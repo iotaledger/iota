@@ -516,12 +516,7 @@ impl TokenDistributionSchedule {
     /// Helper to read a TokenDistributionSchedule from a csv file.
     ///
     /// The file is encoded such that the final entry in the CSV file is used to
-    /// denote the allocation to the stake subsidy fund. It must be in the
-    /// following format:
-    /// `0x0000000000000000000000000000000000000000000000000000000000000000,
-    /// <pre>minted supply</pre>,`
-    ///
-    /// All entries in a token distribution schedule must add up to 10B Iota.
+    /// denote the allocation to the stake subsidy fund.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
         let mut reader = csv::Reader::from_reader(reader);
         let mut allocations: Vec<TokenAllocation> =
@@ -626,5 +621,112 @@ impl TokenDistributionScheduleBuilder {
 
         schedule.validate();
         schedule
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ValidatorAllocation {
+    /// The validator address receiving the stake and/or gas payment
+    pub address: IotaAddress,
+    // The amount of nanos to stake to the validator
+    pub amount_nanos_to_stake: u64,
+    /// The amount of nanos to transfer as gas payment to the validator
+    pub amount_nanos_to_pay_gas: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct DelegatorDistribution {
+    /// The address from which take the nanos for staking/gas
+    pub delegator: IotaAddress,
+    /// The allocation to a validator receiving a stake and/or a gas payment
+    pub validator_allocation: ValidatorAllocation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct DelegatorMap {
+    // Maps a delegator address to a tuple containing the address of a validator (1nd element of
+    // the tuple) that will receive an amount of nanos to stake (2nd element) and an amount as gas
+    // payment (3rd element).
+    pub allocations: HashMap<IotaAddress, Vec<ValidatorAllocation>>,
+}
+
+impl DelegatorMap {
+    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
+        validators: I,
+        delegator: IotaAddress,
+    ) -> Self {
+        let default_allocation = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
+
+        let allocations = validators.into_iter().fold(
+            HashMap::new(),
+            |mut allocations: HashMap<IotaAddress, Vec<_>>, address| {
+                allocations
+                    .entry(delegator)
+                    .or_default()
+                    .push(ValidatorAllocation {
+                        address,
+                        amount_nanos_to_stake: default_allocation,
+                        amount_nanos_to_pay_gas: 0,
+                    });
+                allocations
+            },
+        );
+
+        Self { allocations }
+    }
+
+    /// Helper to read a DelegatorMap from a csv file.
+    ///
+    /// The file is encoded such that the final entry in the CSV file is used to
+    /// denote the allocation coming from a delegator. It must be in the
+    /// following format:
+    /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
+    /// <delegator1-address>,<validator-1-address>,2000000000000000,5000000000
+    /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
+    /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
+    pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
+        let mut reader = csv::Reader::from_reader(reader);
+
+        let allocations = reader
+            .deserialize::<DelegatorDistribution>()
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .fold(
+                HashMap::new(),
+                |mut allocations: HashMap<IotaAddress, Vec<_>>, allocation| {
+                    allocations
+                        .entry(allocation.delegator)
+                        .or_default()
+                        .push(allocation.validator_allocation);
+                    allocations
+                },
+            );
+
+        Ok(Self { allocations })
+    }
+
+    /// Helper to write a DelegatorMap into a csv file.
+    ///
+    /// It writes in the following format:
+    /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
+    /// <delegator1-address>,<validator-1-address>,2000000000000000,5000000000
+    /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
+    /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
+    pub fn to_csv<W: std::io::Write>(&self, writer: W) -> Result<()> {
+        let mut writer = csv::Writer::from_writer(writer);
+
+        for (&delegator, validators_allocations) in &self.allocations {
+            for &validator_allocation in validators_allocations {
+                writer.serialize(DelegatorDistribution {
+                    delegator,
+                    validator_allocation,
+                })?;
+            }
+        }
+
+        Ok(())
     }
 }

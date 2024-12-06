@@ -10,7 +10,7 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     IOTA_GENESIS_FILENAME,
-    genesis::{TokenDistributionScheduleBuilder, UnsignedGenesis},
+    genesis::{DelegatorMap, TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
 use iota_genesis_builder::{
     Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
@@ -118,6 +118,12 @@ pub enum CeremonyCommand {
         #[clap(long, name = "iota|<full-url>", help = "Remote migration snapshots.")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
+        #[clap(
+            long,
+            help = "Path to the delegator map file.",
+            name = "delegator_map.csv"
+        )]
+        delegator_map: Option<PathBuf>,
     },
     /// Examine the details of the built Genesis checkpoint.
     ExamineGenesisCheckpoint,
@@ -259,6 +265,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         CeremonyCommand::BuildUnsignedCheckpoint {
             local_migration_snapshots,
             remote_migration_snapshots,
+            delegator_map,
         } => {
             let local_snapshots = local_migration_snapshots
                 .into_iter()
@@ -271,6 +278,13 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             for source in local_snapshots.chain(remote_snapshots) {
                 builder = builder.add_migration_source(source);
             }
+
+            if let Some(delegator_map) = delegator_map {
+                let file = File::open(delegator_map)?;
+                let delegator_map = DelegatorMap::from_csv(file)?;
+                builder = builder.with_delegator_map(delegator_map);
+            }
+
             tokio::task::spawn_blocking(move || {
                 let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
                 println!(
@@ -472,6 +486,7 @@ mod test {
             command: CeremonyCommand::BuildUnsignedCheckpoint {
                 local_migration_snapshots: vec![],
                 remote_migration_snapshots: vec![],
+                delegator_map: None,
             },
         };
         command.run().await?;

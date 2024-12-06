@@ -19,8 +19,8 @@ use genesis_build_effects::GenesisBuildEffects;
 use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{
-        Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
-        UnsignedGenesis,
+        DelegatorMap, Genesis, GenesisCeremonyParameters, GenesisChainParameters,
+        TokenDistributionSchedule, UnsignedGenesis,
     },
     migration_tx_data::{MigrationTxData, TransactionsData},
 };
@@ -78,7 +78,7 @@ use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use stake::{GenesisStake, delegate_genesis_stake};
+use stake::GenesisStake;
 use stardust::migration::MigrationObjects;
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
@@ -115,6 +115,7 @@ pub struct Builder {
     migration_sources: Vec<SnapshotSource>,
     migration_tx_data: Option<MigrationTxData>,
     delegator: Option<String>,
+    delegator_map: Option<DelegatorMap>,
 }
 
 impl Default for Builder {
@@ -137,11 +138,17 @@ impl Builder {
             migration_sources: Default::default(),
             migration_tx_data: Default::default(),
             delegator: None,
+            delegator_map: None,
         }
     }
 
     pub fn with_delegator(mut self, delegator: String) -> Self {
         self.delegator = Some(delegator);
+        self
+    }
+
+    pub fn with_delegator_map(mut self, delegator_map: DelegatorMap) -> Self {
+        self.delegator_map = Some(delegator_map);
         self
     }
 
@@ -258,23 +265,27 @@ impl Builder {
     /// contains migrated objects.
     fn create_and_cache_genesis_stake(&mut self) -> anyhow::Result<()> {
         if !self.migration_objects.is_empty() {
-            if let Some(if_delegator_address) = &self.delegator {
-                let delegator = stardust_to_iota_address(
-                    Address::try_from_bech32(if_delegator_address).unwrap(),
+            let mut genesis_stake = GenesisStake::default();
+
+            let delegator_map = if let Some(delegator_map) = &self.delegator_map {
+                delegator_map.clone()
+            } else if let Some(delegator) = &self.delegator {
+                DelegatorMap::new_for_validators_with_default_allocation(
+                    self.validators.values().map(|v| v.info.iota_address()),
+                    stardust_to_iota_address(Address::try_from_bech32(delegator)?)?,
                 )
-                .unwrap();
-                // TODO: check whether we need to start with
-                // VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
-                let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
-                self.genesis_stake = delegate_genesis_stake(
-                    self.validators.values(),
+            } else {
+                bail!("no delegator/s assigned with a migration");
+            };
+
+            for (delegator, validators_allocations) in delegator_map.allocations {
+                genesis_stake.delegate_genesis_stake(
+                    &validators_allocations,
                     delegator,
                     &self.migration_objects,
-                    minimum_stake,
                 )?;
-            } else {
-                bail!("A genesis with migrated state should have a delegator assigned");
             }
+            self.genesis_stake = genesis_stake;
         }
         Ok(())
     }
@@ -828,7 +839,8 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources,
             migration_tx_data,
-            delegator: None,
+            delegator: None,     // todo: Probably need to load the delegator?
+            delegator_map: None, // todo: Probably need to load the delegator_map?
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
@@ -915,6 +927,8 @@ impl Builder {
                 .expect("migration data should exist")
                 .save(file)?;
         }
+
+        // todo: probably need to save the delegator and delegator_map?
 
         Ok(())
     }
