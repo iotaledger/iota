@@ -1019,7 +1019,7 @@ mod checked {
         }
     }
 
-    impl<'vm, 'state, 'a> TypeTagResolver for ExecutionContext<'vm, 'state, 'a> {
+    impl TypeTagResolver for ExecutionContext<'_, '_, '_> {
         /// Retrieves the `TypeTag` corresponding to the provided `Type` by
         /// querying the Move VM runtime.
         fn get_type_tag(&self, type_: &Type) -> Result<TypeTag, ExecutionError> {
@@ -1464,7 +1464,7 @@ mod checked {
     // TODO: `DataStore` will be reworked and this is likely to disappear.
     //       Leaving this comment around until then as testament to better days to
     // come...
-    impl<'state, 'a> DataStore for IotaDataStore<'state, 'a> {
+    impl DataStore for IotaDataStore<'_, '_> {
         fn link_context(&self) -> AccountAddress {
             self.linkage_view.link_context()
         }

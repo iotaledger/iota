@@ -15,7 +15,7 @@ use crate::{
     IotaProgrammableTransactionBlock, displays::Pretty,
 };
 
-impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {
+impl Display for Pretty<'_, IotaProgrammableTransactionBlock> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(ptb) = self;
         let IotaProgrammableTransactionBlock { inputs, commands } = ptb;
@@ -82,7 +82,7 @@ impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {
     }
 }
 
-impl<'a> Display for Pretty<'a, IotaCommand> {
+impl Display for Pretty<'_, IotaCommand> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(command) = self;
         match command {
@@ -141,7 +141,7 @@ impl<'a> Display for Pretty<'a, IotaCommand> {
     }
 }
 
-impl<'a> Display for Pretty<'a, IotaProgrammableMoveCall> {
+impl Display for Pretty<'_, IotaProgrammableMoveCall> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(move_call) = self;
         let IotaProgrammableMoveCall {
@@ -170,7 +170,7 @@ impl<'a> Display for Pretty<'a, IotaProgrammableMoveCall> {
     }
 }
 
-impl<'a> Display for Pretty<'a, IotaArgument> {
+impl Display for Pretty<'_, IotaArgument> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(argument) = self;
 

@@ -298,7 +298,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
     }
 }
 
-impl<'a> iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'a> {
+impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
     fn get_object(
         &self,
         object_id: &ObjectID,
