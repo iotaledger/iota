@@ -12,7 +12,10 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    stardust::output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
+    stardust::{
+        address_swap_map::AddressSwapMap,
+        output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
+    },
 };
 
 use crate::stardust::migration::{
@@ -35,6 +38,7 @@ pub(super) fn verify_nft_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
+    address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     let created_output_obj = created_objects.output().and_then(|id| {
         storage
@@ -61,7 +65,12 @@ pub(super) fn verify_nft_output(
             created_output_obj.owner,
         );
     } else {
-        verify_address_owner(output.address(), created_output_obj, "nft output")?;
+        verify_address_owner(
+            output.address(),
+            created_output_obj,
+            "nft output",
+            address_swap_map,
+        )?;
     }
 
     // NFT Owner

@@ -12,6 +12,7 @@ use iota_types::{
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::Owner,
+    stardust::address_swap_map::AddressSwapMap,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
         timelock::{TimeLock, is_timelocked_vested_reward},
@@ -39,6 +40,7 @@ pub(super) fn verify_basic_output(
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
     total_value: &mut u64,
+    address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
     if is_timelocked_vested_reward(output_id, output, target_milestone_timestamp) {
@@ -120,7 +122,12 @@ pub(super) fn verify_basic_output(
                 created_output_obj.owner,
             );
         } else {
-            verify_address_owner(output.address(), created_output_obj, "basic output")?;
+            verify_address_owner(
+                output.address(),
+                created_output_obj,
+                "basic output",
+                address_swap_map,
+            )?;
         }
 
         // Amount
@@ -191,7 +198,7 @@ pub(super) fn verify_basic_output(
             .as_coin_maybe()
             .ok_or_else(|| anyhow!("expected a coin"))?;
 
-        verify_address_owner(output.address(), created_coin_obj, "coin")?;
+        verify_address_owner(output.address(), created_coin_obj, "coin", address_swap_map)?;
         verify_coin(output.amount(), &created_coin)?;
         *total_value += created_coin.value();
 

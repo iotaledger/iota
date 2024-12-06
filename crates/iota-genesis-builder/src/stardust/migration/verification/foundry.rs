@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow, ensure};
 use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
     Identifier, base_types::IotaAddress, coin_manager::CoinManager,
-    in_memory_storage::InMemoryStorage, object::Owner,
+    in_memory_storage::InMemoryStorage, object::Owner, stardust::address_swap_map::AddressSwapMap,
 };
 use move_core_types::language_storage::ModuleId;
 
@@ -33,6 +33,7 @@ pub(super) fn verify_foundry_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     total_value: &mut u64,
+    address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())
@@ -54,7 +55,7 @@ pub(super) fn verify_foundry_output(
         .as_coin_maybe()
         .ok_or_else(|| anyhow!("expected a coin"))?;
 
-    verify_address_owner(alias_address, created_coin_obj, "coin")?;
+    verify_address_owner(alias_address, created_coin_obj, "coin", address_swap_map)?;
     verify_coin(output.amount(), &created_coin)?;
     *total_value += created_coin.value();
 
@@ -239,6 +240,7 @@ pub(super) fn verify_foundry_output(
         alias_address,
         coin_manager_treasury_cap_obj,
         "coin manager treasury cap",
+        address_swap_map,
     )?;
 
     verify_parent(&output_id, alias_address, storage)?;
