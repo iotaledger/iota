@@ -280,7 +280,7 @@ impl CheckpointReader {
 
         let mut read_source: &str = "local";
         if self.remote_store_url.is_some()
-            // && false
+            && false
             && (checkpoints.is_empty()
                 || checkpoints[0].checkpoint_summary.sequence_number
                     > self.current_checkpoint_number)
