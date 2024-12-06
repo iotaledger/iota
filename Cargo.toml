@@ -229,6 +229,9 @@ axum = { version = "0.7", default-features = false, features = [
   "ws",
 ] }
 axum-extra = { version = "0.9", features = ["typed-header"] }
+axum-server = { git = "https://github.com/bmwill/axum-server.git", rev = "f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7", version = "0.6", default-features = false, features = [
+  "tls-rustls",
+] }
 backoff = { version = "0.4.0", features = [
   "futures",
   "futures-core",
@@ -336,6 +339,7 @@ prometheus = "0.13.3"
 proptest = "1.1.0"
 proptest-derive = "0.3.0"
 prost = "0.13"
+protobuf = { version = "2.28", features = ["with-bytes"] }
 quinn-proto = "0.11.6"
 quote = "1.0.23"
 rand = "0.8.5"

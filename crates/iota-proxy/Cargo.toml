@@ -13,16 +13,16 @@ axum-server.workspace = true
 bytes.workspace = true
 clap.workspace = true
 const-str.workspace = true
+fastcrypto.workspace = true
 git-version.workspace = true
 hex.workspace = true
-http-body.workspace = true
 hyper.workspace = true
+iota-metrics.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
-ipnetwork.workspace = true
+ipnetwork = "0.20.0"
 itertools.workspace = true
-multiaddr.workspace = true
-mysten-metrics.workspace = true
+multiaddr = "0.17.0"
 once_cell.workspace = true
 prometheus.workspace = true
 prost.workspace = true
@@ -30,26 +30,24 @@ protobuf.workspace = true
 rand.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
-rustls-pemfile.workspace = true
+rustls-pemfile = "2.1.2"
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 snap.workspace = true
+telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 
-fastcrypto.workspace = true
-telemetry-subscribers.workspace = true
-
 [dev-dependencies]
 axum-server.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
-mime.workspace = true
+mime = "0.3"
 serde_json.workspace = true
 tower.workspace = true
 
 [build-dependencies]
-prost-build.workspace = true
+prost-build = "0.13.1"
