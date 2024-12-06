@@ -264,8 +264,8 @@ function VestingDashboardPage(): JSX.Element {
     }
 
     return (
-        <div className="flex w-full max-w-4xl items-stretch justify-center gap-lg justify-self-center">
-            <div className="flex w-1/2 flex-col gap-lg">
+        <div className="flex w-full max-w-4xl flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
+            <div className="flex w-full flex-col gap-lg md:w-1/2">
                 <Panel>
                     <Title title="Vesting" size={TitleSize.Medium} />
                     <div className="flex flex-col gap-md p-lg pt-sm">
@@ -344,7 +344,7 @@ function VestingDashboardPage(): JSX.Element {
             </div>
 
             {timelockedstakedMapped.length !== 0 ? (
-                <div className="flex w-1/2">
+                <div className="flex w-full md:w-1/2">
                     <Panel>
                         <Title
                             title="Staked Vesting"
