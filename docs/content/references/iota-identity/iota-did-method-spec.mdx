@@ -38,7 +38,7 @@ Storing DID Documents in the ledger state means they inherently benefit from the
 
 1. Conflicts among nodes are resolved and dealt with by the ledger.
 2. Replay attacks are mitigated since transactions need to be confirmed by the ledger.
-3. Through the `State Index` a linear history for updates of a DID Document is provided.
+3. Through the `Object version` a linear history for updates of a DID Document is provided.
 
 ## DID Method Name
 
@@ -53,24 +53,21 @@ The DIDs that follow this method have the following ABNF syntax. It uses the syn
 ```
 iota-did = "did:iota:" iota-specific-idstring
 iota-specific-idstring = [ iota-network ":" ] iota-tag
-iota-network = 8lowercase-hex
+iota-network = 8lowercase-alphanumeric-ascii
 iota-tag = "0x" 64lowercase-hex
 lowercase-hex = digit / "a" / "b" / "c" / "d" / "e" / "f"
 ```
 
-It starts with the string "did:iota:", followed by an optional network name (8 lowercase hexadecimal digits) and a colon, then the tag.
+It starts with the string "did:iota:", followed by an optional network id (8 lowercase alphanumeric ASCII characters) and a colon, then the tag.
 The tag starts with "0x" followed by a lowercase hex-encoded `Object ID`.
 
 ### IOTA-Network
 
 The iota-network is an identifier of the network where the DID is stored. This network must be an IOTA Ledger, but can either be a public or private network, permissionless or permissioned.
 
-When no IOTA network is specified, it is assumed that the DID is located on IOTA main network, having id **PUT IOTA CHAIN ID HERE**. This means that the following DIDs will resolve to the same DID Document:
+Official well known IOTA networks use an alias instead of the network's chain ID: e.g. Testnet has chain ID `2304aa97` and alias `testnet`, therefore DID `did:iota:2304aa97:0x0` and `did:iota:testnet:0x0` are the same.
 
-```
-did:iota:IOTA CHAIN ID:0xe4edef97da1257e83cbeb49159cfdd2da6ac971ac447f233f8439cf29376ebfe
-did:iota:0xe4edef97da1257e83cbeb49159cfdd2da6ac971ac447f233f8439cf29376ebfe
-```
+When no IOTA network is specified, it is assumed that the DID is located on IOTA main network.
 
 ### IOTA-Tag
 
@@ -94,11 +91,10 @@ The types are defined in [TIP-21](/tips/tips/TIP-0021/#data-types).
 
 The payload must contain the following fields:
 
-- `meta`: contains metadata about the DID Document. For example, `created` to indicate the time of
-  creation, and `updated` to indicate the time of the last update to the document. It may also include other properties.
+- `meta`: contains metadata about the DID Document. For example, `deactivated` is an optional boolean property that will be set to `true` when the DID Document is deactivated. It may also include other properties.
 - `doc`: contains the DID Document. In the example below, the document only contains one verification method. The `id` and `controller` is specified by `did:0:0` which references the DID of the document itself, since the DID is unknown at the time of publishing. It also deduplicates the DID of the document to reduce the size of the state metadata, in turn reducing the required storage deposit.
 
-Example State Metadata Document:
+Example Onchain Document:
 
 ```json
 {
@@ -164,6 +160,7 @@ The following steps can be used to read the latest DID Document associated with 
 5. Parse the retrieved object into an `Identity` object. 
 6. Decode the DID Document from its byte packed encoding stored in the `Identity` Object.
 7. Replace the placeholder `did:0:0` with the DID given as input.
+8. Replace the Document metadata's properties `created` and `updated` with the respective `created` and `updated` `Identity`'s property.
 
 ### Update
 
@@ -172,6 +169,9 @@ In a more detailed step-by-step description:
 
 1. Create a copy of the encoded DID document with the `Object ID` set explicitly.
 2. Pack the updated DID Document, as described in the [Anatomy of the encoded DID Document](#anatomy-of-the-encoded-did-document), and use it as the parameter to a call to `Identity::propose_update` API.
+
+If the invoking controller has enough voting power - e.g. it's the sole Identity's controller - the update will be carried out immediately. Otherwise:
+
 3. Query the generated `Proposal` object, and check if the threshold has been reached. If that's not the case wait for enough controllers to approve the proposal.
 4. Execute the approved proposal by invoking `Identity::execute_update`.
 
@@ -189,6 +189,34 @@ To permanently destroy a DID Document controllers need to go through a process s
 
 Note that this operation irreversibly and irrecoverably deletes the DID. This is because the `Object ID` from which an IOTA DID is derived (see [IOTA-Tag](#iota-tag)) is generated from the hash of the input transaction that created it, which cannot generally be replicated.
 
+## Legacy Stardust DID Documents and migrated Identities
+Legacy Stardust DID Documents encoded into an `AliasOutput`'s `state_metadata` do not support the whole range of operations that can be performed on on-chain Identities, but can still be resolved; below are the steps for their resolution:
+
+1. Obtain the `Object ID` from the DID by extracting the `iota-tag` from the DID, see [DID Format](#did-format).
+2. Obtain the network of the DID by extracting the `iota-network` from the DID, see [DID Format](#did-format).
+3. Query the Object corresponding to the `Object ID` using a node running the indexer, asserting that the network the node is connected to matches the previously extracted network ID.
+4. Assert that the `Object ID` of the returned Object matches the `Object ID` extracted from the DID. Return an error otherwise.
+5. Parse the retrieved object into a `stardust::Alias` object. 
+6. Decode the DID Document from its byte packed encoding stored in the `Alias` Object's `state_metadata` property.
+7. Replace the placeholder `did:0:0` with the DID given as input.
+
+In order to regain the ability to update their DID Document, users must **migrate** their legacy `stardust::Alias` object into an `Identity` by calling the `migrate` function. A migrated `Identity` has its `legacy_id` field set to the ID of the `Alias` from which the `Identity` was migrated.
+
+### Resolution of migrated Identities
+When a legacy DID Document is migrated into a new `Identity` the `Alias` that contained the DID Document gets consumed and is therefore not indexable anymore, thus the DID Document cannot be queried directly through its DID anymore. To work around this limitation an on-chain mapping between legacy `AliasID` and `Identity`'s ID is kept by a shared _Move_ object called the `MigrationRegistry`.
+Through the ledger's `MigrationRegistry` it's still possible to resolve a DID Document through its legacy `AliasID`:
+
+1. Obtain the `Object ID` from the DID by extracting the `iota-tag` from the DID, see [DID Format](#did-format).
+2. Obtain the network of the DID by extracting the `iota-network` from the DID, see [DID Format](#did-format).
+3. Query the `MigrationRegistry` and lookup `Object ID` obtaining the ID of the migrated `Identity` that wraps the request DID document.
+4. Query the `Identity` from the just found ID.
+5. Parse the retrieved object into an `Identity` object, making sure its `legacy_id` field is set to the `Object ID` derived from the initial DID. 
+6. Decode the DID Document from its byte packed encoding stored in the `Alias` Object's `state_metadata` property.
+7. Replace the placeholder `did:0:0` with the DID given as input.
+8. Add an entry to the DID Document's `alsoKnownAs` property with the DID derived from the `Identity`'s actual ID.
+
+Migrated Identities though can also be queried directly through their ID, hence the DID Document they wrap can be obtained through querying two distinct IDs: the Identity's and the legacy `AliasID`. This aspect, should be properly represented through the use of the DID Document's `alsoKnownAs` property: the DID used to query the document must be used to replace the placeholder IDs used throughout the document, whereas its second ID must appear among the values of the document's `alsoKnownAs` property.
+
 ## IOTA Identity standards
 
 The `did:iota` method is implemented in the [IOTA Identity framework](https://github.com/iotaledger/identity.rs). This framework supports a number of operations that are standardized, some are standardized across the SSI community, and some are the invention of the IOTA Foundation.
@@ -205,15 +233,9 @@ Currently standardized `services`:
 
 - [Revocation Bitmap Service](./revocation-bitmap-2022.mdx#revocation-bitmap-service)
 
-## Security Considerations
-
-```warning
-Security considerations that are inherent to the new iota 3 protocol?
-```
-
 ### Private Key Management
 
-All private keys or seeds used for the `did:iota` method should be equally well protected by the users. Private keys of the state controller and the governor are especially important as they control how keys are added or removed, providing full control over the identity.  
+All private keys or seeds used for the `did:iota` method should be equally well protected by the users. Controllers' private keys are especially important as they control how keys are added or removed, providing full control over the identity.  
 
 ## Privacy Considerations
 
