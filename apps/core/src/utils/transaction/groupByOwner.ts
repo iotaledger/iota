@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ObjectChangesByOwner, IotaObjectChangeWithDisplay } from './getObjectChangeSummary';
+import { IotaObjectChangeWithDisplay, ObjectChangesByOwner } from '../../types';
 import { getOwnerType } from './getOwnerType';
 
 const getOwner = (change: IotaObjectChangeWithDisplay) => {
