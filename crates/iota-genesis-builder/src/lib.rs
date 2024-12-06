@@ -263,13 +263,23 @@ impl Builder {
 
     /// Create and cache the [`GenesisStake`] if the builder
     /// contains migrated objects.
+    ///
+    /// Two cases can happen here:
+    /// 1. if a delegator map is given as input -> then use the map input to
+    ///    create and cache the genesis stake.
+    /// 2. if a delegator map is NOT given as input -> then use one default
+    ///    delegator passed as input and delegate the minimum required stake to
+    ///    all validators to create and cache the genesis stake.
     fn create_and_cache_genesis_stake(&mut self) -> anyhow::Result<()> {
         if !self.migration_objects.is_empty() {
             let mut genesis_stake = GenesisStake::default();
 
             let delegator_map = if let Some(delegator_map) = &self.delegator_map {
+                // Case 1 -> use the map input to create and cache the genesis stake
                 delegator_map.clone()
             } else if let Some(delegator) = &self.delegator {
+                // Case 2 -> use one default delegator passed as input and delegate the
+                // minimum required stake to all validators to create the genesis stake
                 DelegatorMap::new_for_validators_with_default_allocation(
                     self.validators.values().map(|v| v.info.iota_address()),
                     stardust_to_iota_address(Address::try_from_bech32(delegator)?)?,
@@ -292,55 +302,77 @@ impl Builder {
 
     /// Evaluate the genesis [`TokenDistributionSchedule`].
     ///
-    /// This merges conditionally the cached token distribution
-    /// (i.e. `self.token_distribution_schedule`)  with the genesis stake
-    /// resulting from the migrated state.
-    ///
-    /// If the cached token distribution schedule contains timelocked stake, it
-    /// is assumed that the genesis stake is already merged and no operation
-    /// is performed. This is the case where we load a [`Builder`] from disk
-    /// that has already built genesis with the migrated state.
+    /// There are 6 cases for evaluating this:
+    /// 1. The genesis is built WITHOUT migration
+    ///    1. and a schedule is given as input -> then just use the input
+    ///       schedule;
+    ///    2. and the schedule is NOT given as input -> then instantiate a
+    ///       default token distribution schedule for a genesis without
+    ///       migration.
+    /// 2. The genesis is built with migration,
+    ///    1. and token distribution schedule is given as input
+    ///       1. if the token distribution schedule contains a timelocked stake
+    ///          -> then just use the input schedule, because it was initialized
+    ///          for migration before this execution (this is the case where we
+    ///          load a [`Builder`] from disk that has already built genesis
+    ///          with the migrated state.);
+    ///       2. if the token distribution schedule does NOT contain any
+    ///          timelocked stake -> then fetch the cached the genesis stake and
+    ///          merge it to the token distribution schedule;
+    ///    2. and token distribution schedule is NOT given as input -> then
+    ///       fetch the cached genesis stake and initialize a new token
+    ///       distribution schedule with it.
     fn resolve_token_distribution_schedule(&mut self) -> TokenDistributionSchedule {
-        let validator_addresses = self.validators.values().map(|v| v.info.iota_address());
-        let token_distribution_schedule = self.token_distribution_schedule.take();
+        let is_genesis_with_migration = !self.migration_objects.is_empty();
         let stardust_total_supply_nanos =
             self.migration_sources.len() as u64 * STARDUST_TOTAL_SUPPLY_NANOS;
-        if self.genesis_stake.is_empty() {
-            token_distribution_schedule.unwrap_or_else(|| {
-                TokenDistributionSchedule::new_for_validators_with_default_allocation(
-                    validator_addresses,
-                )
-            })
-        } else if let Some(schedule) = token_distribution_schedule {
-            if schedule.contains_timelocked_stake() {
-                // Genesis stake is already included
-                schedule
+
+        if let Some(schedule_without_migration) = self.token_distribution_schedule.take() {
+            if !is_genesis_with_migration || schedule_without_migration.contains_timelocked_stake()
+            {
+                // Case 1.1 and 2.1.1
+                schedule_without_migration
             } else {
+                // Case 2.1.2
                 self.genesis_stake
                     .extend_token_distribution_schedule_without_migration(
-                        schedule,
+                        schedule_without_migration,
                         stardust_total_supply_nanos,
                     )
             }
+        } else if !is_genesis_with_migration {
+            // Case 1.2
+            TokenDistributionSchedule::new_for_validators_with_default_allocation(
+                self.validators.values().map(|v| v.info.iota_address()),
+            )
         } else {
+            // Case 2.2
             self.genesis_stake
                 .to_token_distribution_schedule(stardust_total_supply_nanos)
         }
     }
 
     fn build_and_cache_unsigned_genesis(&mut self) {
-        // Verify that all input data is valid
+        // Verify that all input data is valid.
+        // Check that if extra objects are present then it is allowed by the paramenters
+        // to add extra objects and it also validates the validator info
         self.validate_inputs().unwrap();
 
+        // If migration sources are present, then load them into memory.
+        // Otherwise do nothing.
         self.load_migration_sources()
             .expect("migration sources should be loaded without errors");
 
+        // If migration objects are present, then create and cache the genesis stake;
+        // this also prepares the data needed to resolve the token distribution
+        // schedule. Otherwise do nothing.
         self.create_and_cache_genesis_stake()
             .expect("genesis stake should be created without errors");
 
-        // Get the token distribution schedule without migration or merge it with
+        // Resolve the token distribution schedule based on inputs and a possible
         // genesis stake
         let token_distribution_schedule = self.resolve_token_distribution_schedule();
+
         // Verify that token distribution schedule is valid
         token_distribution_schedule.validate();
         token_distribution_schedule
@@ -349,17 +381,17 @@ impl Builder {
             )
             .expect("all validators should have the required stake");
 
-        let objects = self.objects.clone().into_values().collect::<Vec<_>>();
-
         // Finally build the genesis and migration data
         let (unsigned_genesis, migration_tx_data) = build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
             self.validators.values(),
-            objects,
+            self.objects.clone().into_values().collect::<Vec<_>>(),
             &mut self.genesis_stake,
             &mut self.migration_objects,
         );
+
+        // Store built data
         self.migration_tx_data = (!migration_tx_data.is_empty()).then_some(migration_tx_data);
         self.built_genesis = Some(unsigned_genesis);
         self.token_distribution_schedule = Some(token_distribution_schedule);

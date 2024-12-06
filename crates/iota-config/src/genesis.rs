@@ -563,7 +563,17 @@ impl TokenDistributionSchedule {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenAllocation {
+    /// Indicates the address that owns the tokens. It means that this
+    /// `TokenAllocation` can serve to stake some funds to the
+    /// `staked_with_validator` during genesis, but it's the `recipient_address`
+    /// which will receive the associated StakedIota (or TimelockedStakedIota)
+    /// object.
     pub recipient_address: IotaAddress,
+    /// Indicates an amount of nanos that is:
+    /// - minted for the `recipient_address` and staked to a validator, only in
+    ///   the case `staked_with_validator` is Some
+    /// - minted for the `recipient_address` and transferred that address,
+    ///   otherwise.
     pub amount_nanos: u64,
 
     /// Indicates if this allocation should be staked at genesis and with which
