@@ -21,15 +21,15 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     object::{Object, Owner},
     stardust::{
-        address_swap_map::AddressSwapMap,
         output::{Alias, Nft, unlock_conditions},
-        stardust_to_iota_address, stardust_to_iota_address_owner_maybe_swap,
+        stardust_to_iota_address,
     },
 };
 use tracing::warn;
 
 use crate::stardust::{
-    migration::executor::FoundryLedgerData, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
+    migration::executor::FoundryLedgerData,
+    types::{address_swap_map::AddressSwapMap, token_scheme::MAX_ALLOWED_U64_SUPPLY},
 };
 
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
@@ -282,8 +282,7 @@ pub(super) fn verify_address_owner(
     name: &str,
     address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
-    let expected_owner =
-        stardust_to_iota_address_owner_maybe_swap(owning_address, address_swap_map)?;
+    let expected_owner = address_swap_map.stardust_to_iota_address_owner(owning_address)?;
 
     ensure!(
         obj.owner == expected_owner,

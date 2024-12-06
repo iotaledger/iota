@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow, ensure};
 use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
     Identifier, base_types::IotaAddress, coin_manager::CoinManager,
-    in_memory_storage::InMemoryStorage, object::Owner, stardust::address_swap_map::AddressSwapMap,
+    in_memory_storage::InMemoryStorage, object::Owner,
 };
 use move_core_types::language_storage::ModuleId;
 
@@ -23,7 +23,7 @@ use crate::stardust::{
         },
     },
     native_token::package_data::NativeTokenPackageData,
-    types::token_scheme::SimpleTokenSchemeU64,
+    types::{address_swap_map::AddressSwapMap, token_scheme::SimpleTokenSchemeU64},
 };
 
 pub(super) fn verify_foundry_output(

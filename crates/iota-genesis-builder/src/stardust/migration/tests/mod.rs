@@ -23,7 +23,7 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    stardust::{address_swap_map::AddressSwapMap, coin_type::CoinType},
+    stardust::coin_type::CoinType,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
 };
 use move_binary_format::errors::VMError;
@@ -39,7 +39,10 @@ use crate::stardust::{
         },
         verification::created_objects::CreatedObjects,
     },
-    types::{output_header::OutputHeader, output_index::random_output_index},
+    types::{
+        address_swap_map::AddressSwapMap, output_header::OutputHeader,
+        output_index::random_output_index,
+    },
 };
 
 mod alias;

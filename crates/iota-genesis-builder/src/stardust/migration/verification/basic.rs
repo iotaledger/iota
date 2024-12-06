@@ -12,24 +12,26 @@ use iota_types::{
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    stardust::address_swap_map::AddressSwapMap,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
         timelock::{TimeLock, is_timelocked_vested_reward},
     },
 };
 
-use crate::stardust::migration::{
-    executor::FoundryLedgerData,
-    verification::{
-        created_objects::CreatedObjects,
-        util::{
-            verify_address_owner, verify_coin, verify_expiration_unlock_condition,
-            verify_metadata_feature, verify_native_tokens, verify_parent, verify_sender_feature,
-            verify_storage_deposit_unlock_condition, verify_tag_feature,
-            verify_timelock_unlock_condition,
+use crate::stardust::{
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{
+            created_objects::CreatedObjects,
+            util::{
+                verify_address_owner, verify_coin, verify_expiration_unlock_condition,
+                verify_metadata_feature, verify_native_tokens, verify_parent,
+                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
+                verify_timelock_unlock_condition,
+            },
         },
     },
+    types::address_swap_map::AddressSwapMap,
 };
 
 pub(super) fn verify_basic_output(

@@ -20,8 +20,7 @@ use iota_sdk::types::block::{
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     stardust::{
-        address_swap_map::AddressSwapMap, coin_type::CoinType,
-        output::basic::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address,
+        coin_type::CoinType, output::basic::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address,
     },
 };
 
@@ -33,7 +32,7 @@ use crate::stardust::{
             random_output_header, unlock_object,
         },
     },
-    types::output_header::OutputHeader,
+    types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
 };
 
 /// Test the id of a `BasicOutput` that is transformed to a simple coin.
