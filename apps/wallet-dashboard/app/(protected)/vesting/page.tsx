@@ -254,9 +254,18 @@ function VestingDashboardPage(): JSX.Element {
             router.push('/');
         }
     }, [router, supplyIncreaseVestingEnabled]);
+
+    if (istimelockedStakedObjectsLoading) {
+        return (
+            <div className="flex w-full max-w-4xl items-start justify-center justify-self-center">
+                <LoadingIndicator />
+            </div>
+        );
+    }
+
     return (
-        <div className="flex w-full max-w-4xl items-stretch gap-lg justify-self-center">
-            <div className="flex w-1/2">
+        <div className="flex w-full max-w-4xl items-stretch justify-center gap-lg justify-self-center">
+            <div className="flex w-1/2 flex-col gap-lg">
                 <Panel>
                     <Title title="Vesting" size={TitleSize.Medium} />
                     <div className="flex flex-col gap-md p-lg pt-sm">
@@ -322,13 +331,8 @@ function VestingDashboardPage(): JSX.Element {
                         )}
                     </div>
                 </Panel>
-            </div>
-            <div className="flex w-1/2">
-                {istimelockedStakedObjectsLoading ? (
-                    <div className="flex w-full items-start justify-center">
-                        <LoadingIndicator />
-                    </div>
-                ) : timelockedstakedMapped.length === 0 ? (
+
+                {timelockedstakedMapped.length === 0 ? (
                     <Banner
                         videoSrc={videoSrc}
                         title="Stake Vested Tokens"
@@ -336,7 +340,11 @@ function VestingDashboardPage(): JSX.Element {
                         onButtonClick={() => handleNewStake()}
                         buttonText="Stake"
                     />
-                ) : (
+                ) : null}
+            </div>
+
+            {timelockedstakedMapped.length !== 0 ? (
+                <div className="flex w-1/2">
                     <Panel>
                         <Title
                             title="Staked Vesting"
@@ -386,20 +394,20 @@ function VestingDashboardPage(): JSX.Element {
                             </div>
                         </div>
                     </Panel>
-                )}
-                <StakeDialog
-                    isTimelockedStaking
-                    stakedDetails={selectedStake}
-                    onSuccess={handleOnSuccess}
-                    isOpen={isDialogStakeOpen}
-                    handleClose={handleCloseStakeDialog}
-                    view={stakeDialogView}
-                    setView={setStakeDialogView}
-                    selectedValidator={selectedValidator}
-                    setSelectedValidator={setSelectedValidator}
-                    maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
-                />
-            </div>
+                </div>
+            ) : null}
+            <StakeDialog
+                isTimelockedStaking
+                stakedDetails={selectedStake}
+                onSuccess={handleOnSuccess}
+                isOpen={isDialogStakeOpen}
+                handleClose={handleCloseStakeDialog}
+                view={stakeDialogView}
+                setView={setStakeDialogView}
+                selectedValidator={selectedValidator}
+                setSelectedValidator={setSelectedValidator}
+                maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+            />
         </div>
     );
 }
