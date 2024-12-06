@@ -5,8 +5,8 @@ use core::time::Duration;
 use std::net::SocketAddr;
 
 use anyhow::{Context, Result};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_with::{serde_as, DurationSeconds};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_with::{DurationSeconds, serde_as};
 use tracing::debug;
 
 #[serde_as]
@@ -40,9 +40,9 @@ pub struct RemoteWriteConfig {
     pub pool_max_idle_per_host: usize,
 }
 
-/// DynamicPeerValidationConfig controls what iota-node binaries that are
-/// functioning as a validator that we'll speak with. Peer in this case is peers
-/// within the consensus committee, for each epoch.  This membership is
+/// DynamicPeerValidationConfig controls what iota-node & iota-bridge binaries
+/// that are functioning as a validator that we'll speak with. Peer in this case
+/// is peers within the consensus committee, for each epoch.  This membership is
 /// determined dynamically for each epoch via json-rpc calls to a full node.
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -84,8 +84,6 @@ pub struct StaticPeerValidationConfig {
 pub struct StaticPubKey {
     /// friendly name we will see in metrics
     pub name: String,
-    /// friendly ip address we may see in metrics
-    pub p2p_address: String,
     /// the peer_id from a node config file (Ed25519 PublicKey)
     pub peer_id: String,
 }

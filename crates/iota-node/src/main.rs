@@ -8,7 +8,7 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::{metrics, IotaNode};
+use iota_node::{IotaNode, metrics};
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,

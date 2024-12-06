@@ -7,10 +7,10 @@ use anyhow::Result;
 use clap::Parser;
 use iota_proxy::{
     admin::{
-        app, create_server_cert_default_allow, create_server_cert_enforce_peer,
-        make_reqwest_client, server, Labels,
+        Labels, app, create_server_cert_default_allow, create_server_cert_enforce_peer,
+        make_reqwest_client, server,
     },
-    config::{load, ProxyConfig},
+    config::{ProxyConfig, load},
     histogram_relay, metrics,
 };
 use iota_tls::TlsAcceptor;
@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
     let listener = std::net::TcpListener::bind(config.listen_address).unwrap();
 
     let (tls_config, allower) =
-        // we'll only use the dynamic peers in some cases - it makes little sense to run with the statics
+        // we'll only use the dynamic peers in some cases - it makes little sense to run with the static's
         // since this first mode allows all.
         if config.dynamic_peers.certificate_file.is_none() || config.dynamic_peers.private_key.is_none() {
             (
@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
     let registry_service = metrics::start_prometheus_server(metrics_listener);
     let prometheus_registry = registry_service.default_registry();
     prometheus_registry
-        .register(mysten_metrics::uptime_metric(
+        .register(iota_metrics::uptime_metric(
             "iota-proxy",
             VERSION,
             "unavailable",

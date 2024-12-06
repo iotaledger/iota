@@ -9,22 +9,20 @@ use axum::{
 };
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
-use prometheus::{register_counter_vec, register_histogram_vec, CounterVec, HistogramVec};
+use prometheus::{CounterVec, HistogramVec, register_counter_vec, register_histogram_vec};
 
 use crate::{
     admin::{Labels, ReqwestClient},
-    consumer::{convert_to_remote_write, populate_labels, NodeMetric},
+    consumer::{NodeMetric, convert_to_remote_write, populate_labels},
     histogram_relay::HistogramRelay,
     middleware::LenDelimProtobuf,
     peers::IotaPeer,
 };
 
 static HANDLER_HITS: Lazy<CounterVec> = Lazy::new(|| {
-    register_counter_vec!(
-        "http_handler_hits",
-        "Number of HTTP requests made.",
-        &["handler", "remote"]
-    )
+    register_counter_vec!("http_handler_hits", "Number of HTTP requests made.", &[
+        "handler", "remote"
+    ])
     .unwrap()
 });
 
@@ -50,9 +48,7 @@ pub async fn publish_metrics(
     Extension(labels): Extension<Labels>,
     Extension(client): Extension<ReqwestClient>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Extension(IotaPeer {
-        name, public_key, ..
-    }): Extension<IotaPeer>,
+    Extension(IotaPeer { name, public_key }): Extension<IotaPeer>,
     Extension(relay): Extension<HistogramRelay>,
     LenDelimProtobuf(data): LenDelimProtobuf,
 ) -> (StatusCode, &'static str) {
@@ -64,14 +60,11 @@ pub async fn publish_metrics(
         .start_timer();
     let data = populate_labels(name, labels.network, labels.inventory_hostname, data);
     relay.submit(data.clone());
-    let response = convert_to_remote_write(
-        client.clone(),
-        NodeMetric {
-            data,
-            peer_addr: Multiaddr::from(addr.ip()),
-            public_key,
-        },
-    )
+    let response = convert_to_remote_write(client.clone(), NodeMetric {
+        data,
+        peer_addr: Multiaddr::from(addr.ip()),
+        public_key,
+    })
     .await;
     timer.observe_duration();
     response
