@@ -77,6 +77,7 @@ fi
 
 
 for IOTA_MOVE_ANALYZER_BIN in "${BIN_FILES[@]}"; do
+    echo "Processing" $IOTA_MOVE_ANALYZER_BIN
     # Extract just the file name
     FILE_NAME=${IOTA_MOVE_ANALYZER_BIN##*/}
     # Get the OS target
@@ -100,9 +101,16 @@ for IOTA_MOVE_ANALYZER_BIN in "${BIN_FILES[@]}"; do
     rm -rf $LANG_SERVER_DIR
     mkdir $LANG_SERVER_DIR
 
-    cp $IOTA_MOVE_ANALYZER_BIN $LANG_SERVER_DIR
+    # Copy renamed
+    if [[ "$IOTA_MOVE_ANALYZER_BIN" == *.exe ]]; then
+        cp $IOTA_MOVE_ANALYZER_BIN $LANG_SERVER_DIR/move-analyzer.exe
+    else
+        cp $IOTA_MOVE_ANALYZER_BIN $LANG_SERVER_DIR/move-analyzer
+        # Make binaries executable
+        chmod +x $LANG_SERVER_DIR/move-analyzer
+    fi
 
-    VSCODE_OS=${SUPPORTED_OS[$DIST_OS]}
+    VSCODE_OS=${SUPPORTED_OS[$OS_TARGET]}
     vsce "$OP" ${OPTS//VSCODE_OS/$VSCODE_OS} --target "$VSCODE_OS"
 
     rm -rf $LANG_SERVER_DIR
