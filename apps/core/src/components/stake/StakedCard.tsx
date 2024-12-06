@@ -11,22 +11,6 @@ import { ExtendedDelegatedStake } from '../../utils';
 import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
 import React from 'react';
 
-export enum StakeState {
-    WarmUp = 'WARM_UP',
-    Earning = 'EARNING',
-    CoolDown = 'COOL_DOWN',
-    Withdraw = 'WITHDRAW',
-    InActive = 'IN_ACTIVE',
-}
-
-export const STATUS_COPY: { [key in StakeState]: string } = {
-    [StakeState.WarmUp]: 'Starts Earning',
-    [StakeState.Earning]: 'Staking Rewards',
-    [StakeState.CoolDown]: 'Available to withdraw',
-    [StakeState.Withdraw]: 'Withdraw',
-    [StakeState.InActive]: 'Inactive',
-};
-
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
     currentEpoch: number;

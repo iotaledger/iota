@@ -5,7 +5,6 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '../constants';
 import { useFormatCoin, useGetTimeBeforeEpochNumber, useTimeAgo, TimeUnit } from '.';
 import { determineCountDownText } from '../utils';
-import { StakeState, STATUS_COPY } from '../components/stake/StakedCard';
 
 export function useStakeRewardStatus({
     stakeRequestEpoch,
@@ -75,3 +74,19 @@ export function useStakeRewardStatus({
         subtitle: STATUS_COPY[delegationState],
     };
 }
+export enum StakeState {
+    WarmUp = 'WARM_UP',
+    Earning = 'EARNING',
+    CoolDown = 'COOL_DOWN',
+    Withdraw = 'WITHDRAW',
+    InActive = 'IN_ACTIVE',
+}
+export const STATUS_COPY: {
+    [key in StakeState]: string;
+} = {
+    [StakeState.WarmUp]: 'Starts Earning',
+    [StakeState.Earning]: 'Staking Rewards',
+    [StakeState.CoolDown]: 'Available to withdraw',
+    [StakeState.Withdraw]: 'Withdraw',
+    [StakeState.InActive]: 'Inactive',
+};
