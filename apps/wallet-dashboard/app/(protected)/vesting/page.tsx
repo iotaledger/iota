@@ -289,7 +289,7 @@ function VestingDashboardPage(): JSX.Element {
                                 buttonType={ButtonType.Primary}
                                 buttonDisabled={
                                     !vestingSchedule.availableClaiming ||
-                                    vestingSchedule.availableClaiming === 0
+                                    vestingSchedule.availableClaiming === 0n
                                 }
                             />
                         </Card>
