@@ -3,9 +3,6 @@ name: Release Move IDE to VS Marketplace
 on:
   ## Allow triggering this workflow manually via GitHub CLI/web
   workflow_dispatch:
-  push:
-    branches:
-      - "dev-tools/publish-move-ide"
 
 env:
   CARGO_TERM_COLOR: always
