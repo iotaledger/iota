@@ -68,12 +68,6 @@ jobs:
           export os_type="${system_os}-${arch}"
           echo "os_type=${system_os}-${arch}" >> $GITHUB_ENV
 
-      - name: Install nexttest (Windows)
-        if: ${{ matrix.os == 'windows-latest' }}
-        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
-        with:
-          tool: nextest
-
       - name: Cargo build for ${{ matrix.os }} platform
         shell: bash
         run: |
