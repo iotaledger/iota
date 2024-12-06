@@ -1,4 +1,4 @@
-# Marketplace Guide
+# Marketplace Extension Usage
 
 ## Modules
 
