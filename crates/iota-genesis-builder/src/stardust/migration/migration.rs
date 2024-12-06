@@ -243,7 +243,7 @@ impl Migration {
     /// Verify the ledger state represented by the objects in
     /// [`InMemoryStorage`](iota_types::in_memory_storage::InMemoryStorage).
     pub fn verify_ledger_state<'a>(
-        &mut self,
+        &self,
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
     ) -> Result<()> {
         verify_outputs(
