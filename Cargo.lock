@@ -7469,11 +7469,13 @@ version = "0.0.2"
 dependencies = [
  "anyhow",
  "axum",
+ "axum-extra",
  "axum-server",
  "bytes",
  "clap",
  "const-str",
  "fastcrypto",
+ "futures",
  "git-version",
  "hex",
  "hyper 1.4.1",
@@ -7503,6 +7505,7 @@ dependencies = [
  "tower 0.4.13",
  "tower-http",
  "tracing",
+ "url",
 ]
 
 [[package]]

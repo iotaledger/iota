@@ -4,12 +4,13 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::http::header;
-use iota_network::tonic::Code;
 use iota_metrics::RegistryService;
+use iota_network::tonic::Code;
 use iota_network_stack::metrics::MetricsCallbackProvider;
 use prometheus::{
-    Encoder, HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, PROTOBUF_FORMAT,
+    Encoder, HistogramVec, IntCounterVec, IntGaugeVec, PROTOBUF_FORMAT, Registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry,
 };
 use tracing::error;
 

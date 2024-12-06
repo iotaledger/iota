@@ -1,34 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::{
-    fs,
-    io::BufReader,
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-    time::Duration,
-};
+use std::{fs, io::BufReader, net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::{Error, Result};
-use axum::{extract::DefaultBodyLimit, middleware, routing::post, Extension, Router};
+use axum::{Extension, Router, extract::DefaultBodyLimit, middleware, routing::post};
 use fastcrypto::{
     ed25519::{Ed25519KeyPair, Ed25519PublicKey},
     traits::{KeyPair, ToFromBytes},
 };
-use iota_tls::{rustls::ServerConfig, AllowAll, CertVerifier, SelfSignedCertificate, TlsAcceptor};
+use iota_tls::{
+    AllowAll, ClientCertVerifier, IOTA_VALIDATOR_SERVER_NAME, SelfSignedCertificate, TlsAcceptor,
+    rustls::ServerConfig,
+};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
-    trace::{DefaultOnResponse, TraceLayer},
     LatencyUnit,
+    timeout::TimeoutLayer,
+    trace::{DefaultOnFailure, DefaultOnResponse, TraceLayer},
 };
-use tracing::{error, info, Level};
+use tracing::{Level, info};
 
 use crate::{
     config::{DynamicPeerValidationConfig, RemoteWriteConfig, StaticPeerValidationConfig},
     handlers::publish_metrics,
     histogram_relay::HistogramRelay,
-    ip::{is_private, to_multiaddr},
     middleware::{expect_content_length, expect_mysten_proxy_header, expect_valid_public_key},
     peers::{IotaNodeProvider, IotaPeer},
     var,
@@ -116,16 +113,29 @@ pub fn app(
             .layer(Extension(Arc::new(allower)));
     }
     router
+        // Enforce on all routes.
+        // If the request does not complete within the specified timeout it will be aborted
+        // and a 408 Request Timeout response will be sent.
+        .layer(TimeoutLayer::new(Duration::from_secs(var!(
+            "NODE_CLIENT_TIMEOUT",
+            20
+        ))))
         .layer(Extension(relay))
         .layer(Extension(labels))
         .layer(Extension(client))
         .layer(
             ServiceBuilder::new().layer(
-                TraceLayer::new_for_http().on_response(
-                    DefaultOnResponse::new()
-                        .level(Level::INFO)
-                        .latency_unit(LatencyUnit::Seconds),
-                ),
+                TraceLayer::new_for_http()
+                    .on_response(
+                        DefaultOnResponse::new()
+                            .level(Level::INFO)
+                            .latency_unit(LatencyUnit::Seconds),
+                    )
+                    .on_failure(
+                        DefaultOnFailure::new()
+                            .level(Level::ERROR)
+                            .latency_unit(LatencyUnit::Seconds),
+                    ),
             ),
         )
 }
@@ -169,28 +179,26 @@ pub fn generate_self_cert(hostname: String) -> CertKeyPair {
 }
 
 /// Load a certificate for use by the listening service
-fn load_certs(filename: &str) -> Vec<rustls::Certificate> {
+fn load_certs(filename: &str) -> Vec<rustls::pki_types::CertificateDer<'static>> {
     let certfile = fs::File::open(filename)
         .unwrap_or_else(|e| panic!("cannot open certificate file: {}; {}", filename, e));
     let mut reader = BufReader::new(certfile);
     rustls_pemfile::certs(&mut reader)
+        .collect::<Result<Vec<_>, _>>()
         .unwrap()
-        .iter()
-        .map(|v| rustls::Certificate(v.clone()))
-        .collect()
 }
 
 /// Load a private key
-fn load_private_key(filename: &str) -> rustls::PrivateKey {
+fn load_private_key(filename: &str) -> rustls::pki_types::PrivateKeyDer<'static> {
     let keyfile = fs::File::open(filename)
         .unwrap_or_else(|e| panic!("cannot open private key file {}; {}", filename, e));
     let mut reader = BufReader::new(keyfile);
 
     loop {
         match rustls_pemfile::read_one(&mut reader).expect("cannot parse private key .pem file") {
-            Some(rustls_pemfile::Item::RSAKey(key)) => return rustls::PrivateKey(key),
-            Some(rustls_pemfile::Item::PKCS8Key(key)) => return rustls::PrivateKey(key),
-            Some(rustls_pemfile::Item::ECKey(key)) => return rustls::PrivateKey(key),
+            Some(rustls_pemfile::Item::Pkcs1Key(key)) => return key.into(),
+            Some(rustls_pemfile::Item::Pkcs8Key(key)) => return key.into(),
+            Some(rustls_pemfile::Item::Sec1Key(key)) => return key.into(),
             None => break,
             _ => {}
         }
@@ -210,26 +218,23 @@ fn load_static_peers(
     let Some(static_peers) = static_peers else {
         return Ok(vec![]);
     };
-    let static_keys = static_peers.pub_keys.into_iter().filter_map(|spk|{
-        let p2p_address: IpAddr = spk.p2p_address.parse().unwrap();
-        if is_private(p2p_address) {
-            error!("{} appears to be a private address. We only allow 169.254.0.0/16 addresses to be private; ignoring this entry", p2p_address);
-            dbg!("skipping {}", spk);
-            return None;
-        }
-        Some(spk)
-    }).map(|spk|{
-        let peer_id = hex::decode(spk.peer_id).unwrap();
-        let public_key = Ed25519PublicKey::from_bytes(peer_id.as_ref()).unwrap();
-        let p2p_address: IpAddr = spk.p2p_address.parse().unwrap();
-        let s = IotaPeer{
-            name:spk.name.clone(),
-            p2p_address: to_multiaddr(p2p_address),
-            public_key,
-        };
-        info!("loaded static peer: {} public key: {} p2p address: {}", &s.name, &s.public_key, &s.p2p_address);
-        s
-    }).collect();
+    let static_keys = static_peers
+        .pub_keys
+        .into_iter()
+        .map(|spk| {
+            let peer_id = hex::decode(spk.peer_id).unwrap();
+            let public_key = Ed25519PublicKey::from_bytes(peer_id.as_ref()).unwrap();
+            let s = IotaPeer {
+                name: spk.name.clone(),
+                public_key,
+            };
+            info!(
+                "loaded static peer: {} public key: {}",
+                &s.name, &s.public_key,
+            );
+            s
+        })
+        .collect();
     Ok(static_keys)
 }
 
@@ -240,7 +245,7 @@ pub fn create_server_cert_default_allow(
 ) -> Result<ServerConfig, iota_tls::rustls::Error> {
     let CertKeyPair(server_certificate, _) = generate_self_cert(hostname);
 
-    CertVerifier::new(AllowAll).rustls_server_config(
+    ClientCertVerifier::new(AllowAll, IOTA_VALIDATOR_SERVER_NAME.to_string()).rustls_server_config(
         vec![server_certificate.rustls_certificate()],
         server_certificate.rustls_private_key(),
     )
@@ -264,9 +269,10 @@ pub fn create_server_cert_enforce_peer(
     })?;
     let allower = IotaNodeProvider::new(dynamic_peers.url, dynamic_peers.interval, static_peers);
     allower.poll_peer_list();
-    let c = CertVerifier::new(allower.clone()).rustls_server_config(
-        load_certs(&certificate_path),
-        load_private_key(&private_key_path),
-    )?;
+    let c = ClientCertVerifier::new(allower.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string())
+        .rustls_server_config(
+            load_certs(&certificate_path),
+            load_private_key(&private_key_path),
+        )?;
     Ok((c, Some(allower)))
 }

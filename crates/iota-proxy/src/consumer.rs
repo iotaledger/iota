@@ -11,9 +11,9 @@ use fastcrypto::ed25519::Ed25519PublicKey;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use prometheus::{
+    Counter, CounterVec, HistogramVec,
     proto::{self, MetricFamily},
-    register_counter, register_counter_vec, register_histogram_vec, Counter, CounterVec,
-    HistogramVec,
+    register_counter, register_counter_vec, register_histogram_vec,
 };
 use prost::Message;
 use protobuf::CodedInputStream;
@@ -245,7 +245,7 @@ async fn check_response(
 async fn convert(
     mfs: Vec<MetricFamily>,
 ) -> Result<impl Iterator<Item = WriteRequest>, (StatusCode, &'static str)> {
-    let task_result = tokio::task::spawn_blocking(|| {
+    let result = tokio::task::spawn_blocking(|| {
         let timer = CONSUMER_OPERATION_DURATION
             .with_label_values(&["convert_to_remote_write_task"])
             .start_timer();
@@ -254,16 +254,18 @@ async fn convert(
         result.into_iter()
     })
     .await;
-    match task_result {
-        Ok(v) => Ok(v),
+
+    let result = match result {
+        Ok(v) => v,
         Err(err) => {
             error!("unable to convert to remote_write; {err}");
-            Err((
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "DROPPING METRICS; unable to convert to remote_write",
-            ))
+            ));
         }
-    }
+    };
+    Ok(result)
 }
 
 /// convert_to_remote_write is an expensive method due to the time it takes to

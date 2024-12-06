@@ -8,19 +8,20 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::{bail, Result};
-use axum::{extract::Extension, http::StatusCode, routing::get, Router};
+use anyhow::{Result, bail};
+use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use once_cell::sync::Lazy;
 use prometheus::{
+    CounterVec, HistogramVec,
     proto::{Metric, MetricFamily},
-    register_counter_vec, register_histogram_vec, CounterVec, HistogramVec,
+    register_counter_vec, register_histogram_vec,
 };
 use tower::ServiceBuilder;
 use tower_http::{
-    trace::{DefaultOnResponse, TraceLayer},
     LatencyUnit,
+    trace::{DefaultOnResponse, TraceLayer},
 };
-use tracing::{info, Level};
+use tracing::{Level, info};
 
 use crate::var;
 
@@ -51,7 +52,7 @@ static RELAY_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
 // and endpoint that prometheus agent can use to poll for the metrics.
 // A RegistryService is returned that can be used to get access in prometheus
 // Registries.
-pub fn start_prometheus_server(addr: TcpListener) -> HistogramRelay {
+pub fn start_prometheus_server(listener: TcpListener) -> HistogramRelay {
     let relay = HistogramRelay::new();
     let app = Router::new()
         .route(METRICS_ROUTE, get(metrics))
@@ -67,11 +68,9 @@ pub fn start_prometheus_server(addr: TcpListener) -> HistogramRelay {
         );
 
     tokio::spawn(async move {
-        axum::Server::from_tcp(addr)
-            .unwrap()
-            .serve(app.into_make_service())
-            .await
-            .unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+        axum::serve(listener, app).await.unwrap();
     });
     relay
 }
@@ -102,7 +101,7 @@ impl HistogramRelay {
     }
     /// submit will take metric family submissions and store them for scraping
     /// in doing so, it will also wrap each entry in a timestamp which will be
-    /// use for pruning old entries on each submission call. this may not be
+    /// use for pruning old entires on each submission call. this may not be
     /// ideal long term.
     pub fn submit(&self, data: Vec<MetricFamily>) {
         RELAY_PRESSURE.with_label_values(&["submit"]).inc();
