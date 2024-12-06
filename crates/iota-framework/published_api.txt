@@ -508,7 +508,7 @@ find_validator
 find_validator_from_table_vec
 	fun
 	0x3::validator_set
-get_validator_indices
+get_validator_indices_set
 	fun
 	0x3::validator_set
 get_validator_mut
@@ -563,9 +563,6 @@ calculate_total_stakes
 	fun
 	0x3::validator_set
 adjust_stake_and_gas_price
-	fun
-	0x3::validator_set
-compute_reward_adjustments
 	fun
 	0x3::validator_set
 compute_slashed_validators
