@@ -32,6 +32,7 @@ use crate::stardust::{
         verification::{created_objects::CreatedObjects, verify_outputs},
     },
     native_token::package_data::NativeTokenPackageData,
+    process_outputs::get_merged_outputs_for_iota,
     types::output_header::OutputHeader,
 };
 
@@ -161,6 +162,20 @@ impl Migration {
         create_snapshot(self.into_objects(), writer)?;
         info!("Snapshot file written.");
         Ok(())
+    }
+
+    /// Run all stages of the migration coming from a Hornet snapshot with IOTA
+    /// coin type.
+    pub fn run_for_iota<'a>(
+        self,
+        target_milestone_timestamp: u32,
+        outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
+        writer: impl Write,
+    ) -> Result<()> {
+        itertools::process_results(
+            get_merged_outputs_for_iota(target_milestone_timestamp, outputs),
+            |outputs| self.run(outputs, writer),
+        )?
     }
 
     /// The migration objects.
