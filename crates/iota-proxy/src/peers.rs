@@ -538,8 +538,8 @@ mod tests {
             IotaSystemStateSummary, IotaValidatorSummary,
         },
     };
-    use serde::Serialize;
     use multiaddr::Multiaddr;
+    use serde::Serialize;
 
     use super::*;
     use crate::admin::{CertKeyPair, generate_self_cert};
