@@ -1262,9 +1262,8 @@ mod tests {
             id::UID,
             iota_system_state::{
                 IotaSystemState,
-                iota_system_state_inner_v1::{
-                    IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
-                },
+                iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorSetV1},
+                iota_system_state_inner_v2::IotaSystemStateV2,
             },
         };
         use mockall::predicate;
@@ -1280,7 +1279,7 @@ mod tests {
                 let mut state = default_system_state();
                 state.iota_treasury_cap.inner.total_supply.value = 42;
 
-                Ok(IotaSystemState::V1(state))
+                Ok(IotaSystemState::V2(state))
             });
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -1390,8 +1389,8 @@ mod tests {
             expected.assert_eq(error_result.message());
         }
 
-        fn default_system_state() -> IotaSystemStateV1 {
-            IotaSystemStateV1 {
+        fn default_system_state() -> IotaSystemStateV2 {
+            IotaSystemStateV2 {
                 epoch: Default::default(),
                 protocol_version: Default::default(),
                 system_state_version: Default::default(),
@@ -1439,7 +1438,8 @@ mod tests {
                 },
                 safe_mode: Default::default(),
                 safe_mode_storage_charges: iota_types::balance::Balance::new(Default::default()),
-                safe_mode_computation_rewards: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_computation_charges: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_computation_charges_burned: Default::default(),
                 safe_mode_storage_rebates: Default::default(),
                 safe_mode_non_refundable_storage_fee: Default::default(),
                 epoch_start_timestamp_ms: Default::default(),
