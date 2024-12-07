@@ -14,6 +14,8 @@ use prometheus::{
 };
 use tracing::error;
 
+const METRICS_PUSH_TIMEOUT: Duration = Duration::from_secs(45);
+
 pub struct MetricsPushClient {
     certificate: std::sync::Arc<iota_tls::SelfSignedCertificate>,
     client: reqwest::Client,
@@ -109,6 +111,7 @@ pub fn start_metrics_push_task(config: &iota_config::NodeConfig, registry: Regis
             .header(reqwest::header::CONTENT_ENCODING, "snappy")
             .header(header::CONTENT_TYPE, PROTOBUF_FORMAT)
             .body(compressed)
+            .timeout(METRICS_PUSH_TIMEOUT)
             .send()
             .await?;
 
@@ -136,14 +139,22 @@ pub fn start_metrics_push_task(config: &iota_config::NodeConfig, registry: Regis
         let mut interval = tokio::time::interval(interval);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+        let mut errors = 0;
         loop {
             interval.tick().await;
 
             if let Err(error) = push_metrics(&client, &url, &registry).await {
-                tracing::warn!("unable to push metrics: {error}; new client will be created");
+                errors += 1;
+                if errors >= 10 {
+                    // If we hit 10 failures in a row, start logging errors.
+                    tracing::error!("unable to push metrics: {error}; new client will be created");
+                } else {
+                    tracing::warn!("unable to push metrics: {error}; new client will be created");
+                }
                 // aggressively recreate our client connection if we hit an error
-                // since our tick interval is only every min, this should not be racey
                 client = MetricsPushClient::new(config_copy.network_key_pair().copy());
+            } else {
+                errors = 0;
             }
         }
     });
