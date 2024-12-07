@@ -7,6 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
@@ -19,9 +20,6 @@ futures.workspace = true
 git-version.workspace = true
 hex.workspace = true
 hyper.workspace = true
-iota-metrics.workspace = true
-iota-tls.workspace = true
-iota-types.workspace = true
 ipnetwork = "0.20.0"
 itertools.workspace = true
 multiaddr = "0.17.0"
@@ -38,19 +36,27 @@ serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 snap.workspace = true
-telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 url.workspace = true
 
+# internal dependencies
+iota-metrics.workspace = true
+iota-tls.workspace = true
+iota-types.workspace = true
+telemetry-subscribers.workspace = true
+
 [dev-dependencies]
+# external dependencies
 axum-server.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
 mime = "0.3"
 serde_json.workspace = true
 tower.workspace = true
+
+# internal dependencies
+iota-types = { workspace = true, features = ["test-utils"] }
 
 [build-dependencies]
 prost-build = "0.13.1"
