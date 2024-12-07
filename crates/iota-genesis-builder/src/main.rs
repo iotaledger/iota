@@ -13,7 +13,7 @@ use iota_genesis_builder::{
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
-        process_outputs::{get_merged_outputs_for_iota, scale_amount_for_iota},
+        process_outputs::scale_amount_for_iota,
     },
 };
 use iota_types::stardust::{address_swap_map::init_address_swap_map, coin_type::CoinType};
@@ -93,13 +93,11 @@ fn main() -> Result<()> {
 
     match coin_type {
         CoinType::Iota => {
-            itertools::process_results(
-                get_merged_outputs_for_iota(
-                    snapshot_parser.target_milestone_timestamp(),
-                    snapshot_parser.outputs(),
-                ),
-                |outputs| migration.run(outputs, object_snapshot_writer),
-            )??;
+            migration.run_for_iota(
+                snapshot_parser.target_milestone_timestamp(),
+                snapshot_parser.outputs(),
+                object_snapshot_writer,
+            )?;
         }
     }
 
