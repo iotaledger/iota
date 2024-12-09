@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
@@ -10,7 +12,7 @@ use iota_types::{base_types::TransactionDigest, event::EventID};
 use jsonrpsee::core::client::Subscription;
 
 use crate::{
-    SharedRpcClient,
+    RpcClient,
     error::{Error, IotaRpcResult},
 };
 
@@ -18,11 +20,11 @@ use crate::{
 /// on the Iota network.
 #[derive(Clone, Debug)]
 pub struct EventApi {
-    api: SharedRpcClient,
+    api: Arc<RpcClient>,
 }
 
 impl EventApi {
-    pub(crate) fn new(api: SharedRpcClient) -> Self {
+    pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
 

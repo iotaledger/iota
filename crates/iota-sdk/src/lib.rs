@@ -431,7 +431,7 @@ impl IotaClientBuilder {
 /// ```
 #[derive(Clone)]
 pub struct IotaClient {
-    api: SharedRpcClient,
+    api: Arc<RpcClient>,
     transaction_builder: TransactionBuilder<ReadApi>,
     read_api: ReadApi,
     coin_read_api: CoinReadApi,
@@ -447,8 +447,6 @@ impl core::fmt::Debug for IotaClient {
             .finish()
     }
 }
-
-pub(crate) type SharedRpcClient = Arc<RpcClient>;
 
 #[derive(Debug)]
 pub(crate) struct RpcClient {

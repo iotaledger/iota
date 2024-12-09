@@ -2,14 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
 use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction};
 
 use crate::{
-    SharedRpcClient,
+    RpcClient,
     error::{Error, IotaRpcResult},
 };
 
@@ -20,11 +23,11 @@ const WAIT_FOR_LOCAL_EXECUTION_INTERVAL: Duration = Duration::from_secs(2);
 /// Defines methods to execute transaction blocks and submit them to fullnodes.
 #[derive(Clone, Debug)]
 pub struct QuorumDriverApi {
-    api: SharedRpcClient,
+    api: Arc<RpcClient>,
 }
 
 impl QuorumDriverApi {
-    pub(crate) fn new(api: SharedRpcClient) -> Self {
+    pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
 

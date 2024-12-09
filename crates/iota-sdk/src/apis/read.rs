@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, stream};
@@ -28,18 +28,18 @@ use iota_types::{
 use jsonrpsee::core::client::Subscription;
 
 use crate::{
-    SharedRpcClient,
+    RpcClient,
     error::{Error, IotaRpcResult},
 };
 
 /// Defines methods for retrieving data about objects and transactions.
 #[derive(Clone, Debug)]
 pub struct ReadApi {
-    api: SharedRpcClient,
+    api: Arc<RpcClient>,
 }
 
 impl ReadApi {
-    pub(crate) fn new(api: SharedRpcClient) -> Self {
+    pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
 

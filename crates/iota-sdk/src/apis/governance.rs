@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use iota_json_rpc_api::GovernanceReadApiClient;
 use iota_json_rpc_types::{DelegatedStake, IotaCommittee};
 use iota_types::{
@@ -9,16 +11,16 @@ use iota_types::{
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
 };
 
-use crate::{SharedRpcClient, error::IotaRpcResult};
+use crate::{RpcClient, error::IotaRpcResult};
 
 /// Defines methods to get committee and staking info.
 #[derive(Debug, Clone)]
 pub struct GovernanceApi {
-    api: SharedRpcClient,
+    api: Arc<RpcClient>,
 }
 
 impl GovernanceApi {
-    pub(crate) fn new(api: SharedRpcClient) -> Self {
+    pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
 

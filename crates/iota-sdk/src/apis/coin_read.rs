@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::future;
+use std::{future, sync::Arc};
 
 use futures::{StreamExt, stream};
 use futures_core::Stream;
@@ -14,7 +14,7 @@ use iota_types::{
 };
 
 use crate::{
-    SharedRpcClient,
+    RpcClient,
     error::{Error, IotaRpcResult},
 };
 
@@ -22,11 +22,11 @@ use crate::{
 /// Iota network regarding the coins owned by an address.
 #[derive(Debug, Clone)]
 pub struct CoinReadApi {
-    api: SharedRpcClient,
+    api: Arc<RpcClient>,
 }
 
 impl CoinReadApi {
-    pub(crate) fn new(api: SharedRpcClient) -> Self {
+    pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
 
