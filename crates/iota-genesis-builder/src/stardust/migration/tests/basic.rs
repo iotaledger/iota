@@ -32,7 +32,7 @@ use crate::stardust::{
             random_output_header, unlock_object,
         },
     },
-    types::output_header::OutputHeader,
+    types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
 };
 
 /// Test the id of a `BasicOutput` that is transformed to a simple coin.
@@ -53,6 +53,7 @@ fn basic_simple_coin_id() {
         1_000_000,
         MigrationTargetNetwork::Mainnet,
         CoinType::Iota,
+        AddressSwapMap::default(),
     )
     .unwrap();
     migration
@@ -103,6 +104,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
             1_000_000,
             MigrationTargetNetwork::Mainnet,
             CoinType::Iota,
+            AddressSwapMap::default(),
         )
         .unwrap();
         migration
@@ -139,6 +141,7 @@ fn basic_id() {
         1_000_000,
         MigrationTargetNetwork::Mainnet,
         CoinType::Iota,
+        AddressSwapMap::default(),
     )
     .unwrap();
     migration
@@ -183,6 +186,7 @@ fn basic_simple_coin_migration_with_native_token() {
         1_000_000,
         MigrationTargetNetwork::Mainnet,
         CoinType::Iota,
+        AddressSwapMap::default(),
     )
     .unwrap();
     migration.run_migration(outputs).unwrap();
@@ -225,6 +229,7 @@ fn basic_simple_coin_migration_with_native_tokens() {
         1_000_000,
         MigrationTargetNetwork::Mainnet,
         CoinType::Iota,
+        AddressSwapMap::default(),
     )
     .unwrap();
     migration.run_migration(outputs.clone()).unwrap();
