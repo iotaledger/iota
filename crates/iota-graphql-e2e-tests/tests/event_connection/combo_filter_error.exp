@@ -7,13 +7,13 @@ task 1, lines 10-29:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5380800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5373200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 31:
 //# run Test::M2::emit_emit_a --sender A --args 20
 events: Event { package_id: Test, transaction_module: Identifier("M2"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [20, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 33:
 //# create-checkpoint

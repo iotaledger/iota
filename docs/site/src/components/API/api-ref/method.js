@@ -42,7 +42,7 @@ const Method = (props) => {
             <Heading
               as="h2"
               id={`${api.replaceAll(/\s/g, "-").toLowerCase()}`}
-              className="border-0 border-b border-solid border-iota-blue-dark dark:border-iota-blue scroll-mt-32 text-3xl text-iota-blue-dark dark:text-iota-blue font-bold mt-12 after:content-['_#'] after:hidden after:hover:inline after:opacity-20 cursor-pointer"
+              className="dark:text-white mt-12 after:hidden after:hover:inline after:opacity-20 cursor-pointer"
               onClick={handleClick}
               key={api.replaceAll(/\s/g, "-").toLowerCase()}
             >
@@ -72,7 +72,7 @@ const Method = (props) => {
                     >
                       <Heading
                         as="h3"
-                        className="text-2xl font-bold after:content-['_#'] after:hidden after:hover:inline after:opacity-20 cursor-pointer"
+                        className="after:hidden after:hover:inline after:opacity-20 cursor-pointer"
                         key={`link-${method.name.toLowerCase()}`}
                         id={`${method.name.toLowerCase()}`}
                         onClick={null}

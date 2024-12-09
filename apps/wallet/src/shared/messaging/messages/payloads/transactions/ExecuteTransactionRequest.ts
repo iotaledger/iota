@@ -4,7 +4,7 @@
 
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
-import { type IotaSignTransactionBlockInput } from '@iota/wallet-standard';
+import { type IotaSignTransactionInput } from '@iota/wallet-standard';
 
 import { type TransactionDataType } from './ApprovalRequest';
 
@@ -20,8 +20,8 @@ export function isExecuteTransactionRequest(
 }
 
 export type IotaSignTransactionSerialized = Omit<
-    IotaSignTransactionBlockInput,
-    'transactionBlock' | 'account'
+    IotaSignTransactionInput,
+    'transaction' | 'account'
 > & {
     transaction: string;
     account: string;

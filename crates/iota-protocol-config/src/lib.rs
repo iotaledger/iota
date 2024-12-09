@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{
-    RwLock,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    cell::RefCell,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use clap::*;
@@ -190,7 +190,7 @@ fn is_false(b: &bool) -> bool {
     !b
 }
 
-/// Ordering mechanism for transactions in one Narwhal consensus output.
+/// Ordering mechanism for transactions in one consensus output.
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum ConsensusTransactionOrdering {
     /// No ordering. Transactions are processed in the order they appear in the
@@ -907,13 +907,6 @@ pub struct ProtocolConfig {
     /// The maximum number of transactions included in a consensus block.
     consensus_max_num_transactions_in_block: Option<u64>,
 
-    /// The max accumulated txn execution cost per object in a Narwhal commit.
-    /// Transactions in a checkpoint will be deferred once their touch
-    /// shared objects hit this limit. This config is meant to be used when
-    /// consensus protocol is Narwhal, where each consensus commit
-    /// corresponding to 1 checkpoint (or 2 if randomness is enabled)
-    max_accumulated_txn_cost_per_object_in_narwhal_commit: Option<u64>,
-
     /// The max number of consensus rounds a transaction can be deferred due to
     /// shared object congestion. Transactions will be cancelled after this
     /// many rounds.
@@ -934,11 +927,9 @@ pub struct ProtocolConfig {
     // `None` and `Some(false)`, as committee was already finalized on Testnet.
     bridge_should_try_to_finalize_committee: Option<bool>,
 
-    /// The max accumulated txn execution cost per object in a mysticeti.
+    /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit. This config plays the same role as
-    /// `max_accumulated_txn_cost_per_object_in_narwhal_commit`
-    /// but for mysticeti commits due to that mysticeti has higher commit rate.
+    /// objects hit this limit.    
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 }
 
@@ -1062,12 +1053,12 @@ impl ProtocolConfig {
 }
 
 #[cfg(not(msim))]
-static POISON_VERSION_METHODS: AtomicBool = AtomicBool::new(false);
+static POISON_VERSION_METHODS: AtomicBool = const { AtomicBool::new(false) };
 
 // Use a thread local in sim tests for test isolation.
 #[cfg(msim)]
 thread_local! {
-    static POISON_VERSION_METHODS: AtomicBool = AtomicBool::new(false);
+    static POISON_VERSION_METHODS: AtomicBool = const { AtomicBool::new(false) };
 }
 
 // Instantiations for each protocol version.
@@ -1092,14 +1083,16 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        if let Some(override_fn) = &*CONFIG_OVERRIDE.read().unwrap() {
-            warn!(
-                "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
-            );
-            override_fn(version, ret)
-        } else {
-            ret
-        }
+        CONFIG_OVERRIDE.with(|ovr| {
+            if let Some(override_fn) = &*ovr.borrow() {
+                warn!(
+                    "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
+                );
+                override_fn(version, ret)
+            } else {
+                ret
+            }
+        })
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -1266,7 +1259,7 @@ impl ProtocolConfig {
             obj_access_cost_verify_per_byte: Some(200),
             obj_data_cost_refundable: Some(100),
             obj_metadata_cost_non_refundable: Some(50),
-            gas_model_version: Some(8),
+            gas_model_version: Some(1),
             storage_rebate_rate: Some(10000),
             // Change reward slashing rate to 100%.
             reward_slashing_rate: Some(10000),
@@ -1574,8 +1567,6 @@ impl ProtocolConfig {
             // that is 512, to account for bursty traffic and system transactions.
             consensus_max_num_transactions_in_block: Some(512),
 
-            max_accumulated_txn_cost_per_object_in_narwhal_commit: Some(100),
-
             max_deferral_rounds_for_congestion_control: Some(10),
 
             min_checkpoint_interval_ms: Some(200),
@@ -1719,10 +1710,12 @@ impl ProtocolConfig {
     pub fn apply_overrides_for_testing(
         override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
     ) -> OverrideGuard {
-        let mut option = CONFIG_OVERRIDE.write().unwrap();
-        assert!(option.is_none(), "config override already present");
-        *option = Some(Box::new(override_fn));
-        OverrideGuard
+        CONFIG_OVERRIDE.with(|ovr| {
+            let mut cur = ovr.borrow_mut();
+            assert!(cur.is_none(), "config override already present");
+            *cur = Some(Box::new(override_fn));
+            OverrideGuard
+        })
     }
 }
 
@@ -1771,7 +1764,9 @@ impl ProtocolConfig {
 
 type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
 
-static CONFIG_OVERRIDE: RwLock<Option<Box<OverrideFn>>> = RwLock::new(None);
+thread_local! {
+    static CONFIG_OVERRIDE: RefCell<Option<Box<OverrideFn>>> = const { RefCell::new(None) };
+}
 
 #[must_use]
 pub struct OverrideGuard;
@@ -1779,7 +1774,9 @@ pub struct OverrideGuard;
 impl Drop for OverrideGuard {
     fn drop(&mut self) {
         info!("restoring override fn");
-        *CONFIG_OVERRIDE.write().unwrap() = None;
+        CONFIG_OVERRIDE.with(|ovr| {
+            *ovr.borrow_mut() = None;
+        });
     }
 }
 

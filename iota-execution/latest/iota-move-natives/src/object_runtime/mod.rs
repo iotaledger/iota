@@ -693,15 +693,15 @@ pub fn get_all_uids(
     bcs_bytes: &[u8],
 ) -> Result<BTreeSet<ObjectID>, /* invariant violation */ String> {
     let mut ids = BTreeSet::new();
-    struct UIDTraversalV2<'i>(&'i mut BTreeSet<ObjectID>);
-    struct UIDCollectorV2<'i>(&'i mut BTreeSet<ObjectID>);
+    struct UIDTraversalV1<'i>(&'i mut BTreeSet<ObjectID>);
+    struct UIDCollectorV1<'i>(&'i mut BTreeSet<ObjectID>);
 
-    impl<'i> AV::Traversal for UIDTraversalV2<'i> {
+    impl<'i> AV::Traversal for UIDTraversalV1<'i> {
         type Error = AV::Error;
 
         fn traverse_struct(&mut self, driver: &mut AV::StructDriver) -> Result<(), Self::Error> {
             if driver.struct_layout().type_ == UID::type_() {
-                while driver.next_field(&mut UIDCollectorV2(self.0))?.is_some() {}
+                while driver.next_field(&mut UIDCollectorV1(self.0))?.is_some() {}
             } else {
                 while driver.next_field(self)?.is_some() {}
             }
@@ -709,7 +709,7 @@ pub fn get_all_uids(
         }
     }
 
-    impl<'i> AV::Traversal for UIDCollectorV2<'i> {
+    impl<'i> AV::Traversal for UIDCollectorV1<'i> {
         type Error = AV::Error;
         fn traverse_address(&mut self, value: AccountAddress) -> Result<(), Self::Error> {
             self.0.insert(value.into());
@@ -720,7 +720,7 @@ pub fn get_all_uids(
     MoveValue::visit_deserialize(
         bcs_bytes,
         fully_annotated_layout,
-        &mut UIDTraversalV2(&mut ids),
+        &mut UIDTraversalV1(&mut ids),
     )
     .map_err(|e| format!("Failed to deserialize. {e:?}"))?;
     Ok(ids)

@@ -362,5 +362,9 @@ async fn wait_for_next_epoch(
 }
 
 async fn current_epoch(iota_client: &IotaClient) -> anyhow::Result<EpochId> {
-    Ok(iota_client.read_api().get_committee_info(None).await?.epoch)
+    Ok(iota_client
+        .governance_api()
+        .get_committee_info(None)
+        .await?
+        .epoch)
 }

@@ -1,6 +1,6 @@
 [package]
 name = "iota-aws-orchestrator"
-version = "0.0.1"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"

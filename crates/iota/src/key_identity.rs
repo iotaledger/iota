@@ -47,7 +47,7 @@ pub fn get_identity_address(
     ctx: &mut WalletContext,
 ) -> Result<IotaAddress, Error> {
     if let Some(addr) = input {
-        get_identity_address_from_keystore(addr, &ctx.config.keystore)
+        get_identity_address_from_keystore(addr, ctx.config().keystore())
     } else {
         Ok(ctx.active_address()?)
     }

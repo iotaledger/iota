@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::genesis {
-    use std::vector;
-    use iota::balance::{Self, Balance};
-    use iota::object::UID;
-    use iota::iota::IOTA;
-    use iota::tx_context::{Self, TxContext};
-    use std::option::Option;
+    use std::string::String;
+
+    use iota::balance;
+    use iota::iota::IotaTreasuryCap;
+    use iota::system_admin_cap::IotaSystemAdminCap;
 
     use iota_system::iota_system;
     use iota_system::validator;
@@ -46,7 +45,7 @@ module iota_system::genesis {
         validator_very_low_stake_threshold: u64,
         validator_low_stake_grace_period: u64,
     }
-      
+
     public struct TokenDistributionSchedule has drop {
         pre_minted_supply: u64,
         allocations: vector<TokenAllocation>,
@@ -55,15 +54,20 @@ module iota_system::genesis {
     public struct TokenAllocation has drop {
         recipient_address: address,
         amount_nanos: u64,
+
         staked_with_validator: Option<address>,
+        staked_with_timelock_expiration: Option<u64>,
     }
 
+    #[allow(unused_function)]
     fun create(
         iota_system_state_id: UID,
-        mut iota_supply: Balance<IOTA>,
+        mut iota_treasury_cap: IotaTreasuryCap,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         _token_distribution_schedule: TokenDistributionSchedule,
+        _timelock_genesis_label: Option<String>,
+        iota_system_admin_cap: IotaSystemAdminCap,
         ctx: &mut TxContext,
     ) {
         assert!(tx_context::epoch(ctx) == 0, 0);
@@ -97,7 +101,7 @@ module iota_system::genesis {
                 network_address,
                 p2p_address,
                 primary_address,
-                balance::split(&mut iota_supply, 2500),
+                iota_treasury_cap.mint_balance(2500, ctx),
                 ctx
             );
 
@@ -108,11 +112,13 @@ module iota_system::genesis {
 
         iota_system::create(
             iota_system_state_id,
+            iota_treasury_cap,
             validators,
-            iota_supply, // storage_fund
+            balance::zero(),
             genesis_chain_parameters.protocol_version,
             genesis_chain_parameters.chain_start_timestamp_ms,
             genesis_chain_parameters.epoch_duration_ms,
+            iota_system_admin_cap,
             ctx,
         );
     }

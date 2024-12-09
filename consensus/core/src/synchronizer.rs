@@ -688,7 +688,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .clone()
                     .into_iter()
                     .collect::<Vec<_>>(),
-                highest_rounds.clone().into_iter().collect::<Vec<_>>(),
+                highest_rounds.clone(),
                 request_timeout,
             ),
         )

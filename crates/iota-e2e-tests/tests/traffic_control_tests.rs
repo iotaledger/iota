@@ -79,7 +79,7 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
         // In this test, the validator gRPC API is receiving some requests that don't count towards
-        // the policy and two requests that do (/iota.validator.Validator/CertifiedTransactionV2 for
+        // the policy and two requests that do (/iota.validator.Validator/CertifiedTransactionV1 for
         // an already executed transaction). However, the counter is updated only after the response
         // is generated, but the limit is checked before we handle the request, so at the end we end
         // up with 2 handled requests even if the limit is set to 1 and only the subsequent request

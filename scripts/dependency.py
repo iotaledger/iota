@@ -68,7 +68,6 @@ def try_match_line(line):
 def switch_to_local(project):
     default_path_map = {
         "move": "move/language",
-        "narwhal": "narwhal",
     }
     # Packages that don't directly map to a directory under move/language
     # go here as special cases. By default, we just use language/[name].
@@ -98,7 +97,6 @@ def switch_to_local(project):
             "move-table-extension": "extensions/move-table-extension",
             "move-transactional-test-runner": "testing-infra/transactional-test-runner",
         },
-        "narwhal": {},
     }
 
     def process_line(line, depth):
@@ -109,8 +107,6 @@ def switch_to_local(project):
             path = default_path_map[project]
             if project == "move":
                 subpath = subpath_path_map[project].get(name, name)
-            elif project == "narwhal":
-                subpath = name.replace("narwhal-", "")
             return '{} = {{ path = "{}{}/{}"{} }}\n'.format(
                 name, go_back, path, subpath, extra
             )
@@ -138,7 +134,7 @@ def upgrade_revision(project, repo, rev, branch):
 
 
 args = parse_args()
-assert (args.project == "move" or args.project == "narwhal")
+assert (args.project == "move")
 
 PATTERN = re.compile(
     '(.+)={git="https://github.com/.+/' +

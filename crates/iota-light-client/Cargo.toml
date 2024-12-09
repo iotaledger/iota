@@ -11,7 +11,7 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "iota-light-client"
-path = "src/main.rs"
+path = "src/bin/light_client.rs"
 
 [dependencies]
 # external dependencies

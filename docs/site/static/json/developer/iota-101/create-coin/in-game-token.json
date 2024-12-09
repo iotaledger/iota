@@ -13,7 +13,7 @@
         "answerOptions": [
             { "answerText": "IOTA", "isCorrect": false },
             { "answerText": "GEM", "isCorrect": true },
-            { "answerText": "Capy", "isCorrect": false },
+            { "answerText": "Doge", "isCorrect": false },
             { "answerText": "Swords", "isCorrect": false }
         ]
     }

@@ -64,9 +64,6 @@ impl TestSetup {
         // to go through.
         let max_accumulated_txn_cost_per_object_in_commit =
             TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT;
-        protocol_config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(
-            max_accumulated_txn_cost_per_object_in_commit,
-        );
         protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
             max_accumulated_txn_cost_per_object_in_commit,
         );

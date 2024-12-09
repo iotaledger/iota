@@ -3,48 +3,40 @@
 'use client';
 
 import { Notifications } from '@/components/index';
-import React, { useEffect, useState, type PropsWithChildren } from 'react';
-import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
+import React, { type PropsWithChildren } from 'react';
 import { Button } from '@iota/apps-ui-kit';
-import { redirect } from 'next/navigation';
-import { Sidebar } from './components';
-import { TopNav } from './components/top-nav/TopNav';
+import { Sidebar, TopNav } from './components';
+import { ThemePreference, useTheme } from '@iota/core';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
-    const [isDarkMode, setIsDarkMode] = useState(false);
-    const { connectionStatus } = useCurrentWallet();
-    const account = useCurrentAccount();
+    const { theme, themePreference, setThemePreference } = useTheme();
 
-    const toggleDarkMode = () => {
-        setIsDarkMode(!isDarkMode);
-        if (isDarkMode) {
-            document.documentElement.classList.remove('dark');
-        } else {
-            document.documentElement.classList.add('dark');
-        }
+    const toggleTheme = () => {
+        const newTheme =
+            themePreference === ThemePreference.Light
+                ? ThemePreference.Dark
+                : ThemePreference.Light;
+        setThemePreference(newTheme);
     };
 
-    useEffect(() => {
-        if (connectionStatus !== 'connected' && !account) {
-            redirect('/');
-        }
-    }, [connectionStatus, account]);
-
     return (
-        <div className="h-full">
+        <div className="min-h-full">
             <div className="fixed left-0 top-0 z-50 h-full">
                 <Sidebar />
             </div>
 
-            <div className="container relative min-h-screen">
-                <div className="sticky top-0">
+            <div className="container relative flex min-h-screen flex-col">
+                <div className="sticky top-0 z-10 backdrop-blur-lg">
                     <TopNav />
                 </div>
-                <div>{children}</div>
+                <div className="flex-1 py-md--rs">{children}</div>
             </div>
 
             <div className="fixed bottom-5 right-5">
-                <Button onClick={toggleDarkMode} text={isDarkMode ? 'Light Mode' : 'Dark Mode'} />
+                <Button
+                    onClick={toggleTheme}
+                    text={`${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+                />
             </div>
 
             <Notifications />

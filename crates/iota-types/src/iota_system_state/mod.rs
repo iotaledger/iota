@@ -36,7 +36,7 @@ mod simtest_iota_system_state_inner;
 #[cfg(msim)]
 use self::simtest_iota_system_state_inner::{
     SimTestIotaSystemStateDeepV1, SimTestIotaSystemStateShallowV1, SimTestIotaSystemStateV1,
-    SimTestValidatorDeepV2, SimTestValidatorV1,
+    SimTestValidatorDeepV1, SimTestValidatorV1,
 };
 
 const IOTA_SYSTEM_STATE_WRAPPER_STRUCT_NAME: &IdentStr = ident_str!("IotaSystemState");
@@ -193,9 +193,9 @@ pub enum IotaSystemState {
     #[cfg(msim)]
     SimTestV1(SimTestIotaSystemStateV1),
     #[cfg(msim)]
-    SimTestShallowV2(SimTestIotaSystemStateShallowV1),
+    SimTestShallowV1(SimTestIotaSystemStateShallowV1),
     #[cfg(msim)]
-    SimTestDeepV2(SimTestIotaSystemStateDeepV1),
+    SimTestDeepV1(SimTestIotaSystemStateDeepV1),
 }
 
 /// This is the fixed type used by genesis.
@@ -283,7 +283,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
                         ))
                     },
                 )?;
-            Ok(IotaSystemState::SimTestShallowV2(result))
+            Ok(IotaSystemState::SimTestShallowV1(result))
         }
         #[cfg(msim)]
         IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1 => {
@@ -296,7 +296,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
                         ))
                     },
                 )?;
-            Ok(IotaSystemState::SimTestDeepV2(result))
+            Ok(IotaSystemState::SimTestDeepV1(result))
         }
         _ => Err(IotaError::IotaSystemStateRead(format!(
             "Unsupported IotaSystemState version: {}",
@@ -352,7 +352,7 @@ where
         }
         #[cfg(msim)]
         IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1 => {
-            let validator: SimTestValidatorDeepV2 =
+            let validator: SimTestValidatorDeepV1 =
                 get_dynamic_field_from_store(object_store, versioned.id.id.bytes, &version)
                     .map_err(|err| {
                         IotaError::IotaSystemStateRead(format!(
@@ -438,7 +438,7 @@ pub mod advance_epoch_result_injection {
 
     thread_local! {
         /// Override the result of advance_epoch in the range [start, end).
-        static OVERRIDE: RefCell<Option<(EpochId, EpochId)>>  = RefCell::new(None);
+        static OVERRIDE: RefCell<Option<(EpochId, EpochId)>>  = const { RefCell::new(None) };
     }
 
     /// Override the result of advance_epoch transaction if new epoch is in the

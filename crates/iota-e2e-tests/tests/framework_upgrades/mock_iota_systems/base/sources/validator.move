@@ -5,13 +5,12 @@
 module iota_system::validator {
     use std::ascii;
 
-    use iota::tx_context::TxContext;
     use std::string::{Self, String};
     use iota::bag::{Self, Bag};
     use iota::balance::{Self, Balance};
     use iota::iota::IOTA;
 
-    public struct ValidatorMetadata has store {
+    public struct ValidatorMetadataV1 has store {
         iota_address: address,
         authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
@@ -22,8 +21,8 @@ module iota_system::validator {
         extra_fields: Bag,
     }
 
-    public struct Validator has store {
-        metadata: ValidatorMetadata,
+    public struct ValidatorV1 has store {
+        metadata: ValidatorMetadataV1,
         voting_power: u64,
         stake: Balance<IOTA>,
         extra_fields: Bag,
@@ -39,8 +38,8 @@ module iota_system::validator {
         primary_address: vector<u8>,
         init_stake: Balance<IOTA>,
         ctx: &mut TxContext
-    ): Validator {
-        let metadata = ValidatorMetadata {
+    ): ValidatorV1 {
+        let metadata = ValidatorMetadataV1 {
             iota_address,
             authority_pubkey_bytes,
             network_pubkey_bytes,
@@ -51,7 +50,7 @@ module iota_system::validator {
             extra_fields: bag::new(ctx),
         };
 
-        Validator {
+        ValidatorV1 {
             metadata,
             voting_power: balance::value(&init_stake),
             stake: init_stake,
@@ -61,8 +60,8 @@ module iota_system::validator {
 
     public(package) fun new_dummy_inactive_validator(
         ctx: &mut TxContext
-    ): Validator {
-        let metadata = ValidatorMetadata {
+    ): ValidatorV1 {
+        let metadata = ValidatorMetadataV1 {
             iota_address: @0x0,
             authority_pubkey_bytes: vector[],
             network_pubkey_bytes: vector[],
@@ -73,7 +72,7 @@ module iota_system::validator {
             extra_fields: bag::new(ctx),
         };
 
-        Validator {
+        ValidatorV1 {
             metadata,
             voting_power: 0,
             stake: balance::zero(),

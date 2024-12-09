@@ -120,6 +120,9 @@ where
     T: R2D2Connection + 'static,
 {
     async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+        self.metrics
+            .latest_fullnode_checkpoint_sequence_number
+            .set(checkpoint.checkpoint_summary.sequence_number as i64);
         let time_now_ms = chrono::Utc::now().timestamp_millis();
         let cp_download_lag = time_now_ms - checkpoint.checkpoint_summary.timestamp_ms as i64;
         info!(

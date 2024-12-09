@@ -3,11 +3,9 @@ name = "move-ir-to-bytecode-syntax"
 version = "0.1.0"
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
-homepage = "https://diem.com"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/diem/diem"
-description = "Diem ir to bytecode syntax"
+description = "Move ir to bytecode syntax"
 
 [dependencies]
 anyhow.workspace = true

@@ -19,10 +19,7 @@ pub mod checked {
         ObjectID,
         effects::{TransactionEffects, TransactionEffectsAPI},
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{
-            gas_predicates::gas_price_too_high, gas_v2::IotaGasStatus as IotaGasStatusV2,
-            tables::GasStatus,
-        },
+        gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         iota_serde::{BigInt, Readable},
         object::Object,
         transaction::ObjectReadResult,
@@ -57,9 +54,7 @@ pub mod checked {
     #[enum_dispatch(IotaGasStatusAPI)]
     #[derive(Debug)]
     pub enum IotaGasStatus {
-        // V1 does not exists any longer as it was a pre mainnet version.
-        // So we start the enum from V2
-        V2(IotaGasStatusV2),
+        V1(IotaGasStatusV1),
     }
 
     impl IotaGasStatus {
@@ -80,15 +75,14 @@ pub mod checked {
                 }
                 .into());
             }
-            if gas_price_too_high(config.gas_model_version()) && gas_price >= config.max_gas_price()
-            {
+            if gas_price > config.max_gas_price() {
                 return Err(UserInputError::GasPriceTooHigh {
                     max_gas_price: config.max_gas_price(),
                 }
                 .into());
             }
 
-            Ok(Self::V2(IotaGasStatusV2::new_with_budget(
+            Ok(Self::V1(IotaGasStatusV1::new_with_budget(
                 gas_budget,
                 gas_price,
                 reference_gas_price,
@@ -97,7 +91,7 @@ pub mod checked {
         }
 
         pub fn new_unmetered() -> Self {
-            Self::V2(IotaGasStatusV2::new_unmetered())
+            Self::V1(IotaGasStatusV1::new_unmetered())
         }
 
         // This is the only public API on IotaGasStatus, all other gas related
@@ -108,7 +102,7 @@ pub mod checked {
             gas_budget: u64,
         ) -> UserInputResult {
             match self {
-                Self::V2(status) => status.check_gas_balance(gas_objs, gas_budget),
+                Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
             }
         }
     }
@@ -147,6 +141,10 @@ pub mod checked {
         #[schemars(with = "BigInt<u64>")]
         #[serde_as(as = "Readable<BigInt<u64>, _>")]
         pub computation_cost: u64,
+        /// The burned component of the computation/execution costs
+        #[schemars(with = "BigInt<u64>")]
+        #[serde_as(as = "Readable<BigInt<u64>, _>")]
+        pub computation_cost_burned: u64,
         /// Storage cost, it's the sum of all storage cost for all objects
         /// created or mutated.
         #[schemars(with = "BigInt<u64>")]
@@ -167,12 +165,14 @@ pub mod checked {
     impl GasCostSummary {
         pub fn new(
             computation_cost: u64,
+            computation_cost_burned: u64,
             storage_cost: u64,
             storage_rebate: u64,
             non_refundable_storage_fee: u64,
         ) -> GasCostSummary {
             GasCostSummary {
                 computation_cost,
+                computation_cost_burned,
                 storage_cost,
                 storage_rebate,
                 non_refundable_storage_fee,
@@ -201,19 +201,22 @@ pub mod checked {
             self.gas_used() as i64 - self.storage_rebate as i64
         }
 
+        #[allow(clippy::type_complexity)]
         pub fn new_from_txn_effects<'a>(
             transactions: impl Iterator<Item = &'a TransactionEffects>,
         ) -> GasCostSummary {
-            let (storage_costs, computation_costs, storage_rebates, non_refundable_storage_fee): (
-                Vec<u64>,
-                Vec<u64>,
-                Vec<u64>,
-                Vec<u64>,
-            ) = transactions
+            let (
+                storage_costs,
+                computation_costs,
+                computation_costs_burned,
+                storage_rebates,
+                non_refundable_storage_fee,
+            ): (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) = transactions
                 .map(|e| {
                     (
                         e.gas_cost_summary().storage_cost,
                         e.gas_cost_summary().computation_cost,
+                        e.gas_cost_summary().computation_cost_burned,
                         e.gas_cost_summary().storage_rebate,
                         e.gas_cost_summary().non_refundable_storage_fee,
                     )
@@ -223,6 +226,7 @@ pub mod checked {
             GasCostSummary {
                 storage_cost: storage_costs.iter().sum(),
                 computation_cost: computation_costs.iter().sum(),
+                computation_cost_burned: computation_costs_burned.iter().sum(),
                 storage_rebate: storage_rebates.iter().sum(),
                 non_refundable_storage_fee: non_refundable_storage_fee.iter().sum(),
             }
@@ -233,8 +237,9 @@ pub mod checked {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(
                 f,
-                "computation_cost: {}, storage_cost: {},  storage_rebate: {}, non_refundable_storage_fee: {}",
+                "computation_cost: {}, computation_cost_burned: {}, storage_cost: {},  storage_rebate: {}, non_refundable_storage_fee: {}",
                 self.computation_cost,
+                self.computation_cost_burned,
                 self.storage_cost,
                 self.storage_rebate,
                 self.non_refundable_storage_fee,
@@ -245,6 +250,7 @@ pub mod checked {
     impl std::ops::AddAssign<&Self> for GasCostSummary {
         fn add_assign(&mut self, other: &Self) {
             self.computation_cost += other.computation_cost;
+            self.computation_cost_burned += other.computation_cost_burned;
             self.storage_cost += other.storage_cost;
             self.storage_rebate += other.storage_rebate;
             self.non_refundable_storage_fee += other.non_refundable_storage_fee;

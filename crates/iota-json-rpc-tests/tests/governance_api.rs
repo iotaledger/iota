@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::{collections::BTreeSet, time::Duration};
 
 use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, TransactionBuilderClient,
@@ -14,12 +14,17 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_swarm_config::genesis_config::AccountConfig;
+use iota_swarm_config::genesis_config::{
+    AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
+};
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{MoveObjectType, ObjectID},
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
+    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     id::UID,
+    iota_system_state::IotaSystemStateTrait,
     object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
     quorum_driver_types::ExecuteTransactionRequestType,
     timelock::{
@@ -28,8 +33,181 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use test_cluster::TestClusterBuilder;
+use rand::rngs::OsRng;
+use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
+
+/// Execute a sequence of transactions to add a validator, including adding
+/// candidate, adding stake and activate the validator.
+/// It does not however trigger reconfiguration yet.
+async fn execute_add_validator_transactions(
+    test_cluster: &TestCluster,
+    new_validator: &ValidatorGenesisConfig,
+) {
+    let pending_active_count = test_cluster.fullnode_handle.iota_node.with(|node| {
+        let system_state = node
+            .state()
+            .get_iota_system_state_object_for_testing()
+            .unwrap();
+        system_state
+            .get_pending_active_validators(node.state().get_object_store().as_ref())
+            .unwrap()
+            .len()
+    });
+
+    let cur_validator_candidate_count = test_cluster.fullnode_handle.iota_node.with(|node| {
+        node.state()
+            .get_iota_system_state_object_for_testing()
+            .unwrap()
+            .into_iota_system_state_summary()
+            .validator_candidates_size
+    });
+    let address = (&new_validator.account_key_pair.public()).into();
+    let gas = test_cluster
+        .wallet
+        .get_one_gas_object_owned_by_address(address)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let tx =
+        TestTransactionBuilder::new(address, gas, test_cluster.get_reference_gas_price().await)
+            .call_request_add_validator_candidate(
+                &new_validator.to_validator_info_with_random_name().into(),
+            )
+            .build_and_sign(&new_validator.account_key_pair);
+    test_cluster.execute_transaction(tx).await;
+
+    // Check that the candidate can be found in the candidate table now.
+    test_cluster.fullnode_handle.iota_node.with(|node| {
+        let system_state = node
+            .state()
+            .get_iota_system_state_object_for_testing()
+            .unwrap();
+        let system_state_summary = system_state.into_iota_system_state_summary();
+        assert_eq!(
+            system_state_summary.validator_candidates_size,
+            cur_validator_candidate_count + 1
+        );
+    });
+
+    let address = (&new_validator.account_key_pair.public()).into();
+    let stake_coin = test_cluster
+        .wallet
+        .gas_for_owner_budget(
+            address,
+            MIN_VALIDATOR_JOINING_STAKE_NANOS,
+            Default::default(),
+        )
+        .await
+        .unwrap()
+        .1
+        .object_ref();
+    let gas = test_cluster
+        .wallet
+        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.0]))
+        .await
+        .unwrap()
+        .1
+        .object_ref();
+
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let stake_tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_staking(stake_coin, address)
+        .build_and_sign(&new_validator.account_key_pair);
+    test_cluster.execute_transaction(stake_tx).await;
+
+    let gas = test_cluster.wallet.get_object_ref(gas.0).await.unwrap();
+    let tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_request_add_validator()
+        .build_and_sign(&new_validator.account_key_pair);
+    test_cluster.execute_transaction(tx).await;
+
+    // Check that we can get the pending validator from 0x5.
+    test_cluster.fullnode_handle.iota_node.with(|node| {
+        let system_state = node
+            .state()
+            .get_iota_system_state_object_for_testing()
+            .unwrap();
+        let pending_active_validators = system_state
+            .get_pending_active_validators(node.state().get_object_store().as_ref())
+            .unwrap();
+        assert_eq!(pending_active_validators.len(), pending_active_count + 1);
+        assert_eq!(
+            pending_active_validators[pending_active_validators.len() - 1].iota_address,
+            address
+        );
+    });
+}
+
+#[sim_test]
+async fn get_stakes_with_new_validator() {
+    // Create the keypair for the new validator candidate
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let address = (&new_validator.account_key_pair.public()).into();
+
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_validator_candidates([address])
+        .with_num_validators(4)
+        .build()
+        .await;
+
+    let client = test_cluster.rpc_client().clone();
+
+    assert_eq!(test_cluster.committee().epoch, 0);
+
+    let stakes = client.get_stakes(address).await.unwrap();
+    assert!(stakes.is_empty());
+
+    // 1. Add validator as candidate
+    // 2. Stake the required tokens
+    // 3. Submit staking transaction
+    // 4. Request to join validator set
+    execute_add_validator_transactions(&test_cluster, &new_validator).await;
+
+    // We just added the validator, it's not active yet, it will be on epoch change.
+    let stakes = test_cluster.rpc_client().get_stakes(address).await.unwrap();
+    assert!(matches!(stakes[0].stakes[0].status, StakeStatus::Pending));
+
+    test_cluster.force_new_epoch().await;
+
+    assert_eq!(test_cluster.committee().epoch, 1);
+
+    // Check that a new validator has joined the committee.
+    test_cluster.fullnode_handle.iota_node.with(|node| {
+        assert_eq!(
+            node.state()
+                .epoch_store_for_testing()
+                .committee()
+                .num_members(),
+            5
+        );
+    });
+
+    // after epoch change the new validator is active and part of the committee
+    let stakes = client.get_stakes(address).await.unwrap();
+    assert!(matches!(stakes[0].stakes[0].status, StakeStatus::Active {
+        estimated_reward: 0
+    }));
+
+    // Starts the validator node process
+    let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;
+    test_cluster.wait_for_epoch_all_nodes(1).await;
+
+    new_validator_handle.with(|node| {
+        assert!(
+            node.state()
+                .is_validator(&node.state().epoch_store_for_testing())
+        );
+    });
+
+    test_cluster.force_new_epoch().await;
+
+    let stakes = client.get_stakes(address).await.unwrap();
+    assert!(matches!(stakes[0].stakes[0].status, StakeStatus::Active {
+        estimated_reward
+    } if estimated_reward > 0));
+}
 
 #[sim_test]
 async fn test_staking() -> Result<(), anyhow::Error> {
@@ -52,10 +230,6 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         )
         .await?;
     assert_eq!(5, objects.data.len());
-
-    // Check StakedIota object before test
-    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
-    assert!(staked_iota.is_empty());
 
     let validator = http_client
         .get_latest_iota_system_state()
@@ -251,10 +425,9 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
-    let timelock_iota = unsafe {
+    let timelock_iota = {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
-            false,
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),
@@ -403,10 +576,9 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
-    let timelock_iota = unsafe {
+    let timelock_iota = {
         MoveObject::new_from_execution(
             MoveObjectType::timelocked_iota_balance(),
-            false,
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),

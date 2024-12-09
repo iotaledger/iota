@@ -20,7 +20,7 @@ use crate::{
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    transaction::{Transaction, VerifiedTransaction},
+    transaction::Transaction,
 };
 
 pub type QuorumDriverResult = Result<QuorumDriverResponse, QuorumDriverError>;
@@ -85,12 +85,6 @@ pub enum ExecuteTransactionRequestType {
     WaitForLocalExecution,
 }
 
-#[derive(Debug)]
-pub enum TransactionType {
-    SingleWriter, // Txes that only use owned objects and/or immutable objects
-    SharedObject, // Txes that use at least one shared object
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EffectsFinalityInfo {
     Certified(AuthorityStrongQuorumSignInfo),
@@ -103,22 +97,6 @@ pub enum EffectsFinalityInfo {
 /// is confirmed to be executed on this node before the response returns.
 pub type IsTransactionExecutedLocally = bool;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum ExecuteTransactionResponse {
-    EffectsCert(
-        Box<(
-            FinalizedEffects,
-            TransactionEvents,
-            IsTransactionExecutedLocally,
-        )>,
-    ),
-}
-
-#[derive(Clone, Debug)]
-pub struct QuorumDriverRequest {
-    pub transaction: VerifiedTransaction,
-}
-
 #[derive(Debug, Clone)]
 pub struct QuorumDriverResponse {
     pub effects_cert: VerifiedCertifiedTransactionEffects,
@@ -129,22 +107,6 @@ pub struct QuorumDriverResponse {
     // Output objects will only be populated in the happy path
     pub output_objects: Option<Vec<Object>>,
     pub auxiliary_data: Option<Vec<u8>>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionRequest {
-    pub transaction: Transaction,
-    pub request_type: ExecuteTransactionRequestType,
-}
-
-impl ExecuteTransactionRequest {
-    pub fn transaction_type(&self) -> TransactionType {
-        if self.transaction.contains_shared_object() {
-            TransactionType::SharedObject
-        } else {
-            TransactionType::SingleWriter
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

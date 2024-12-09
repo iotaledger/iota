@@ -14,8 +14,10 @@ import type {
     IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 } from '@iota/iota-sdk/client';
+import type { IotaObjectRef } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
+import type { ObjectOut } from '@iota/iota-sdk/src/bcs/effects.js';
 import type { Rpc_Transaction_FieldsFragment } from '../generated/queries.js';
 import { toShortTypeString } from './util.js';
 
@@ -351,250 +353,236 @@ const ADDRESS_ZERO = normalizeIotaAddress('0x0');
 export function mapEffects(data: string): IotaTransactionBlockResponse['effects'] {
     const effects = bcs.TransactionEffects.parse(fromB64(data));
 
-    let effectsV1 = effects.V1;
+    type InferedOwner = Exclude<(typeof ObjectOut)['$inferType']['ObjectWrite'], undefined>[1];
 
-    if (effects.V2) {
-        const sharedObjects = effects.V2.unchangedSharedObjects.map(([id, sharedObject]) => {
-            switch (sharedObject.$kind) {
-                case 'ReadOnlyRoot':
-                    return {
-                        objectId: id,
-                        version: Number(sharedObject.ReadOnlyRoot[0]) as unknown as string,
-                        digest: sharedObject.ReadOnlyRoot[1],
-                    };
-                case 'MutateDeleted':
-                    return {
-                        objectId: id,
-                        version: Number(sharedObject.MutateDeleted) as unknown as string,
-                        digest: OBJECT_DIGEST_DELETED,
-                    };
-                case 'ReadDeleted':
-                    return {
-                        objectId: id,
-                        version: Number(sharedObject.ReadDeleted) as unknown as string,
-                        digest: OBJECT_DIGEST_DELETED,
-                    };
-                default:
-                    throw new Error(`Unknown shared object type: ${sharedObject}`);
-            }
+    const sharedObjects = effects.V1.unchangedSharedObjects.map(([id, sharedObject]) => {
+        switch (sharedObject.$kind) {
+            case 'ReadOnlyRoot':
+                return {
+                    objectId: id,
+                    version: Number(sharedObject.ReadOnlyRoot[0]) as unknown as string,
+                    digest: sharedObject.ReadOnlyRoot[1],
+                };
+            case 'MutateDeleted':
+                return {
+                    objectId: id,
+                    version: Number(sharedObject.MutateDeleted) as unknown as string,
+                    digest: OBJECT_DIGEST_DELETED,
+                };
+            case 'ReadDeleted':
+                return {
+                    objectId: id,
+                    version: Number(sharedObject.ReadDeleted) as unknown as string,
+                    digest: OBJECT_DIGEST_DELETED,
+                };
+            default:
+                throw new Error(`Unknown shared object type: ${sharedObject}`);
+        }
+    });
+
+    effects.V1.changedObjects
+        .filter(([_id, change]) => change.inputState.Exist?.[1].Shared)
+        .forEach(([id, change]) => {
+            sharedObjects.push({
+                objectId: id,
+                version: Number(change.inputState.Exist![0][0]) as unknown as string,
+                digest: change.inputState.Exist![0][1],
+            });
         });
 
-        effects.V2.changedObjects
-            .filter(([_id, change]) => change.inputState.Exist?.[1].Shared)
-            .forEach(([id, change]) => {
-                sharedObjects.push({
-                    objectId: id,
-                    version: Number(change.inputState.Exist![0][0]) as unknown as string,
-                    digest: change.inputState.Exist![0][1],
-                });
-            });
+    const modifiedAtVersions = effects.V1.changedObjects
+        .filter(([_id, change]) => change.inputState.Exist)
+        .map(([id, change]) => [id, change.inputState.Exist![0][0]] as const);
 
-        const gasObject =
-            effects.V2.gasObjectIndex != null
-                ? effects.V2.changedObjects[effects.V2.gasObjectIndex]
-                : null;
+    const created = effects.V1.changedObjects
+        .filter(
+            ([_id, change]) =>
+                change.inputState.NotExist &&
+                (change.outputState.ObjectWrite || change.outputState.PackageWrite) &&
+                change.idOperation.Created,
+        )
+        .map(([objectId, change]) =>
+            change.outputState.PackageWrite
+                ? ([
+                      {
+                          objectId,
+                          version: Number(change.outputState.PackageWrite[0]) as unknown as string,
+                          digest: change.outputState.PackageWrite[1],
+                      },
+                      { $kind: 'Immutable', Immutable: true },
+                  ] as const)
+                : ([
+                      {
+                          objectId,
+                          version: Number(effects.V1.lamportVersion) as unknown as string,
+                          digest: change.outputState.ObjectWrite![0],
+                      },
+                      change.outputState.ObjectWrite![1],
+                  ] as const),
+        );
 
-        effectsV1 = {
-            status: effects.V2.status,
-            executedEpoch: effects.V2.executedEpoch,
-            gasUsed: effects.V2.gasUsed,
-            modifiedAtVersions: effects.V2.changedObjects
-                .filter(([_id, change]) => change.inputState.Exist)
-                .map(([id, change]) => [id, change.inputState.Exist![0][0]] as const),
-            sharedObjects,
-            transactionDigest: effects.V2.transactionDigest,
-            created: effects.V2.changedObjects
-                .filter(
-                    ([_id, change]) =>
-                        change.inputState.NotExist &&
-                        (change.outputState.ObjectWrite || change.outputState.PackageWrite) &&
-                        change.idOperation.Created,
-                )
-                .map(([objectId, change]) =>
-                    change.outputState.PackageWrite
-                        ? ([
-                              {
-                                  objectId,
-                                  version: Number(
-                                      change.outputState.PackageWrite[0],
-                                  ) as unknown as string,
-                                  digest: change.outputState.PackageWrite[1],
-                              },
-                              { $kind: 'Immutable', Immutable: true },
-                          ] as const)
-                        : ([
-                              {
-                                  objectId,
-                                  version: Number(effects.V2.lamportVersion) as unknown as string,
-                                  digest: change.outputState.ObjectWrite![0],
-                              },
-                              change.outputState.ObjectWrite![1],
-                          ] as const),
-                ),
-            mutated: effects.V2.changedObjects
-                .filter(
-                    ([_id, change]) =>
-                        change.inputState.Exist &&
-                        (change.outputState.ObjectWrite || change.outputState.PackageWrite),
-                )
-                .map(([objectId, change]) => [
-                    change.outputState.PackageWrite
-                        ? {
-                              objectId,
-                              version: Number(
-                                  change.outputState.PackageWrite[0],
-                              ) as unknown as string,
-                              digest: change.outputState.PackageWrite[1],
-                          }
-                        : {
-                              objectId,
-                              version: Number(effects.V2.lamportVersion) as unknown as string,
-                              digest: change.outputState.ObjectWrite![0],
-                          },
-                    change.outputState.ObjectWrite
-                        ? change.outputState.ObjectWrite[1]
-                        : { $kind: 'Immutable', Immutable: true },
-                ]),
-            unwrapped: effects.V2.changedObjects
-                .filter(
-                    ([_id, change]) =>
-                        change.inputState.NotExist &&
-                        change.outputState.ObjectWrite &&
-                        change.idOperation.None,
-                )
-                .map(([objectId, change]) => [
-                    {
-                        objectId,
-                        version: Number(effects.V2.lamportVersion) as unknown as string,
-                        digest: change.outputState.ObjectWrite![0],
-                    },
-                    change.outputState.ObjectWrite![1],
-                ]),
-            deleted: effects.V2.changedObjects
-                .filter(
-                    ([_id, change]) =>
-                        change.inputState.Exist &&
-                        change.outputState.NotExist &&
-                        change.idOperation.Deleted,
-                )
-                .map(([objectId, _change]) => ({
-                    objectId,
-                    version: Number(effects.V2.lamportVersion) as unknown as string,
-                    digest: OBJECT_DIGEST_DELETED,
-                })),
-            unwrappedThenDeleted: effects.V2.changedObjects
-                .filter(
-                    ([_id, change]) =>
-                        change.inputState.NotExist &&
-                        change.outputState.NotExist &&
-                        change.idOperation.Deleted,
-                )
-                .map(([objectId, _change]) => ({
-                    objectId,
-                    version: Number(effects.V2.lamportVersion) as unknown as string,
-                    digest: OBJECT_DIGEST_DELETED,
-                })),
-            wrapped: effects.V2.changedObjects
-                .filter(
-                    ([_id, change]) =>
-                        change.inputState.Exist &&
-                        change.outputState.NotExist &&
-                        change.idOperation.None,
-                )
-                .map(([objectId, _change]) => ({
-                    objectId,
-                    version: Number(effects.V2.lamportVersion) as unknown as string,
-                    digest: OBJECT_DIGEST_WRAPPED,
-                })),
-            gasObject: gasObject
-                ? [
-                      {
-                          objectId: gasObject[0],
-                          digest: gasObject[1].outputState.ObjectWrite![0],
-                          version: Number(effects.V2.lamportVersion) as unknown as string,
-                      },
-                      gasObject[1].outputState.ObjectWrite![1],
-                  ]
-                : [
-                      {
-                          objectId: ADDRESS_ZERO,
-                          version: '0',
-                          digest: OBJECT_DIGEST_ZERO,
-                      },
-                      {
-                          $kind: 'AddressOwner',
-                          AddressOwner: ADDRESS_ZERO,
-                      },
-                  ],
-            eventsDigest: effects.V2.eventsDigest,
-            dependencies: effects.V2.dependencies,
-        };
-    }
+    const mutated: Array<[IotaObjectRef, InferedOwner]> = effects.V1.changedObjects
+        .filter(
+            ([_id, change]) =>
+                change.inputState.Exist &&
+                (change.outputState.ObjectWrite || change.outputState.PackageWrite),
+        )
+        .map(([objectId, change]) => [
+            change.outputState.PackageWrite
+                ? {
+                      objectId,
+                      version: Number(change.outputState.PackageWrite[0]) as unknown as string,
+                      digest: change.outputState.PackageWrite[1],
+                  }
+                : {
+                      objectId,
+                      version: Number(effects.V1.lamportVersion) as unknown as string,
+                      digest: change.outputState.ObjectWrite![0],
+                  },
+            change.outputState.ObjectWrite
+                ? change.outputState.ObjectWrite[1]
+                : { $kind: 'Immutable', Immutable: true },
+        ]);
 
-    if (!effectsV1) {
-        throw new Error('Invalid effects');
-    }
+    const unwrapped: Array<[IotaObjectRef, InferedOwner]> = effects.V1.changedObjects
+        .filter(
+            ([_id, change]) =>
+                change.inputState.NotExist &&
+                change.outputState.ObjectWrite &&
+                change.idOperation.None,
+        )
+        .map(([objectId, change]) => [
+            {
+                objectId,
+                version: Number(effects.V1.lamportVersion) as unknown as string,
+                digest: change.outputState.ObjectWrite![0],
+            },
+            change.outputState.ObjectWrite![1],
+        ]);
+
+    const deleted = effects.V1.changedObjects
+        .filter(
+            ([_id, change]) =>
+                change.inputState.Exist &&
+                change.outputState.NotExist &&
+                change.idOperation.Deleted,
+        )
+        .map(([objectId, _change]) => ({
+            objectId,
+            version: Number(effects.V1.lamportVersion) as unknown as string,
+            digest: OBJECT_DIGEST_DELETED,
+        }));
+
+    const unwrappedThenDeleted = effects.V1.changedObjects
+        .filter(
+            ([_id, change]) =>
+                change.inputState.NotExist &&
+                change.outputState.NotExist &&
+                change.idOperation.Deleted,
+        )
+        .map(([objectId, _change]) => ({
+            objectId,
+            version: Number(effects.V1.lamportVersion) as unknown as string,
+            digest: OBJECT_DIGEST_DELETED,
+        }));
+
+    const wrapped = effects.V1.changedObjects
+        .filter(
+            ([_id, change]) =>
+                change.inputState.Exist && change.outputState.NotExist && change.idOperation.None,
+        )
+        .map(([objectId, _change]) => ({
+            objectId,
+            version: Number(effects.V1.lamportVersion) as unknown as string,
+            digest: OBJECT_DIGEST_WRAPPED,
+        }));
+
+    const gasObjectFromV1 =
+        effects.V1.gasObjectIndex != null
+            ? effects.V1.changedObjects[effects.V1.gasObjectIndex]
+            : null;
+
+    const gasObject: [IotaObjectRef, InferedOwner] = gasObjectFromV1
+        ? [
+              {
+                  objectId: gasObjectFromV1[0],
+                  digest: gasObjectFromV1[1].outputState.ObjectWrite![0],
+                  version: Number(effects.V1.lamportVersion) as unknown as string,
+              },
+              gasObjectFromV1[1].outputState.ObjectWrite![1],
+          ]
+        : [
+              {
+                  objectId: ADDRESS_ZERO,
+                  version: '0',
+                  digest: OBJECT_DIGEST_ZERO,
+              },
+              {
+                  $kind: 'AddressOwner',
+                  AddressOwner: ADDRESS_ZERO,
+              },
+          ];
 
     return {
         messageVersion: 'v1',
-        status: effectsV1.status.Success
+        status: effects.V1.status.Success
             ? {
                   status: 'success',
               }
             : {
                   status: 'failure',
                   // TODO: we don't have the error message from bcs effects
-                  error: effectsV1.status.$kind,
+                  error: effects.V1.status.$kind,
               },
-        executedEpoch: effectsV1.executedEpoch,
-        gasUsed: effectsV1.gasUsed,
-        modifiedAtVersions: effectsV1.modifiedAtVersions.map(([objectId, sequenceNumber]) => ({
+        executedEpoch: effects.V1.executedEpoch,
+        gasUsed: effects.V1.gasUsed,
+        modifiedAtVersions: modifiedAtVersions.map(([objectId, sequenceNumber]) => ({
             objectId,
             sequenceNumber,
         })),
-        ...(effectsV1.sharedObjects.length === 0 ? {} : { sharedObjects: effectsV1.sharedObjects }),
-        transactionDigest: effectsV1.transactionDigest,
-        ...(effectsV1.created.length === 0
+        ...(sharedObjects.length === 0 ? {} : { sharedObjects }),
+        transactionDigest: effects.V1.transactionDigest,
+        ...(created.length === 0
             ? {}
             : {
-                  created: effectsV1.created.map(([reference, owner]) => ({
+                  created: created.map(([reference, owner]) => ({
                       reference,
                       owner: mapEffectsOwner(owner),
                   })),
               }),
-        ...(effectsV1.mutated.length === 0
+        ...(mutated.length === 0
             ? {}
             : {
-                  mutated: effectsV1.mutated.map(([reference, owner]) => ({
+                  mutated: mutated.map(([reference, owner]) => ({
                       reference,
-                      owner: mapEffectsOwner(owner),
+                      owner: mapEffectsOwner(owner as InferedOwner),
                   })),
               }),
-        ...(effectsV1.unwrapped.length === 0
+        ...(unwrapped.length === 0
             ? {}
             : {
                   unwrapped:
-                      effectsV1.unwrapped.length === 0
+                      unwrapped.length === 0
                           ? undefined
-                          : effectsV1.unwrapped.map(([reference, owner]) => ({
+                          : unwrapped.map(([reference, owner]) => ({
                                 reference,
-                                owner: mapEffectsOwner(owner),
+                                owner: mapEffectsOwner(owner as InferedOwner),
                             })),
               }),
-        ...(effectsV1.deleted.length === 0 ? {} : { deleted: effectsV1.deleted }),
-        ...(effectsV1.unwrappedThenDeleted.length === 0
+        ...(deleted.length === 0 ? {} : { deleted: deleted }),
+        ...(unwrappedThenDeleted.length === 0
             ? {}
-            : { unwrappedThenDeleted: effectsV1.unwrappedThenDeleted }),
-        ...(effectsV1.wrapped.length === 0 ? {} : { wrapped: effectsV1.wrapped }),
+            : { unwrappedThenDeleted: unwrappedThenDeleted }),
+        ...(wrapped.length === 0 ? {} : { wrapped: wrapped }),
         gasObject: {
-            reference: effectsV1.gasObject[0],
-            owner: mapEffectsOwner(effectsV1.gasObject[1]),
+            reference: gasObject[0],
+            owner: mapEffectsOwner(gasObject[1]),
         },
-        ...(effectsV1.eventsDigest ? { eventsDigest: effectsV1.eventsDigest } : {}),
-        dependencies: effectsV1.dependencies,
+        ...(effects.V1.eventsDigest ? { eventsDigest: effects.V1.eventsDigest } : {}),
+        dependencies: effects.V1.dependencies,
     };
 
-    function mapEffectsOwner(owner: NonNullable<typeof effectsV1>['gasObject'][1]) {
+    function mapEffectsOwner(owner: NonNullable<InferedOwner>) {
         if (owner.Immutable) {
             return 'Immutable';
         } else if (owner.Shared) {

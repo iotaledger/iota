@@ -2,7 +2,8 @@
     "name": "@iota/create-dapp",
     "author": "IOTA Foundation <info@iota.org>",
     "description": "A CLI for creating new IOTA dApps",
-    "version": "0.1.0",
+    "homepage": "https://docs.iota.org/references/ts-sdk/typescript/",
+    "version": "0.2.1",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",
@@ -29,9 +30,6 @@
     },
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
-    },
-    "publishConfig": {
-        "access": "public"
     },
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",

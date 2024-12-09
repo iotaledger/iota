@@ -22,8 +22,11 @@ Commands:
   update-metadata                   Update the validator metadata
   update-gas-price                  Update gas price that is used to calculate Reference Gas Price
   report-validator                  Report or un-report a validator as bad or non-performant
-  serialize-payload-pop             Serialize the payload that is used to generate Proof of Possession. This is useful to take the payload offline for an Authority keypair to sign
+  serialize-payload-pop             Serialize the payload that is used to generate Proof of Possession. This is useful to take the payload offline for an Authority protocol keypair to sign
   display-gas-price-update-raw-txn  Print out the serialized data of a transaction that sets the gas price quote for a validator
+  register-bridge-committee         IOTA native bridge committee member registration
+  update-bridge-committee-node-url  Update IOTA native bridge committee node url
+  list                              Get a list of the validators in the network. Use the `display-metadata` command to see the complete data for a validator
   help                              Print this message or the help of the given subcommand(s)
 
 Options:
@@ -31,6 +34,7 @@ Options:
       --json                    Return command outputs in json format
   -y, --yes                     
   -h, --help                    Print help
+  -V, --version                 Print version
 ```
 
 ## Examples
@@ -169,13 +173,13 @@ $ iota validator display-metadata 0x8359fff1dc629bad933cf1781564a6d98a7277ac391e
   "networkPubkeyBytes": "1JiYHZHJFtuxim7woWhPGdBIe4QPoyvLVgpCRRZwUWg=",
   "protocolPubkeyBytes": "XhjH8q+isy4LP4GS1txLJYl+KQ9kV7b5dnu6C2x4XIk=",
   "proofOfPossessionBytes": "ovRMD5206HPBOoTfx+TgB5NXIKpbra4AuJRVGFSaaFbP2hAAZBDWpP1OD0Nyackf",
-  "name": "validator-2.r.iota-rebased-alphanet",
-  "description": "validator-2.r.iota-rebased-alphanet",
+  "name": "validator-2.r.iota-rebased-testnet",
+  "description": "validator-2.r.iota-rebased-testnet",
   "imageUrl": "",
   "projectUrl": "",
-  "netAddress": "/dns/validator-2.r.iota-rebased-alphanet.iota.cafe/tcp/8080/http",
-  "p2pAddress": "/dns/validator-2.r.iota-rebased-alphanet.iota.cafe/udp/8084",
-  "primaryAddress": "/dns/validator-2.r.iota-rebased-alphanet.iota.cafe/udp/8081",
+  "netAddress": "/dns/validator-2.r.iota-rebased-testnet.iota.cafe/tcp/8080/http",
+  "p2pAddress": "/dns/validator-2.r.iota-rebased-testnet.iota.cafe/udp/8084",
+  "primaryAddress": "/dns/validator-2.r.iota-rebased-testnet.iota.cafe/udp/8081",
   "nextEpochAuthorityPubkeyBytes": null,
   "nextEpochProofOfPossession": null,
   "nextEpochNetworkPubkeyBytes": null,

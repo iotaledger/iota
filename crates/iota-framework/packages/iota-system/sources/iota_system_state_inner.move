@@ -5,13 +5,13 @@
 module iota_system::iota_system_state_inner {
     use iota::balance::{Self, Balance};
     use iota::coin::Coin;
-    use iota_system::staking_pool::StakedIota;
     use iota::iota::{IOTA, IotaTreasuryCap};
+    use iota::system_admin_cap::IotaSystemAdminCap;
     use iota_system::validator::{Self, ValidatorV1};
     use iota_system::validator_set::{Self, ValidatorSetV1};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::storage_fund::{Self, StorageFundV1};
-    use iota_system::staking_pool::PoolTokenExchangeRate;
+    use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota};
     use iota::vec_map::{Self, VecMap};
     use iota::vec_set::{Self, VecSet};
     use iota::event;
@@ -76,6 +76,8 @@ module iota_system::iota_system_state_inner {
         storage_fund: StorageFundV1,
         /// A list of system config parameters.
         parameters: SystemParametersV1,
+        /// A capability allows to perform privileged IOTA system operations.
+        iota_system_admin_cap: IotaSystemAdminCap,
         /// The reference gas price for the current epoch.
         reference_gas_price: u64,
         /// A map storing the records of validator reporting each other.
@@ -146,6 +148,7 @@ module iota_system::iota_system_state_inner {
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         parameters: SystemParametersV1,
+        iota_system_admin_cap: IotaSystemAdminCap,
         ctx: &mut TxContext,
     ): IotaSystemStateV1 {
         let validators = validator_set::new(validators, ctx);
@@ -159,6 +162,7 @@ module iota_system::iota_system_state_inner {
             validators,
             storage_fund: storage_fund::new(initial_storage_fund),
             parameters,
+            iota_system_admin_cap,
             reference_gas_price,
             validator_report_records: vec_map::empty(),
             safe_mode: false,
@@ -779,6 +783,10 @@ module iota_system::iota_system_state_inner {
 
     public(package) fun system_state_version(self: &IotaSystemStateV1): u64 {
         self.system_state_version
+    }
+
+    public(package) fun iota_system_admin_cap(self: &IotaSystemStateV1): &IotaSystemAdminCap {
+        &self.iota_system_admin_cap
     }
 
     /// This function always return the genesis system state version, which is used to create the system state in genesis.

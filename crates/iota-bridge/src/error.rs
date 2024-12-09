@@ -66,7 +66,7 @@ pub enum BridgeError {
     ZeroValueBridgeTransfer(String),
     // Storage Error
     Storage(String),
-    // Rest API Error
+    // REST API Error
     RestAPI(String),
     // Uncategorized error
     Generic(String),

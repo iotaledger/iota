@@ -37,7 +37,7 @@ export function useTransferKioskItem({
     const kioskClient = useKioskClient();
 
     return useMutation({
-        mutationFn: async ({ to, clientIdentifier }: { to: string; clientIdentifier?: string }) => {
+        mutationFn: async ({ to }: { to: string }) => {
             if (!to || !signer || !objectType) {
                 throw new Error('Missing data');
             }
@@ -60,17 +60,14 @@ export function useTransferKioskItem({
                     })
                     .finalize();
 
-                return signer.signAndExecuteTransaction(
-                    {
-                        transactionBlock: txb,
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
+                return signer.signAndExecuteTransaction({
+                    transactionBlock: txb,
+                    options: {
+                        showInput: true,
+                        showEffects: true,
+                        showEvents: true,
                     },
-                    clientIdentifier,
-                );
+                });
             }
 
             if (kiosk.type === KioskTypes.ORIGINBYTE && objectData?.data?.data?.type) {
@@ -102,17 +99,14 @@ export function useTransferKioskItem({
                         arguments: [tx.object(kioskId), tx.pure.address(to), tx.pure.id(objectId)],
                     });
                 }
-                return signer.signAndExecuteTransaction(
-                    {
-                        transactionBlock: tx,
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
+                return signer.signAndExecuteTransaction({
+                    transactionBlock: tx,
+                    options: {
+                        showInput: true,
+                        showEffects: true,
+                        showEvents: true,
                     },
-                    clientIdentifier,
-                );
+                });
             }
             throw new Error('Failed to transfer object');
         },

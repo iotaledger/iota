@@ -7,5 +7,4 @@ export const getEmptyBalance = (coinType: string): CoinBalance => ({
     coinType: coinType,
     coinObjectCount: 0,
     totalBalance: '0',
-    lockedBalance: {},
 });

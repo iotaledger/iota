@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
@@ -541,7 +541,6 @@ impl TryFrom<CoinBalance> for Balance {
             coin_object_count: c.coin_num as usize,
             // TODO: deal with overflow
             total_balance: c.coin_balance as u128,
-            locked_balance: HashMap::default(),
         })
     }
 }
@@ -623,10 +622,9 @@ mod tests {
 
         let contents = bcs::to_bytes(&vec![GasCoin::new(id, gas)]).unwrap();
         let data = Data::Move(
-            unsafe {
+            {
                 MoveObject::new_from_execution_with_limit(
                     object_type.into(),
-                    true,
                     1.into(),
                     contents,
                     256,

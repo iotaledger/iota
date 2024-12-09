@@ -7,10 +7,10 @@ use futures::{
     FutureExt,
     task::{Context, Poll, noop_waker},
 };
-use prometheus::{IntCounter, IntGauge};
+use prometheus::IntGauge;
 use tokio::sync::mpsc::error::TrySendError;
 
-use super::{channel, channel_with_total};
+use super::channel;
 
 #[tokio::test]
 async fn test_send() {
@@ -24,22 +24,6 @@ async fn test_send() {
     let received_item = rx.recv().await.unwrap();
     assert_eq!(received_item, item);
     assert_eq!(counter.get(), 0);
-}
-
-#[tokio::test]
-async fn test_total() {
-    let counter = IntGauge::new("TEST_COUNTER", "test").unwrap();
-    let counter_total = IntCounter::new("TEST_TOTAL", "test_total").unwrap();
-    let (tx, mut rx) = channel_with_total(8, &counter, &counter_total);
-
-    assert_eq!(counter.get(), 0);
-    let item = 42;
-    tx.send(item).await.unwrap();
-    assert_eq!(counter.get(), 1);
-    let received_item = rx.recv().await.unwrap();
-    assert_eq!(received_item, item);
-    assert_eq!(counter.get(), 0);
-    assert_eq!(counter_total.get(), 1);
 }
 
 #[tokio::test]

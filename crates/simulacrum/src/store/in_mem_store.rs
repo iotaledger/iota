@@ -18,8 +18,8 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
-        get_module, load_package_object_from_object_store,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
+        load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -323,15 +323,6 @@ impl ObjectStore for InMemoryStore {
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object_at_version(object_id, version).cloned())
-    }
-}
-
-impl ParentSync for InMemoryStore {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        _object_id: ObjectID,
-    ) -> iota_types::error::IotaResult<Option<iota_types::base_types::ObjectRef>> {
-        panic!("Never called in newer protocol versions")
     }
 }
 

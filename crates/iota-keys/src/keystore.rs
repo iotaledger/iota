@@ -137,7 +137,17 @@ pub trait AccountKeystore: Send + Sync {
         let mnemonic = Mnemonic::from_phrase(phrase, Language::English)
             .map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))?;
         let seed = Seed::new(&mnemonic, "");
-        match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {
+        self.import_from_seed(seed.as_bytes(), key_scheme, derivation_path, alias)
+    }
+
+    fn import_from_seed(
+        &mut self,
+        seed: &[u8],
+        key_scheme: SignatureScheme,
+        derivation_path: Option<DerivationPath>,
+        alias: Option<String>,
+    ) -> Result<IotaAddress, anyhow::Error> {
+        match derive_key_pair_from_path(seed, derivation_path, &key_scheme) {
             Ok((address, kp)) => {
                 self.add_key(alias, kp)?;
                 Ok(address)

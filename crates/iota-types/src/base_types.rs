@@ -114,6 +114,9 @@ impl fmt::Display for SequenceNumber {
 
 pub type VersionNumber = SequenceNumber;
 
+/// The round number.
+pub type CommitRound = u64;
+
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Default, Debug, Serialize, Deserialize)]
 pub struct UserData(pub Option<[u8; 32]>);
 
@@ -611,6 +614,10 @@ pub struct IotaAddress(
 
 impl IotaAddress {
     pub const ZERO: Self = Self([0u8; IOTA_ADDRESS_LENGTH]);
+
+    pub fn new(bytes: [u8; IOTA_ADDRESS_LENGTH]) -> Self {
+        Self(bytes)
+    }
 
     /// Convert the address to a byte buffer.
     pub fn to_vec(&self) -> Vec<u8> {

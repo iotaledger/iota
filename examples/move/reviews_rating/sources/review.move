@@ -31,6 +31,19 @@ module reviews_rating::review {
         overall_rate: u8,
     }
 
+    /// Updates the total score of a review
+    fun update_total_score(rev: &mut Review) {
+        rev.total_score = rev.calculate_total_score();
+    }
+
+    /// Calculates the total score of a review
+    fun calculate_total_score(rev: &Review): u64 {
+        let intrinsic_score: u64 = rev.len;
+        let extrinsic_score: u64 = 10 * rev.votes;
+        let vm: u64 = if (rev.has_poe) { 2 } else { 1 };
+        (intrinsic_score + extrinsic_score) * vm
+    }
+
     /// Creates a new review
     public(package) fun new_review(
         owner: address,
@@ -68,25 +81,12 @@ module reviews_rating::review {
         object::delete(id);
     }
 
-    /// Calculates the total score of a review
-    fun calculate_total_score(rev: &Review): u64 {
-        let mut intrinsic_score: u64 = rev.len;
-        intrinsic_score = intrinsic_score.min(150);
-        let extrinsic_score: u64 = 10 * rev.votes;
-        let vm: u64 = if (rev.has_poe) { 2 } else { 1 };
-        (intrinsic_score + extrinsic_score) * vm
-    }
-
-    /// Updates the total score of a review
-    fun update_total_score(rev: &mut Review) {
-        rev.total_score = rev.calculate_total_score();
-    }
-
     /// Upvotes a review
-    public fun upvote(rev: &mut Review) {
-        rev.votes = rev.votes + 1;
-        rev.update_total_score();
-    }
+    public fun upvote(rev: &mut Review): u64 {
+    rev.votes = rev.votes + 1;
+    rev.update_total_score();
+    rev.total_score  // Return the updated total score
+}
 
     public fun get_id(rev: &Review): ID {
         rev.id.to_inner()

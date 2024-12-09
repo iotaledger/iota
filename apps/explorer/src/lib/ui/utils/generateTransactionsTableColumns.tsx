@@ -8,7 +8,7 @@ import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@io
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
-import { formatAddress, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { formatAddress, formatDigest, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
@@ -25,7 +25,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                     <TableCellBase>
                         <TransactionLink
                             digest={digest}
-                            label={<TableCellText>{formatAddress(digest)}</TableCellText>}
+                            label={<TableCellText>{formatDigest(digest)}</TableCellText>}
                         />
                     </TableCellBase>
                 );

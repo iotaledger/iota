@@ -30,7 +30,7 @@ export type PayloadType =
     | 'features-response'
     | 'get-network'
     | 'set-network'
-    | 'sign-message-request'
+    | 'sign-personal-message-request'
     | 'method-payload'
     | 'derive-bip-path-accounts-finder'
     | 'derive-bip-path-accounts-finder-response'

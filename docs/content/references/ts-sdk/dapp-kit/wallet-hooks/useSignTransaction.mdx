@@ -1,12 +1,12 @@
-# useSignTransaction
+# `useSignTransaction`
 
-Use the `useSignTransaction` hook to prompt the user to sign a transaction with their
-wallet.
+Use the `useSignTransaction` hook to prompt the user to sign a transaction with their wallet.
 
 ```ts live
 function UseSignTransactionExample() {
-    const { mutate: signTransaction } = useSignTransaction();
+    const { mutateAsync: signTransaction } = useSignTransaction();
     const [signature, setSignature] = useState('');
+    const client = useIotaClient();
     const currentAccount = useCurrentAccount();
 
     return (
@@ -15,19 +15,23 @@ function UseSignTransactionExample() {
                 <>
                     <div>
                         <button
-                            onClick={() => {
-                                signTransaction(
-                                    {
-                                        transaction: new Transaction(),
-                                        chain: 'iota:devnet',
+                            onClick={async () => {
+                                const { bytes, signature, reportTransactionEffects } = await signTransaction({
+                                    transaction: new Transaction(),
+                                });
+
+                                const executeResult = await client.executeTransactionBlock({
+                                    transactionBlock: bytes,
+                                    signature,
+                                    options: {
+                                        showRawEffects: true,
                                     },
-                                    {
-                                        onSuccess: (result) => {
-                                            console.log('signed message', result);
-                                            setSignature(result.signature);
-                                        },
-                                    },
-                                );
+                                });
+
+                                // Always report transaction effects to the wallet after execution
+                                reportTransactionEffects(executeResult.rawEffects!);
+
+                                console.log(executeResult);
                             }}
                         >
                             Sign empty transaction
@@ -43,10 +47,14 @@ function UseSignTransactionExample() {
 
 ## Arguments
 
--   `transaction`: The transaction to sign.
--   `chain`: (optional) The chain identifier the transaction should be signed for.
+- `transaction`: The transaction to sign.
+- `chain`: (optional) The chain identifier the transaction should be signed for.
 
-## Result
+## Returns
 
--   `signature`: The signature of the message, as a Base64-encoded `string`.
--   `bytes`: The serialized transaction bytes, as a a Base64-encoded `string`.
+- `signature`: The signature of the message, as a Base64-encoded `string`.
+- `bytes`: The serialized transaction bytes, as a a Base64-encoded `string`.
+- `reportTransactionEffects`: A function to report the transaction effects to the wallet. This
+  callback should always be invoked after executing the signed transaction. This function accepts
+  the `rawEffects` returned from JSON-RPC `executeTransactionBlock` method, or the `effects.bcs`
+  when executing with the GraphQL API.

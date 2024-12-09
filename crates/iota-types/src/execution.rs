@@ -14,7 +14,7 @@ use crate::{
     event::Event,
     is_system_package,
     object::{Data, Object, Owner},
-    storage::{BackingPackageStore, ObjectChange},
+    storage::BackingPackageStore,
     transaction::Argument,
 };
 
@@ -56,20 +56,13 @@ impl<T> TypeLayoutStore for T where T: BackingPackageStore {}
 #[derive(Debug)]
 pub enum ExecutionResults {
     V1(ExecutionResultsV1),
-    V2(ExecutionResultsV2),
-}
-
-#[derive(Debug)]
-pub struct ExecutionResultsV1 {
-    pub object_changes: BTreeMap<ObjectID, ObjectChange>,
-    pub user_events: Vec<Event>,
 }
 
 /// Used by iota-execution v1 and above, to capture the execution results from
 /// Move. The results represent the primitive information that can then be used
-/// to construct both transaction effects V1 and V2.
+/// to construct both transaction effect V1.
 #[derive(Debug, Default)]
-pub struct ExecutionResultsV2 {
+pub struct ExecutionResultsV1 {
     /// All objects written regardless of whether they were mutated, created, or
     /// unwrapped.
     pub written_objects: BTreeMap<ObjectID, Object>,
@@ -94,7 +87,7 @@ pub type ExecutionResult = (
     Vec<(Vec<u8>, TypeTag)>,
 );
 
-impl ExecutionResultsV2 {
+impl ExecutionResultsV1 {
     pub fn drop_writes(&mut self) {
         self.written_objects.clear();
         self.modified_objects.clear();

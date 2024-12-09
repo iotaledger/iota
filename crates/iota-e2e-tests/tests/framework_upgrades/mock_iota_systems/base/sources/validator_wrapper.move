@@ -3,47 +3,45 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::validator_wrapper {
-    use iota::versioned::Versioned;
-    use iota::versioned;
-    use iota::tx_context::TxContext;
-    use iota_system::validator::Validator;
+    use iota::versioned::{Self, Versioned};
+    use iota_system::validator::ValidatorV1;
 
     const VALIDATOR_VERSION_V1: u64 = 18446744073709551605;  // u64::MAX - 10
 
     const EInvalidVersion: u64 = 0;
 
-    public struct ValidatorWrapper has store {
+    public struct Validator has store {
         inner: Versioned
     }
 
     // Validator corresponds to version 1.
-    public(package) fun create_v1(validator: Validator, ctx: &mut TxContext): ValidatorWrapper {
-        ValidatorWrapper {
+    public(package) fun create_v1(validator: ValidatorV1, ctx: &mut TxContext): Validator {
+        Validator {
             inner: versioned::create(VALIDATOR_VERSION_V1, validator, ctx)
         }
     }
 
     /// This function should always return the latest supported version.
     /// If the inner version is old, we upgrade it lazily in-place.
-    public(package) fun load_validator_maybe_upgrade(self: &mut ValidatorWrapper): &mut Validator {
+    public(package) fun load_validator_maybe_upgrade(self: &mut Validator): &mut ValidatorV1 {
         upgrade_to_latest(self);
-        versioned::load_value_mut<Validator>(&mut self.inner)
+        versioned::load_value_mut<ValidatorV1>(&mut self.inner)
     }
 
     /// Destroy the wrapper and retrieve the inner validator object.
-    public(package) fun destroy(mut self: ValidatorWrapper): Validator {
-        upgrade_to_latest(&mut self);
-        let ValidatorWrapper { inner } = self;
+    public(package) fun destroy(self: Validator): ValidatorV1 {
+        upgrade_to_latest(&self);
+        let Validator { inner } = self;
         versioned::destroy(inner)
     }
 
-    fun upgrade_to_latest(self: &mut ValidatorWrapper) {
+    fun upgrade_to_latest(self: &Validator) {
         let version = version(self);
         // TODO: When new versions are added, we need to explicitly upgrade here.
         assert!(version == VALIDATOR_VERSION_V1, EInvalidVersion);
     }
 
-    fun version(self: &ValidatorWrapper): u64 {
+    fun version(self: &Validator): u64 {
         versioned::version(&self.inner)
     }
 }

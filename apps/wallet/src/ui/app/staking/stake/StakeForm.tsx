@@ -7,17 +7,19 @@ import {
     createStakeTransaction,
     getGasSummary,
     parseAmount,
+    StakeTransactionInfo,
     useCoinMetadata,
     useFormatCoin,
+    useStakingGasBudgetEstimation,
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
 import { memo, useEffect, useMemo } from 'react';
 import { useActiveAddress, useTransactionDryRun } from '../../hooks';
 import { type FormValues } from './StakingCard';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
-import { StakeTxnInfo } from '../../components/receipt-card/StakeTxnInfo';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { Exclamation } from '@iota/ui-icons';
+import { ExplorerLinkHelper } from '../../components';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -36,7 +38,12 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         if (!values.amount || !decimals) return null;
         if (Number(values.amount) < 0) return null;
         const amountWithoutDecimals = parseAmount(values.amount, decimals);
-        return createStakeTransaction(amountWithoutDecimals, validatorAddress);
+        const transaction = createStakeTransaction(amountWithoutDecimals, validatorAddress);
+        if (activeAddress) {
+            transaction.setSender(activeAddress);
+        }
+
+        return transaction;
     }, [values.amount, validatorAddress, decimals]);
 
     const { data: txDryRunResponse } = useTransactionDryRun(
@@ -44,22 +51,17 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         transaction ?? new Transaction(),
     );
 
-    const gasSummary = useMemo(() => {
-        if (!txDryRunResponse) return null;
-        return getGasSummary(txDryRunResponse);
-    }, [txDryRunResponse]);
+    const gasSummary = txDryRunResponse ? getGasSummary(txDryRunResponse) : undefined;
 
-    const stakeAllTransaction = useMemo(() => {
-        return createStakeTransaction(coinBalance, validatorAddress);
-    }, [coinBalance, validatorAddress, decimals]);
+    const { data: stakeAllGasBudget } = useStakingGasBudgetEstimation({
+        senderAddress: activeAddress,
+        amount: coinBalance,
+        validatorAddress,
+    });
 
-    const { data: stakeAllTransactionDryRun } = useTransactionDryRun(
-        activeAddress ?? undefined,
-        stakeAllTransaction ?? new Transaction(),
-    );
+    const gasBudget = BigInt(stakeAllGasBudget ?? 0);
 
-    const gasBudget = BigInt(stakeAllTransactionDryRun?.input.gasData.budget ?? 0);
-
+    // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
     useEffect(() => {
         setFieldValue('gasBudget', gasBudget);
     }, [gasBudget]);
@@ -69,8 +71,6 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
-    const shouldShowInsufficientRemainingFundsWarning =
-        maxTokenFormatted >= values.amount && !hasEnoughRemaingBalance;
 
     return (
         <Form
@@ -99,7 +99,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     );
                 }}
             </Field>
-            {shouldShowInsufficientRemainingFundsWarning ? (
+            {!hasEnoughRemaingBalance ? (
                 <InfoBox
                     type={InfoBoxType.Error}
                     supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
@@ -107,7 +107,12 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     icon={<Exclamation />}
                 />
             ) : null}
-            <StakeTxnInfo startEpoch={epoch} gasSummary={transaction ? gasSummary : undefined} />
+            <StakeTransactionInfo
+                startEpoch={epoch}
+                activeAddress={activeAddress}
+                gasSummary={transaction ? gasSummary : undefined}
+                renderExplorerLink={ExplorerLinkHelper}
+            />
         </Form>
     );
 }

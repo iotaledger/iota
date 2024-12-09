@@ -17,7 +17,7 @@ use iota_types::{
     object::{Object, Owner},
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
-        ObjectOrTombstone, ObjectStore, PackageObject, ParentSync,
+        ObjectOrTombstone, ObjectStore, PackageObject,
         error::{Error as StorageError, Result as StorageResult},
     },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
@@ -659,21 +659,24 @@ pub trait ExecutionCacheWrite: Send + Sync {
 }
 
 pub trait CheckpointCache: Send + Sync {
-    // TODO: In addition to the deprecated methods below, this will eventually
-    // include access to the CheckpointStore
+    // TODO: In addition to the methods below, this will eventually
+    // include access to the CheckpointStore.
 
-    // DEPRECATED METHODS
-    fn deprecated_get_transaction_checkpoint(
+    // Note, the methods below were deemed deprecated before.
+    // Currently, they are only used to implement `get_transaction_block`
+    // for JSON RPC `ReadApi`.
+
+    fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>>;
 
-    fn deprecated_multi_get_transaction_checkpoint(
+    fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
 
-    fn deprecated_insert_finalized_transactions(
+    fn insert_finalized_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
         epoch: EpochId,
@@ -819,15 +822,6 @@ macro_rules! implement_storage_traits {
                 ObjectCacheRead::get_package_object(self, package_id)
             }
         }
-
-        impl ParentSync for $implementor {
-            fn get_latest_parent_entry_ref_deprecated(
-                &self,
-                object_id: ObjectID,
-            ) -> IotaResult<Option<ObjectRef>> {
-                ObjectCacheRead::get_latest_object_ref_or_tombstone(self, object_id)
-            }
-        }
     };
 }
 
@@ -836,29 +830,29 @@ macro_rules! implement_storage_traits {
 macro_rules! implement_passthrough_traits {
     ($implementor: ident) => {
         impl CheckpointCache for $implementor {
-            fn deprecated_get_transaction_checkpoint(
+            fn get_transaction_perpetual_checkpoint(
                 &self,
                 digest: &TransactionDigest,
             ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-                self.store.deprecated_get_transaction_checkpoint(digest)
+                self.store.get_transaction_perpetual_checkpoint(digest)
             }
 
-            fn deprecated_multi_get_transaction_checkpoint(
+            fn multi_get_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
                 self.store
-                    .deprecated_multi_get_transaction_checkpoint(digests)
+                    .multi_get_transactions_perpetual_checkpoints(digests)
             }
 
-            fn deprecated_insert_finalized_transactions(
+            fn insert_finalized_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
                 epoch: EpochId,
                 sequence: CheckpointSequenceNumber,
             ) -> IotaResult {
                 self.store
-                    .deprecated_insert_finalized_transactions(digests, epoch, sequence)
+                    .insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
             }
         }
 

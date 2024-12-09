@@ -1,6 +1,6 @@
 [package]
 name = "iota-replay"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -51,3 +51,7 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-vm-config.workspace = true
 shared-crypto.workspace = true
+
+[[example]]
+name = "make_sandbox_snapshot"
+path = "examples/make_sandbox_snapshot.rs"

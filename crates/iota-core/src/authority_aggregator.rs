@@ -39,7 +39,7 @@ use iota_types::{
     },
     message_envelope::Message,
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV3, LayoutGenerationOption,
+        HandleCertificateRequestV1, HandleCertificateResponseV1, LayoutGenerationOption,
         ObjectInfoRequest, TransactionInfoRequest,
     },
     messages_safe_client::PlainTransactionInfoResponse,
@@ -1545,7 +1545,7 @@ where
     #[instrument(level = "trace", skip_all)]
     pub async fn process_certificate(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<QuorumDriverResponse, AggregatorProcessCertificateError> {
         let state = ProcessCertificateState {
@@ -1608,7 +1608,7 @@ where
                         let req = if validators_to_sample.contains(&name) {
                             request_ref
                         } else {
-                            HandleCertificateRequestV3 {
+                            HandleCertificateRequestV1 {
                                 include_events: false,
                                 include_input_objects: false,
                                 include_output_objects: false,
@@ -1618,17 +1618,17 @@ where
                         };
 
                         client
-                            .handle_certificate_v3(req, client_addr)
-                            .instrument(trace_span!("handle_certificate_v3", authority =? concise_name))
+                            .handle_certificate_v1(req, client_addr)
+                            .instrument(trace_span!("handle_certificate_v1", authority =? concise_name))
                             .await
                     } else {
                         client
-                            .handle_certificate_v2(request_ref.certificate, client_addr)
-                            .instrument(trace_span!("handle_certificate_v2", authority =? concise_name))
+                            .handle_certificate_v1(HandleCertificateRequestV1::new(request_ref.certificate).with_events(), client_addr)
+                            .instrument(trace_span!("handle_certificate_v1", authority =? concise_name))
                             .await
-                            .map(|response| HandleCertificateResponseV3 {
-                                effects: response.signed_effects,
-                                events: Some(response.events),
+                            .map(|response| HandleCertificateResponseV1 {
+                                signed_effects: response.signed_effects,
+                                events: response.events,
                                 input_objects: None,
                                 output_objects: None,
                                 auxiliary_data: None,
@@ -1755,17 +1755,17 @@ where
         Ok(result)
     }
 
-    /// Handles the `HandleCertificateResponseV2` variants.
+    /// Handles the `HandleCertificateResponseV1` variants.
     fn handle_process_certificate_response(
         committee: Arc<Committee>,
         tx_digest: &TransactionDigest,
         state: &mut ProcessCertificateState,
-        response: IotaResult<HandleCertificateResponseV3>,
+        response: IotaResult<HandleCertificateResponseV1>,
         name: AuthorityName,
     ) -> IotaResult<Option<QuorumDriverResponse>> {
         match response {
-            Ok(HandleCertificateResponseV3 {
-                effects: signed_effects,
+            Ok(HandleCertificateResponseV1 {
+                signed_effects,
                 events,
                 input_objects,
                 output_objects,
@@ -1860,7 +1860,7 @@ where
         let _cert_guard = GaugeGuard::acquire(&self.metrics.inflight_certificates);
         let response = self
             .process_certificate(
-                HandleCertificateRequestV3 {
+                HandleCertificateRequestV1 {
                     certificate: cert.clone(),
                     include_events: true,
                     include_input_objects: false,

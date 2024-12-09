@@ -1,6 +1,6 @@
 [package]
 name = "iota-types"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -19,8 +19,7 @@ better_any.workspace = true
 bincode.workspace = true
 byteorder.workspace = true
 chrono.workspace = true
-derivative.workspace = true
-derive_more = "0.99.17"
+derive_more = { workspace = true, features = ["as_ref", "from", "debug", "display"] }
 enum_dispatch.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
@@ -81,6 +80,7 @@ shared-crypto.workspace = true
 typed-store-error.workspace = true
 
 [dev-dependencies]
+# external dependencies
 async-trait.workspace = true
 bincode.workspace = true
 coset.workspace = true
@@ -93,6 +93,9 @@ proptest.workspace = true
 serde_yaml.workspace = true
 tokio.workspace = true
 url.workspace = true
+
+# internal dependencies
+iota-util-mem.workspace = true
 
 [[bench]]
 name = "accumulator_bench"
@@ -107,3 +110,6 @@ gas-profiler = [
   "move-vm-types/gas-profiler",
 ]
 fuzzing = ["move-core-types/fuzzing", "dep:proptest-derive", "dep:proptest"]
+
+[package.metadata.cargo-udeps.ignore]
+development = ["iota-util-mem"]

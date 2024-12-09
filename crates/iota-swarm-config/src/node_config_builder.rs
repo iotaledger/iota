@@ -207,7 +207,7 @@ impl ValidatorConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
-            enable_experimental_rest_api: true,
+            enable_rest_api: true,
             jwk_fetch_interval_seconds: self
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
@@ -497,7 +497,7 @@ impl FullnodeConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
-            enable_experimental_rest_api: true,
+            enable_rest_api: true,
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
             zklogin_oauth_providers: default_zklogin_oauth_providers(),

@@ -29,9 +29,9 @@ import {
     isSignMessageRequest,
     type SignMessageRequest,
 } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
-import { type SignedTransaction } from '_src/ui/app/WalletSigner';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import type { Runtime } from 'webextension-polyfill';
+import { type SignedTransaction } from '@iota/wallet-standard';
 
 import { getAccountsStatusData } from '../accounts';
 import NetworkEnv from '../NetworkEnv';
@@ -137,10 +137,10 @@ export class ContentScriptConnection extends Connection {
                     ['viewAccount', 'suggestTransactions'],
                     payload.args.accountAddress,
                 );
-                const result = await Transactions.signMessage(payload.args, this);
+                const result = await Transactions.signPersonalMessage(payload.args, this);
                 this.send(
                     createMessage<SignMessageRequest>(
-                        { type: 'sign-message-request', return: result },
+                        { type: 'sign-personal-message-request', return: result },
                         msg.id,
                     ),
                 );

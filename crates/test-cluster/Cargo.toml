@@ -1,6 +1,6 @@
 [package]
 name = "test-cluster"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -50,3 +50,4 @@ iota-simulator.workspace = true
 [dev-dependencies]
 iota-json-rpc-api.workspace = true
 iota-macros.workspace = true
+iota-metrics.workspace = true

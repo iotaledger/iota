@@ -396,7 +396,7 @@ impl StateAccumulatorV1 {
         epoch_store: Arc<AuthorityPerEpochStore>,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
     ) -> IotaResult<Accumulator> {
-        let _scope = monitored_scope("AccumulateEpochV2");
+        let _scope = monitored_scope("AccumulateEpoch");
         let running_root = epoch_store
             .get_running_root_accumulator(&last_checkpoint_of_epoch)?
             .expect("Expected running root accumulator to exist up to last checkpoint of epoch");

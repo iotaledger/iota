@@ -22,7 +22,6 @@ use crate::{
         display::DisplayEntry,
         dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
-        move_type::MoveType,
         move_value::MoveValue,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
@@ -63,13 +62,6 @@ pub(crate) enum MoveObjectDowncastError {
         desc = "Displays the contents of the Move object in a JSON string and through GraphQL \
                 types. Also provides the flat representation of the type signature, and the BCS of \
                 the corresponding data."
-    ),
-    field(
-        name = "has_public_transfer",
-        ty = "bool",
-        desc = "Determines whether a transaction can transfer this object, using the \
-                TransferObjects transaction command or `iota::transfer::public_transfer`, both of \
-                which require the object to have the `key` and `store` abilities."
     ),
     field(
         name = "display",
@@ -296,14 +288,6 @@ impl MoveObject {
         MoveObjectImpl(self).contents().await
     }
 
-    /// Determines whether a transaction can transfer this object, using the
-    /// TransferObjects transaction command or
-    /// `iota::transfer::public_transfer`, both of which require the object to
-    /// have the `key` and `store` abilities.
-    pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
-        MoveObjectImpl(self).has_public_transfer(ctx).await
-    }
-
     /// The set of named templates defined on-chain for the type of this object,
     /// to be handled off-chain. The server substitutes data from the object
     /// into these templates to generate a display string per template.
@@ -403,12 +387,6 @@ impl MoveObjectImpl<'_> {
     pub(crate) async fn contents(&self) -> Option<MoveValue> {
         let type_ = TypeTag::from(self.0.native.type_().clone());
         Some(MoveValue::new(type_, self.0.native.contents().into()))
-    }
-
-    pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
-        let type_ = MoveType::new(TypeTag::from(self.0.native.type_().clone()));
-        let set = type_.abilities_impl(ctx.data_unchecked()).await.extend()?;
-        Ok(set.has_key() && set.has_store())
     }
 }
 

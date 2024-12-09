@@ -1,6 +1,6 @@
 [package]
 name = "iota-graphql-rpc-client"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -17,3 +17,7 @@ thiserror.workspace = true
 
 # internal dependencies
 iota-graphql-rpc-headers.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

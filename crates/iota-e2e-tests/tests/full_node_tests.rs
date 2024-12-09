@@ -93,8 +93,8 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     let context = &mut test_cluster.wallet;
 
     let sender = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .addresses()
         .first()
         .cloned()
@@ -159,14 +159,14 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
     let tx = to_sender_signed_transaction_with_multi_signers(tx_data, vec![
         test_cluster
             .wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .get_key(&sender)
             .unwrap(),
         test_cluster
             .wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .get_key(&sponsor)
             .unwrap(),
     ]);
@@ -271,32 +271,7 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
     let node = &test_cluster.fullnode_handle.iota_node;
     let context = &mut test_cluster.wallet;
 
-    let (transferred_object, sender, receiver, digest, _) = transfer_coin(context).await?;
-
-    let txes = node
-        .state()
-        .get_transactions_for_tests(
-            Some(TransactionFilter::InputObject(transferred_object)),
-            None,
-            None,
-            false,
-        )
-        .await?;
-
-    assert_eq!(txes.len(), 1);
-    assert_eq!(txes[0], digest);
-
-    let txes = node
-        .state()
-        .get_transactions_for_tests(
-            Some(TransactionFilter::ChangedObject(transferred_object)),
-            None,
-            None,
-            false,
-        )
-        .await?;
-    assert_eq!(txes.len(), 2);
-    assert_eq!(txes[1], digest);
+    let (_, sender, receiver, digest, _) = transfer_coin(context).await?;
 
     let txes = node
         .state()
@@ -551,8 +526,8 @@ async fn do_test_full_node_sync_flood() {
                 let context = &mut context.lock().await;
 
                 let sender = context
-                    .config
-                    .keystore
+                    .config()
+                    .keystore()
                     .addresses()
                     .first()
                     .cloned()
@@ -641,14 +616,14 @@ async fn test_full_node_event_read_api_ok() {
     let node = &test_cluster.fullnode_handle.iota_node;
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
-    let (package_id, gas_id_1, _) = publish_nfts_package(context).await;
+    let (package_id, _, publish_digest) = publish_nfts_package(context).await;
 
-    let (transferred_object, _, _, digest, _) = transfer_coin(context).await.unwrap();
+    let (_, sender, _, transfer_digest, _) = transfer_coin(context).await.unwrap();
 
     let txes = node
         .state()
         .get_transactions_for_tests(
-            Some(TransactionFilter::InputObject(transferred_object)),
+            Some(TransactionFilter::FromAddress(sender)),
             None,
             None,
             false,
@@ -656,13 +631,11 @@ async fn test_full_node_event_read_api_ok() {
         .await
         .unwrap();
 
-    if gas_id_1 == transferred_object {
-        assert_eq!(txes.len(), 2);
-        assert!(txes[0] == digest || txes[1] == digest);
-    } else {
-        assert_eq!(txes.len(), 1);
-        assert_eq!(txes[0], digest);
-    }
+    assert_eq!(txes.len(), 2);
+    assert!(
+        (txes[0] == publish_digest && txes[1] == transfer_digest)
+            || (txes[0] == transfer_digest && txes[1] == publish_digest)
+    );
 
     // This is a poor substitute for the post processing taking some time
     sleep(Duration::from_millis(1000)).await;
@@ -844,12 +817,12 @@ async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     context
-        .config
-        .keystore
+        .config_mut()
+        .keystore_mut()
         .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
     context
-        .config
-        .keystore
+        .config_mut()
+        .keystore_mut()
         .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
@@ -1149,8 +1122,8 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     let context = &mut test_cluster.wallet;
 
     let sender = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .addresses()
         .first()
         .cloned()
@@ -1188,8 +1161,10 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
         rgp,
     )
     .unwrap();
-    let tx =
-        to_sender_signed_transaction(tx_data, context.config.keystore.get_key(&sender).unwrap());
+    let tx = to_sender_signed_transaction(
+        tx_data,
+        context.config().keystore().get_key(&sender).unwrap(),
+    );
 
     let digest = *tx.digest();
     let _res = transaction_orchestrator

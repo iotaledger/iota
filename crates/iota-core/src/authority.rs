@@ -84,10 +84,9 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointRequestV2,
-        CheckpointResponse, CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
-        VerifiedCheckpoint,
+        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointResponse,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
+        CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
@@ -1286,7 +1285,7 @@ impl AuthorityState {
         let digest = *certificate.digest();
 
         fail_point_if!("correlated-crash-process-certificate", || {
-            if iota_simulator::random::deterministic_probability_once(&digest, 0.01) {
+            if iota_simulator::random::deterministic_probability_once(digest, 0.01) {
                 iota_simulator::task::kill_current_node(None);
             }
         });
@@ -2558,30 +2557,6 @@ impl AuthorityState {
         &self,
         request: &CheckpointRequest,
     ) -> IotaResult<CheckpointResponse> {
-        let summary = match request.sequence_number {
-            Some(seq) => self
-                .checkpoint_store
-                .get_checkpoint_by_sequence_number(seq)?,
-            None => self.checkpoint_store.get_latest_certified_checkpoint(),
-        }
-        .map(|v| v.into_inner());
-        let contents = match &summary {
-            Some(s) => self
-                .checkpoint_store
-                .get_checkpoint_contents(&s.content_digest)?,
-            None => None,
-        };
-        Ok(CheckpointResponse {
-            checkpoint: summary,
-            contents,
-        })
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub fn handle_checkpoint_request_v2(
-        &self,
-        request: &CheckpointRequestV2,
-    ) -> IotaResult<CheckpointResponseV2> {
         let summary = if request.certified {
             let summary = match request.sequence_number {
                 Some(seq) => self
@@ -2606,7 +2581,7 @@ impl AuthorityState {
                 .get_checkpoint_contents(&s.content_digest())?,
             None => None,
         };
-        Ok(CheckpointResponseV2 {
+        Ok(CheckpointResponse {
             checkpoint: summary,
             contents,
         })
@@ -3172,15 +3147,6 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    fn get_transaction_checkpoint_sequence(
-        &self,
-        digest: &TransactionDigest,
-        epoch_store: &AuthorityPerEpochStore,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        epoch_store.get_transaction_checkpoint(digest)
-    }
-
-    #[instrument(level = "trace", skip_all)]
     pub fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
@@ -3196,7 +3162,7 @@ impl AuthorityState {
         digest: &TransactionDigest,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Option<VerifiedCheckpoint>> {
-        let checkpoint = self.get_transaction_checkpoint_sequence(digest, epoch_store)?;
+        let checkpoint = epoch_store.get_transaction_checkpoint(digest)?;
         let Some(checkpoint) = checkpoint else {
             return Ok(None);
         };
@@ -4143,7 +4109,7 @@ impl AuthorityState {
             ObjectLockStatus::LockedToTx { locked_by_tx } => locked_by_tx,
         };
 
-        epoch_store.get_signed_transaction(&lock_info.tx_digest)
+        epoch_store.get_signed_transaction(&lock_info)
     }
 
     pub async fn get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
@@ -4215,7 +4181,7 @@ impl AuthorityState {
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
         #[cfg(msim)]
-        let system_packages = system_packages.map(|p| p).chain(extra_packages.iter());
+        let system_packages = system_packages.chain(&extra_packages);
 
         for system_package in system_packages {
             let modules = system_package.modules().to_vec();
@@ -4539,7 +4505,11 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEventV1, TransactionEffects)> {
+    ) -> anyhow::Result<(
+        IotaSystemState,
+        Option<SystemEpochInfoEventV1>,
+        TransactionEffects,
+    )> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
@@ -4669,11 +4639,13 @@ impl AuthorityState {
             .data
             .iter()
             .find(|event| event.is_system_epoch_info_event())
-            .expect("end of epoch tx must emit system epoch info event");
-        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEventV1>(
-            &system_epoch_info_event.contents,
-        )
-        .expect("deserialization should succeed since we asserted that the event is of this type");
+            .map(|event| {
+                bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents)
+                    .expect("event deserialization should succeed as type was pre-validated")
+            });
+        // The system epoch info event can be `None` in case if the `advance_epoch`
+        // Move function call failed and was executed in the safe mode.
+        assert!(system_epoch_info_event.is_some() || system_obj.safe_mode());
 
         // We must write tx and effects to the state sync tables so that state sync is
         // able to deliver to the transaction to CheckpointExecutor after it is
@@ -5005,12 +4977,12 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
-    async fn deprecated_get_transaction_checkpoint(
+    async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         self.get_checkpoint_cache()
-            .deprecated_get_transaction_checkpoint(&digest)
+            .get_transaction_perpetual_checkpoint(&digest)
             .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
     }
 
@@ -5024,13 +4996,13 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .map_err(Into::into)
     }
 
-    async fn multi_get_transaction_checkpoint(
+    async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         let res = self
             .get_checkpoint_cache()
-            .deprecated_multi_get_transaction_checkpoint(digests)?;
+            .multi_get_transactions_perpetual_checkpoints(digests)?;
 
         Ok(res
             .into_iter()
@@ -5142,7 +5114,7 @@ pub mod framework_injection {
     }
 
     pub fn get_extra_packages(name: AuthorityName) -> Vec<SystemPackage> {
-        let built_in = BTreeSet::from_iter(BuiltInFramework::all_package_ids().into_iter());
+        let built_in = BTreeSet::from_iter(BuiltInFramework::all_package_ids());
         let extra: Vec<ObjectID> = OVERRIDE.with(|cfg| {
             cfg.borrow()
                 .keys()

@@ -64,6 +64,12 @@ export class FeaturesController {
                 [Feature.AccountFinder]: {
                     defaultValue: false,
                 },
+                [Feature.StardustMigration]: {
+                    defaultValue: false,
+                },
+                [Feature.SupplyIncreaseVesting]: {
+                    defaultValue: true,
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -125,6 +131,12 @@ export class FeaturesController {
                     defaultValue: true,
                 },
                 [Feature.AccountFinder]: {
+                    defaultValue: false,
+                },
+                [Feature.StardustMigration]: {
+                    defaultValue: false,
+                },
+                [Feature.SupplyIncreaseVesting]: {
                     defaultValue: false,
                 },
             },

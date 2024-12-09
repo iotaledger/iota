@@ -3,36 +3,53 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::iota_system_state_inner {
-    use iota::balance::{Self, Balance};
-    use iota::iota::IOTA;
-    use iota::tx_context::TxContext;
     use iota::bag::{Self, Bag};
+    use iota::balance::{Self, Balance};
+    use iota::event;
+    use iota::iota::IOTA;
+    use iota::iota::IotaTreasuryCap;
+    use iota::system_admin_cap::IotaSystemAdminCap;
     use iota::table::{Self, Table};
-    use iota::object::ID;
 
-    use iota_system::validator::Validator;
-    use iota_system::validator_wrapper::ValidatorWrapper;
+    use iota_system::validator::ValidatorV1;
+    use iota_system::validator_wrapper::Validator;
 
     const SYSTEM_STATE_VERSION_V1: u64 = 18446744073709551605;  // u64::MAX - 10
 
-    public struct SystemParameters has store {
+    public struct SystemEpochInfoEventV1 has copy, drop {
+        epoch: u64,
+        protocol_version: u64,
+        reference_gas_price: u64,
+        total_stake: u64,
+        storage_charge: u64,
+        storage_rebate: u64,
+        storage_fund_balance: u64,
+        total_gas_fees: u64,
+        total_stake_rewards_distributed: u64,
+        burnt_tokens_amount: u64,
+        minted_tokens_amount: u64,
+    }
+
+    public struct SystemParametersV1 has store {
         epoch_duration_ms: u64,
         extra_fields: Bag,
     }
 
-    public struct ValidatorSet has store {
-        active_validators: vector<Validator>,
-        inactive_validators: Table<ID, ValidatorWrapper>,
+    public struct ValidatorSetV1 has store {
+        active_validators: vector<ValidatorV1>,
+        inactive_validators: Table<ID, Validator>,
         extra_fields: Bag,
     }
 
-    public struct IotaSystemStateInner has store {
+    public struct IotaSystemStateV1 has store {
         epoch: u64,
         protocol_version: u64,
         system_state_version: u64,
-        validators: ValidatorSet,
+        iota_treasury_cap: IotaTreasuryCap,
+        validators: ValidatorSetV1,
         storage_fund: Balance<IOTA>,
-        parameters: SystemParameters,
+        parameters: SystemParametersV1,
+        iota_system_admin_cap: IotaSystemAdminCap,
         reference_gas_price: u64,
         safe_mode: bool,
         epoch_start_timestamp_ms: u64,
@@ -40,27 +57,31 @@ module iota_system::iota_system_state_inner {
     }
 
     public(package) fun create(
-        validators: vector<Validator>,
+        iota_treasury_cap: IotaTreasuryCap,
+        validators: vector<ValidatorV1>,
         storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
+        iota_system_admin_cap: IotaSystemAdminCap,
         ctx: &mut TxContext,
-    ): IotaSystemStateInner {
-        let system_state = IotaSystemStateInner {
+    ): IotaSystemStateV1 {
+        let system_state = IotaSystemStateV1 {
             epoch: 0,
             protocol_version,
             system_state_version: genesis_system_state_version(),
-            validators: ValidatorSet {
+            iota_treasury_cap,
+            validators: ValidatorSetV1 {
                 active_validators: validators,
                 inactive_validators: table::new(ctx),
                 extra_fields: bag::new(ctx),
             },
             storage_fund,
-            parameters: SystemParameters {
+            parameters: SystemParametersV1 {
                 epoch_duration_ms,
                 extra_fields: bag::new(ctx),
             },
+            iota_system_admin_cap,
             reference_gas_price: 1,
             safe_mode: false,
             epoch_start_timestamp_ms,
@@ -70,14 +91,38 @@ module iota_system::iota_system_state_inner {
     }
 
     public(package) fun advance_epoch(
-        self: &mut IotaSystemStateInner,
-        storage_charge: Balance<IOTA>,
-        computation_reward: Balance<IOTA>,
-        storage_rebate_amount: u64,
+        self: &mut IotaSystemStateV1,
+        _validator_target_reward: u64,
+        mut storage_charge: Balance<IOTA>,
+        mut computation_reward: Balance<IOTA>,
+        mut storage_rebate_amount: u64,
+        mut _non_refundable_storage_fee_amount: u64,
+        _reward_slashing_rate: u64,
+        _ctx: &mut TxContext,
     ) : Balance<IOTA> {
+        let storage_charge_value = storage_charge.value();
+        let total_gas_fees = computation_reward.value();
+
         balance::join(&mut self.storage_fund, computation_reward);
         balance::join(&mut self.storage_fund, storage_charge);
         let storage_rebate = balance::split(&mut self.storage_fund, storage_rebate_amount);
+
+        event::emit(
+            SystemEpochInfoEventV1 {
+                epoch: self.epoch,
+                protocol_version: self.protocol_version,
+                reference_gas_price: self.reference_gas_price,
+                total_stake: 0,
+                storage_charge: storage_charge_value,
+                storage_rebate: storage_rebate_amount,
+                storage_fund_balance: self.storage_fund.value(),
+                total_gas_fees,
+                total_stake_rewards_distributed: 0,
+                burnt_tokens_amount: 0,
+                minted_tokens_amount: 0,
+            }
+        );
+
         storage_rebate
     }
 

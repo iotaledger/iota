@@ -6,11 +6,10 @@ use std::collections::HashMap;
 
 use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
-    base_types::{ObjectID, TransactionDigest},
+    base_types::{CommitRound, ObjectID, TransactionDigest},
     executable_transaction::VerifiedExecutableTransaction,
     transaction::SharedInputObject,
 };
-use narwhal_types::Round;
 
 use crate::authority::transaction_deferral::DeferralKey;
 
@@ -83,7 +82,7 @@ impl SharedObjectCongestionTracker {
         cert: &VerifiedExecutableTransaction,
         max_accumulated_txn_cost_per_object_in_commit: u64,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
-        commit_round: Round,
+        commit_round: CommitRound,
     ) -> Option<(DeferralKey, Vec<ObjectID>)> {
         let tx_cost = self.get_tx_cost(cert)?;
 

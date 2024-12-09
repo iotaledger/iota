@@ -51,8 +51,6 @@ pub struct ValidatorGenesisConfig {
     pub p2p_listen_address: Option<SocketAddr>,
     #[serde(default = "default_socket_address")]
     pub metrics_address: SocketAddr,
-    #[serde(default = "default_multiaddr_address")]
-    pub narwhal_metrics_address: Multiaddr,
     pub gas_price: u64,
     pub commission_rate: u64,
     pub primary_address: Multiaddr,
@@ -164,31 +162,23 @@ impl ValidatorGenesisConfigBuilder {
         let (protocol_key_pair, network_key_pair): (NetworkKeyPair, NetworkKeyPair) =
             (get_key_pair_from_rng(rng).1, get_key_pair_from_rng(rng).1);
 
-        let (
-            network_address,
-            p2p_address,
-            metrics_address,
-            narwhal_metrics_address,
-            primary_address,
-        ) = if let Some(offset) = self.port_offset {
-            (
-                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset),
-                local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 1),
-                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
-                    .with_zero_ip(),
-                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 3)
-                    .with_zero_ip(),
-                local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 4),
-            )
-        } else {
-            (
-                local_ip_utils::new_tcp_address_for_testing(&ip),
-                local_ip_utils::new_udp_address_for_testing(&ip),
-                local_ip_utils::new_tcp_address_for_testing(&localhost),
-                local_ip_utils::new_tcp_address_for_testing(&localhost),
-                local_ip_utils::new_udp_address_for_testing(&ip),
-            )
-        };
+        let (network_address, p2p_address, metrics_address, primary_address) =
+            if let Some(offset) = self.port_offset {
+                (
+                    local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset),
+                    local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 1),
+                    local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
+                        .with_zero_ip(),
+                    local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 3),
+                )
+            } else {
+                (
+                    local_ip_utils::new_tcp_address_for_testing(&ip),
+                    local_ip_utils::new_udp_address_for_testing(&ip),
+                    local_ip_utils::new_tcp_address_for_testing(&localhost),
+                    local_ip_utils::new_udp_address_for_testing(&ip),
+                )
+            };
 
         let p2p_listen_address = self
             .p2p_listen_ip_address
@@ -203,7 +193,6 @@ impl ValidatorGenesisConfigBuilder {
             p2p_address,
             p2p_listen_address,
             metrics_address: metrics_address.to_socket_addr().unwrap(),
-            narwhal_metrics_address,
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
@@ -263,10 +252,6 @@ impl GenesisConfig {
 
 fn default_socket_address() -> SocketAddr {
     local_ip_utils::new_local_tcp_socket_for_testing()
-}
-
-fn default_multiaddr_address() -> Multiaddr {
-    local_ip_utils::new_local_tcp_address_for_testing()
 }
 
 fn default_stake() -> u64 {

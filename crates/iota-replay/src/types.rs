@@ -166,7 +166,7 @@ pub enum ReplayEngineError {
     InvalidEpochChangeTx { epoch: u64 },
 
     #[error("Unexpected event format {:#?}", event)]
-    UnexpectedEventFormat { event: IotaEvent },
+    UnexpectedEventFormat { event: Box<IotaEvent> },
 
     #[error("Unable to find event for epoch {epoch}")]
     EventNotFound { epoch: u64 },
@@ -275,10 +275,6 @@ pub enum ExecutionStoreEvent {
         parent: ObjectID,
         child: ObjectID,
         result: IotaResult<Option<Object>>,
-    },
-    ParentSyncStoreGetLatestParentEntryRef {
-        object_id: ObjectID,
-        result: IotaResult<Option<ObjectRef>>,
     },
     ResourceResolverGetResource {
         address: AccountAddress,

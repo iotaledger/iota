@@ -17,6 +17,7 @@ colored.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 futures-core = "0.3.21"
+getset = "0.1"
 jsonrpsee.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
@@ -74,8 +75,8 @@ path = "examples/json_rpc_errors.rs"
 name = "utils"
 path = "examples/utils.rs"
 crate-type = ["staticlib"]
-# Read API folder
 
+# Read API folder
 [[example]]
 name = "checkpoints"
 path = "examples/read_api/checkpoints.rs"

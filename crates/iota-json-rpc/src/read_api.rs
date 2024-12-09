@@ -261,7 +261,7 @@ impl ReadApi {
         trace!("getting checkpoint sequence numbers");
         let checkpoint_seq_list = self
             .transaction_kv_store
-            .multi_get_transaction_checkpoint(&digests)
+            .multi_get_transactions_perpetual_checkpoints(&digests)
             .await
             .tap_err(
                 |err| debug!(digests=?digests, "Failed to multi get checkpoint sequence number: {:?}", err))?;
@@ -786,9 +786,14 @@ impl ReadApiServer for ReadApi {
                 );
             }
 
+            // `AuthorityPerpetualTables::executed_transactions_to_checkpoint`
+            // table and `CheckpointCache` trait exist for the sole purpose
+            // of being able to execute the following call below.
+            // It if gets removed or rewritten then the table and associated
+            // code can be removed as well.
             temp_response.checkpoint_seq = self
                 .transaction_kv_store
-                .deprecated_get_transaction_checkpoint(digest)
+                .get_transaction_perpetual_checkpoint(digest)
                 .await
                 .map_err(|e| {
                     error!("Failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
@@ -1362,6 +1367,17 @@ fn convert_to_response(
         response.transaction = Some(tx_block);
     }
 
+    if opts.show_raw_effects {
+        let raw_effects = cache
+            .effects
+            .as_ref()
+            .map(bcs::to_bytes)
+            .transpose()
+            .map_err(|e| anyhow!("Failed to serialize raw effects with error: {e}"))?
+            .unwrap_or_default();
+        response.raw_effects = raw_effects;
+    }
+
     if opts.show_effects && cache.effects.is_some() {
         let effects = cache.effects.unwrap().try_into().map_err(|e| {
             anyhow!(
@@ -1386,6 +1402,7 @@ fn convert_to_response(
     if opts.show_object_changes {
         response.object_changes = cache.object_changes;
     }
+
     Ok(response)
 }
 

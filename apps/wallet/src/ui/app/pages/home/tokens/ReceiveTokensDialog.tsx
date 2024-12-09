@@ -1,9 +1,17 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useCallback } from 'react';
 import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
 import { useCopyToClipboard } from '_hooks';
-import { QR } from '_src/ui/app/components';
+import { QR } from '@iota/core';
+import { toast } from 'react-hot-toast';
+import { useIotaLedgerClient } from '_src/ui/app/components';
+import {
+    isLedgerAccountSerializedUI,
+    type LedgerAccountSerializedUI,
+} from '_src/background/accounts/LedgerAccount';
+import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 
 interface ReceiveTokensDialogProps {
     address: string;
@@ -12,9 +20,37 @@ interface ReceiveTokensDialogProps {
 }
 
 export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDialogProps) {
+    const activeAccount = useActiveAccount();
+    const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
+
     const onCopy = useCopyToClipboard(address, {
         copySuccessMessage: 'Address copied',
     });
+
+    const isLedger = isLedgerAccountSerializedUI(activeAccount as LedgerAccountSerializedUI);
+
+    const onVerifyAddress = useCallback(async () => {
+        if (!isLedger || !activeAccount) {
+            return;
+        }
+
+        if (!isLedgerAccountSerializedUI(activeAccount)) {
+            return;
+        }
+
+        try {
+            let ledgerClient = iotaLedgerClient;
+            if (!ledgerClient) {
+                ledgerClient = await connectToLedger(true);
+            }
+
+            toast.success('Please, confirm the address on your Ledger device.');
+            await ledgerClient.getPublicKey(activeAccount.derivationPath, true);
+            toast.success('Address verification successful!');
+        } catch {
+            toast.error('Address verification failed!');
+        }
+    }, [isLedger, activeAccount, iotaLedgerClient, connectToLedger]);
 
     return (
         <div className="relative">
@@ -32,6 +68,11 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
                     <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
                         <Button onClick={onCopy} fullWidth text="Copy Address" />
                     </div>
+                    {isLedger && (
+                        <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
+                            <Button onClick={onVerifyAddress} fullWidth text="Verify Address" />
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

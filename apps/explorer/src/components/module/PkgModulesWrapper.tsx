@@ -115,7 +115,7 @@ export function PkgModulesWrapper({
                         isLoading={false}
                         suggestions={searchSuggestions}
                         renderSuggestion={(suggestion) => (
-                            <div className="z-10 flex cursor-pointer justify-between bg-neutral-98">
+                            <div className="z-10 flex cursor-pointer justify-between">
                                 <ListItem
                                     hideBottomBorder
                                     onClick={() => onChangeModule(suggestion.label)}
@@ -123,7 +123,7 @@ export function PkgModulesWrapper({
                                     <div className="overflow-hidden text-ellipsis">
                                         {suggestion.label}
                                     </div>
-                                    <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
+                                    <div className="text-caption text-steel break-words pl-xs font-medium uppercase">
                                         {suggestion.type}
                                     </div>
                                 </ListItem>
@@ -131,7 +131,7 @@ export function PkgModulesWrapper({
                         )}
                     />
                 </div>
-                <div className="flex-1 overflow-auto pt-sm">
+                <div className="max-h-[560px] flex-1 overflow-auto pt-sm">
                     <VerticalList>
                         <div className="flex flex-col gap-sm">
                             {moduleNames.map((name) => (
@@ -189,13 +189,15 @@ function ExecutePanelContent({
                     ))}
                 </SegmentedButton>
 
-                <ListTabContent id={EXECUTE_TAB.id}>
-                    <ModuleFunctionsInteraction
-                        key={`${packageId}-${moduleName}`}
-                        packageId={packageId}
-                        moduleName={moduleName}
-                    />
-                </ListTabContent>
+                <div className="pr-md--rs">
+                    <ListTabContent id={EXECUTE_TAB.id}>
+                        <ModuleFunctionsInteraction
+                            key={`${packageId}-${moduleName}`}
+                            packageId={packageId}
+                            moduleName={moduleName}
+                        />
+                    </ListTabContent>
+                </div>
             </TabsProvider>
         </TabbedContentWrapper>
     );

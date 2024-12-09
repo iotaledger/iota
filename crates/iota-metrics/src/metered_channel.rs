@@ -378,28 +378,6 @@ pub fn channel<T>(size: usize, gauge: &IntGauge) -> (Sender<T>, Receiver<T>) {
     )
 }
 
-/// Deprecated: use `monitored_mpsc::channel` instead.
-#[track_caller]
-pub fn channel_with_total<T>(
-    size: usize,
-    gauge: &IntGauge,
-    total_gauge: &IntCounter,
-) -> (Sender<T>, Receiver<T>) {
-    gauge.set(0);
-    let (sender, receiver) = mpsc::channel(size);
-    (
-        Sender {
-            inner: sender,
-            gauge: gauge.clone(),
-        },
-        Receiver {
-            inner: receiver,
-            gauge: gauge.clone(),
-            total: Some(total_gauge.clone()),
-        },
-    )
-}
-
 /// Defines an asynchronous method `with_permit` for working with a permit to
 /// send a message.
 #[async_trait]

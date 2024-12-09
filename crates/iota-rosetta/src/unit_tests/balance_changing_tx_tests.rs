@@ -52,7 +52,7 @@ use crate::{
 async fn test_transfer_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Transfer Iota
@@ -82,7 +82,7 @@ async fn test_transfer_iota() {
 async fn test_transfer_iota_whole_coin() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test transfer iota whole coin
@@ -112,7 +112,7 @@ async fn test_transfer_iota_whole_coin() {
 async fn test_transfer_object() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test transfer object
@@ -143,7 +143,7 @@ async fn test_transfer_object() {
 async fn test_publish_and_move_call() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test publish
@@ -237,7 +237,7 @@ async fn test_publish_and_move_call() {
 async fn test_split_coin() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test spilt coin
@@ -270,7 +270,7 @@ async fn test_split_coin() {
 async fn test_merge_coin() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test merge coin
@@ -304,7 +304,7 @@ async fn test_merge_coin() {
 async fn test_pay() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay
@@ -337,7 +337,7 @@ async fn test_pay() {
 async fn test_pay_multiple_coin_multiple_recipient() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay multiple coin multiple recipient
@@ -374,7 +374,7 @@ async fn test_pay_multiple_coin_multiple_recipient() {
 async fn test_pay_iota_multiple_coin_same_recipient() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay multiple coin same recipient
@@ -410,7 +410,7 @@ async fn test_pay_iota_multiple_coin_same_recipient() {
 async fn test_pay_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay Iota
@@ -445,7 +445,7 @@ async fn test_pay_iota() {
 async fn test_failed_pay_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test failed Pay Iota
@@ -480,7 +480,7 @@ async fn test_failed_pay_iota() {
 async fn test_stake_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Delegate Iota
@@ -528,7 +528,7 @@ async fn test_stake_iota() {
 async fn test_stake_iota_with_none_amount() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Staking Iota
@@ -576,7 +576,7 @@ async fn test_stake_iota_with_none_amount() {
 async fn test_pay_all_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay All Iota

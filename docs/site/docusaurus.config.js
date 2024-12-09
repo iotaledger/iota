@@ -15,10 +15,10 @@ const config = {
   title: "IOTA Documentation",
   tagline:
     "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
-  favicon: "/img/favicon.ico",
+  favicon: "/icons/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://docs.iota.io",
+  url: "https://docs.iota.org",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -76,6 +76,39 @@ const config = {
       };
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
+    [
+      'docusaurus-plugin-typedoc',
+      // Options
+      {
+        tsconfig: '../../sdk/typescript/tsconfig.json',
+        entryPoints: [
+          "../../sdk/typescript/src/bcs",
+          "../../sdk/typescript/src/client",
+          "../../sdk/typescript/src/cryptography",
+          "../../sdk/typescript/src/faucet",
+          "../../sdk/typescript/src/graphql",
+          "../../sdk/typescript/src/keypairs/ed25519",
+          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/multisig",
+          "../../sdk/typescript/src/transactions",
+          "../../sdk/typescript/src/utils",
+          "../../sdk/typescript/src/verify"
+        ],
+        plugin: ["typedoc-plugin-markdown"],
+        out: "../../docs/content/references/ts-sdk/api/",
+        githubPages: false,
+        readme: "none",
+        hideGenerator: true,
+        sort: ["source-order"],
+        excludeInternal: true,
+        excludePrivate: true,
+        disableSources: true,
+        hideBreadcrumbs: true,
+        intentionallyNotExported: [],
+      },
+    ],
+    'plugin-image-zoom'
   ],
   presets: [
     [
@@ -93,7 +126,9 @@ const config = {
           }) {
             return defaultSidebarItemsGenerator({
               ...args,
-              isCategoryIndex() {
+              isCategoryIndex(doc) {
+                if(doc.fileName === 'index' && doc.directories.includes('ts-sdk'))
+                  return true;
                 // No doc will be automatically picked as category index
                 return false;
               },
@@ -151,14 +186,15 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
+  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense',
+    '@saucelabs/theme-github-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       typesense: {
         // Replace this with the name of your index/collection.
         // It should match the "index_name" entry in the scraper's "config.json" file.
-        typesenseCollectionName: 'IOTADocs_1724878003',
+        typesenseCollectionName: 'IOTADocs',
         typesenseServerConfig: {
           nodes: [
             {
@@ -195,7 +231,7 @@ const config = {
         title: "",
         logo: {
           alt: "IOTA Docs Logo",
-          src: "img/iota-logo.svg",
+          src: "/logo/iota-logo.svg",
         },
         items: [
           {
@@ -215,6 +251,14 @@ const config = {
             to: "references",
           },
           {
+            label: "TS SDK",
+            to: "references/ts-sdk/typescript/",
+          },
+          {
+            label: "IOTA Identity",
+            to: "iota-identity",
+          },
+          {
             type: 'custom-WalletConnectButton',
             position: 'right',
           }
@@ -223,7 +267,7 @@ const config = {
       footer: {
         logo: {
           alt: "IOTA Wiki Logo",
-          src: "img/iota-logo.svg",
+          src: "/logo/iota-logo.svg",
         },
         copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
                     The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
@@ -240,8 +284,16 @@ const config = {
       prism: {
         theme: themes.vsLight,
         darkTheme: themes.vsDark,
-        additionalLanguages: ["rust", "typescript", "toml", "solidity"],
+        additionalLanguages: ["rust", "typescript", "solidity"],
       },
+      imageZoom: {
+        selector: '.markdown img',
+        // Optional medium-zoom options
+        // see: https://www.npmjs.com/package/medium-zoom#options
+        options: {
+          background: 'rgba(0, 0, 0, 0.6)',
+        },
+      }
     }),
 };
 

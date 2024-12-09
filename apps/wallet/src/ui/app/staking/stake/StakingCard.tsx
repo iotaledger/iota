@@ -5,10 +5,7 @@
 import { Loading } from '_components';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
-import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
-    Feature,
     createStakeTransaction,
     createUnstakeTransaction,
     parseAmount,
@@ -17,11 +14,14 @@ import {
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    getStakeIotaByIotaId,
+    createValidationSchema,
+    MIN_NUMBER_IOTA_TO_STAKE,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-// import * as Sentry from '@sentry/react';
+import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
 import type { FormikHelpers } from 'formik';
@@ -32,14 +32,19 @@ import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { useSigner } from '../../hooks/useSigner';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
-import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
-import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonType,
+    CardType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
-import { Loader } from '@iota/ui-icons';
+import { Info, Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -63,9 +68,6 @@ function StakingCard() {
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
-    const effectsOnlySharedTransactions = useFeatureIsOn(
-        Feature.WalletEffectsOnlySharedTransaction as string,
-    );
 
     const { data: system, isPending: validatorsIsPending } = useIotaClientQuery(
         'getLatestIotaSystemState',
@@ -83,7 +85,7 @@ function StakingCard() {
         return getDelegationDataByStakeId(allDelegation, stakeIotaIdParams);
     }, [allDelegation, stakeIotaIdParams]);
 
-    const coinSymbol = useMemo(() => (coinType && Coin.getCoinSymbol(coinType)) || '', [coinType]);
+    const coinSymbol = (coinType && Coin.getCoinSymbol(coinType)) || '';
 
     const iotaEarned =
         (stakeData as Extract<StakeObject, { estimatedReward: string }>)?.estimatedReward || '0';
@@ -99,87 +101,89 @@ function StakingCard() {
     );
 
     const queryClient = useQueryClient();
-    const delegationId = useMemo(() => {
-        if (!stakeData || stakeData.status === 'Pending') return null;
-        return stakeData.stakedIotaId;
-    }, [stakeData]);
+    const delegationId = stakeData?.stakedIotaId;
 
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
 
-    const { mutateAsync: stakeTokenMutateAsync } = useMutation({
-        mutationFn: async ({
-            tokenTypeArg,
-            amount,
-            validatorAddress,
-        }: {
-            tokenTypeArg: string;
-            amount: bigint;
-            validatorAddress: string;
-        }) => {
-            if (!validatorAddress || !amount || !tokenTypeArg || !signer) {
-                throw new Error('Failed, missing required field');
-            }
+    const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
+        useMutation({
+            mutationFn: async ({
+                tokenTypeArg,
+                amount,
+                validatorAddress,
+            }: {
+                tokenTypeArg: string;
+                amount: bigint;
+                validatorAddress: string;
+            }) => {
+                if (!validatorAddress || !amount || !tokenTypeArg || !signer) {
+                    throw new Error('Failed, missing required field');
+                }
 
-            // const sentryTransaction = Sentry.startTransaction({
-            // 	name: 'stake',
-            // });
-            try {
-                const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                return await signer.signAndExecuteTransaction({
-                    transactionBlock,
-                    requestType: effectsOnlySharedTransactions
-                        ? 'WaitForEffectsCert'
-                        : 'WaitForLocalExecution',
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
+                const sentryTransaction = Sentry.startTransaction({
+                    name: 'stake',
                 });
-            } finally {
-                // sentryTransaction.finish();
-            }
-        },
-        onSuccess: (_, { amount, validatorAddress }) => {
-            ampli.stakedIota({
-                stakedAmount: Number(amount / NANOS_PER_IOTA),
-                validatorAddress: validatorAddress,
-            });
-        },
-    });
+                try {
+                    const transactionBlock = createStakeTransaction(amount, validatorAddress);
+                    const tx = await signer.signAndExecuteTransaction({
+                        transactionBlock,
+                        options: {
+                            showInput: true,
+                            showEffects: true,
+                            showEvents: true,
+                        },
+                    });
+                    await signer.client.waitForTransaction({
+                        digest: tx.digest,
+                    });
+                    return tx;
+                } finally {
+                    sentryTransaction.finish();
+                }
+            },
+            onSuccess: (_, { amount, validatorAddress }) => {
+                ampli.stakedIota({
+                    stakedAmount: Number(amount / NANOS_PER_IOTA),
+                    validatorAddress: validatorAddress,
+                });
+            },
+        });
 
-    const { mutateAsync: unStakeTokenMutateAsync } = useMutation({
-        mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
-            if (!stakedIotaId || !signer) {
-                throw new Error('Failed, missing required field.');
-            }
+    const { mutateAsync: unStakeTokenMutateAsync, isPending: isUnstakeTokenTransactionPending } =
+        useMutation({
+            mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
+                if (!stakedIotaId || !signer) {
+                    throw new Error('Failed, missing required field.');
+                }
 
-            // const sentryTransaction = Sentry.startTransaction({
-            // 	name: 'stake',
-            // });
-            const transactionBlock = createUnstakeTransaction(stakedIotaId);
-            return await signer.signAndExecuteTransaction({
-                transactionBlock,
-                requestType: effectsOnlySharedTransactions
-                    ? 'WaitForEffectsCert'
-                    : 'WaitForLocalExecution',
-                options: {
-                    showInput: true,
-                    showEffects: true,
-                    showEvents: true,
-                },
-            });
-            // finally {
-            // 	sentryTransaction.finish();
-            // }
-        },
-        onSuccess: () => {
-            ampli.unstakedIota({
-                validatorAddress: validatorAddress!,
-            });
-        },
-    });
+                const sentryTransaction = Sentry.startTransaction({
+                    name: 'stake',
+                });
+                try {
+                    const transactionBlock = createUnstakeTransaction(stakedIotaId);
+                    const tx = await signer.signAndExecuteTransaction({
+                        transactionBlock,
+                        options: {
+                            showInput: true,
+                            showEffects: true,
+                            showEvents: true,
+                        },
+                    });
+                    await signer.client.waitForTransaction({
+                        digest: tx.digest,
+                    });
+                    return tx;
+                } finally {
+                    sentryTransaction.finish();
+                }
+            },
+            onSuccess: () => {
+                ampli.unstakedIota({
+                    validatorAddress: validatorAddress!,
+                });
+            },
+        });
 
     const onSubmit = useCallback(
         async ({ amount }: FormValues, { resetForm }: FormikHelpers<FormValues>) => {
@@ -187,12 +191,11 @@ function StakingCard() {
                 return;
             }
             try {
-                const bigIntAmount = parseAmount(amount, coinDecimals);
                 let response;
                 let txDigest;
                 if (unstake) {
                     // check for delegation data
-                    if (!stakeData || !stakeIotaIdParams || stakeData.status === 'Pending') {
+                    if (!stakeData || !stakeIotaIdParams) {
                         return;
                     }
                     response = await unStakeTokenMutateAsync({
@@ -201,6 +204,7 @@ function StakingCard() {
 
                     txDigest = response.digest;
                 } else {
+                    const bigIntAmount = parseAmount(amount, coinDecimals);
                     response = await stakeTokenMutateAsync({
                         amount: bigIntAmount,
                         tokenTypeArg: coinType,
@@ -263,7 +267,15 @@ function StakingCard() {
     }
     return (
         <div className="flex h-full w-full flex-grow flex-col flex-nowrap">
-            <Loading loading={isPending || validatorsIsPending || loadingIotaBalances}>
+            <Loading
+                loading={
+                    isPending ||
+                    validatorsIsPending ||
+                    loadingIotaBalances ||
+                    isStakeTokenTransactionPending ||
+                    isUnstakeTokenTransactionPending
+                }
+            >
                 <Formik
                     initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
@@ -295,6 +307,16 @@ function StakingCard() {
                                         coinBalance={coinBalance}
                                         coinType={coinType}
                                         epoch={system?.epoch}
+                                    />
+                                )}
+                            </div>
+                            <div className="pt-sm">
+                                {unstake && Number(iotaEarned) == 0 && (
+                                    <InfoBox
+                                        supportingText="You have not earned any rewards yet"
+                                        icon={<Info />}
+                                        type={InfoBoxType.Default}
+                                        style={InfoBoxStyle.Elevated}
                                     />
                                 )}
                             </div>
