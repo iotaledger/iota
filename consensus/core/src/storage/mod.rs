@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
 pub(crate) mod mem_store;
 pub(crate) mod rocksdb_store;
 
@@ -12,13 +13,12 @@ use consensus_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block::{BlockRef, Round, Slot, VerifiedBlock},
+    block::{BlockRef, Round, VerifiedBlock},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
 };
 
 /// A common interface for consensus storage.
-#[allow(unused)]
 pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
@@ -30,8 +30,8 @@ pub(crate) trait Store: Send + Sync {
     fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks whether there is any block at the given slot
-    #[allow(dead_code)]
-    fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool>;
+    #[cfg(test)]
+    fn contains_block_at_slot(&self, slot: crate::block::Slot) -> ConsensusResult<bool>;
 
     /// Reads blocks for an authority, from start_round.
     fn scan_blocks_by_author(
@@ -44,7 +44,7 @@ pub(crate) trait Store: Send + Sync {
     // ascending order. When a `before_round` is defined then the blocks of
     // round `<=before_round` are returned. If not then the max value for round
     // will be used as cut off.
-    #[allow(dead_code)]
+    #[cfg(test)]
     fn scan_last_blocks_by_author(
         &self,
         author: AuthorityIndex,

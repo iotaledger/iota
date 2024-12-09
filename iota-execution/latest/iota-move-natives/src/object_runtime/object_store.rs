@@ -229,7 +229,6 @@ impl<'a> Inner<'a> {
         Ok(obj_opt)
     }
 
-    #[allow(clippy::map_entry)]
     fn get_or_fetch_object_from_store(
         &mut self,
         parent: ObjectID,

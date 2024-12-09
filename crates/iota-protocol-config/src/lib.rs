@@ -1147,7 +1147,7 @@ impl ProtocolConfig {
     /// potentially returning a protocol config that is incorrect for some
     /// feature flags. Definitely safe for testing and for protocol version
     /// 11 and prior.
-    #[allow(non_snake_case)]
+    #[expect(non_snake_case)]
     pub fn get_for_max_version_UNSAFE() -> Self {
         if Self::load_poison_get_for_min_version() {
             panic!("get_for_max_version_UNSAFE called on validator");
@@ -1634,7 +1634,7 @@ impl ProtocolConfig {
         // Ignore this check for the fake versions for
         // `test_choose_next_system_packages`. TODO: remove the never_loop
         // attribute when the version 2 is added.
-        #[allow(clippy::never_loop)]
+        #[expect(clippy::never_loop)]
         #[cfg(not(msim))]
         for cur in 2..=version.0 {
             match cur {
