@@ -7,26 +7,9 @@ import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from 
 import { useMemo } from 'react';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ImageIcon } from '../icon';
-import { determineCountDownText, ExtendedDelegatedStake } from '../../utils';
-import { TimeUnit, useFormatCoin, useGetTimeBeforeEpochNumber, useTimeAgo } from '../../hooks';
-import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '../../constants';
+import { ExtendedDelegatedStake } from '../../utils';
+import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
 import React from 'react';
-
-export enum StakeState {
-    WarmUp = 'WARM_UP',
-    Earning = 'EARNING',
-    CoolDown = 'COOL_DOWN',
-    Withdraw = 'WITHDRAW',
-    InActive = 'IN_ACTIVE',
-}
-
-const STATUS_COPY: { [key in StakeState]: string } = {
-    [StakeState.WarmUp]: 'Starts Earning',
-    [StakeState.Earning]: 'Staking Rewards',
-    [StakeState.CoolDown]: 'Available to withdraw',
-    [StakeState.Withdraw]: 'Withdraw',
-    [StakeState.InActive]: 'Inactive',
-};
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -45,48 +28,20 @@ export function StakedCard({
 }: StakedCardProps) {
     const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
 
-    // TODO: Once two step withdraw is available, add cool down and withdraw now logic
-    // For cool down epoch, show Available to withdraw add rewards to principal
-    // Reward earning epoch is 2 epochs after stake request epoch
-    const earningRewardsEpoch =
-        Number(stakeRequestEpoch) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE;
-    const isEarnedRewards = currentEpoch >= Number(earningRewardsEpoch);
-    const delegationState = inactiveValidator
-        ? StakeState.InActive
-        : isEarnedRewards
-          ? StakeState.Earning
-          : StakeState.WarmUp;
-
-    const rewards = isEarnedRewards && estimatedReward ? BigInt(estimatedReward) : 0n;
+    const { rewards, title, subtitle } = useStakeRewardStatus({
+        stakeRequestEpoch,
+        currentEpoch,
+        estimatedReward,
+        inactiveValidator,
+    });
 
     // For inactive validator, show principal + rewards
     const [principalStaked, symbol] = useFormatCoin(
         inactiveValidator ? principal + rewards : principal,
         IOTA_TYPE_ARG,
     );
-    const [rewardsStaked] = useFormatCoin(rewards, IOTA_TYPE_ARG);
-
-    // Applicable only for warm up
-    const epochBeforeRewards = delegationState === StakeState.WarmUp ? earningRewardsEpoch : null;
-
-    const statusText = {
-        // Epoch time before earning
-        [StakeState.WarmUp]: `Epoch #${earningRewardsEpoch}`,
-        [StakeState.Earning]: `${rewardsStaked} ${symbol}`,
-        // Epoch time before redrawing
-        [StakeState.CoolDown]: `Epoch #`,
-        [StakeState.Withdraw]: 'Now',
-        [StakeState.InActive]: 'Not earning rewards',
-    };
 
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
-    const { data: rewardEpochTime } = useGetTimeBeforeEpochNumber(Number(epochBeforeRewards) || 0);
-    const timeAgo = useTimeAgo({
-        timeFrom: rewardEpochTime || null,
-        shortedTimeLabel: false,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_HOUR,
-    });
 
     const validatorMeta = useMemo(() => {
         if (!data) return null;
@@ -96,17 +51,6 @@ export function StakedCard({
             null
         );
     }, [validatorAddress, data]);
-
-    const rewardTime = () => {
-        if (Number(epochBeforeRewards) && rewardEpochTime > 0) {
-            return determineCountDownText({
-                timeAgo,
-                label: 'in',
-            });
-        }
-
-        return statusText[delegationState];
-    };
 
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>
@@ -118,11 +62,7 @@ export function StakedCard({
                 />
             </CardImage>
             <CardBody title={validatorMeta?.name || ''} subtitle={`${principalStaked} ${symbol}`} />
-            <CardAction
-                title={rewardTime()}
-                subtitle={STATUS_COPY[delegationState]}
-                type={CardActionType.SupportingText}
-            />
+            <CardAction title={title} subtitle={subtitle} type={CardActionType.SupportingText} />
         </Card>
     );
 }
