@@ -61,7 +61,6 @@ async fn test_profiler() {
     let command_result =
         iota_replay::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
 
-    println!("{:?}", command_result);
     assert!(command_result.is_ok());
 
     // check that the profile was written
