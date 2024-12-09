@@ -209,7 +209,7 @@ pub struct GenesisConfig {
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
     pub migration_sources: Vec<SnapshotSource>,
-    pub delegator: Option<String>,
+    pub delegator: Option<IotaAddress>,
 }
 
 impl Config for GenesisConfig {}
@@ -414,7 +414,7 @@ impl GenesisConfig {
         self
     }
 
-    pub fn add_delegator(mut self, address: String) -> Self {
+    pub fn add_delegator(mut self, address: IotaAddress) -> Self {
         self.delegator = Some(address);
         self
     }

@@ -94,6 +94,8 @@ const GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE: &str = "token-distributi
 const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
 const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
+const GENESIS_BUILDER_DELEGATOR_FILE: &str = "delegator";
+const GENESIS_BUILDER_DELEGATOR_MAP_FILE: &str = "delegator-map";
 
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
@@ -114,7 +116,7 @@ pub struct Builder {
     genesis_stake: GenesisStake,
     migration_sources: Vec<SnapshotSource>,
     migration_tx_data: Option<MigrationTxData>,
-    delegator: Option<String>,
+    delegator: Option<IotaAddress>,
     delegator_map: Option<DelegatorMap>,
 }
 
@@ -142,7 +144,7 @@ impl Builder {
         }
     }
 
-    pub fn with_delegator(mut self, delegator: String) -> Self {
+    pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
         self.delegator = Some(delegator);
         self
     }
@@ -282,7 +284,7 @@ impl Builder {
                 // minimum required stake to all validators to create the genesis stake
                 DelegatorMap::new_for_validators_with_default_allocation(
                     self.validators.values().map(|v| v.info.iota_address()),
-                    stardust_to_iota_address(Address::try_from_bech32(delegator)?)?,
+                    *delegator,
                 )
             } else {
                 bail!("no delegator/s assigned with a migration");
@@ -860,6 +862,25 @@ impl Builder {
             None
         };
 
+        // Load delegator
+        let delegator_file = path.join(GENESIS_BUILDER_DELEGATOR_FILE);
+        let delegator = if delegator_file.exists() {
+            Some(serde_json::from_slice(&fs::read(delegator_file)?)?)
+        } else {
+            None
+        };
+
+        // Load delegator map
+        let delegator_map_file =
+            path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE);
+        let delegator_map = if delegator_map_file.exists() {
+            Some(DelegatorMap::from_csv(fs::File::open(
+                delegator_map_file,
+            )?)?)
+        } else {
+            None
+        };
+
         let mut builder = Self {
             parameters,
             token_distribution_schedule,
@@ -871,8 +892,8 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources,
             migration_tx_data,
-            delegator: None,     // todo: Probably need to load the delegator?
-            delegator_map: None, // todo: Probably need to load the delegator_map?
+            delegator,
+            delegator_map,
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
@@ -960,7 +981,19 @@ impl Builder {
                 .save(file)?;
         }
 
-        // todo: probably need to save the delegator and delegator_map?
+        // Write delegator
+        if let Some(delegator) = self.delegator {
+            let file = path.join(GENESIS_BUILDER_DELEGATOR_FILE);
+            let delegator_json = serde_json::to_string(&delegator)?;
+            fs::write(file, delegator_json)?;
+        }
+
+        // Write delegator map
+        if let Some(delegator_map) = self.delegator_map {
+            delegator_map.to_csv(fs::File::create(
+                path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE),
+            )?)?;
+        }
 
         Ok(())
     }

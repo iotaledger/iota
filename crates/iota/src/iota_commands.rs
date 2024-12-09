@@ -275,7 +275,7 @@ pub enum IotaCommand {
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[clap(long, help = "Specify the delegator address")]
-        delegator: Option<String>,
+        delegator: Option<IotaAddress>,
     },
     /// Create an IOTA Genesis Ceremony with multiple remote validators.
     GenesisCeremony(Ceremony),
@@ -892,7 +892,7 @@ async fn genesis(
     num_validators: usize,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<String>,
+    delegator: Option<IotaAddress>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
         // if a directory is specified, it must exist (it
