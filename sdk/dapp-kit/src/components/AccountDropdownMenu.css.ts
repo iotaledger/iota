@@ -18,7 +18,7 @@ export const menuContent = style({
     display: 'flex',
     flexDirection: 'column',
     width: 180,
-    maxHeight: 200,
+    height: 'auto',
     marginTop: 4,
     padding: 8,
     gap: 8,
