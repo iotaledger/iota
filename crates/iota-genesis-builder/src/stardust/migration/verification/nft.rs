@@ -12,23 +12,23 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    stardust::{
-        address_swap_map::AddressSwapMap,
-        output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
-    },
+    stardust::output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
 };
 
-use crate::stardust::migration::{
-    executor::FoundryLedgerData,
-    verification::{
-        created_objects::CreatedObjects,
-        util::{
-            verify_address_owner, verify_expiration_unlock_condition, verify_issuer_feature,
-            verify_metadata_feature, verify_native_tokens, verify_parent, verify_sender_feature,
-            verify_storage_deposit_unlock_condition, verify_tag_feature,
-            verify_timelock_unlock_condition,
+use crate::stardust::{
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{
+            created_objects::CreatedObjects,
+            util::{
+                verify_address_owner, verify_expiration_unlock_condition, verify_issuer_feature,
+                verify_metadata_feature, verify_native_tokens, verify_parent,
+                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
+                verify_timelock_unlock_condition,
+            },
         },
     },
+    types::address_swap_map::AddressSwapMap,
 };
 
 pub(super) fn verify_nft_output(
