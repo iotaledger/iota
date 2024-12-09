@@ -138,7 +138,7 @@ pub trait TransactionBuilder {
         function: String,
         /// the type arguments of the Move function
         type_arguments: Vec<IotaTypeTag>,
-        /// the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.io/build/iota-json) format
+        /// the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/references/iota-api) format
         arguments: Vec<IotaJsonValue>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
         gas: Option<ObjectID>,

@@ -38,7 +38,7 @@ module reviews_rating::review {
 
     /// Calculates the total score of a review
     fun calculate_total_score(rev: &Review): u64 {
-        let mut intrinsic_score: u64 = rev.len;
+        let intrinsic_score: u64 = rev.len;
         let extrinsic_score: u64 = 10 * rev.votes;
         let vm: u64 = if (rev.has_poe) { 2 } else { 1 };
         (intrinsic_score + extrinsic_score) * vm

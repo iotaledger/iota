@@ -76,7 +76,7 @@ function OwnedObjectsPanel({ address }: { address: string }) {
     };
 
     return (
-        <div className="flex h-[800px] flex-col justify-between">
+        <div className="flex flex-col justify-between">
             <ErrorBoundary>
                 {isMediumOrAbove ? (
                     <SplitPanes
