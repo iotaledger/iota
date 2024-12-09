@@ -7465,7 +7465,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proxy"
-version = "0.0.2"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -7482,7 +7482,6 @@ dependencies = [
  "iota-metrics",
  "iota-tls",
  "iota-types",
- "ipnetwork",
  "itertools 0.13.0",
  "mime",
  "multiaddr",
@@ -8368,15 +8367,6 @@ name = "ipnet"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "187674a687eed5fe42285b40c6291f9a01517d415fad1c3cbc6a9f778af7fcd4"
-
-[[package]]
-name = "ipnetwork"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "iri-string"
