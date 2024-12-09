@@ -802,6 +802,16 @@ pub struct AuthorityState {
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
 }
 
+impl core::fmt::Debug for AuthorityState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthorityState")
+            .field("name", &self.name)
+            .field("db_checkpoint_config", &self.db_checkpoint_config)
+            .field("config", &self.config)
+            .finish()
+    }
+}
+
 /// The authority state encapsulates all state, drives execution, and ensures
 /// safety.
 ///
