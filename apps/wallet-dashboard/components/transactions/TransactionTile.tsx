@@ -6,7 +6,6 @@
 import React, { useState } from 'react';
 import TransactionIcon from './TransactionIcon';
 import formatTimestamp from '@/lib/utils/time';
-import { ExplorerLink } from '@/components';
 import { ExtendedTransaction, TransactionState } from '@/lib/interfaces';
 import {
     Card,
@@ -18,21 +17,11 @@ import {
     CardAction,
     CardActionType,
     Dialog,
-    Header,
-    LoadingIndicator,
 } from '@iota/apps-ui-kit';
-import {
-    useFormatCoin,
-    getLabel,
-    useTransactionSummary,
-    ViewTxnOnExplorerButton,
-    ExplorerLinkType,
-    TransactionReceipt,
-} from '@iota/core';
+import { useFormatCoin, getLabel, useTransactionSummary } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../Dialogs/layout';
-import { Validator } from '../Dialogs/Staking/views/Validator';
+import { TransactionDialogDetails } from '../Dialogs/transaction/TransactionDialogDetails';
 
 interface TransactionTileProps {
     transaction: ExtendedTransaction;
@@ -100,38 +89,9 @@ function ActivityDetailsDialog({
     open,
     setOpen,
 }: ActivityDetailsDialogProps): React.JSX.Element {
-    const address = useCurrentAccount()?.address ?? '';
-
-    const summary = useTransactionSummary({
-        transaction: transaction.raw,
-        currentAddress: address,
-        recognizedPackagesList: [],
-    });
-
-    if (!summary) return <LoadingIndicator />;
-
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogLayout>
-                <Header title="Transaction" onClose={() => setOpen(false)} />
-                <DialogLayoutBody>
-                    <TransactionReceipt
-                        txn={transaction.raw}
-                        activeAddress={address}
-                        summary={summary}
-                        renderExplorerLink={ExplorerLink}
-                        renderValidatorLogo={Validator}
-                    />
-                </DialogLayoutBody>
-                <DialogLayoutFooter>
-                    <ExplorerLink
-                        type={ExplorerLinkType.Transaction}
-                        transactionID={transaction.raw.digest}
-                    >
-                        <ViewTxnOnExplorerButton digest={transaction.raw.digest} />
-                    </ExplorerLink>
-                </DialogLayoutFooter>
-            </DialogLayout>
+            <TransactionDialogDetails transaction={transaction} onClose={() => setOpen(false)} />
         </Dialog>
     );
 }

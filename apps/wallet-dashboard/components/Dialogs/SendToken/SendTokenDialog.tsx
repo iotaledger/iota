@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
-import { EnterValuesFormView, ReviewValuesFormView } from './views';
+import { EnterValuesFormView, ReviewValuesFormView, SentSuccessView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import { useSendCoinTransaction, useNotifications } from '@/hooks';
-import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { NotificationType } from '@/stores/notificationStore';
 import { CoinFormat, useFormatCoin, useGetAllCoins } from '@iota/core';
-import { Dialog, DialogBody, DialogContent, DialogPosition, Header } from '@iota/apps-ui-kit';
+import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -23,6 +23,7 @@ interface SendCoinPopupProps {
 enum FormStep {
     EnterValues,
     ReviewValues,
+    SentSuccess,
 }
 
 function SendTokenDialogBody({
@@ -33,12 +34,14 @@ function SendTokenDialogBody({
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>(coin);
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
+    const [digest, setDigest] = useState<string>('');
     const [fullAmount] = useFormatCoin(formData.amount, selectedCoin.coinType, CoinFormat.FULL);
     const { addNotification } = useNotifications();
-
+    const iotaClient = useIotaClient();
+    const [isReviewing, setIsReviewing] = useState(false);
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
 
-    const { mutateAsync: signAndExecuteTransaction, isPending } = useSignAndExecuteTransaction();
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const isPayAllIota =
         selectedCoin.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG;
 
@@ -56,14 +59,22 @@ function SendTokenDialogBody({
             addNotification('There was an error with the transaction', NotificationType.Error);
             return;
         } else {
+            setIsReviewing(true);
             signAndExecuteTransaction({
                 transaction,
             })
-                .then(() => {
-                    setOpen(false);
+                .then((d) =>
+                    iotaClient.waitForTransaction({
+                        digest: d.digest,
+                    }),
+                )
+                .then((transaction) => {
+                    setDigest(transaction.digest);
+                    setStep(FormStep.SentSuccess);
                     addNotification('Transfer transaction has been sent');
                 })
-                .catch(handleTransactionError);
+                .catch(handleTransactionError)
+                .finally(() => setIsReviewing(false));
         }
     }
 
@@ -87,35 +98,38 @@ function SendTokenDialogBody({
 
     return (
         <>
-            <Header
-                title={step === FormStep.EnterValues ? 'Send' : 'Review & Send'}
-                onClose={() => setOpen(false)}
-                onBack={step === FormStep.ReviewValues ? onBack : undefined}
-            />
-            <div className="h-full [&>div]:h-full">
-                <DialogBody>
-                    {step === FormStep.EnterValues && (
-                        <EnterValuesFormView
-                            coin={selectedCoin}
-                            activeAddress={activeAddress}
-                            setSelectedCoin={setSelectedCoin}
-                            onNext={onNext}
-                            setFormData={setFormData}
-                            initialFormValues={formData}
-                        />
-                    )}
-                    {step === FormStep.ReviewValues && (
-                        <ReviewValuesFormView
-                            formData={formData}
-                            executeTransfer={handleTransfer}
-                            senderAddress={activeAddress}
-                            isPending={isPending}
-                            coinType={selectedCoin.coinType}
-                            isPayAllIota={isPayAllIota}
-                        />
-                    )}
-                </DialogBody>
-            </div>
+            {step === FormStep.EnterValues && (
+                <EnterValuesFormView
+                    coin={selectedCoin}
+                    activeAddress={activeAddress}
+                    setSelectedCoin={setSelectedCoin}
+                    onNext={onNext}
+                    onClose={() => setOpen(false)}
+                    setFormData={setFormData}
+                    initialFormValues={formData}
+                />
+            )}
+            {step === FormStep.ReviewValues && (
+                <ReviewValuesFormView
+                    formData={formData}
+                    executeTransfer={handleTransfer}
+                    senderAddress={activeAddress}
+                    isPending={isReviewing}
+                    coinType={selectedCoin.coinType}
+                    isPayAllIota={isPayAllIota}
+                    onClose={() => setOpen(false)}
+                    onBack={onBack}
+                />
+            )}
+            {step === FormStep.SentSuccess && (
+                <SentSuccessView
+                    digest={digest}
+                    onClose={() => {
+                        setOpen(false);
+                        setStep(FormStep.EnterValues);
+                    }}
+                />
+            )}
         </>
     );
 }
