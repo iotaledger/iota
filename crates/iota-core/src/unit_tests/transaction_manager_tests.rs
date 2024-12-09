@@ -24,7 +24,7 @@ use crate::{
     transaction_manager::{PendingCertificate, TransactionManager},
 };
 
-#[allow(clippy::disallowed_methods)] // allow unbounded_channel()
+#[expect(clippy::disallowed_methods)] // allow unbounded_channel()
 fn make_transaction_manager(
     state: &AuthorityState,
 ) -> (TransactionManager, UnboundedReceiver<PendingCertificate>) {

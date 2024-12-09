@@ -301,7 +301,7 @@ impl<K, V, const STRENGTH: bool> MultiStakeAggregator<K, V, STRENGTH>
 where
     K: Hash + Eq,
 {
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub fn authorities_for_key(&self, k: &K) -> Option<impl Iterator<Item = &AuthorityName>> {
         self.stake_maps.get(k).map(|(_, agg)| agg.keys())
     }

@@ -69,9 +69,10 @@ pub struct TelemetryConfig {
 }
 
 #[must_use]
-#[allow(dead_code)]
 pub struct TelemetryGuards {
+    #[expect(unused)]
     worker_guard: WorkerGuard,
+    #[expect(unused)]
     provider: Option<TracerProvider>,
 }
 

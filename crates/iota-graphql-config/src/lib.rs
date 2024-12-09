@@ -17,7 +17,7 @@ use syn::{
 /// field that ensures that if the field is not present during deserialization,
 /// it is replaced with its default value, from the `Default` implementation for
 /// the config struct.
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 #[proc_macro_attribute]
 pub fn GraphQLConfig(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let DeriveInput {

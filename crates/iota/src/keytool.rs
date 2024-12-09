@@ -59,7 +59,6 @@ use crate::key_identity::{KeyIdentity, get_identity_address_from_keystore};
 #[path = "unit_tests/keytool_tests.rs"]
 mod keytool_tests;
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 #[clap(rename_all = "kebab-case")]
 pub enum KeyToolCommand {

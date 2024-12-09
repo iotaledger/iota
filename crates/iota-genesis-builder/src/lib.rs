@@ -470,7 +470,7 @@ impl Builder {
         } = self.parameters.to_genesis_chain_parameters();
 
         // In non-testing code, genesis type must always be V1.
-        #[allow(clippy::infallible_destructuring_match)]
+        #[expect(clippy::infallible_destructuring_match)]
         let system_state = match unsigned_genesis.iota_system_object() {
             IotaSystemState::V1(inner) => inner,
             #[cfg(msim)]

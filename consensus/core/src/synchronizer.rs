@@ -975,21 +975,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .take(MAX_PEERS * context.parameters.max_blocks_per_fetch)
             .collect::<Vec<_>>();
 
-        #[allow(unused_mut)]
+        #[cfg_attr(test, expect(unused_mut))]
         let mut peers = context
             .committee
             .authorities()
             .filter_map(|(peer_index, _)| (peer_index != context.own_index).then_some(peer_index))
             .collect::<Vec<_>>();
 
-        // TODO: probably inject the RNG to allow unit testing - this is a work around
-        // for now.
-        cfg_if::cfg_if! {
-            if #[cfg(not(test))] {
-                // Shuffle the peers
-                peers.shuffle(&mut ThreadRng::default());
-            }
-        }
+        #[cfg(not(test))]
+        peers.shuffle(&mut ThreadRng::default());
 
         let mut peers = peers.into_iter();
         let mut request_futures = FuturesUnordered::new();

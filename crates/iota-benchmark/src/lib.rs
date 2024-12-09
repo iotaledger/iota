@@ -72,7 +72,7 @@ use tracing::{error, info};
 #[derive(Debug)]
 /// A wrapper on execution results to accommodate different types of
 /// responses from LocalValidatorAggregatorProxy and FullNodeProxy
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant)]
 pub enum ExecutionEffects {
     CertifiedTransactionEffects(CertifiedTransactionEffects, TransactionEvents),
     IotaTransactionBlockEffects(IotaTransactionBlockEffects),

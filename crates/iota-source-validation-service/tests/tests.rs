@@ -38,7 +38,7 @@ use tokio::sync::oneshot;
 const LOCALNET_PORT: u16 = 9000;
 const TEST_FIXTURES_DIR: &str = "tests/fixture";
 
-#[allow(clippy::await_holding_lock)]
+#[expect(clippy::await_holding_lock)]
 #[tokio::test]
 #[ignore]
 async fn test_end_to_end() -> anyhow::Result<()> {

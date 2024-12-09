@@ -488,7 +488,6 @@ async fn check_locked_object(
 }
 
 impl ToolCommand {
-    #[allow(clippy::format_in_format_args)]
     pub async fn execute(self, tracing_handle: TracingHandle) -> Result<(), anyhow::Error> {
         match self {
             ToolCommand::LockedObject {

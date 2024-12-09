@@ -3,7 +3,7 @@
 
 pub mod label;
 pub mod stardust_upgrade_label;
-#[allow(clippy::module_inception)]
+#[expect(clippy::module_inception)]
 pub mod timelock;
 pub mod timelocked_staked_iota;
 pub mod timelocked_staking;

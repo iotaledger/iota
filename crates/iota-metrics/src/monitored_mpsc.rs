@@ -563,7 +563,7 @@ impl<T> Unpin for UnboundedReceiver<T> {}
 /// and `UnboundedReceiver`
 pub fn unbounded_channel<T>(name: &str) -> (UnboundedSender<T>, UnboundedReceiver<T>) {
     let metrics = get_metrics();
-    #[allow(clippy::disallowed_methods)]
+    #[expect(clippy::disallowed_methods)]
     let (sender, receiver) = mpsc::unbounded_channel();
     (
         UnboundedSender {

@@ -17,7 +17,7 @@ use crate::{
 
 pub(crate) static VERSION_HEADER: HeaderName = HeaderName::from_static("x-iota-rpc-version");
 
-#[allow(unused)]
+#[expect(unused)]
 pub(crate) struct IotaRpcVersion(Vec<u8>, Vec<Vec<u8>>);
 const NAMED_VERSIONS: [&str; 3] = ["beta", "legacy", "stable"];
 
