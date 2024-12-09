@@ -1,14 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import clsx from 'clsx';
 import type { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../layout';
 import { Validator } from '../Staking/views/Validator';
-import { useState } from 'react';
 import { useNotifications, useTimelockedUnstakeTransaction } from '@/hooks';
 import {
+    Collapsible,
     formatAndNormalizeObjectType,
     TimeUnit,
     useFormatCoin,
@@ -25,19 +24,13 @@ import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
-    TitleSize,
-    Title,
     Panel,
     LoadingIndicator,
     KeyValueInfo,
     Header,
-    Divider,
     Dialog,
     ButtonType,
     Button,
-    AccordionHeader,
-    AccordionContent,
-    Accordion,
 } from '@iota/apps-ui-kit';
 
 interface UnstakeTimelockedObjectsDialogProps {
@@ -236,7 +229,7 @@ function TimelockStakeObjectsOverview({
                     : '';
                 return (
                     <Collapsible
-                        initialClose
+                        defaultOpen
                         key={stake.timelockedStakedIotaId}
                         title={'Stake' + ' ' + (index + 1)}
                     >
@@ -272,60 +265,5 @@ function TimelockStakeObjectsOverview({
                 );
             })}
         </>
-    );
-}
-
-interface CollapsibleProps {
-    children: React.ReactNode;
-    title?: string;
-    footer?: React.ReactNode;
-    initialClose?: boolean;
-    titleSize?: TitleSize;
-    hideArrow?: boolean;
-    hideBorder?: boolean;
-    render?: ({ isOpen }: { isOpen: boolean }) => React.ReactNode;
-    supportingTitleElement?: React.ReactNode;
-}
-
-function Collapsible({
-    title,
-    footer,
-    children,
-    initialClose,
-    titleSize = TitleSize.Medium,
-    hideArrow,
-    hideBorder,
-    render,
-    supportingTitleElement,
-}: CollapsibleProps) {
-    const [open, setOpen] = useState(!initialClose);
-    return (
-        <div className="relative w-full">
-            <Accordion hideBorder={hideBorder}>
-                <AccordionHeader
-                    hideBorder={hideBorder}
-                    hideArrow={hideArrow}
-                    isExpanded={open}
-                    onToggle={() => setOpen(!open)}
-                >
-                    {render ? (
-                        render({ isOpen: open })
-                    ) : (
-                        <Title
-                            size={titleSize}
-                            title={title ?? ''}
-                            supportingElement={supportingTitleElement}
-                        />
-                    )}
-                </AccordionHeader>
-                <AccordionContent isExpanded={open}>{children}</AccordionContent>
-                {footer && (
-                    <>
-                        <Divider />
-                        <div className={clsx('rounded-b-2xl')}>{footer}</div>
-                    </>
-                )}
-            </Accordion>
-        </div>
     );
 }
