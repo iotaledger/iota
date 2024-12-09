@@ -12,6 +12,7 @@ CREATE
     end_of_epoch                        BOOLEAN       NOT NULL,
     total_gas_cost                      NUMBER(20, 0) NOT NULL,
     computation_cost                    NUMBER(20, 0) NOT NULL,
+    computation_cost_burned             NUMBER(20, 0) NOT NULL,
     storage_cost                        NUMBER(20, 0) NOT NULL,
     storage_rebate                      NUMBER(20, 0) NOT NULL,
     non_refundable_storage_fee          NUMBER(20, 0) NOT NULL,
@@ -45,7 +46,7 @@ CREATE
     INTEGRATION = 'CHECKPOINTS_DATA_LOADER_NOTIFICATION'
     AS
         COPY INTO CHECKPOINT (checkpoint_digest, sequence_number, epoch, timestamp_ms, previous_checkpoint_digest,
-                              end_of_epoch, total_gas_cost, computation_cost, storage_cost, storage_rebate,
+                              end_of_epoch, total_gas_cost, computation_cost, computation_cost_burned, storage_cost, storage_rebate,
                               non_refundable_storage_fee, total_transaction_blocks, total_transactions,
                               total_successful_transaction_blocks, total_successful_transactions,
                               network_total_transaction, validator_signature)
@@ -57,6 +58,7 @@ CREATE
                          t.$1:end_of_epoch                        as end_of_epoch,
                          t.$1:total_gas_cost                      as total_gas_cost,
                          t.$1:computation_cost                    as computation_cost,
+                         t.$1:computation_cost_burned             as computation_cost_burned,
                          t.$1:storage_cost                        as storage_cost,
                          t.$1:storage_rebate                      as storage_rebate,
                          t.$1:non_refundable_storage_fee          as non_refundable_storage_fee,
