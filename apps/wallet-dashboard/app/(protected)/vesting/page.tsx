@@ -4,12 +4,14 @@
 'use client';
 
 import {
-    UnstakeTimelockedObjectsDialog,
     Banner,
     StakeDialog,
     useStakeDialog,
     VestingScheduleDialog,
+    UnstakeDialog,
 } from '@/components';
+import { UnstakeDialogView } from '@/components/Dialogs/unstake/enums';
+import { useUnstakeDialog } from '@/components/Dialogs/unstake/hooks';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import {
     buildSupplyIncreaseVestingSchedule,
@@ -109,6 +111,14 @@ export default function VestingDashboardPage(): JSX.Element {
         handleNewStake,
     } = useStakeDialog();
 
+    const {
+        isOpen: isUnstakeDialogOpen,
+        setIsOpen: setUnstakeDialogOpen,
+        openUnstakeDialog,
+        view: unstakeDialogView,
+        setView: setUnstakeDialogView,
+    } = useUnstakeDialog();
+
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...timelockedMapped, ...timelockedstakedMapped],
         Number(currentEpochMs),
@@ -202,6 +212,8 @@ export default function VestingDashboardPage(): JSX.Element {
 
     function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
         setTimelockedObjectsToUnstake(delegatedTimelockedStake);
+        setUnstakeDialogOpen(true);
+        setUnstakeDialogView(UnstakeDialogView.TimelockedUnstake);
     }
 
     function openReceiveTokenPopup(): void {
@@ -338,6 +350,7 @@ export default function VestingDashboardPage(): JSX.Element {
                         <Button onClick={() => handleNewStake()} text="Stake" />
                     </div>
                 )}
+
                 <StakeDialog
                     isTimelockedStaking={true}
                     stakedDetails={selectedStake}
@@ -349,15 +362,18 @@ export default function VestingDashboardPage(): JSX.Element {
                     selectedValidator={selectedValidator}
                     setSelectedValidator={setSelectedValidator}
                     maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+                    onUnstakeClick={openUnstakeDialog}
                 />
+
+                {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
+                    <UnstakeDialog
+                        groupedTimelockedObjects={timelockedObjectsToUnstake}
+                        view={unstakeDialogView}
+                        handleClose={() => setUnstakeDialogOpen(false)}
+                        onSuccess={() => handleCloseStakeDialog()}
+                    />
+                )}
             </div>
-            {timelockedObjectsToUnstake && (
-                <UnstakeTimelockedObjectsDialog
-                    groupedTimelockedObjects={timelockedObjectsToUnstake}
-                    onClose={() => setTimelockedObjectsToUnstake(null)}
-                    onSuccess={(tx) => handleOnSuccess(tx.digest)}
-                />
-            )}
         </>
     );
 }

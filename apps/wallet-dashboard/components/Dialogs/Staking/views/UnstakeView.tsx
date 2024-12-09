@@ -14,7 +14,6 @@ import {
     InfoBox,
 } from '@iota/apps-ui-kit';
 import {
-    createUnstakeTransaction,
     ExtendedDelegatedStake,
     GAS_SYMBOL,
     TimeUnit,
@@ -22,30 +21,37 @@ import {
     useGetTimeBeforeEpochNumber,
     useGetStakingValidatorDetails,
     useTimeAgo,
-    useTransactionGasBudget,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useMemo } from 'react';
-import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { Loader, Warning } from '@iota/ui-icons';
-import { useUnstakeTransaction } from '@/hooks';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { Warning } from '@iota/ui-icons';
 import { ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
     handleClose: () => void;
+    handleUnstake: () => void;
     showActiveStatus?: boolean;
+    isUnstakePending: boolean;
+    gasBudget: string | number | null | undefined;
+    unstakeTx: Transaction | undefined;
 }
 
 export function UnstakeView({
     extendedStake,
     handleClose,
+    handleUnstake,
+    isUnstakePending,
+    gasBudget,
+    unstakeTx,
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const stakingReward = BigInt(extendedStake.estimatedReward ?? '').toString();
     const [rewards, rewardSymbol] = useFormatCoin(stakingReward, IOTA_TYPE_ARG);
     const activeAddress = useCurrentAccount()?.address ?? null;
+    const [gasFormatted] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
 
     const {
         totalStake: [tokenBalance],
@@ -74,12 +80,6 @@ export function UnstakeView({
         IOTA_TYPE_ARG,
     );
 
-    const transaction = useMemo(
-        () => createUnstakeTransaction(extendedStake.stakedIotaId),
-        [extendedStake],
-    );
-    const { data: gasBudget } = useTransactionGasBudget(activeAddress, transaction);
-
     const { data: currentEpochEndTime } = useGetTimeBeforeEpochNumber(epoch + 1 || 0);
     const currentEpochEndTimeAgo = useTimeAgo({
         timeFrom: currentEpochEndTime,
@@ -88,20 +88,6 @@ export function UnstakeView({
         shouldEnd: true,
         maxTimeUnit: TimeUnit.ONE_HOUR,
     });
-
-    const { data: unstakeData } = useUnstakeTransaction(
-        extendedStake.stakedIotaId,
-        activeAddress || '',
-    );
-    const { mutateAsync: signAndExecuteTransaction, isPending } = useSignAndExecuteTransaction();
-
-    async function handleUnstake(): Promise<void> {
-        if (!unstakeData) return;
-        await signAndExecuteTransaction({
-            transaction: unstakeData.transaction,
-        });
-        handleClose();
-    }
 
     const currentEpochEndTimeFormatted =
         currentEpochEndTime > 0 ? currentEpochEndTimeAgo : `Epoch #${epoch}`;
@@ -173,7 +159,7 @@ export function UnstakeView({
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
                                 keyText="Gas Fees"
-                                value={gasBudget || '-'}
+                                value={gasFormatted || '-'}
                                 supportingLabel={GAS_SYMBOL}
                                 fullwidth
                             />
@@ -187,11 +173,11 @@ export function UnstakeView({
                     type={ButtonType.Secondary}
                     fullWidth
                     onClick={handleUnstake}
-                    disabled={isPending || !delegationId}
+                    disabled={!unstakeTx || isUnstakePending || !delegationId}
                     text="Unstake"
                     icon={
-                        isPending ? (
-                            <Loader className="animate-spin" data-testid="loading-indicator" />
+                        unstakeTx || isUnstakePending ? (
+                            <LoadingIndicator data-testid="loading-indicator" />
                         ) : null
                     }
                     iconAfterText

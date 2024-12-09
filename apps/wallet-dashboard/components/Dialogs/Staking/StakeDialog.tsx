@@ -27,7 +27,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { Dialog } from '@iota/apps-ui-kit';
-import { DetailsView, UnstakeView } from './views';
+import { DetailsView } from './views';
 import { FormValues } from './views/EnterAmountView';
 import { TransactionDialogView } from '../TransactionDialog';
 import { StakeDialogView } from './enums/view.enums';
@@ -47,6 +47,7 @@ interface StakeDialogProps {
     onSuccess?: (digest: string) => void;
     selectedValidator?: string;
     setSelectedValidator?: (validator: string) => void;
+    onUnstakeClick: () => void;
 }
 
 export function StakeDialog({
@@ -60,6 +61,7 @@ export function StakeDialog({
     maxStakableTimelockedAmount,
     selectedValidator = '',
     setSelectedValidator,
+    onUnstakeClick,
 }: StakeDialogProps): JSX.Element {
     const account = useCurrentAccount();
     const senderAddress = account?.address ?? '';
@@ -78,10 +80,10 @@ export function StakeDialog({
                 maxStakableTimelockedAmount ?? coinBalance,
                 coinSymbol,
                 coinDecimals,
-                view === StakeDialogView.Unstake,
+                false,
                 minimumStake,
             ),
-        [maxStakableTimelockedAmount, coinBalance, coinSymbol, coinDecimals, view, minimumStake],
+        [maxStakableTimelockedAmount, coinBalance, coinSymbol, coinDecimals, minimumStake],
     );
 
     const formik = useFormik({
@@ -138,10 +140,6 @@ export function StakeDialog({
         }
     }
 
-    function detailsHandleUnstake() {
-        setView?.(StakeDialogView.Unstake);
-    }
-
     function detailsHandleStake() {
         setView?.(StakeDialogView.SelectValidator);
     }
@@ -185,7 +183,7 @@ export function StakeDialog({
                     {view === StakeDialogView.Details && stakedDetails && (
                         <DetailsView
                             handleStake={detailsHandleStake}
-                            handleUnstake={detailsHandleUnstake}
+                            handleUnstake={onUnstakeClick}
                             stakedDetails={stakedDetails}
                             handleClose={handleClose}
                         />
@@ -219,13 +217,6 @@ export function StakeDialog({
                             onStake={handleStake}
                             gasBudget={newStakeData?.gasBudget}
                             isTransactionLoading={isTransactionLoading}
-                        />
-                    )}
-                    {view === StakeDialogView.Unstake && stakedDetails && (
-                        <UnstakeView
-                            extendedStake={stakedDetails}
-                            handleClose={handleClose}
-                            showActiveStatus
                         />
                     )}
                     {view === StakeDialogView.TransactionDetails && (
