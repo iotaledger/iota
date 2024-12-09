@@ -106,6 +106,15 @@ pub enum CeremonyCommand {
     },
     /// List the current validators in the Genesis builder.
     ListValidators,
+    /// Initialize the delegator map.
+    InitDelegatorMap {
+        #[clap(
+            long,
+            help = "Path to the delegator map file.",
+            name = "delegator_map.csv"
+        )]
+        delegator_map_path: PathBuf,
+    },
     /// Build the Genesis checkpoint.
     BuildUnsignedCheckpoint {
         #[clap(
@@ -118,12 +127,6 @@ pub enum CeremonyCommand {
         #[clap(long, name = "iota|<full-url>", help = "Remote migration snapshots.")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
-        #[clap(
-            long,
-            help = "Path to the delegator map file.",
-            name = "delegator_map.csv"
-        )]
-        delegator_map: Option<PathBuf>,
     },
     /// Examine the details of the built Genesis checkpoint.
     ExamineGenesisCheckpoint,
@@ -262,10 +265,17 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             }
         }
 
+        CeremonyCommand::InitDelegatorMap { delegator_map_path } => {
+            let mut builder = Builder::load(&dir).await?;
+            let file = File::open(delegator_map_path)?;
+            let delegator_map = DelegatorMap::from_csv(file)?;
+            builder = builder.with_delegator_map(delegator_map);
+            builder.save(dir)?;
+        }
+
         CeremonyCommand::BuildUnsignedCheckpoint {
             local_migration_snapshots,
             remote_migration_snapshots,
-            delegator_map,
         } => {
             let local_snapshots = local_migration_snapshots
                 .into_iter()
@@ -279,12 +289,6 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 builder = builder.add_migration_source(source);
             }
 
-            if let Some(delegator_map) = delegator_map {
-                let file = File::open(delegator_map)?;
-                let delegator_map = DelegatorMap::from_csv(file)?;
-                builder = builder.with_delegator_map(delegator_map);
-            }
-
             tokio::task::spawn_blocking(move || {
                 let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
                 println!(
@@ -294,7 +298,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
                 builder.save(dir)
             })
-            .await??;
+                .await??;
         }
 
         CeremonyCommand::ExamineGenesisCheckpoint => {
@@ -475,8 +479,8 @@ mod test {
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
-            .run()
-            .await?;
+                .run()
+                .await?;
         }
 
         // Build the unsigned checkpoint
@@ -486,7 +490,6 @@ mod test {
             command: CeremonyCommand::BuildUnsignedCheckpoint {
                 local_migration_snapshots: vec![],
                 remote_migration_snapshots: vec![],
-                delegator_map: None,
             },
         };
         command.run().await?;
@@ -507,8 +510,8 @@ mod test {
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
-            .run()
-            .await?;
+                .run()
+                .await?;
         }
 
         // Finalize the Ceremony and build the Genesis object
