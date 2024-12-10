@@ -64,13 +64,13 @@ impl PartialEq for Genesis {
     fn eq(&self, other: &Self) -> bool {
         self.checkpoint.data() == other.checkpoint.data()
             && {
-                let this = self.checkpoint.auth_sig();
-                let other = other.checkpoint.auth_sig();
+            let this = self.checkpoint.auth_sig();
+            let other = other.checkpoint.auth_sig();
 
-                this.epoch == other.epoch
-                    && this.signature.as_ref() == other.signature.as_ref()
-                    && this.signers_map == other.signers_map
-            }
+            this.epoch == other.epoch
+                && this.signature.as_ref() == other.signature.as_ref()
+                && this.signers_map == other.signers_map
+        }
             && self.checkpoint_contents == other.checkpoint_contents
             && self.transaction == other.transaction
             && self.effects == other.effects
@@ -418,11 +418,11 @@ impl GenesisCeremonyParameters {
             max_validator_count: iota_types::governance::MAX_VALIDATOR_COUNT,
             min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
             validator_low_stake_threshold:
-                iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
+            iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             validator_very_low_stake_threshold:
-                iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS,
+            iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS,
             validator_low_stake_grace_period:
-                iota_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
+            iota_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
         }
     }
 }
@@ -454,11 +454,11 @@ impl TokenDistributionSchedule {
         for allocation in &self.allocations {
             total_nanos = total_nanos
                 .checked_add(allocation.amount_nanos)
-                .expect("TokenDistributionSchedule allocates more than the maximum supply which equals u64::MAX", );
+                .expect("TokenDistributionSchedule allocates more than the maximum supply which equals u64::MAX");
         }
     }
 
-    pub fn check_minimum_stake_for_validators<I: IntoIterator<Item = IotaAddress>>(
+    pub fn check_minimum_stake_for_validators<I: IntoIterator<Item=IotaAddress>>(
         &self,
         validators: I,
     ) -> Result<()> {
@@ -489,7 +489,7 @@ impl TokenDistributionSchedule {
         Ok(())
     }
 
-    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
+    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item=IotaAddress>>(
         validators: I,
     ) -> Self {
         let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
@@ -603,7 +603,7 @@ impl TokenDistributionScheduleBuilder {
         self.pre_minted_supply = pre_minted_supply;
     }
 
-    pub fn default_allocation_for_validators<I: IntoIterator<Item = IotaAddress>>(
+    pub fn default_allocation_for_validators<I: IntoIterator<Item=IotaAddress>>(
         &mut self,
         validators: I,
     ) {
@@ -647,48 +647,44 @@ pub struct ValidatorAllocation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct DelegatorDistribution {
+pub struct Delegation {
     /// The address from which take the nanos for staking/gas
     pub delegator: IotaAddress,
     /// The allocation to a validator receiving a stake and/or a gas payment
     pub validator_allocation: ValidatorAllocation,
 }
 
+/// Represents genesis delegations to validators.
+///
+/// This struct maps a delegator address to a list of validators and their
+/// stake and gas allocations. Each ValidatorAllocation contains the address of a
+/// validator that will receive an amount of nanos to stake and an amount as gas payment.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct DelegatorMap {
-    // Maps a delegator address to a tuple containing the address of a validator (1nd element of
-    // the tuple) that will receive an amount of nanos to stake (2nd element) and an amount as gas
-    // payment (3rd element).
+pub struct Delegations {
     pub allocations: HashMap<IotaAddress, Vec<ValidatorAllocation>>,
 }
 
-impl DelegatorMap {
-    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
+impl Delegations {
+    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item=IotaAddress>>(
         validators: I,
         delegator: IotaAddress,
     ) -> Self {
         let default_allocation = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
 
-        let allocations = validators.into_iter().fold(
-            HashMap::new(),
-            |mut allocations: HashMap<IotaAddress, Vec<_>>, address| {
-                allocations
-                    .entry(delegator)
-                    .or_default()
-                    .push(ValidatorAllocation {
-                        address,
-                        amount_nanos_to_stake: default_allocation,
-                        amount_nanos_to_pay_gas: 0,
-                    });
-                allocations
-            },
-        );
+        let validator_allocations = validators.into_iter().map(|address| ValidatorAllocation {
+            address,
+            amount_nanos_to_stake: default_allocation,
+            amount_nanos_to_pay_gas: 0,
+        }).collect();
+
+        let mut allocations = HashMap::new();
+        allocations.insert(delegator, validator_allocations);
 
         Self { allocations }
     }
 
-    /// Helper to read a DelegatorMap from a csv file.
+    /// Helper to read a Delegations struct from a csv file.
     ///
     /// The file is encoded such that the final entry in the CSV file is used to
     /// denote the allocation coming from a delegator. It must be in the
@@ -700,25 +696,19 @@ impl DelegatorMap {
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
         let mut reader = csv::Reader::from_reader(reader);
 
-        let allocations = reader
-            .deserialize::<DelegatorDistribution>()
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .fold(
-                HashMap::new(),
-                |mut allocations: HashMap<IotaAddress, Vec<_>>, allocation| {
-                    allocations
-                        .entry(allocation.delegator)
-                        .or_default()
-                        .push(allocation.validator_allocation);
-                    allocations
-                },
-            );
+        let mut allocations: HashMap<IotaAddress, Vec<ValidatorAllocation>> = HashMap::new();
+        for delegation in reader.deserialize::<Delegation>() {
+            let delegation = delegation?;
+            allocations
+                .entry(delegation.delegator)
+                .or_default()
+                .push(delegation.validator_allocation);
+        }
 
         Ok(Self { allocations })
     }
 
-    /// Helper to write a DelegatorMap into a csv file.
+    /// Helper to write a Delegations struct into a csv file.
     ///
     /// It writes in the following format:
     /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
@@ -730,7 +720,7 @@ impl DelegatorMap {
 
         for (&delegator, validators_allocations) in &self.allocations {
             for &validator_allocation in validators_allocations {
-                writer.serialize(DelegatorDistribution {
+                writer.serialize(Delegation {
                     delegator,
                     validator_allocation,
                 })?;

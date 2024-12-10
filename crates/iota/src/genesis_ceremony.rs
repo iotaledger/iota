@@ -10,7 +10,7 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     IOTA_GENESIS_FILENAME,
-    genesis::{DelegatorMap, TokenDistributionScheduleBuilder, UnsignedGenesis},
+    genesis::{Delegations, TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
 use iota_genesis_builder::{
     Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
@@ -268,7 +268,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         CeremonyCommand::InitDelegatorMap { delegator_map_path } => {
             let mut builder = Builder::load(&dir).await?;
             let file = File::open(delegator_map_path)?;
-            let delegator_map = DelegatorMap::from_csv(file)?;
+            let delegator_map = Delegations::from_csv(file)?;
             builder = builder.with_delegator_map(delegator_map);
             builder.save(dir)?;
         }

@@ -19,7 +19,7 @@ use genesis_build_effects::GenesisBuildEffects;
 use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{
-        DelegatorMap, Genesis, GenesisCeremonyParameters, GenesisChainParameters,
+        Delegations, Genesis, GenesisCeremonyParameters, GenesisChainParameters,
         TokenDistributionSchedule, UnsignedGenesis,
     },
     migration_tx_data::{MigrationTxData, TransactionsData},
@@ -28,7 +28,7 @@ use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk::{Url, types::block::address::Address};
+use iota_sdk::{Url};
 use iota_types::{
     BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
     balance::{BALANCE_MODULE_NAME, Balance},
@@ -63,7 +63,6 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME},
-    stardust::stardust_to_iota_address,
     system_admin_cap::IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
@@ -117,7 +116,7 @@ pub struct Builder {
     migration_sources: Vec<SnapshotSource>,
     migration_tx_data: Option<MigrationTxData>,
     delegator: Option<IotaAddress>,
-    delegator_map: Option<DelegatorMap>,
+    delegator_map: Option<Delegations>,
 }
 
 impl Default for Builder {
@@ -149,7 +148,7 @@ impl Builder {
         self
     }
 
-    pub fn with_delegator_map(mut self, delegator_map: DelegatorMap) -> Self {
+    pub fn with_delegator_map(mut self, delegator_map: Delegations) -> Self {
         self.delegator_map = Some(delegator_map);
         self
     }
@@ -282,7 +281,7 @@ impl Builder {
             } else if let Some(delegator) = &self.delegator {
                 // Case 2 -> use one default delegator passed as input and delegate the
                 // minimum required stake to all validators to create the genesis stake
-                DelegatorMap::new_for_validators_with_default_allocation(
+                Delegations::new_for_validators_with_default_allocation(
                     self.validators.values().map(|v| v.info.iota_address()),
                     *delegator,
                 )
@@ -874,7 +873,7 @@ impl Builder {
         let delegator_map_file =
             path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE);
         let delegator_map = if delegator_map_file.exists() {
-            Some(DelegatorMap::from_csv(fs::File::open(
+            Some(Delegations::from_csv(fs::File::open(
                 delegator_map_file,
             )?)?)
         } else {
