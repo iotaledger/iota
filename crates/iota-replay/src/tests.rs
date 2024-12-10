@@ -60,7 +60,7 @@ async fn verify_latest_tx_replay_impl() {
                     .unwrap()
                     .transactions;
 
-                    let mut non_system_txs = extract_one_system_tx(&rpc_client, txs).await;
+                let mut non_system_txs = extract_one_no_system_tx(&rpc_client, txs).await;
                 num_checkpoint_trials_left -= 1;
                 while non_system_txs.is_none() && num_checkpoint_trials_left > 0 {
                     num_checkpoint_trials_left -= 1;
@@ -71,7 +71,7 @@ async fn verify_latest_tx_replay_impl() {
                         .await
                         .unwrap()
                         .transactions;
-                    non_system_txs = extract_one_system_tx(&rpc_client, txs).await;
+                    non_system_txs = extract_one_no_system_tx(&rpc_client, txs).await;
                 }
 
                 if non_system_txs.is_none() {
@@ -101,7 +101,7 @@ async fn verify_latest_tx_replay_impl() {
     }
 }
 
-async fn extract_one_system_tx(
+async fn extract_one_no_system_tx(
     rpc_client: &IotaClient,
     mut txs: Vec<TransactionDigest>,
 ) -> Option<TransactionDigest> {
