@@ -28,7 +28,7 @@ use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk::{Url};
+use iota_sdk::Url;
 use iota_types::{
     BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
     balance::{BALANCE_MODULE_NAME, Balance},
@@ -123,7 +123,7 @@ enum GenesisDelegation {
     OneToAll(IotaAddress),
     /// Represents a map of delegator addresses to validator addresses and
     /// a specified stake and gas allocation.
-    ManyToMany(Delegations)
+    ManyToMany(Delegations),
 }
 
 impl Default for Builder {
@@ -279,32 +279,24 @@ impl Builder {
     ///    all validators to create and cache the genesis stake.
     fn create_and_cache_genesis_stake(&mut self) -> anyhow::Result<()> {
         if !self.migration_objects.is_empty() {
-            let mut genesis_stake = GenesisStake::default();
-
-            let delegation: Delegations = match &self.delegation {
-                Some(GenesisDelegation::ManyToMany(delegations)) => {
-                    // Case 1 -> use the delegations input to create and cache the genesis stake
-                    delegations.clone()
-                },
-                Some(GenesisDelegation::OneToAll(delegator)) => {
-                    // Case 2 -> use one default delegator passed as input and delegate the
-                    // minimum required stake to all validators to create the genesis stake
-                    Delegations::new_for_validators_with_default_allocation(
+            self.genesis_stake = GenesisStake::new_with_delegations(
+                match &self.delegation {
+                    Some(GenesisDelegation::ManyToMany(delegations)) => {
+                        // Case 1 -> use the delegations input to create and cache the genesis stake
+                        delegations.clone()
+                    }
+                    Some(GenesisDelegation::OneToAll(delegator)) => {
+                        // Case 2 -> use one default delegator passed as input and delegate the
+                        // minimum required stake to all validators to create the genesis stake
+                        Delegations::new_for_validators_with_default_allocation(
                             self.validators.values().map(|v| v.info.iota_address()),
                             *delegator,
                         )
+                    }
+                    None => bail!("no delegator/s assigned with a migration"),
                 },
-                None => bail!("no delegator/s assigned with a migration"),
-            };
-
-            for (delegator, validators_allocations) in delegation.allocations {
-                genesis_stake.delegate_genesis_stake(
-                    &validators_allocations,
-                    delegator,
-                    &self.migration_objects,
-                )?;
-            }
-            self.genesis_stake = genesis_stake;
+                &self.migration_objects,
+            )?;
         }
         Ok(())
     }
@@ -337,8 +329,7 @@ impl Builder {
             self.migration_sources.len() as u64 * STARDUST_TOTAL_SUPPLY_NANOS;
 
         if let Some(schedule) = self.token_distribution_schedule.take() {
-            if !is_genesis_with_migration || schedule.contains_timelocked_stake()
-            {
+            if !is_genesis_with_migration || schedule.contains_timelocked_stake() {
                 // Case 1.1 and 2.1.1
                 schedule
             } else {
@@ -878,17 +869,16 @@ impl Builder {
         };
 
         // Load delegator map
-        let delegator_map_file =
-            path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE);
+        let delegator_map_file = path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE);
         let delegator_map = if delegator_map_file.exists() {
-            Some(Delegations::from_csv(fs::File::open(
-                delegator_map_file,
-            )?)?)
+            Some(Delegations::from_csv(fs::File::open(delegator_map_file)?)?)
         } else {
             None
         };
 
-        let delegation = delegator.map(GenesisDelegation::OneToAll).or(delegator_map.map(GenesisDelegation::ManyToMany));
+        let delegation = delegator
+            .map(GenesisDelegation::OneToAll)
+            .or(delegator_map.map(GenesisDelegation::ManyToMany));
 
         let mut builder = Self {
             parameters,
