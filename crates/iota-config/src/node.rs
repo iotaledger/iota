@@ -151,6 +151,9 @@ pub struct NodeConfig {
     #[serde(default)]
     pub checkpoint_executor_config: CheckpointExecutorConfig,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metrics: Option<MetricsConfig>,
+
     /// In a `iota-node` binary, this is set to
     /// SupportedProtocolVersions::SYSTEM_DEFAULT in iota-node/src/main.rs.
     /// It is present in the config so that it can be changed by tests in
@@ -755,6 +758,15 @@ impl AuthorityStorePruningConfig {
                 }
             })
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct MetricsConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub push_interval_seconds: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub push_url: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
