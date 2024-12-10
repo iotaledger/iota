@@ -4,7 +4,7 @@
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../layout';
 import { Validator } from '../Staking/views/Validator';
-import { useNotifications } from '@/hooks';
+import { useNewUnstakeTimelockedTransaction, useNotifications } from '@/hooks';
 import { Collapsible, useFormatCoin, useGetActiveValidatorsInfo } from '@iota/core';
 import { ExtendedDelegatedTimelockedStake, TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -16,15 +16,14 @@ import {
     ButtonType,
     Button,
 } from '@iota/apps-ui-kit';
-import { Transaction } from '@iota/iota-sdk/transactions';
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
+import { NotificationType } from '@/stores/notificationStore';
 
 interface UnstakeTimelockedObjectsDialogProps {
     onClose: () => void;
     groupedTimelockedObjects: TimelockedStakedObjectsGrouped;
-    unstakeTx: Transaction | undefined;
-    handleUnstake: () => void;
-    isUnstakeTxLoading: boolean;
-    isTxPending: boolean;
+    onSuccess: (tx: IotaSignAndExecuteTransactionOutput) => void;
     onBack?: () => void;
 }
 
@@ -32,18 +31,27 @@ export function UnstakeTimelockedObjectsDialog({
     groupedTimelockedObjects,
     onClose,
     onBack,
-    unstakeTx,
-    handleUnstake,
-    isUnstakeTxLoading,
-    isTxPending,
+    onSuccess,
 }: UnstakeTimelockedObjectsDialogProps) {
     const { addNotification } = useNotifications();
+    const activeAddress = useCurrentAccount()?.address ?? '';
     const { data: activeValidators } = useGetActiveValidatorsInfo();
+
+    const stakes = groupedTimelockedObjects.stakes;
+    const timelockedStakedIotaIds = stakes.map((stake) => stake.timelockedStakedIotaId);
+
+    const { data: unstakeData, isPending: isUnstakeTxPending } = useNewUnstakeTimelockedTransaction(
+        activeAddress,
+        timelockedStakedIotaIds,
+    );
+    const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
+        useSignAndExecuteTransaction();
+
     const validatorInfo = activeValidators?.find(
         ({ iotaAddress: validatorAddress }) =>
             validatorAddress === groupedTimelockedObjects.validatorAddress,
     );
-    const stakes = groupedTimelockedObjects.stakes;
+
     const stakeId = stakes[0].timelockedStakedIotaId;
     const totalStakedAmount = stakes.reduce((acc, stake) => acc + parseInt(stake.principal), 0);
     const totalRewards = stakes.reduce(
@@ -58,6 +66,24 @@ export function UnstakeTimelockedObjectsDialog({
 
     function handleCopySuccess() {
         addNotification('Copied to clipboard');
+    }
+
+    async function handleUnstake(): Promise<void> {
+        if (!unstakeData) return;
+
+        await signAndExecuteTransaction(
+            {
+                transaction: unstakeData.transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    addNotification('Unstake transaction has been sent');
+                    onSuccess(tx);
+                },
+            },
+        ).catch(() => {
+            addNotification('Unstake transaction was not sent', NotificationType.Error);
+        });
     }
 
     return (
@@ -119,8 +145,8 @@ export function UnstakeTimelockedObjectsDialog({
                 <Button
                     onClick={handleUnstake}
                     text="Unstake"
-                    icon={isUnstakeTxLoading ? <LoadingIndicator /> : undefined}
-                    disabled={!unstakeTx || isTxPending || isUnstakeTxLoading}
+                    icon={!unstakeData || isUnstakeTxPending ? <LoadingIndicator /> : undefined}
+                    disabled={!unstakeData || isTransactionPending || isUnstakeTxPending}
                     type={ButtonType.Secondary}
                     fullWidth
                 />

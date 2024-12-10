@@ -108,13 +108,14 @@ function StakingDashboardPage(): React.JSX.Element {
         setIsUnstakeDialogOpen(true);
     }
 
+    function handleUnstakeDialogBack() {
+        setStakeDialogView(StakeDialogView.Details);
+        setIsUnstakeDialogOpen(false);
+    }
+
     function handleOnUnstakeBack(view: UnstakeDialogView): (() => void) | undefined {
         if (view === UnstakeDialogView.Unstake) {
-            return () => {
-                console.log('here');
-                setStakeDialogView(StakeDialogView.Details);
-                setIsUnstakeDialogOpen(false);
-            };
+            return handleUnstakeDialogBack;
         }
     }
 

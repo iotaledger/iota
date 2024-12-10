@@ -19,20 +19,19 @@ import {
     useGetStakingValidatorDetails,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning } from '@iota/ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
-import { Transaction } from '@iota/iota-sdk/transactions';
 import { Validator } from './Validator';
+import { useNewUnstakeTransaction, useNotifications } from '@/hooks';
+import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
+import { NotificationType } from '@/stores/notificationStore';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
     handleClose: () => void;
-    handleUnstake: () => void;
-    isUnstakePending: boolean;
-    gasBudget: string | number | null | undefined;
-    unstakeTx: Transaction | undefined;
+    onSuccess: (tx: IotaSignAndExecuteTransactionOutput) => void;
     showActiveStatus?: boolean;
     onBack?: () => void;
 }
@@ -41,14 +40,19 @@ export function UnstakeView({
     extendedStake,
     handleClose,
     onBack,
-    handleUnstake,
-    isUnstakePending,
-    gasBudget,
-    unstakeTx,
+    onSuccess,
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
-    const activeAddress = useCurrentAccount()?.address ?? null;
-    const [gasFormatted] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
+    const activeAddress = useCurrentAccount()?.address ?? '';
+    const { addNotification } = useNotifications();
+    const { data: unstakeData, isPending: isUnstakeTxPending } = useNewUnstakeTransaction(
+        activeAddress,
+        extendedStake.stakedIotaId,
+    );
+    const [gasFormatted] = useFormatCoin(unstakeData?.gasBudget, IOTA_TYPE_ARG);
+
+    const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
+        useSignAndExecuteTransaction();
 
     const { totalStakeOriginal, systemDataResult, delegatedStakeDataResult } =
         useGetStakingValidatorDetails({
@@ -66,6 +70,25 @@ export function UnstakeView({
     } = delegatedStakeDataResult;
 
     const delegationId = extendedStake?.status === 'Active' && extendedStake?.stakedIotaId;
+    const isPreparingUnstake = !unstakeData || isUnstakeTxPending;
+
+    async function handleUnstake(): Promise<void> {
+        if (!unstakeData) return;
+
+        await signAndExecuteTransaction(
+            {
+                transaction: unstakeData.transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    addNotification('Unstake transaction has been sent');
+                    onSuccess(tx);
+                },
+            },
+        ).catch(() => {
+            addNotification('Unstake transaction was not sent', NotificationType.Error);
+        });
+    }
 
     if (isLoadingDelegatedStakeData || loadingValidators) {
         return (
@@ -88,8 +111,6 @@ export function UnstakeView({
             </div>
         );
     }
-
-    const isUnstakeButtonDisabled = !unstakeTx || isUnstakePending || !delegationId;
 
     return (
         <DialogLayout>
@@ -131,10 +152,10 @@ export function UnstakeView({
                     type={ButtonType.Secondary}
                     fullWidth
                     onClick={handleUnstake}
-                    disabled={isUnstakeButtonDisabled}
+                    disabled={isPreparingUnstake || isTransactionPending || !delegationId}
                     text="Unstake"
                     icon={
-                        isUnstakeButtonDisabled ? (
+                        isPreparingUnstake ? (
                             <LoadingIndicator data-testid="loading-indicator" />
                         ) : null
                     }

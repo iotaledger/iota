@@ -26,11 +26,17 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/ui-icons';
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
+import {
+    useCurrentAccount,
+    useIotaClientQuery,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
 
 import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { useNewStakeTransaction, useNotifications } from '@/hooks';
+import { NotificationType } from '@/stores/notificationStore';
 
 export interface FormValues {
     amount: string;
@@ -39,37 +45,45 @@ export interface FormValues {
 interface EnterAmountViewProps {
     selectedValidator: string;
     onBack: () => void;
-    onStake: () => void;
     showActiveStatus?: boolean;
-    gasBudget?: string | number | null;
     handleClose: () => void;
-    isTransactionLoading?: boolean;
+    amountWithoutDecimals: bigint;
+    senderAddress: string;
+    onSuccess?: (digest: string) => void;
 }
 
 function EnterAmountView({
     selectedValidator: selectedValidatorAddress,
     onBack,
-    onStake,
-    gasBudget = 0,
     handleClose,
-    isTransactionLoading,
+    amountWithoutDecimals,
+    senderAddress,
+    onSuccess,
 }: EnterAmountViewProps): JSX.Element {
     const coinType = IOTA_TYPE_ARG;
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
 
+    const { addNotification } = useNotifications();
     const account = useCurrentAccount();
     const accountAddress = account?.address;
 
-    const { values, errors } = useFormikContext<FormValues>();
+    const { values, errors, resetForm } = useFormikContext<FormValues>();
     const amount = values.amount;
+
+    const { data: newStakeData, isLoading: isTransactionLoading } = useNewStakeTransaction(
+        selectedValidatorAddress,
+        amountWithoutDecimals,
+        senderAddress,
+    );
 
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: iotaBalance } = useBalance(accountAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
-    const gasBudgetBigInt = BigInt(gasBudget ?? 0);
-    const [gas, symbol] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
+    const gasBudgetBigInt = BigInt(newStakeData?.gasBudget ?? 0);
+    const [gas, symbol] = useFormatCoin(newStakeData?.gasBudget, IOTA_TYPE_ARG);
 
     const maxTokenBalance = coinBalance - gasBudgetBigInt;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
@@ -88,6 +102,28 @@ function EnterAmountView({
 
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
+
+    function handleStake(): void {
+        if (!newStakeData?.transaction) {
+            addNotification('Stake transaction was not created', NotificationType.Error);
+            return;
+        }
+        signAndExecuteTransaction(
+            {
+                transaction: newStakeData?.transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    onSuccess?.(tx.digest);
+                    addNotification('Stake transaction has been sent');
+                    resetForm();
+                },
+                onError: () => {
+                    addNotification('Stake transaction was not sent', NotificationType.Error);
+                },
+            },
+        );
+    }
 
     return (
         <DialogLayout>
@@ -174,7 +210,7 @@ function EnterAmountView({
                     <Button
                         fullWidth
                         type={ButtonType.Primary}
-                        onClick={onStake}
+                        onClick={handleStake}
                         disabled={!amount || !!errors?.amount}
                         text="Stake"
                     />

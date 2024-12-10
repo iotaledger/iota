@@ -17,7 +17,7 @@ export function StakeRewardsPanel({
     isTimelocked,
 }: StakeRewardsPanelProps) {
     const { epoch = '0' } = useIotaClientQuery('getLatestIotaSystemState')?.data || {};
-    const [rewards, symbol] = useFormatCoin(stakingRewards, IOTA_TYPE_ARG);
+    const [rewards, symbol] = useFormatCoin(stakingRewards ?? 0, IOTA_TYPE_ARG);
     const [stakedBalance] = useFormatCoin(totalStaked, IOTA_TYPE_ARG);
     const [stakedAndRewards] = useFormatCoin(
         BigInt(stakingRewards || 0) + BigInt(totalStaked),
