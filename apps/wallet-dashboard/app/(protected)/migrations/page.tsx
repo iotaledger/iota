@@ -3,11 +3,8 @@
 'use client';
 
 import MigratePopup from '@/components/Popup/Popups/MigratePopup';
-import { useGetCurrentEpochStartTimestamp, usePopups } from '@/hooks';
-import {
-    summarizeMigratableObjectValues,
-    groupStardustObjectsByMigrationStatus,
-} from '@/lib/utils';
+import { useGetStardustMigratableObjects, usePopups } from '@/hooks';
+import { summarizeMigratableObjectValues } from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -20,12 +17,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
-import {
-    STARDUST_BASIC_OUTPUT_TYPE,
-    STARDUST_NFT_OUTPUT_TYPE,
-    useFormatCoin,
-    useGetAllOwnedObjects,
-} from '@iota/core';
+import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { Assets, Clock, IotaLogoMark, Tokens } from '@iota/ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -49,32 +41,17 @@ function MigrationDashboardPage(): JSX.Element {
     const { openPopup, closePopup } = usePopups();
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const [selectedObjectsCategory, setSelectedObjectsCategory] = useState<
         ObjectDetailsCategory | undefined
     >();
     const [selectedFilter, setSelectedFilter] = useState<ObjectsFilter>(ObjectsFilter.All);
 
-    const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_BASIC_OUTPUT_TYPE,
-    });
-    const { data: nftOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_NFT_OUTPUT_TYPE,
-    });
-
-    const { migratable: migratableBasicOutputs, unmigratable: unmigratableBasicOutputs } =
-        groupStardustObjectsByMigrationStatus(
-            basicOutputObjects ?? [],
-            Number(currentEpochMs),
-            address,
-        );
-
-    const { migratable: migratableNftOutputs, unmigratable: unmigratableNftOutputs } =
-        groupStardustObjectsByMigrationStatus(
-            nftOutputObjects ?? [],
-            Number(currentEpochMs),
-            address,
-        );
+    const {
+        migratableBasicOutputs,
+        unmigratableBasicOutputs,
+        migratableNftOutputs,
+        unmigratableNftOutputs,
+    } = useGetStardustMigratableObjects(address);
 
     const hasMigratableObjects =
         migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0;

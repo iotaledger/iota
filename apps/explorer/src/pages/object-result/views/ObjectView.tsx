@@ -115,6 +115,7 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
     };
 
     const normalizedStructTag = formatType(normalizeStructTag(structTag));
+
     return (
         <DisplayStats
             label="Type"

@@ -5,7 +5,7 @@ export enum StakeDialogView {
     Details = 'Details',
     SelectValidator = 'SelectValidator',
     EnterAmount = 'EnterAmount',
-    Unstake = 'Unstake',
+    // Unstake = 'Unstake',
     EnterTimelockedAmount = 'EnterTimelockedAmount',
     TransactionDetails = 'TransactionDetails',
 }
