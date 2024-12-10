@@ -2,7 +2,6 @@
  * SWIZZLED VERSION: 3.5.2
  * REASONS:
  *  - Add default components
- *  - Add FeedbackForm component
  */
 import React from 'react';
 import { MDXProvider } from '@mdx-js/react';

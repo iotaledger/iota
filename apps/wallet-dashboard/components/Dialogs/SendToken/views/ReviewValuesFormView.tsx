@@ -53,8 +53,9 @@ export function ReviewValuesFormView({
                                     <CardImage type={ImageType.BgSolid}>
                                         <CoinIcon
                                             coinType={coinType}
-                                            rounded
                                             size={ImageIconSize.Small}
+                                            rounded
+                                            hasCoinWrapper
                                         />
                                     </CardImage>
                                     <CardBody

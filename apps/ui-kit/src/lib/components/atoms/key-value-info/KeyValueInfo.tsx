@@ -57,10 +57,6 @@ interface KeyValueProps {
      * Reverse the KeyValue (optional).
      */
     isReverse?: boolean;
-    /**
-     * Text shown on value hover.
-     */
-    valueHoverTitle?: string;
 }
 
 export function KeyValueInfo({
@@ -76,7 +72,6 @@ export function KeyValueInfo({
     onCopyError,
     fullwidth,
     isReverse = false,
-    valueHoverTitle,
 }: KeyValueProps): React.JSX.Element {
     const flexDirectionClass = isReverse ? 'flex-row-reverse' : 'flex-row';
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
@@ -124,7 +119,6 @@ export function KeyValueInfo({
                 })}
             >
                 <span
-                    title={valueHoverTitle}
                     className={cx(
                         'text-neutral-10 dark:text-neutral-92',
                         size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',

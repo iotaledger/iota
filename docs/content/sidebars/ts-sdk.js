@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import typedocSidebar from '../references/ts-sdk/api/typedoc-sidebar.cjs';
-const tsSDK = [
+const references = [
     {
         type: 'category',
         label: 'Typescript SDK',
@@ -133,4 +133,4 @@ const tsSDK = [
     },
 ];
 
-module.exports = tsSDK;
+module.exports = references;

@@ -33,11 +33,11 @@ import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
 interface StakeDialogProps {
-    handleClose: () => void;
-    handleStake: () => void;
     stakedDetails: ExtendedDelegatedStake;
     showActiveStatus?: boolean;
-    handleUnstake?: () => void;
+    handleClose: () => void;
+    handleUnstake: () => void;
+    handleStake: () => void;
 }
 
 export function DetailsView({
