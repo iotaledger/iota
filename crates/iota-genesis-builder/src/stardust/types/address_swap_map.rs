@@ -157,7 +157,6 @@ impl AddressSwapMap {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
         let mut reader = csv::ReaderBuilder::new()
-            .has_headers(true)
             .from_path(file_path)?;
         let mut addresses = HashMap::new();
         verify_headers(reader.headers()?)?;
