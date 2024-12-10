@@ -3,9 +3,6 @@
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# This script is meant to be executed on MacOS (hence zsh use - to get associative arrays otherwise
-# unavailable in the bundled bash version).
-
 set -e
 
 usage() {
