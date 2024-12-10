@@ -336,16 +336,16 @@ impl Builder {
         let stardust_total_supply_nanos =
             self.migration_sources.len() as u64 * STARDUST_TOTAL_SUPPLY_NANOS;
 
-        if let Some(schedule_without_migration) = self.token_distribution_schedule.take() {
-            if !is_genesis_with_migration || schedule_without_migration.contains_timelocked_stake()
+        if let Some(schedule) = self.token_distribution_schedule.take() {
+            if !is_genesis_with_migration || schedule.contains_timelocked_stake()
             {
                 // Case 1.1 and 2.1.1
-                schedule_without_migration
+                schedule
             } else {
                 // Case 2.1.2
                 self.genesis_stake
                     .extend_token_distribution_schedule_without_migration(
-                        schedule_without_migration,
+                        schedule,
                         stardust_total_supply_nanos,
                     )
             }
