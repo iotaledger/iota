@@ -116,6 +116,7 @@ impl GenesisStake {
         delegator: IotaAddress,
         migration_objects: &MigrationObjects,
     ) -> anyhow::Result<()> {
+        // Fetch all timelock and gas objects owned by the delegator
         let timelocks_pool =
             migration_objects.get_sorted_timelocks_and_expiration_by_owner(delegator);
         let gas_coins_pool = migration_objects.get_gas_coins_by_owner(delegator);
@@ -128,17 +129,20 @@ impl GenesisStake {
             .into_iter()
             .map(|object| (object, 0));
 
-        // For each validator we try to fill their allocation up to
-        // total_amount_to_stake_per_validator
+        // Then, try to create new token allocations for each validator using the
+        // objects fetched above
         for validator_allocation in validators_allocations {
+            // The validaotr address
             let validator = validator_allocation.address;
+            // The target amount of nanos to be staked, either with timelock or gas objects
             let target_stake = validator_allocation.amount_nanos_to_stake;
 
             // Start filling allocations with timelocks
-            let mut timelock_objects =
-                pick_objects_for_allocation(&mut timelocks_pool, target_stake);
+
             // TODO: This is not an optimal solution because the last timelock
             // might have a surplus amount, which cannot be used without splitting.
+            let mut timelock_objects =
+                pick_objects_for_allocation(&mut timelocks_pool, target_stake);
             if !timelock_objects.inner.is_empty() {
                 timelock_objects.staked_with_timelock.iter().for_each(
                     |&(timelocked_amount, expiration_timestamp)| {
@@ -168,31 +172,53 @@ impl GenesisStake {
                 ))
             }
 
-            // Then cover any remaining target stake with gas coins
+            // After allocating timelocked stakes, then
+            // 1. allocate gas stakes (if timelocked funds were not enough)
+            // 2. and/or allocate gas payments (if indicated in the validator allocation).
+
+            // The remainder of the target stake after timelocks were used.
             let remainder_target_stake = target_stake - timelock_objects.amount_nanos;
-            let mut gas_coin_objects =
-                pick_objects_for_allocation(&mut gas_coins_pool, remainder_target_stake);
-            self.gas_coins_to_burn.append(&mut gas_coin_objects.inner);
+            // The gas to pay to the validator
+            let gas_to_pay = validator_allocation.amount_nanos_to_pay_gas;
             // TODO: also here, this is not an optimal solution because the last gas object
             // might have a surplus amount, which cannot be used without splitting.
-            if gas_coin_objects.amount_nanos < remainder_target_stake {
+            let total_amount_nanos_gas_to_burn = remainder_target_stake + gas_to_pay;
+            let mut gas_coin_objects =
+                pick_objects_for_allocation(&mut gas_coins_pool, total_amount_nanos_gas_to_burn);
+            if gas_coin_objects.amount_nanos < total_amount_nanos_gas_to_burn {
                 return Err(anyhow::anyhow!(
                     "Not enough funds for delegator {:?}",
                     delegator
                 ));
-            } else if gas_coin_objects.amount_nanos > 0 {
-                // For gas coins we create a `TokenAllocation` object with
-                // an empty`staked_with_timelock`
-                self.token_allocation.push(TokenAllocation {
-                    recipient_address: delegator,
-                    amount_nanos: gas_coin_objects.amount_nanos,
-                    staked_with_validator: Some(validator),
-                    staked_with_timelock_expiration: None,
-                });
+            } else {
+                self.gas_coins_to_burn.append(&mut gas_coin_objects.inner);
+                // Case 1. allocate gas stakes
+                if remainder_target_stake > 0 {
+                    // For gas coins we create a `TokenAllocation` object with
+                    // an empty`staked_with_timelock`
+                    self.token_allocation.push(TokenAllocation {
+                        recipient_address: delegator,
+                        amount_nanos: remainder_target_stake,
+                        staked_with_validator: Some(validator),
+                        staked_with_timelock_expiration: None,
+                    });
+                }
+                // Case 2. allocate gas payments
+                if gas_to_pay > 0 {
+                    // For gas coins we create a `TokenAllocation` object with
+                    // `recipient_address` being the validator and no stake
+                    self.token_allocation.push(TokenAllocation {
+                        recipient_address: validator,
+                        amount_nanos: gas_to_pay,
+                        staked_with_validator: None,
+                        staked_with_timelock_expiration: None,
+                    });
+                }
+                // This essentially schedules returning any surplus amount
+                // from the last coin in `gas_coin_objects` to the delegator
+                // as a new coin, so that the split is not needed during the
+                // `genesis` PTB execution
                 if gas_coin_objects.surplus_nanos > 0 {
-                    // This essentially schedules returning any surplus amount
-                    // from the last coin in `gas_coin_objects` to the delegator
-                    // as a new coin, so that the split is not needed
                     self.token_allocation.push(TokenAllocation {
                         recipient_address: delegator,
                         amount_nanos: gas_coin_objects.surplus_nanos,
