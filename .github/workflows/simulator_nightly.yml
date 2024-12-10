@@ -9,7 +9,7 @@ on:
         description: "Branch / commit to test"
         type: string
         required: true
-        default: main
+        default: develop
       test_num:
         description: "MSIM_TEST_NUM (test iterations)"
         type: string
