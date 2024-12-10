@@ -106,14 +106,14 @@ pub enum CeremonyCommand {
     },
     /// List the current validators in the Genesis builder.
     ListValidators,
-    /// Initialize the delegator map.
-    InitDelegatorMap {
+    /// Initialize the validator delegations.
+    InitDelegations {
         #[clap(
             long,
-            help = "Path to the delegator map file.",
-            name = "delegator_map.csv"
+            help = "Path to the delegations file.",
+            name = "delegations.csv"
         )]
-        delegator_map_path: PathBuf,
+        delegations_path: PathBuf,
     },
     /// Build the Genesis checkpoint.
     BuildUnsignedCheckpoint {
@@ -265,11 +265,11 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             }
         }
 
-        CeremonyCommand::InitDelegatorMap { delegator_map_path } => {
+        CeremonyCommand::InitDelegations { delegations_path } => {
             let mut builder = Builder::load(&dir).await?;
-            let file = File::open(delegator_map_path)?;
-            let delegator_map = Delegations::from_csv(file)?;
-            builder = builder.with_delegator_map(delegator_map);
+            let file = File::open(delegations_path)?;
+            let delegations = Delegations::from_csv(file)?;
+            builder = builder.with_delegations(delegations);
             builder.save(dir)?;
         }
 
