@@ -8,6 +8,7 @@ import {
     TransactionsOverview,
     StakingOverview,
     MigrationOverview,
+    SupplyIncreaseVestingOverview,
 } from '@/components';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
@@ -18,6 +19,7 @@ function HomeDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
 
     const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     return (
         <main className="flex flex-1 flex-col items-center space-y-8 py-md">
@@ -34,9 +36,7 @@ function HomeDashboardPage(): JSX.Element {
                         <div style={{ gridArea: 'coins' }}>
                             <MyCoins />
                         </div>
-                        <div style={{ gridArea: 'vesting' }} className="flex grow overflow-hidden">
-                            Vesting
-                        </div>
+                        {supplyIncreaseVestingEnabled && <SupplyIncreaseVestingOverview />}
                         <div style={{ gridArea: 'activity' }} className="flex grow overflow-hidden">
                             <TransactionsOverview />
                         </div>

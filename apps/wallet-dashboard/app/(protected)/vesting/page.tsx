@@ -10,17 +10,8 @@ import {
     useStakeDialog,
     VestingScheduleDialog,
 } from '@/components';
-import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
-import {
-    buildSupplyIncreaseVestingSchedule,
-    formatDelegatedTimelockedStake,
-    getLatestOrEarliestSupplyIncreaseVestingPayout,
-    getVestingOverview,
-    groupTimelockedStakedObjects,
-    isTimelockedUnlockable,
-    mapTimelockObjects,
-    TimelockedStakedObjectsGrouped,
-} from '@/lib/utils';
+import { useGetSupplyIncreaseVestingObjects, useNotifications, usePopups } from '@/hooks';
+import { groupTimelockedStakedObjects, TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
@@ -45,10 +36,7 @@ import {
     TIMELOCK_IOTA_TYPE,
     useFormatCoin,
     useGetActiveValidatorsInfo,
-    useGetAllOwnedObjects,
-    useGetTimelockedStakedObjects,
     useTheme,
-    useUnlockTimelockedObjectsTransaction,
     useCountdownByTimestamp,
     Feature,
 } from '@iota/core';
@@ -62,18 +50,14 @@ import { useEffect, useState } from 'react';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+    const address = account?.address || '';
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { addNotification } = useNotifications();
     const { openPopup, closePopup } = usePopups();
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: activeValidators } = useGetActiveValidatorsInfo();
-    const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
-        StructType: TIMELOCK_IOTA_TYPE,
-    });
-    const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 
@@ -84,16 +68,16 @@ function VestingDashboardPage(): JSX.Element {
 
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
-    const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
-    const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
+    const {
+        nextPayout,
+        vestingPortfolio,
+        vestingSchedule,
+        vestingStakedMapped,
+        unlockAllTimelockedObjects,
+    } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
-        groupTimelockedStakedObjects(timelockedstakedMapped || []);
-
-    const vestingSchedule = getVestingOverview(
-        [...timelockedMapped, ...timelockedstakedMapped],
-        Number(currentEpochMs),
-    );
+        groupTimelockedStakedObjects(vestingStakedMapped || []);
 
     const {
         isDialogStakeOpen,
@@ -105,21 +89,6 @@ function VestingDashboardPage(): JSX.Element {
         handleCloseStakeDialog,
         handleNewStake,
     } = useStakeDialog();
-
-    const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
-        [...timelockedMapped, ...timelockedstakedMapped],
-        Number(currentEpochMs),
-        false,
-    );
-
-    const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
-        [...timelockedMapped, ...timelockedstakedMapped],
-        Number(currentEpochMs),
-        true,
-    );
-
-    const vestingPortfolio =
-        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
@@ -150,16 +119,6 @@ function VestingDashboardPage(): JSX.Element {
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }
-
-    const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
-        isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
-    );
-    const unlockedTimelockedObjectIds: string[] =
-        unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
-    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjectsTransaction(
-        account?.address || '',
-        unlockedTimelockedObjectIds,
-    );
 
     function handleOnSuccess(digest: string): void {
         iotaClient
@@ -299,7 +258,7 @@ function VestingDashboardPage(): JSX.Element {
                     )}
                 </div>
             </Panel>
-            {timelockedstakedMapped.length === 0 ? (
+            {vestingStakedMapped.length === 0 ? (
                 <>
                     <Banner
                         videoSrc={videoSrc}
