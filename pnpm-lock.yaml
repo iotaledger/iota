@@ -1362,6 +1362,9 @@ importers:
       '@mui/material':
         specifier: ^5.15.19
         version: 5.16.7(@emotion/react@11.13.3(@types/react@18.3.9)(react@18.3.1))(@emotion/styled@11.13.0(@emotion/react@11.13.3(@types/react@18.3.9)(react@18.3.1))(@types/react@18.3.9)(react@18.3.1))(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@saucelabs/theme-github-codeblock':
+        specifier: ^0.3.0
+        version: 0.3.0
       '@tanstack/react-query':
         specifier: ^5.50.1
         version: 5.56.2(react@18.3.1)
@@ -6255,6 +6258,9 @@ packages:
 
   '@rushstack/ts-command-line@4.19.1':
     resolution: {integrity: sha512-J7H768dgcpG60d7skZ5uSSwyCZs/S2HrWP1Ds8d1qYAyaaeJmpmmLr9BVw97RjFzmQPOYnoXcKA4GkqDCkduQg==}
+
+  '@saucelabs/theme-github-codeblock@0.3.0':
+    resolution: {integrity: sha512-+8xWxBfN+I8StJ0QXERMbGf+BHwRXHWV3mFl9uDayXERiZ/rR93d0nAS3s9s/rKjqh/YSm/4dThEkBNBLnGs4Q==}
 
   '@scure/base@1.1.9':
     resolution: {integrity: sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg==}
@@ -22734,6 +22740,8 @@ snapshots:
       string-argv: 0.3.2
     transitivePeerDependencies:
       - '@types/node'
+
+  '@saucelabs/theme-github-codeblock@0.3.0': {}
 
   '@scure/base@1.1.9': {}
 

@@ -65,7 +65,7 @@ export class FeaturesController {
                     defaultValue: false,
                 },
                 [Feature.StardustMigration]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: true,
