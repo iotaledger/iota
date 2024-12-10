@@ -108,11 +108,7 @@ pub enum CeremonyCommand {
     ListValidators,
     /// Initialize the validator delegations.
     InitDelegations {
-        #[clap(
-            long,
-            help = "Path to the delegations file.",
-            name = "delegations.csv"
-        )]
+        #[clap(long, help = "Path to the delegations file.", name = "delegations.csv")]
         delegations_path: PathBuf,
     },
     /// Build the Genesis checkpoint.
@@ -298,7 +294,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
                 builder.save(dir)
             })
-                .await??;
+            .await??;
         }
 
         CeremonyCommand::ExamineGenesisCheckpoint => {
@@ -479,8 +475,8 @@ mod test {
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
-                .run()
-                .await?;
+            .run()
+            .await?;
         }
 
         // Build the unsigned checkpoint
@@ -510,8 +506,8 @@ mod test {
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
-                .run()
-                .await?;
+            .run()
+            .await?;
         }
 
         // Finalize the Ceremony and build the Genesis object

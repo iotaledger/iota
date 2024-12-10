@@ -64,13 +64,13 @@ impl PartialEq for Genesis {
     fn eq(&self, other: &Self) -> bool {
         self.checkpoint.data() == other.checkpoint.data()
             && {
-            let this = self.checkpoint.auth_sig();
-            let other = other.checkpoint.auth_sig();
+                let this = self.checkpoint.auth_sig();
+                let other = other.checkpoint.auth_sig();
 
-            this.epoch == other.epoch
-                && this.signature.as_ref() == other.signature.as_ref()
-                && this.signers_map == other.signers_map
-        }
+                this.epoch == other.epoch
+                    && this.signature.as_ref() == other.signature.as_ref()
+                    && this.signers_map == other.signers_map
+            }
             && self.checkpoint_contents == other.checkpoint_contents
             && self.transaction == other.transaction
             && self.effects == other.effects
@@ -418,11 +418,11 @@ impl GenesisCeremonyParameters {
             max_validator_count: iota_types::governance::MAX_VALIDATOR_COUNT,
             min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
             validator_low_stake_threshold:
-            iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
+                iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             validator_very_low_stake_threshold:
-            iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS,
+                iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS,
             validator_low_stake_grace_period:
-            iota_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
+                iota_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
         }
     }
 }
@@ -458,7 +458,7 @@ impl TokenDistributionSchedule {
         }
     }
 
-    pub fn check_minimum_stake_for_validators<I: IntoIterator<Item=IotaAddress>>(
+    pub fn check_minimum_stake_for_validators<I: IntoIterator<Item = IotaAddress>>(
         &self,
         validators: I,
     ) -> Result<()> {
@@ -489,7 +489,7 @@ impl TokenDistributionSchedule {
         Ok(())
     }
 
-    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item=IotaAddress>>(
+    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
         validators: I,
     ) -> Self {
         let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
@@ -603,7 +603,7 @@ impl TokenDistributionScheduleBuilder {
         self.pre_minted_supply = pre_minted_supply;
     }
 
-    pub fn default_allocation_for_validators<I: IntoIterator<Item=IotaAddress>>(
+    pub fn default_allocation_for_validators<I: IntoIterator<Item = IotaAddress>>(
         &mut self,
         validators: I,
     ) {
@@ -657,8 +657,9 @@ pub struct Delegation {
 /// Represents genesis delegations to validators.
 ///
 /// This struct maps a delegator address to a list of validators and their
-/// stake and gas allocations. Each ValidatorAllocation contains the address of a
-/// validator that will receive an amount of nanos to stake and an amount as gas payment.
+/// stake and gas allocations. Each ValidatorAllocation contains the address of
+/// a validator that will receive an amount of nanos to stake and an amount as
+/// gas payment.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Delegations {
@@ -666,17 +667,20 @@ pub struct Delegations {
 }
 
 impl Delegations {
-    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item=IotaAddress>>(
+    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
         validators: I,
         delegator: IotaAddress,
     ) -> Self {
         let default_allocation = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
 
-        let validator_allocations = validators.into_iter().map(|address| ValidatorAllocation {
-            address,
-            amount_nanos_to_stake: default_allocation,
-            amount_nanos_to_pay_gas: 0,
-        }).collect();
+        let validator_allocations = validators
+            .into_iter()
+            .map(|address| ValidatorAllocation {
+                address,
+                amount_nanos_to_stake: default_allocation,
+                amount_nanos_to_pay_gas: 0,
+            })
+            .collect();
 
         let mut allocations = HashMap::new();
         allocations.insert(delegator, validator_allocations);
