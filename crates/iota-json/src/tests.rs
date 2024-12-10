@@ -423,91 +423,95 @@ fn test_basic_args_linter_pure_args_good() {
     }
 }
 
-#[test]
-fn test_basic_args_linter_top_level() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
-    let compiled_modules = BuildConfig::new_for_testing()
-        .build(&path)
-        .unwrap()
-        .into_modules();
-    let example_package = Object::new_package_for_testing(
-        &compiled_modules,
-        TransactionDigest::genesis_marker(),
-        BuiltInFramework::genesis_move_packages(),
-    )
-    .unwrap();
-    let package = example_package.data.try_as_package().unwrap();
+mod example {
+    use super::*;
 
-    let module = Identifier::new("resolve_args").unwrap();
-    let function = Identifier::new("foo").unwrap();
-
-    // Function signature:
-    // foo(
-    //     _foo: &mut Foo,
-    //     _bar: vector<Foo>,
-    //     _name: vector<u8>,
-    //     _index: u64,
-    //     _flag: u8,
-    //     _recipient: address,
-    //     _ctx: &mut TxContext,
-    // )
-
-    let foo_id = ObjectID::random();
-    let bar_id = ObjectID::random();
-    let baz_id = ObjectID::random();
-    let recipient_addr = IotaAddress::random_for_testing_only();
-
-    let foo = json!(foo_id.to_canonical_string(/* with_prefix */ true));
-    let bar = json!([
-        bar_id.to_canonical_string(/* with_prefix */ true),
-        baz_id.to_canonical_string(/* with_prefix */ true),
-    ]);
-
-    let name = json!("Name");
-    let index = json!("12345678");
-    let flag = json!(89);
-    let recipient = json!(recipient_addr.to_string());
-
-    let args: Vec<_> = [
-        foo.clone(),
-        bar.clone(),
-        name.clone(),
-        index.clone(),
-        flag,
-        recipient.clone(),
-    ]
-    .into_iter()
-    .map(|q| IotaJsonValue::new(q.clone()).unwrap())
-    .collect();
-
-    let json_args: Vec<_> =
-        resolve_move_function_args(package, module.clone(), function.clone(), &[], args)
+    #[test]
+    fn test_basic_args_linter_top_level() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
+        let compiled_modules = BuildConfig::new_for_testing()
+            .build(&path)
             .unwrap()
-            .into_iter()
-            .map(|(arg, _)| arg)
-            .collect();
+            .into_modules();
+        let example_package = Object::new_package_for_testing(
+            &compiled_modules,
+            TransactionDigest::genesis_marker(),
+            BuiltInFramework::genesis_move_packages(),
+        )
+        .unwrap();
+        let package = example_package.data.try_as_package().unwrap();
 
-    use ResolvedCallArg as RCA;
-    fn pure<T: Serialize>(t: &T) -> RCA {
-        RCA::Pure(bcs::to_bytes(t).unwrap())
-    }
+        let module = Identifier::new("resolve_args").unwrap();
+        let function = Identifier::new("foo").unwrap();
 
-    assert_eq!(json_args, vec![
-        RCA::Object(foo_id),
-        RCA::ObjVec(vec![bar_id, baz_id]),
-        pure(&"Name"),
-        pure(&12345678u64),
-        pure(&89u8),
-        pure(&recipient_addr),
-    ],);
+        // Function signature:
+        // foo(
+        //     _foo: &mut Foo,
+        //     _bar: vector<Foo>,
+        //     _name: vector<u8>,
+        //     _index: u64,
+        //     _flag: u8,
+        //     _recipient: address,
+        //     _ctx: &mut TxContext,
+        // )
 
-    // Flag is u8 so too large
-    let args: Vec<_> = [foo, bar, name, index, json!(10000u64), recipient]
+        let foo_id = ObjectID::random();
+        let bar_id = ObjectID::random();
+        let baz_id = ObjectID::random();
+        let recipient_addr = IotaAddress::random_for_testing_only();
+
+        let foo = json!(foo_id.to_canonical_string(/* with_prefix */ true));
+        let bar = json!([
+            bar_id.to_canonical_string(/* with_prefix */ true),
+            baz_id.to_canonical_string(/* with_prefix */ true),
+        ]);
+
+        let name = json!("Name");
+        let index = json!("12345678");
+        let flag = json!(89);
+        let recipient = json!(recipient_addr.to_string());
+
+        let args: Vec<_> = [
+            foo.clone(),
+            bar.clone(),
+            name.clone(),
+            index.clone(),
+            flag,
+            recipient.clone(),
+        ]
         .into_iter()
         .map(|q| IotaJsonValue::new(q.clone()).unwrap())
         .collect();
 
-    assert!(resolve_move_function_args(package, module, function, &[], args,).is_err());
+        let json_args: Vec<_> =
+            resolve_move_function_args(package, module.clone(), function.clone(), &[], args)
+                .unwrap()
+                .into_iter()
+                .map(|(arg, _)| arg)
+                .collect();
+
+        use ResolvedCallArg as RCA;
+        fn pure<T: Serialize>(t: &T) -> RCA {
+            RCA::Pure(bcs::to_bytes(t).unwrap())
+        }
+
+        assert_eq!(json_args, vec![
+            RCA::Object(foo_id),
+            RCA::ObjVec(vec![bar_id, baz_id]),
+            pure(&"Name"),
+            pure(&12345678u64),
+            pure(&89u8),
+            pure(&recipient_addr),
+        ],);
+
+        // Flag is u8 so too large
+        let args: Vec<_> = [foo, bar, name, index, json!(10000u64), recipient]
+            .into_iter()
+            .map(|q| IotaJsonValue::new(q.clone()).unwrap())
+            .collect();
+
+        assert!(resolve_move_function_args(package, module, function, &[], args,).is_err());
+    }
 }
 
 #[test]
