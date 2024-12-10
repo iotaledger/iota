@@ -982,6 +982,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .filter_map(|(peer_index, _)| (peer_index != context.own_index).then_some(peer_index))
             .collect::<Vec<_>>();
 
+        // In test, the order is not randomized
         #[cfg(not(test))]
         peers.shuffle(&mut ThreadRng::default());
 
