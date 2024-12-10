@@ -3,7 +3,7 @@
 
 'use client';
 
-import { Toaster } from '@/components';
+import { PopupProvider, Toaster } from '@/components';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { KioskClientProvider } from '@iota/core';
 import { growthbook } from '@/lib/utils';
+import { Popup } from '@/components/Popup';
 import { ThemeProvider } from '@iota/core';
 
 growthbook.init();
@@ -38,8 +39,11 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                             ]}
                         >
                             <ThemeProvider appId="iota-dashboard">
-                                {children}
-                                <Toaster />
+                                <PopupProvider>
+                                    {children}
+                                    <Toaster />
+                                    <Popup />
+                                </PopupProvider>
                             </ThemeProvider>
                         </WalletProvider>
                     </KioskClientProvider>
