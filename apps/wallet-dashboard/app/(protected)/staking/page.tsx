@@ -108,6 +108,16 @@ function StakingDashboardPage(): React.JSX.Element {
         setIsUnstakeDialogOpen(true);
     }
 
+    function handleOnUnstakeBack(view: UnstakeDialogView): (() => void) | undefined {
+        if (view === UnstakeDialogView.Unstake) {
+            return () => {
+                console.log('here');
+                setStakeDialogView(StakeDialogView.Details);
+                setIsUnstakeDialogOpen(false);
+            };
+        }
+    }
+
     return (
         <div className="flex justify-center">
             <div className="w-3/4">
@@ -195,6 +205,7 @@ function StakingDashboardPage(): React.JSX.Element {
                             <UnstakeDialog
                                 handleClose={() => setIsUnstakeDialogOpen(false)}
                                 extendedStake={selectedStake}
+                                onBack={handleOnUnstakeBack}
                                 view={UnstakeDialogView.Unstake}
                                 onSuccess={() => {
                                     refetchDelegatedStakes();

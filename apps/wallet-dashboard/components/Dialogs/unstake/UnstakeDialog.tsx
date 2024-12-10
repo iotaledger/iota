@@ -26,6 +26,7 @@ interface UnstakeDialogProps {
     view: UnstakeDialogView;
     handleClose: () => void;
     onSuccess: (tx: IotaSignAndExecuteTransactionOutput) => void;
+    onBack?: (view: UnstakeDialogView) => (() => void) | undefined;
 }
 
 export function UnstakeDialog({
@@ -34,6 +35,7 @@ export function UnstakeDialog({
     onSuccess,
     extendedStake,
     groupedTimelockedObjects,
+    onBack,
 }: UnstakeDialogProps & UnstakeByTypeProps): React.JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
     const { addNotification } = useNotifications();
@@ -81,6 +83,7 @@ export function UnstakeDialog({
                 <UnstakeView
                     extendedStake={extendedStake}
                     handleClose={handleClose}
+                    onBack={onBack?.(UnstakeDialogView.Unstake)}
                     showActiveStatus
                     unstakeTx={unstakeData?.transaction}
                     handleUnstake={handleUnstake}
@@ -95,6 +98,7 @@ export function UnstakeDialog({
                     groupedTimelockedObjects={groupedTimelockedObjects}
                     unstakeTx={unstakeData?.transaction}
                     handleUnstake={handleUnstake}
+                    onBack={onBack?.(UnstakeDialogView.TimelockedUnstake)}
                     isUnstakeTxLoading={isUnstakeTxPending}
                     isTxPending={isTransactionPending}
                 />

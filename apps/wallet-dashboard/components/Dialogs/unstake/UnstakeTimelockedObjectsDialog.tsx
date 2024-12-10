@@ -25,11 +25,13 @@ interface UnstakeTimelockedObjectsDialogProps {
     handleUnstake: () => void;
     isUnstakeTxLoading: boolean;
     isTxPending: boolean;
+    onBack?: () => void;
 }
 
 export function UnstakeTimelockedObjectsDialog({
     groupedTimelockedObjects,
     onClose,
+    onBack,
     unstakeTx,
     handleUnstake,
     isUnstakeTxLoading,
@@ -60,7 +62,7 @@ export function UnstakeTimelockedObjectsDialog({
 
     return (
         <DialogLayout>
-            <Header title="Unstake" onClose={onClose} />
+            <Header title="Unstake" onClose={onClose} onBack={onBack} />
             <DialogLayoutBody>
                 <div className="flex flex-col gap-md">
                     <Validator

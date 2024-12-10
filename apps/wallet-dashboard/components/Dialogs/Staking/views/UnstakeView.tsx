@@ -34,11 +34,13 @@ interface UnstakeDialogProps {
     isUnstakePending: boolean;
     gasBudget: string | number | null | undefined;
     unstakeTx: Transaction | undefined;
+    onBack?: () => void;
 }
 
 export function UnstakeView({
     extendedStake,
     handleClose,
+    onBack,
     handleUnstake,
     isUnstakePending,
     gasBudget,
@@ -91,7 +93,7 @@ export function UnstakeView({
 
     return (
         <DialogLayout>
-            <Header title="Unstake" onClose={handleClose} onBack={handleClose} titleCentered />
+            <Header title="Unstake" onClose={handleClose} onBack={onBack} titleCentered />
             <DialogLayoutBody>
                 <div className="flex flex-col gap-y-md">
                     <Validator
