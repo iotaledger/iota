@@ -18,8 +18,8 @@ type UnstakeByTypeProps =
           groupedTimelockedObjects?: never;
       }
     | {
-          extendedStake?: never;
           groupedTimelockedObjects: TimelockedStakedObjectsGrouped;
+          extendedStake?: never;
       };
 
 interface UnstakeDialogProps {

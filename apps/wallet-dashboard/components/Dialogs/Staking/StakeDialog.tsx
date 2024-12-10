@@ -47,7 +47,7 @@ interface StakeDialogProps {
     onSuccess?: (digest: string) => void;
     selectedValidator?: string;
     setSelectedValidator?: (validator: string) => void;
-    onUnstakeClick: () => void;
+    onUnstakeClick?: () => void;
 }
 
 export function StakeDialog({

@@ -30,10 +30,10 @@ interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
     handleClose: () => void;
     handleUnstake: () => void;
-    showActiveStatus?: boolean;
     isUnstakePending: boolean;
     gasBudget: string | number | null | undefined;
     unstakeTx: Transaction | undefined;
+    showActiveStatus?: boolean;
     onBack?: () => void;
 }
 
