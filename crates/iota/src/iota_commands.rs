@@ -646,7 +646,7 @@ async fn start(
 
     if epoch_duration_ms.is_some() && genesis_blob_exists(config_dir.clone()) && !force_regenesis {
         bail!(
-            "Epoch duration can only be set when passing the `--force-regenesis` flag, or when \
+            "epoch duration can only be set when passing the `--force-regenesis` flag, or when \
             there is no genesis configuration in the default Iota configuration folder or the given \
             network.config argument.",
         );
@@ -815,7 +815,7 @@ async fn start(
 
         let host_ip = match faucet_address {
             SocketAddr::V4(addr) => *addr.ip(),
-            _ => bail!("Faucet configuration requires an IPv4 address"),
+            _ => bail!("faucet configuration requires an IPv4 address"),
         };
 
         let config = FaucetConfig {
@@ -955,7 +955,7 @@ async fn genesis(
             }
         } else if files.len() != 2 || !client_path.exists() || !keystore_path.exists() {
             bail!(
-                "Cannot run genesis with non-empty Iota config directory {}, please use the --force/-f option to remove the existing configuration",
+                "cannot run genesis with non-empty Iota config directory {}, please use the --force/-f option to remove the existing configuration",
                 iota_config_dir.to_str().unwrap()
             );
         }
@@ -1000,7 +1000,7 @@ async fn genesis(
             // Add a delegator account to the genesis.
             genesis_conf = genesis_conf.add_delegator(delegator);
         } else {
-            bail!("A delegator must be supplied when migration snapshots are provided.");
+            bail!("a delegator must be supplied when migration snapshots are provided.");
         }
     }
 
