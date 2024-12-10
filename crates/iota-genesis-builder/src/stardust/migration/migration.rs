@@ -19,7 +19,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
     object::Object,
-    stardust::{address_swap_map::AddressSwapMap, coin_type::CoinType},
+    stardust::coin_type::CoinType,
     timelock::timelock::{self, TimeLock, is_timelocked_balance},
 };
 use move_binary_format::file_format_common::VERSION_MAX;
@@ -33,7 +33,7 @@ use crate::stardust::{
     },
     native_token::package_data::NativeTokenPackageData,
     process_outputs::get_merged_outputs_for_iota,
-    types::output_header::OutputHeader,
+    types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
 };
 
 /// We fix the protocol version used in the migration.
@@ -216,13 +216,13 @@ impl Migration {
                     header,
                     alias,
                     self.coin_type,
-                    &self.address_swap_map,
+                    &mut self.address_swap_map,
                 )?,
                 Output::Nft(nft) => self.executor.create_nft_objects(
                     header,
                     nft,
                     self.coin_type,
-                    &self.address_swap_map,
+                    &mut self.address_swap_map,
                 )?,
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
@@ -236,7 +236,7 @@ impl Migration {
                             header.output_id(),
                             basic,
                             self.target_milestone_timestamp_sec,
-                            &self.address_swap_map,
+                            &mut self.address_swap_map,
                         )?
                     } else {
                         self.executor.create_basic_objects(
@@ -244,7 +244,7 @@ impl Migration {
                             basic,
                             self.target_milestone_timestamp_sec,
                             &self.coin_type,
-                            &self.address_swap_map,
+                            &mut self.address_swap_map,
                         )?
                     }
                 }

@@ -33,10 +33,8 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{
-        address_swap_map::AddressSwapMap,
         coin_type::CoinType,
         output::{Nft, foundry::create_foundry_amount_coin},
-        stardust_to_iota_address_maybe_swap, stardust_to_iota_address_owner_maybe_swap,
     },
     timelock::timelock,
     transaction::{
@@ -54,7 +52,10 @@ use crate::{
             MigrationTargetNetwork, PACKAGE_DEPS, create_migration_context, package_module_bytes,
             verification::created_objects::CreatedObjects,
         },
-        types::{output_header::OutputHeader, token_scheme::SimpleTokenSchemeU64},
+        types::{
+            address_swap_map::AddressSwapMap, output_header::OutputHeader,
+            token_scheme::SimpleTokenSchemeU64,
+        },
     },
 };
 
@@ -308,7 +309,7 @@ impl Executor {
         header: &OutputHeader,
         alias: &AliasOutput,
         coin_type: CoinType,
-        address_swap_map: &AddressSwapMap,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -319,7 +320,7 @@ impl Executor {
 
         // TODO: We should ensure that no circular ownership exists.
         let alias_output_owner =
-            stardust_to_iota_address_owner_maybe_swap(alias.governor_address(), address_swap_map)?;
+            address_swap_map.swap_stardust_to_iota_address_owner(alias.governor_address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
@@ -561,13 +562,13 @@ impl Executor {
         basic_output: &BasicOutput,
         target_milestone_timestamp_sec: u32,
         coin_type: &CoinType,
-        address_swap_map: &AddressSwapMap,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut basic =
             iota_types::stardust::output::BasicOutput::new(header.new_object_id(), basic_output)?;
 
         let basic_objects_owner =
-            stardust_to_iota_address_maybe_swap(basic_output.address(), address_swap_map)?;
+            address_swap_map.swap_stardust_to_iota_address(basic_output.address())?;
 
         let mut created_objects = CreatedObjects::default();
 
@@ -626,12 +627,12 @@ impl Executor {
         output_id: OutputId,
         basic_output: &BasicOutput,
         target_milestone_timestamp: u32,
-        address_swap_map: &AddressSwapMap,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
-        let basic_output_owner: IotaAddress =
-            stardust_to_iota_address_maybe_swap(basic_output.address(), address_swap_map)?;
+        let basic_output_owner =
+            address_swap_map.swap_stardust_to_iota_address(basic_output.address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
@@ -658,7 +659,7 @@ impl Executor {
         header: &OutputHeader,
         nft: &NftOutput,
         coin_type: CoinType,
-        address_swap_map: &AddressSwapMap,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -668,11 +669,11 @@ impl Executor {
         let move_nft = Nft::try_from_stardust(nft_id, nft)?;
 
         // TODO: We should ensure that no circular ownership exists.
-        let nft_output_owner_address: IotaAddress =
-            stardust_to_iota_address_maybe_swap(nft.address(), address_swap_map)?;
+        let nft_output_owner_address =
+            address_swap_map.swap_stardust_to_iota_address(nft.address())?;
 
         let nft_output_owner =
-            stardust_to_iota_address_owner_maybe_swap(nft.address(), address_swap_map)?;
+            address_swap_map.swap_stardust_to_iota_address_owner(nft.address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);

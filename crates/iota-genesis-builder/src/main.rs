@@ -14,9 +14,10 @@ use iota_genesis_builder::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
         process_outputs::scale_amount_for_iota,
+        types::address_swap_map::AddressSwapMap,
     },
 };
-use iota_types::stardust::{address_swap_map::init_address_swap_map, coin_type::CoinType};
+use iota_types::stardust::coin_type::CoinType;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -77,7 +78,7 @@ fn main() -> Result<()> {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
     };
 
-    let address_swap_map = init_address_swap_map(&address_swap_map_path)?;
+    let address_swap_map = AddressSwapMap::from_csv(&address_swap_map_path)?;
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
         snapshot_parser.target_milestone_timestamp(),
