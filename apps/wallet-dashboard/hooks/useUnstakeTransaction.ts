@@ -1,53 +1,51 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { createTimelockedUnstakeTransaction, createUnstakeTransaction } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export type UseUnstakeTransactionParams =
+type UnstakeTypeTransaction =
     | {
-          stakedIotaId: string;
-          senderAddress: string;
+          unstakeIotaId: string;
+          isTimelockedUnstake?: never | false;
+          unstakeIotaIds?: never;
       }
     | {
-          groupedTimelockedObjects: TimelockedStakedObjectsGrouped;
-          senderAddress: string;
+          unstakeIotaId?: never;
+          unstakeIotaIds: string[];
+          isTimelockedUnstake: true;
       };
+
+interface UseUnstakeTransactionBaseParams {
+    senderAddress: string;
+}
+
+export type UseUnstakeTransactionParams = UseUnstakeTransactionBaseParams & UnstakeTypeTransaction;
 
 export function useUnstakeTransaction({
     senderAddress,
-    ...stakeOptions
+    unstakeIotaId,
+    unstakeIotaIds,
+    isTimelockedUnstake,
 }: UseUnstakeTransactionParams) {
     const client = useIotaClient();
 
-    const isTimelockedUnstake = 'groupedTimelockedObjects' in stakeOptions;
-    const timelockedObjectIds = isTimelockedUnstake
-        ? stakeOptions.groupedTimelockedObjects.stakes.map((s) => s.timelockedStakedIotaId)
-        : [];
-
-    const queryKey = isTimelockedUnstake
-        ? ['timelocked-unstake-transaction', timelockedObjectIds, senderAddress]
-        : ['unstake-transaction', stakeOptions.stakedIotaId, senderAddress];
-
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey,
+        queryKey: isTimelockedUnstake
+            ? ['timelocked-unstake-transaction', unstakeIotaIds, senderAddress]
+            : ['unstake-transaction', unstakeIotaId, senderAddress],
         queryFn: async () => {
             const transaction = isTimelockedUnstake
-                ? createTimelockedUnstakeTransaction(timelockedObjectIds)
-                : createUnstakeTransaction(stakeOptions.stakedIotaId);
+                ? createTimelockedUnstakeTransaction(unstakeIotaIds)
+                : createUnstakeTransaction(unstakeIotaId);
 
             transaction.setSender(senderAddress);
             await transaction.build({ client });
             return transaction;
         },
-        enabled:
-            !!senderAddress &&
-            (isTimelockedUnstake
-                ? !!stakeOptions.groupedTimelockedObjects
-                : !!stakeOptions.stakedIotaId),
+        enabled: !!(senderAddress && (unstakeIotaIds?.length || unstakeIotaId)),
         gcTime: 0,
         select: (transaction) => {
             return {

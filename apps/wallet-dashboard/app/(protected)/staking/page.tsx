@@ -16,7 +16,7 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { StakeDialog, StakeDialogView } from '@/components';
+import { StakeDialog, StakeDialogView, UnstakeDialog } from '@/components';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,
@@ -34,6 +34,8 @@ import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
 import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useUnstakeDialog } from '@/components/Dialogs/unstake/hooks';
+import { UnstakeDialogView } from '@/components/Dialogs/unstake/enums';
 
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
@@ -52,6 +54,7 @@ function StakingDashboardPage(): React.JSX.Element {
         handleCloseStakeDialog,
         handleNewStake,
     } = useStakeDialog();
+    const { isOpen: isUnstakeDialogOpen, setIsOpen: setIsUnstakeDialogOpen } = useUnstakeDialog();
 
     const { data: delegatedStakeData, refetch: refetchDelegatedStakes } = useGetDelegatedStake({
         address: account?.address || '',
@@ -98,6 +101,11 @@ function StakingDashboardPage(): React.JSX.Element {
                 digest,
             })
             .then(() => refetchDelegatedStakes());
+    }
+
+    function handleUnstakeClick() {
+        setStakeDialogView(undefined);
+        setIsUnstakeDialogOpen(true);
     }
 
     return (
@@ -180,7 +188,20 @@ function StakingDashboardPage(): React.JSX.Element {
                             setView={setStakeDialogView}
                             selectedValidator={selectedValidator}
                             setSelectedValidator={setSelectedValidator}
+                            onUnstakeClick={handleUnstakeClick}
                         />
+
+                        {isUnstakeDialogOpen && selectedStake && (
+                            <UnstakeDialog
+                                handleClose={() => setIsUnstakeDialogOpen(false)}
+                                extendedStake={selectedStake}
+                                view={UnstakeDialogView.Unstake}
+                                onSuccess={() => {
+                                    refetchDelegatedStakes();
+                                    setIsUnstakeDialogOpen(false);
+                                }}
+                            />
+                        )}
                     </Panel>
                 ) : (
                     <div className="flex h-[270px] p-lg">

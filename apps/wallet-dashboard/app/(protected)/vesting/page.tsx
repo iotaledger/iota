@@ -114,7 +114,6 @@ export default function VestingDashboardPage(): JSX.Element {
     const {
         isOpen: isUnstakeDialogOpen,
         setIsOpen: setUnstakeDialogOpen,
-        openUnstakeDialog,
         view: unstakeDialogView,
         setView: setUnstakeDialogView,
     } = useUnstakeDialog();
@@ -362,7 +361,7 @@ export default function VestingDashboardPage(): JSX.Element {
                     selectedValidator={selectedValidator}
                     setSelectedValidator={setSelectedValidator}
                     maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
-                    onUnstakeClick={openUnstakeDialog}
+                    onUnstakeClick={() => setUnstakeDialogOpen(true)}
                 />
 
                 {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
@@ -370,7 +369,7 @@ export default function VestingDashboardPage(): JSX.Element {
                         groupedTimelockedObjects={timelockedObjectsToUnstake}
                         view={unstakeDialogView}
                         handleClose={() => setUnstakeDialogOpen(false)}
-                        onSuccess={() => handleCloseStakeDialog()}
+                        onSuccess={() => setUnstakeDialogOpen(false)}
                     />
                 )}
             </div>

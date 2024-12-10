@@ -5,7 +5,6 @@ import {
     Header,
     Button,
     KeyValueInfo,
-    Divider,
     ButtonType,
     Panel,
     LoadingIndicator,
@@ -16,18 +15,16 @@ import {
 import {
     ExtendedDelegatedStake,
     GAS_SYMBOL,
-    TimeUnit,
     useFormatCoin,
-    useGetTimeBeforeEpochNumber,
     useGetStakingValidatorDetails,
-    useTimeAgo,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { Warning } from '@iota/ui-icons';
-import { ValidatorStakingData } from '@/components';
+import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { Validator } from './Validator';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
@@ -48,23 +45,16 @@ export function UnstakeView({
     unstakeTx,
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
-    const stakingReward = BigInt(extendedStake.estimatedReward ?? '').toString();
-    const [rewards, rewardSymbol] = useFormatCoin(stakingReward, IOTA_TYPE_ARG);
     const activeAddress = useCurrentAccount()?.address ?? null;
     const [gasFormatted] = useFormatCoin(gasBudget, IOTA_TYPE_ARG);
 
-    const {
-        totalStake: [tokenBalance],
-        totalStakeOriginal,
-        epoch,
-        systemDataResult,
-        delegatedStakeDataResult,
-    } = useGetStakingValidatorDetails({
-        accountAddress: activeAddress,
-        validatorAddress: extendedStake.validatorAddress,
-        stakeId: extendedStake.stakedIotaId,
-        unstake: true,
-    });
+    const { totalStakeOriginal, systemDataResult, delegatedStakeDataResult } =
+        useGetStakingValidatorDetails({
+            accountAddress: activeAddress,
+            validatorAddress: extendedStake.validatorAddress,
+            stakeId: extendedStake.stakedIotaId,
+            unstake: true,
+        });
 
     const { isLoading: loadingValidators, error: errorValidators } = systemDataResult;
     const {
@@ -74,23 +64,6 @@ export function UnstakeView({
     } = delegatedStakeDataResult;
 
     const delegationId = extendedStake?.status === 'Active' && extendedStake?.stakedIotaId;
-
-    const [totalIota] = useFormatCoin(
-        BigInt(stakingReward || 0) + totalStakeOriginal,
-        IOTA_TYPE_ARG,
-    );
-
-    const { data: currentEpochEndTime } = useGetTimeBeforeEpochNumber(epoch + 1 || 0);
-    const currentEpochEndTimeAgo = useTimeAgo({
-        timeFrom: currentEpochEndTime,
-        endLabel: '--',
-        shortedTimeLabel: false,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_HOUR,
-    });
-
-    const currentEpochEndTimeFormatted =
-        currentEpochEndTime > 0 ? currentEpochEndTimeAgo : `Epoch #${epoch}`;
 
     if (isLoadingDelegatedStakeData || loadingValidators) {
         return (
@@ -114,46 +87,29 @@ export function UnstakeView({
         );
     }
 
+    const isUnstakeButtonDisabled = !unstakeTx || isUnstakePending || !delegationId;
+
     return (
         <DialogLayout>
             <Header title="Unstake" onClose={handleClose} onBack={handleClose} titleCentered />
             <DialogLayoutBody>
                 <div className="flex flex-col gap-y-md">
+                    <Validator
+                        address={extendedStake.validatorAddress}
+                        isSelected
+                        showActiveStatus={showActiveStatus}
+                    />
+
                     <ValidatorStakingData
                         validatorAddress={extendedStake.validatorAddress}
                         stakeId={extendedStake.stakedIotaId}
                         isUnstake
                     />
 
-                    <Panel hasBorder>
-                        <div className="flex flex-col gap-y-sm p-md">
-                            <KeyValueInfo
-                                keyText="Current Epoch Ends"
-                                value={currentEpochEndTimeFormatted}
-                                fullwidth
-                            />
-                            <Divider />
-                            <KeyValueInfo
-                                keyText="Your Stake"
-                                value={tokenBalance}
-                                supportingLabel={GAS_SYMBOL}
-                                fullwidth
-                            />
-                            <KeyValueInfo
-                                keyText="Rewards Earned"
-                                value={rewards}
-                                supportingLabel={rewardSymbol}
-                                fullwidth
-                            />
-                            <Divider />
-                            <KeyValueInfo
-                                keyText="Total unstaked IOTA"
-                                value={totalIota}
-                                supportingLabel={GAS_SYMBOL}
-                                fullwidth
-                            />
-                        </div>
-                    </Panel>
+                    <StakeRewardsPanel
+                        stakingRewards={extendedStake.estimatedReward}
+                        totalStaked={totalStakeOriginal}
+                    />
 
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
@@ -173,10 +129,10 @@ export function UnstakeView({
                     type={ButtonType.Secondary}
                     fullWidth
                     onClick={handleUnstake}
-                    disabled={!unstakeTx || isUnstakePending || !delegationId}
+                    disabled={isUnstakeButtonDisabled}
                     text="Unstake"
                     icon={
-                        unstakeTx || isUnstakePending ? (
+                        isUnstakeButtonDisabled ? (
                             <LoadingIndicator data-testid="loading-indicator" />
                         ) : null
                     }

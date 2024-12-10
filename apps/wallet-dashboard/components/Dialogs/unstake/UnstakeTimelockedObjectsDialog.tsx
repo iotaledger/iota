@@ -1,21 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ValidatorStakingData } from '@/components';
+import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../layout';
 import { Validator } from '../Staking/views/Validator';
 import { useNotifications } from '@/hooks';
-import {
-    Collapsible,
-    formatAndNormalizeObjectType,
-    TimeUnit,
-    useFormatCoin,
-    useGetActiveValidatorsInfo,
-    useGetTimeBeforeEpochNumber,
-    useTimeAgo,
-} from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
+import { Collapsible, useFormatCoin, useGetActiveValidatorsInfo } from '@iota/core';
+import { ExtendedDelegatedTimelockedStake, TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Panel,
@@ -57,28 +48,11 @@ export function UnstakeTimelockedObjectsDialog({
         (acc, stake) => acc + (stake.status === 'Active' ? parseInt(stake.estimatedReward) : 0),
         0,
     );
-    const totalUnstakedTimelocked = totalStakedAmount + totalRewards;
-    const [totalUnstakedTimelockedFormatted] = useFormatCoin(
-        totalUnstakedTimelocked,
+
+    const [rewardsPoolFormatted, rewardsToken] = useFormatCoin(
+        validatorInfo?.rewardsPool,
         IOTA_TYPE_ARG,
     );
-    const [rewardsPoolFormatted] = useFormatCoin(validatorInfo?.rewardsPool, IOTA_TYPE_ARG);
-    const [rewardsFormatted] = useFormatCoin(totalRewards, IOTA_TYPE_ARG);
-    const [stakedFormatted, stakeToken] = useFormatCoin(totalStakedAmount, IOTA_TYPE_ARG);
-
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const epoch: number = parseInt(system?.epoch || '0');
-    const { data: currentEpochEndTime } = useGetTimeBeforeEpochNumber(epoch + 1 || 0);
-    const currentEpochEndTimeAgo = useTimeAgo({
-        timeFrom: currentEpochEndTime,
-        endLabel: '--',
-        shortedTimeLabel: false,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_HOUR,
-    });
-
-    const currentEpochEndTimeFormatted =
-        currentEpochEndTime > 0 ? currentEpochEndTimeAgo : `Epoch #${epoch}`;
 
     function handleCopySuccess() {
         addNotification('Copied to clipboard');
@@ -104,36 +78,11 @@ export function UnstakeTimelockedObjectsDialog({
                         />
                     )}
 
-                    <Panel hasBorder>
-                        <div className="flex flex-col gap-y-sm p-md">
-                            <KeyValueInfo
-                                keyText="Current Epoch Ends"
-                                value={currentEpochEndTimeFormatted}
-                                fullwidth
-                            />
-
-                            <KeyValueInfo
-                                keyText="Your Stake"
-                                value={stakedFormatted}
-                                supportingLabel={stakeToken}
-                                fullwidth
-                            />
-
-                            <KeyValueInfo
-                                keyText="Rewards Earned"
-                                value={rewardsFormatted}
-                                supportingLabel={stakeToken}
-                                fullwidth
-                            />
-
-                            <KeyValueInfo
-                                keyText="Total Unstaked Timelocked"
-                                value={totalUnstakedTimelockedFormatted}
-                                supportingLabel={stakeToken}
-                                fullwidth
-                            />
-                        </div>
-                    </Panel>
+                    <StakeRewardsPanel
+                        stakingRewards={totalRewards}
+                        totalStaked={totalStakedAmount}
+                        isTimelocked
+                    />
 
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
@@ -146,7 +95,7 @@ export function UnstakeTimelockedObjectsDialog({
                                 <KeyValueInfo
                                     keyText="Rewards Pool"
                                     value={rewardsPoolFormatted}
-                                    supportingLabel={stakeToken}
+                                    supportingLabel={rewardsToken}
                                     fullwidth
                                 />
                             )}
@@ -154,51 +103,14 @@ export function UnstakeTimelockedObjectsDialog({
                         </div>
                     </Panel>
 
-                    {stakes.map((stake, index) => {
-                        const structTag = stake.label
-                            ? formatAndNormalizeObjectType(stake.label).structTag
-                            : '';
-                        return (
-                            <Collapsible
-                                defaultOpen
-                                key={stake.timelockedStakedIotaId}
-                                title={'Stake' + ' ' + (index + 1)}
-                            >
-                                <Panel>
-                                    <div className="flex flex-col gap-y-sm p-md--rs py-sm">
-                                        <KeyValueInfo
-                                            keyText="Stake ID"
-                                            value={formatAddress(stake.timelockedStakedIotaId)}
-                                            valueHoverTitle={stake.timelockedStakedIotaId}
-                                            onCopySuccess={handleCopySuccess}
-                                            copyText={stake.timelockedStakedIotaId}
-                                            fullwidth
-                                        />
-                                        <KeyValueInfo
-                                            keyText="Expiration time"
-                                            value={stake.expirationTimestampMs}
-                                            fullwidth
-                                        />
-                                        {stake.label && structTag && (
-                                            <KeyValueInfo
-                                                keyText="Label"
-                                                value={structTag}
-                                                copyText={stake.label}
-                                                valueHoverTitle={stake.label}
-                                                onCopySuccess={handleCopySuccess}
-                                                fullwidth
-                                            />
-                                        )}
-                                        <KeyValueInfo
-                                            keyText="Status"
-                                            value={stake.status}
-                                            fullwidth
-                                        />
-                                    </div>
-                                </Panel>
-                            </Collapsible>
-                        );
-                    })}
+                    {stakes.map((stake, index) => (
+                        <TimelockedStakeCollapsible
+                            title={`Stake Nº${index + 1}`}
+                            key={stake.timelockedStakedIotaId}
+                            stake={stake}
+                            handleCopySuccess={handleCopySuccess}
+                        />
+                    ))}
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
@@ -212,5 +124,49 @@ export function UnstakeTimelockedObjectsDialog({
                 />
             </DialogLayoutFooter>
         </DialogLayout>
+    );
+}
+
+interface TimelockedStakeCollapsibleProps {
+    stake: ExtendedDelegatedTimelockedStake;
+    title: string;
+    handleCopySuccess: () => void;
+}
+function TimelockedStakeCollapsible({
+    stake,
+    title,
+    handleCopySuccess,
+}: TimelockedStakeCollapsibleProps) {
+    return (
+        <Collapsible defaultOpen key={stake.timelockedStakedIotaId} title={title}>
+            <Panel>
+                <div className="flex flex-col gap-y-sm p-md--rs py-sm">
+                    <KeyValueInfo
+                        keyText="Stake ID"
+                        value={formatAddress(stake.timelockedStakedIotaId)}
+                        valueHoverTitle={stake.timelockedStakedIotaId}
+                        onCopySuccess={handleCopySuccess}
+                        copyText={stake.timelockedStakedIotaId}
+                        fullwidth
+                    />
+                    <KeyValueInfo
+                        keyText="Expiration time"
+                        value={stake.expirationTimestampMs}
+                        fullwidth
+                    />
+                    {stake.label && (
+                        <KeyValueInfo
+                            keyText="Label"
+                            value={formatAddress(stake.label)}
+                            copyText={stake.label}
+                            valueHoverTitle={stake.label}
+                            onCopySuccess={handleCopySuccess}
+                            fullwidth
+                        />
+                    )}
+                    <KeyValueInfo keyText="Status" value={stake.status} fullwidth />
+                </div>
+            </Panel>
+        </Collapsible>
     );
 }

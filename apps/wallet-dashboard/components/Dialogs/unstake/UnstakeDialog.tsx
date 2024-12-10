@@ -12,7 +12,7 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { NotificationType } from '@/stores/notificationStore';
 
-type DynamicUnstakeProps =
+type UnstakeByTypeProps =
     | {
           extendedStake: ExtendedDelegatedStake;
           groupedTimelockedObjects?: never;
@@ -34,22 +34,25 @@ export function UnstakeDialog({
     onSuccess,
     extendedStake,
     groupedTimelockedObjects,
-}: UnstakeDialogProps & DynamicUnstakeProps): React.JSX.Element {
+}: UnstakeDialogProps & UnstakeByTypeProps): React.JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
     const { addNotification } = useNotifications();
 
-    const unstakeTransaction: UseUnstakeTransactionParams = groupedTimelockedObjects
+    const unstakeParams: UseUnstakeTransactionParams = groupedTimelockedObjects
         ? {
               senderAddress: activeAddress,
-              groupedTimelockedObjects,
+              unstakeIotaIds: groupedTimelockedObjects.stakes.map(
+                  (stake) => stake.timelockedStakedIotaId,
+              ),
+              isTimelockedUnstake: true,
           }
         : {
               senderAddress: activeAddress,
-              stakedIotaId: extendedStake.stakedIotaId,
+              unstakeIotaId: extendedStake.stakedIotaId,
           };
 
     const { data: unstakeData, isPending: isUnstakeTxPending } =
-        useUnstakeTransaction(unstakeTransaction);
+        useUnstakeTransaction(unstakeParams);
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
@@ -85,6 +88,7 @@ export function UnstakeDialog({
                     gasBudget={unstakeData?.gasBudget}
                 />
             )}
+
             {view === UnstakeDialogView.TimelockedUnstake && groupedTimelockedObjects && (
                 <UnstakeTimelockedObjectsDialog
                     onClose={handleClose}
