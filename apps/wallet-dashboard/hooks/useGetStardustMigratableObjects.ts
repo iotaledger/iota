@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useMemo } from 'react';
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { groupStardustObjectsByMigrationStatus } from '@/lib/utils';
 import {
@@ -8,14 +9,8 @@ import {
     STARDUST_NFT_OUTPUT_TYPE,
     useGetAllOwnedObjects,
 } from '@iota/core';
-import { IotaObjectData } from '@iota/iota-sdk/client';
 
-export function useGetStardustMigratableObjects(address: string): {
-    migratableBasicOutputs: IotaObjectData[];
-    unmigratableBasicOutputs: IotaObjectData[];
-    migratableNftOutputs: IotaObjectData[];
-    unmigratableNftOutputs: IotaObjectData[];
-} {
+export const useGetStardustMigratableObjects = (address: string) => {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
         StructType: STARDUST_BASIC_OUTPUT_TYPE,
@@ -24,24 +19,20 @@ export function useGetStardustMigratableObjects(address: string): {
         StructType: STARDUST_NFT_OUTPUT_TYPE,
     });
 
-    const { migratable: migratableBasicOutputs, unmigratable: unmigratableBasicOutputs } =
-        groupStardustObjectsByMigrationStatus(
-            basicOutputObjects ?? [],
-            Number(currentEpochMs),
-            address,
-        );
+    return useMemo(() => {
+        const epochMs = Number(currentEpochMs) || 0;
 
-    const { migratable: migratableNftOutputs, unmigratable: unmigratableNftOutputs } =
-        groupStardustObjectsByMigrationStatus(
-            nftOutputObjects ?? [],
-            Number(currentEpochMs),
-            address,
-        );
+        const { migratable: migratableBasicOutputs, unmigratable: unmigratableBasicOutputs } =
+            groupStardustObjectsByMigrationStatus(basicOutputObjects ?? [], epochMs, address);
 
-    return {
-        migratableBasicOutputs,
-        unmigratableBasicOutputs,
-        migratableNftOutputs,
-        unmigratableNftOutputs,
-    };
-}
+        const { migratable: migratableNftOutputs, unmigratable: unmigratableNftOutputs } =
+            groupStardustObjectsByMigrationStatus(nftOutputObjects ?? [], epochMs, address);
+
+        return {
+            migratableBasicOutputs,
+            unmigratableBasicOutputs,
+            migratableNftOutputs,
+            unmigratableNftOutputs,
+        };
+    }, [address, basicOutputObjects, currentEpochMs, nftOutputObjects]);
+};

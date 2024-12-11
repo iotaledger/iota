@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export enum ObjectDetailsCategory {
+export enum StardustObjectMigrationType {
     Migration = 'Migration',
     TimeLocked = 'TimeLocked',
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export enum ObjectsFilter {
+export enum StardustObjectTypeFilter {
     All = 'All',
     IOTA = 'IOTA',
     NativeTokens = 'Native Tokens',

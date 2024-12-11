@@ -17,6 +17,18 @@ type NestedResultType = {
     NestedResult: [number, number];
 };
 
+export async function getNativeTokensFromBag(bagId: string, client: IotaClient) {
+    const nativeTokenDynamicFields = await client.getDynamicFields({
+        parentId: bagId,
+    });
+    const nativeTokenTypes = [];
+    for (const nativeToken of nativeTokenDynamicFields.data) {
+        nativeTokenTypes.push(nativeToken);
+    }
+
+    return nativeTokenTypes;
+}
+
 export async function getNativeTokenTypesFromBag(
     bagId: string,
     client: IotaClient,
