@@ -21,7 +21,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 2;
 // Record history of protocol version allocations here:
 //
 // Version 1: Original version.
-// Version 2: Don't redistribute slashed staking rewards, fix computation of SystemEpochInfoEventV1
+// Version 2: Don't redistribute slashed staking rewards, fix computation of
+// SystemEpochInfoEventV1
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
