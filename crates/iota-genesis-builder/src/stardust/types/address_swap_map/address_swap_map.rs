@@ -9,7 +9,7 @@ use iota_types::{base_types::IotaAddress, object::Owner, stardust::stardust_to_i
 type OriginAddress = IotaAddress;
 
 #[derive(Debug)]
-struct DestinationAddress {
+pub struct DestinationAddress {
     address: IotaAddress,
     swapped: bool,
 }
@@ -156,9 +156,9 @@ impl AddressSwapMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = csv::ReaderBuilder::new()
-            .from_path(file_path)?;
+        let mut reader = csv::ReaderBuilder::new().from_path(file_path)?;
         let mut addresses = HashMap::new();
+
         verify_headers(reader.headers()?)?;
 
         for result in reader.records() {
@@ -170,6 +170,11 @@ impl AddressSwapMap {
         }
 
         Ok(AddressSwapMap { addresses })
+    }
+
+    #[cfg(test)]
+    pub fn addresses(&self) -> &HashMap<OriginAddress, DestinationAddress> {
+        &self.addresses
     }
 }
 
