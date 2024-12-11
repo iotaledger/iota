@@ -89,36 +89,36 @@ export function StakeDialog({
     const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
 
     function handleBack(): void {
-        setView?.(StakeDialogView.SelectValidator);
+        setView(StakeDialogView.SelectValidator);
     }
 
     function handleValidatorSelect(validator: string): void {
         setSelectedValidator?.(validator);
     }
 
-    function selectValidatorHandleNext(): void {
-        if (selectedValidator) {
-            setView?.(
-                isTimelockedStaking
-                    ? StakeDialogView.EnterTimelockedAmount
-                    : StakeDialogView.EnterAmount,
-            );
-        }
-    }
-
-    function detailsHandleStake() {
-        setSelectedValidator?.(stakedDetails?.validatorAddress ?? '');
-        setView?.(
+    function setViewBasedOnStakingType() {
+        setView(
             isTimelockedStaking
                 ? StakeDialogView.EnterTimelockedAmount
                 : StakeDialogView.EnterAmount,
         );
     }
 
+    function selectValidatorHandleNext(): void {
+        if (selectedValidator) {
+            setViewBasedOnStakingType();
+        }
+    }
+
+    function detailsHandleStake() {
+        setSelectedValidator?.(stakedDetails?.validatorAddress ?? '');
+        setViewBasedOnStakingType();
+    }
+
     function handleTransactionSuccess(digest: string) {
         onSuccess?.(digest);
         setTxDigest(digest);
-        setView?.(StakeDialogView.TransactionDetails);
+        setView(StakeDialogView.TransactionDetails);
     }
 
     return (
