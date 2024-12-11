@@ -38,8 +38,9 @@ use iota_package_management::{LockCommand, PublishedAtError};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_replay::ReplayToolCommand;
 use iota_sdk::{
-    IOTA_COIN_TYPE, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0,
-    IOTA_TESTNET_URL, IotaClient,
+    IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
+    IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL,
+    IotaClient,
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -272,6 +273,9 @@ pub enum IotaClientCommands {
         ws: Option<String>,
         #[clap(long, help = "Basic auth in the format of username:password")]
         basic_auth: Option<String>,
+        /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
+        #[clap(long, value_hint = ValueHint::Url)]
+        faucet: Option<String>,
     },
 
     /// Get object info
@@ -1540,17 +1544,21 @@ impl IotaClientCommands {
                     let active_env = context.config().get_active_env();
 
                     if let Ok(env) = active_env {
-                        let network = match env.rpc().as_str() {
-                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.cafe/v1/gas",
-                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.cafe/v1/gas",
-                            IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
-                                "http://127.0.0.1:9123/gas"
+                        let faucet_url = if let Some(faucet_url) = env.faucet() {
+                            faucet_url
+                        } else {
+                            match env.rpc().as_str() {
+                                IOTA_DEVNET_URL => IOTA_DEVNET_GAS_URL,
+                                IOTA_TESTNET_URL => IOTA_TESTNET_GAS_URL,
+                                IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
+                                    IOTA_LOCAL_NETWORK_GAS_URL
+                                }
+                                _ => bail!(
+                                    "Cannot recognize the active network. Please provide the gas faucet full URL."
+                                ),
                             }
-                            _ => bail!(
-                                "Cannot recognize the active network. Please provide the gas faucet full URL."
-                            ),
                         };
-                        network.to_string()
+                        faucet_url.to_string()
                     } else {
                         bail!("No URL for faucet was provided and there is no active network.")
                     }
@@ -1679,6 +1687,7 @@ impl IotaClientCommands {
                 rpc,
                 ws,
                 basic_auth,
+                faucet,
             } => {
                 if context
                     .config()
@@ -1692,7 +1701,8 @@ impl IotaClientCommands {
                 }
                 let env = IotaEnv::new(alias, rpc)
                     .with_ws(ws)
-                    .with_basic_auth(basic_auth);
+                    .with_basic_auth(basic_auth)
+                    .with_faucet(faucet);
 
                 // Check urls are valid and server is reachable
                 env.create_rpc_client(None, None).await?;

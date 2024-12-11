@@ -55,8 +55,8 @@ use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     crypto::{
-        Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
-        SignatureScheme, get_key_pair,
+        AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
+        Secp256k1IotaSignature, SignatureScheme, get_key_pair,
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
@@ -4168,8 +4168,10 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config, None, None)?;
 
+    let (address, _): (_, AccountKeyPair) = get_key_pair();
+
     let faucet_result = IotaClientCommands::Faucet {
-        address: None,
+        address: Some(KeyIdentity::Address(address)),
         url: Some("http://127.0.0.1:5003/gas".to_string()),
     }
     .execute(&mut context)
@@ -4180,10 +4182,271 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
         unreachable!("Invalid response");
     };
 
+    sleep(Duration::from_secs(5)).await;
+
+    let gas_objects_after = context
+        .get_gas_objects_owned_by_address(address, None)
+        .await
+        .unwrap()
+        .len();
+    assert_eq!(gas_objects_after, 1);
+
     Ok(())
 }
 
-#[ignore = "until the repo is public https://github.com/iotaledger/iota/issues/3741"]
+#[sim_test]
+async fn test_faucet_batch() -> Result<(), anyhow::Error> {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_rpc_port(9000)
+        .build()
+        .await;
+
+    let context = test_cluster.wallet;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let prom_registry = prometheus::Registry::new();
+    let config = iota_faucet::FaucetConfig {
+        batch_enabled: true,
+        ..Default::default()
+    };
+
+    let prometheus_registry = prometheus::Registry::new();
+    let app_state = std::sync::Arc::new(iota_faucet::AppState {
+        faucet: iota_faucet::SimpleFaucet::new(
+            context,
+            &prometheus_registry,
+            &tmp.path().join("faucet.wal"),
+            config.clone(),
+        )
+        .await
+        .unwrap(),
+        config,
+    });
+    tokio::spawn(async move { iota_faucet::start_faucet(app_state, 10, &prom_registry).await });
+
+    // Wait for the faucet to be up
+    sleep(Duration::from_secs(1)).await;
+    let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+    let mut context = WalletContext::new(&wallet_config, None, None)?;
+
+    let (address_1, _): (_, AccountKeyPair) = get_key_pair();
+    let (address_2, _): (_, AccountKeyPair) = get_key_pair();
+    let (address_3, _): (_, AccountKeyPair) = get_key_pair();
+
+    assert_ne!(address_1, address_2);
+    assert_ne!(address_1, address_3);
+    assert_ne!(address_2, address_3);
+
+    for address in [address_1, address_2, address_3].iter() {
+        let gas_objects_after = context
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .len();
+        assert_eq!(gas_objects_after, 0);
+    }
+
+    for address in [address_1, address_2, address_3].iter() {
+        let faucet_result = IotaClientCommands::Faucet {
+            address: Some(KeyIdentity::Address(*address)),
+            url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
+        }
+        .execute(&mut context)
+        .await?;
+
+        if let IotaClientCommandResult::NoOutput = faucet_result {
+        } else {
+            unreachable!("Invalid response");
+        };
+    }
+
+    // we need to wait a minimum of 10 seconds for gathering the batch + some time
+    // for transaction to be sequenced
+    sleep(Duration::from_secs(15)).await;
+
+    for address in [address_1, address_2, address_3].iter() {
+        let gas_objects_after = context
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .len();
+        assert_eq!(gas_objects_after, 1);
+    }
+
+    // try with a new batch
+    let (address_4, _): (_, AccountKeyPair) = get_key_pair();
+    let (address_5, _): (_, AccountKeyPair) = get_key_pair();
+    let (address_6, _): (_, AccountKeyPair) = get_key_pair();
+
+    assert_ne!(address_4, address_5);
+    assert_ne!(address_4, address_6);
+    assert_ne!(address_5, address_6);
+
+    for address in [address_4, address_5, address_6].iter() {
+        let gas_objects_after = context
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .len();
+        assert_eq!(gas_objects_after, 0);
+    }
+
+    for address in [address_4, address_5, address_6].iter() {
+        let faucet_result = IotaClientCommands::Faucet {
+            address: Some(KeyIdentity::Address(*address)),
+            url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
+        }
+        .execute(&mut context)
+        .await?;
+
+        if let IotaClientCommandResult::NoOutput = faucet_result {
+        } else {
+            unreachable!("Invalid response");
+        };
+    }
+
+    // we need to wait a minimum of 10 seconds for gathering the batch + some time
+    // for transaction to be sequenced
+    sleep(Duration::from_secs(15)).await;
+
+    for address in [address_4, address_5, address_6].iter() {
+        let gas_objects_after = context
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .len();
+        assert_eq!(gas_objects_after, 1);
+    }
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_rpc_port(9000)
+        .build()
+        .await;
+
+    let context = test_cluster.wallet;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let prom_registry = prometheus::Registry::new();
+    let config = iota_faucet::FaucetConfig {
+        batch_enabled: true,
+        ..Default::default()
+    };
+
+    let prometheus_registry = prometheus::Registry::new();
+    let app_state = std::sync::Arc::new(iota_faucet::AppState {
+        faucet: iota_faucet::SimpleFaucet::new(
+            context,
+            &prometheus_registry,
+            &tmp.path().join("faucet.wal"),
+            config.clone(),
+        )
+        .await
+        .unwrap(),
+        config,
+    });
+    tokio::spawn(async move { iota_faucet::start_faucet(app_state, 10, &prom_registry).await });
+
+    // Wait for the faucet to be up
+    sleep(Duration::from_secs(1)).await;
+
+    let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+    let context = WalletContext::new(&wallet_config, None, None)?; // Use immutable context
+
+    // Generate multiple addresses
+    let addresses: Vec<_> = (0..6)
+        .map(|_| get_key_pair::<AccountKeyPair>().0)
+        .collect::<Vec<IotaAddress>>();
+
+    // Ensure all addresses have zero gas objects initially
+    for address in &addresses {
+        assert_eq!(
+            context
+                .get_gas_objects_owned_by_address(*address, None)
+                .await
+                .unwrap()
+                .len(),
+            0
+        );
+    }
+
+    // First batch: send faucet requests concurrently for all addresses
+    let first_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
+        let wallet_config = wallet_config.clone();
+        async move {
+            let mut context = WalletContext::new(&wallet_config, None, None)?; // Use mutable context (for faucet requests)
+            IotaClientCommands::Faucet {
+                address: Some(KeyIdentity::Address(*address)),
+                url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
+            }
+            .execute(&mut context)
+            .await
+        }
+    }))
+    .await;
+
+    // Ensure all results are `NoOutput` indicating requests were batched
+    for result in first_batch_results {
+        assert!(matches!(result, Ok(IotaClientCommandResult::NoOutput)));
+    }
+
+    // Wait for the first batch to complete
+    sleep(Duration::from_secs(15)).await;
+
+    // Validate gas objects after the first batch
+    for address in &addresses {
+        assert_eq!(
+            context
+                .get_gas_objects_owned_by_address(*address, None)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    // Second batch: send faucet requests again for all addresses
+    let second_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
+        let wallet_config = wallet_config.clone();
+        async move {
+            let mut context = WalletContext::new(&wallet_config, None, None)?; // Use mutable context
+            IotaClientCommands::Faucet {
+                address: Some(KeyIdentity::Address(*address)),
+                url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
+            }
+            .execute(&mut context)
+            .await
+        }
+    }))
+    .await;
+
+    // Ensure all results are `NoOutput` for the second batch
+    for result in second_batch_results {
+        assert!(matches!(result, Ok(IotaClientCommandResult::NoOutput)));
+    }
+
+    // Wait for the second batch to complete
+    sleep(Duration::from_secs(15)).await;
+
+    // Validate gas objects after the second batch
+    for address in &addresses {
+        assert_eq!(
+            context
+                .get_gas_objects_owned_by_address(*address, None)
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_move_new() -> Result<(), anyhow::Error> {
     let current_dir = std::env::current_dir()?;

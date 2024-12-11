@@ -1300,7 +1300,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "1",
+              "maxSupportedProtocolVersion": "2",
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
@@ -4461,7 +4461,7 @@
       "params": [
         {
           "name": "query",
-          "description": "The event query criteria. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.",
+          "description": "The event query criteria. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/EventFilter"
@@ -4705,7 +4705,7 @@
       "params": [
         {
           "name": "filter",
-          "description": "The filter criteria of the event stream. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.",
+          "description": "The filter criteria of the event stream. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/EventFilter"
@@ -4921,7 +4921,7 @@
         },
         {
           "name": "arguments",
-          "description": "the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.io/build/iota-json) format",
+          "description": "the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/references/iota-api) format",
           "required": true,
           "schema": {
             "type": "array",

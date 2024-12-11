@@ -212,7 +212,7 @@ const developer = [
     {
         type: 'category',
         label: 'NFT',
-        items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft'],
+        items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft', 'developer/iota-101/nft/marketplace'],
     },
     {
         type: 'category',
@@ -286,6 +286,24 @@ const developer = [
             'developer/standards/kiosk-apps',
             'developer/standards/display',
             'developer/standards/wallet-standard',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Capture The Flag',
+        link: {
+            type: 'doc',
+            id: 'developer/iota-move-ctf/introduction',
+        },
+        items: [
+            'developer/iota-move-ctf/challenge_1',
+            'developer/iota-move-ctf/challenge_2',
+            'developer/iota-move-ctf/challenge_3',
+            'developer/iota-move-ctf/challenge_4',
+            'developer/iota-move-ctf/challenge_5',
+            'developer/iota-move-ctf/challenge_6',
+            'developer/iota-move-ctf/challenge_7',
+            'developer/iota-move-ctf/challenge_8',
         ],
     },
     {
