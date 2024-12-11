@@ -261,6 +261,10 @@ const config = {
           {
             type: 'custom-WalletConnectButton',
             position: 'right',
+          },
+          {
+            type: 'custom-NetworkSelector',
+            position: 'right',
           }
         ],
       },
