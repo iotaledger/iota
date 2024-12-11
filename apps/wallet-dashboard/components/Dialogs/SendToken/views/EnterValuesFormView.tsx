@@ -209,7 +209,7 @@ export function EnterValuesFormView({
 
     return (
         <FormikProvider value={formik}>
-            <DialogLayout>
+            <DialogLayout withDialogContent={false}>
                 <Header title={'Send'} onClose={onClose} />
                 <DialogLayoutBody>
                     <CoinSelector
@@ -217,8 +217,12 @@ export function EnterValuesFormView({
                         coins={coinsBalance ?? []}
                         onClick={(coinType) => {
                             setFormData(INITIAL_VALUES);
-                            const coin = coinsBalance?.find((coin) => coin.coinType === coinType);
-                            setSelectedCoin(coin!);
+                            const selectedCoin = coinsBalance?.find(
+                                (coinBalance) => coinBalance.coinType === coinType,
+                            );
+                            if (selectedCoin) {
+                                setSelectedCoin(selectedCoin);
+                            }
                         }}
                     />
 

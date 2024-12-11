@@ -3,4 +3,4 @@
 
 export * from './EnterValuesFormView';
 export * from './ReviewValuesFormView';
-export * from './SentSuccessView';
+export * from './TransactionDetailsView';

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
-import { EnterValuesFormView, ReviewValuesFormView, SentSuccessView } from './views';
+import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import { useSendCoinTransaction, useNotifications } from '@/hooks';
 import { useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
@@ -23,7 +23,7 @@ interface SendCoinPopupProps {
 enum FormStep {
     EnterValues,
     ReviewValues,
-    SentSuccess,
+    TransactionDetails,
 }
 
 function SendTokenDialogBody({
@@ -54,27 +54,29 @@ function SendTokenDialogBody({
         isPayAllIota,
     );
 
-    function handleTransfer() {
+    async function handleTransfer() {
         if (!transaction) {
             addNotification('There was an error with the transaction', NotificationType.Error);
             return;
         } else {
-            setIsReviewing(true);
-            signAndExecuteTransaction({
-                transaction,
-            })
-                .then((d) =>
-                    iotaClient.waitForTransaction({
-                        digest: d.digest,
-                    }),
-                )
-                .then((transaction) => {
-                    setDigest(transaction.digest);
-                    setStep(FormStep.SentSuccess);
-                    addNotification('Transfer transaction has been sent');
-                })
-                .catch(handleTransactionError)
-                .finally(() => setIsReviewing(false));
+            try {
+                setIsReviewing(true);
+                const executed = await signAndExecuteTransaction({
+                    transaction,
+                });
+
+                const tx = await iotaClient.waitForTransaction({
+                    digest: executed.digest,
+                });
+
+                setDigest(tx.digest);
+                setStep(FormStep.TransactionDetails);
+                addNotification('Transfer transaction has been sent');
+            } catch {
+                handleTransactionError();
+            } finally {
+                setIsReviewing(false);
+            }
         }
     }
 
@@ -121,8 +123,8 @@ function SendTokenDialogBody({
                     onBack={onBack}
                 />
             )}
-            {step === FormStep.SentSuccess && (
-                <SentSuccessView
+            {step === FormStep.TransactionDetails && (
+                <TransactionDetailsView
                     digest={digest}
                     onClose={() => {
                         setOpen(false);
@@ -134,7 +136,10 @@ function SendTokenDialogBody({
     );
 }
 
-export function SendTokenDialog(props: SendCoinPopupProps): React.JSX.Element {
+export function SendTokenDialog(props: SendCoinPopupProps) {
+    if (!props.coin) {
+        return null;
+    }
     return (
         <Dialog open={props.open} onOpenChange={props.setOpen}>
             <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>
