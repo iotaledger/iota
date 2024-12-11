@@ -21,8 +21,10 @@ export function TransactionDetailsView({ digest, onClose }: TransactionDetailsVi
         return (
             <InfoBox
                 type={InfoBoxType.Error}
-                title="Something went wrong"
-                supportingText={error?.message ?? 'An error occurred'}
+                title="Error getting transaction info"
+                supportingText={
+                    error?.message ?? 'An error occurred when getting the transaction info'
+                }
                 icon={<Warning />}
                 style={InfoBoxStyle.Default}
             />
