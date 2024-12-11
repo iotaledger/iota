@@ -10,7 +10,7 @@ import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
 import {
     getKioskIdFromOwnerCap,
     isKioskOwnerToken,
-    useGetNFTMeta,
+    useGetNFTDisplay,
     useGetObject,
     useKioskClient,
 } from '@iota/core';
@@ -44,7 +44,7 @@ export default function HiddenAsset(item: HiddenAssetProps) {
     const navigate = useNavigate();
     const { objectId, type } = item.data!;
     const { data: objectData } = useGetObject(objectId);
-    const { data: nftMeta } = useGetNFTMeta(objectId);
+    const { data: nftMeta } = useGetNFTDisplay(objectId);
 
     const nftName = nftMeta?.name || formatAddress(objectId);
     const nftImageUrl = nftMeta?.imageUrl || '';
