@@ -7,10 +7,6 @@
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
 /crates/iota-genesis-builder/ @kodemartin @miker83z
 
-# vm-language team
-/iota-execution/ @iotaledger/vm-language
-/external-crates/ @iotaledger/vm-language
-
 # infrastructure team
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /crates/iota-json-rpc*/ @iotaledger/infrastructure
@@ -60,6 +56,10 @@ pnpm-workspace.yaml @iotaledger/tooling
 prettier.config.js @iotaledger/tooling
 turbo.json @iotaledger/tooling
 vercel.json @iotaledger/tooling
+
+# vm-language team
+/iota-execution/ @iotaledger/vm-language
+/external-crates/ @iotaledger/vm-language
 
 # Docs and examples are for DevEx to approve upon
 /docs/ @iotaledger/devx
