@@ -25,7 +25,7 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     await page
         .getByPlaceholder('Word')
         .first()
-        .type(typeof mnemonic === 'string' ? mnemonic : mnemonic.join(' '));
+        .fill(typeof mnemonic === 'string' ? mnemonic : mnemonic.join(' '));
     await page.getByText('Add profile').click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');

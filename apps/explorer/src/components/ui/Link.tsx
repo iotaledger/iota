@@ -10,17 +10,17 @@ import { ButtonOrLink, type ButtonOrLinkProps } from './ButtonOrLink';
 const linkStyles = cva([], {
     variants: {
         variant: {
-            text: 'text-body font-semibold text-steel-dark hover:text-steel-darker active:text-steel disabled:text-gray-60',
-            mono: 'text-body text-primary-30 hover:text-primary-20',
+            text: 'text-body-md font-semibold text-neutral-40 hover:text-neutral-60 active:text-steel disabled:text-gray-60',
+            mono: 'text-body-md text-primary-30 hover:text-primary-20',
             textHeroDark: 'text-pBody font-medium text-hero-dark hover:text-hero-darkest',
         },
         uppercase: {
             true: 'uppercase',
         },
         size: {
-            md: '!text-body',
-            sm: '!text-bodySmall',
-            captionSmall: '!text-captionSmall',
+            md: '!text-body-md',
+            sm: '!text-body-sm',
+            captionSmall: '!text-label-sm',
         },
     },
     defaultVariants: {

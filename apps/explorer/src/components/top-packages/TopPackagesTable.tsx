@@ -41,8 +41,8 @@ const tableColumns: ColumnDef<MoveCallMetric>[] = [
         },
     },
     {
-        header: 'Function',
-        id: 'function',
+        header: 'Package',
+        id: 'package',
         cell({ row: { original: metric } }) {
             const item = metric[0].package;
             return (

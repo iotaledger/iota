@@ -24,7 +24,7 @@ impl<'a, V: DeserializeOwned> Values<'a, V> {
     }
 }
 
-impl<'a, V: DeserializeOwned> Iterator for Values<'a, V> {
+impl<V: DeserializeOwned> Iterator for Values<'_, V> {
     type Item = Result<V, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -39,7 +39,7 @@ impl<'a, V: DeserializeOwned> Iterator for Values<'a, V> {
         } else {
             match self.db_iter.status() {
                 Ok(_) => None,
-                Err(err) => Some(Err(TypedStoreError::RocksDBError(format!("{err}")))),
+                Err(err) => Some(Err(TypedStoreError::RocksDB(format!("{err}")))),
             }
         }
     }

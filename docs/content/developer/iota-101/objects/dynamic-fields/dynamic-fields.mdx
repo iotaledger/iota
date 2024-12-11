@@ -2,6 +2,8 @@
 title: Dynamic Object Fields
 description: Dynamic fields and dynamic object fields on IOTA allow flexible storage and manipulation, with the ability to add, remove, and store heterogeneous values dynamically while only affecting gas costs when accessed.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/dynamic-fields/dynamic-fields.json';
 
 When working with object fields in IOTA, you typically use them to store primitive data or wrap other objects.
 However, there are some limitations to this approach:
@@ -209,3 +211,5 @@ where dynamic fields might hold a large number of key-value pairs.
 IOTA offers [`Table`](../../../../references/framework/iota-framework/table.mdx) and [`Bag`](../../../../references/framework/iota-framework/bag.mdx) collections 
 built on dynamic fields, which include safeguards like entry counting to prevent accidental deletion when non-empty.
 For more information, refer to the [Tables and Bags](tables-bags.mdx) section.
+
+<Quiz questions={questions} />

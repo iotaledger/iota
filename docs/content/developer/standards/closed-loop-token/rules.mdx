@@ -2,6 +2,9 @@
 title: Rules
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/standards/closed-loop-token/rules.json';
+
 Rules are programmable restrictions that you can apply to any action in the [`TokenPolicy`](token-policy.mdx). They are the tool of compliance, regulation, and enforcement of certain business logic in the closed-loop system.
 
 ## Rule structure
@@ -127,3 +130,5 @@ Because the configuration has `store`, the token owner can wrap and transfer or 
 | `rule_config_mut`           | Get mutable reference to config          | Requires rule witness and token owner approval |
 | `has_rule_config`           | Check if the rule has a config set       | -                                              |
 | `has_rule_config_with_type` | Check if the rule has a config with type | -                                              |
+
+<Quiz questions={questions} />

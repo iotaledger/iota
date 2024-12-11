@@ -176,8 +176,6 @@ impl CoinReadApiServer for CoinReadApi {
                 coin_type: coin_type_tag.to_string(),
                 coin_object_count: balance.num_coins as usize,
                 total_balance: balance.balance as u128,
-                // note: LockedCoin is deprecated
-                locked_balance: Default::default(),
             })
         }
         .trace()
@@ -192,14 +190,10 @@ impl CoinReadApiServer for CoinReadApi {
             })?;
             Ok(all_balance
                 .iter()
-                .map(|(coin_type, balance)| {
-                    Balance {
-                        coin_type: coin_type.to_string(),
-                        coin_object_count: balance.num_coins as usize,
-                        total_balance: balance.balance as u128,
-                        // note: LockedCoin is deprecated
-                        locked_balance: Default::default(),
-                    }
+                .map(|(coin_type, balance)| Balance {
+                    coin_type: coin_type.to_string(),
+                    coin_object_count: balance.num_coins as usize,
+                    total_balance: balance.balance as u128,
                 })
                 .collect())
         }
@@ -466,14 +460,14 @@ mod tests {
                 checkpoint_contents_by_digest: &[CheckpointContentsDigest],
             ) -> IotaResult<KVStoreCheckpointData>;
 
-            async fn deprecated_get_transaction_checkpoint(
+            async fn get_transaction_perpetual_checkpoint(
                 &self,
                 digest: TransactionDigest,
             ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
             async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> IotaResult<Option<Object>>;
 
-            async fn multi_get_transaction_checkpoint(
+            async fn multi_get_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
@@ -966,7 +960,6 @@ mod tests {
                 coin_type: gas_coin.coin_type,
                 coin_object_count: 9,
                 total_balance: 7,
-                locked_balance: Default::default()
             });
         }
 
@@ -999,7 +992,6 @@ mod tests {
                 coin_type: coin.coin_type,
                 coin_object_count: 11,
                 total_balance: 10,
-                locked_balance: Default::default()
             });
         }
 
@@ -1113,13 +1105,11 @@ mod tests {
                     coin_type: gas_coin.coin_type,
                     coin_object_count: 9,
                     total_balance: 7,
-                    locked_balance: Default::default(),
                 },
                 Balance {
                     coin_type: usdc_coin.coin_type,
                     coin_object_count: 11,
                     total_balance: 10,
-                    locked_balance: Default::default(),
                 },
             ];
             // This is because the underlying result is a hashmap, so order is not
@@ -1273,7 +1263,7 @@ mod tests {
             iota_system_state::{
                 IotaSystemState,
                 iota_system_state_inner_v1::{
-                    IotaSystemStateInnerV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
+                    IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
                 },
             },
         };
@@ -1400,8 +1390,8 @@ mod tests {
             expected.assert_eq(error_result.message());
         }
 
-        fn default_system_state() -> IotaSystemStateInnerV1 {
-            IotaSystemStateInnerV1 {
+        fn default_system_state() -> IotaSystemStateV1 {
+            IotaSystemStateV1 {
                 epoch: Default::default(),
                 protocol_version: Default::default(),
                 system_state_version: Default::default(),
@@ -1434,6 +1424,7 @@ mod tests {
                 },
                 parameters: SystemParametersV1 {
                     epoch_duration_ms: Default::default(),
+                    min_validator_count: Default::default(),
                     max_validator_count: Default::default(),
                     min_validator_joining_stake: Default::default(),
                     validator_low_stake_threshold: Default::default(),
@@ -1441,6 +1432,7 @@ mod tests {
                     validator_low_stake_grace_period: Default::default(),
                     extra_fields: Default::default(),
                 },
+                iota_system_admin_cap: Default::default(),
                 reference_gas_price: Default::default(),
                 validator_report_records: VecMap {
                     contents: Default::default(),

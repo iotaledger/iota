@@ -14,13 +14,10 @@ use iota_types::{
     error::{IotaError, IotaResult},
     fp_ensure,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-    },
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-        ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest,
-        TransactionStatus, VerifiedObjectInfoResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
+        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionStatus,
+        VerifiedObjectInfoResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
@@ -328,57 +325,21 @@ where
         Ok(response)
     }
 
-    fn verify_certificate_response_v2(
+    fn verify_certificate_response_v1(
         &self,
         digest: &TransactionDigest,
-        response: HandleCertificateResponseV2,
-    ) -> IotaResult<HandleCertificateResponseV2> {
-        let signed_effects =
-            self.check_signed_effects_plain(digest, response.signed_effects, None)?;
-
-        Ok(HandleCertificateResponseV2 {
+        HandleCertificateResponseV1 {
             signed_effects,
-            events: response.events,
-            fastpath_input_objects: vec![], // unused field
-        })
-    }
-
-    /// Execute a certificate.
-    pub async fn handle_certificate_v2(
-        &self,
-        certificate: CertifiedTransaction,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        let digest = *certificate.digest();
-        let _timer = self.metrics.handle_certificate_latency.start_timer();
-        let response = self
-            .authority_client
-            .handle_certificate_v2(certificate, client_addr)
-            .await?;
-
-        let verified = check_error!(
-            self.address,
-            self.verify_certificate_response_v2(&digest, response),
-            "Client error in handle_certificate"
-        )?;
-        Ok(verified)
-    }
-
-    fn verify_certificate_response_v3(
-        &self,
-        digest: &TransactionDigest,
-        HandleCertificateResponseV3 {
-            effects,
             events,
             input_objects,
             output_objects,
             auxiliary_data,
-        }: HandleCertificateResponseV3,
-    ) -> IotaResult<HandleCertificateResponseV3> {
-        let effects = self.check_signed_effects_plain(digest, effects, None)?;
+        }: HandleCertificateResponseV1,
+    ) -> IotaResult<HandleCertificateResponseV1> {
+        let signed_effects = self.check_signed_effects_plain(digest, signed_effects, None)?;
 
         // Check Events
-        match (&events, effects.events_digest()) {
+        match (&events, signed_effects.events_digest()) {
             (None, None) | (None, Some(_)) => {}
             (Some(events), None) => {
                 if !events.data.is_empty() {
@@ -403,7 +364,7 @@ where
 
         // Check Input Objects
         if let Some(input_objects) = &input_objects {
-            let expected: HashMap<_, _> = effects
+            let expected: HashMap<_, _> = signed_effects
                 .old_object_metadata()
                 .into_iter()
                 .map(|(object_ref, _owner)| (object_ref.0, object_ref))
@@ -426,7 +387,7 @@ where
 
         // Check Output Objects
         if let Some(output_objects) = &output_objects {
-            let expected: HashMap<_, _> = effects
+            let expected: HashMap<_, _> = signed_effects
                 .all_changed_objects()
                 .into_iter()
                 .map(|(object_ref, _, _)| (object_ref.0, object_ref))
@@ -447,8 +408,8 @@ where
             }
         }
 
-        Ok(HandleCertificateResponseV3 {
-            effects,
+        Ok(HandleCertificateResponseV1 {
+            signed_effects,
             events,
             input_objects,
             output_objects,
@@ -457,21 +418,21 @@ where
     }
 
     /// Execute a certificate.
-    pub async fn handle_certificate_v3(
+    pub async fn handle_certificate_v1(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
         let digest = *request.certificate.digest();
         let _timer = self.metrics.handle_certificate_latency.start_timer();
         let response = self
             .authority_client
-            .handle_certificate_v3(request, client_addr)
+            .handle_certificate_v1(request, client_addr)
             .await?;
 
         let verified = check_error!(
             self.address,
-            self.verify_certificate_response_v3(&digest, response),
+            self.verify_certificate_response_v1(&digest, response),
             "Client error in handle_certificate"
         )?;
         Ok(verified)
@@ -527,79 +488,6 @@ where
             .total_ok_responses_handle_transaction_info_request
             .inc();
         Ok(transaction_info)
-    }
-
-    fn verify_checkpoint_sequence(
-        &self,
-        expected_seq: Option<CheckpointSequenceNumber>,
-        checkpoint: &Option<CertifiedCheckpointSummary>,
-    ) -> IotaResult {
-        let observed_seq = checkpoint.as_ref().map(|c| c.sequence_number);
-
-        if let (Some(e), Some(o)) = (expected_seq, observed_seq) {
-            fp_ensure!(
-                e == o,
-                IotaError::from("Expected checkpoint number doesn't match with returned")
-            );
-        }
-        Ok(())
-    }
-
-    fn verify_contents_exist<T, O>(
-        &self,
-        request_content: bool,
-        checkpoint: &Option<T>,
-        contents: &Option<O>,
-    ) -> IotaResult {
-        match (request_content, checkpoint, contents) {
-            // If content is requested, checkpoint is not None, but we are not getting any content,
-            // it's an error.
-            // If content is not requested, or checkpoint is None, yet we are still getting content,
-            // it's an error.
-            (true, Some(_), None) | (false, _, Some(_)) | (_, None, Some(_)) => Err(
-                IotaError::from("Checkpoint contents inconsistent with request"),
-            ),
-            _ => Ok(()),
-        }
-    }
-
-    fn verify_checkpoint_response(
-        &self,
-        request: &CheckpointRequest,
-        response: &CheckpointResponse,
-    ) -> IotaResult {
-        // Verify response data was correct for request
-        let CheckpointResponse {
-            checkpoint,
-            contents,
-        } = &response;
-        // Checks that the sequence number is correct.
-        self.verify_checkpoint_sequence(request.sequence_number, checkpoint)?;
-        self.verify_contents_exist(request.request_content, checkpoint, contents)?;
-        // Verify signature.
-        match checkpoint {
-            Some(c) => {
-                let epoch_id = c.epoch;
-                c.verify_with_contents(&*self.get_committee(&epoch_id)?, contents.as_ref())
-            }
-            None => Ok(()),
-        }
-    }
-
-    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
-    pub async fn handle_checkpoint(
-        &self,
-        request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, IotaError> {
-        let resp = self
-            .authority_client
-            .handle_checkpoint(request.clone())
-            .await?;
-        self.verify_checkpoint_response(&request, &resp)
-            .tap_err(|err| {
-                error!(?err, authority=?self.address, "Client error in handle_checkpoint");
-            })?;
-        Ok(resp)
     }
 
     #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]

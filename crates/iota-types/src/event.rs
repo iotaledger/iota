@@ -141,7 +141,7 @@ impl Event {
     pub fn is_system_epoch_info_event(&self) -> bool {
         self.type_.address == IOTA_SYSTEM_ADDRESS
             && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEvent")
+            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
     }
 }
 
@@ -164,7 +164,7 @@ impl Event {
 
 // Event emitted in move code `fun advance_epoch`
 #[derive(Deserialize)]
-pub struct SystemEpochInfoEvent {
+pub struct SystemEpochInfoEventV1 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub reference_gas_price: u64,

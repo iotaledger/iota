@@ -24,7 +24,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig},
     network_config::NetworkConfig,
     network_config_builder::{
-        CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV2EnabledConfig,
+        CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV1EnabledConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::FullnodeConfigBuilder,
@@ -65,7 +65,7 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig,
+    state_accumulator_config: StateAccumulatorV1EnabledConfig,
 }
 
 impl SwarmBuilder {
@@ -93,7 +93,7 @@ impl SwarmBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig::Global(true),
+            state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
         }
     }
 }
@@ -123,7 +123,7 @@ impl<R> SwarmBuilder<R> {
             fullnode_fw_config: self.fullnode_fw_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
+            state_accumulator_config: self.state_accumulator_config,
         }
     }
 
@@ -234,11 +234,8 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_config(
-        mut self,
-        c: StateAccumulatorV2EnabledConfig,
-    ) -> Self {
-        self.state_accumulator_v2_enabled_config = c;
+    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
+        self.state_accumulator_config = c;
         self
     }
 
@@ -362,9 +359,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 .with_supported_protocol_versions_config(
                     self.supported_protocol_versions_config.clone(),
                 )
-                .with_state_accumulator_v2_enabled_config(
-                    self.state_accumulator_v2_enabled_config.clone(),
-                )
+                .with_state_accumulator_config(self.state_accumulator_config.clone())
                 .build();
             // Populate validator genesis by pointing to the blob
             let genesis_path = dir.join(IOTA_GENESIS_FILENAME);
@@ -384,9 +379,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             .map(|config| {
                 info!(
                     "SwarmBuilder configuring validator with name {}",
-                    config.protocol_public_key()
+                    config.authority_public_key()
                 );
-                (config.protocol_public_key(), Node::new(config.to_owned()))
+                (config.authority_public_key(), Node::new(config.to_owned()))
             })
             .collect();
 
@@ -424,9 +419,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 let config = builder.build(&mut OsRng, &network_config);
                 info!(
                     "SwarmBuilder configuring full node with name {}",
-                    config.protocol_public_key()
+                    config.authority_public_key()
                 );
-                nodes.insert(config.protocol_public_key(), Node::new(config));
+                nodes.insert(config.authority_public_key(), Node::new(config));
             });
         }
         Swarm {
@@ -535,7 +530,7 @@ impl Swarm {
     }
 
     pub async fn spawn_new_node(&mut self, config: NodeConfig) -> IotaNodeHandle {
-        let name = config.protocol_public_key();
+        let name = config.authority_public_key();
         let node = Node::new(config);
         node.start().await.unwrap();
         let handle = node.get_node_handle().unwrap();

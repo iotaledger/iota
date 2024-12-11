@@ -54,7 +54,7 @@ describe('ed25519-keypair', () => {
             const keypair = Ed25519Keypair.deriveKeypair(t[0]);
             expect(keypair.getPublicKey().toIotaAddress()).toEqual(t[2]);
 
-            // Decode Iota private key from Bech32 string
+            // Decode IOTA private key from Bech32 string
             const parsed = decodeIotaPrivateKey(t[1]);
             const kp = Ed25519Keypair.fromSecretKey(parsed.secretKey);
             expect(kp.getPublicKey().toIotaAddress()).toEqual(t[2]);

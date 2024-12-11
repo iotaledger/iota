@@ -188,7 +188,7 @@ impl<'a, T> Permit<'a, T> {
     }
 }
 
-impl<'a, T> Drop for Permit<'a, T> {
+impl<T> Drop for Permit<'_, T> {
     fn drop(&mut self) {
         // In the case the permit is dropped without sending, we still want to decrease
         // the occupancy of the channel. Otherwise, receiver should be
@@ -289,14 +289,13 @@ impl<T> Receiver<T> {
     /// Attempts to receive the next value for this receiver.
     /// Decrements the gauge in case of a successful `try_recv`.
     pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
-        self.inner.try_recv().map(|val| {
+        self.inner.try_recv().inspect(|_| {
             if let Some(inflight) = &self.inflight {
                 inflight.dec();
             }
             if let Some(received) = &self.received {
                 received.inc();
             }
-            val
         })
     }
 
@@ -306,14 +305,13 @@ impl<T> Receiver<T> {
     /// received gauge (if available) to track the total number of received
     /// items.
     pub fn blocking_recv(&mut self) -> Option<T> {
-        self.inner.blocking_recv().map(|val| {
+        self.inner.blocking_recv().inspect(|_| {
             if let Some(inflight) = &self.inflight {
                 inflight.dec();
             }
             if let Some(received) = &self.received {
                 received.inc();
             }
-            val
         })
     }
 
@@ -503,14 +501,13 @@ impl<T> UnboundedReceiver<T> {
     /// Attempts to receive the next value for this receiver.
     /// Decrements the gauge in case of a successful `try_recv`.
     pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
-        self.inner.try_recv().map(|val| {
+        self.inner.try_recv().inspect(|_| {
             if let Some(inflight) = &self.inflight {
                 inflight.dec();
             }
             if let Some(received) = &self.received {
                 received.inc();
             }
-            val
         })
     }
 
@@ -519,14 +516,13 @@ impl<T> UnboundedReceiver<T> {
     /// has been processed, and the received gauge (if available)
     /// is incremented to track the total number of items received.
     pub fn blocking_recv(&mut self) -> Option<T> {
-        self.inner.blocking_recv().map(|val| {
+        self.inner.blocking_recv().inspect(|_| {
             if let Some(inflight) = &self.inflight {
                 inflight.dec();
             }
             if let Some(received) = &self.received {
                 received.inc();
             }
-            val
         })
     }
 

@@ -66,7 +66,7 @@ fragment Enums on Object {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 1,1 --sender A
+//# upgrade --package P0 --upgrade-capability 1,0 --sender A
 module P0::m {
     public struct Bar {
         x: u64,

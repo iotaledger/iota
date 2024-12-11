@@ -79,7 +79,7 @@ pub enum Error {
     UnexpectedSigner,
 
     #[error("Unexpected error: {0}")]
-    UnexpectedError(Arc<dyn std::error::Error + Send + Sync + 'static>),
+    Unexpected(Arc<dyn std::error::Error + Send + Sync + 'static>),
 
     #[error("Type layout nesting exceeded limit of {0}")]
     ValueNesting(usize),

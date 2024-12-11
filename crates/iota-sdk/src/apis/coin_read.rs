@@ -18,8 +18,8 @@ use crate::{
     error::{Error, IotaRpcResult},
 };
 
-/// Coin Read API provides the functionality needed to get information from the
-/// Iota network regarding the coins owned by an address.
+/// Defines methods that retrieve information from the IOTA network regarding
+/// the coins owned by an address.
 #[derive(Debug, Clone)]
 pub struct CoinReadApi {
     api: Arc<RpcClient>,
@@ -30,12 +30,10 @@ impl CoinReadApi {
         Self { api }
     }
 
-    /// Return a paginated response with the coins for the given address, or an
-    /// error upon failure.
+    /// Get coins for the given address filtered by coin type.
+    /// Results are paginated.
     ///
-    /// The coins can be filtered by `coin_type` (e.g.,
-    /// 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC)
-    /// or use `None` for the default `Coin<IOTA>`.
+    /// The coin type defaults to `0x2::iota::IOTA`.
     ///
     /// # Examples
     ///
@@ -49,9 +47,10 @@ impl CoinReadApi {
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
     ///     let coins = iota
     ///         .coin_read_api()
-    ///         .get_coins(address, None, None, None)
+    ///         .get_coins(address, coin_type, None, None)
     ///         .await?;
     ///     Ok(())
     /// }
@@ -59,21 +58,19 @@ impl CoinReadApi {
     pub async fn get_coins(
         &self,
         owner: IotaAddress,
-        coin_type: Option<String>,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
+        coin_type: impl Into<Option<String>>,
+        cursor: impl Into<Option<ObjectID>>,
+        limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
         Ok(self
             .api
             .http
-            .get_coins(owner, coin_type, cursor, limit)
+            .get_coins(owner, coin_type.into(), cursor.into(), limit.into())
             .await?)
     }
-    /// Return a paginated response with all the coins for the given address, or
-    /// an error upon failure.
-    ///
-    /// This function includes all coins. If needed to filter by coin type, use
-    /// the `get_coins` method instead.
+
+    /// Get all the coins for the given address regardless of coin type.
+    /// Results are paginated.
     ///
     /// # Examples
     ///
@@ -97,17 +94,20 @@ impl CoinReadApi {
     pub async fn get_all_coins(
         &self,
         owner: IotaAddress,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<ObjectID>>,
+        limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
-        Ok(self.api.http.get_all_coins(owner, cursor, limit).await?)
+        Ok(self
+            .api
+            .http
+            .get_all_coins(owner, cursor.into(), limit.into())
+            .await?)
     }
 
-    /// Return the coins for the given address as a stream.
+    /// Get the coins for the given address filtered by coin type.
+    /// Returns a stream.
     ///
-    /// The coins can be filtered by `coin_type` (e.g.,
-    /// 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC)
-    /// or use `None` for the default `Coin<IOTA>`.
+    /// The coin type defaults to `0x2::iota::IOTA`.
     ///
     /// # Examples
     ///
@@ -121,15 +121,18 @@ impl CoinReadApi {
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
-    ///     let coins = iota.coin_read_api().get_coins_stream(address, None);
+    ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
+    ///     let coins = iota.coin_read_api().get_coins_stream(address, coin_type);
     ///     Ok(())
     /// }
     /// ```
     pub fn get_coins_stream(
         &self,
         owner: IotaAddress,
-        coin_type: Option<String>,
+        coin_type: impl Into<Option<String>>,
     ) -> impl Stream<Item = Coin> + '_ {
+        let coin_type = coin_type.into();
+
         stream::unfold(
             (
                 vec![],
@@ -162,15 +165,13 @@ impl CoinReadApi {
         )
     }
 
-    /// Return a list of coins for the given address, or an error upon failure.
+    /// Get a list of coins for the given address filtered by coin type with at
+    /// least `amount` total value.
     ///
-    /// Note that the function selects coins to meet or exceed the requested
-    /// `amount`. If that it is not possible, it will fail with an
-    /// insufficient fund error.
+    /// If it is not possible to select enough coins, this function will return
+    /// an [`Error::InsufficientFunds`].
     ///
-    /// The coins can be filtered by `coin_type` (e.g.,
-    /// 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC)
-    /// or use `None` to use the default `Coin<IOTA>`.
+    /// The coin type defaults to `0x2::iota::IOTA`.
     ///
     /// # Examples
     ///
@@ -184,9 +185,10 @@ impl CoinReadApi {
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
     ///     let coins = iota
     ///         .coin_read_api()
-    ///         .select_coins(address, None, 5, vec![])
+    ///         .select_coins(address, coin_type, 5, vec![])
     ///         .await?;
     ///     Ok(())
     /// }
@@ -194,13 +196,13 @@ impl CoinReadApi {
     pub async fn select_coins(
         &self,
         address: IotaAddress,
-        coin_type: Option<String>,
+        coin_type: impl Into<Option<String>>,
         amount: u128,
         exclude: Vec<ObjectID>,
     ) -> IotaRpcResult<Vec<Coin>> {
         let mut total = 0u128;
         let coins = self
-            .get_coins_stream(address, coin_type)
+            .get_coins_stream(address, coin_type.into())
             .filter(|coin: &Coin| future::ready(!exclude.contains(&coin.coin_object_id)))
             .take_while(|coin: &Coin| {
                 let ready = future::ready(total < amount);
@@ -211,17 +213,14 @@ impl CoinReadApi {
             .await;
 
         if total < amount {
-            return Err(Error::InsufficientFund { address, amount });
+            return Err(Error::InsufficientFunds { address, amount });
         }
         Ok(coins)
     }
 
-    /// Return the balance for the given coin type owned by address, or an error
-    /// upon failure.
+    /// Get the balance for the given address filtered by coin type.
     ///
-    /// Note that this function sums up all the balances of all the coins
-    /// matching the given coin type. By default, if `coin_type` is set to
-    /// `None`, it will use the default `Coin<IOTA>`.
+    /// The coin type defaults to `0x2::iota::IOTA`.
     ///
     /// # Examples
     ///
@@ -242,16 +241,13 @@ impl CoinReadApi {
     pub async fn get_balance(
         &self,
         owner: IotaAddress,
-        coin_type: Option<String>,
+        coin_type: impl Into<Option<String>>,
     ) -> IotaRpcResult<Balance> {
-        Ok(self.api.http.get_balance(owner, coin_type).await?)
+        Ok(self.api.http.get_balance(owner, coin_type.into()).await?)
     }
 
-    /// Return a list of balances for each coin type owned by the given address,
-    /// or an error upon failure.
-    ///
-    /// Note that this function groups the coins by coin type, and sums up all
-    /// their balances.
+    /// Get a list of balances grouped by coin type and owned by the given
+    /// address.
     ///
     /// # Examples
     ///
@@ -273,8 +269,8 @@ impl CoinReadApi {
         Ok(self.api.http.get_all_balances(owner).await?)
     }
 
-    /// Return the coin metadata (name, symbol, description, decimals, etc.) for
-    /// a given coin type, or an error upon failure.
+    /// Get the coin metadata (name, symbol, description, decimals, etc.) for a
+    /// given coin type.
     ///
     /// # Examples
     ///
@@ -285,19 +281,19 @@ impl CoinReadApi {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let coin_metadata = iota
     ///         .coin_read_api()
-    ///         .get_coin_metadata("0x2::iota::IOTA".to_string())
+    ///         .get_coin_metadata("0x2::iota::IOTA")
     ///         .await?;
     ///     Ok(())
     /// }
     /// ```
     pub async fn get_coin_metadata(
         &self,
-        coin_type: String,
+        coin_type: impl Into<String>,
     ) -> IotaRpcResult<Option<IotaCoinMetadata>> {
-        Ok(self.api.http.get_coin_metadata(coin_type).await?)
+        Ok(self.api.http.get_coin_metadata(coin_type.into()).await?)
     }
 
-    /// Return the total supply for a given coin type, or an error upon failure.
+    /// Get the total supply for a given coin type.
     ///
     /// # Examples
     ///
@@ -309,12 +305,12 @@ impl CoinReadApi {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let total_supply = iota
     ///         .coin_read_api()
-    ///         .get_total_supply("0x2::iota::IOTA".to_string())
+    ///         .get_total_supply("0x2::iota::IOTA")
     ///         .await?;
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_total_supply(&self, coin_type: String) -> IotaRpcResult<Supply> {
-        Ok(self.api.http.get_total_supply(coin_type).await?)
+    pub async fn get_total_supply(&self, coin_type: impl Into<String>) -> IotaRpcResult<Supply> {
+        Ok(self.api.http.get_total_supply(coin_type.into()).await?)
     }
 }

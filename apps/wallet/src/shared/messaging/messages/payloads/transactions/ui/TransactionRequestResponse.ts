@@ -6,13 +6,13 @@ import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
 import { type SignedTransaction } from '_src/ui/app/WalletSigner';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { type IotaSignMessageOutput } from '@iota/wallet-standard';
+import { type IotaSignPersonalMessageOutput } from '@iota/wallet-standard';
 
 export interface TransactionRequestResponse extends BasePayload {
     type: 'transaction-request-response';
     txID: string;
     approved: boolean;
-    txResult?: IotaTransactionBlockResponse | IotaSignMessageOutput;
+    txResult?: IotaTransactionBlockResponse | IotaSignPersonalMessageOutput;
     txResultError?: string;
     txSigned?: SignedTransaction;
 }

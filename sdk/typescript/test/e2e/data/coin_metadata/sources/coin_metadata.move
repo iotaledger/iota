@@ -17,7 +17,7 @@ module coin_metadata::test {
             b"TEST",
             b"Test Coin",
             b"Test coin metadata",
-            option::some(url::new_unsafe_from_bytes(b"http://iota.io")),
+            option::some(url::new_unsafe_from_bytes(b"http://iota.org")),
             ctx
         );
 

@@ -144,7 +144,7 @@ pub fn new_connection_pool_with_config<T: R2D2Connection + 'static>(
         .connection_customizer(Box::new(pool_config.connection_config()))
         .build(manager)
         .map_err(|e| {
-            IndexerError::PgConnectionPoolInitError(format!(
+            IndexerError::PgConnectionPoolInit(format!(
                 "Failed to initialize connection pool for {db_url} with error: {e:?}"
             ))
         })
@@ -154,7 +154,7 @@ pub fn get_pool_connection<T: R2D2Connection + Send + 'static>(
     pool: &ConnectionPool<T>,
 ) -> Result<PoolConnection<T>, IndexerError> {
     pool.get().map_err(|e| {
-        IndexerError::PgPoolConnectionError(format!(
+        IndexerError::PgPoolConnection(format!(
             "Failed to get connection from PG connection pool with error: {:?}",
             e
         ))
@@ -276,7 +276,7 @@ pub mod setup_postgres {
         registry: Registry,
     ) -> Result<(), IndexerError> {
         let db_url_secret = indexer_config.get_db_url().map_err(|e| {
-            IndexerError::PgPoolConnectionError(format!(
+            IndexerError::PgPoolConnection(format!(
                 "Failed parsing database url with error {:?}",
                 e
             ))
@@ -304,7 +304,7 @@ pub mod setup_postgres {
                     db_url, e
                 );
                 error!("{}", db_err_msg);
-                IndexerError::PostgresResetError(db_err_msg)
+                IndexerError::PostgresReset(db_err_msg)
             })?;
             info!("Reset Postgres database complete.");
         }
@@ -408,7 +408,7 @@ pub mod setup_mysql {
         registry: Registry,
     ) -> Result<(), IndexerError> {
         let db_url_secret = indexer_config.get_db_url().map_err(|e| {
-            IndexerError::PgPoolConnectionError(format!(
+            IndexerError::PgPoolConnection(format!(
                 "Failed parsing database url with error {:?}",
                 e
             ))
@@ -433,7 +433,7 @@ pub mod setup_mysql {
                     db_url, e
                 );
                 error!("{}", db_err_msg);
-                IndexerError::PostgresResetError(db_err_msg)
+                IndexerError::PostgresReset(db_err_msg)
             })?;
             info!("Reset MySQL database complete.");
         }

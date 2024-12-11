@@ -289,19 +289,17 @@ mod tests {
         error::IotaError,
         executable_transaction::VerifiedExecutableTransaction,
         iota_system_state::IotaSystemState,
-        messages_checkpoint::{
-            CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
-        },
+        messages_checkpoint::{CheckpointRequest, CheckpointResponse},
         messages_grpc::{
-            HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-            HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
+            HandleCertificateRequestV1, HandleCertificateResponseV1,
+            HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
             HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
             TransactionInfoRequest, TransactionInfoResponse,
         },
         object::Object,
         transaction::{
-            CertifiedTransaction, SignedTransaction, Transaction, VerifiedCertificate,
-            VerifiedSignedTransaction, VerifiedTransaction,
+            SignedTransaction, Transaction, VerifiedCertificate, VerifiedSignedTransaction,
+            VerifiedTransaction,
         },
         utils::to_sender_signed_transaction,
     };
@@ -338,17 +336,17 @@ mod tests {
                 .await
         }
 
-        async fn handle_certificate_v2(
+        async fn handle_certificate_v1(
             &self,
-            certificate: CertifiedTransaction,
+            request: HandleCertificateRequestV1,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleCertificateResponseV2, IotaError> {
+        ) -> Result<HandleCertificateResponseV1, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
             let (effects, _) = self
                 .authority
                 .try_execute_immediately(
                     &VerifiedExecutableTransaction::new_from_certificate(
-                        VerifiedCertificate::new_unchecked(certificate),
+                        VerifiedCertificate::new_unchecked(request.certificate),
                     ),
                     None,
                     &epoch_store,
@@ -362,26 +360,20 @@ mod tests {
                 .authority
                 .sign_effects(effects, &epoch_store)?
                 .into_inner();
-            Ok(HandleCertificateResponseV2 {
+            Ok(HandleCertificateResponseV1 {
                 signed_effects,
-                events,
-                fastpath_input_objects: vec![],
+                events: Some(events),
+                input_objects: None,
+                output_objects: None,
+                auxiliary_data: None,
             })
         }
 
-        async fn handle_certificate_v3(
+        async fn handle_soft_bundle_certificates_v1(
             &self,
-            _request: HandleCertificateRequestV3,
+            _request: HandleSoftBundleCertificatesRequestV1,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleCertificateResponseV3, IotaError> {
-            unimplemented!()
-        }
-
-        async fn handle_soft_bundle_certificates_v3(
-            &self,
-            _request: HandleSoftBundleCertificatesRequestV3,
-            _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+        ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
             unimplemented!()
         }
 
@@ -403,13 +395,6 @@ mod tests {
             &self,
             _request: CheckpointRequest,
         ) -> Result<CheckpointResponse, IotaError> {
-            unimplemented!()
-        }
-
-        async fn handle_checkpoint_v2(
-            &self,
-            _request: CheckpointRequestV2,
-        ) -> Result<CheckpointResponseV2, IotaError> {
             unimplemented!()
         }
 

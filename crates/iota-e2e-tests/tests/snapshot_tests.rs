@@ -51,7 +51,6 @@ async fn run_one(
     Ok(test_output)
 }
 
-#[ignore]
 #[sim_test]
 async fn basic_read_cmd_snapshot_tests() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -69,9 +68,9 @@ async fn basic_read_cmd_snapshot_tests() -> Result<(), anyhow::Error> {
         // 0x3b5121a0603ef7ab4cb57827fceca17db3338ef2cd76126cc1523b681df27cee --bcs", // valid
         // object BCS
         "iota client object 0x0000000000000000000000000000000000000000000000000000000000000000", /* non-existent object */
-        "iota client tx-block Duwr9uSk9ZvAndEa8oDHunx345i6oyrp3e78MYHVAbYdv", // valid tx digest
-        "iota client tx-block EgMTHQygMi6SRsBqrPHAEKZCNrpShXurCp9rcb9qbSg8",  /* non-existent tx
-                                                                               * digest */
+        "iota client tx-block 5zibcom3dMckjyN16ygFwr5XNa9Exi1MmY3BQs984x1N", // valid tx digest
+        "iota client tx-block 11111111111111111111111111111111",             /* non-existent tx
+                                                                              * digest */
     ];
     assert_json_snapshot!(run_one(cmds, context).await?);
     Ok(())

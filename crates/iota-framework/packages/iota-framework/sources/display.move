@@ -34,12 +34,12 @@ module iota::display {
     /// on the property values of an Object.
     /// ```
     /// // Example of a display object
-    /// Display<0x...::capy::Capy> {
+    /// Display<0x107A::nft::Nft> {
     ///  fields:
-    ///    <name, "Capy { genes }">
-    ///    <link, "https://capy.art/capy/{ id }">
-    ///    <image, "https://api.capy.art/capy/{ id }/svg">
-    ///    <description, "Lovely Capy, one of many">
+    ///    <name, "IOTEST Nft">
+    ///    <link, "https://iotestnft.com/nft/{ id }">
+    ///    <image, "https://api.iotestnft.com/nft/{ id }/svg">
+    ///    <description, "One of many Iotest Nfts">
     /// }
     /// ```
     ///
@@ -200,26 +200,26 @@ module iota::display_tests {
     #[allow(unused_field)]
     /// An example object.
     /// Purely for visibility.
-    public struct Capy has key {
+    public struct IotestNft has key {
         id: UID,
         name: String
     }
 
     /// Test witness type to create a Publisher object.
-    public struct CAPY has drop {}
+    public struct IOTESTNFT has drop {}
 
     #[test]
-    fun capy_init() {
+    fun nft_test_init() {
         let mut test = test::begin(@0x2);
-        let pub = package::test_claim(CAPY {}, test.ctx());
+        let pub = package::test_claim(IOTESTNFT {}, test.ctx());
 
         // create a new display object
-        let mut display = display::new<Capy>(&pub, test.ctx());
+        let mut display = display::new<IotestNft>(&pub, test.ctx());
 
-        display.add(b"name".to_string(), b"Capy {name}".to_string());
-        display.add(b"link".to_string(), b"https://capy.art/capy/{id}".to_string());
-        display.add(b"image".to_string(), b"https://api.capy.art/capy/{id}/svg".to_string());
-        display.add(b"description".to_string(), b"A Lovely Capy".to_string());
+        display.add(b"name".to_string(), b"IOTEST Nft {name}".to_string());
+        display.add(b"link".to_string(), b"https://iotestnft.com/nft/{id}".to_string());
+        display.add(b"image".to_string(), b"https://api.iotestnft.com/nft/{id}/svg".to_string());
+        display.add(b"description".to_string(), b"One of many Iotest Nfts".to_string());
 
         pub.burn_publisher();
         transfer::public_transfer(display, @0x2);

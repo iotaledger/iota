@@ -21,7 +21,7 @@ import {
     useReactTable,
 } from '@tanstack/react-table';
 import clsx from 'clsx';
-import { Fragment, useState } from 'react';
+import { Fragment, type ReactNode, useState } from 'react';
 import { Link } from './Link';
 
 export interface TableCardProps<DataType extends RowData> {
@@ -34,6 +34,7 @@ export interface TableCardProps<DataType extends RowData> {
     paginationOptions?: TablePaginationOptions;
     totalLabel?: string;
     viewAll?: string;
+    pageSizeSelector?: ReactNode;
 }
 
 export function TableCard<DataType extends object>({
@@ -46,6 +47,7 @@ export function TableCard<DataType extends object>({
     paginationOptions,
     totalLabel,
     viewAll,
+    pageSizeSelector,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
@@ -66,7 +68,7 @@ export function TableCard<DataType extends object>({
     });
 
     return (
-        <div className={clsx('w-full overflow-x-auto', refetching && 'opacity-50')}>
+        <div className={clsx('w-full overflow-visible', refetching && 'opacity-50')}>
             <Table
                 rowIndexes={table.getRowModel().rows.map((row) => row.index)}
                 paginationOptions={paginationOptions}
@@ -78,6 +80,7 @@ export function TableCard<DataType extends object>({
                         </Link>
                     ) : undefined
                 }
+                pageSizeSelector={pageSizeSelector}
             >
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (

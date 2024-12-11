@@ -97,7 +97,7 @@ impl QueryExecutor for PgExecutor {
     }
 }
 
-impl<'c> super::DbConnection for PgConnection<'c> {
+impl super::DbConnection for PgConnection<'_> {
     type Connection = diesel::PgConnection;
     type Backend = Pg;
 

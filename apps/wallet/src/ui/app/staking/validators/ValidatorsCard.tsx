@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
-import { Alert, LoadingIndicator } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     formatDelegatedStake,
@@ -12,15 +10,26 @@ import {
     useTotalDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    useFormatCoin,
+    StakedCard,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
-
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { StakeCard } from '../home/StakedCard';
-import { StatsDetail } from '_app/staking/validators/StatsDetail';
-import { Title, TitleSize, Button, ButtonType } from '@iota/apps-ui-kit';
+import {
+    Title,
+    TitleSize,
+    Button,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+    DisplayStats,
+} from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
+import { Info, Warning } from '@iota/ui-icons';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -42,6 +51,11 @@ export function ValidatorsCard() {
 
     // Total active stake for all Staked validators
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStake);
+
+    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin(
+        totalDelegatedStake,
+        IOTA_TYPE_ARG,
+    );
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
@@ -65,6 +79,7 @@ export function ValidatorsCard() {
     // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
+    const [totalDelegatedRewardsFormatted] = useFormatCoin(totalDelegatedRewards, IOTA_TYPE_ARG);
 
     const handleNewStake = () => {
         ampli.clickedStakeIota({
@@ -85,9 +100,13 @@ export function ValidatorsCard() {
     if (isError) {
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                <Alert>
-                    <strong>{error?.message}</strong>
-                </Alert>
+                <InfoBox
+                    type={InfoBoxType.Error}
+                    title="Something went wrong"
+                    supportingText={error?.message ?? 'An error occurred'}
+                    icon={<Warning />}
+                    style={InfoBoxStyle.Default}
+                />
             </div>
         );
     }
@@ -95,58 +114,77 @@ export function ValidatorsCard() {
     return (
         <div className="flex h-full w-full flex-col flex-nowrap">
             <div className="flex gap-xs py-md">
-                <StatsDetail title="Your stake" balance={totalDelegatedStake} />
-                <StatsDetail title="Earned" balance={totalDelegatedRewards} />
+                <DisplayStats
+                    label="Your stake"
+                    value={totalDelegatedStakeFormatted}
+                    supportingLabel={symbol}
+                />
+                <DisplayStats
+                    label="Earned"
+                    value={totalDelegatedRewardsFormatted}
+                    supportingLabel={symbol}
+                />
             </div>
             <Title title="In progress" size={TitleSize.Small} />
-            <BottomMenuLayout>
-                <Content>
-                    <div>
-                        {hasInactiveValidatorDelegation ? (
-                            <div className="mb-3">
-                                <Alert>
-                                    Unstake IOTA from the inactive validators and stake on an active
-                                    validator to start earning rewards again.
-                                </Alert>
-                            </div>
-                        ) : null}
-                        <div className="gap-2">
-                            {system &&
-                                delegations
-                                    ?.filter(({ inactiveValidator }) => inactiveValidator)
-                                    .map((delegation) => (
-                                        <StakeCard
-                                            extendedStake={delegation}
-                                            currentEpoch={Number(system.epoch)}
-                                            key={delegation.stakedIotaId}
-                                            inactiveValidator
-                                        />
-                                    ))}
-                        </div>
-
-                        <div className="gap-2">
-                            {system &&
-                                delegations
-                                    ?.filter(({ inactiveValidator }) => !inactiveValidator)
-                                    .map((delegation) => (
-                                        <StakeCard
-                                            extendedStake={delegation}
-                                            currentEpoch={Number(system.epoch)}
-                                            key={delegation.stakedIotaId}
-                                        />
-                                    ))}
-                        </div>
+            <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
+                {hasInactiveValidatorDelegation ? (
+                    <div className="mb-3">
+                        <InfoBox
+                            type={InfoBoxType.Default}
+                            title="Earn with active validators"
+                            supportingText="Unstake IOTA from the inactive validators and stake on an active
+validator to start earning rewards again."
+                            icon={<Info />}
+                            style={InfoBoxStyle.Elevated}
+                        />
                     </div>
-                </Content>
-                <Menu stuckClass="staked-cta" className="mx-0 w-full px-0 pb-0">
-                    <Button
-                        fullWidth
-                        type={ButtonType.Primary}
-                        text="Stake"
-                        onClick={handleNewStake}
-                    />
-                </Menu>
-            </BottomMenuLayout>
+                ) : null}
+                <div className="w-full gap-2">
+                    {system &&
+                        delegations
+                            ?.filter(({ inactiveValidator }) => inactiveValidator)
+                            .map((delegation) => (
+                                <StakedCard
+                                    extendedStake={delegation}
+                                    currentEpoch={Number(system.epoch)}
+                                    key={delegation.stakedIotaId}
+                                    inactiveValidator
+                                    onClick={() =>
+                                        navigate(
+                                            `/stake/delegation-detail?${new URLSearchParams({
+                                                validator: delegation.validatorAddress,
+                                                staked: delegation.stakedIotaId,
+                                            }).toString()}`,
+                                        )
+                                    }
+                                />
+                            ))}
+                </div>
+
+                <div className="w-full gap-2">
+                    {system &&
+                        delegations
+                            ?.filter(({ inactiveValidator }) => !inactiveValidator)
+                            .map((delegation) => (
+                                <StakedCard
+                                    extendedStake={delegation}
+                                    currentEpoch={Number(system.epoch)}
+                                    key={delegation.stakedIotaId}
+                                    onClick={() =>
+                                        navigate(
+                                            `/stake/delegation-detail?${new URLSearchParams({
+                                                validator: delegation.validatorAddress,
+                                                staked: delegation.stakedIotaId,
+                                            }).toString()}`,
+                                        )
+                                    }
+                                />
+                            ))}
+                </div>
+            </div>
+            <div className="pt-md">
+                <Button fullWidth type={ButtonType.Primary} text="Stake" onClick={handleNewStake} />
+            </div>
         </div>
     );
 }

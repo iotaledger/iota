@@ -5,7 +5,7 @@
 import { useFeature } from '@growthbook/growthbook-react';
 import { FiltersPortal, ConnectedAppsCard, type DAppEntry } from '_components';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
-import { Feature } from '_src/shared/experimentation/features';
+import { Feature } from '@iota/core';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';

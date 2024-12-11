@@ -13,7 +13,7 @@ import { bisector, extent } from 'd3-array';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { throttle } from 'throttle-debounce';
 
-import { GraphTooltipContent } from './GraphTooltipContent';
+import { GraphTooltipContainer } from './GraphTooltipContent';
 
 let idCounter = 0;
 
@@ -25,7 +25,12 @@ const bisectX = bisector((x: number) => x).center;
 
 function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
     return (
-        <text x={x} y={y} textAnchor="middle" className="fill-steel font-sans text-sm font-medium">
+        <text
+            x={x}
+            y={y}
+            textAnchor="middle"
+            className="fill-current text-label-lg text-neutral-60 dark:text-neutral-40"
+        >
             {formattedValue}
         </text>
     );
@@ -52,8 +57,8 @@ export function AreaGraph<D>({
     formatY,
     tooltipContent,
 }: AreaGraphProps<D>): JSX.Element | null {
-    const graphTop = 0;
-    const graphBottom = Math.max(0, height - 0);
+    const graphTop = 1;
+    const graphBottom = Math.max(0, height - 30);
     const graphLeft = 0;
     const graphRight = Math.max(0, width - 0);
     const [fillGradientID] = useState(() => getID('areaGraph_fillGradient'));
@@ -124,21 +129,33 @@ export function AreaGraph<D>({
                     offsetTop={0}
                     left={tooltipLeft}
                     top={tooltipTopAdj}
-                    className="pointer-events-none absolute z-10 h-0 w-max overflow-visible"
+                    className="pointer-events-none absolute z-10 h-0 w-max overflow-visible bg-black"
                     unstyled
                     detectBounds
                 >
-                    <GraphTooltipContent>{tooltipContent(tooltipContentProps)}</GraphTooltipContent>
+                    <GraphTooltipContainer>
+                        {tooltipContent(tooltipContentProps)}
+                    </GraphTooltipContainer>
                 </TooltipInPortal>
             ) : null}
             <svg width={width} height={height}>
                 <defs>
                     <linearGradient id={fillGradientID} gradientTransform="rotate(90)">
-                        <stop offset="1%" stopColor="#d6d6ff" />
-                        <stop offset="99%" stopColor="white" />
+                        <stop
+                            stopColor="currentColor"
+                            className="text-shader-primary-light-16 dark:text-shader-primary-dark-16"
+                        />
+                        <stop
+                            offset="1"
+                            stopColor="currentColor"
+                            className="text-shader-primary-light-0 dark:text-shader-primary-dark-0"
+                        />
                     </linearGradient>
                     <linearGradient id={lineGradientID}>
-                        <stop stopColor="#3131ff" />
+                        <stop
+                            stopColor="currentColor"
+                            className="text-primary-30 dark:text-primary-80"
+                        />
                     </linearGradient>
                 </defs>
                 <AreaClosed<D>
@@ -165,7 +182,7 @@ export function AreaGraph<D>({
                     x={(d) => xScale(getX(d))}
                     y={(d) => yScale(getY(d))}
                     stroke={`url(#${lineGradientID})`}
-                    stroke-width="2"
+                    strokeWidth="2"
                 />
                 <AxisBottom
                     left={5}

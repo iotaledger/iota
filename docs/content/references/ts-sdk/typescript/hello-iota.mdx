@@ -1,5 +1,4 @@
 import Faucet from '@site/../content/_snippets/faucet.mdx';
-import AlphaNet from "../../../_snippets/alphanet.mdx";
 
 # Hello IOTA
 
@@ -52,11 +51,9 @@ address. You must be on Devnet, Testnet, or a local network to use a faucet for 
 
 Create a new `index.js` file in the root of your project with the following code.
 
-<AlphaNet/>
-
 ```js
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-import { getFaucetHost, requestIotaFromFaucetv1 } from '@iota/iota-sdk/faucet';
+import { getFaucetHost, requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
 import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
 // replace <YOUR_IOTA_ADDRESS> with your actual address, which is in the form 0x123...
@@ -75,7 +72,7 @@ const iotaBefore = await iotaClient.getBalance({
     owner: MY_ADDRESS,
 });
 
-await requestIotaFromFaucetv1({
+await requestIotaFromFaucetV1({
     // use getFaucetHost to make sure you're using correct faucet address
     // you can also just use the address (see IOTA TypeScript SDK Quick Start for values)
     host: getFaucetHost('devnet'),

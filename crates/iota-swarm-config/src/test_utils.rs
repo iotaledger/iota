@@ -73,9 +73,9 @@ impl CommitteeFixture {
                             network_config
                                 .validator_configs()
                                 .iter()
-                                .find(|config| config.protocol_public_key() == *name)
+                                .find(|config| config.authority_public_key() == *name)
                                 .unwrap()
-                                .protocol_key_pair()
+                                .authority_key_pair()
                                 .copy(),
                             *stake,
                         ),

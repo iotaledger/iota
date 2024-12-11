@@ -47,5 +47,5 @@ pub enum ClientError {
         var_val_curr: serde_json::Value,
     },
     #[error(transparent)]
-    InnerClientError(#[from] reqwest::Error),
+    InnerClient(#[from] reqwest::Error),
 }

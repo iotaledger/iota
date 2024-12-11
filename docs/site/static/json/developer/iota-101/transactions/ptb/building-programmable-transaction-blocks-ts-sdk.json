@@ -1,0 +1,29 @@
+[
+  {
+    "questionText": "Which class is imported from the IOTA TypeScript SDK to construct a programmable transaction block (PTB)?",
+    "answerOptions": [
+      { "answerText": "`TransactionBuilder`", "isCorrect": false },
+      { "answerText": "`TransactionBlock`", "isCorrect": true },
+      { "answerText": "`PTBConstructor`", "isCorrect": false },
+      { "answerText": "`IotaTransaction`", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How can you use the result of a transaction command as an argument in a subsequent transaction command?",
+    "answerOptions": [
+      { "answerText": "By calling the next command inside the previous command.", "isCorrect": false },
+      { "answerText": "By using the gas coin.", "isCorrect": false },
+      { "answerText": "By storing the result of the transaction command in a variable and passing it to the next command.", "isCorrect": true },
+      { "answerText": "By starting a new PTB.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is the purpose of the `onlyTransactionKind` flag when building a sponsored PTB?",
+    "answerOptions": [
+      { "answerText": "It builds only the transaction kind bytes, excluding gas and other data.", "isCorrect": true },
+      { "answerText": "It includes only the gas payment information.", "isCorrect": false },
+      { "answerText": "It restricts the PTB to only certain transaction types.", "isCorrect": false },
+      { "answerText": "It disables the need for a provider.", "isCorrect": false }
+    ]
+  }
+]

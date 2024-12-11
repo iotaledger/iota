@@ -1,6 +1,8 @@
 ---
 description: An overview of various collection types in the IOTA framework.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/move-overview/collections.json';
 
 # Collections
 
@@ -91,3 +93,5 @@ ensuring no duplicate keys.
 All operations are O(N) in relation to the set's size.
 Like `VecMap`, this structure is designed for convenience, not performance. 
 For sorted iteration or large sets, consider using custom structures.
+
+<Quiz questions={questions} />

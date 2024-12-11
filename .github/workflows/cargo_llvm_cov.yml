@@ -1,0 +1,154 @@
+name: Code Coverage (llvm-cov)
+
+on:
+  schedule:
+    - cron: "0 1 * * *" # every day at 1am (UTC)
+  workflow_dispatch:
+    inputs:
+      branch-or-commit:
+        description: "Branch or commit to test code coverage."
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  llvm-cov:
+    name: Generate code coverage
+    runs-on: self-hosted
+    timeout-minutes: 180
+    env:
+      # Don't emit giant backtraces in the CI logs.
+      RUST_BACKTRACE: short
+      # Rustup
+      RUSTUP_MAX_RETRIES: 10
+      # Cargo
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+      # Find a good balance between runtime performance and accurate code coverage analysis.
+      CARGO_PROFILE_TEST_OPT_LEVEL: 1
+      CARGO_PROFILE_TEST_DEBUG: false
+      CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: false
+      CARGO_PROFILE_TEST_OVERFLOW_CHECKS: false
+      CARGO_PROFILE_TEST_LTO: off
+      CARGO_PROFILE_TEST_CODEGEN_UNITS: 1
+      # Allow more retries for network requests in cargo (downloading crates) and
+      # rustup (installing toolchains). This should help to reduce flaky CI failures
+      # from transient network timeouts or other issues.
+      CARGO_NET_RETRY: 10
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          ref: ${{ github.event.inputs.branch-or-commit || github.ref }}
+
+      - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
+
+      - name: Install nextest and cargo-llvm-cov
+        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
+        with:
+          tool: nextest,cargo-llvm-cov
+
+      - name: Set Swap Space
+        uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17 # v1.0.2
+        with:
+          size: 256G
+
+      - name: Install llvm-tools
+        run: |
+          TOOLCHAIN=$(rustup show active-toolchain | cut -d ' ' -f 1)
+          rustup component add llvm-tools --toolchain "$TOOLCHAIN"
+          LLVM_PROFDATA="$HOME/.rustup/toolchains/$TOOLCHAIN/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-profdata"
+
+          if [ -x "$LLVM_PROFDATA" ]; then
+            $LLVM_PROFDATA --version
+            echo "LLVM_PROFDATA=$LLVM_PROFDATA" >> $GITHUB_ENV
+          else
+            echo "🚨 Error 🚨: llvm-profdata not found at $LLVM_PROFDATA, or is not executable."
+            exit 1
+          fi
+
+      - name: Run code coverage (nextest)
+        run: |
+          set +e
+
+          echo "Generating coverage data (.profraw files)."
+          IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --no-report nextest
+
+          echo "Scanning for corrupted .profraw files. This might take a while."
+          find target/llvm-cov-target -name '*.profraw' | while read file; do
+            if ! "$LLVM_PROFDATA" show "$file" > /dev/null 2>&1; then
+              echo "$file: corruped -> removing"
+              rm "$file"
+            fi
+          done
+
+          echo "Trying to merge .profraw files."
+          find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
+            --failure-mode=warn \
+            --sparse \
+            --output target/nextest.profdata
+
+          if [ -s "target/nextest.profdata" ]; then
+            echo "Successfully collected nextest coverage data."
+          else
+            echo "🚨 Error 🚨: Collecting nexttest coverage failed."
+            exit 1
+          fi
+
+      - name: Run code coverage (simtest)
+        run: |
+          git clean -fd
+
+          set +e
+          echo "Generating coverage data (.profraw files)."
+          ./scripts/simtest/simtest-cov.sh
+
+          echo "Scanning for corrupted .profraw files. This might take a while."
+          find target/llvm-cov-target -name '*.profraw' | while read file; do
+            if ! "$LLVM_PROFDATA" show "$file" > /dev/null 2>&1; then
+              echo "$file: corruped -> removing"
+              rm "$file"
+            fi
+          done
+
+          echo "Trying to merge .profraw files."
+          find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
+            --failure-mode=warn \
+            --sparse \
+            --output target/simtest.profdata
+
+          if [ -s "target/simtest.profdata" ]; then
+            echo "Successfully collected simtest coverage data."
+          else
+            echo "🚨 Warning 🚨: Collecting simtest coverage failed."
+          fi
+
+      - name: Create report (lcov.info)
+        run: |
+          cd target
+
+          if [ -s "simtest.profdata" ]; then
+            echo "Merging nextest and simtest coverage data."
+            $LLVM_PROFDATA merge --failure-mode=warn --sparse nextest.profdata simtest.profdata --output merged.profdata
+          else
+            echo "Using only nextest coverage data."
+            mv nextest.profdata merged.profdata
+          fi
+
+          [ -s "merged.profdata" ] || exit 1
+
+          echo "Creating report (lcov.info)."
+          LLVM_PROFILE_FILE="merged.profdata" cargo llvm-cov report \
+            --lcov \
+            --output-path lcov.info \
+            --ignore-filename-regex 'external-crates/.*'
+
+          echo "Removing absolute path prefix: ${{ github.workspace }} from report."
+          sed --in-place "s#${{ github.workspace }}#.#g" lcov.info
+
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@cfd0633edbd2411b532b808ba7a8b5e04f76d2c8 # v2.3.4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: target/lcov.info
+          flag-name: nextest+simtest
+          fail-on-error: true

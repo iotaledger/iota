@@ -32,7 +32,10 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
     effects::TransactionEvents,
     event::EventID,
-    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
+    iota_system_state::{
+        IotaSystemStateTrait,
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    },
     is_system_package,
     object::{Object, ObjectRead},
 };
@@ -60,7 +63,7 @@ use crate::{
     },
     schema::{
         address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
-        objects_snapshot, transactions,
+        objects_snapshot, packages, transactions,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -235,7 +238,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .fetch(package_id.into())
             .await
             .map_err(|e| {
-                IndexerError::PostgresReadError(format!(
+                IndexerError::PostgresRead(format!(
                     "Fail to fetch package from package store with error {:?}",
                     e
                 ))
@@ -349,12 +352,12 @@ impl<U: R2D2Connection> IndexerReader<U> {
         let stored_epoch = self.get_epoch_info_from_db(epoch)?;
         let stored_epoch = match stored_epoch {
             Some(stored_epoch) => stored_epoch,
-            None => return Err(IndexerError::InvalidArgumentError("Invalid epoch".into())),
+            None => return Err(IndexerError::InvalidArgument("Invalid epoch".into())),
         };
 
         let system_state: IotaSystemStateSummary = bcs::from_bytes(&stored_epoch.system_state)
             .map_err(|_| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to deserialize `system_state` for epoch {:?}",
                     epoch,
                 ))
@@ -623,7 +626,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                                             .as_str();
                                 }
                             } else {
-                                return Err(IndexerError::InvalidArgumentError(
+                                return Err(IndexerError::InvalidArgument(
                                     "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
                                 ));
                             }
@@ -640,14 +643,14 @@ impl<U: R2D2Connection> IndexerReader<U> {
                                     objects::object_type.not_like(format!("{}%", object_type)),
                                 );
                             } else {
-                                return Err(IndexerError::InvalidArgumentError(
+                                return Err(IndexerError::InvalidArgument(
                                     "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
                                 ));
                             }
                         }
                     }
                     _ => {
-                        return Err(IndexerError::InvalidArgumentError(
+                        return Err(IndexerError::InvalidArgument(
                             "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
                         ));
                     }
@@ -660,7 +663,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
 
             query
                 .load::<StoredObject>(conn)
-                .map_err(|e| IndexerError::PostgresReadError(e.to_string()))
+                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
         })
     }
 
@@ -682,7 +685,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .into_iter()
             .map(|id| {
                 ObjectID::from_bytes(id.clone()).map_err(|_e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "Can't convert {:?} to ObjectID",
                         id,
                     ))
@@ -830,7 +833,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                         ),
                     ),
                     (None, Some(_)) => {
-                        return Err(IndexerError::InvalidArgumentError(
+                        return Err(IndexerError::InvalidArgument(
                             "Function cannot be present without Module.".into(),
                         ));
                     }
@@ -938,7 +941,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             Some(
                 TransactionFilter::TransactionKind(_) | TransactionFilter::TransactionKindIn(_),
             ) => {
-                return Err(IndexerError::NotSupportedError(
+                return Err(IndexerError::NotSupported(
                     "TransactionKind filter is not supported.".into(),
                 ));
             }
@@ -1043,7 +1046,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     ) -> IndexerResult<String> {
         let cursor = if let Some(cursor) = cursor {
             if cursor.tx_digest != tx_digest {
-                return Err(IndexerError::InvalidArgumentError(
+                return Err(IndexerError::InvalidArgument(
                     "Cursor tx_digest does not match the tx_digest in the query.".into(),
                 ));
             }
@@ -1158,7 +1161,8 @@ impl<U: R2D2Connection> IndexerReader<U> {
                     )
                 }
                 EventFilter::MoveEventType(struct_tag) => {
-                    format!("event_type = '{}'", struct_tag)
+                    let formatted_struct_tag = struct_tag.to_canonical_string(true);
+                    format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
                     let package_module_prefix = format!("{}::{}", package.to_hex_literal(), module);
@@ -1178,7 +1182,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 | EventFilter::And(_, _)
                 | EventFilter::Or(_, _)
                 | EventFilter::TimeRange { .. } => {
-                    return Err(IndexerError::NotSupportedError(
+                    return Err(IndexerError::NotSupported(
                         "This type of EventFilter is not supported.".into(),
                     ));
                 }
@@ -1247,7 +1251,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .await?;
 
         if any(objects.iter(), |o| o.df_object_id.is_none()) {
-            return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
+            return Err(IndexerError::PersistentStorageDataCorruption(format!(
                 "Dynamic field has empty df_object_id column for parent object {}",
                 parent_object_id
             )));
@@ -1340,7 +1344,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .type_layout(name.type_.clone())
             .await
             .map_err(|e| {
-                IndexerError::ResolveMoveStructError(format!(
+                IndexerError::ResolveMoveStruct(format!(
                     "Failed to get type layout for type {}: {}",
                     name.type_, e
                 ))
@@ -1368,7 +1372,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         .into_iter()
         .map(|object_ref: ObjectRefColumn| {
             let object_id = ObjectID::from_bytes(object_ref.object_id.clone()).map_err(|_e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Can't convert {:?} to ObjectID",
                     object_ref.object_id
                 ))
@@ -1376,7 +1380,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             let seq = SequenceNumber::from_u64(object_ref.object_version as u64);
             let object_digest = ObjectDigest::try_from(object_ref.object_digest.as_slice())
                 .map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "object {:?} has incompatible object digest. Error: {e}",
                         object_ref.object_digest
                     ))
@@ -1506,10 +1510,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_network_metrics(&self) -> IndexerResult<NetworkMetrics> {
-        let metrics = run_query!(&self.pool, |conn| {
+        let mut metrics = run_query!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
+        if metrics.total_packages == -1 {
+            // this implies that the estimate is not available in the db
+            // so we fallback to the more expensive count query
+            metrics.total_packages = run_query!(&self.pool, |conn| {
+                packages::dsl::packages.count().get_result::<i64>(conn)
+            })?;
+        }
         Ok(metrics.into())
     }
 
@@ -1625,7 +1636,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     ) -> Result<DisplayFieldsResponse, IndexerError> {
         let (object_type, layout) = if let Some((object_type, layout)) =
             iota_json_rpc::read_api::get_object_type_and_struct(original_object, original_layout)
-                .map_err(|e| IndexerError::GenericError(e.to_string()))?
+                .map_err(|e| IndexerError::Generic(e.to_string()))?
         {
             (object_type, layout)
         } else {
@@ -1637,7 +1648,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
 
         if let Some(display_object) = self.get_display_object_by_type(&object_type).await? {
             return iota_json_rpc::read_api::get_rendered_fields(display_object.fields, &layout)
-                .map_err(|e| IndexerError::GenericError(e.to_string()));
+                .map_err(|e| IndexerError::Generic(e.to_string()));
         }
         Ok(DisplayFieldsResponse {
             data: None,
@@ -1696,13 +1707,13 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 get_single_obj_id_from_package_publish(self, package_id, treasury_cap_type.clone())
                     .unwrap()
             })
-            .ok_or(IndexerError::GenericError(format!(
+            .ok_or(IndexerError::Generic(format!(
                 "Cannot find treasury cap for type {}",
                 treasury_cap_type
             )))?;
         let treasury_cap_obj_object =
             self.get_object(&treasury_cap_obj_id, None)?
-                .ok_or(IndexerError::GenericError(format!(
+                .ok_or(IndexerError::Generic(format!(
                     "Cannot find treasury cap object with id {}",
                     treasury_cap_obj_id
                 )))?;
@@ -1734,6 +1745,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
 
     pub fn package_resolver(&self) -> PackageResolver<U> {
         self.package_resolver.clone()
+    }
+
+    pub async fn pending_active_validators(
+        &self,
+    ) -> Result<Vec<IotaValidatorSummary>, IndexerError> {
+        self.spawn_blocking(move |this| {
+            iota_types::iota_system_state::get_iota_system_state(&this)
+                .and_then(|system_state| system_state.get_pending_active_validators(&this))
+        })
+        .await
+        .map_err(Into::into)
     }
 }
 

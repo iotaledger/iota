@@ -32,8 +32,8 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
-        get_module, get_module_by_id,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
+        get_module_by_id,
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
@@ -727,18 +727,7 @@ impl LocalExec {
                 reason: "System transaction".to_string(),
             });
         }
-        // Before protocol version 16, the generation of effects depends on the wrapped
-        // tombstones. It is not possible to retrieve such data for replay.
-        if tx_info.protocol_version.as_u64() < 16 {
-            warn!(
-                "Protocol version ({:?}) too old: {}, skipping transaction",
-                tx_info.protocol_version, tx_digest
-            );
-            return Err(ReplayEngineError::TransactionNotSupported {
-                digest: *tx_digest,
-                reason: "Protocol version too old".to_string(),
-            });
-        }
+
         // Initialize the state necessary for execution
         // Get the input objects
         let input_objects = self.initialize_execution_env_state(tx_info).await?;
@@ -1614,7 +1603,7 @@ impl LocalExec {
             })
             .collect();
         let gas_data = orig_tx.transaction_data().gas_data();
-        let gas_object_refs: Vec<_> = gas_data.clone().payment.into_iter().collect();
+        let gas_object_refs: Vec<_> = gas_data.clone().payment;
         let receiving_objs = orig_tx
             .transaction_data()
             .receiving_objects()
@@ -1966,39 +1955,6 @@ impl ChildObjectResolver for LocalExec {
                 receive_at_version: receive_object_at_version,
                 result: res.clone(),
             });
-        res
-    }
-}
-
-impl ParentSync for LocalExec {
-    /// The objects here much already exist in the store because we downloaded
-    /// them earlier No download from network
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        fn inner(self_: &LocalExec, object_id: ObjectID) -> IotaResult<Option<ObjectRef>> {
-            if let Some(v) = self_
-                .storage
-                .live_objects_store
-                .lock()
-                .expect("Can't lock")
-                .get(&object_id)
-            {
-                return Ok(Some(v.compute_object_reference()));
-            }
-            Ok(None)
-        }
-        let res = inner(self, object_id);
-        self.exec_store_events
-            .lock()
-            .expect("Unable to lock events list")
-            .push(
-                ExecutionStoreEvent::ParentSyncStoreGetLatestParentEntryRef {
-                    object_id,
-                    result: res.clone(),
-                },
-            );
         res
     }
 }

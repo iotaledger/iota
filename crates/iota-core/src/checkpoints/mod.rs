@@ -33,7 +33,7 @@ use iota_types::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
-    event::SystemEpochInfoEvent,
+    event::SystemEpochInfoEventV1,
     executable_transaction::VerifiedExecutableTransaction,
     gas::GasCostSummary,
     iota_system_state::{
@@ -42,8 +42,8 @@ use iota_types::{
     },
     message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequestV2,
-        CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSignatureMessage,
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
+        CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
         CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData,
         FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint,
         VerifiedCheckpointContents,
@@ -102,54 +102,36 @@ pub struct PendingCheckpointInfo {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PendingCheckpoint {
-    pub roots: Vec<TransactionDigest>,
-    pub details: PendingCheckpointInfo,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum PendingCheckpointV2 {
+pub enum PendingCheckpoint {
     // This is an enum for future upgradability, though at the moment there is only one variant.
-    V2(PendingCheckpointV2Contents),
+    V1(PendingCheckpointContentsV1),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PendingCheckpointV2Contents {
+pub struct PendingCheckpointContentsV1 {
     pub roots: Vec<TransactionKey>,
     pub details: PendingCheckpointInfo,
 }
 
-impl PendingCheckpointV2 {
-    pub fn as_v2(&self) -> &PendingCheckpointV2Contents {
+impl PendingCheckpoint {
+    pub fn as_v1(&self) -> &PendingCheckpointContentsV1 {
         match self {
-            PendingCheckpointV2::V2(contents) => contents,
+            PendingCheckpoint::V1(contents) => contents,
         }
     }
 
-    pub fn into_v2(self) -> PendingCheckpointV2Contents {
+    pub fn into_v1(self) -> PendingCheckpointContentsV1 {
         match self {
-            PendingCheckpointV2::V2(contents) => contents,
-        }
-    }
-
-    pub fn expect_v1(self) -> PendingCheckpoint {
-        let v2 = self.into_v2();
-        PendingCheckpoint {
-            roots: v2
-                .roots
-                .into_iter()
-                .map(|root| *root.unwrap_digest())
-                .collect(),
-            details: v2.details,
+            PendingCheckpoint::V1(contents) => contents,
         }
     }
 
     pub fn roots(&self) -> &Vec<TransactionKey> {
-        &self.as_v2().roots
+        &self.as_v1().roots
     }
 
     pub fn details(&self) -> &PendingCheckpointInfo {
-        &self.as_v2().details
+        &self.as_v1().details
     }
 
     pub fn height(&self) -> CheckpointHeight {
@@ -1037,7 +1019,7 @@ impl CheckpointBuilder {
     }
 
     #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height))]
-    async fn make_checkpoint(&self, pendings: Vec<PendingCheckpointV2>) -> anyhow::Result<()> {
+    async fn make_checkpoint(&self, pendings: Vec<PendingCheckpoint>) -> anyhow::Result<()> {
         let last_details = pendings.last().unwrap().details().clone();
 
         // Keeps track of the effects that are already included in the current
@@ -1051,7 +1033,7 @@ impl CheckpointBuilder {
         // Transactions will be recorded in the checkpoint in this order.
         let mut sorted_tx_effects_included_in_checkpoint = Vec::new();
         for pending_checkpoint in pendings.into_iter() {
-            let pending = pending_checkpoint.into_v2();
+            let pending = pending_checkpoint.into_v1();
             let txn_in_checkpoint = self
                 .resolve_checkpoint_transactions(pending.roots, &mut effects_in_current_checkpoint)
                 .await?;
@@ -1092,11 +1074,7 @@ impl CheckpointBuilder {
 
         let _scope = monitored_scope("CheckpointBuilder");
 
-        let consensus_commit_prologue = if self
-            .epoch_store
-            .protocol_config()
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints()
-        {
+        let consensus_commit_prologue = {
             // If the roots contains consensus commit prologue transaction, we want to
             // extract it, and put it to the front of the checkpoint.
 
@@ -1104,7 +1082,7 @@ impl CheckpointBuilder {
                 .extract_consensus_commit_prologue(&root_digests, &root_effects)
                 .await?;
 
-            // Get the unincluded depdnencies of the consensus commit prologue. We should
+            // Get the un-included dependencies of the consensus commit prologue. We should
             // expect no other dependencies that haven't been included in any
             // previous checkpoints.
             if let Some((ccp_digest, ccp_effects)) = &consensus_commit_prologue {
@@ -1119,8 +1097,6 @@ impl CheckpointBuilder {
                 assert_eq!(unsorted_ccp[0].transaction_digest(), ccp_digest);
             }
             consensus_commit_prologue
-        } else {
-            None
         };
 
         let unsorted =
@@ -1128,13 +1104,13 @@ impl CheckpointBuilder {
 
         let _scope = monitored_scope("CheckpointBuilder::causal_sort");
         let mut sorted: Vec<TransactionEffects> = Vec::with_capacity(unsorted.len() + 1);
-        if let Some((ccp_digest, ccp_effects)) = consensus_commit_prologue {
+        if let Some((_ccp_digest, ccp_effects)) = consensus_commit_prologue {
             #[cfg(debug_assertions)]
             {
                 // When consensus_commit_prologue is extracted, it should not be included in the
                 // `unsorted`.
                 for tx in unsorted.iter() {
-                    assert!(tx.transaction_digest() != &ccp_digest);
+                    assert!(tx.transaction_digest() != &_ccp_digest);
                 }
             }
             sorted.push(ccp_effects);
@@ -1152,8 +1128,6 @@ impl CheckpointBuilder {
 
     // This function is used to extract the consensus commit prologue digest and
     // effects from the root transactions.
-    // This function can only be used when
-    // prepend_prologue_tx_in_consensus_commit_in_checkpoints is enabled.
     // The consensus commit prologue is expected to be the first transaction in the
     // roots.
     async fn extract_consensus_commit_prologue(
@@ -1168,8 +1142,7 @@ impl CheckpointBuilder {
 
         // Reads the first transaction in the roots, and checks whether it is a
         // consensus commit prologue transaction.
-        // When prepend_prologue_tx_in_consensus_commit_in_checkpoints is enabled, the
-        // consensus commit prologue transaction should be the first transaction
+        // The consensus commit prologue transaction should be the first transaction
         // in the roots written by the consensus handler.
         let first_tx = self
             .state
@@ -1178,9 +1151,7 @@ impl CheckpointBuilder {
             .expect("Transaction block must exist");
 
         Ok(match first_tx.transaction_data().kind() {
-            TransactionKind::ConsensusCommitPrologue(_)
-            | TransactionKind::ConsensusCommitPrologueV2(_)
-            | TransactionKind::ConsensusCommitPrologueV3(_) => {
+            TransactionKind::ConsensusCommitPrologueV1(_) => {
                 assert_eq!(first_tx.digest(), root_effects[0].transaction_digest());
                 Some((*first_tx.digest(), root_effects[0].clone()))
             }
@@ -1352,7 +1323,7 @@ impl CheckpointBuilder {
             }
         }
         let last_checkpoint_seq = last_checkpoint.as_ref().map(|(seq, _)| *seq);
-        info!(
+        debug!(
             next_checkpoint_seq = last_checkpoint_seq.unwrap_or_default() + 1,
             checkpoint_timestamp = details.timestamp_ms,
             "Creating checkpoint(s) for {} transactions",
@@ -1386,11 +1357,10 @@ impl CheckpointBuilder {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {:?}", effects));
                 match transaction.inner().transaction_data().kind() {
-                    TransactionKind::ConsensusCommitPrologue(_)
-                    | TransactionKind::ConsensusCommitPrologueV2(_)
-                    | TransactionKind::ConsensusCommitPrologueV3(_)
-                    | TransactionKind::AuthenticatorStateUpdate(_) => {
-                        // ConsensusCommitPrologue and AuthenticatorStateUpdate
+                    TransactionKind::ConsensusCommitPrologueV1(_)
+                    | TransactionKind::AuthenticatorStateUpdateV1(_) => {
+                        // ConsensusCommitPrologue and
+                        // AuthenticatorStateUpdateV1
                         // are guaranteed to be
                         // processed before we reach here.
                     }
@@ -1475,11 +1445,16 @@ impl CheckpointBuilder {
                     )
                     .await?;
 
+                // The system epoch info event can be `None` in case if the `advance_epoch`
+                // Move function call failed and was executed in the safe mode.
+                // In this case, the tokens supply should be unchanged.
+                //
                 // SAFETY: The number of minted and burnt tokens easily fit into an i64 and due
                 // to those small numbers, no overflows will occur during conversion or
                 // subtraction.
-                let epoch_supply_change = system_epoch_info_event.minted_tokens_amount as i64
-                    - system_epoch_info_event.burnt_tokens_amount as i64;
+                let epoch_supply_change = system_epoch_info_event.map_or(0, |event| {
+                    event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
+                });
 
                 let committee = system_state_obj
                     .get_current_epoch_committee()
@@ -1508,15 +1483,7 @@ impl CheckpointBuilder {
                 self.metrics.highest_accumulated_epoch.set(epoch as i64);
                 info!("Epoch {epoch} root state hash digest: {root_state_digest:?}");
 
-                let epoch_commitments = if self
-                    .epoch_store
-                    .protocol_config()
-                    .check_commit_root_state_digest_supported()
-                {
-                    vec![root_state_digest.into()]
-                } else {
-                    vec![]
-                };
+                let epoch_commitments = vec![root_state_digest.into()];
 
                 Some(EndOfEpochData {
                     next_epoch_committee: committee.voting_rights,
@@ -1592,6 +1559,8 @@ impl CheckpointBuilder {
             // sum only when we are within the same epoch
             GasCostSummary::new(
                 previous_gas_costs.computation_cost + current_gas_costs.computation_cost,
+                previous_gas_costs.computation_cost_burned
+                    + current_gas_costs.computation_cost_burned,
                 previous_gas_costs.storage_cost + current_gas_costs.storage_cost,
                 previous_gas_costs.storage_rebate + current_gas_costs.storage_rebate,
                 previous_gas_costs.non_refundable_storage_fee
@@ -1612,7 +1581,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEvent)> {
+    ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEventV1>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(
@@ -1720,14 +1689,6 @@ impl CheckpointBuilder {
         root_digests: &[TransactionDigest],
         sorted: &[TransactionEffects],
     ) {
-        if !self
-            .epoch_store
-            .protocol_config()
-            .prepend_prologue_tx_in_consensus_commit_in_checkpoints()
-        {
-            return;
-        }
-
         // Gets all the consensus commit prologue transactions from the roots.
         let root_txs = self
             .state
@@ -1737,20 +1698,12 @@ impl CheckpointBuilder {
         let ccps = root_txs
             .iter()
             .filter_map(|tx| {
-                if let Some(tx) = tx {
-                    if matches!(
+                tx.as_ref().filter(|tx| {
+                    matches!(
                         tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
-                    ) {
-                        Some(tx)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                        TransactionKind::ConsensusCommitPrologueV1(_)
+                    )
+                })
             })
             .collect::<Vec<_>>();
 
@@ -1765,46 +1718,36 @@ impl CheckpointBuilder {
             .multi_get_transaction_blocks(
                 &sorted
                     .iter()
-                    .map(|tx| tx.transaction_digest().clone())
+                    .map(|tx| *tx.transaction_digest())
                     .collect::<Vec<_>>(),
             )
             .unwrap();
 
-        if ccps.len() == 0 {
+        if ccps.is_empty() {
             // If there is no consensus commit prologue transaction in the roots, then there
             // should be no consensus commit prologue transaction in the
             // checkpoint.
-            for tx in txs.iter() {
-                if let Some(tx) = tx {
-                    assert!(!matches!(
-                        tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
-                    ));
-                }
+            for tx in txs.iter().flatten() {
+                assert!(!matches!(
+                    tx.transaction_data().kind(),
+                    TransactionKind::ConsensusCommitPrologueV1(_)
+                ));
             }
         } else {
             // If there is one consensus commit prologue, it must be the first one in the
             // checkpoint.
             assert!(matches!(
                 txs[0].as_ref().unwrap().transaction_data().kind(),
-                TransactionKind::ConsensusCommitPrologue(_)
-                    | TransactionKind::ConsensusCommitPrologueV2(_)
-                    | TransactionKind::ConsensusCommitPrologueV3(_)
+                TransactionKind::ConsensusCommitPrologueV1(_)
             ));
 
             assert_eq!(ccps[0].digest(), txs[0].as_ref().unwrap().digest());
 
-            for tx in txs.iter().skip(1) {
-                if let Some(tx) = tx {
-                    assert!(!matches!(
-                        tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologue(_)
-                            | TransactionKind::ConsensusCommitPrologueV2(_)
-                            | TransactionKind::ConsensusCommitPrologueV3(_)
-                    ));
-                }
+            for tx in txs.iter().skip(1).flatten() {
+                assert!(!matches!(
+                    tx.transaction_data().kind(),
+                    TransactionKind::ConsensusCommitPrologueV1(_)
+                ));
             }
         }
     }
@@ -2011,9 +1954,9 @@ impl CheckpointSignatureAggregator {
                 Err(())
             }
             InsertResult::QuorumReached(cert) => {
-                // It is not guaranteed that signature.authority == narwhal_cert.author, but we
-                // do verify the signature so we know that the author signed the
-                // message at some point.
+                // It is not guaranteed that signature.authority == consensus_cert.author, but
+                // we do verify the signature so we know that the author signed
+                // the message at some point.
                 if their_digest != self.digest {
                     self.metrics.remote_checkpoint_forks.inc();
                     warn!(
@@ -2132,12 +2075,12 @@ async fn diagnose_split_brain(
             let client = network_clients
                 .get(&validator)
                 .expect("Failed to get network client");
-            let request = CheckpointRequestV2 {
+            let request = CheckpointRequest {
                 sequence_number: Some(local_summary.sequence_number),
                 request_content: true,
                 certified: false,
             };
-            client.handle_checkpoint_v2(request)
+            client.handle_checkpoint(request)
         })
         .collect::<Vec<_>>();
 
@@ -2148,17 +2091,17 @@ async fn diagnose_split_brain(
         .zip(digest_name_pair)
         .filter_map(|(response, (digest, name))| match response {
             Ok(response) => match response {
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: Some(CheckpointSummaryResponse::Pending(summary)),
                     contents: Some(contents),
                 } => Some((*name, *digest, summary, contents)),
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: Some(CheckpointSummaryResponse::Certified(_)),
                     contents: _,
                 } => {
                     panic!("Expected pending checkpoint, but got certified checkpoint");
                 }
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: None,
                     contents: _,
                 } => {
@@ -2168,7 +2111,7 @@ async fn diagnose_split_brain(
                     );
                     None
                 }
-                CheckpointResponseV2 {
+                CheckpointResponse {
                     checkpoint: _,
                     contents: None,
                 } => {
@@ -2353,7 +2296,7 @@ impl CheckpointService {
     fn write_and_notify_checkpoint_for_testing(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        checkpoint: PendingCheckpointV2,
+        checkpoint: PendingCheckpoint,
     ) -> IotaResult {
         use crate::authority::authority_per_epoch_store::ConsensusCommitOutput;
 
@@ -2434,27 +2377,6 @@ impl CheckpointServiceNotify for CheckpointServiceNoop {
     }
 }
 
-impl PendingCheckpoint {
-    pub fn height(&self) -> CheckpointHeight {
-        self.details.checkpoint_height
-    }
-}
-
-impl PendingCheckpointV2 {}
-
-impl From<PendingCheckpoint> for PendingCheckpointV2 {
-    fn from(value: PendingCheckpoint) -> Self {
-        PendingCheckpointV2::V2(PendingCheckpointV2Contents {
-            roots: value
-                .roots
-                .into_iter()
-                .map(TransactionKey::Digest)
-                .collect(),
-            details: value.details,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
@@ -2467,7 +2389,7 @@ mod tests {
     use iota_protocol_config::{Chain, ProtocolConfig};
     use iota_types::{
         base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
-        crypto::{AuthoritySignInfo, Signature},
+        crypto::Signature,
         digests::TransactionEventsDigest,
         effects::{TransactionEffects, TransactionEvents},
         messages_checkpoint::SignedCheckpointSummary,
@@ -2475,7 +2397,6 @@ mod tests {
         object,
         transaction::{GenesisObject, VerifiedTransaction},
     };
-    use shared_crypto::intent::{Intent, IntentScope};
     use tokio::sync::mpsc;
 
     use super::*;
@@ -2538,28 +2459,28 @@ mod tests {
             state.clone(),
             d(1),
             vec![d(2), d(3)],
-            GasCostSummary::new(11, 12, 11, 1),
+            GasCostSummary::new(11, 11, 12, 11, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(2),
             vec![d(3), d(4)],
-            GasCostSummary::new(21, 22, 21, 1),
+            GasCostSummary::new(21, 21, 22, 21, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(3),
             vec![],
-            GasCostSummary::new(31, 32, 31, 1),
+            GasCostSummary::new(31, 31, 32, 31, 1),
         );
         commit_cert_for_test(
             &mut store,
             state.clone(),
             d(4),
             vec![],
-            GasCostSummary::new(41, 42, 41, 1),
+            GasCostSummary::new(41, 41, 42, 41, 1),
         );
         for i in [5, 6, 7, 10, 11, 12, 13] {
             commit_cert_for_test(
@@ -2567,7 +2488,7 @@ mod tests {
                 state.clone(),
                 d(i),
                 vec![],
-                GasCostSummary::new(41, 42, 41, 1),
+                GasCostSummary::new(41, 41, 42, 41, 1),
             );
         }
         for i in [15, 16, 17] {
@@ -2576,7 +2497,7 @@ mod tests {
                 state.clone(),
                 d(i),
                 vec![],
-                GasCostSummary::new(51, 52, 51, 1),
+                GasCostSummary::new(51, 51, 52, 51, 1),
             );
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
@@ -2598,7 +2519,6 @@ mod tests {
 
         let accumulator = Arc::new(StateAccumulator::new_for_tests(
             state.get_accumulator_store().clone(),
-            &epoch_store,
         ));
 
         let (checkpoint_service, _exit) = CheckpointService::spawn(
@@ -2643,7 +2563,7 @@ mod tests {
         assert_eq!(c1s.sequence_number, 0);
         assert_eq!(
             c1s.epoch_rolling_gas_cost_summary,
-            GasCostSummary::new(41, 42, 41, 1)
+            GasCostSummary::new(41, 41, 42, 41, 1)
         );
 
         assert_eq!(c2t, vec![d(3), d(2), d(1)]);
@@ -2651,7 +2571,7 @@ mod tests {
         assert_eq!(c2s.sequence_number, 1);
         assert_eq!(
             c2s.epoch_rolling_gas_cost_summary,
-            GasCostSummary::new(104, 108, 104, 4)
+            GasCostSummary::new(104, 104, 108, 104, 4)
         );
 
         // Pending at index 2 had 4 transactions, and we configured 3 transactions max.
@@ -2802,8 +2722,8 @@ mod tests {
         }
     }
 
-    fn p(i: u64, t: Vec<u8>, timestamp_ms: u64) -> PendingCheckpointV2 {
-        PendingCheckpointV2::V2(PendingCheckpointV2Contents {
+    fn p(i: u64, t: Vec<u8>, timestamp_ms: u64) -> PendingCheckpoint {
+        PendingCheckpoint::V1(PendingCheckpointContentsV1 {
             roots: t
                 .into_iter()
                 .map(|t| TransactionKey::Digest(d(t)))
@@ -2845,18 +2765,7 @@ mod tests {
         let effects = e(digest, dependencies, gas_used);
         store.insert(digest, effects.clone());
         epoch_store
-            .insert_tx_key_and_effects_signature(
-                &TransactionKey::Digest(digest),
-                &digest,
-                &effects.digest(),
-                Some(&AuthoritySignInfo::new(
-                    epoch_store.epoch(),
-                    &effects,
-                    Intent::iota_app(IntentScope::TransactionEffects),
-                    state.name,
-                    &*state.secret,
-                )),
-            )
+            .insert_tx_key_and_digest(&TransactionKey::Digest(digest), &digest)
             .expect("Inserting cert fx and sigs should not fail");
     }
 }

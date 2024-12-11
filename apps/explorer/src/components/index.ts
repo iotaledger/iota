@@ -16,13 +16,11 @@ export * from './owned-coins';
 export * from './owned-objects';
 export * from './search';
 export * from './syntax-highlighter';
-export * from './table';
 export * from './toaster';
 export * from './top-packages';
 export * from './top-validators-card';
 export * from './transaction-blocks-for-address';
 export * from './transactions';
-export * from './tx-time';
 export * from './ui';
 export * from './validator';
 
@@ -31,3 +29,4 @@ export * from './AreaGraph';
 export * from './GraphTooltipContent';
 export * from './IotaTokenCard';
 export * from './TransactionsCardGraph';
+export * from './ThemedIotaLogo';

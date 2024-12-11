@@ -118,15 +118,15 @@
         "patterns": [
             {
                 "regex": "authors = \\[\"Mysten Labs <build@mystenlabs\\.com>\"\\]",
-                "replacement": "authors = [\"IOTA Foundation <contact@iota.org>\"]"
+                "replacement": "authors = [\"IOTA Foundation <info@iota.org>\"]"
             },
             {
                 "regex": "authors = \\[\"Mysten Labs <eng@mystenlabs\\.com>\"\\]",
-                "replacement": "authors = [\"IOTA Foundation <contact@iota.org>\"]"
+                "replacement": "authors = [\"IOTA Foundation <info@iota.org>\"]"
             },
             {
                 "regex": "\"author\": \"Mysten Labs <build@mystenlabs\\.com>\"",
-                "replacement": "\"author\": \"IOTA Foundation <contact@iota.org>\""
+                "replacement": "\"author\": \"IOTA Foundation <info@iota.org>\""
             },
             {
                 "regex": "(?<!# Modifications Copyright \\(c\\) 2024 IOTA Stiftung\\s)(?<!# Copyright \\(c\\) 2024 IOTA Stiftung\\s)(^# SPDX-License-Identifier: Apache-2\\.0)",
@@ -159,7 +159,7 @@
             },            
             {
                 "regex": "docs\\.[Mm]ysten[Ll]abs\\.com",
-                "replacement": "wiki.iota.org"
+                "replacement": "docs.iota.org"
             },
             {
                 "regex": "\\{\\`\\$\\{new Date\\(\\)\\.getFullYear\\(\\)\\}\\s+Mysten\\s+Labs\\.\\s+All\\s+rights\\s+reserved\\.\\`\\}",
@@ -203,15 +203,15 @@
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com\/typescript",
-                "replacement": "wiki.iota.org/references/ts-sdk/typescript"
+                "replacement": "docs.iota.org/references/ts-sdk/typescript"
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com\/",
-                "replacement": "wiki.iota.org/references/ts-sdk/"
+                "replacement": "docs.iota.org/references/ts-sdk/"
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com",
-                "replacement": "wiki.iota.org/references/ts-sdk/typescript"
+                "replacement": "docs.iota.org/references/ts-sdk/typescript"
             },
             {
                 "regex": "[Mm]ysten[Ll]abs\\.com",
@@ -243,7 +243,7 @@
             },
             {
                 "regex": "docs\\.sui\\.io",
-                "replacement": "wiki.iota.org"
+                "replacement": "docs.iota.org"
             },            
             {
                 "regex": "suiexplorer\\.com",

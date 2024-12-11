@@ -157,7 +157,7 @@ impl TryFrom<StoredEpochInfo> for EpochInfo {
         let end_of_epoch_info = (&value).into();
         let system_state: Option<IotaSystemStateSummary> = bcs::from_bytes(&value.system_state)
             .map_err(|_| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to deserialize `system_state` for epoch {epoch}",
                 ))
             })

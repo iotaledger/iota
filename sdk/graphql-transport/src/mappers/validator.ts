@@ -26,10 +26,9 @@ export function mapGraphQlValidatorToRpcValidator(
         nextEpochP2pAddress: validator.nextEpochCredentials?.p2PAddress,
         nextEpochPrimaryAddress: validator.nextEpochCredentials?.primaryAddress,
         nextEpochProofOfPossession: validator.nextEpochCredentials?.proofOfPossession,
-        nextEpochProtocolPubkeyBytes: validator.nextEpochCredentials?.protocolPubKey,
+        nextEpochAuthorityPubkeyBytes: validator.nextEpochCredentials?.authorityPubKey,
         nextEpochStake: validator.nextEpochStake!,
-        nextEpochWorkerAddress: validator.nextEpochCredentials?.workerAddress,
-        nextEpochWorkerPubkeyBytes: validator.nextEpochCredentials?.workerPubKey,
+        nextEpochProtocolPubkeyBytes: validator.nextEpochCredentials?.protocolPubKey,
         operationCapId: validator.operationCap?.address!,
         p2pAddress: validator.credentials?.p2PAddress!,
         pendingTotalIotaWithdraw: validator.pendingTotalIotaWithdraw,
@@ -39,6 +38,7 @@ export function mapGraphQlValidatorToRpcValidator(
         primaryAddress: validator.credentials?.primaryAddress!,
         projectUrl: validator.projectUrl!,
         proofOfPossessionBytes: validator.credentials?.proofOfPossession,
+        authorityPubkeyBytes: validator.credentials?.authorityPubKey,
         protocolPubkeyBytes: validator.credentials?.protocolPubKey,
         rewardsPool: validator.rewardsPool,
         stakingPoolId: validator.stakingPool?.address!,
@@ -46,7 +46,5 @@ export function mapGraphQlValidatorToRpcValidator(
         stakingPoolIotaBalance: validator.stakingPoolIotaBalance,
         iotaAddress: validator.address.address,
         votingPower: validator.votingPower?.toString()!,
-        workerAddress: validator.credentials?.workerAddress!,
-        workerPubkeyBytes: validator.credentials?.workerPubKey,
     };
 }

@@ -109,14 +109,14 @@ impl ObjectStoreConfig {
         info!(directory=?self.directory, object_store_type="File", "Object Store");
         if let Some(path) = &self.directory {
             fs::create_dir_all(path).context(anyhow!(
-                "Failed to create local directory: {}",
+                "failed to create local directory: {}",
                 path.display()
             ))?;
             let store = object_store::local::LocalFileSystem::new_with_prefix(path)
-                .context(anyhow!("Failed to create local object store"))?;
+                .context(anyhow!("failed to create local object store"))?;
             Ok(Arc::new(store))
         } else {
-            Err(anyhow!("No directory provided for local fs storage"))
+            Err(anyhow!("no directory provided for local fs storage"))
         }
     }
     fn new_s3(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
@@ -163,7 +163,7 @@ impl ObjectStoreConfig {
             builder = builder.with_endpoint(endpoint);
         }
         Ok(Arc::new(LimitStore::new(
-            builder.build().context("Invalid s3 config")?,
+            builder.build().context("invalid s3 config")?,
             self.object_store_connection_limit,
         )))
     }
@@ -193,7 +193,7 @@ impl ObjectStoreConfig {
         }
 
         Ok(Arc::new(LimitStore::new(
-            builder.build().context("Invalid gcs config")?,
+            builder.build().context("invalid gcs config")?,
             self.object_store_connection_limit,
         )))
     }
@@ -216,7 +216,7 @@ impl ObjectStoreConfig {
         }
 
         Ok(Arc::new(LimitStore::new(
-            builder.build().context("Invalid azure config")?,
+            builder.build().context("invalid azure config")?,
             self.object_store_connection_limit,
         )))
     }
@@ -226,7 +226,7 @@ impl ObjectStoreConfig {
             Some(ObjectStoreType::S3) => self.new_s3(),
             Some(ObjectStoreType::GCS) => self.new_gcs(),
             Some(ObjectStoreType::Azure) => self.new_azure(),
-            _ => Err(anyhow!("At least one storage backend should be provided")),
+            _ => Err(anyhow!("at least one storage backend should be provided")),
         }
     }
 }

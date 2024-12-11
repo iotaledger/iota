@@ -9,8 +9,15 @@ use std::os::windows::fs::FileExt;
 #[cfg(not(msim))]
 use std::str::FromStr;
 use std::{
-    collections::BTreeSet, env, fmt::Write, fs::read_dir, io::Read, net::SocketAddr, path::PathBuf,
-    str, thread, time::Duration,
+    collections::{BTreeSet, HashSet},
+    env,
+    fmt::Write,
+    fs::read_dir,
+    io::Read,
+    net::SocketAddr,
+    path::PathBuf,
+    str, thread,
+    time::Duration,
 };
 
 use expect_test::expect;
@@ -18,7 +25,7 @@ use expect_test::expect;
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
     client_commands::{
-        IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
+        EmitOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
         estimate_gas_budget,
     },
     client_ptb::ptb::PTB,
@@ -48,8 +55,8 @@ use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     crypto::{
-        Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
-        SignatureScheme, get_key_pair,
+        AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
+        Secp256k1IotaSignature, SignatureScheme, get_key_pair,
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
@@ -110,9 +117,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     let wallet_conf =
         PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
 
-    assert!(!wallet_conf.envs.is_empty());
+    assert!(!wallet_conf.envs().is_empty());
 
-    assert_eq!(5, wallet_conf.keystore.addresses().len());
+    assert_eq!(5, wallet_conf.keystore().addresses().len());
 
     // Genesis 2nd time should fail
     let result = IotaCommand::Genesis {
@@ -135,7 +142,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2983"]
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
@@ -148,6 +154,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             no_full_node: false,
             force_regenesis: false,
             with_faucet: None,
+            faucet_amount: None,
             fullnode_rpc_port: 9000,
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]
@@ -166,7 +173,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let files = read_dir(working_dir)?
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
-    assert_eq!(12, files.len());
+    assert_eq!(13, files.len());
     assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
     assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
@@ -183,9 +190,9 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let wallet_conf =
         PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
 
-    assert!(!wallet_conf.envs.is_empty());
+    assert!(!wallet_conf.envs().is_empty());
 
-    assert_eq!(5, wallet_conf.keystore.addresses().len());
+    assert_eq!(5, wallet_conf.keystore().addresses().len());
 
     temp_dir.close()?;
     Ok(())
@@ -199,8 +206,8 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     // Add 3 accounts
     for _ in 0..3 {
         context
-            .config
-            .keystore
+            .config_mut()
+            .keystore_mut()
             .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
     }
 
@@ -222,8 +229,8 @@ async fn test_objects_command() -> Result<(), anyhow::Error> {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
     // Print objects owned by `address`
@@ -460,7 +467,7 @@ async fn test_custom_genesis() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let context = cluster.wallet_mut();
 
-    assert_eq!(1, context.config.keystore.addresses().len());
+    assert_eq!(1, context.config().keystore().addresses().len());
 
     // Print objects owned by `address`
     IotaClientCommands::Objects {
@@ -523,8 +530,8 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
 
@@ -2113,6 +2120,10 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     // Purposely add a conflicting `published-at` address to the Move manifest.
     lines.insert(idx + 1, "published-at = \"0xbad\"".to_string());
     let new = lines.join("\n");
+
+    #[cfg(target_os = "windows")]
+    move_toml.seek_write(new.as_bytes(), 0).unwrap();
+    #[cfg(not(target_os = "windows"))]
     move_toml.write_at(new.as_bytes(), 0).unwrap();
 
     // Create a new build config for the upgrade. Initialize its lock file to the
@@ -2400,7 +2411,7 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
     );
 
     // Wipe all the address info
-    context.config.active_address = None;
+    context.config_mut().set_active_address(None);
 
     // Create a new address
     let os = IotaClientCommands::NewAddress {
@@ -2447,8 +2458,8 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
     // keypairs loaded from config are Ed25519
     assert_eq!(
         context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .keys()
             .iter()
             .filter(|k| k.flag() == Ed25519IotaSignature::SCHEME.flag())
@@ -2468,8 +2479,8 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
     // new keypair generated is Secp256k1
     assert_eq!(
         context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .keys()
             .iter()
             .filter(|k| k.flag() == Secp256k1IotaSignature::SCHEME.flag())
@@ -2500,7 +2511,13 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
     };
     assert_eq!(a, addr1);
 
-    let addr2 = context.config.keystore.addresses().get(1).cloned().unwrap();
+    let addr2 = context
+        .config()
+        .keystore()
+        .addresses()
+        .get(1)
+        .cloned()
+        .unwrap();
     let resp = IotaClientCommands::Switch {
         address: Some(KeyIdentity::Address(addr2)),
         env: None,
@@ -2520,8 +2537,8 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
 
     // switch back to addr1 by using its alias
     let alias1 = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&addr1)
         .unwrap();
     let resp = IotaClientCommands::Switch {
@@ -2934,8 +2951,8 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     let address1 = test_cluster.get_address_1();
     let context = &mut test_cluster.wallet;
     let alias1 = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address1)
         .unwrap();
     let client = context.get_client().await?;
@@ -2965,6 +2982,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -2979,6 +2997,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -2994,6 +3013,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -3247,8 +3267,8 @@ async fn key_identity_test() {
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
-        .config
-        .keystore
+        .config()
+        .keystore()
         .get_alias_by_address(&address)
         .unwrap();
 
@@ -3845,6 +3865,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: HashSet::new(),
         },
     }
     .execute(context)
@@ -4088,4 +4109,567 @@ async fn test_parse_host_port() {
     assert!(parse_host_port(input.to_string(), 9123).is_err());
     let input = "127.9.0.1:asb";
     assert!(parse_host_port(input.to_string(), 9123).is_err());
+}
+
+#[sim_test]
+async fn test_balance() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+
+    let context = &mut test_cluster.wallet;
+
+    let balance_result = IotaClientCommands::Balance {
+        address: None,
+        coin_type: None,
+        with_coins: false,
+    }
+    .execute(context)
+    .await?;
+
+    if let IotaClientCommandResult::Balance(ordered_coins_iota_first, with_coins) = balance_result {
+        // The address has by default one coin object
+        assert_eq!(ordered_coins_iota_first.len(), 1);
+        assert!(!with_coins, "response should be without coins");
+    } else {
+        unreachable!("Invalid response");
+    }
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_faucet() -> Result<(), anyhow::Error> {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_rpc_port(9000)
+        .build()
+        .await;
+
+    let context = test_cluster.wallet;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let prom_registry = prometheus::Registry::new();
+    let config = iota_faucet::FaucetConfig::default();
+
+    let prometheus_registry = prometheus::Registry::new();
+    let app_state = std::sync::Arc::new(iota_faucet::AppState {
+        faucet: iota_faucet::SimpleFaucet::new(
+            context,
+            &prometheus_registry,
+            &tmp.path().join("faucet.wal"),
+            config.clone(),
+        )
+        .await
+        .unwrap(),
+        config,
+    });
+    tokio::spawn(async move { iota_faucet::start_faucet(app_state, 10, &prom_registry).await });
+
+    // Wait for the faucet to be up
+    sleep(Duration::from_secs(1)).await;
+    let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+    let mut context = WalletContext::new(&wallet_config, None, None)?;
+
+    let (address, _): (_, AccountKeyPair) = get_key_pair();
+
+    let faucet_result = IotaClientCommands::Faucet {
+        address: Some(KeyIdentity::Address(address)),
+        url: Some("http://127.0.0.1:5003/gas".to_string()),
+    }
+    .execute(&mut context)
+    .await?;
+
+    if let IotaClientCommandResult::NoOutput = faucet_result {
+    } else {
+        unreachable!("Invalid response");
+    };
+
+    sleep(Duration::from_secs(5)).await;
+
+    let gas_objects_after = context
+        .get_gas_objects_owned_by_address(address, None)
+        .await
+        .unwrap()
+        .len();
+    assert_eq!(gas_objects_after, 1);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_faucet_batch() -> Result<(), anyhow::Error> {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_rpc_port(9000)
+        .build()
+        .await;
+
+    let context = test_cluster.wallet;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let prom_registry = prometheus::Registry::new();
+    let config = iota_faucet::FaucetConfig {
+        batch_enabled: true,
+        ..Default::default()
+    };
+
+    let prometheus_registry = prometheus::Registry::new();
+    let app_state = std::sync::Arc::new(iota_faucet::AppState {
+        faucet: iota_faucet::SimpleFaucet::new(
+            context,
+            &prometheus_registry,
+            &tmp.path().join("faucet.wal"),
+            config.clone(),
+        )
+        .await
+        .unwrap(),
+        config,
+    });
+    tokio::spawn(async move { iota_faucet::start_faucet(app_state, 10, &prom_registry).await });
+
+    // Wait for the faucet to be up
+    sleep(Duration::from_secs(1)).await;
+    let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+    let mut context = WalletContext::new(&wallet_config, None, None)?;
+
+    let (address_1, _): (_, AccountKeyPair) = get_key_pair();
+    let (address_2, _): (_, AccountKeyPair) = get_key_pair();
+    let (address_3, _): (_, AccountKeyPair) = get_key_pair();
+
+    assert_ne!(address_1, address_2);
+    assert_ne!(address_1, address_3);
+    assert_ne!(address_2, address_3);
+
+    for address in [address_1, address_2, address_3].iter() {
+        let gas_objects_after = context
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .len();
+        assert_eq!(gas_objects_after, 0);
+    }
+
+    for address in [address_1, address_2, address_3].iter() {
+        let faucet_result = IotaClientCommands::Faucet {
+            address: Some(KeyIdentity::Address(*address)),
+            url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
+        }
+        .execute(&mut context)
+        .await?;
+
+        if let IotaClientCommandResult::NoOutput = faucet_result {
+        } else {
+            unreachable!("Invalid response");
+        };
+    }
+
+    // we need to wait a minimum of 10 seconds for gathering the batch + some time
+    // for transaction to be sequenced
+    sleep(Duration::from_secs(15)).await;
+
+    for address in [address_1, address_2, address_3].iter() {
+        let gas_objects_after = context
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .len();
+        assert_eq!(gas_objects_after, 1);
+    }
+
+    // try with a new batch
+    let (address_4, _): (_, AccountKeyPair) = get_key_pair();
+    let (address_5, _): (_, AccountKeyPair) = get_key_pair();
+    let (address_6, _): (_, AccountKeyPair) = get_key_pair();
+
+    assert_ne!(address_4, address_5);
+    assert_ne!(address_4, address_6);
+    assert_ne!(address_5, address_6);
+
+    for address in [address_4, address_5, address_6].iter() {
+        let gas_objects_after = context
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .len();
+        assert_eq!(gas_objects_after, 0);
+    }
+
+    for address in [address_4, address_5, address_6].iter() {
+        let faucet_result = IotaClientCommands::Faucet {
+            address: Some(KeyIdentity::Address(*address)),
+            url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
+        }
+        .execute(&mut context)
+        .await?;
+
+        if let IotaClientCommandResult::NoOutput = faucet_result {
+        } else {
+            unreachable!("Invalid response");
+        };
+    }
+
+    // we need to wait a minimum of 10 seconds for gathering the batch + some time
+    // for transaction to be sequenced
+    sleep(Duration::from_secs(15)).await;
+
+    for address in [address_4, address_5, address_6].iter() {
+        let gas_objects_after = context
+            .get_gas_objects_owned_by_address(*address, None)
+            .await
+            .unwrap()
+            .len();
+        assert_eq!(gas_objects_after, 1);
+    }
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_rpc_port(9000)
+        .build()
+        .await;
+
+    let context = test_cluster.wallet;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let prom_registry = prometheus::Registry::new();
+    let config = iota_faucet::FaucetConfig {
+        batch_enabled: true,
+        ..Default::default()
+    };
+
+    let prometheus_registry = prometheus::Registry::new();
+    let app_state = std::sync::Arc::new(iota_faucet::AppState {
+        faucet: iota_faucet::SimpleFaucet::new(
+            context,
+            &prometheus_registry,
+            &tmp.path().join("faucet.wal"),
+            config.clone(),
+        )
+        .await
+        .unwrap(),
+        config,
+    });
+    tokio::spawn(async move { iota_faucet::start_faucet(app_state, 10, &prom_registry).await });
+
+    // Wait for the faucet to be up
+    sleep(Duration::from_secs(1)).await;
+
+    let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+    let context = WalletContext::new(&wallet_config, None, None)?; // Use immutable context
+
+    // Generate multiple addresses
+    let addresses: Vec<_> = (0..6)
+        .map(|_| get_key_pair::<AccountKeyPair>().0)
+        .collect::<Vec<IotaAddress>>();
+
+    // Ensure all addresses have zero gas objects initially
+    for address in &addresses {
+        assert_eq!(
+            context
+                .get_gas_objects_owned_by_address(*address, None)
+                .await
+                .unwrap()
+                .len(),
+            0
+        );
+    }
+
+    // First batch: send faucet requests concurrently for all addresses
+    let first_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
+        let wallet_config = wallet_config.clone();
+        async move {
+            let mut context = WalletContext::new(&wallet_config, None, None)?; // Use mutable context (for faucet requests)
+            IotaClientCommands::Faucet {
+                address: Some(KeyIdentity::Address(*address)),
+                url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
+            }
+            .execute(&mut context)
+            .await
+        }
+    }))
+    .await;
+
+    // Ensure all results are `NoOutput` indicating requests were batched
+    for result in first_batch_results {
+        assert!(matches!(result, Ok(IotaClientCommandResult::NoOutput)));
+    }
+
+    // Wait for the first batch to complete
+    sleep(Duration::from_secs(15)).await;
+
+    // Validate gas objects after the first batch
+    for address in &addresses {
+        assert_eq!(
+            context
+                .get_gas_objects_owned_by_address(*address, None)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    // Second batch: send faucet requests again for all addresses
+    let second_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
+        let wallet_config = wallet_config.clone();
+        async move {
+            let mut context = WalletContext::new(&wallet_config, None, None)?; // Use mutable context
+            IotaClientCommands::Faucet {
+                address: Some(KeyIdentity::Address(*address)),
+                url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
+            }
+            .execute(&mut context)
+            .await
+        }
+    }))
+    .await;
+
+    // Ensure all results are `NoOutput` for the second batch
+    for result in second_batch_results {
+        assert!(matches!(result, Ok(IotaClientCommandResult::NoOutput)));
+    }
+
+    // Wait for the second batch to complete
+    sleep(Duration::from_secs(15)).await;
+
+    // Validate gas objects after the second batch
+    for address in &addresses {
+        assert_eq!(
+            context
+                .get_gas_objects_owned_by_address(*address, None)
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_move_new() -> Result<(), anyhow::Error> {
+    let current_dir = std::env::current_dir()?;
+    let package_name = "test_move_new";
+    IotaCommand::Move {
+        package_path: None,
+        config: None,
+        build_config: move_package::BuildConfig::default(),
+        cmd: iota_move::Command::New(iota_move::new::New {
+            new: move_cli::base::new::New {
+                name: package_name.to_string(),
+            },
+        }),
+    }
+    .execute()
+    .await?;
+
+    // Get all the new file names
+    let files = read_dir(package_name)?
+        .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(3, files.len());
+    for name in ["sources", "tests", "Move.toml"] {
+        assert!(files.contains(&name.to_string()));
+    }
+    assert!(std::path::Path::new(&format!("{package_name}/sources/{package_name}.move")).exists());
+    assert!(
+        std::path::Path::new(&format!("{package_name}/tests/{package_name}_tests.move")).exists()
+    );
+
+    // Test if the generated files are valid to build a package
+    IotaCommand::Move {
+        package_path: Some(package_name.parse()?),
+        config: None,
+        build_config: move_package::BuildConfig::default(),
+        cmd: iota_move::Command::Build(iota_move::build::Build {
+            chain_id: None,
+            dump_bytecode_as_base64: false,
+            generate_struct_layouts: false,
+            with_unpublished_dependencies: false,
+        }),
+    }
+    .execute()
+    .await?;
+
+    // iota_move::Command::Build changes the current dir, so we have to switch back
+    // here
+    std::env::set_current_dir(&current_dir)?;
+
+    IotaCommand::Move {
+        package_path: Some(package_name.parse()?),
+        config: None,
+        build_config: move_package::BuildConfig::default(),
+        cmd: iota_move::Command::Test(iota_move::unit_test::Test {
+            test: move_cli::base::test::Test {
+                compute_coverage: false,
+                filter: None,
+                gas_limit: None,
+                list: false,
+                num_threads: 1,
+                report_statistics: None,
+                verbose_mode: false,
+                seed: None,
+                rand_num_iters: None,
+            },
+        }),
+    }
+    .execute()
+    .await?;
+
+    // iota_move::Command::Test changes the current dir, so we have to switch back
+    // here
+    std::env::set_current_dir(current_dir)?;
+    std::fs::remove_dir_all(package_name)?;
+    Ok(())
+}
+
+#[sim_test]
+async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
+    // Publish the package
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("dummy_modules_upgrade");
+    let build_config = BuildConfig::new_for_testing().config;
+    let resp = IotaClientCommands::Publish {
+        package_path: package_path.clone(),
+        build_config,
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+    }
+    .execute(context)
+    .await?;
+
+    let effects = match resp {
+        IotaClientCommandResult::TransactionBlock(response) => response.effects.unwrap(),
+        _ => panic!("Expected TransactionBlock response"),
+    };
+
+    let package = effects
+        .created()
+        .iter()
+        .find(|refe| matches!(refe.owner, Owner::Immutable))
+        .unwrap();
+
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            HashSet::from([EmitOption::BalanceChanges]),
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        // Assert Balance Changes are present in the response
+        assert!(tx_block_response.balance_changes.is_some());
+        // effects are always in the response
+        assert!(tx_block_response.effects.is_some());
+
+        // Assert every other field is not present in the response
+        assert!(tx_block_response.object_changes.is_none());
+        assert!(tx_block_response.events.is_none());
+        assert!(tx_block_response.transaction.is_none());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
+    // Make another call, this time with multiple emit args
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            HashSet::from([
+                EmitOption::BalanceChanges,
+                EmitOption::Effects,
+                EmitOption::ObjectChanges,
+            ]),
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    start_call_result.print(true);
+
+    // Assert Balance Changes, effects and object changes are present in the
+    // response
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        assert!(tx_block_response.balance_changes.is_some());
+        assert!(tx_block_response.effects.is_some());
+        assert!(tx_block_response.object_changes.is_some());
+        assert!(tx_block_response.events.is_none());
+        assert!(tx_block_response.transaction.is_none());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
+    // Make another call, this time with no emit args. This should return the full
+    // response
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            HashSet::new(),
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    // Assert all fields are present in the response
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        assert!(tx_block_response.balance_changes.is_some());
+        assert!(tx_block_response.effects.is_some());
+        assert!(tx_block_response.object_changes.is_some());
+        assert!(tx_block_response.events.is_some());
+        assert!(tx_block_response.transaction.is_some());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
+    Ok(())
 }

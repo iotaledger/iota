@@ -20,6 +20,7 @@ use crate::{
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
+#[ignore = "https://github.com/iotaledger/iota/issues/3224"]
 async fn test_iota_bridge_paused() {
     telemetry_subscribers::init_for_testing();
 

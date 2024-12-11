@@ -16,6 +16,7 @@ import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/
 import type {
     ObjectFilter,
     QueryEventsQueryVariables,
+    QueryTransactionBlocksQueryVariables,
     Rpc_Checkpoint_FieldsFragment,
     Rpc_Transaction_FieldsFragment,
 } from './generated/queries.js';
@@ -186,7 +187,6 @@ export const RPC_METHODS: {
             coinType: toShortTypeString(balance.coinType?.repr!),
             coinObjectCount: balance.coinObjectCount!,
             totalBalance: balance.totalBalance,
-            lockedBalance: {},
         };
     },
 
@@ -205,7 +205,6 @@ export const RPC_METHODS: {
             coinType: toShortTypeString(balance.coinType?.repr!),
             coinObjectCount: balance.coinObjectCount!,
             totalBalance: balance.totalBalance,
-            lockedBalance: {},
         }));
     },
     async getCoinMetadata(transport, inputs) {
@@ -579,7 +578,7 @@ export const RPC_METHODS: {
         }));
     },
     async queryTransactionBlocks(transport, [{ filter, options }, cursor, limit = 20, descending]) {
-        const pagination = descending
+        const pagination: Partial<QueryTransactionBlocksQueryVariables> = descending
             ? {
                   last: limit,
                   before: cursor,
@@ -796,7 +795,9 @@ export const RPC_METHODS: {
             epochStartTimestampMs: String(new Date(systemState.startTimestamp).getTime()),
             inactivePoolsSize: String(systemState.validatorSet?.inactivePoolsSize),
             iotaTotalSupply: String(systemState.iotaTotalSupply),
+            iotaTreasuryCapId: String(systemState.iotaTreasuryCapId),
             maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
+            minValidatorCount: String(systemState.systemParameters?.minValidatorCount),
             minValidatorJoiningStake: String(
                 systemState.systemParameters?.minValidatorJoiningStake,
             ),
@@ -1049,7 +1050,6 @@ export const RPC_METHODS: {
                         };
                         type: string;
                     }),
-                    hasPublicTransfer: parent?.asMoveObject?.hasPublicTransfer!,
                 },
                 digest: parent?.digest!,
                 objectId: parent?.address,
@@ -1066,8 +1066,7 @@ export const RPC_METHODS: {
             },
         };
     },
-    async executeTransactionBlock(transport, [txBytes, signatures, options, _requestType]) {
-        // TODO: requestType
+    async executeTransactionBlock(transport, [txBytes, signatures, options]) {
         const { effects, errors } = await transport.graphqlQuery(
             {
                 query: ExecuteTransactionBlockDocument,
@@ -1233,7 +1232,7 @@ export const RPC_METHODS: {
         return {
             epoch: epochId.toString(),
             validators: validatorSet?.activeValidators?.nodes.map((val) => [
-                val.credentials?.protocolPubKey!,
+                val.credentials?.authorityPubKey!,
                 String(val.votingPower),
             ])!,
         };
@@ -1341,7 +1340,6 @@ export const RPC_METHODS: {
         const attributes: Record<string, ProtocolConfigValue | null> = {};
 
         const configTypeMap: Record<string, string> = {
-            max_accumulated_txn_cost_per_object_in_narwhal_commit: 'u64',
             max_arguments: 'u32',
             max_gas_payment_objects: 'u32',
             max_modules_in_publish: 'u32',

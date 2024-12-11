@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronLeft12, ChevronUp12 } from '@iota/icons';
+import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
+import { ArrowRight, ArrowUp } from '@iota/ui-icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { type ReactNode, useRef, useState } from 'react';
@@ -85,7 +86,7 @@ function ResizeHandle({
 }: ResizeHandleProps): JSX.Element {
     const [isDragging, setIsDragging] = useState(false);
 
-    const ChevronButton = isHorizontal ? ChevronLeft12 : ChevronUp12;
+    const ChevronButton = isHorizontal ? ArrowRight : ArrowUp;
 
     return (
         <PanelResizeHandle
@@ -93,35 +94,26 @@ function ResizeHandle({
             onDragging={setIsDragging}
         >
             <div
+                data-is-dragging={isDragging}
                 className={clsx(
-                    'relative bg-gray-45 group-hover/container:bg-hero',
+                    'relative bg-shader-neutral-light-8 group-hover/container:bg-neutral-70 dark:bg-shader-neutral-dark-8 dark:group-hover/container:bg-primary-80/40',
                     isHorizontal ? 'h-full w-px' : 'h-px',
-                    noHoverHidden && !isCollapsed && 'bg-transparent',
                 )}
             >
                 {collapsibleButton && (
-                    <button
-                        type="button"
-                        onClick={togglePanelCollapse}
-                        data-is-dragging={isDragging}
-                        className={clsx([
-                            'group/button',
-                            'flex h-6 w-6 cursor-pointer items-center justify-center rounded-full',
-                            'border-2 border-gray-45 bg-white text-gray-70 group-hover/container:border-hero-dark',
-                            'hover:bg-hero-dark hover:text-white',
-                            isHorizontal
-                                ? 'absolute left-1/2 top-10 -translate-x-2/4'
-                                : 'absolute left-10 top-1/2 -translate-y-2/4',
+                    <div
+                        className={clsx(
+                            'absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 transform [&_button]:p-xxs',
                             noHoverHidden && !isCollapsed && 'hidden group-hover/container:flex',
-                        ])}
+                        )}
                     >
-                        <ChevronButton
-                            className={clsx(
-                                'h-4 w-4 text-gray-45 group-hover/button:!text-white group-hover/container:text-hero-dark',
-                                isCollapsed && 'rotate-180',
-                            )}
+                        <Button
+                            size={ButtonSize.Small}
+                            onClick={togglePanelCollapse}
+                            type={ButtonType.Secondary}
+                            icon={<ChevronButton className={clsx(!isCollapsed && 'rotate-180')} />}
                         />
-                    </button>
+                    </div>
                 )}
             </div>
         </PanelResizeHandle>
@@ -153,7 +145,6 @@ function SplitPanel({
 
     const togglePanelCollapse = () => {
         const panelRef = ref.current;
-
         if (panelRef) {
             if (onCollapse) {
                 onCollapse(!isCollapsed);

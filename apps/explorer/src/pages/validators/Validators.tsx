@@ -8,19 +8,18 @@ import {
     DisplayStats,
     DisplayStatsSize,
     DisplayStatsType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    Panel,
+    Title,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import {
-    ErrorBoundary,
-    PageLayout,
-    Banner,
-    PlaceholderTable,
-    TableCard,
-    TableHeader,
-} from '~/components';
+import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
+import { Warning } from '@iota/ui-icons';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -133,12 +132,18 @@ function ValidatorPageResult(): JSX.Element {
         <PageLayout
             content={
                 isError || validatorEventError ? (
-                    <Banner variant="error" fullWidth>
-                        Validator data could not be loaded
-                    </Banner>
+                    <InfoBox
+                        title="Failed to load data"
+                        supportingText="Validator data could not be loaded"
+                        icon={<Warning />}
+                        type={InfoBoxType.Error}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="py-md--rs text-display-sm">Validators</div>
+                        <div className="py-md--rs text-display-sm text-neutral-10 dark:text-neutral-92">
+                            Validators
+                        </div>
                         <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
                             {validatorStats.map((stat) => (
                                 <DisplayStats
@@ -153,26 +158,27 @@ function ValidatorPageResult(): JSX.Element {
                                 />
                             ))}
                         </div>
-                        <div>
-                            <ErrorBoundary>
-                                <TableHeader>All Validators</TableHeader>
-                                {(isPending || validatorsEventsLoading) && (
-                                    <PlaceholderTable
-                                        rowCount={20}
-                                        rowHeight="13px"
-                                        colHeadings={['Name', 'Address', 'Stake']}
-                                    />
-                                )}
-
-                                {isSuccess && tableData && tableColumns && (
-                                    <TableCard
-                                        data={tableData}
-                                        columns={tableColumns}
-                                        areHeadersCentered={false}
-                                    />
-                                )}
-                            </ErrorBoundary>
-                        </div>
+                        <Panel>
+                            <Title title="All Validators" />
+                            <div className="p-md">
+                                <ErrorBoundary>
+                                    {(isPending || validatorsEventsLoading) && (
+                                        <PlaceholderTable
+                                            rowCount={20}
+                                            rowHeight="13px"
+                                            colHeadings={['Name', 'Address', 'Stake']}
+                                        />
+                                    )}
+                                    {isSuccess && tableData && tableColumns && (
+                                        <TableCard
+                                            data={tableData}
+                                            columns={tableColumns}
+                                            areHeadersCentered={false}
+                                        />
+                                    )}
+                                </ErrorBoundary>
+                            </div>
+                        </Panel>
                     </div>
                 )
             }

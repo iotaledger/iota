@@ -37,19 +37,11 @@ use crate::{
     error::ConsensusResult,
 };
 
-// Anemo generated RPC stubs.
-mod anemo_gen {
-    include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusRpc.rs"));
-}
-
 // Tonic generated RPC stubs.
 mod tonic_gen {
     include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusService.rs"));
 }
 
-pub(crate) mod anemo_network;
-pub(crate) mod connection_monitor;
-pub(crate) mod epoch_filter;
 pub(crate) mod metrics;
 mod metrics_layer;
 #[cfg(all(test, not(msim)))]
@@ -126,9 +118,6 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
 }
 
 /// Network service for handling requests from peers.
-/// NOTE: using `async_trait` macro because `NetworkService` methods are called
-/// in the trait impl of `anemo_gen::ConsensusRpc`, which itself is annotated
-/// with `async_trait`.
 #[async_trait]
 pub(crate) trait NetworkService: Send + Sync + 'static {
     /// Handles the block sent from the peer via either unicast RPC or

@@ -3,7 +3,7 @@
 
 export enum InfoBoxType {
     Default = 'default',
-    Warning = 'warning',
+    Error = 'error',
 }
 
 export enum InfoBoxStyle {

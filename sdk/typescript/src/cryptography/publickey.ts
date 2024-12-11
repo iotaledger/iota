@@ -57,8 +57,8 @@ export abstract class PublicKey {
     }
 
     /**
-     * Return the Iota representation of the public key encoded in
-     * base-64. A Iota public key is formed by the concatenation
+     * Return the IOTA representation of the public key encoded in
+     * base-64. A IOTA public key is formed by the concatenation
      * of the scheme flag with the raw bytes of the public key
      */
     toIotaPublicKey(): string {
@@ -127,7 +127,7 @@ export abstract class PublicKey {
     }
 
     /**
-     * Return the Iota address associated with this Ed25519 public key
+     * Return the IOTA address associated with this Ed25519 public key
      */
     toIotaAddress(): string {
         // Each hex char represents half a byte, hence hex address doubles the length

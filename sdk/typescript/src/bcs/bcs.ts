@@ -37,7 +37,7 @@ export const Address = bcs.bytes(IOTA_ADDRESS_LENGTH).transform({
     validate: (val) => {
         const address = typeof val === 'string' ? val : toHEX(val);
         if (!address || !isValidIotaAddress(normalizeIotaAddress(address))) {
-            throw new Error(`Invalid Iota address ${address}`);
+            throw new Error(`Invalid IOTA address ${address}`);
         }
     },
     input: (val: string | Uint8Array) =>

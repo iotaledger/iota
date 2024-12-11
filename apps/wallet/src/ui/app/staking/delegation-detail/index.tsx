@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator, Overlay } from '_components';
+import { Overlay } from '_components';
 import { useGetDelegatedStake } from '@iota/core';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { DelegationDetailCard } from './DelegationDetailCard';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 export function DelegationDetail() {
     const [searchParams] = useSearchParams();

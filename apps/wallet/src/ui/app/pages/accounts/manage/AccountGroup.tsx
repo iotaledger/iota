@@ -14,9 +14,8 @@ import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-u
 import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
-import { Collapsible } from '_app/shared/collapse';
 import { useFeature } from '@growthbook/growthbook-react';
-import { Feature } from '_shared/experimentation/features';
+import { Feature, Collapsible } from '@iota/core';
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
@@ -109,17 +108,19 @@ export function AccountGroup({
                 hideArrow
                 hideBorder
                 render={({ isOpen }) => (
-                    <div className="relative flex w-full items-center justify-between gap-1 py-2 pl-1 pr-sm">
+                    <div className="relative flex min-h-[52px] w-full items-center justify-between gap-1 py-2 pl-1 pr-sm">
                         <div className="flex items-center gap-1">
                             <TriangleDown
                                 className={clsx(
-                                    'h-5 w-5 text-neutral-60',
+                                    'h-5 w-5 text-neutral-10 dark:text-neutral-92',
                                     isOpen
                                         ? 'rotate-0 transition-transform ease-linear'
                                         : '-rotate-90 transition-transform ease-linear',
                                 )}
                             />
-                            <div className="text-title-md">{getGroupTitle(accounts[0])}</div>
+                            <div className="text-title-md text-neutral-10 dark:text-neutral-92">
+                                {getGroupTitle(accounts[0])}
+                            </div>
                         </div>
                         <div className="flex items-center gap-1">
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
@@ -127,7 +128,9 @@ export function AccountGroup({
                                     size={ButtonSize.Small}
                                     type={ButtonType.Ghost}
                                     onClick={handleAdd}
-                                    icon={<Add className="h-5 w-5 text-neutral-10" />}
+                                    icon={
+                                        <Add className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                    }
                                 />
                             ) : null}
                             {showMoreButton && (
@@ -139,7 +142,9 @@ export function AccountGroup({
                                             e.stopPropagation();
                                             setDropdownOpen(true);
                                         }}
-                                        icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
+                                        icon={
+                                            <MoreHoriz className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                        }
                                     />
                                 </div>
                             )}
@@ -161,7 +166,7 @@ export function AccountGroup({
                 ))}
             </Collapsible>
             <div
-                className={`absolute right-3 top-3 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+                className={`absolute right-3 top-3 z-[100] rounded-lg bg-neutral-100 shadow-md dark:bg-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>

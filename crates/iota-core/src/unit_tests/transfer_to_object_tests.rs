@@ -466,7 +466,7 @@ async fn test_tto_invalid_receiving_arguments() {
             ),
             (
                 Box::new(|_: ObjectRef| shared.0),
-                Box::new(|err| matches!(err, UserInputError::NotSharedObjectError)),
+                Box::new(|err| matches!(err, UserInputError::NotSharedObject)),
             ),
             (
                 Box::new(|_: ObjectRef| object_owned.0),

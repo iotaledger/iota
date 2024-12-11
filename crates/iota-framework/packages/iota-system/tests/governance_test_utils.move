@@ -5,24 +5,23 @@
 #[test_only]
 module iota_system::governance_test_utils {
     use iota::address;
-    use iota::balance;
-    use iota::iota::{Self, IOTA};
+    use iota::balance::{Self, Balance};
     use iota::coin::{Self, Coin};
-    use iota_system::staking_pool::{StakedIota, StakingPool};
-    use iota::test_utils::assert_eq;
-    use iota_system::validator::{Self, Validator};
+    use iota::iota::{Self, IOTA};
+    use iota::system_admin_cap;
+    use iota::test_scenario::{Self, Scenario};
+    use iota::test_utils::{Self, assert_eq};
+
+    use iota_system::staking_pool::{StakedIota, StakingPoolV1};
+    use iota_system::validator::{Self, ValidatorV1};
     use iota_system::iota_system::{Self, IotaSystemState};
     use iota_system::iota_system_state_inner;
-    use iota::test_scenario::{Self, Scenario};
-    use iota::test_utils;
-    use iota::balance::Balance;
-    use iota::timelock;
 
     const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
     public fun create_validator_for_testing(
         addr: address, init_stake_amount_in_iota: u64, ctx: &mut TxContext
-    ): Validator {
+    ): ValidatorV1 {
         let validator = validator::new_for_testing(
             addr,
             x"AA",
@@ -36,7 +35,6 @@ module iota_system::governance_test_utils {
             b"/ip4/127.0.0.1/tcp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             option::some(balance::create_for_testing<IOTA>(init_stake_amount_in_iota * NANOS_PER_IOTA)),
             1,
             0,
@@ -47,7 +45,7 @@ module iota_system::governance_test_utils {
     }
 
     /// Create a validator set with the given stake amounts
-    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<Validator> {
+    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<ValidatorV1> {
         let mut i = 0;
         let mut validators = vector[];
         while (i < stakes.length()) {
@@ -59,7 +57,7 @@ module iota_system::governance_test_utils {
     }
 
     public fun create_iota_system_state_for_testing(
-        validators: vector<Validator>, iota_supply_amount: u64, storage_fund_amount: u64, ctx: &mut TxContext
+        validators: vector<ValidatorV1>, iota_supply_amount: u64, storage_fund_amount: u64, ctx: &mut TxContext
     ) {
         let system_parameters = iota_system_state_inner::create_system_parameters(
             42,  // epoch_duration_ms, doesn't matter what number we put here
@@ -95,7 +93,7 @@ module iota_system::governance_test_utils {
             1,   // protocol version
             0,   // chain_start_timestamp_ms
             system_parameters,
-            timelock::new_system_timelock_cap_for_testing(),
+            system_admin_cap::new_system_admin_cap_for_testing(),
             ctx,
         )
     }
@@ -214,7 +212,6 @@ module iota_system::governance_test_utils {
             net_addr,
             net_addr,
             net_addr,
-            net_addr,
             1,
             0,
             ctx
@@ -238,7 +235,6 @@ module iota_system::governance_test_utils {
             b"description",
             b"image_url",
             b"project_url",
-            net_addr,
             net_addr,
             net_addr,
             net_addr,
@@ -328,7 +324,7 @@ module iota_system::governance_test_utils {
         amount
     }
 
-    public fun stake_plus_current_rewards(addr: address, staking_pool: &StakingPool, scenario: &mut Scenario): u64 {
+    public fun stake_plus_current_rewards(addr: address, staking_pool: &StakingPoolV1, scenario: &mut Scenario): u64 {
         let mut sum = 0;
         scenario.next_tx(addr);
         let mut stake_ids = scenario.ids_for_sender<StakedIota>();

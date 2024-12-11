@@ -146,7 +146,7 @@ impl Operations {
             .filter(|op| op.type_ == OperationType::Stake)
             .collect::<Vec<_>>();
         if ops.len() != 1 {
-            return Err(Error::MalformedOperationError(
+            return Err(Error::MalformedOperation(
                 "Delegation should only have one operation.".into(),
             ));
         }
@@ -163,7 +163,7 @@ impl Operations {
         // Total issued IOTA is less than u64, safe to cast.
         let amount = if let Some(amount) = op.amount {
             if amount.value.is_positive() {
-                return Err(Error::MalformedOperationError(
+                return Err(Error::MalformedOperation(
                     "Stake amount should be negative.".into(),
                 ));
             }
@@ -192,7 +192,7 @@ impl Operations {
             .filter(|op| op.type_ == OperationType::WithdrawStake)
             .collect::<Vec<_>>();
         if ops.len() != 1 {
-            return Err(Error::MalformedOperationError(
+            return Err(Error::MalformedOperation(
                 "Delegation should only have one operation.".into(),
             ));
         }

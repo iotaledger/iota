@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, Loading, Overlay } from '_components';
+import { Loading, Overlay } from '_components';
 import {
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -13,6 +13,8 @@ import { useNavigate } from 'react-router-dom';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { SelectValidatorCard } from './SelectValidatorCard';
 import { ValidatorsCard } from './ValidatorsCard';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/ui-icons';
 
 export function Validators() {
     const accountAddress = useActiveAddress();
@@ -38,19 +40,22 @@ export function Validators() {
             title={isPending ? 'Loading' : pageTitle}
             closeOverlay={() => navigate('/')}
         >
-            <div className="flex min-h-full flex-1">
-                <Loading loading={isPending}>
+            <Loading loading={isPending}>
+                <div className="flex min-h-full flex-1 flex-col">
                     {isError ? (
                         <div className="mb-2">
-                            <Alert>
-                                <strong>{error?.message}</strong>
-                            </Alert>
+                            <InfoBox
+                                type={InfoBoxType.Error}
+                                title={error?.message}
+                                icon={<Warning />}
+                                style={InfoBoxStyle.Elevated}
+                            />
                         </div>
                     ) : null}
 
                     {stakedValidators?.length ? <ValidatorsCard /> : <SelectValidatorCard />}
-                </Loading>
-            </div>
+                </div>
+            </Loading>
         </Overlay>
     );
 }

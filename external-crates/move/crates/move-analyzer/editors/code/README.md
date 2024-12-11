@@ -1,7 +1,7 @@
 # Move
 
 Provides language support for the Move programming language. For information about Move visit the
-language [documentation](https://docs.iota.io/concepts/iota-move-concepts).
+language [documentation](https://docs.iota.org/developer/iota-101/move-overview/).
 
 # How to Install
 
@@ -22,7 +22,7 @@ the pre-built move-analyzer binary is not available for your platform or if you 
 binary stored in a different location.
 
 If you want to build and test Move code using the extension, you must install the `iota` binary on
-your machine - see [here](https://wiki.iota.org/guides/developer/getting-started/iota-install) for
+your machine - see [here](https://docs.iota.org/developer/getting-started/install-iota) for
 instructions. The extension assumes that the `iota` binary is in your system path, but you can set
 its custom location location using VSCode's settings (`⌘` + `,` on macOS, or use the menu item _Code >
 Preferences > Settings_). Search for the `move.iota.path` user setting, set it to the new location of
@@ -41,7 +41,7 @@ This can be done in two steps:
 1. Install the move-analyzer installation prerequisites for your platform. They are the same
    as prerequisites for Iota installation - for Linux, macOS and Windows these prerequisites and
    their installation instructions can be found
-   [here](https://wiki.iota.org/guides/developer/getting-started/iota-install#additional-prerequisites-by-operating-system)
+   [here](https://docs.iota.org/developer/getting-started/install-iota#additional-prerequisites-by-operating-system)
 2. Invoke `cargo install --git https://github.com/iotaledger/iota iota-move-lsp` to install the
    `move-analyzer` language server in your Cargo binary directory, which is typically located
    in the `~/.cargo/bin` (macOS/Linux) or `C:\Users\USER\.cargo\bin` (Windows) directory.
@@ -67,7 +67,7 @@ extension.
 
 ## What if everything else fails?
 
-Check [Iota Developer Forum](https://forums.iota.io/c/technical-support) to see if the problem
+Check the [Iota Discord](https://discord.iota.org/) to see if the problem
 has already been reported and, if not, report it there.
 
 # Features

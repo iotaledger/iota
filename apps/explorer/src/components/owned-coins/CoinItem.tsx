@@ -17,6 +17,7 @@ export default function CoinItem({ coin }: CoinItemProps): JSX.Element {
     return (
         <KeyValueInfo
             keyText={`${formattedBalance} ${symbol}`}
+            isReverse
             value={
                 <ObjectLink objectId={coin.coinObjectId} label={formatAddress(coin.coinObjectId)} />
             }

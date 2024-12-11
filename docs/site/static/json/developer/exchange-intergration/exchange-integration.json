@@ -1,0 +1,30 @@
+[
+    {
+        "questionText": "Which method can you use to transfer all IOTA tokens from an address?",
+        "answerOptions": [
+          { "answerText": "`unsafe_transferObject`", "isCorrect": false },
+          { "answerText": "`iotax_getBalance`", "isCorrect": false },
+          { "answerText": "`unsafe_payAllIota`", "isCorrect": true },
+          { "answerText": "`unsafe_pay`", "isCorrect": false }
+        ]
+    },
+    {
+      "questionText": "How can you derive an ED25519 IOTA address, and what is the role of the signature scheme flag in this process?",
+      "answerOptions": [
+        { "answerText": "You need to prepend a flag byte to the public key for all signature schemes, including ED25519", "isCorrect": false },
+        { "answerText": "The flag is only necessary for signature schemes other than ED25519; for ED25519, you only hash the public key", "isCorrect": true },
+        { "answerText": "You derive the address by appending the private key to the flag and public key for all schemes", "isCorrect": false },
+        { "answerText": "There is no need for a flag byte for any signature scheme", "isCorrect": false }
+      ]
+    },
+    {
+      "questionText": "When transferring IOTA tokens, what must you ensure regarding gas fees, and how can you handle transferring all IOTA from an address?",
+      "answerOptions": [
+        { "answerText": "You can use the same IOTA token object for both the transfer amount and gas fees", "isCorrect": false },
+        { "answerText": "You need to ensure a separate IOTA token object is available for gas fees, and you can use the `unsafe_payAllIota` method to transfer all tokens", "isCorrect": true },
+        { "answerText": "There are no gas fees for transferring IOTA tokens", "isCorrect": false },
+        { "answerText": "You must manually split tokens before each transaction to handle gas fees", "isCorrect": false }
+      ]
+    }
+  ]
+  

@@ -8,12 +8,9 @@ Client dApp using the following tools:
 - [Vite](https://vitejs.dev/) for build tooling
 - [Radix UI](https://www.radix-ui.com/) for pre-built UI components
 - [ESLint](https://eslint.org/) for linting
-- [`@iota/dapp-kit`](https://wiki.iota.org/references/ts-sdk/dapp-kit) for
+- [`@iota/dapp-kit`](https://docs.iota.org/references/ts-sdk/dapp-kit) for
   connecting to wallets and loading data
 - [pnpm](https://pnpm.io/) for package management
-
-For a full guide on how to build this dApp from scratch, visit this
-[guide](http://wiki.iota.org/guides/developer/app-examples/e2e-counter#frontend).
 
 ## Deploying your Move code
 
@@ -21,14 +18,14 @@ For a full guide on how to build this dApp from scratch, visit this
 
 Before deploying your move code, ensure that you have installed the IOTA CLI.
 You can follow the
-[IOTA installation instruction](https://wiki.iota.org/build/install) to get
+[IOTA installation instruction](https://docs.iota.org/developer/getting-started/install-iota) to get
 everything set up.
 
 This template uses `testnet` by default, so we'll need to set up a testnet
 environment in the CLI:
 
 ```bash
-iota client new-env --alias testnet --rpc https://fullnode.testnet.iota.io:443
+iota client new-env --alias testnet --rpc https://fullnode.testnet.iota.org:443
 iota client switch --env testnet
 ```
 
@@ -51,7 +48,7 @@ We can ensure we have some IOTA in our new wallet by requesting IOTA from the
 faucet (make sure to replace the address with your address):
 
 ```bash
-curl --location --request POST 'https://faucet.testnet.iota.io/gas' \
+curl --location --request POST 'https://faucet.testnet.iota.org/gas' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "FixedAmountRequest": {

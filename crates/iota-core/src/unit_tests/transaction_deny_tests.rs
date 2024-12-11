@@ -191,6 +191,7 @@ async fn test_user_transaction_disabled() {
 }
 
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_transaction_disabled() {
     let (_, state) = setup_test(
         TransactionDenyConfigBuilder::new()

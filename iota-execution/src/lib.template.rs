@@ -4,13 +4,11 @@
 
 // $GENERATED_MESSAGE
 
-use std::path::PathBuf;
-use std::sync::Arc;
-
-use iota_protocol_config::ProtocolConfig;
-use iota_types::{error::IotaResult, metrics::BytecodeVerifierMetrics};
+use std::{path::PathBuf, sync::Arc};
 
 pub use executor::Executor;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{error::IotaResult, metrics::BytecodeVerifierMetrics};
 pub use verifier::Verifier;
 
 pub mod executor;
@@ -27,7 +25,7 @@ pub fn executor(
     silent: bool,
     enable_profiler: Option<PathBuf>,
 ) -> IotaResult<Arc<dyn Executor + Send + Sync>> {
-    let version = protocol_config.execution_version_as_option().unwrap_or(0);
+    let version = protocol_config.execution_version_as_option().unwrap_or(1);
     Ok(match version {
         // $EXECUTOR_CUTS
         v => panic!("Unsupported execution version {v}"),
@@ -39,7 +37,7 @@ pub fn verifier<'m>(
     for_signing: bool,
     metrics: &'m Arc<BytecodeVerifierMetrics>,
 ) -> Box<dyn Verifier + 'm> {
-    let version = protocol_config.execution_version_as_option().unwrap_or(0);
+    let version = protocol_config.execution_version_as_option().unwrap_or(1);
     let config = protocol_config.verifier_config(for_signing);
     match version {
         // $VERIFIER_CUTS

@@ -28,7 +28,6 @@ module test::fake {
     description
     iconUrl
     supply
-    hasPublicTransfer
   }
 }
 
@@ -48,6 +47,5 @@ module test::fake {
     description
     iconUrl
     supply
-    hasPublicTransfer
   }
 }

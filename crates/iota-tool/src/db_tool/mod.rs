@@ -20,7 +20,6 @@ use iota_types::{
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectStore,
 };
-use narwhal_storage::NodeStorage;
 use typed_store::rocks::MetricConf;
 
 use self::{
@@ -42,7 +41,6 @@ pub enum DbToolCommand {
     DuplicatesSummary,
     ListDBMetadata(Options),
     PrintLastConsensusIndex,
-    PrintConsensusCommit(PrintConsensusCommitOptions),
     PrintTransaction(PrintTransactionOptions),
     PrintObject(PrintObjectOptions),
     PrintCheckpoint(PrintCheckpointOptions),
@@ -99,13 +97,6 @@ pub struct Options {
     /// The epoch to use when loading AuthorityEpochTables.
     #[arg(long = "epoch", short = 'e')]
     epoch: Option<EpochId>,
-}
-
-#[derive(Parser)]
-#[command(rename_all = "kebab-case")]
-pub struct PrintConsensusCommitOptions {
-    #[arg(long, help = "Sequence number of the consensus commit")]
-    seqnum: u64,
 }
 
 #[derive(Parser)]
@@ -208,7 +199,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             print_table_metadata(d.store_name, d.epoch, db_path, &d.table_name)
         }
         DbToolCommand::PrintLastConsensusIndex => print_last_consensus_index(&db_path),
-        DbToolCommand::PrintConsensusCommit(d) => print_consensus_commit(&db_path, d),
         DbToolCommand::PrintTransaction(d) => print_transaction(&db_path, d),
         DbToolCommand::PrintObject(o) => print_object(&db_path, o),
         DbToolCommand::PrintCheckpoint(d) => print_checkpoint(&db_path, d),
@@ -272,18 +262,6 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
     );
     let last_index = epoch_tables.get_last_consensus_index()?;
     println!("Last consensus index is {:?}", last_index);
-    Ok(())
-}
-
-pub fn print_consensus_commit(path: &Path, opt: PrintConsensusCommitOptions) -> anyhow::Result<()> {
-    let consensus_db = NodeStorage::reopen(path, None);
-    let consensus_commit = consensus_db
-        .consensus_store
-        .read_consensus_commit(&opt.seqnum)?;
-    match consensus_commit {
-        Some(commit) => println!("Consensus commit at {} is {:?}", opt.seqnum, commit),
-        None => println!("Consensus commit at {} is not found!", opt.seqnum),
-    }
     Ok(())
 }
 

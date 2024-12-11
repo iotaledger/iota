@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { PropsWithChildren } from 'react';
 import cx from 'classnames';
+import { Placeholder } from '../../atoms';
 
 interface TableCellBaseProps {
     /**
@@ -57,7 +58,5 @@ export function TableCellText({
 }
 
 export function TableCellPlaceholder() {
-    return (
-        <div className="h-[1em] w-full animate-shimmer rounded-md bg-placeholderShimmer bg-[length:1000px_100%] dark:bg-placeholderShimmerDark"></div>
-    );
+    return <Placeholder />;
 }

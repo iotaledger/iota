@@ -1,0 +1,55 @@
+---
+title: Store Ability
+description: In Move, the store ability on a type indicates that the instance of the type can be stored in objects. This section covers the store ability, how it works, and how to use it in Move.
+---
+
+# Store Ability
+
+## Definition
+
+The `store` is a special ability that allows a type to be _stored_ in objects. This ability is
+required for the type to be used as a field in a struct that has the `key` ability. Another way to
+put it is that the `store` ability allows the value to be _wrapped_ in an object.
+
+:::info
+The `store` ability also relaxes restrictions on transfer operations. We talk about it more in the
+[Custom Transfer Rules](../../objects/transfers/custom-rules.mdx) section.
+:::
+
+## Example
+
+In previous sections we already used types with the `key` ability: all objects must have a `UID`
+field, which we used in examples; we also used the `Storable` type as a part of the `Config` struct.
+The `Config` type also has the `store` ability.
+
+```move
+/// This type has the `store` ability.
+public struct Storable has store {}
+
+/// Config contains a `Storable` field which must have the `store` ability.
+public struct Config has key, store {
+    id: UID,
+    stores: Storable,
+}
+
+/// MegaConfig contains a `Config` field which has the `store` ability.
+public struct MegaConfig has key {
+    id: UID,
+    config: Config, // there it is!
+}
+```
+
+## Types With the `store` Ability
+
+All native types (except for references) in Move have the `store` ability. This includes:
+
+- bool
+- unsigned integers
+- [vector](../../../../references/framework/move-stdlib/vector.mdx)
+- [address](../../../../references/framework/move-stdlib/address.mdx)
+
+All of the types defined in the standard library have the `store` ability as well. This includes:
+
+- [Option](../../../../references/framework/move-stdlib/option.mdx)
+- [String](../../../../references/framework/move-stdlib/string.mdx)
+- [TypeName](../../../../references/framework/move-stdlib/type_name.mdx)

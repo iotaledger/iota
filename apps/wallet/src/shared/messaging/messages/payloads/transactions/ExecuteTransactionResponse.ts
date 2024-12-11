@@ -5,7 +5,7 @@
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { type IotaSignTransactionBlockOutput } from '@iota/wallet-standard';
+import { type IotaSignTransactionOutput } from '@iota/wallet-standard';
 
 export interface ExecuteTransactionResponse extends BasePayload {
     type: 'execute-transaction-response';
@@ -20,7 +20,7 @@ export function isExecuteTransactionResponse(
 
 export interface SignTransactionResponse extends BasePayload {
     type: 'sign-transaction-response';
-    result: IotaSignTransactionBlockOutput;
+    result: IotaSignTransactionOutput;
 }
 
 export function isSignTransactionResponse(payload: Payload): payload is SignTransactionResponse {

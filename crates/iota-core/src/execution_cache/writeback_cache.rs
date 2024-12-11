@@ -57,7 +57,6 @@ use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_macros::fail_point_async;
-use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
@@ -88,9 +87,7 @@ use crate::{
     authority::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store::{
-            ExecutionLockWriteGuard, IotaLockResult, LockDetailsDeprecated, ObjectLockStatus,
-        },
+        authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
         authority_store_tables::LiveObject,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
@@ -1578,7 +1575,6 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
-        let cur_epoch = epoch_store.epoch();
         match self.get_object_by_id_cache_only("lock", &obj_ref.0) {
             CacheResult::Hit((_, obj)) => {
                 let actual_objref = obj.compute_object_reference();
@@ -1594,10 +1590,7 @@ impl ObjectCacheRead for WritebackCache {
                             .get_transaction_lock(&obj_ref, epoch_store)?
                         {
                             Some(tx_digest) => ObjectLockStatus::LockedToTx {
-                                locked_by_tx: LockDetailsDeprecated {
-                                    epoch: cur_epoch,
-                                    tx_digest,
-                                },
+                                locked_by_tx: tx_digest,
                             },
                             None => ObjectLockStatus::Initialized,
                         },
@@ -1904,59 +1897,6 @@ fn do_fallback_lookup<K: Copy, V: Default + Clone>(
 implement_passthrough_traits!(WritebackCache);
 
 impl AccumulatorStore for WritebackCache {
-    fn get_object_ref_prior_to_key_deprecated(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<Option<ObjectRef>> {
-        // There is probably a more efficient way to implement this, but since this is
-        // only used by old protocol versions, it is better to do the simple
-        // thing that is obviously correct. In this case we previous version
-        // from all sources and choose the highest
-        let mut candidates = Vec::new();
-
-        let check_versions =
-            |versions: &CachedVersionMap<ObjectEntry>| match versions.get_prior_to(&version) {
-                Some((version, object_entry)) => match object_entry {
-                    ObjectEntry::Object(object) => {
-                        assert_eq!(object.version(), version);
-                        Some(object.compute_object_reference())
-                    }
-                    ObjectEntry::Deleted => {
-                        Some((*object_id, version, ObjectDigest::OBJECT_DIGEST_DELETED))
-                    }
-                    ObjectEntry::Wrapped => {
-                        Some((*object_id, version, ObjectDigest::OBJECT_DIGEST_WRAPPED))
-                    }
-                },
-                None => None,
-            };
-
-        // first check dirty data
-        if let Some(objects) = self.dirty.objects.get(object_id) {
-            if let Some(prior) = check_versions(&objects) {
-                candidates.push(prior);
-            }
-        }
-
-        if let Some(objects) = self.cached.object_cache.get(object_id) {
-            if let Some(prior) = check_versions(&objects.lock()) {
-                candidates.push(prior);
-            }
-        }
-
-        if let Some(prior) = self
-            .store
-            .get_object_ref_prior_to_key_deprecated(object_id, version)?
-        {
-            candidates.push(prior);
-        }
-
-        // sort candidates by version, and return the highest
-        candidates.sort_by_key(|(_, version, _)| *version);
-        Ok(candidates.pop())
-    }
-
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
@@ -1980,10 +1920,7 @@ impl AccumulatorStore for WritebackCache {
             .insert_state_accumulator_for_epoch(epoch, checkpoint_seq_num, acc)
     }
 
-    fn iter_live_object_set(
-        &self,
-        include_wrapped_tombstone: bool,
-    ) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
         // The only time it is safe to iterate the live object set is at an epoch
         // boundary, at which point the db is consistent and the dirty cache is
         // empty. So this does read the cache
@@ -1991,22 +1928,19 @@ impl AccumulatorStore for WritebackCache {
             self.dirty.is_empty(),
             "cannot iterate live object set with dirty data"
         );
-        self.store.iter_live_object_set(include_wrapped_tombstone)
+        self.store.iter_live_object_set()
     }
 
     // A version of iter_live_object_set that reads the cache. Only use for testing.
     // If used on a live validator, can cause the server to block for as long as
     // it takes to iterate the entire live object set.
-    fn iter_cached_live_object_set_for_testing(
-        &self,
-        include_wrapped_tombstone: bool,
-    ) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_cached_live_object_set_for_testing(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
         // hold iter until we are finished to prevent any concurrent inserts/deletes
         let iter = self.dirty.objects.iter();
         let mut dirty_objects = BTreeMap::new();
 
         // add everything from the store
-        for obj in self.store.iter_live_object_set(include_wrapped_tombstone) {
+        for obj in self.store.iter_live_object_set() {
             dirty_objects.insert(obj.object_id(), obj);
         }
 
@@ -2018,12 +1952,8 @@ impl AccumulatorStore for WritebackCache {
                 (_, ObjectEntry::Object(object)) => {
                     dirty_objects.insert(id, LiveObject::Normal(object.clone()));
                 }
-                (version, ObjectEntry::Wrapped) => {
-                    if include_wrapped_tombstone {
-                        dirty_objects.insert(id, LiveObject::Wrapped(ObjectKey(id, *version)));
-                    } else {
-                        dirty_objects.remove(&id);
-                    }
+                (_version, ObjectEntry::Wrapped) => {
+                    dirty_objects.remove(&id);
                 }
                 (_, ObjectEntry::Deleted) => {
                     dirty_objects.remove(&id);

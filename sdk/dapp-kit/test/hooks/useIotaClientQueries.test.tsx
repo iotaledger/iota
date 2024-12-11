@@ -12,7 +12,6 @@ const MOCK_GET_All_BALANCE_RESULT_DATA = [
         coinType: '0x2::iota::IOTA',
         coinObjectCount: 1,
         totalBalance: '100000',
-        lockedBalance: {},
     },
 ];
 const MOCK_QUERY_TRANSACTION_BLOCK_RESULT_DATA = {

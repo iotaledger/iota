@@ -3,19 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
     ButtonSegment,
     ButtonSegmentType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+    Panel,
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
 
 import { CheckpointsTable, PageLayout } from '~/components';
-import { Banner, TableCard } from '~/components/ui';
+import { TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
@@ -24,6 +28,7 @@ import cx from 'clsx';
 import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
+import { Warning } from '@iota/ui-icons';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -79,9 +84,13 @@ export default function EpochDetail() {
         return (
             <PageLayout
                 content={
-                    <Banner variant="error" fullWidth>
-                        {`There was an issue retrieving data for epoch ${id}.`}
-                    </Banner>
+                    <InfoBox
+                        title="Failed to load epoch data"
+                        supportingText={`There was an issue retrieving data for epoch ${id}`}
+                        icon={<Warning />}
+                        type={InfoBoxType.Error}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 }
             />
         );
@@ -157,9 +166,8 @@ export default function EpochDetail() {
                         {isCurrentEpoch && <ValidatorStatus />}
                     </div>
 
-                    <div className="rounded-xl bg-white">
+                    <Panel>
                         <div className="relative">
-                            <div className="border-shader-inverte-dark-8 absolute bottom-0 left-0 z-0 h-[1px] w-full border-b" />
                             <SegmentedButton
                                 type={SegmentedButtonType.Transparent}
                                 shape={ButtonSegmentType.Underlined}
@@ -178,7 +186,7 @@ export default function EpochDetail() {
                                 />
                             </SegmentedButton>
                         </div>
-                        <div className="px-lg py-md">
+                        <div className="p-md">
                             {activeTabId === EpochTabs.Checkpoints ? (
                                 <CheckpointsTable
                                     initialCursor={initialCursorPlusOne}
@@ -190,7 +198,7 @@ export default function EpochDetail() {
                                 <TableCard data={tableData} columns={tableColumns} />
                             ) : null}
                         </div>
-                    </div>
+                    </Panel>
                 </div>
             }
         />

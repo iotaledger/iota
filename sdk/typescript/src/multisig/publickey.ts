@@ -176,7 +176,7 @@ export class MultiSigPublicKey extends PublicKey {
     }
 
     /**
-     * Return the Iota address associated with this MultiSig public key
+     * Return the IOTA address associated with this MultiSig public key
      */
     override toIotaAddress(): string {
         // max length = 1 flag byte + (max pk size + max weight size (u8)) * max signer size + 2 threshold bytes (u16)
@@ -197,7 +197,7 @@ export class MultiSigPublicKey extends PublicKey {
     }
 
     /**
-     * Return the Iota address associated with this MultiSig public key
+     * Return the IOTA address associated with this MultiSig public key
      */
     flag(): number {
         return SIGNATURE_SCHEME_TO_FLAG['MultiSig'];

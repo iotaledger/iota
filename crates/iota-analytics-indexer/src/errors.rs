@@ -7,7 +7,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum AnalyticsIndexerError {
     #[error("Generic error: `{0}`")]
-    GenericError(String),
+    Generic(String),
     #[error("Failed to retrieve the current directory.")]
-    CurrentDirError,
+    CurrentDir,
 }

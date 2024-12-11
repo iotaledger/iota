@@ -7,13 +7,13 @@ use std::{
 };
 
 use anyhow::Result;
-use iota_adapter_v0::{
+use iota_adapter_latest::{
     adapter::new_move_vm, execution_mode, gas_charger::GasCharger, programmable_transactions,
     temporary_store::TemporaryStore,
 };
 use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
-use iota_move_natives_v0::all_natives;
+use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
@@ -44,7 +44,7 @@ use iota_types::{
     },
 };
 use move_core_types::{ident_str, language_storage::StructTag};
-use move_vm_runtime_v0::move_vm::MoveVM;
+use move_vm_runtime_latest::move_vm::MoveVM;
 
 use crate::{
     process_package,
@@ -73,8 +73,8 @@ pub(super) struct Executor {
     /// Map the stardust token id [`TokenId`] to the on-chain info of the
     /// published foundry objects.
     native_tokens: HashMap<TokenId, FoundryLedgerData>,
-    /// The coin type to use in order to migrate outputs. Can be either `Iota`
-    /// or `Shimmer`. Is fixed for the entire migration process.
+    /// The coin type to use in order to migrate outputs. Can only be equal to
+    /// `Iota` at the moment. Is fixed for the entire migration process.
     coin_type: CoinType,
 }
 

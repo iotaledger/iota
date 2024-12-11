@@ -17,6 +17,7 @@ import { RemoveDialog } from './RemoveDialog';
 import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
+import { formatAccountName } from '_src/ui/app/helpers';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -38,11 +39,11 @@ export function AccountGroupItem({
     const anchorRef = useRef<HTMLDivElement>(null);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
-    const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const { unlockAccount, lockAccount } = useUnlockAccount();
     const navigate = useNavigate();
     const allAccounts = useAccounts();
     const backgroundClient = useBackgroundClient();
+    const accountName = formatAccountName(account?.nickname, account?.address);
 
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,
@@ -149,7 +150,7 @@ export function AccountGroupItem({
                             top: dropdownPosition.y,
                         }}
                         className={clsx(
-                            `absolute right-0 z-[99] rounded-lg bg-white`,
+                            `absolute right-0 z-[99] rounded-lg bg-neutral-100 shadow-md dark:bg-neutral-6`,
                             showDropdownOptionsBottom ? '-translate-y-full' : '',
                         )}
                     >
@@ -197,7 +198,7 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
     }
     return (
         <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white ${account.isLocked ? 'bg-neutral-80' : 'bg-primary-30'}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-neutral-100 ${account.isLocked ? 'bg-neutral-90 dark:bg-neutral-20 [&_svg]:dark:text-neutral-50' : 'bg-primary-30 '}`}
         >
             {logo}
         </div>

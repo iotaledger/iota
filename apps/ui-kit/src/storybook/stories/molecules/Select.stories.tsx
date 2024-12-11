@@ -78,11 +78,11 @@ export const CustomOptions: Story = {
                 ),
             },
             {
-                id: 'smr',
+                id: 'other coin',
                 renderLabel: () => (
                     <div className="flex items-center gap-2">
                         <PlaceholderReplace />
-                        SMR
+                        Other Coin
                     </div>
                 ),
             },

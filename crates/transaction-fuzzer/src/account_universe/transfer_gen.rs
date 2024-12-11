@@ -29,8 +29,8 @@ use crate::{
 const GAS_UNIT_PRICE: u64 = 2;
 const DEFAULT_TRANSFER_AMOUNT: u64 = 1;
 const P2P_COMPUTE_GAS_USAGE: u64 = 1000;
-const P2P_SUCCESS_STORAGE_USAGE: u64 = 1976000;
-const P2P_FAILURE_STORAGE_USAGE: u64 = 988000;
+const P2P_SUCCESS_STORAGE_USAGE: u64 = 1976000 - 15200; // this needs to be adapted if the size of objects changes
+const P2P_FAILURE_STORAGE_USAGE: u64 = 988000 - 7600; // this needs to be adapted if the size of objects change
 const INSUFFICIENT_GAS_UNITS_THRESHOLD: u64 = 2;
 
 static PROTOCOL_CONFIG: Lazy<ProtocolConfig> =
@@ -365,7 +365,7 @@ impl RunInfo {
         let gas_budget_too_low = p2p.gas < PROTOCOL_CONFIG.base_tx_cost_fixed() * p2p.gas_price;
         let not_enough_gas = p2p.gas < p2p_success_gas(p2p.gas_price);
         let gas_price_too_low = p2p.gas_price < rgp;
-        let gas_price_too_high = p2p.gas_price >= PROTOCOL_CONFIG.max_gas_price();
+        let gas_price_too_high = p2p.gas_price > PROTOCOL_CONFIG.max_gas_price();
         let gas_price_greater_than_budget = p2p.gas_price > p2p.gas;
         let gas_units_too_low = p2p.gas_price > 0
             && p2p.gas / p2p.gas_price < INSUFFICIENT_GAS_UNITS_THRESHOLD

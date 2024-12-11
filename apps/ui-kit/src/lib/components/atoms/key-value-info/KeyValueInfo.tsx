@@ -53,6 +53,10 @@ interface KeyValueProps {
      * Full width KeyValue (optional).
      */
     fullwidth?: boolean;
+    /**
+     * Reverse the KeyValue (optional).
+     */
+    isReverse?: boolean;
 }
 
 export function KeyValueInfo({
@@ -67,7 +71,9 @@ export function KeyValueInfo({
     onCopySuccess,
     onCopyError,
     fullwidth,
+    isReverse = false,
 }: KeyValueProps): React.JSX.Element {
+    const flexDirectionClass = isReverse ? 'flex-row-reverse' : 'flex-row';
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
         if (!navigator.clipboard) {
             return;
@@ -86,9 +92,13 @@ export function KeyValueInfo({
 
     return (
         <div
-            className={cx('flex w-full flex-row items-baseline gap-xs py-xxs font-inter', {
-                'justify-between': fullwidth,
-            })}
+            className={cx(
+                'flex w-full items-baseline gap-xs py-xxs font-inter',
+                flexDirectionClass,
+                {
+                    'justify-between': fullwidth,
+                },
+            )}
         >
             <div
                 className={cx('flex shrink-0 flex-row items-center gap-x-0.5', {

@@ -2,6 +2,8 @@
 title: Transfer to Object
 description: On IOTA, you can transfer objects to objects in the same way you can transfer objects to addresses.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/transfers/transfer-to-object.json';
 
 In IOTA, you have the flexibility to transfer objects not only to addresses but also directly to other objects.
 This feature is possible because the IOTA system does not differentiate between the 32-byte ID of an address
@@ -360,3 +362,5 @@ module examples::soul_bound {
     }
 }
 ```
+
+<Quiz questions={questions} />

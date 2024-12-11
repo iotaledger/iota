@@ -153,7 +153,6 @@ export class KioskTransaction {
 
     /**
      * A function to borrow an item from a kiosk & execute any function with it.
-     * Example: You could borrow a Fren out of a kiosk, attach an accessory (or mix), and return it.
      */
     borrowTx({ itemType, itemId }: ItemId, callback: (item: TransactionArgument) => void) {
         this.#validateKioskIsSet();

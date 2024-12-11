@@ -19,13 +19,18 @@
   width: 400px;
 }
 .backgroundImage {
-  background: black url(../../static/img/heroTextBg.svg);
+  background: black url(../../static/img/index/heroTextBg.svg);
   height: 27rem;
   margin-top: -10rem;
   background-position: right;
   background-repeat: no-repeat;
   background-size: 50% 100%;
   margin-bottom: 2rem;
+}
+@media (max-width: 599px) {
+  .backgroundImage {
+    background-size: 125% 70% !important;
+  }
 }
 
 @media (max-width: 1000px) {

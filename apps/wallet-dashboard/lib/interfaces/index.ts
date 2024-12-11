@@ -4,3 +4,5 @@
 export * from './transactions.interface';
 export * from './timelock.interface';
 export * from './vesting.interface';
+export * from './appRoute.interface';
+export * from './dialogView.interface';

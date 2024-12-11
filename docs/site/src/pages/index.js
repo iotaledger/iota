@@ -7,9 +7,9 @@ import React from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import styles from "./index.module.css";
-import heroCardBg from "@site/static/img/heroCardBg.png";
-import heroCardBg1 from "@site/static/img/heroCardBg1.png";
-import heroCardBg2 from "@site/static/img/heroCardBg2.png";
+import heroCardBg from "@site/static/img/index/heroCardBg.png";
+import heroCardBg1 from "@site/static/img/index/heroCardBg1.png";
+import heroCardBg2 from "@site/static/img/index/heroCardBg2.png";
 export default function Home() {
   const HomeCard = (props) => {
     const { title, children, heroCardBg } = props;
@@ -99,7 +99,7 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="./developer/iota-101/move-overview"
+              to="./developer/iota-101/move-overview/"
             >
               Move
             </Link>
@@ -116,10 +116,10 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="./operator/iota-full-node"
+              to="./operator/iota-full-node/overview"
             >
               Run a IOTA Full node
-              <span className="block bg-auto bg-[url(../static/img/index/right-arrow.svg)]"></span>
+              <span className="block bg-auto bg-[url(/img/index/right-arrow.svg)]"></span>
             </Link>
           </HomeCard>
           <HomeCard title="References" aux heroCardBg={heroCardBg1}>
@@ -152,7 +152,7 @@ export default function Home() {
             >
               IOTA ecosystem directory
             </Link>
-            <Link className={styles.cardLink} to="https://blog.iota.io/">
+            <Link className={styles.cardLink} to="https://blog.iota.org//">
               IOTA blog
             </Link>
             <Link
@@ -192,7 +192,7 @@ export default function Home() {
         </div>
         <div className={styles.why}>
           <div className={styles.whyImgCard}>
-            <img height={"90%"} src="/img/blocks.png" alt="Decorative visual" />
+            <img height={"90%"} src="/img/index/blocks.png" alt="Decorative visual" />
           </div>
           <div className={styles.cardsB}>
             <div className={styles.cardB}>

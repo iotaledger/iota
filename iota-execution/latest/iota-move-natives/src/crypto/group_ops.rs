@@ -29,14 +29,6 @@ pub const NOT_SUPPORTED_ERROR: u64 = 0;
 pub const INVALID_INPUT_ERROR: u64 = 1;
 pub const INPUT_TOO_LONG_ERROR: u64 = 2;
 
-fn is_supported(context: &NativeContext) -> bool {
-    context
-        .extensions()
-        .get::<ObjectRuntime>()
-        .protocol_config
-        .enable_group_ops_native_functions()
-}
-
 fn is_msm_supported(context: &NativeContext) -> bool {
     context
         .extensions()
@@ -184,9 +176,6 @@ pub fn internal_validate(
     debug_assert!(args.len() == 2);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let bytes_ref = pop_arg!(args, VectorRef);
     let bytes = bytes_ref.as_bytes_ref();
@@ -233,9 +222,6 @@ pub fn internal_add(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();
@@ -293,9 +279,6 @@ pub fn internal_sub(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();
@@ -353,9 +336,6 @@ pub fn internal_mul(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();
@@ -428,9 +408,6 @@ pub fn internal_div(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();
@@ -501,9 +478,6 @@ pub fn internal_hash_to(
     debug_assert!(args.len() == 2);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let m_ref = pop_arg!(args, VectorRef);
     let m = m_ref.as_bytes_ref();
@@ -735,9 +709,6 @@ pub fn internal_pairing(
     debug_assert!(args.len() == 3);
 
     let cost = context.gas_used();
-    if !is_supported(context) {
-        return Ok(NativeResult::err(cost, NOT_SUPPORTED_ERROR));
-    }
 
     let e2_ref = pop_arg!(args, VectorRef);
     let e2 = e2_ref.as_bytes_ref();

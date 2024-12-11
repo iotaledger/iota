@@ -1,7 +1,7 @@
 [package]
 name = "iota-proc-macros"
-version = "0.7.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -18,4 +18,4 @@ quote.workspace = true
 syn = { version = "2.0", features = ["full", "fold", "extra-traits"] }
 
 [target.'cfg(msim)'.dependencies]
-msim-macros.workspace = true
+msim-macros = { git = "https://github.com/iotaledger/iota-sim.git", rev = "f16ef50ba7d874fe1f0960f248f6c651a634d6a5", package = "msim-macros" }

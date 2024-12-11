@@ -9,7 +9,9 @@ use async_graphql::{
     dataloader::Loader,
     *,
 };
-use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
+use futures::TryFutureExt;
+use iota_indexer::apis::GovernanceReadApi;
+use iota_json_rpc::governance_api::median_apy_from_exchange_rates;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
@@ -21,7 +23,7 @@ use iota_types::{
 
 use crate::{
     consistency::ConsistentIndexCursor,
-    data::{DataLoader, Db, apys::calculate_apy},
+    data::{DataLoader, Db},
     error::Error,
     types::{
         address::Address,
@@ -36,6 +38,7 @@ use crate::{
         validator_credentials::ValidatorCredentials,
     },
 };
+
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
     pub validator_summary: NativeIotaValidatorSummary,
@@ -73,9 +76,32 @@ impl Loader<u64> for Db {
             .await
             .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
         let governance_api = GovernanceReadApi::new(self.inner.clone());
-        let exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
+
+        let (candidate_rates, pending_rates) = tokio::try_join!(
+            governance_api
+                .candidate_validators_exchange_rate(&latest_iota_system_state)
+                .map_err(|e| {
+                    Error::Internal(format!(
+                        "Error fetching candidate validators exchange rates. {e}"
+                    ))
+                }),
+            governance_api
+                .pending_validators_exchange_rate()
+                .map_err(|e| {
+                    Error::Internal(format!(
+                        "Error fetching pending validators exchange rates. {e}"
+                    ))
+                })
+        )?;
+
+        let mut exchange_rates = governance_api
+            .exchange_rates(&latest_iota_system_state)
             .await
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
+
+        exchange_rates.extend(candidate_rates.into_iter());
+        exchange_rates.extend(pending_rates.into_iter());
+
         let mut results = BTreeMap::new();
 
         // The requested epoch is the epoch for which we want to compute the APY. For
@@ -139,14 +165,13 @@ impl Validator {
     async fn credentials(&self) -> Option<ValidatorCredentials> {
         let v = &self.validator_summary;
         let credentials = ValidatorCredentials {
-            protocol_pub_key: Some(Base64::from(v.protocol_pubkey_bytes.clone())),
+            authority_pub_key: Some(Base64::from(v.authority_pubkey_bytes.clone())),
             network_pub_key: Some(Base64::from(v.network_pubkey_bytes.clone())),
-            worker_pub_key: Some(Base64::from(v.worker_pubkey_bytes.clone())),
+            protocol_pub_key: Some(Base64::from(v.protocol_pubkey_bytes.clone())),
             proof_of_possession: Some(Base64::from(v.proof_of_possession_bytes.clone())),
             net_address: Some(v.net_address.clone()),
             p2p_address: Some(v.p2p_address.clone()),
             primary_address: Some(v.primary_address.clone()),
-            worker_address: Some(v.worker_address.clone()),
         };
         Some(credentials)
     }
@@ -155,17 +180,19 @@ impl Validator {
     async fn next_epoch_credentials(&self) -> Option<ValidatorCredentials> {
         let v = &self.validator_summary;
         let credentials = ValidatorCredentials {
+            authority_pub_key: v
+                .next_epoch_authority_pubkey_bytes
+                .as_ref()
+                .map(Base64::from),
+            network_pub_key: v.next_epoch_network_pubkey_bytes.as_ref().map(Base64::from),
             protocol_pub_key: v
                 .next_epoch_protocol_pubkey_bytes
                 .as_ref()
                 .map(Base64::from),
-            network_pub_key: v.next_epoch_network_pubkey_bytes.as_ref().map(Base64::from),
-            worker_pub_key: v.next_epoch_worker_pubkey_bytes.as_ref().map(Base64::from),
             proof_of_possession: v.next_epoch_proof_of_possession.as_ref().map(Base64::from),
             net_address: v.next_epoch_net_address.clone(),
             p2p_address: v.next_epoch_p2p_address.clone(),
             primary_address: v.next_epoch_primary_address.clone(),
-            worker_address: v.next_epoch_worker_address.clone(),
         };
         Some(credentials)
     }
@@ -214,7 +241,7 @@ impl Validator {
         Ok(None)
     }
 
-    /// The ID of this validator's `0x3::staking_pool::StakingPool`.
+    /// The ID of this validator's `0x3::staking_pool::StakingPoolV1`.
     async fn staking_pool_id(&self) -> IotaAddress {
         self.validator_summary.staking_pool_id.into()
     }
@@ -367,8 +394,8 @@ impl Validator {
         Ok(connection)
     }
 
-    /// The APY of this validator in basis points.
-    /// To get the APY in percentage, divide by 100.
+    /// The APY of this validator in basis points. To get the APY in
+    /// percentage, divide by 100.
     async fn apy(&self, ctx: &Context<'_>) -> Result<Option<u64>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
         let exchange_rates = loader
@@ -382,9 +409,11 @@ impl Validator {
                     "Failed to get the exchange rate for this validator address {} for requested epoch {}",
                     self.validator_summary.iota_address, self.requested_for_epoch
                 ))
-            })?;
+            })?
+            .iter()
+            .map(|(_, exchange_rate)| exchange_rate);
 
-        let avg_apy = Some(calculate_apy(rates));
+        let avg_apy = Some(median_apy_from_exchange_rates(rates));
 
         Ok(avg_apy.map(|x| (x * 10000.0) as u64))
     }

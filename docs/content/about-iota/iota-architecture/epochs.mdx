@@ -1,3 +1,6 @@
+import Quiz from '@site/src/components/Quiz';
+import {questions} from '../../../site/static/json/about-iota/iota-architecture/epochs.json';
+
 # Epochs and Reconfiguration
 
 ## Epoch
@@ -36,3 +39,6 @@ validator set and stake distribution can be altered.
 
 If 2f+1 validators agree, the network may upgrade to a new protocol version, which includes new features, bug fixes, and
 updates to the Move framework libraries.
+
+## Quizzes
+<Quiz questions={questions} />

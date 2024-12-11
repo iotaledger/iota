@@ -611,14 +611,8 @@ pub fn allocate_receiving_ticket_for_object(
             E_UNABLE_TO_ALLOCATE_RECEIVING_TICKET,
         ));
     };
-    let move_object = unsafe {
-        MoveObject::new_from_execution_with_limit(
-            tag.into(),
-            false,
-            object_version,
-            bytes,
-            250 * 1024,
-        )
+    let move_object = {
+        MoveObject::new_from_execution_with_limit(tag.into(), object_version, bytes, 250 * 1024)
     }
     .unwrap();
 

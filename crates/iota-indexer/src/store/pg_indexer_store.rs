@@ -990,7 +990,7 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all event indices in a chunk: {:?}",
                     e
                 ))
@@ -1261,7 +1261,7 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all tx indices in a chunk: {:?}",
                     e
                 ))
@@ -1729,7 +1729,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all object mutation chunks: {:?}",
                     e
                 ))
@@ -1749,7 +1749,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all object deletion chunks: {:?}",
                     e
                 ))
@@ -1796,7 +1796,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all objects snapshot chunks: {:?}",
                     e
                 ))
@@ -1845,7 +1845,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all objects history chunks: {:?}",
                     e
                 ))
@@ -1873,10 +1873,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
         self.spawn_blocking_task(move |this| this.update_objects_snapshot(start_cp, end_cp))
             .await
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
-                    "Failed to update objects snapshot: {:?}",
-                    e
-                ))
+                IndexerError::PostgresWrite(format!("Failed to update objects snapshot: {:?}", e))
             })??;
         let elapsed = guard.stop_and_record();
         info!(
@@ -1918,7 +1915,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all transactions chunks: {:?}",
                     e
                 ))
@@ -1951,10 +1948,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
-                    "Failed to persist all events chunks: {:?}",
-                    e
-                ))
+                IndexerError::PostgresWrite(format!("Failed to persist all events chunks: {:?}", e))
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} events", len);
@@ -2007,7 +2001,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all event_indices chunks: {:?}",
                     e
                 ))
@@ -2042,7 +2036,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWriteError(format!(
+                IndexerError::PostgresWrite(format!(
                     "Failed to persist all tx_indices chunks: {:?}",
                     e
                 ))
@@ -2065,7 +2059,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
     async fn prune_epoch(&self, epoch: u64) -> Result<(), IndexerError> {
         let (mut min_cp, max_cp) = match self.get_checkpoint_range_for_epoch(epoch)? {
             (min_cp, Some(max_cp)) => Ok((min_cp, max_cp)),
-            _ => Err(IndexerError::PostgresReadError(format!(
+            _ => Err(IndexerError::PostgresRead(format!(
                 "Failed to get checkpoint range for epoch {}",
                 epoch
             ))),
@@ -2191,7 +2185,7 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
                 (version as u64).into(),
                 chain_id.chain(),
             )
-            .ok_or(IndexerError::GenericError(format!(
+            .ok_or(IndexerError::Generic(format!(
                 "Unable to fetch protocol version {} and chain {:?}",
                 version,
                 chain_id.chain()

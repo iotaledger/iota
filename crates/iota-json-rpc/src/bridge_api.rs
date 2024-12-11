@@ -46,7 +46,7 @@ impl BridgeReadApiServer for BridgeReadApi {
         async move {
             Ok(
                 get_bridge_obj_initial_shared_version(self.state.get_object_store())?
-                    .ok_or(Error::UnexpectedError(
+                    .ok_or(Error::Unexpected(
                         "Failed to find Bridge object initial version".to_string(),
                     ))?
                     .into(),

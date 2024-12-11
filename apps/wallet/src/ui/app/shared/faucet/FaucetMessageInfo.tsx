@@ -27,7 +27,7 @@ function FaucetMessageInfo({
         return <>{error}</>;
     }
     return (
-        <>{`${totalReceived ? `${coinsReceivedFormatted} ` : ''}${coinsReceivedSymbol} received`}</>
+        <>{`${totalReceived ? `${coinsReceivedFormatted} ` : ''}${coinsReceivedSymbol} requested`}</>
     );
 }
 

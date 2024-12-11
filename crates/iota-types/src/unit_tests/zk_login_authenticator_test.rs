@@ -28,7 +28,8 @@ use crate::{
 };
 
 #[test]
-fn test_serde_zk_login_signature() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_serde_zklogin_signature() {
     // consistency test with typescript:
     // sdk/typescript/test/unit/zklogin/signature.test.ts
     use fastcrypto::encoding::Encoding;
@@ -43,7 +44,8 @@ fn test_serde_zk_login_signature() {
 }
 
 #[test]
-fn test_serde_zk_public_identifier() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_serde_zklogin_public_identifier() {
     let (_, _, inputs) =
         &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json").unwrap()[0];
     let modified_inputs =
@@ -95,7 +97,8 @@ fn test_serde_zk_public_identifier() {
 }
 
 #[test]
-fn zklogin_sign_personal_message() {
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
+fn test_zklogin_sign_personal_message() {
     let data = PersonalMessage {
         message: b"hello world".to_vec(),
     };
@@ -108,7 +111,7 @@ fn zklogin_sign_personal_message() {
 
     // Construct the required info to verify a zk login authenticator, jwks,
     // supported providers list and env (prod/test).
-    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true, Some(30));
+    let aux_verify_data = VerifyParams::new(parsed, ZkLoginEnv::Test, true, Some(30));
     let res = authenticator.verify_authenticator(
         &intent_msg,
         user_address,

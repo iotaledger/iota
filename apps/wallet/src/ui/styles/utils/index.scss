@@ -44,7 +44,6 @@ $main-extra-space: sizing.$main-bottom-space;
 
     &::before {
         content: '';
-        background-image: url('_assets/images/Info.svg');
         margin-right: 5px;
         background-repeat: no-repeat;
         background-position: center;
@@ -63,7 +62,6 @@ $main-extra-space: sizing.$main-bottom-space;
 
     &::after {
         content: '';
-        mask: url('_assets/images/receipt_bottom.svg');
         background-color: colors.$gray-40;
         background-repeat: no-repeat;
         background-position: center bottom;

@@ -9,13 +9,13 @@ use std::{
 
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
-    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{EpochId, ObjectID, SequenceNumber, VersionNumber},
     error::{IotaError, IotaResult},
     inner_temporary_store::InnerTemporaryStore,
     object::{Object, Owner},
     storage::{
         BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore, PackageObject,
-        ParentSync, get_module_by_id,
+        get_module_by_id,
     },
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };
@@ -167,15 +167,6 @@ impl GetModule for InMemoryObjectStore {
 
     fn get_module_by_id(&self, id: &ModuleId) -> Result<Option<Self::Item>, Self::Error> {
         get_module_by_id(self, id)
-    }
-}
-
-impl ParentSync for InMemoryObjectStore {
-    fn get_latest_parent_entry_ref_deprecated(
-        &self,
-        _object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        unreachable!()
     }
 }
 

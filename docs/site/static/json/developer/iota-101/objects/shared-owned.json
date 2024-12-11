@@ -1,0 +1,128 @@
+[
+    {
+        "questionText": "What is a key difference between shared and owned objects in IOTA?",
+        "answerOptions": [
+            {
+                "answerText": "Shared objects are accessible for reads and writes by any transaction, while owned objects are only accessible by their owner.",
+                "isCorrect": true
+            },
+            {
+                "answerText": "Shared objects have lower latency to finality than owned objects.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "Owned objects can be accessed by anyone, while shared objects require permissions.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "Shared objects are immutable, whereas owned objects are mutable.",
+                "isCorrect": false
+            }
+        ]
+    },
+    {
+        "questionText": "What is an advantage of using owned objects in IOTA?",
+        "answerOptions": [
+            {
+                "answerText": "They can be accessed and modified by any transaction.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "They benefit from very low latency to finality because they bypass consensus.",
+                "isCorrect": true
+            },
+            {
+                "answerText": "They are better for processes requiring interaction between multiple parties.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "They reduce gas costs for transactions involving multiple parties.",
+                "isCorrect": false
+            }
+        ]
+    },
+    {
+        "questionText": "What is a disadvantage of using shared objects in IOTA?",
+        "answerOptions": [
+            {
+                "answerText": "Only the owner can access these objects.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "They complicate processes requiring interaction between multiple parties.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "They cannot be used in transactions that involve multiple shared objects.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "They require consensus to manage reads and writes, leading to higher gas costs and increased latency.",
+                "isCorrect": true
+            }
+        ]
+    },
+    {
+        "questionText": "Which type of object is better suited for applications that require interaction between multiple parties?",
+        "answerOptions": [
+            {
+                "answerText": "Shared objects, because they offer flexibility in access and interaction.",
+                "isCorrect": true
+            },
+            {
+                "answerText": "Owned objects, because only the owner can access them.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "Immutable objects, because they cannot be modified.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "Dynamic fields, because they can store various types of data.",
+                "isCorrect": false
+            }
+        ]
+    },
+    {
+        "questionText": "Why might transactions involving only owned objects have very low latency to finality?",
+        "answerOptions": [
+            {
+                "answerText": "Because they are processed with higher priority.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "Because they involve fewer computational steps.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "Because they are larger in size.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "Because they bypass consensus.",
+                "isCorrect": true
+            }
+        ]
+    },
+    {
+        "questionText": "What is a potential issue when multiple shared objects or popular objects are accessed?",
+        "answerOptions": [
+            {
+                "answerText": "Contention may increase latency.",
+                "isCorrect": true
+            },
+            {
+                "answerText": "The transaction may fail due to object limits.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "The objects may become locked and inaccessible.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "The gas costs decrease significantly.",
+                "isCorrect": false
+            }
+        ]
+    }
+]

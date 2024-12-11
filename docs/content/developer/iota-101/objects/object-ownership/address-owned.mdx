@@ -2,6 +2,8 @@
 title: Address-Owned Objects
 description: Address-owned objects are owned by a specific IOTA 32-byte address, either an account address or an object ID, and are accessible only to their owner.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/object-ownership/address-owned.json';
 
 Address-owned objects in IOTA are tied to a specific 32-byte address,
 which can be either an account address (derived from a signature scheme)
@@ -53,3 +55,5 @@ iota::transfer::public_transfer(C, @0xB0B);
 ```
 
 After the transfer, `C` becomes owned by `0xB0B`, and `0xB0B` can use the 100 IOTA as needed.
+
+<Quiz questions={questions} />

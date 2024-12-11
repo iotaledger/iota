@@ -1,9 +1,8 @@
 {
+	"ui": "tui",
 	"$schema": "https://turbo.build/schema.json",
 	"tasks": {
-		"lint": {
-			"dependsOn": ["^build"]
-		},
+		"lint": { },
 		"lint:fix": {
 			"dependsOn": ["^build"]
 		},
@@ -29,6 +28,32 @@
 				"!.next/cache/**",
 				"pkg/**"
 			]
+		},
+		"build:rc": {
+			"dependsOn": [
+				"^build"
+			],
+			"outputs": [
+				"build/**",
+				"dist/**",
+				"storybook-static/**",
+				".next/**",
+				"!.next/cache/**",
+				"pkg/**"
+			]
+		},
+		"build:nightly": {
+			"dependsOn": [
+				"^build"
+			],
+			"outputs": [
+				"build/**",
+				"dist/**",
+				"storybook-static/**",
+				".next/**",
+				"!.next/cache/**",
+				"pkg/**"
+			]
 		}
 	},
 	"globalEnv": [
@@ -38,7 +63,8 @@
 		"DEFAULT_NETWORK",
 		"IOTA_NETWORKS",
 		"RC_VERSION",
-		"APPS_BACKEND"
+		"APPS_BACKEND",
+		"SENTRY_AUTH_TOKEN"
 	],
 	"globalDependencies": [
 		".eslintrc.js",

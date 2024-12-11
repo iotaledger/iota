@@ -1145,7 +1145,7 @@ impl OpenSignatureBody {
     }
 }
 
-impl<'m, 'n> DatatypeRef<'m, 'n> {
+impl DatatypeRef<'_, '_> {
     pub fn as_key(&self) -> DatatypeKey {
         DatatypeKey {
             package: self.package,
@@ -1672,7 +1672,7 @@ impl<'l> ResolutionContext<'l> {
                 )
                 // This error is unexpected because the only reason it would fail is because of a
                 // type parameter arity mismatch, which we check for above.
-                .map_err(|e| Error::UnexpectedError(Arc::new(e)))?
+                .map_err(|e| Error::Unexpected(Arc::new(e)))?
             }
         })
     }

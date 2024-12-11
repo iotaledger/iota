@@ -1,0 +1,23 @@
+{
+    "questions": [
+      {
+        "questionText": "Which tool in the IOTA Move ecosystem is similar to Hardhat for building, testing, and deploying smart contracts?",
+        "answerOptions": [
+          { "answerText": "IOTA Client CLI", "isCorrect": true },
+          { "answerText": "Remix", "isCorrect": false },
+          { "answerText": "ethers.js", "isCorrect": false },
+          { "answerText": "Metamask", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "Which of the following is a wallet commonly used for IOTA Move-based dApps?",
+        "answerOptions": [
+          { "answerText": "Safe", "isCorrect": false },
+          { "answerText": "WalletConnect", "isCorrect": false },
+          { "answerText": "IOTA Wallet", "isCorrect": true },
+          { "answerText": "Gnosis", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  

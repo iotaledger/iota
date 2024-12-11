@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { SVGProps } from 'react';
 export default function SvgStake(props: SVGProps<SVGSVGElement>) {
     return (
@@ -15,7 +14,7 @@ export default function SvgStake(props: SVGProps<SVGSVGElement>) {
             <path
                 fill="currentColor"
                 fillRule="evenodd"
-                d="M12.001 6.803a6 6 0 1 1 0 10.394 6 6 0 1 1 0-10.393Zm2.219 1.274a4 4 0 1 1-.553 7.694A5.975 5.975 0 0 0 15 12c0-1.429-.5-2.74-1.333-3.771.18-.064.364-.115.553-.152ZM13 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"
+                d="M9.707 4.05a7 7 0 1 1 9.9 9.9l-6.115 6.076a7 7 0 0 1-9.829-9.899zm1.414 1.414a5 5 0 0 0-1.114 1.694l.005.012-.011.005a5.001 5.001 0 1 0 1.12-1.71m-3.947 4.539.01-.004-.005-.01a5 5 0 0 1 .478-.918 6.98 6.98 0 0 0 2.05 4.879A6.98 6.98 0 0 0 14.585 16a5 5 0 0 1-7.411-5.997M4.829 11.9a5 5 0 0 0 6.928 6.928A7 7 0 0 1 4.83 11.9"
                 clipRule="evenodd"
             />
         </svg>

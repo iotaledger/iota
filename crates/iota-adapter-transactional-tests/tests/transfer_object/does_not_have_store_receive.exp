@@ -7,13 +7,13 @@ task 1, lines 10-78:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 9659600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9652000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 80:
 //# run test::m::mint_s --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3442800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3420000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 82:
 //# view-object 2,0
@@ -45,13 +45,13 @@ task 5, lines 86-88:
 //> 1: test::m::destroy_s(Result(0));
 mutated: object(0,0), object(2,0)
 deleted: object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 3442800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2219200,  storage_rebate: 3420000, non_refundable_storage_fee: 0
 
 task 6, line 90:
 //# run test::m::mint_cup --sender A --type-args u64
 created: object(6,0), object(6,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3465600,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3442800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 92:
 //# view-object 6,0
@@ -84,13 +84,13 @@ task 9, lines 96-100:
 // Try to directly call `public_receive` and `receive` on an object without public transfer.
 mutated: object(0,0), object(6,1)
 deleted: object(6,0)
-gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 3465600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2219200,  storage_rebate: 3442800, non_refundable_storage_fee: 0
 
 task 10, line 102:
 //# run test::m::mint_s --sender A
 created: object(10,0), object(10,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3442800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3420000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 11, line 104:
 //# view-object 10,0
@@ -137,7 +137,7 @@ task 15, line 120:
 //# run test::m::mint_store --sender A
 created: object(15,0), object(15,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3473200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3450400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 16, line 122:
 //# view-object 15,0
@@ -179,4 +179,4 @@ task 19, lines 131-135:
 //> 3: iota::object::delete(Result(0));
 mutated: object(0,0)
 deleted: object(15,0), object(15,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 3473200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 3450400, non_refundable_storage_fee: 0

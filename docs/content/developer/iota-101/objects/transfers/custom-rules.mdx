@@ -2,6 +2,8 @@
 title: Custom Transfer Rules
 description: Custom transfer rules enable you to define a set of rules that must be met before IOTA considers a transfer operation valid.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/transfers/custom-rules.json';
 
 Every IOTA object must have the `key` ability. 
 The `store` ability, on the other hand, is optional and provides more flexibility for how objects are managed and transferred.
@@ -83,3 +85,5 @@ these custom rules are the only ways to transfer `O`—the [`iota::transfer::pub
 
 By defining custom transfer rules, you maintain precise control over how and when your objects can be transferred,
 ensuring that your specific business logic is enforced during these operations.
+
+<Quiz questions={questions} />

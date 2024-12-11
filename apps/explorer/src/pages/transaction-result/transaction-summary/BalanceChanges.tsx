@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    Accordion,
+    AccordionContent,
     Card,
     CardAction,
     CardActionType,
@@ -18,12 +20,12 @@ import {
     getRecognizedUnRecognizedTokenChanges,
     useCoinMetadata,
     useFormatCoin,
+    ImageIconSize,
+    CoinIcon,
 } from '@iota/core';
 import { RecognizedBadge } from '@iota/ui-icons';
-import clsx from 'clsx';
 import { useMemo } from 'react';
-import { CoinIcon } from '~/components';
-import { AddressLink, CollapsibleCard, CollapsibleSection } from '~/components/ui';
+import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
 
 interface BalanceChangesProps {
@@ -48,7 +50,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
         <div className="flex flex-col gap-xs">
             <Card type={CardType.Filled}>
                 <CardImage type={ImageType.BgTransparent}>
-                    <CoinIcon coinType={coinType} />
+                    <CoinIcon coinType={coinType} size={ImageIconSize.Small} />
                 </CardImage>
                 <CardBody
                     title={coinMetaData?.name || symbol}
@@ -65,7 +67,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
             </Card>
             {recipient && (
                 <div className="flex flex-wrap items-center justify-between px-sm py-xs">
-                    <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                    <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
                         Recipient
                     </span>
                     <AddressLink address={recipient} />
@@ -84,6 +86,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
     return (
         <CollapsibleCard
             title="Balance Changes"
+            isTransparentPanel
             footer={
                 owner ? (
                     <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
@@ -95,23 +98,26 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                 ) : null
             }
         >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-md px-md--rs py-sm">
                 {recognizedTokenChanges.map((change, index) => (
-                    <CollapsibleSection key={index + change.coinType} hideBorder>
-                        <BalanceChangeEntry change={change} />
-                    </CollapsibleSection>
+                    <div key={index + change.coinType}>
+                        <Accordion>
+                            <AccordionContent isExpanded>
+                                <BalanceChangeEntry change={change} />
+                            </AccordionContent>
+                        </Accordion>
+                    </div>
                 ))}
                 {unRecognizedTokenChanges.length > 0 && (
-                    <div
-                        className={clsx(
-                            'flex flex-col gap-2',
-                            recognizedTokenChanges?.length && 'border-t border-gray-45 pt-2',
-                        )}
-                    >
+                    <div className="flex flex-col gap-md">
                         {unRecognizedTokenChanges.map((change, index) => (
-                            <CollapsibleSection key={index + change.coinType} hideBorder>
-                                <BalanceChangeEntry change={change} />
-                            </CollapsibleSection>
+                            <div key={index + change.coinType}>
+                                <Accordion hideBorder>
+                                    <AccordionContent isExpanded>
+                                        <BalanceChangeEntry change={change} />
+                                    </AccordionContent>
+                                </Accordion>
+                            </div>
                         ))}
                     </div>
                 )}

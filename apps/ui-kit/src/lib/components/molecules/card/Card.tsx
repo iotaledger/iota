@@ -26,13 +26,25 @@ export interface CardProps {
      * Passing composable Card components like: CardImage, CardText, CardAction.
      */
     children?: React.ReactNode;
+
+    /**
+     * Indicates whether the state-layer should be shown on the card anyway.
+     * Use case: When the card is wrapped with a Link component
+     */
+    isHoverable?: boolean;
+    /**
+     * The 'data-testid' attribute value (used in e2e tests)
+     */
+    testId?: string;
 }
 
 export function Card({
     isDisabled = false,
     type = CardType.Default,
+    isHoverable,
     onClick,
     children,
+    testId,
 }: CardProps) {
     return (
         <div
@@ -41,11 +53,12 @@ export function Card({
                 'relative inline-flex w-full items-center gap-3 rounded-xl px-sm py-xs',
                 CARD_TYPE_CLASSES[type],
                 {
-                    'state-layer': !isDisabled,
+                    'state-layer': isHoverable || (!isDisabled && onClick),
                     [CARD_DISABLED_CLASSES]: isDisabled,
                     'cursor-pointer': onClick,
                 },
             )}
+            data-testid={testId}
         >
             {children}
         </div>

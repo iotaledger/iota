@@ -4,25 +4,25 @@ task 1, lines 9-33:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5578400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5570800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 34-36:
 //# run Test::M1::transfer_n_ids --args 1 --gas-budget 100000000000000 --summarize
 created: 1
 mutated: 1
-gas summary: computation_cost: 1000000, storage_cost: 2219200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2204000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, lines 37-39:
 //# run Test::M1::transfer_n_ids --args 256 --gas-budget 100000000000000 --summarize
 created: 256
 mutated: 1
-gas summary: computation_cost: 1000000, storage_cost: 316175200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 314222000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, lines 40-42:
 //# run Test::M1::transfer_n_ids --args 2048 --gas-budget 100000000000000 --summarize
 created: 2048
 mutated: 1
-gas summary: computation_cost: 4000000, storage_cost: 2522485600,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 4000000, computation_cost_burned: 4000000, storage_cost: 2506913200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 43-45:
 //# run Test::M1::transfer_n_ids --args 2049 --gas-budget 100000000000000

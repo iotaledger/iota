@@ -32,9 +32,14 @@ use iota_config::{
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
-use iota_json_rpc_api::{BridgeReadApiClient, error_object_from_rpc};
+use iota_genesis_builder::SnapshotSource;
+use iota_json_rpc_api::{
+    BridgeReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
+    error_object_from_rpc,
+};
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, TransactionFilter,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
@@ -51,7 +56,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{
-        ProtocolVersionsConfig, StateAccumulatorV2EnabledCallback, StateAccumulatorV2EnabledConfig,
+        ProtocolVersionsConfig, StateAccumulatorEnabledCallback, StateAccumulatorV1EnabledConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
@@ -65,7 +70,7 @@ use iota_types::{
         get_bridge, get_bridge_obj_initial_shared_version,
     },
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{IotaKeyPair, KeypairTraits, ToFromBytes},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, ToFromBytes, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -74,13 +79,16 @@ use iota_types::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     message_envelope::Message,
+    messages_grpc::HandleCertificateRequestV1,
     object::Object,
+    quorum_driver_types::ExecuteTransactionRequestType,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
     transaction::{
         CertifiedTransaction, ObjectArg, Transaction, TransactionData, TransactionDataAPI,
         TransactionKind,
     },
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     core::RpcResult,
@@ -118,13 +126,18 @@ impl FullNodeHandle {
     }
 }
 
+struct Faucet {
+    address: IotaAddress,
+    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>,
+}
+
 pub struct TestCluster {
     pub swarm: Swarm,
     pub wallet: WalletContext,
     pub fullnode_handle: FullNodeHandle,
-
     pub bridge_authority_keys: Option<Vec<BridgeAuthorityKeyPair>>,
     pub bridge_server_ports: Option<Vec<u16>>,
+    faucet: Option<Faucet>,
 }
 
 impl TestCluster {
@@ -367,7 +380,7 @@ impl TestCluster {
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire
     /// network to reach the next epoch. This requires waiting for both the
     /// fullnode and all validators to reach the next epoch.
-    pub async fn trigger_reconfiguration(&self) {
+    pub async fn force_new_epoch(&self) {
         info!("Starting reconfiguration");
         let start = Instant::now();
 
@@ -547,7 +560,7 @@ impl TestCluster {
             return;
         }
         // wait for next epoch
-        self.trigger_reconfiguration().await;
+        self.force_new_epoch().await;
         bridge = get_bridge(self.fullnode_handle.iota_node.state().get_object_store()).unwrap();
         // Committee should be initiated
         assert!(bridge.committee().member_registrations.contents.is_empty());
@@ -606,7 +619,7 @@ impl TestCluster {
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
-                            TransactionKind::AuthenticatorStateUpdate(_) => break,
+                            TransactionKind::AuthenticatorStateUpdateV1(_) => break,
                             _ => panic!("{:?}", tx),
                         }
                     }
@@ -749,7 +762,14 @@ impl TestCluster {
                 })
                 .map(|client| {
                     let cert = certificate.clone();
-                    async move { client.handle_certificate_v2(cert, None).await }
+                    async move {
+                        client
+                            .handle_certificate_v1(
+                                HandleCertificateRequestV1::new(cert).with_events(),
+                                None,
+                            )
+                            .await
+                    }
                 })
                 .collect();
 
@@ -772,9 +792,9 @@ impl TestCluster {
         let mut all_events = HashMap::new();
         for reply in replies {
             let effects = reply.signed_effects.into_data();
+            let events = reply.events.unwrap_or_default();
             all_effects.insert(effects.digest(), effects);
-            all_events.insert(reply.events.digest(), reply.events);
-            // reply.fastpath_input_objects is unused.
+            all_events.insert(events.digest(), events);
         }
         assert_eq!(all_effects.len(), 1);
         assert_eq!(all_events.len(), 1);
@@ -784,7 +804,7 @@ impl TestCluster {
         ))
     }
 
-    /// This call sends some funds from the seeded address to the funding
+    /// This call sends some funds from the seeded faucet address to the funding
     /// address for the given amount and returns the gas object ref. This
     /// is useful to construct transactions from the funding address.
     pub async fn fund_address_and_return_gas(
@@ -793,20 +813,46 @@ impl TestCluster {
         amount: Option<u64>,
         funding_address: IotaAddress,
     ) -> ObjectRef {
-        let context = &self.wallet;
-        let (sender, gas) = context.get_one_gas_object().await.unwrap().unwrap();
-        let tx = context.sign_transaction(
-            &TestTransactionBuilder::new(sender, gas, rgp)
-                .transfer_iota(amount, funding_address)
-                .build(),
-        );
-        context.execute_transaction_must_succeed(tx).await;
+        let Faucet { address, keypair } = &self
+            .faucet
+            .as_ref()
+            .expect("Faucet not initialized: incompatible with `NetworkConfig`.");
 
-        context
-            .get_one_gas_object_owned_by_address(funding_address)
+        let keypair = &*keypair.lock().await;
+
+        let gas_ref = *self
+            .wallet
+            .get_gas_objects_owned_by_address(*address, None)
             .await
             .unwrap()
+            .first()
+            .unwrap();
+
+        let tx_data = TestTransactionBuilder::new(*address, gas_ref, rgp)
+            .transfer_iota(amount, funding_address)
+            .build();
+
+        let signed_transaction = to_sender_signed_transaction(tx_data, keypair);
+
+        let response = self
+            .iota_client()
+            .quorum_driver_api()
+            .execute_transaction_block(
+                signed_transaction,
+                IotaTransactionBlockResponseOptions::new().with_effects(),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await
+            .unwrap();
+
+        response
+            .effects
             .unwrap()
+            .created()
+            .first()
+            .unwrap()
+            .reference
+            .to_object_ref()
     }
 
     pub async fn transfer_iota_must_exceed(
@@ -827,6 +873,111 @@ impl TestCluster {
             .unwrap();
         assert_eq!(&IotaExecutionStatus::Success, effects.status());
         effects.created().first().unwrap().object_id()
+    }
+
+    /// Wait to catch up to the given checkpoint sequence
+    /// number with a default timeout of 60 sec
+    pub async fn wait_for_checkpoint(
+        &self,
+        checkpoint_sequence_number: u64,
+        timeout: Option<Duration>,
+    ) {
+        let timeout = timeout.unwrap_or(Duration::from_secs(60));
+        tokio::time::timeout(timeout, async {
+            loop {
+                let fullnode_checkpoint = self
+                    .fullnode_handle
+                    .iota_node
+                    .with(|node| {
+                        node.state()
+                            .get_checkpoint_store()
+                            .get_highest_executed_checkpoint_seq_number()
+                    })
+                    .unwrap();
+
+                match fullnode_checkpoint {
+                    Some(c) if c >= checkpoint_sequence_number => break,
+                    _ => tokio::time::sleep(Duration::from_millis(100)).await,
+                }
+            }
+        })
+        .await
+        .expect("Timeout waiting for indexer to catchup to checkpoint");
+    }
+
+    /// Get all objects owned by an address
+    pub async fn get_owned_objects(
+        &self,
+        address: IotaAddress,
+        options: Option<IotaObjectDataOptions>,
+    ) -> anyhow::Result<Vec<IotaObjectResponse>> {
+        let page = self
+            .rpc_client()
+            .get_owned_objects(
+                address,
+                options.map(IotaObjectResponseQuery::new_with_options),
+                None,
+                None,
+            )
+            .await?;
+
+        Ok(page.data)
+    }
+
+    /// Create transactions based on provided object ids
+    /// by transfering them from one address to another
+    pub async fn transfer_objects(
+        &self,
+        sender: IotaAddress,
+        receiver: IotaAddress,
+        object_ids: Vec<ObjectID>,
+        gas: ObjectID,
+        options: Option<IotaTransactionBlockResponseOptions>,
+    ) -> anyhow::Result<Vec<IotaTransactionBlockResponse>> {
+        let mut transaction_block_resp: Vec<IotaTransactionBlockResponse> = Vec::new();
+
+        for id in object_ids {
+            let response = self
+                .transfer_object(sender, receiver, id, gas, options.clone())
+                .await?;
+
+            transaction_block_resp.push(response);
+        }
+
+        Ok(transaction_block_resp)
+    }
+
+    /// Create a transaction to transfer an object from one address to another.
+    /// The object's type must allow public transfers
+    pub async fn transfer_object(
+        &self,
+        sender: IotaAddress,
+        receiver: IotaAddress,
+        object_id: ObjectID,
+        gas: ObjectID,
+        options: Option<IotaTransactionBlockResponseOptions>,
+    ) -> anyhow::Result<IotaTransactionBlockResponse> {
+        let http_client = self.rpc_client();
+        let transaction_bytes = http_client
+            .transfer_object(sender, object_id, Some(gas), 10_000_000.into(), receiver)
+            .await?;
+
+        let tx = self
+            .wallet
+            .sign_transaction(&transaction_bytes.to_data().unwrap());
+
+        let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+        let response = http_client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                options,
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await?;
+
+        Ok(response)
     }
 
     #[cfg(msim)]
@@ -928,7 +1079,7 @@ pub struct TestClusterBuilder {
 
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig,
+    validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
 }
 
 impl TestClusterBuilder {
@@ -956,9 +1107,7 @@ impl TestClusterBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            validator_state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig::Global(
-                true,
-            ),
+            validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
         }
     }
 
@@ -1079,12 +1228,12 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_state_accumulator_v2_enabled_callback(
+    pub fn with_state_accumulator_callback(
         mut self,
-        func: StateAccumulatorV2EnabledCallback,
+        func: StateAccumulatorEnabledCallback,
     ) -> Self {
-        self.validator_state_accumulator_v2_enabled_config =
-            StateAccumulatorV2EnabledConfig::PerValidator(func);
+        self.validator_state_accumulator_config =
+            StateAccumulatorV1EnabledConfig::PerValidator(func);
         self
     }
 
@@ -1108,6 +1257,11 @@ impl TestClusterBuilder {
 
     pub fn with_accounts(mut self, accounts: Vec<AccountConfig>) -> Self {
         self.get_or_init_genesis_config().accounts = accounts;
+        self
+    }
+
+    pub fn with_migration_data(mut self, migration_sources: Vec<SnapshotSource>) -> Self {
+        self.get_or_init_genesis_config().migration_sources = migration_sources;
         self
     }
 
@@ -1151,6 +1305,24 @@ impl TestClusterBuilder {
     }
 
     pub async fn build(mut self) -> TestCluster {
+        // We can add a faucet account to the `GenesisConfig` if there was no
+        // `NetworkConfig` provided. Only either a `GenesisConfig` or a
+        // `NetworkConfig` can be used to configure and build the cluster.
+        let faucet = self.network_config.is_none().then(|| {
+            let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
+            let accounts = &mut self.get_or_init_genesis_config().accounts;
+            accounts.push(AccountConfig {
+                address: Some(faucet_address),
+                gas_amounts: vec![DEFAULT_GAS_AMOUNT],
+            });
+            Faucet {
+                address: faucet_address,
+                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
+                    faucet_keypair,
+                ))),
+            }
+        });
+
         // All test clusters receive a continuous stream of random JWKs.
         // If we later use zklogin authenticated transactions in tests we will need to
         // supply valid JWKs as well.
@@ -1191,13 +1363,8 @@ impl TestClusterBuilder {
         let fullnode_handle =
             FullNodeHandle::new(fullnode.get_node_handle().unwrap(), json_rpc_address).await;
 
-        wallet_conf.envs.push(IotaEnv {
-            alias: "localnet".to_string(),
-            rpc: fullnode_handle.rpc_url.clone(),
-            ws: None,
-            basic_auth: None,
-        });
-        wallet_conf.active_env = Some("localnet".to_string());
+        wallet_conf.add_env(IotaEnv::new("localnet", fullnode_handle.rpc_url.clone()));
+        wallet_conf.set_active_env(Some("localnet".to_string()));
 
         wallet_conf
             .persisted(&working_dir.join(IOTA_CLIENT_CONFIG))
@@ -1213,6 +1380,7 @@ impl TestClusterBuilder {
             fullnode_handle,
             bridge_authority_keys: None,
             bridge_server_ports: None,
+            faucet,
         }
     }
 
@@ -1403,9 +1571,7 @@ impl TestClusterBuilder {
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
-            .with_state_accumulator_v2_enabled_config(
-                self.validator_state_accumulator_v2_enabled_config.clone(),
-            )
+            .with_state_accumulator_config(self.validator_state_accumulator_config.clone())
             .with_fullnode_count(1)
             .with_fullnode_supported_protocol_versions_config(
                 self.fullnode_supported_protocol_versions_config
@@ -1491,13 +1657,9 @@ impl TestClusterBuilder {
         let active_address = keystore.addresses().first().cloned();
 
         // Create wallet config with stated authorities port
-        IotaClientConfig {
-            keystore: Keystore::from(FileBasedKeystore::new(&keystore_path)?),
-            envs: Default::default(),
-            active_address,
-            active_env: Default::default(),
-        }
-        .save(wallet_path)?;
+        IotaClientConfig::new(FileBasedKeystore::new(&keystore_path)?)
+            .with_active_address(active_address)
+            .save(wallet_path)?;
 
         // Return network handle
         Ok(swarm)

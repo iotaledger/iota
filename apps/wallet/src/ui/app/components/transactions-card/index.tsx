@@ -40,7 +40,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         recognizedPackagesList,
     });
 
-    // we only show Iota Transfer amount or the first non-Iota transfer amount
+    // we only show IOTA Transfer amount or the first non-Iota transfer amount
     // Get the balance changes for the transaction and the amount
     const balanceChanges = getBalanceChangeSummary(txn, recognizedPackagesList);
     const [formatAmount, symbol] = useFormatCoin(
@@ -50,8 +50,9 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
 
     const error = txn.effects?.status.error;
 
-    const timestamp = txn.timestampMs;
-    const transactionDate = formatDate(Number(timestamp), ['month', 'day', 'hour', 'minute']);
+    const transactionDate = !txn.timestampMs
+        ? '--'
+        : formatDate(Number(txn.timestampMs), ['month', 'day', 'hour', 'minute']);
 
     return (
         <Link
@@ -61,7 +62,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
             }).toString()}`}
             className="flex w-full flex-col items-center no-underline"
         >
-            <Card type={CardType.Default}>
+            <Card type={CardType.Default} isHoverable>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TxnIcon
                         txnFailed={executionStatus !== 'success' || !!error}

@@ -119,6 +119,11 @@ impl SimpleFaucet {
             .map(|q| GasCoin::try_from(&q.1).unwrap())
             .filter(|coin| coin.0.balance.value() >= (config.amount * config.num_coins as u64))
             .collect::<Vec<GasCoin>>();
+
+        if coins.is_empty() {
+            return Err(FaucetError::NoGasCoinAvailable);
+        }
+
         let metrics = FaucetMetrics::new(prometheus_registry);
 
         let wal = WriteAheadLog::open(wal_path);
@@ -131,16 +136,19 @@ impl SimpleFaucet {
             config.max_request_queue_length as usize,
         );
 
-        // This is to handle the case where there is only 1 coin, we want it to go to
-        // the normal queue
-        let split_point = if coins.len() > 10 {
-            coins.len() / 2
+        // Split the coins eventually into two pools: one for the gas pool and one for
+        // the batch pool. The batch pool will only be populated if the batch feature is
+        // enabled.
+        let split_point = if config.batch_enabled {
+            if coins.len() > 1 {
+                1 // At least one coin goes to the gas pool the rest to the batch pool
+            } else {
+                0 // Only one coin available, all coins go to the batch pool. This is safe as we have already checked above that `coins` is not empty.
+            }
         } else {
-            coins.len()
+            coins.len() // All coins go to the gas pool if batch is disabled
         };
-        // Put half of the coins in the old faucet impl queue, and put half in the other
-        // queue for batch coins. In the test cases we create an account with 5
-        // coins so we just let this run with a minimum of 5 coins
+
         for (coins_processed, coin) in coins.iter().enumerate() {
             let coin_id = *coin.id();
             if let Some(write_ahead_log::Entry {
@@ -427,8 +435,8 @@ impl SimpleFaucet {
     ) -> Result<IotaTransactionBlockResponse, FaucetError> {
         let signature = self
             .wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .sign_secure(&self.active_address, &tx_data, Intent::iota_transaction())
             .map_err(FaucetError::internal)?;
         let tx = Transaction::from_data(tx_data, vec![signature]);
@@ -537,7 +545,7 @@ impl SimpleFaucet {
 
             GasCoinResponse::UnknownGasCoin(coin_id) => {
                 self.recycle_gas_coin(coin_id, uuid).await;
-                Err(FaucetError::FullnodeReadingError(format!(
+                Err(FaucetError::FullnodeReading(format!(
                     "unknown gas coin {coin_id:?}"
                 )))
             }
@@ -666,7 +674,7 @@ impl SimpleFaucet {
             .read_api()
             .get_reference_gas_price()
             .await
-            .map_err(|e| FaucetError::FullnodeReadingError(format!("Error fetch gas price {e:?}")))
+            .map_err(|e| FaucetError::FullnodeReading(format!("Error fetch gas price {e:?}")))
     }
 
     async fn build_pay_iota_txn(
@@ -701,7 +709,7 @@ impl SimpleFaucet {
         let created = res
             .effects
             .ok_or_else(|| {
-                FaucetError::ParseTransactionResponseError(format!(
+                FaucetError::ParseTransactionResponse(format!(
                     "effects field missing for txn {}",
                     res.digest
                 ))
@@ -765,7 +773,7 @@ impl SimpleFaucet {
         let created = res
             .effects
             .ok_or_else(|| {
-                FaucetError::ParseTransactionResponseError(format!(
+                FaucetError::ParseTransactionResponse(format!(
                     "effects field missing for txn {}",
                     res.digest
                 ))
@@ -946,6 +954,7 @@ impl Faucet for SimpleFaucet {
         {
             return Err(FaucetError::BatchSendQueueFull);
         }
+
         let mut task_map = self.task_id_cache.lock().await;
         task_map.insert(
             id,
@@ -1035,6 +1044,7 @@ pub async fn batch_transfer_gases(
         "Batch transfer attempted of size: {:?}", total_requests
     );
     let total_iota_needed: u64 = requests.iter().flat_map(|(_, _, amounts)| amounts).sum();
+
     // This loop is utilized to grab a coin that is large enough for the request
     loop {
         let gas_coin_response = faucet
@@ -1123,7 +1133,7 @@ mod tests {
         ctx: &mut WalletContext,
         tx_data: TransactionData,
     ) -> Result<IotaTransactionBlockEffects, anyhow::Error> {
-        let signature = ctx.config.keystore.sign_secure(
+        let signature = ctx.config().keystore().sign_secure(
             &tx_data.sender(),
             &tx_data,
             Intent::iota_transaction(),
@@ -1292,7 +1302,10 @@ mod tests {
     #[tokio::test]
     async fn test_batch_transfer_interface() {
         let test_cluster = TestClusterBuilder::new().build().await;
-        let config: FaucetConfig = Default::default();
+        let config: FaucetConfig = FaucetConfig {
+            batch_enabled: true,
+            ..Default::default()
+        };
         let coin_amount = config.amount;
         let prom_registry = Registry::new();
         let tmp = tempfile::tempdir().unwrap();
@@ -1892,7 +1905,10 @@ mod tests {
     #[tokio::test]
     async fn test_amounts_transferred_on_batch() {
         let test_cluster = TestClusterBuilder::new().build().await;
-        let config: FaucetConfig = Default::default();
+        let config: FaucetConfig = FaucetConfig {
+            batch_enabled: true,
+            ..Default::default()
+        };
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
         let gas_coins = context

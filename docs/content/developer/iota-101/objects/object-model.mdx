@@ -2,6 +2,8 @@
 title: Object Model
 description: Everything on the IOTA blockchain is an object, with metadata, type of ownership, and a referencing scheme.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/object-model.json';
 
 # Object Model in IOTA
 
@@ -66,3 +68,5 @@ IOTA imposes certain limits on transactions and the data used within them,
 including maximum sizes and the number of objects involved.
 
 The `ProtocolConfig` struct in the [`iota-protocol-config` crate](https://github.com/iotaledger/iota/blob/main/crates/iota-protocol-config/src/lib.rs) itemizes these limits. Expand the following code to see the `ProtocolConfig` struct and the comments that explain each parameter.
+
+<Quiz questions={questions} />

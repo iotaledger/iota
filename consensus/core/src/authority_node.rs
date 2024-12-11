@@ -23,13 +23,10 @@ use crate::{
     core::{Core, CoreSignals},
     core_thread::{ChannelCoreThreadDispatcher, CoreThreadHandle},
     dag_state::DagState,
-    leader_schedule::{LeaderSchedule, LeaderSwapTable},
+    leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
-    network::{
-        NetworkClient as _, NetworkManager, anemo_network::AnemoManager,
-        tonic_network::TonicManager,
-    },
+    network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
@@ -41,7 +38,6 @@ use crate::{
 /// MysticetiManager.
 #[allow(private_interfaces)]
 pub enum ConsensusAuthority {
-    WithAnemo(AuthorityNode<AnemoManager>),
     WithTonic(AuthorityNode<TonicManager>),
 }
 
@@ -66,22 +62,6 @@ impl ConsensusAuthority {
         boot_counter: u64,
     ) -> Self {
         match network_type {
-            ConsensusNetwork::Anemo => {
-                let authority = AuthorityNode::start(
-                    own_index,
-                    committee,
-                    parameters,
-                    protocol_config,
-                    protocol_keypair,
-                    network_keypair,
-                    transaction_verifier,
-                    commit_consumer,
-                    registry,
-                    boot_counter,
-                )
-                .await;
-                Self::WithAnemo(authority)
-            }
             ConsensusNetwork::Tonic => {
                 let authority = AuthorityNode::start(
                     own_index,
@@ -103,14 +83,12 @@ impl ConsensusAuthority {
 
     pub async fn stop(self) {
         match self {
-            Self::WithAnemo(authority) => authority.stop().await,
             Self::WithTonic(authority) => authority.stop().await,
         }
     }
 
     pub fn transaction_client(&self) -> Arc<TransactionClient> {
         match self {
-            Self::WithAnemo(authority) => authority.transaction_client(),
             Self::WithTonic(authority) => authority.transaction_client(),
         }
     }
@@ -118,7 +96,6 @@ impl ConsensusAuthority {
     #[cfg(test)]
     fn context(&self) -> &Arc<Context> {
         match self {
-            Self::WithAnemo(authority) => &authority.context,
             Self::WithTonic(authority) => &authority.context,
         }
     }
@@ -126,7 +103,6 @@ impl ConsensusAuthority {
     #[allow(unused)]
     fn sync_last_known_own_block_enabled(&self) -> bool {
         match self {
-            Self::WithAnemo(authority) => authority.sync_last_known_own_block,
             Self::WithTonic(authority) => authority.sync_last_known_own_block,
         }
     }
@@ -226,20 +202,10 @@ where
         let block_manager =
             BlockManager::new(context.clone(), dag_state.clone(), block_verifier.clone());
 
-        let leader_schedule = if context
-            .protocol_config
-            .mysticeti_leader_scoring_and_schedule()
-        {
-            Arc::new(LeaderSchedule::from_store(
-                context.clone(),
-                dag_state.clone(),
-            ))
-        } else {
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            ))
-        };
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
 
         let commit_consumer_monitor = commit_consumer.monitor();
         let commit_observer = CommitObserver::new(
@@ -415,7 +381,7 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_authority_start_and_stop(
-        #[values(ConsensusNetwork::Anemo, ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
+        #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
     ) {
         let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
         let registry = Registry::new();
@@ -460,7 +426,7 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_authority_committee(
-        #[values(ConsensusNetwork::Anemo, ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
+        #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
     ) {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -555,7 +521,7 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_amnesia_recovery_success(
-        #[values(ConsensusNetwork::Anemo, ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
+        #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
     ) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();

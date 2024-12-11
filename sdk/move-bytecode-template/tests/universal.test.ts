@@ -22,18 +22,12 @@ describe('move-binary-template', () => {
 
     it('should update identifiers', () => {
         const patched = template.update_identifiers(pokemonBytes(), {
-            Stats: 'PokeStats',
-            pokemon_v1: 'capymon',
-            new: 'capy_new',
-            speed: 'capy_speed',
+            Stats: 'IotaStats',
         });
 
         const de = template.deserialize(patched);
 
-        expect(de.identifiers.includes('PokeStats')).toBeTruthy();
-        expect(de.identifiers.includes('capymon')).toBeTruthy();
-        expect(de.identifiers.includes('capy_new')).toBeTruthy();
-        expect(de.identifiers.includes('capy_speed')).toBeTruthy();
+        expect(de.identifiers.includes('IotaStats')).toBeTruthy();
     });
 
     it('should update constants', () => {

@@ -65,7 +65,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RestError {
 
                 RestError::new(StatusCode::BAD_REQUEST, message)
             }
-            QuorumDriverInternalError(err) => {
+            QuorumDriverInternal(err) => {
                 RestError::new(StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
             }
             ObjectsDoubleUsed {

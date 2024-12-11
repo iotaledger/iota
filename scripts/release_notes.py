@@ -44,7 +44,6 @@ INTERESTING_DIRECTORIES = [
     "docker",
     "external-crates",
     "kiosk",
-    "narwhal",
     "nre",
     "iota-execution",
 ]
