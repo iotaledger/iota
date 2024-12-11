@@ -3,6 +3,7 @@ title: Overview
 description: Operate an IOTA Full Node to validate blockchain activities, like transactions, checkpoints, and epoch changes.
 ---
 import Quiz from '@site/src/components/Quiz';
+import BSTInfo from '../../_snippets/info-BST-2f1.mdx';
 import questions from '/json/node-operators/iota-full-node/overview.json';
 import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
 
@@ -27,6 +28,8 @@ IOTA Full nodes sync with validators to receive new transactions on the network.
 A transaction requires a few round trips to 2f+1 validators to form a transaction certificate (TxCert).
 
 This synchronization process includes:
+
+<BSTInfo/>
 
 1. Following 2f+1 validators and listening for newly committed transactions.
 1. Making sure that 2f+1 validators recognize the transaction and that it reaches finality.
