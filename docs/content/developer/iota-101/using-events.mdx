@@ -30,11 +30,11 @@ An event object in IOTA consists of the following attributes:
 
 ### Exploring Available Events
 
-To [subscribe to on-chain events](#subscriging-to-events), you first need to identify which events are available. While you can easily track events emitted by your own code, discovering events from external packages can be more challenging. The IOTA RPC provides the [`queryEvents`](/iota-api-ref#iotax_queryevents) method, which allows you to query on-chain packages and obtain a list of events you can subscribe to.
+To [subscribe to on-chain events](#subscribing-to-events), you first need to identify which events are available. While you can easily track events emitted by your own code, discovering events from external packages can be more challenging. The IOTA RPC provides the [`queryEvents`](/iota-api-ref#iotax_queryevents) method, which allows you to query on-chain packages and obtain a list of events you can subscribe to.
 
 ### Applying Event Filters
 
-When targeting specific events for [querying](#query-events) or [subscribing](#subscriging-to-events), you can use [filters](#filtering-events) to refine your results. Although the filtering options for querying and subscribing are similar, there are notable differences to be aware of.
+When targeting specific events for [querying](#querying-events) or [subscribing](#subscribing-to-events), you can use [filters](#filtering-events) to refine your results. Although the filtering options for querying and subscribing are similar, there are notable differences to be aware of.
 
 ## Emitting Events in Move
 
@@ -58,7 +58,7 @@ Then, within your function, you can emit an event using the [`emit`](../../refer
 <Tabs>
 
 <TabItem value="RPC" label="IOTA RPC">
-The IOTA RPC provides a [`queryEvents`](/iota-api-ref#iotax_queryEvents) method to query on-chain packages and return available events. As an example, the following `curl` command queries the Deepbook package on Mainnet for a specific type of event:
+The IOTA RPC provides a [`queryEvents`](/iota-api-ref#iotax_queryevents) method to query on-chain packages and return available events. As an example, the following `curl` command queries the Deepbook package on Mainnet for a specific type of event:
 
 ```sh
 curl -X POST https://api.testnet.iota.cafe:443 \
