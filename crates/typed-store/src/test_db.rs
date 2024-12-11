@@ -74,7 +74,7 @@ pub struct TestDBValues<'a, V> {
     phantom: PhantomData<V>,
 }
 
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBIter<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBIter<'_, K, V> {
     type Item = Result<(K, V), TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -173,7 +173,7 @@ impl<'a, K, V> TestDBRevIter<'a, K, V> {
     }
 }
 
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBRevIter<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBRevIter<'_, K, V> {
     type Item = Result<(K, V), TypedStoreError>;
 
     /// Will give the next item backwards
@@ -182,7 +182,7 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBRevIter<'a
     }
 }
 
-impl<'a, K: DeserializeOwned> Iterator for TestDBKeys<'a, K> {
+impl<K: DeserializeOwned> Iterator for TestDBKeys<'_, K> {
     type Item = Result<K, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -200,7 +200,7 @@ impl<'a, K: DeserializeOwned> Iterator for TestDBKeys<'a, K> {
     }
 }
 
-impl<'a, V: DeserializeOwned> Iterator for TestDBValues<'a, V> {
+impl<V: DeserializeOwned> Iterator for TestDBValues<'_, V> {
     type Item = Result<V, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
