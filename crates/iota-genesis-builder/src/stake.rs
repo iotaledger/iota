@@ -173,7 +173,7 @@ impl GenesisStake {
         // objects fetched above
         for validator_allocation in validators_allocations {
             // The validaotr address
-            let validator = validator_allocation.address;
+            let validator = validator_allocation.validator;
             // The target amount of nanos to be staked, either with timelock or gas objects
             let mut target_stake = validator_allocation.amount_nanos_to_stake;
             // The gas to pay to the validator

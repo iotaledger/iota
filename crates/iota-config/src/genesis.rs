@@ -638,7 +638,7 @@ impl TokenDistributionScheduleBuilder {
 #[serde(rename_all = "kebab-case")]
 pub struct ValidatorAllocation {
     /// The validator address receiving the stake and/or gas payment
-    pub address: IotaAddress,
+    pub validator: IotaAddress,
     // The amount of nanos to stake to the validator
     pub amount_nanos_to_stake: u64,
     /// The amount of nanos to transfer as gas payment to the validator
@@ -651,6 +651,7 @@ pub struct Delegation {
     /// The address from which take the nanos for staking/gas
     pub delegator: IotaAddress,
     /// The allocation to a validator receiving a stake and/or a gas payment
+    #[serde(flatten)]
     pub validator_allocation: ValidatorAllocation,
 }
 
@@ -676,7 +677,7 @@ impl Delegations {
         let validator_allocations = validators
             .into_iter()
             .map(|address| ValidatorAllocation {
-                address,
+                validator: address,
                 amount_nanos_to_stake: default_allocation,
                 amount_nanos_to_pay_gas: 0,
             })
@@ -722,12 +723,21 @@ impl Delegations {
     pub fn to_csv<W: std::io::Write>(&self, writer: W) -> Result<()> {
         let mut writer = csv::Writer::from_writer(writer);
 
-        for (&delegator, validators_allocations) in &self.allocations {
-            for &validator_allocation in validators_allocations {
-                writer.serialize(Delegation {
-                    delegator,
-                    validator_allocation,
-                })?;
+        writer.write_record(&[
+            "delegator",
+            "validator",
+            "amount-nanos-to-stake",
+            "amount-nanos-to-pay-gas",
+        ])?;
+
+        for (&delegator, validator_allocations) in &self.allocations {
+            for validator_allocation in validator_allocations {
+                writer.write_record(&[
+                    delegator.to_string(),
+                    validator_allocation.validator.to_string(),
+                    validator_allocation.amount_nanos_to_stake.to_string(),
+                    validator_allocation.amount_nanos_to_pay_gas.to_string(),
+                ])?;
             }
         }
 
