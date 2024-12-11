@@ -4,13 +4,15 @@
 import React, { useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useIotaClient, useCurrentAccount } from '@iota/dapp-kit';
 import { createNftSendValidationSchema } from '@iota/core';
 import { DetailsView, SendView } from './views';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
 import { useCreateSendAssetTransaction, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
+import { TransactionDetailsView } from '../SendToken';
+import { DialogLayout } from '../layout';
 
 interface AssetsDialogProps {
     onClose: () => void;
@@ -28,9 +30,11 @@ const INITIAL_VALUES: FormValues = {
 export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element {
     const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
     const account = useCurrentAccount();
+    const [digest, setDigest] = useState<string>('');
     const activeAddress = account?.address ?? '';
     const objectId = asset?.objectId ?? '';
     const { addNotification } = useNotifications();
+    const iotaClient = useIotaClient();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
 
     const { mutation: sendAsset } = useCreateSendAssetTransaction(objectId);
@@ -44,10 +48,15 @@ export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element 
 
     async function onSubmit(values: FormValues) {
         try {
-            await sendAsset.mutateAsync(values.to);
+            const executed = await sendAsset.mutateAsync(values.to);
+
+            const tx = await iotaClient.waitForTransaction({
+                digest: executed.digest,
+            });
+
+            setDigest(tx.digest);
             addNotification('Transfer transaction successful', NotificationType.Success);
-            onClose();
-            setView(AssetsDialogView.Details);
+            setView(AssetsDialogView.Recipt);
         } catch {
             addNotification('Transfer transaction failed', NotificationType.Error);
         }
@@ -74,6 +83,12 @@ export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element 
                     {view === AssetsDialogView.Send && (
                         <SendView asset={asset} onClose={onOpenChange} onBack={onSendViewBack} />
                     )}
+
+                    {view === AssetsDialogView.Recipt && !!digest ? (
+                        <DialogLayout>
+                            <TransactionDetailsView digest={digest} onClose={onOpenChange} />
+                        </DialogLayout>
+                    ) : null}
                 </>
             </FormikProvider>
         </Dialog>
