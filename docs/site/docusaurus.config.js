@@ -186,29 +186,14 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense',
-    '@saucelabs/theme-github-codeblock'],
+  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", '@saucelabs/theme-github-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      typesense: {
-        // Replace this with the name of your index/collection.
-        // It should match the "index_name" entry in the scraper's "config.json" file.
-        typesenseCollectionName: 'IOTADocs',
-        typesenseServerConfig: {
-          nodes: [
-            {
-              host: 'docs-search.iota.org',
-              port: '',
-              protocol: 'https',
-            },
-          ],
-          apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
-        },
-        // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
-        typesenseSearchParameters: {},
-        // Optional
-        contextualSearch: true,
+      algolia: {        
+        apiKey: '24b141ea7e65db2181463e44dbe564a5',
+        appId: '9PMBZGRP3B',
+        indexName: 'iota',
       },
       image: "img/iota-doc-og.png",
       docs: {
