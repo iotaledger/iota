@@ -21,7 +21,7 @@ import {
 import { useFormatCoin, getLabel, useTransactionSummary } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { TransactionDialogDetails } from '../Dialogs/transaction/TransactionDialogDetails';
+import { TransactionDetailsLayout } from '../Dialogs/transaction/TransactionDetailsLayout';
 
 interface TransactionTileProps {
     transaction: ExtendedTransaction;
@@ -74,24 +74,12 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
                     }
                 />
             </Card>
-            <ActivityDetailsDialog transaction={transaction} open={open} setOpen={setOpen} />
+            <Dialog open={open} onOpenChange={setOpen}>
+                <TransactionDetailsLayout
+                    transaction={transaction}
+                    onClose={() => setOpen(false)}
+                />
+            </Dialog>
         </>
-    );
-}
-
-interface ActivityDetailsDialogProps {
-    transaction: ExtendedTransaction;
-    open: boolean;
-    setOpen: (open: boolean) => void;
-}
-function ActivityDetailsDialog({
-    transaction,
-    open,
-    setOpen,
-}: ActivityDetailsDialogProps): React.JSX.Element {
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <TransactionDialogDetails transaction={transaction} onClose={() => setOpen(false)} />
-        </Dialog>
     );
 }

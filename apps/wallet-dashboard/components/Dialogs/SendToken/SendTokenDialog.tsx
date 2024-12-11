@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
-import { EnterValuesFormView, ReviewValuesFormView, SentSuccessView } from './views';
+import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import { useSendCoinTransaction, useNotifications } from '@/hooks';
 import { useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
@@ -23,7 +23,7 @@ interface SendCoinPopupProps {
 enum FormStep {
     EnterValues,
     ReviewValues,
-    SentSuccess,
+    TransactionDetails,
 }
 
 function SendTokenDialogBody({
@@ -31,7 +31,6 @@ function SendTokenDialogBody({
     activeAddress,
     setOpen,
 }: SendCoinPopupProps): React.JSX.Element {
-    console.log('coin', coin);
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>(coin);
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
@@ -71,7 +70,7 @@ function SendTokenDialogBody({
                 });
 
                 setDigest(tx.digest);
-                setStep(FormStep.SentSuccess);
+                setStep(FormStep.TransactionDetails);
                 addNotification('Transfer transaction has been sent');
             } catch {
                 handleTransactionError();
@@ -124,8 +123,8 @@ function SendTokenDialogBody({
                     onBack={onBack}
                 />
             )}
-            {step === FormStep.SentSuccess && (
-                <SentSuccessView
+            {step === FormStep.TransactionDetails && (
+                <TransactionDetailsView
                     digest={digest}
                     onClose={() => {
                         setOpen(false);

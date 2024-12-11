@@ -6,14 +6,14 @@ import { InfoBoxType, InfoBox, InfoBoxStyle } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/ui-icons';
 import { getExtendedTransaction } from '@/lib/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { TransactionDialogDetails } from '../../transaction';
+import { TransactionDetailsLayout } from '../../transaction';
 
-interface SentSuccessProps {
+interface TransactionDetailsViewProps {
     digest?: string;
     onClose: () => void;
 }
 
-export function SentSuccessView({ digest, onClose }: SentSuccessProps) {
+export function TransactionDetailsView({ digest, onClose }: TransactionDetailsViewProps) {
     const currentAccount = useCurrentAccount();
     const { data, isError, error } = useGetTransaction(digest || '');
 
@@ -32,6 +32,10 @@ export function SentSuccessView({ digest, onClose }: SentSuccessProps) {
     const transaction = data && getExtendedTransaction(data, currentAccount?.address || '');
 
     return transaction ? (
-        <TransactionDialogDetails transaction={transaction} onClose={onClose} />
+        <TransactionDetailsLayout
+            transaction={transaction}
+            onClose={onClose}
+            withDialogContent={false}
+        />
     ) : null;
 }

@@ -17,8 +17,13 @@ import { Validator } from '../Staking/views/Validator';
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
     onClose: () => void;
+    withDialogContent?: boolean;
 }
-export function TransactionDialogDetails({ transaction, onClose }: TransactionDialogDetailsProps) {
+export function TransactionDetailsLayout({
+    transaction,
+    onClose,
+    withDialogContent,
+}: TransactionDialogDetailsProps) {
     const address = useCurrentAccount()?.address ?? '';
 
     const summary = useTransactionSummary({
@@ -30,7 +35,7 @@ export function TransactionDialogDetails({ transaction, onClose }: TransactionDi
     if (!summary) return <LoadingIndicator />;
 
     return (
-        <DialogLayout withDialogContent={false}>
+        <DialogLayout withDialogContent={withDialogContent}>
             <Header title="Transaction" onClose={onClose} />
             <DialogLayoutBody>
                 <TransactionReceipt
