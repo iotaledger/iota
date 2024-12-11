@@ -25,3 +25,4 @@ export * from './ValidatorStakingData';
 export * from './tiles';
 export * from './Toaster';
 export * from './Banner';
+export * from './MigrationOverview';
