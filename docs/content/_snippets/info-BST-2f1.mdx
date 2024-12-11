@@ -1,6 +1,10 @@
 :::info 
 
-In Byzantine Fault Tolerant (BFT) systems that use 3f+1 validators, `2f+1` represents the minimum number of validators
-needed to agree on a transaction to ensure integrity and finality, even if up to f validators are faulty.
+In Byzantine Fault Tolerant (BFT) `f` is used to represent the amount of faulty validators. `2f+1` represents the minimum number of validators
+needed to agree on a transaction to ensure integrity and finality, even if up to `f` validators are faulty.
+
+For example, if `f = 1`, this means 3 validators must confirm a transaction (a supermajority) to guarantee its
+integrity,
+ensuring that even if one validator is faulty, the correct decision still stands.
 
 :::
