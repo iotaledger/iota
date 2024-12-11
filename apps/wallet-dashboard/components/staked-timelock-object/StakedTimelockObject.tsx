@@ -30,14 +30,14 @@ export function StakedTimelockObject({
             const estimatedReward = stake.status === 'Active' ? stake.estimatedReward : 0;
 
             return {
-                principal: Number(stake.principal) + acc.principal,
-                estimatedReward: Number(estimatedReward) + acc.estimatedReward,
+                principal: BigInt(stake.principal) + acc.principal,
+                estimatedReward: BigInt(estimatedReward) + acc.estimatedReward,
                 stakeRequestEpoch: stake.stakeRequestEpoch,
             };
         },
         {
-            principal: 0,
-            estimatedReward: 0,
+            principal: 0n,
+            estimatedReward: 0n,
             stakeRequestEpoch: '',
         },
     );

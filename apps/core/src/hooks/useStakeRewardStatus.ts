@@ -15,7 +15,7 @@ export function useStakeRewardStatus({
     stakeRequestEpoch: string;
     currentEpoch: number;
     inactiveValidator: boolean;
-    estimatedReward?: string | number;
+    estimatedReward?: string | number | bigint;
 }) {
     // TODO: Once two step withdraw is available, add cool down and withdraw now logic
     // For cool down epoch, show Available to withdraw add rewards to principal

@@ -189,7 +189,7 @@ describe('vesting overview', () => {
                 lastPayoutValue) /
                 0.9,
         );
-        console.log(totalAmount);
+
         const vestingOverview = getVestingOverview(extendedTimelockedStakedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
 
