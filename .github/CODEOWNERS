@@ -58,6 +58,7 @@ turbo.json @iotaledger/tooling
 vercel.json @iotaledger/tooling
 
 # vm-language team
+# Needs to be after package.json ownership definition to override it
 /iota-execution/ @iotaledger/vm-language
 /external-crates/ @iotaledger/vm-language
 
