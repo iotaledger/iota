@@ -49,7 +49,7 @@ export function ReviewValuesFormView({
     const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG);
 
     return (
-        <DialogLayout>
+        <DialogLayout withDialogContent={false}>
             <Header title="Review & Send" onClose={onClose} onBack={onBack} />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">

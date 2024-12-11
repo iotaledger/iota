@@ -31,6 +31,7 @@ function SendTokenDialogBody({
     activeAddress,
     setOpen,
 }: SendCoinPopupProps): React.JSX.Element {
+    console.log('coin', coin);
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>(coin);
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
@@ -54,27 +55,29 @@ function SendTokenDialogBody({
         isPayAllIota,
     );
 
-    function handleTransfer() {
+    async function handleTransfer() {
         if (!transaction) {
             addNotification('There was an error with the transaction', NotificationType.Error);
             return;
         } else {
-            setIsReviewing(true);
-            signAndExecuteTransaction({
-                transaction,
-            })
-                .then((d) =>
-                    iotaClient.waitForTransaction({
-                        digest: d.digest,
-                    }),
-                )
-                .then((transaction) => {
-                    setDigest(transaction.digest);
-                    setStep(FormStep.SentSuccess);
-                    addNotification('Transfer transaction has been sent');
-                })
-                .catch(handleTransactionError)
-                .finally(() => setIsReviewing(false));
+            try {
+                setIsReviewing(true);
+                const executed = await signAndExecuteTransaction({
+                    transaction,
+                });
+
+                const tx = await iotaClient.waitForTransaction({
+                    digest: executed.digest,
+                });
+
+                setDigest(tx.digest);
+                setStep(FormStep.SentSuccess);
+                addNotification('Transfer transaction has been sent');
+            } catch {
+                handleTransactionError();
+            } finally {
+                setIsReviewing(false);
+            }
         }
     }
 
@@ -134,7 +137,10 @@ function SendTokenDialogBody({
     );
 }
 
-export function SendTokenDialog(props: SendCoinPopupProps): React.JSX.Element {
+export function SendTokenDialog(props: SendCoinPopupProps) {
+    if (!props.coin) {
+        return null;
+    }
     return (
         <Dialog open={props.open} onOpenChange={props.setOpen}>
             <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>

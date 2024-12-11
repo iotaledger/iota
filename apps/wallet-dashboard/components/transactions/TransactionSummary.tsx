@@ -27,7 +27,6 @@ export default function TransactionSummary({
 
     return (
         <div className="flex flex-col gap-4">
-            ff
             {summary.balanceChanges && (
                 <div className="rounded-md border border-gray-600 p-2">
                     <h4 className="text-center font-semibold">Balance Changes</h4>

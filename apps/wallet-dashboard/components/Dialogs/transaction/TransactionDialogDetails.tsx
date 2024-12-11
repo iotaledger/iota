@@ -30,7 +30,7 @@ export function TransactionDialogDetails({ transaction, onClose }: TransactionDi
     if (!summary) return <LoadingIndicator />;
 
     return (
-        <DialogLayout>
+        <DialogLayout withDialogContent={false}>
             <Header title="Transaction" onClose={onClose} />
             <DialogLayoutBody>
                 <TransactionReceipt

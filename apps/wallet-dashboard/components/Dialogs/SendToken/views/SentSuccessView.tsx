@@ -17,8 +17,6 @@ export function SentSuccessView({ digest, onClose }: SentSuccessProps) {
     const currentAccount = useCurrentAccount();
     const { data, isError, error } = useGetTransaction(digest || '');
 
-    const transaction = data && getExtendedTransaction(data, currentAccount?.address || '');
-
     if (isError) {
         return (
             <InfoBox
@@ -30,6 +28,8 @@ export function SentSuccessView({ digest, onClose }: SentSuccessProps) {
             />
         );
     }
+
+    const transaction = data && getExtendedTransaction(data, currentAccount?.address || '');
 
     return transaction ? (
         <TransactionDialogDetails transaction={transaction} onClose={onClose} />
