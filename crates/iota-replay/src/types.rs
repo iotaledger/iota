@@ -65,6 +65,8 @@ pub struct OnChainTransactionInfo {
     pub effects: IotaTransactionBlockEffects,
     pub protocol_version: ProtocolVersion,
     pub epoch_start_timestamp: u64,
+    // The reference gas price here may refer to a validator-defined or protocol-defined gas price
+    // depending on the protocol config.
     pub reference_gas_price: u64,
     #[serde(default = "unspecified_chain")]
     pub chain: Chain,

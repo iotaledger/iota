@@ -65,7 +65,7 @@ import {
     TryGetPastObjectDocument,
 } from './generated/queries.js';
 import { mapJsonToBcs } from './mappers/bcs.js';
-import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpint.js';
+import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpoint.js';
 import {
     mapNormalizedMoveFunction,
     mapNormalizedMoveModule,
@@ -810,6 +810,9 @@ export const RPC_METHODS: {
             referenceGasPrice: String(systemState.referenceGasPrice),
             safeMode: systemState.safeMode?.enabled!,
             safeModeComputationRewards: String(systemState.safeMode?.gasSummary?.computationCost),
+            safeModeComputationRewardsBurned: String(
+                systemState.safeMode?.gasSummary?.computationCostBurned,
+            ),
             safeModeNonRefundableStorageFee: String(
                 systemState.safeMode?.gasSummary?.nonRefundableStorageFee,
             ),

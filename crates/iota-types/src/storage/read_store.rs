@@ -53,12 +53,12 @@ pub trait ReadStore: ObjectStore {
         Ok(latest_checkpoint.epoch())
     }
 
-    /// Get the highest verified checkpint. This is the highest checkpoint
+    /// Get the highest verified checkpoint. This is the highest checkpoint
     /// summary that has been verified, generally by state-sync. Only the
     /// checkpoint header is guaranteed to be present in the store.
     fn get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint>;
 
-    /// Get the highest synced checkpint. This is the highest checkpoint that
+    /// Get the highest synced checkpoint. This is the highest checkpoint that
     /// has been synced from state-synce. The checkpoint header, contents,
     /// transactions, and effects of this checkpoint are guaranteed to be
     /// present in the store

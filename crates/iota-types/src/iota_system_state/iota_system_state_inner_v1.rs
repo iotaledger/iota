@@ -645,7 +645,9 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             reference_gas_price,
             safe_mode,
             safe_mode_storage_charges: safe_mode_storage_charges.value(),
-            safe_mode_computation_rewards: safe_mode_computation_rewards.value(),
+            safe_mode_computation_charges: safe_mode_computation_rewards.value(),
+            // all computation charges are burned in state v1.
+            safe_mode_computation_charges_burned: safe_mode_computation_rewards.value(),
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,

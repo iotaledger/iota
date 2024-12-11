@@ -202,6 +202,7 @@ mod checked {
         trace!(
             tx_digest = ?transaction_digest,
             computation_gas_cost = gas_cost_summary.computation_cost,
+            computation_gas_cost_burned = gas_cost_summary.computation_cost_burned,
             storage_gas_cost = gas_cost_summary.storage_cost,
             storage_gas_rebate = gas_cost_summary.storage_rebate,
             "Finished execution of transaction with status {:?}",
@@ -757,20 +758,20 @@ mod checked {
             vec![storage_charge_arg],
         );
 
-        // Create computation rewards.
+        // Create computation charges.
         let computation_charge_arg = builder
             .input(CallArg::Pure(
                 bcs::to_bytes(&params.computation_charge).unwrap(),
             ))
             .unwrap();
-        let computation_rewards = builder.programmable_move_call(
+        let computation_charges = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             BALANCE_MODULE_NAME.to_owned(),
             BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
             vec![GAS::type_tag()],
             vec![computation_charge_arg],
         );
-        (storage_charges, computation_rewards)
+        (storage_charges, computation_charges)
     }
 
     /// Constructs a `ProgrammableTransaction` to advance the epoch. It creates
@@ -783,19 +784,22 @@ mod checked {
     pub fn construct_advance_epoch_pt(
         mut builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
+        protocol_version: u64,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
-        // Step 1: Create storage charges and computation rewards.
-        let (storage_charges, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
+        // Step 1: Create storage and computation charges.
+        let (storage_charges, computation_charges) = mint_epoch_rewards_in_pt(&mut builder, params);
 
         // Step 2: Advance the epoch.
         let mut arguments = vec![
             builder
-                .pure(params.validator_target_reward)
+                .pure(params.validator_subsidy)
                 .expect("bcs encoding a u64 should not fail"),
             storage_charges,
-            computation_rewards,
+            computation_charges,
         ];
-        let call_arg_arguments = vec![
+
+        let mut call_arg_vec = vec![
+            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()),
             CallArg::IOTA_SYSTEM_MUT,
             CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
@@ -803,10 +807,16 @@ mod checked {
             CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()),
-        ]
-        .into_iter()
-        .map(|a| builder.input(a))
-        .collect::<Result<_, _>>();
+        ];
+        if protocol_version > 1 {
+            call_arg_vec.push(CallArg::Pure(
+                bcs::to_bytes(&params.computation_charge_burned).unwrap(),
+            ));
+        }
+        let call_arg_arguments = call_arg_vec
+            .into_iter()
+            .map(|a| builder.input(a))
+            .collect::<Result<_, _>>();
 
         assert_invariant!(
             call_arg_arguments.is_ok(),
@@ -856,15 +866,17 @@ mod checked {
         let params = AdvanceEpochParams {
             epoch: change_epoch.epoch,
             next_protocol_version: change_epoch.protocol_version,
-            validator_target_reward: protocol_config.validator_target_reward(),
+            validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch.storage_charge,
             computation_charge: change_epoch.computation_charge,
+            computation_charge_burned: change_epoch.computation_charge_burned,
             storage_rebate: change_epoch.storage_rebate,
             non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
         };
-        let advance_epoch_pt = construct_advance_epoch_pt(builder, &params)?;
+        let advance_epoch_pt =
+            construct_advance_epoch_pt(builder, &params, protocol_config.version.as_u64())?;
         let result = programmable_transactions::execution::execute::<execution_mode::System>(
             protocol_config,
             metrics.clone(),

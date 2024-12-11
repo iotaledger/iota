@@ -257,6 +257,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             next_epoch_protocol_version,
             gas_cost_summary.storage_cost,
             gas_cost_summary.computation_cost,
+            gas_cost_summary.computation_cost_burned,
             gas_cost_summary.storage_rebate,
             gas_cost_summary.non_refundable_storage_fee,
             epoch_start_timestamp_ms,

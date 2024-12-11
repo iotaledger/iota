@@ -21,6 +21,7 @@ diesel::table! {
         timestamp_ms -> Bigint,
         total_gas_cost -> Bigint,
         computation_cost -> Bigint,
+        computation_cost_burned -> Bigint,
         storage_cost -> Bigint,
         storage_rebate -> Bigint,
         non_refundable_storage_fee -> Bigint,

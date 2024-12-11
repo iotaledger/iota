@@ -114,11 +114,11 @@ module iota_system::governance_test_utils {
     }
 
     public fun advance_epoch(scenario: &mut Scenario) {
-        advance_epoch_with_reward_amounts(0, 0, scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
     }
 
     public fun advance_epoch_with_reward_amounts_return_rebate(
-        validator_target_reward: u64, storage_charge: u64, computation_charge: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
+        validator_subsidy: u64, storage_charge: u64, computation_charge: u64, computation_charge_burned: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
     ): Balance<IOTA> {
         scenario.next_tx(@0x0);
         let new_epoch = scenario.ctx().epoch() + 1;
@@ -127,25 +127,25 @@ module iota_system::governance_test_utils {
         let ctx = scenario.ctx();
 
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_target_reward, storage_charge, computation_charge, storage_rebate, non_refundable_storage_rebate, 0, 0, ctx,
+            new_epoch, 1, validator_subsidy, storage_charge, computation_charge, computation_charge_burned, storage_rebate, non_refundable_storage_rebate, 0, 0, ctx,
         );
         test_scenario::return_shared(system_state);
         scenario.next_epoch(@0x0);
         storage_rebate
     }
 
-    /// Advances the epoch with the given reward amounts and setting validator_target_reward equal to the computation charge.
-    public fun advance_epoch_with_reward_amounts(
-        storage_charge: u64, computation_charge: u64, scenario: &mut Scenario
+    /// Advances the epoch with the given storage charge and setting validator_subsidy, computation charge and computation charge burned all equal to the specified amount.
+    public fun advance_epoch_with_balanced_reward_amounts(
+        storage_charge: u64, computation_charge_and_subsidy_amount: u64, scenario: &mut Scenario
     ) {
-        advance_epoch_with_target_reward_amounts(computation_charge, storage_charge, computation_charge, scenario)
+        advance_epoch_with_amounts(computation_charge_and_subsidy_amount, storage_charge, computation_charge_and_subsidy_amount, computation_charge_and_subsidy_amount, scenario)
     }
 
-    /// Advances the epoch with the given validator target reward and storage and computation charge amounts.
-    public fun advance_epoch_with_target_reward_amounts(
-        validator_target_reward: u64, storage_charge: u64, computation_charge: u64, scenario: &mut Scenario
+    /// Advances the epoch with the given validator subsidy, storage charge, computation charge and computation charge burned amounts.
+    public fun advance_epoch_with_amounts(
+        validator_subsidy: u64, storage_charge: u64, computation_charge: u64, computation_charge_burned: u64, scenario: &mut Scenario
     ) {
-        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(validator_target_reward * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, scenario);
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(validator_subsidy * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, computation_charge_burned * NANOS_PER_IOTA, 0, 0, scenario);
         test_utils::destroy(storage_rebate)
     }
 
@@ -161,9 +161,9 @@ module iota_system::governance_test_utils {
 
         let ctx = scenario.ctx();
 
-        let validator_target_reward = computation_charge;
+        let validator_subsidy = computation_charge;
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_target_reward * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, reward_slashing_rate, 0, ctx
+            new_epoch, 1, validator_subsidy * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, reward_slashing_rate, 0, ctx
         );
         test_utils::destroy(storage_rebate);
         test_scenario::return_shared(system_state);

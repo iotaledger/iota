@@ -987,7 +987,7 @@ Response: {
                             "safe_mode_storage_charges": {
                               "value": "0"
                             },
-                            "safe_mode_computation_rewards": {
+                            "safe_mode_computation_charges": {
                               "value": "0"
                             },
                             "safe_mode_storage_rebates": "0",

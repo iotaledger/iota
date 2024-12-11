@@ -713,6 +713,8 @@ export interface IotaSystemStateSummary {
     safeMode: boolean;
     /** Amount of computation rewards accumulated (and not yet distributed) during safe mode. */
     safeModeComputationRewards: string;
+    /** Amount of burned computation rewards accumulated during safe mode. */
+    safeModeComputationRewardsBurned: string;
     /** Amount of non-refundable storage fee accumulated during safe mode. */
     safeModeNonRefundableStorageFee: string;
     /** Amount of storage charges accumulated (and not yet distributed) during safe mode. */

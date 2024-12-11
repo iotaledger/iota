@@ -1027,10 +1027,12 @@ impl Display for IotaTransactionBlockEffects {
             "Gas Cost Summary:\n   \
              Storage Cost: {} NANOS\n   \
              Computation Cost: {} NANOS\n   \
+             Computation Cost Burned: {} NANOS\n   \
              Storage Rebate: {} NANOS\n   \
              Non-refundable Storage Fee: {} NANOS",
             gas_cost_summary.storage_cost,
             gas_cost_summary.computation_cost,
+            gas_cost_summary.computation_cost_burned,
             gas_cost_summary.storage_rebate,
             gas_cost_summary.non_refundable_storage_fee,
         )]);

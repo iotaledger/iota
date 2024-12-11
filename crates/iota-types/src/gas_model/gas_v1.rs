@@ -187,7 +187,9 @@ mod checked {
         // and then conceptually
         // `final_computation_cost = total_computation_cost * gas_price / reference_gas_price`
         gas_price: u64,
-        // RGP as defined in the protocol config.
+        // reference gas price as defined in protocol config.
+        // if `protocol_defined_base_fee' is enabled, this is a mandatory base fee paid to the
+        // protocol.
         reference_gas_price: u64,
         // Gas price for storage. This is a multiplier on the final charge
         // as related to the storage gas price defined in the system
@@ -372,24 +374,21 @@ mod checked {
         }
 
         fn bucketize_computation(&mut self) -> Result<(), ExecutionError> {
-            let gas_used = self.gas_status.gas_used_pre_gas_price();
-            let gas_used = if let Some(gas_rounding) = self.gas_rounding_step {
-                if gas_used > 0 && gas_used % gas_rounding == 0 {
-                    gas_used * self.gas_price
-                } else {
-                    ((gas_used / gas_rounding) + 1) * gas_rounding * self.gas_price
+            let mut computation_units = self.gas_status.gas_used_pre_gas_price();
+            if let Some(gas_rounding) = self.gas_rounding_step {
+                if computation_units == 0 || computation_units % gas_rounding > 0 {
+                    computation_units = ((computation_units / gas_rounding) + 1) * gas_rounding;
                 }
             } else {
-                let bucket_cost = get_bucket_cost(&self.cost_table.computation_bucket, gas_used);
-                // charge extra on top of `computation_cost` to make the total computation
-                // cost a bucket value
-                bucket_cost * self.gas_price
+                computation_units =
+                    get_bucket_cost(&self.cost_table.computation_bucket, computation_units);
             };
-            if self.gas_budget <= gas_used {
+            let computation_cost = computation_units * self.gas_price;
+            if self.gas_budget <= computation_cost {
                 self.computation_cost = self.gas_budget;
                 Err(ExecutionErrorKind::InsufficientGas.into())
             } else {
-                self.computation_cost = gas_used;
+                self.computation_cost = computation_cost;
                 Ok(())
             }
         }
@@ -398,15 +397,17 @@ mod checked {
         /// of the gas meter. We use initial budget, combined with
         /// remaining gas and storage cost to derive computation cost.
         fn summary(&self) -> GasCostSummary {
-            // compute storage rebate, both rebate and non refundable fee
+            // compute computation cost burned and storage rebate, both rebate and non
+            // refundable fee
+            let computation_cost_burned =
+                self.computation_cost * self.reference_gas_price / self.gas_price;
             let storage_rebate = self.storage_rebate();
             let sender_rebate = sender_rebate(storage_rebate, self.rebate_rate);
             assert!(sender_rebate <= storage_rebate);
             let non_refundable_storage_fee = storage_rebate - sender_rebate;
             GasCostSummary {
                 computation_cost: self.computation_cost,
-                // entire computation cost is burned.
-                computation_cost_burned: self.computation_cost,
+                computation_cost_burned,
                 storage_cost: self.storage_cost(),
                 storage_rebate: sender_rebate,
                 non_refundable_storage_fee,

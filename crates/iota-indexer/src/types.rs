@@ -11,7 +11,7 @@ use iota_types::{
     digests::TransactionDigest,
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
-    event::SystemEpochInfoEventV1,
+    event::SystemEpochInfoEvent,
     iota_serde::IotaStructTag,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::{
@@ -41,6 +41,7 @@ pub struct IndexedCheckpoint {
     pub timestamp_ms: u64,
     pub total_gas_cost: i64, // total gas cost could be negative
     pub computation_cost: u64,
+    pub computation_cost_burned: u64,
     pub storage_cost: u64,
     pub storage_rebate: u64,
     pub non_refundable_storage_fee: u64,
@@ -77,6 +78,9 @@ impl IndexedCheckpoint {
             end_of_epoch: checkpoint.end_of_epoch_data.clone().is_some(),
             total_gas_cost,
             computation_cost: checkpoint.epoch_rolling_gas_cost_summary.computation_cost,
+            computation_cost_burned: checkpoint
+                .epoch_rolling_gas_cost_summary
+                .computation_cost_burned,
             storage_cost: checkpoint.epoch_rolling_gas_cost_summary.storage_cost,
             storage_rebate: checkpoint.epoch_rolling_gas_cost_summary.storage_rebate,
             non_refundable_storage_fee: checkpoint
@@ -116,25 +120,42 @@ pub struct IndexedEpochInfo {
     pub epoch_commitments: Option<Vec<CheckpointCommitment>>,
     pub burnt_tokens_amount: Option<u64>,
     pub minted_tokens_amount: Option<u64>,
+    pub tips_amount: Option<u64>,
 }
 
 impl IndexedEpochInfo {
     pub fn from_new_system_state_summary(
         new_system_state_summary: IotaSystemStateSummary,
         first_checkpoint_id: u64,
-        event: Option<&SystemEpochInfoEventV1>,
+        event: Option<&SystemEpochInfoEvent>,
     ) -> IndexedEpochInfo {
+        let total_stake: u64;
+        let storage_fund_balance: u64;
+        // NOTE: total_stake and storage_fund_balance are about new epoch,
+        // although the event is generated at the end of the previous epoch,
+        // the event is optional b/c no such event for the first epoch.
+        match event {
+            Some(SystemEpochInfoEvent::V1(e)) => {
+                total_stake = e.total_stake;
+                storage_fund_balance = e.storage_fund_balance;
+            }
+            Some(SystemEpochInfoEvent::V2(e)) => {
+                total_stake = e.total_stake;
+                storage_fund_balance = e.storage_fund_balance;
+            }
+            None => {
+                total_stake = 0;
+                storage_fund_balance = 0;
+            }
+        }
         Self {
             epoch: new_system_state_summary.epoch,
             first_checkpoint_id,
             epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms,
             reference_gas_price: new_system_state_summary.reference_gas_price,
             protocol_version: new_system_state_summary.protocol_version,
-            // NOTE: total_stake and storage_fund_balance are about new epoch,
-            // although the event is generated at the end of the previous epoch,
-            // the event is optional b/c no such event for the first epoch.
-            total_stake: event.map(|e| e.total_stake).unwrap_or(0),
-            storage_fund_balance: event.map(|e| e.storage_fund_balance).unwrap_or(0),
+            total_stake,
+            storage_fund_balance,
             system_state: bcs::to_bytes(&new_system_state_summary).unwrap(),
             ..Default::default()
         }
@@ -146,9 +167,36 @@ impl IndexedEpochInfo {
     pub fn from_end_of_epoch_data(
         system_state_summary: &IotaSystemStateSummary,
         last_checkpoint_summary: &CertifiedCheckpointSummary,
-        event: &SystemEpochInfoEventV1,
+        event: &SystemEpochInfoEvent,
         network_total_tx_num_at_last_epoch_end: u64,
     ) -> IndexedEpochInfo {
+        let storage_charge: Option<u64>;
+        let storage_rebate: Option<u64>;
+        let total_gas_fees: Option<u64>;
+        let total_stake_rewards_distributed: Option<u64>;
+        let burnt_tokens_amount: Option<u64>;
+        let minted_tokens_amount: Option<u64>;
+        let tips_amount: Option<u64>;
+        match event {
+            SystemEpochInfoEvent::V1(event) => {
+                storage_charge = Some(event.storage_charge);
+                storage_rebate = Some(event.storage_rebate);
+                total_gas_fees = Some(event.total_gas_fees);
+                total_stake_rewards_distributed = Some(event.total_stake_rewards_distributed);
+                burnt_tokens_amount = Some(event.burnt_tokens_amount);
+                minted_tokens_amount = Some(event.minted_tokens_amount);
+                tips_amount = Some(0);
+            }
+            SystemEpochInfoEvent::V2(event) => {
+                storage_charge = Some(event.storage_charge);
+                storage_rebate = Some(event.storage_rebate);
+                total_gas_fees = Some(event.total_gas_fees);
+                total_stake_rewards_distributed = Some(event.total_stake_rewards_distributed);
+                burnt_tokens_amount = Some(event.burnt_tokens_amount);
+                minted_tokens_amount = Some(event.minted_tokens_amount);
+                tips_amount = Some(event.tips_amount);
+            }
+        }
         Self {
             epoch: last_checkpoint_summary.epoch,
             epoch_total_transactions: Some(
@@ -157,10 +205,10 @@ impl IndexedEpochInfo {
             ),
             last_checkpoint_id: Some(*last_checkpoint_summary.sequence_number()),
             epoch_end_timestamp: Some(last_checkpoint_summary.timestamp_ms),
-            storage_charge: Some(event.storage_charge),
-            storage_rebate: Some(event.storage_rebate),
-            total_gas_fees: Some(event.total_gas_fees),
-            total_stake_rewards_distributed: Some(event.total_stake_rewards_distributed),
+            storage_charge,
+            storage_rebate,
+            total_gas_fees,
+            total_stake_rewards_distributed,
             epoch_commitments: last_checkpoint_summary
                 .end_of_epoch_data
                 .as_ref()
@@ -174,8 +222,9 @@ impl IndexedEpochInfo {
             protocol_version: 0,
             total_stake: 0,
             storage_fund_balance: 0,
-            burnt_tokens_amount: Some(event.burnt_tokens_amount),
-            minted_tokens_amount: Some(event.minted_tokens_amount),
+            burnt_tokens_amount,
+            minted_tokens_amount,
+            tips_amount,
         }
     }
 }
