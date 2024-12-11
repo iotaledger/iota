@@ -107,7 +107,12 @@ export function StakeDialog({
     }
 
     function detailsHandleStake() {
-        setView?.(StakeDialogView.SelectValidator);
+        setSelectedValidator?.(stakedDetails?.validatorAddress ?? '');
+        setView?.(
+            isTimelockedStaking
+                ? StakeDialogView.EnterTimelockedAmount
+                : StakeDialogView.EnterAmount,
+        );
     }
 
     function handleTransactionSuccess(digest: string) {
