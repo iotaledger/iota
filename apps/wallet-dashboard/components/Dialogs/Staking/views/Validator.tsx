@@ -19,6 +19,7 @@ interface ValidatorProps {
     showActiveStatus?: boolean;
     onClick?: (address: string) => void;
     showAction?: boolean;
+    activeEpoch?: string;
 }
 
 export function Validator({
@@ -27,11 +28,26 @@ export function Validator({
     onClick,
     isSelected,
     showAction = true,
+    activeEpoch,
 }: ValidatorProps) {
-    const { name, newValidator, isAtRisk, apy, isApyApproxZero, validatorSummary } =
-        useValidatorInfo({
-            validatorAddress: address,
-        });
+    const {
+        name: validatorName,
+        newValidator,
+        isAtRisk,
+        apy,
+        isApyApproxZero,
+        validatorSummary,
+        system,
+    } = useValidatorInfo({
+        validatorAddress: address,
+    });
+
+    // for inactive validators, show the epoch number
+    const fallBackText = activeEpoch
+        ? `Staked ${Number(system?.epoch) - Number(activeEpoch)} epochs ago`
+        : '';
+
+    const validatorDisplayName = validatorName || fallBackText;
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">
@@ -50,12 +66,12 @@ export function Validator({
             <CardImage>
                 <ImageIcon
                     src={validatorSummary?.imageUrl ?? null}
-                    label={name}
-                    fallback={name}
+                    label={validatorDisplayName}
+                    fallback={validatorDisplayName}
                     size={ImageIconSize.Large}
                 />
             </CardImage>
-            <CardBody title={name} subtitle={subtitle} isTextTruncated />
+            <CardBody title={validatorDisplayName} subtitle={subtitle} isTextTruncated />
             {showAction && (
                 <CardAction
                     type={CardActionType.SupportingText}

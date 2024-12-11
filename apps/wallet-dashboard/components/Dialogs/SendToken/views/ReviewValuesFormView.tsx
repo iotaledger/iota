@@ -18,7 +18,7 @@ import {
     ButtonType,
 } from '@iota/apps-ui-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { CoinIcon, ImageIconSize, useFormatCoin, ExplorerLinkType } from '@iota/core';
+import { CoinIcon, ImageIconSize, useFormatCoin, ExplorerLinkType, CoinFormat } from '@iota/core';
 import { Loader } from '@iota/ui-icons';
 import { ExplorerLink } from '@/components';
 
@@ -32,15 +32,16 @@ interface ReviewValuesFormProps {
 }
 
 export function ReviewValuesFormView({
-    formData: { amount, to, formattedAmount, gasBudgetEst },
+    formData: { amount, to, gasBudgetEst },
     senderAddress,
     isPending,
     executeTransfer,
     coinType,
     isPayAllIota,
 }: ReviewValuesFormProps): JSX.Element {
-    const [formatAmount, symbol] = useFormatCoin(formattedAmount, coinType);
+    const [roundedAmount, symbol] = useFormatCoin(amount, coinType, CoinFormat.ROUNDED);
     const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG);
+
     return (
         <div className="flex h-full flex-col">
             <div className="flex h-full w-full flex-col gap-md">
@@ -52,13 +53,12 @@ export function ReviewValuesFormView({
                                     <CardImage type={ImageType.BgSolid}>
                                         <CoinIcon
                                             coinType={coinType}
-                                            size={ImageIconSize.Small}
                                             rounded
-                                            hasCoinWrapper
+                                            size={ImageIconSize.Small}
                                         />
                                     </CardImage>
                                     <CardBody
-                                        title={`${isPayAllIota ? '~' : ''}${formatAmount} ${symbol}`}
+                                        title={`${isPayAllIota ? '~' : ''}${roundedAmount} ${symbol}`}
                                         subtitle="Amount"
                                     />
                                     <CardAction type={CardActionType.SupportingText} />

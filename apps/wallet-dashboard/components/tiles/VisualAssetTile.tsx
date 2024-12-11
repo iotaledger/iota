@@ -5,7 +5,7 @@
 
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import React from 'react';
-import { useGetNFTMeta } from '@iota/core';
+import { useGetNFTDisplay } from '@iota/core';
 import { FlexDirection } from '@/lib/ui/enums';
 import { VisualAssetCard, VisualAssetType, type VisualAssetCardProps } from '@iota/apps-ui-kit';
 
@@ -20,7 +20,7 @@ export function VisualAssetTile({
     onIconClick,
     icon,
 }: AssetCardProps): React.JSX.Element | null {
-    const { data: nftMeta } = useGetNFTMeta(asset.objectId);
+    const { data: nftMeta } = useGetNFTDisplay(asset.objectId);
 
     if (!asset.display || !nftMeta || !nftMeta.imageUrl) {
         return null;

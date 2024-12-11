@@ -91,7 +91,7 @@ Iota Node uses the following ports by default:
 | protocol/port | reachability     | purpose                           |
 | ------------- | ---------------- | --------------------------------- |
 | TCP/8080      | inbound          | protocol/transaction interface    |
-| UDP/8081      | inbound/outbound | primary interface                 |
+| TCP/8081      | inbound/outbound | primary interface                 |
 | UDP/8084      | inbound/outbound | peer to peer state sync interface |
 | TCP/8443      | outbound         | metrics pushing                   |
 | TCP/9184      | localhost        | metrics scraping                  |

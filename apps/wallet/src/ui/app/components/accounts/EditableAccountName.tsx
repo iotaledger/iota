@@ -14,7 +14,7 @@ interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, '
 
 export const Input = forwardRef<HTMLInputElement, InputProps>((props, forwardedRef) => (
     <input
-        className="text-steel-darker hover:text-hero peer items-center rounded-sm border-none bg-transparent p-0 text-pBody font-semibold outline-none transition focus:bg-transparent"
+        className="text-steel-darker hover:text-hero text-pBody peer items-center rounded-sm border-none bg-transparent p-0 font-semibold outline-none transition focus:bg-transparent"
         ref={forwardedRef}
         {...props}
     />
