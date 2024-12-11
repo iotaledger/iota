@@ -3,40 +3,8 @@
 The `useWallets` hook returns an array of wallets that are available to the user. The wallets are
 sorted by their priority, with the highest priority wallet being the first in the array.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseWalletsExample = withProviders(() => {
+```ts live
+function UseWalletsExample() {
     const wallets = useWallets();
 
     return (
@@ -50,9 +18,7 @@ const UseWalletsExample = withProviders(() => {
             </ul>
         </div>
     );
-});
-
-render(<UseWalletsExample/>)
+}
 ```
 
 ## Wallet properties
