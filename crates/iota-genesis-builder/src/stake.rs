@@ -340,16 +340,22 @@ fn pick_objects_for_allocation<'obj>(
     if let (surplus_object_option, Some(surplus_nanos), timestamp) =
         previous_surplus.maybe_reuse_surplus(target_amount)
     {
-        if timestamp > 0 {
-            if let Some(timelock_object) = surplus_object_option {
-                to_burn.push(timelock_object);
-                staked_with_timelock.push((surplus_nanos, timestamp));
-            }
-        } else if let Some(gas_coin_object) = surplus_object_option {
-            to_burn.push(gas_coin_object);
-        }
-
+        // In here it means there are some surplus nanos that can be used.
+        // `maybe_reuse_surplus` already deducted the `surplus_nanos` from the
+        // `surplus_object`. So these can be counted in the `allocation_tot_amount`.
         allocation_tot_amount += surplus_nanos;
+        // If the ´surplus_object´ is a timelock then store also its timestamp.
+        if timestamp > 0 {
+            staked_with_timelock.push((surplus_nanos, timestamp));
+        }
+        // If the `surplus_object` is returned by `maybe_reuse_surplus`, then it means
+        // it used all its `surplus_nanos` and it can be burned.
+        if let Some(surplus_object) = surplus_object_option {
+            to_burn.push(surplus_object);
+        }
+        // Else, if the `surplus_object` was not completely drained, then we
+        // don't need to continue. In this case `allocation_tot_amount ==
+        // target_amount`.
     }
 
     if allocation_tot_amount < target_amount {
@@ -367,7 +373,7 @@ fn pick_objects_for_allocation<'obj>(
                                 staked_with_timelock.push((object_balance, timestamp));
                             }
                             allocation_tot_amount += object_balance;
-                            // Continue
+                            // Place `obj_ref` in `to_burn` and continue
                             Some(obj_ref)
                         } else {
                             surplus = CoinSurplus {
@@ -379,7 +385,7 @@ fn pick_objects_for_allocation<'obj>(
                                 staked_with_timelock.push((difference_from_target, timestamp));
                             }
                             allocation_tot_amount += difference_from_target;
-                            // Break
+                            // Do NOT place `obj_ref` in `to_burn` and break
                             None
                         }
                     } else {
