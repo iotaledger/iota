@@ -17,9 +17,9 @@ function isReferenceCodeBlockType(props: object): props is ReferenceCodeBlockPro
     || ('metastring' in props && typeof props.metastring === 'string' && props.metastring.split(' ').includes('reference'));
 }
 
-// Wrap CodeBlock to check if the Code Block is a reference code block
-// IF it isn't, we just return the live theme CodeBlock which will check,
-// if the code block is a live code block or the original code block
+// Wrap CodeBlock to check if it is a reference (saucepans) CodeBlock.
+// If it isn't, we just return the live plugin CodeBlock which will check,
+// if the CodeBlock is a live CodeBlock or the original CodeBlock
 export default function CodeBlockWrapper(props: ReferenceCodeBlockProps | Props): JSX.Element {
   if (isReferenceCodeBlockType(props)) {
     return (
