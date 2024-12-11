@@ -5,11 +5,12 @@ tags:
   - tutorial
 ---
 
-# Simple Token Transfer
+# Simple Token Transfer Tutorial
 
 In this tutorial, we will walk you through the process of building a simple token transfer dApp using the IOTA Move language and the IOTA dApp kit. You will learn how to create a contract that enables token transfers on the IOTA blockchain and how to integrate it with a frontend application that interacts with the contract's functions. The tutorial covers everything from contract creation to frontend development, giving you a hands-on understanding of how token transfers work within the IOTA ecosystem. By the end, you'll have a fully functional dApp that allows users to transfer tokens effortlessly.
 
 ## Simple Token Transfer Architecture Overview 
+
 ```mermaid
 sequenceDiagram
     participant Sender
@@ -81,6 +82,7 @@ This will generate a new Move package in a folder named token-transfer.
 ```move reference
 https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/sources/token_transfer.move#L9-L13
 ```
+
 #### [`mint`](https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/sources/token_transfer.move#L15-L23)
 
 - Mints the token and transfers it to the recipient address.
@@ -339,7 +341,6 @@ To retrieve this information, visit the testnet explorer, search for your IOTA w
 https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/frontend/src/networkConfig.ts#L1-L22
 ```
 
-
 #### [`App.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/App.tsx#L1-L58)
 
 The `App.tsx` file integrates the components and provides the main structure of the frontend application.
@@ -423,7 +424,7 @@ https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf4
 - After successfull transaction of mint you can check the balance have increase in the wallet.
 
 ![Wallet check](/img/developer/getting-started/token-transfer/wallet-check.png)
-/Users/shinchan/Desktop/iota/docs/site/static/img/developer/getting-started/developer/getting-started/token-transfer/check-balance.png
+
 ### Check balance
 
 - Click on the Check balance button to check the token balance.
