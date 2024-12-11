@@ -345,11 +345,10 @@ fn pick_objects_for_allocation<'obj>(
                 to_burn.push(timelock_object);
                 staked_with_timelock.push((surplus_nanos, timestamp));
             }
-        } else {
-            if let Some(gas_coin_object) = surplus_object_option {
-                to_burn.push(gas_coin_object);
-            }
+        } else if let Some(gas_coin_object) = surplus_object_option {
+            to_burn.push(gas_coin_object);
         }
+
         allocation_tot_amount += surplus_nanos;
     }
 

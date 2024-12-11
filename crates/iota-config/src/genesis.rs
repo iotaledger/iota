@@ -723,7 +723,7 @@ impl Delegations {
     pub fn to_csv<W: std::io::Write>(&self, writer: W) -> Result<()> {
         let mut writer = csv::Writer::from_writer(writer);
 
-        writer.write_record(&[
+        writer.write_record([
             "delegator",
             "validator",
             "amount-nanos-to-stake",
