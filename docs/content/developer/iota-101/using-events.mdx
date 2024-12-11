@@ -55,9 +55,10 @@ Then, within your function, you can emit an event using the [`emit`](../../refer
 
 ## Querying Events
 
-### IOTA RPC
+<Tabs>
 
-The IOTA RPC provides a [queryEvents](../../references/iota-api-ref#iotax_queryEvents) method to query on-chain packages and return available events. As an example, the following `curl` command queries the Deepbook package on Mainnet for a specific type of event:
+<TabItem value="RPC" label="IOTA RPC">
+The IOTA RPC provides a [`queryEvents`](../../references/iota-api-ref#iotax_queryEvents) method to query on-chain packages and return available events. As an example, the following `curl` command queries the Deepbook package on Mainnet for a specific type of event:
 
 ```sh
 curl -X POST https://api.testnet.iota.cafe:443 \
@@ -81,9 +82,11 @@ curl -X POST https://api.testnet.iota.cafe:443 \
 }'
 ```
 
-The TypeScript SDK provides a wrapper for the `iotax_queryEvents` method: [`client.queryEvents`](../../references/ts-sdk/api/client/classes/IotaClient#queryevents).
+The TypeScript SDK provides a wrapper for the `iotax_queryEvents` method:
+[`client.queryEvents`](../../references/ts-sdk/api/client/classes/IotaClient#queryevents).
 
-### Rust
+</TabItem>
+<TabItem value="rs" label="Rust">
 
 You can use the following as an example on how to query for events using the `query_events` function. You should update
 the `PACKAGE_ID_CONST` with a package of your choice.
@@ -119,8 +122,8 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 ```
-
-### Query Events with GraphQL
+</TabItem>
+<TabItem value="graphql" label="GraphQL">
 
 You can use GraphQL to query events instead of JSON RPC. The following example queries are in the 
 [`iota-graphql-rpc` crate](https://github.com/iotaledger/iota/tree/develop/crates/iota-graphql-rpc/examples/event_connection) in the IOTA repo. 
@@ -147,14 +150,16 @@ interact with the IOTA GraphQL service.
 
 :::
 
+</TabItem>
+</Tabs>
+
+
 ## Subscribing to Events
 
 This example leverages the IOTA TypeScript SDK to subscribe to events the package with ID `<PACKAGE_ID>` emits. Each time the event fires, the code displays the response to the console.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
-
-### Rust
 
 See [Rust SDK](../../references/rust-sdk.mdx).
 
@@ -179,8 +184,6 @@ async fn main() -> Result<()> {
 
 </TabItem>
 <TabItem value="ts" label="TypeScript">
-
-### TypeScript
 
 To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
 
