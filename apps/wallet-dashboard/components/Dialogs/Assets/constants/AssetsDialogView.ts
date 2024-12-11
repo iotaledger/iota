@@ -4,5 +4,5 @@
 export enum AssetsDialogView {
     Details = 'Details',
     Send = 'Send',
-    Recipt = 'Recipt',
+    Receipt = 'Receipt',
 }
