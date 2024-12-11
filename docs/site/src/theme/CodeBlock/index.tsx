@@ -6,13 +6,22 @@
 import React from 'react';
 import CodeBlock from '@theme-original/CodeBlock';
 import ReferenceCodeBlock from '@saucelabs/theme-github-codeblock/build/theme/ReferenceCodeBlock';
+import { ReferenceCodeBlockProps } from '@saucelabs/theme-github-codeblock/build/theme/types';
 import type CodeBlockType from '@theme/CodeBlock';
 import type {WrapperProps} from '@docusaurus/types';
 
 type Props = WrapperProps<typeof CodeBlockType>;
 
-export default function CodeBlockWrapper(props: Props): JSX.Element {
-  if (props.reference || props.metastring?.split(' ').includes('reference')) {
+function isReferenceCodeBlockType(props: object): props is ReferenceCodeBlockProps {
+  return 'reference' in props 
+    || ('metastring' in props && typeof props.metastring === 'string' && props.metastring.split(' ').includes('reference'));
+}
+
+// Wrap CodeBlock to check if the Code Block is a reference code block
+// IF it isn't, we just return the live theme CodeBlock which will check,
+// if the code block is a live code block or the original code block
+export default function CodeBlockWrapper(props: ReferenceCodeBlockProps | Props): JSX.Element {
+  if (isReferenceCodeBlockType(props)) {
     return (
       <>
         <ReferenceCodeBlock {...props} />
