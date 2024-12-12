@@ -53,7 +53,7 @@ export function getLatestOrEarliestSupplyIncreaseVestingPayout(
 }
 
 function addVestingPayoutToSupplyIncreaseMap(
-    value: number,
+    value: bigint,
     expirationTimestampMs: number,
     supplyIncreaseMap: Map<number, SupplyIncreaseVestingPayout>,
 ) {
@@ -85,7 +85,7 @@ function supplyIncreaseVestingObjectsToPayoutMap(
                 expirationToVestingPayout,
             );
         } else if (isTimelockedStakedIota(vestingObject)) {
-            const objectValue = Number(vestingObject.principal);
+            const objectValue = BigInt(vestingObject.principal);
             const expirationTimestampMs = Number(vestingObject.expirationTimestampMs);
             addVestingPayoutToSupplyIncreaseMap(
                 objectValue,
@@ -162,7 +162,7 @@ export function getVestingOverview(
     const userType = getSupplyIncreaseVestingUserType([latestPayout]);
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
-    const totalVestedAmount = BigInt(Math.floor((vestingPayoutsCount * latestPayout.amount) / 0.9));
+    const totalVestedAmount = (BigInt(vestingPayoutsCount) * latestPayout.amount) / BigInt(0.9);
     const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
         latestPayout,
         currentEpochTimestamp,
@@ -326,7 +326,7 @@ export function prepareObjectsForTimelockedStakingTransaction(
     targetAmount: bigint,
     currentEpochMs: string,
 ): GroupedTimelockObject[] {
-    if (Number(targetAmount) === 0) {
+    if (targetAmount === 0n) {
         return [];
     }
     const timelockedMapped = mapTimelockObjects(timelockedObjects);
@@ -368,7 +368,7 @@ export function prepareObjectsForTimelockedStakingTransaction(
     const remainingAmount = totalLocked - targetAmount;
 
     // Add splitAmount property to the vesting objects that need to be split
-    if (remainingAmount > 0) {
+    if (remainingAmount > 0n) {
         selectedGroupedTimelockObjects = adjustSplitAmountsInGroupedTimelockObjects(
             selectedGroupedTimelockObjects,
             remainingAmount,

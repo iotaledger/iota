@@ -14,13 +14,13 @@ interface UnstakeTransactionCardProps {
 
 export default function UnstakeTransactionCard({ event }: UnstakeTransactionCardProps) {
     const eventJson = event.parsedJson as {
-        principal_amount?: number;
-        reward_amount?: number;
+        principal_amount?: bigint;
+        reward_amount?: bigint;
         validator_address?: string;
     };
-    const principalAmount = eventJson?.principal_amount || 0;
-    const rewardAmount = eventJson?.reward_amount || 0;
-    const totalAmount = Number(principalAmount) + Number(rewardAmount);
+    const principalAmount = eventJson?.principal_amount || 0n;
+    const rewardAmount = eventJson?.reward_amount || 0n;
+    const totalAmount = principalAmount + rewardAmount;
     const [formatPrinciple, symbol] = useFormatCoin(principalAmount, IOTA_TYPE_ARG);
     const [formattedRewards] = useFormatCoin(rewardAmount || 0, IOTA_TYPE_ARG);
 

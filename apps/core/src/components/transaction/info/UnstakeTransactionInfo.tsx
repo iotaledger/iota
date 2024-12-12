@@ -27,14 +27,14 @@ export function UnstakeTransactionInfo({
     renderExplorerLink,
 }: UnstakeTransactionInfoProps) {
     const json = event.parsedJson as {
-        principal_amount?: number;
-        reward_amount?: number;
+        principal_amount?: bigint;
+        reward_amount?: bigint;
         validator_address?: string;
     };
-    const principalAmount = json?.principal_amount || 0;
-    const rewardAmount = json?.reward_amount || 0;
+    const principalAmount = json?.principal_amount || 0n;
+    const rewardAmount = json?.reward_amount || 0n;
     const validatorAddress = json?.validator_address;
-    const totalAmount = Number(principalAmount) + Number(rewardAmount);
+    const totalAmount = principalAmount + rewardAmount;
     const [formatPrinciple, symbol] = useFormatCoin(principalAmount, IOTA_TYPE_ARG);
     const [formatRewards] = useFormatCoin(rewardAmount || 0, IOTA_TYPE_ARG);
 
