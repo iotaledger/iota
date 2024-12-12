@@ -146,7 +146,6 @@ impl IndexerFeatureArgs {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]
 pub enum IotaCommand {

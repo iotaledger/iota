@@ -849,7 +849,7 @@ pub(crate) struct CoreTextFixture {
     pub core: Core,
     pub signal_receivers: CoreSignalsReceivers,
     pub block_receiver: broadcast::Receiver<VerifiedBlock>,
-    #[allow(unused)]
+    #[expect(unused)]
     pub commit_receiver: UnboundedReceiver<CommittedSubDag>,
     pub store: Arc<MemStore>,
 }

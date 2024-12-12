@@ -57,6 +57,8 @@ use crate::ObjectProvider;
 
 pub type StateReadResult<T = ()> = Result<T, StateReadError>;
 
+type ObjectMap = BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>;
+
 /// Trait for AuthorityState methods commonly used by at least two api.
 #[cfg_attr(test, automock)]
 #[async_trait]
@@ -119,14 +121,13 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Vec<IotaEvent>>;
 
     // transaction_execution_api
-    #[allow(clippy::type_complexity)]
     async fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        ObjectMap,
         TransactionEffects,
         Option<ObjectID>,
     )>;
@@ -354,14 +355,13 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    #[allow(clippy::type_complexity)]
     async fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        ObjectMap,
         TransactionEffects,
         Option<ObjectID>,
     )> {

@@ -30,7 +30,7 @@ use crate::{
 };
 
 /// Mock client used in test environments.
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 #[derive(Clone, Debug)]
 pub struct IotaMockClient {
     // the top two fields do not change during tests so we don't need them to be Arc<Mutex>>

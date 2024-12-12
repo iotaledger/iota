@@ -54,7 +54,6 @@ pub const APPROX_SIZE_OF_OWNER: usize = 48;
 /// The response from processing a transaction or a certified transaction
 #[enum_dispatch(TransactionEffectsAPI)]
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
-#[allow(clippy::large_enum_variant)]
 pub enum TransactionEffects {
     V1(TransactionEffectsV1),
 }
