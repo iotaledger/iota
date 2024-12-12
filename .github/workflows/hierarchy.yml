@@ -115,7 +115,7 @@ jobs:
       - license-check
       - typos
     if: |
-      !cancelled() && !failure() && 
+      !cancelled() && !failure() &&
       (needs.diff.outputs.isRosetta == 'true' || needs.diff.outputs.isRust == 'true')
     uses: ./.github/workflows/_rosetta.yml
 
