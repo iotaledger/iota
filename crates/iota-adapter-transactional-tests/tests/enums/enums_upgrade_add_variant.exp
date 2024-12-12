@@ -51,4 +51,4 @@ Contents: Test::f::S {
 task 6, lines 42-73:
 //# upgrade --package Test --upgrade-capability 1,1 --sender A
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: Some("error in module fake(1,0)::f: added variants to enum F"), exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
