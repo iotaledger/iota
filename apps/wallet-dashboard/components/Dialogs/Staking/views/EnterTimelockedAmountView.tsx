@@ -26,12 +26,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/ui-icons';
-import {
-    useCurrentAccount,
-    useIotaClientQuery,
-    useSignAndExecuteTransaction,
-} from '@iota/dapp-kit';
-
+import { useIotaClientQuery, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
@@ -66,8 +61,6 @@ function EnterTimelockedAmountView({
     handleClose,
     onSuccess,
 }: EnterTimelockedAmountViewProps): JSX.Element {
-    const account = useCurrentAccount();
-    const accountAddress = account?.address;
     const { addNotification } = useNotifications();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const [groupedTimelockObjects, setGroupedTimelockObjects] = useState<GroupedTimelockObject[]>(
@@ -147,7 +140,7 @@ function EnterTimelockedAmountView({
                         </div>
                         <StakedInfo
                             validatorAddress={selectedValidator}
-                            accountAddress={accountAddress!}
+                            accountAddress={senderAddress!}
                         />
                         <div className="my-md w-full">
                             <Field name="amount">
