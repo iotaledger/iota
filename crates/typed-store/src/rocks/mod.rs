@@ -1795,7 +1795,7 @@ pub enum RocksDBRawIter<'a> {
     ),
 }
 
-impl<'a> RocksDBRawIter<'a> {
+impl RocksDBRawIter<'_> {
     pub fn valid(&self) -> bool {
         delegate_iter_call!(self.valid())
     }
@@ -1835,7 +1835,7 @@ pub enum RocksDBIter<'a> {
     ),
 }
 
-impl<'a> Iterator for RocksDBIter<'a> {
+impl Iterator for RocksDBIter<'_> {
     type Item = Result<(Box<[u8]>, Box<[u8]>), Error>;
     fn next(&mut self) -> Option<Self::Item> {
         match self {

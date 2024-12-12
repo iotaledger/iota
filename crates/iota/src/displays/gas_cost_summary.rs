@@ -8,7 +8,7 @@ use iota_types::gas::GasCostSummary;
 
 use crate::displays::Pretty;
 
-impl<'a> Display for Pretty<'a, GasCostSummary> {
+impl Display for Pretty<'_, GasCostSummary> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(gcs) = self;
         let GasCostSummary {

@@ -159,7 +159,7 @@
             },            
             {
                 "regex": "docs\\.[Mm]ysten[Ll]abs\\.com",
-                "replacement": "wiki.iota.org"
+                "replacement": "docs.iota.org"
             },
             {
                 "regex": "\\{\\`\\$\\{new Date\\(\\)\\.getFullYear\\(\\)\\}\\s+Mysten\\s+Labs\\.\\s+All\\s+rights\\s+reserved\\.\\`\\}",
@@ -203,15 +203,15 @@
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com\/typescript",
-                "replacement": "wiki.iota.org/references/ts-sdk/typescript"
+                "replacement": "docs.iota.org/references/ts-sdk/typescript"
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com\/",
-                "replacement": "wiki.iota.org/references/ts-sdk/"
+                "replacement": "docs.iota.org/references/ts-sdk/"
             },
             {
                 "regex": "sdk\\.[Mm]ysten[Ll]abs\\.com",
-                "replacement": "wiki.iota.org/references/ts-sdk/typescript"
+                "replacement": "docs.iota.org/references/ts-sdk/typescript"
             },
             {
                 "regex": "[Mm]ysten[Ll]abs\\.com",
@@ -243,7 +243,7 @@
             },
             {
                 "regex": "docs\\.sui\\.io",
-                "replacement": "wiki.iota.org"
+                "replacement": "docs.iota.org"
             },            
             {
                 "regex": "suiexplorer\\.com",

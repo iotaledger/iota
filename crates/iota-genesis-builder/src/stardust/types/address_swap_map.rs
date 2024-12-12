@@ -9,7 +9,7 @@ use iota_types::{base_types::IotaAddress, object::Owner, stardust::stardust_to_i
 type OriginAddress = IotaAddress;
 
 #[derive(Debug)]
-struct DestinationAddress {
+pub struct DestinationAddress {
     address: IotaAddress,
     swapped: bool,
 }
@@ -137,7 +137,7 @@ impl AddressSwapMap {
     /// # Example CSV File
     /// ```csv
     /// Origin,Destination
-    /// iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr,0x7f1c8e2fdb9a5c348a4e793bc0a612b2879d4e5bc3a846b2f22c7a3f9b46d2ce
+    /// iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr,0xa12b4d6ec3f9a28437d5c8f3e96ba72d3c4e8f5ac98d17b1a3b8e9f2c71d4a3c
     /// iota1qp7h2lkjhs6tk3uvlxqfjhlfw34atv63eqkpru356p6sgvr76eufyz1opkh,0x42d8c182eb1f3b2366d353eed4eb02a31d1d7982c0fd44683811d7036be3a85e
     /// ```
     ///
@@ -156,14 +156,12 @@ impl AddressSwapMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = csv::ReaderBuilder::new()
-            .has_headers(true)
-            .from_path(file_path)?;
+        let mut reader = csv::ReaderBuilder::new().from_path(file_path)?;
         let mut addresses = HashMap::new();
+
         verify_headers(reader.headers()?)?;
 
-        // Skip headers raw
-        for result in reader.records().skip(1) {
+        for result in reader.records() {
             let record = result?;
             let origin: OriginAddress =
                 stardust_to_iota_address(StardustAddress::try_from_bech32(&record[0])?)?;
@@ -172,6 +170,11 @@ impl AddressSwapMap {
         }
 
         Ok(AddressSwapMap { addresses })
+    }
+
+    #[cfg(test)]
+    pub fn addresses(&self) -> &HashMap<OriginAddress, DestinationAddress> {
+        &self.addresses
     }
 }
 
@@ -183,4 +186,70 @@ fn verify_headers(headers: &csv::StringRecord) -> Result<(), anyhow::Error> {
         anyhow::bail!("Invalid CSV headers");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use tempfile::NamedTempFile;
+
+    use crate::stardust::types::address_swap_map::AddressSwapMap;
+
+    fn write_temp_file(content: &str) -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, "{}", content).unwrap();
+        file
+    }
+
+    #[test]
+    fn test_from_csv_valid_file() {
+        let content = "Origin,Destination\n\
+                       iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr,0xa12b4d6ec3f9a28437d5c8f3e96ba72d3c4e8f5ac98d17b1a3b8e9f2c71d4a3c";
+        let file = write_temp_file(content);
+        let file_path = file.path().to_str().unwrap();
+        let result = AddressSwapMap::from_csv(file_path);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+        assert_eq!(map.addresses().len(), 1);
+    }
+
+    #[test]
+    fn test_from_csv_missing_file() {
+        let result = AddressSwapMap::from_csv("nonexistent_file.csv");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_csv_invalid_headers() {
+        let content = "wrong_header1,wrong_header2\n\
+                       iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr,0xa12b4d6ec3f9a28437d5c8f3e96ba72d3c4e8f5ac98d17b1a3b8e9f2c71d4a3c";
+        let file = write_temp_file(content);
+        let file_path = file.path().to_str().unwrap();
+        let result = AddressSwapMap::from_csv(file_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_csv_invalid_record() {
+        let content = "Origin,Destination\n\
+                       iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr,0xa12b4d6ec3f9a28437d5c8f3e96ba72d3c4e8f5ac98d17b1a3b8e9f2c71d4a3c,invalid_number";
+        let file = write_temp_file(content);
+        let file_path = file.path().to_str().unwrap();
+        let result = AddressSwapMap::from_csv(file_path);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_csv_empty_file() {
+        let content = "Origin,Destination";
+        let file = write_temp_file(content);
+        let file_path = file.path().to_str().unwrap();
+        let result = AddressSwapMap::from_csv(file_path);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+
+        assert_eq!(map.addresses().len(), 0);
+    }
 }
