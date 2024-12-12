@@ -43,7 +43,7 @@ export function StakeTransactionDetails({
         <div className="flex flex-col gap-y-md">
             {validatorAddress && (
                 <Validator
-                    validatorAddress={validatorAddress}
+                    address={validatorAddress}
                     showActiveStatus
                     activeEpoch={json.epoch}
                     type={CardType.Filled}

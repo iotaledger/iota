@@ -17,7 +17,7 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface ValidatorProps {
     isSelected?: boolean;
-    validatorAddress: string;
+    address: string;
     type?: CardType;
     showApy?: boolean;
     showActiveStatus?: boolean;
@@ -27,7 +27,7 @@ interface ValidatorProps {
 }
 
 export function Validator({
-    validatorAddress: address,
+    address,
     type,
     showApy,
     showActiveStatus = false,

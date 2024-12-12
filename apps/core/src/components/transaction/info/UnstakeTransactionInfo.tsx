@@ -39,9 +39,7 @@ export function UnstakeTransactionInfo({
 
     return (
         <div className="flex flex-col gap-y-md">
-            {validatorAddress && (
-                <Validator validatorAddress={validatorAddress} type={CardType.Filled} />
-            )}
+            {validatorAddress && <Validator address={validatorAddress} type={CardType.Filled} />}
             {totalAmount && (
                 <TransactionAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} subtitle="Total" />
             )}
