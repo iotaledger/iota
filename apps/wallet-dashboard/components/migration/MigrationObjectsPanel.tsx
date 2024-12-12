@@ -14,7 +14,6 @@ import {
     ImageShape,
     LabelText,
     LabelTextSize,
-    LoadingIndicator,
     Panel,
     Title,
 } from '@iota/apps-ui-kit';
@@ -30,13 +29,19 @@ import type { IotaObjectData } from '@iota/iota-sdk/client';
 import { CommonMigrationObjectType, StardustObjectTypeFilter } from '@/lib/enums';
 import {
     ExpirationObjectListEntries,
-    NftObjectsResolvedList,
-    ResolvedBasicObject,
     ResolvedObjectsList,
     ResolvedObjectTypes,
     ResolvedObjectsGrouped,
 } from '@/lib/types';
 import clsx from 'clsx';
+import { SkeletonLoader } from '..';
+import {
+    getAllResolvedObjects,
+    getObjectListReactKey,
+    getObjectsWithExpiration,
+    isNftObjectList,
+    isObjectTypeBasic,
+} from './helpers';
 
 interface MigrationObjectsPanelProps {
     selectedObjects: IotaObjectData[];
@@ -115,20 +120,25 @@ export function MigrationObjectsPanel({
 
 function LoadingPanel() {
     return (
-        <div className="flex h-full w-full flex-col items-center justify-center">
-            <LoadingIndicator />
+        <div className="flex h-full max-h-full w-full flex-col overflow-hidden">
+            {new Array(10).fill(0).map((_, index) => (
+                <Card key={index}>
+                    <CardImage shape={ImageShape.SquareRounded}>
+                        <div className="h-10 w-10 animate-pulse bg-neutral-90 dark:bg-neutral-12" />
+                        <SkeletonLoader widthClass="w-10" heightClass="h-10" isRounded={false} />
+                    </CardImage>
+                    <div className="flex flex-col gap-y-xs">
+                        <SkeletonLoader widthClass="w-40" heightClass="h-3.5" />
+                        <SkeletonLoader widthClass="w-32" heightClass="h-3" hasSecondaryColors />
+                    </div>
+                    <div className="ml-auto flex flex-col gap-y-xs">
+                        <SkeletonLoader widthClass="w-20" heightClass="h-3.5" />
+                        <SkeletonLoader widthClass="w-16" heightClass="h-3" hasSecondaryColors />
+                    </div>
+                </Card>
+            ))}
         </div>
     );
-}
-
-function getObjectListKey(objectList: ResolvedObjectsList): string {
-    if (Array.isArray(objectList)) {
-        return CommonMigrationObjectType.Nft;
-    } else if (isObjectTypeBasic(objectList)) {
-        return CommonMigrationObjectType.Basic;
-    } else {
-        return CommonMigrationObjectType.NativeToken;
-    }
 }
 
 interface ObjectsListProps {
@@ -139,7 +149,7 @@ function ObjectsList({ objects }: ObjectsListProps) {
     return (
         <>
             {objects.map(([expirationUnix, objectList]) => {
-                const listKey = getObjectListKey(objectList);
+                const listKey = getObjectListReactKey(objectList);
                 return (
                     <ObjectListRenderer
                         objectList={objectList}
@@ -233,35 +243,4 @@ function ExpirationDate({ expirationKey }: { expirationKey: string }) {
             <LabelText size={LabelTextSize.Small} text={timeAgo} label={'Expires in'} />
         </div>
     );
-}
-
-function getAllResolvedObjects(
-    resolvedObjects: ResolvedObjectsGrouped,
-): ExpirationObjectListEntries {
-    return [
-        ...Object.entries(resolvedObjects.basicObjects),
-        ...Object.entries(resolvedObjects.nftObjects),
-        ...Object.entries(resolvedObjects.nativeTokens),
-    ];
-}
-
-function getObjectsWithExpiration(
-    resolvedObjects: ResolvedObjectsGrouped,
-): ExpirationObjectListEntries {
-    const allEntries = getAllResolvedObjects(resolvedObjects);
-    return allEntries.filter(
-        ([expiration]) => expiration !== MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY,
-    );
-}
-
-function isObjectTypeBasic(object: ResolvedObjectsList): object is ResolvedBasicObject {
-    return (
-        !Array.isArray(object) &&
-        'commonObjectType' in object &&
-        object.commonObjectType === CommonMigrationObjectType.Basic
-    );
-}
-
-function isNftObjectList(objectList: ResolvedObjectsList): objectList is NftObjectsResolvedList {
-    return Array.isArray(objectList);
 }
