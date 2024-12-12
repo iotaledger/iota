@@ -55,7 +55,7 @@ function formatCountdown(
     );
 
     const timeUnits: string[] = [];
-    if (showHours && days > 0) timeUnits.push(`${days}d`);
+    if (showDays && days > 0) timeUnits.push(`${days}d`);
     if (showHours && hours > 0) timeUnits.push(`${hours}h`);
     if (showMinutes && minutes > 0) timeUnits.push(`${minutes}m`);
     if (showSeconds && (seconds > 0 || timeUnits.length === 0)) timeUnits.push(`${seconds}s`);
