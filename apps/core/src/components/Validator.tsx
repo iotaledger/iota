@@ -25,7 +25,7 @@ interface ValidatorLogoProps {
     onClick?(): void;
 }
 
-export function ValidatorLogo({
+export function Validator({
     validatorAddress,
     type,
     showApy,

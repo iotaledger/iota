@@ -10,7 +10,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import type { GasSummaryType, RenderExplorerLink } from '../../../types';
 import { useFormatCoin } from '../../../hooks';
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
-import { GasSummary, ValidatorLogo } from '../../..';
+import { GasSummary, Validator } from '../../..';
 
 interface UnstakeTransactionInfoProps {
     activeAddress: string | null;
@@ -40,7 +40,7 @@ export function UnstakeTransactionInfo({
     return (
         <div className="flex flex-col gap-y-md">
             {validatorAddress && (
-                <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
+                <Validator validatorAddress={validatorAddress} type={CardType.Filled} />
             )}
             {totalAmount && (
                 <TransactionAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} subtitle="Total" />

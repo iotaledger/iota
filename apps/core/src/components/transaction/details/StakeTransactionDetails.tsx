@@ -8,7 +8,7 @@ import { useGetValidatorsApy } from '../../../hooks';
 import { TransactionAmount } from '../amount';
 import { StakeTransactionInfo } from '../info';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { ValidatorLogo } from '../../../';
+import { Validator } from '../../../';
 import type { GasSummaryType, RenderExplorerLink } from '../../../types';
 
 interface StakeTransactionDetailsProps {
@@ -42,7 +42,7 @@ export function StakeTransactionDetails({
     return (
         <div className="flex flex-col gap-y-md">
             {validatorAddress && (
-                <ValidatorLogo
+                <Validator
                     validatorAddress={validatorAddress}
                     showActiveStatus
                     activeEpoch={json.epoch}

@@ -17,7 +17,7 @@ import {
     getStakeIotaByIotaId,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
-    ValidatorLogo,
+    Validator,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
@@ -285,7 +285,7 @@ function StakingCard() {
                     {({ isSubmitting, isValid, submitForm }) => (
                         <>
                             <div className="flex h-full flex-col gap-md overflow-auto">
-                                <ValidatorLogo
+                                <Validator
                                     validatorAddress={validatorAddress}
                                     type={CardType.Filled}
                                 />
