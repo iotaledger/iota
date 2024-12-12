@@ -10,7 +10,7 @@ use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{Output, OutputId, TokenId};
 use iota_types::in_memory_storage::InMemoryStorage;
 use tracing::warn;
-use util::{TokensAmountCounter, BASE_TOKEN_KEY};
+use util::{BASE_TOKEN_KEY, TokensAmountCounter};
 
 use self::created_objects::CreatedObjects;
 use crate::stardust::{migration::executor::FoundryLedgerData, types::output_header::OutputHeader};

@@ -49,7 +49,7 @@ impl TokensAmountCounter {
         res
     }
 
-    pub(super) fn into_inner(self) -> HashMap<String, (u64, u64)> {
+    pub(super) fn into_inner(self) -> impl IntoIterator<Item = (String, (u64, u64))> {
         self.inner
     }
 

@@ -11,15 +11,14 @@ use iota_types::{
 };
 use move_core_types::language_storage::ModuleId;
 
-use super::util::TokensAmountCounter;
 use crate::stardust::{
     migration::{
         executor::FoundryLedgerData,
         verification::{
             CreatedObjects,
             util::{
-                truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
-                verify_parent, verify_shared_object,
+                TokensAmountCounter, truncate_to_max_allowed_u64_supply, verify_address_owner,
+                verify_coin, verify_parent, verify_shared_object,
             },
         },
     },

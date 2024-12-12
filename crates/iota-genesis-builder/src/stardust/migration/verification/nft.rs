@@ -15,15 +15,14 @@ use iota_types::{
     stardust::output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
 };
 
-use super::util::TokensAmountCounter;
 use crate::stardust::migration::{
     executor::FoundryLedgerData,
     verification::{
         created_objects::CreatedObjects,
         util::{
-            verify_address_owner, verify_expiration_unlock_condition, verify_issuer_feature,
-            verify_metadata_feature, verify_native_tokens, verify_parent, verify_sender_feature,
-            verify_storage_deposit_unlock_condition, verify_tag_feature,
+            TokensAmountCounter, verify_address_owner, verify_expiration_unlock_condition,
+            verify_issuer_feature, verify_metadata_feature, verify_native_tokens, verify_parent,
+            verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
             verify_timelock_unlock_condition,
         },
     },

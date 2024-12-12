@@ -17,14 +17,13 @@ use iota_types::{
     },
 };
 
-use super::util::TokensAmountCounter;
 use crate::stardust::migration::{
     executor::FoundryLedgerData,
     verification::{
         created_objects::CreatedObjects,
         util::{
-            verify_address_owner, verify_issuer_feature, verify_metadata_feature,
-            verify_native_tokens, verify_parent, verify_sender_feature,
+            TokensAmountCounter, verify_address_owner, verify_issuer_feature,
+            verify_metadata_feature, verify_native_tokens, verify_parent, verify_sender_feature,
         },
     },
 };
