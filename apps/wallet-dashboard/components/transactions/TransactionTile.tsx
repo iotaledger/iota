@@ -32,7 +32,6 @@ import {
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../Dialogs/layout';
-import { Validator } from '../Dialogs/Staking/views/Validator';
 
 interface TransactionTileProps {
     transaction: ExtendedTransaction;
@@ -120,7 +119,6 @@ function ActivityDetailsDialog({
                         activeAddress={address}
                         summary={summary}
                         renderExplorerLink={ExplorerLink}
-                        renderValidatorLogo={Validator}
                     />
                 </DialogLayoutBody>
                 <DialogLayoutFooter>

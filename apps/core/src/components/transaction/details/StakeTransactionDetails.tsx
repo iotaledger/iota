@@ -1,19 +1,20 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { CardType } from '@iota/apps-ui-kit';
 import { IotaEvent } from '@iota/iota-sdk/client';
 import { formatPercentageDisplay } from '../../../utils';
 import { useGetValidatorsApy } from '../../../hooks';
 import { TransactionAmount } from '../amount';
 import { StakeTransactionInfo } from '../info';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import type { GasSummaryType, RenderExplorerLink, RenderValidatorLogo } from '../../../types';
+import { ValidatorLogo } from '../../../';
+import type { GasSummaryType, RenderExplorerLink } from '../../../types';
 
 interface StakeTransactionDetailsProps {
     event: IotaEvent;
     activeAddress: string | null;
     renderExplorerLink: RenderExplorerLink;
-    renderValidatorLogo: RenderValidatorLogo;
     gasSummary?: GasSummaryType;
 }
 
@@ -21,7 +22,6 @@ export function StakeTransactionDetails({
     event,
     gasSummary,
     activeAddress,
-    renderValidatorLogo: ValidatorLogo,
     renderExplorerLink,
 }: StakeTransactionDetailsProps) {
     const json = event.parsedJson as {
@@ -43,10 +43,10 @@ export function StakeTransactionDetails({
         <div className="flex flex-col gap-y-md">
             {validatorAddress && (
                 <ValidatorLogo
-                    address={validatorAddress}
+                    validatorAddress={validatorAddress}
                     showActiveStatus
                     activeEpoch={json.epoch}
-                    isSelected
+                    type={CardType.Filled}
                 />
             )}
             {stakedAmount && (
