@@ -45,7 +45,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
     const { data: timelockedObjects } = useGetAllOwnedObjects(address || '', {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-    const { data: timelockedStakedObjects, isPending: istimelockedStakedObjectsLoading } = useGetTimelockedStakedObjects(address || '');
+    const { data: timelockedStakedObjects, isPending: istimelockedStakedObjectsLoading } =
+        useGetTimelockedStakedObjects(address || '');
 
     const supplyIncreaseVestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
         isSupplyIncreaseVestingObject,
