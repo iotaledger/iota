@@ -70,14 +70,15 @@ function VestingDashboardPage(): JSX.Element {
 
     const {
         nextPayout,
-        vestingPortfolio,
-        vestingSchedule,
-        vestingStakedMapped,
-        unlockAllTimelockedObjects,
+        supplyIncreaseVestingPortfolio,
+        supplyIncreaseVestingSchedule,
+        supplyIncreaseVestingMapped,
+        supplyIncreaseVestingStakedMapped,
+        unlockAllsupplyIncreaseVesting,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
-        groupTimelockedStakedObjects(vestingStakedMapped || []);
+        groupTimelockedStakedObjects(supplyIncreaseVestingStakedMapped || []);
 
     const {
         isDialogStakeOpen,
@@ -95,17 +96,17 @@ function VestingDashboardPage(): JSX.Element {
     );
 
     const [formattedTotalVested, vestedSymbol] = useFormatCoin(
-        vestingSchedule.totalVested,
+        supplyIncreaseVestingSchedule.totalVested,
         IOTA_TYPE_ARG,
     );
 
     const [formattedTotalLocked, lockedSymbol] = useFormatCoin(
-        vestingSchedule.totalLocked,
+        supplyIncreaseVestingSchedule.totalLocked,
         IOTA_TYPE_ARG,
     );
 
     const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(
-        vestingSchedule.availableClaiming,
+        supplyIncreaseVestingSchedule.availableClaiming,
         IOTA_TYPE_ARG,
     );
 
@@ -142,13 +143,13 @@ function VestingDashboardPage(): JSX.Element {
     }
 
     const handleCollect = () => {
-        if (!unlockAllTimelockedObjects?.transactionBlock) {
+        if (!unlockAllsupplyIncreaseVesting?.transactionBlock) {
             addNotification('Failed to create a Transaction', NotificationType.Error);
             return;
         }
         signAndExecuteTransaction(
             {
-                transaction: unlockAllTimelockedObjects.transactionBlock,
+                transaction: unlockAllsupplyIncreaseVesting.transactionBlock,
             },
             {
                 onSuccess: (tx) => {
@@ -224,8 +225,8 @@ function VestingDashboardPage(): JSX.Element {
                             title="Collect"
                             buttonType={ButtonType.Primary}
                             buttonDisabled={
-                                !vestingSchedule.availableClaiming ||
-                                vestingSchedule.availableClaiming === 0
+                                !supplyIncreaseVestingSchedule.availableClaiming ||
+                                supplyIncreaseVestingSchedule.availableClaiming === 0
                             }
                         />
                     </Card>
@@ -246,19 +247,19 @@ function VestingDashboardPage(): JSX.Element {
                             onClick={openReceiveTokenPopup}
                             title="See All"
                             buttonType={ButtonType.Secondary}
-                            buttonDisabled={!vestingPortfolio}
+                            buttonDisabled={!supplyIncreaseVestingPortfolio}
                         />
                     </Card>
-                    {vestingPortfolio && (
+                    {supplyIncreaseVestingPortfolio && (
                         <VestingScheduleDialog
                             open={isVestingScheduleDialogOpen}
                             setOpen={setIsVestingScheduleDialogOpen}
-                            vestingPortfolio={vestingPortfolio}
+                            vestingPortfolio={supplyIncreaseVestingPortfolio}
                         />
                     )}
                 </div>
             </Panel>
-            {vestingStakedMapped.length === 0 ? (
+            {supplyIncreaseVestingMapped.length === 0 ? (
                 <>
                     <Banner
                         videoSrc={videoSrc}
@@ -274,11 +275,11 @@ function VestingDashboardPage(): JSX.Element {
                     <div className="flex flex-row space-x-4">
                         <div className="flex flex-col items-center rounded-lg border p-4">
                             <span>Your stake</span>
-                            <span>{vestingSchedule.totalStaked}</span>
+                            <span>{supplyIncreaseVestingSchedule.totalStaked}</span>
                         </div>
                         <div className="flex flex-col items-center rounded-lg border p-4">
                             <span>Total Unlocked</span>
-                            <span>{vestingSchedule.totalUnlocked}</span>
+                            <span>{supplyIncreaseVestingSchedule.totalUnlocked}</span>
                         </div>
                     </div>
                     <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
@@ -325,7 +326,7 @@ function VestingDashboardPage(): JSX.Element {
                 setView={setStakeDialogView}
                 selectedValidator={selectedValidator}
                 setSelectedValidator={setSelectedValidator}
-                maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+                maxStakableTimelockedAmount={BigInt(supplyIncreaseVestingSchedule.availableStaking)}
             />
         </div>
     );

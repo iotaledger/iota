@@ -29,11 +29,11 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 export function useGetSupplyIncreaseVestingObjects(address: string): {
     nextPayout: SupplyIncreaseVestingPayout | undefined;
     lastPayout: SupplyIncreaseVestingPayout | undefined;
-    vestingSchedule: VestingOverview;
-    vestingPortfolio: SupplyIncreaseVestingPortfolio | undefined;
-    vestingMapped: TimelockedObject[];
-    vestingStakedMapped: ExtendedDelegatedTimelockedStake[];
-    unlockAllTimelockedObjects:
+    supplyIncreaseVestingSchedule: VestingOverview;
+    supplyIncreaseVestingPortfolio: SupplyIncreaseVestingPortfolio | undefined;
+    supplyIncreaseVestingMapped: TimelockedObject[];
+    supplyIncreaseVestingStakedMapped: ExtendedDelegatedTimelockedStake[];
+    unlockAllsupplyIncreaseVesting:
         | {
               transactionBlock: Transaction;
           }
@@ -46,50 +46,51 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
     });
     const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(address || '');
 
-    const vestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
+    const supplyIncreaseVestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
         isSupplyIncreaseVestingObject,
     );
-    const vestingStakedMapped = formatDelegatedTimelockedStake(
+    const supplyIncreaseVestingStakedMapped = formatDelegatedTimelockedStake(
         timelockedStakedObjects || [],
     ).filter(isSupplyIncreaseVestingObject);
 
-    const vestingSchedule = getVestingOverview(
-        [...vestingMapped, ...vestingStakedMapped],
+    const supplyIncreaseVestingSchedule = getVestingOverview(
+        [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
         Number(currentEpochMs),
     );
 
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
-        [...vestingMapped, ...vestingStakedMapped],
+        [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
         Number(currentEpochMs),
         false,
     );
 
     const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
-        [...vestingMapped, ...vestingStakedMapped],
+        [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
         Number(currentEpochMs),
         true,
     );
 
-    const vestingPortfolio =
+    const supplyIncreaseVestingPortfolio =
         lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
 
-    const unlockedTimelockedObjects = vestingMapped?.filter((timelockedObject) =>
-        isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
+    const supplyIncreaseVestingUnlocked = supplyIncreaseVestingMapped?.filter(
+        (supplyIncreaseVestingObject) =>
+            isTimelockedUnlockable(supplyIncreaseVestingObject, Number(currentEpochMs)),
     );
-    const unlockedTimelockedObjectIds: string[] =
-        unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
-    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjectsTransaction(
+    const supplyIncreaseVestingUnlockedObjectIds: string[] =
+        supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
+    const { data: unlockAllsupplyIncreaseVesting } = useUnlockTimelockedObjectsTransaction(
         address || '',
-        unlockedTimelockedObjectIds,
+        supplyIncreaseVestingUnlockedObjectIds,
     );
 
     return {
         nextPayout,
         lastPayout,
-        vestingSchedule,
-        vestingPortfolio,
-        vestingMapped,
-        vestingStakedMapped,
-        unlockAllTimelockedObjects,
+        supplyIncreaseVestingSchedule,
+        supplyIncreaseVestingPortfolio,
+        supplyIncreaseVestingMapped,
+        supplyIncreaseVestingStakedMapped,
+        unlockAllsupplyIncreaseVesting,
     };
 }
