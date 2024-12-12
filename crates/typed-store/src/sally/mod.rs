@@ -427,7 +427,7 @@ pub enum SallyIter<'a, K, V> {
     TestDB(TestDBIter<'a, K, V>),
 }
 
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for SallyIter<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for SallyIter<'_, K, V> {
     type Item = Result<(K, V), TypedStoreError>;
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -485,7 +485,7 @@ pub enum SallyRevIter<'a, K, V> {
     TestDB(TestDBRevIter<'a, K, V>),
 }
 
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for SallyRevIter<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for SallyRevIter<'_, K, V> {
     type Item = Result<(K, V), TypedStoreError>;
 
     /// Will give the next item backwards
@@ -504,7 +504,7 @@ pub enum SallyKeys<'a, K> {
     TestDB(TestDBKeys<'a, K>),
 }
 
-impl<'a, K: DeserializeOwned> Iterator for SallyKeys<'a, K> {
+impl<K: DeserializeOwned> Iterator for SallyKeys<'_, K> {
     type Item = Result<K, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -522,7 +522,7 @@ pub enum SallyValues<'a, V> {
     TestDB(TestDBValues<'a, V>),
 }
 
-impl<'a, V: DeserializeOwned> Iterator for SallyValues<'a, V> {
+impl<V: DeserializeOwned> Iterator for SallyValues<'_, V> {
     type Item = Result<V, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {

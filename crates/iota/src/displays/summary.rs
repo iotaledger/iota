@@ -11,7 +11,7 @@ use tabled::{
 
 use crate::{client_ptb::ptb::Summary, displays::Pretty};
 
-impl<'a> Display for Pretty<'a, Summary> {
+impl Display for Pretty<'_, Summary> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut builder = TableBuilder::default();
         let Pretty(summary) = self;
