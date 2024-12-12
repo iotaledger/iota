@@ -5,6 +5,7 @@ use iota_json_rpc_api::{GovernanceReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
 };
+use iota_protocol_config::ProtocolVersion;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
@@ -484,7 +485,7 @@ fn get_latest_iota_system_state() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let system_state = client.get_latest_iota_system_state().await.unwrap();
-        assert_eq!(system_state.protocol_version, 1);
+        assert_eq!(system_state.protocol_version, ProtocolVersion::MAX.as_u64());
         assert_eq!(system_state.system_state_version, 1);
     });
 }
