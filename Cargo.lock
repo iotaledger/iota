@@ -6630,6 +6630,7 @@ dependencies = [
  "bigdecimal",
  "camino",
  "clap",
+ "csv",
  "fastcrypto",
  "flate2",
  "fs_extra",
