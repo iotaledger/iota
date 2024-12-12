@@ -26,7 +26,7 @@ export function SupplyIncreaseVestingOverview() {
     const address = account?.address || '';
     const iotaClient = useIotaClient();
     const queryClient = useQueryClient();
-    const { nextPayout, vestingSchedule, vestingMapped, vestingStakedMapped } =
+    const { nextPayout, supplyIncreaseVestingSchedule, supplyIncreaseVestingMapped, supplyIncreaseVestingStakedMapped } =
         useGetSupplyIncreaseVestingObjects(address);
 
     const {
@@ -51,12 +51,12 @@ export function SupplyIncreaseVestingOverview() {
     );
 
     const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin(
-        vestingSchedule.availableStaking,
+        supplyIncreaseVestingSchedule.availableStaking,
         IOTA_TYPE_ARG,
     );
 
     const showSupplyIncreaseVestingOverview =
-        vestingMapped.length > 0 || vestingStakedMapped.length > 0;
+        supplyIncreaseVestingMapped.length > 0 || supplyIncreaseVestingStakedMapped.length > 0;
 
     function handleOnSuccess(digest: string): void {
         iotaClient
@@ -142,7 +142,7 @@ export function SupplyIncreaseVestingOverview() {
                 setView={setStakeDialogView}
                 selectedValidator={selectedValidator}
                 setSelectedValidator={setSelectedValidator}
-                maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+                maxStakableTimelockedAmount={BigInt(supplyIncreaseVestingSchedule.availableStaking)}
             />
         </div>
     ) : null;
