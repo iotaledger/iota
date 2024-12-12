@@ -400,19 +400,21 @@ export default function VestingDashboardPage(): JSX.Element {
                     </div>
                 ) : null}
 
-                <StakeDialog
-                    isTimelockedStaking={true}
-                    stakedDetails={selectedStake}
-                    onSuccess={handleOnSuccess}
-                    isOpen={isDialogStakeOpen}
-                    handleClose={handleCloseStakeDialog}
-                    view={stakeDialogView}
-                    setView={setStakeDialogView}
-                    selectedValidator={selectedValidator}
-                    setSelectedValidator={setSelectedValidator}
-                    maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
-                    onUnstakeClick={() => setUnstakeDialogOpen(true)}
-                />
+                {isDialogStakeOpen && (
+                    <StakeDialog
+                        isTimelockedStaking
+                        stakedDetails={selectedStake}
+                        onSuccess={handleOnSuccess}
+                        isOpen
+                        handleClose={handleCloseStakeDialog}
+                        view={stakeDialogView}
+                        setView={setStakeDialogView}
+                        selectedValidator={selectedValidator}
+                        setSelectedValidator={setSelectedValidator}
+                        maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
+                        onUnstakeClick={() => setUnstakeDialogOpen(true)}
+                    />
+                )}
 
                 {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
                     <UnstakeDialog

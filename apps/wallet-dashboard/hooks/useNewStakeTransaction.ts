@@ -33,14 +33,13 @@ export function useNewStakeTransaction(validator: string, amount: bigint, sender
 
 export function useNewStakeTimelockedTransaction(
     validator: string,
-    amount: bigint,
     senderAddress: string,
     groupedTimelockObjects: GroupedTimelockObject[],
 ) {
     const client = useIotaClient();
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['stake-transaction', validator, amount.toString(), senderAddress],
+        queryKey: ['stake-timelocked-transaction', validator, senderAddress],
         queryFn: async () => {
             const transaction = createTimelockedStakeTransaction(
                 groupedTimelockObjects || [],
@@ -50,7 +49,7 @@ export function useNewStakeTimelockedTransaction(
             await transaction.build({ client });
             return transaction;
         },
-        enabled: !!amount && !!validator && !!senderAddress,
+        enabled: !!validator && !!senderAddress,
         gcTime: 0,
         select: (transaction) => {
             return {

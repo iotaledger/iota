@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../layout';
-import { Validator } from '../Staking/views/Validator';
+import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { Validator } from '../../Staking/views/Validator';
 import { useNewUnstakeTimelockedTransaction, useNotifications } from '@/hooks';
 import { Collapsible, useFormatCoin, useGetActiveValidatorsInfo } from '@iota/core';
 import { ExtendedDelegatedTimelockedStake, TimelockedStakedObjectsGrouped } from '@/lib/utils';
@@ -20,19 +20,19 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { NotificationType } from '@/stores/notificationStore';
 
-interface UnstakeTimelockedObjectsDialogProps {
+interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
     groupedTimelockedObjects: TimelockedStakedObjectsGrouped;
     onSuccess: (tx: IotaSignAndExecuteTransactionOutput) => void;
     onBack?: () => void;
 }
 
-export function UnstakeTimelockedObjectsDialog({
+export function UnstakeTimelockedObjectsView({
     groupedTimelockedObjects,
     onClose,
     onBack,
     onSuccess,
-}: UnstakeTimelockedObjectsDialogProps) {
+}: UnstakeTimelockedObjectsViewProps) {
     const { addNotification } = useNotifications();
     const activeAddress = useCurrentAccount()?.address ?? '';
     const { data: activeValidators } = useGetActiveValidatorsInfo();

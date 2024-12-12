@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     useFormatCoin,
     CoinFormat,
@@ -74,25 +74,22 @@ function EnterTimelockedAmountView({
         [],
     );
     const { data: newStakeData, isLoading: isTransactionLoading } =
-        useNewStakeTimelockedTransaction(
-            selectedValidator,
-            amountWithoutDecimals,
-            senderAddress,
-            groupedTimelockObjects,
-        );
+        useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
         StructType: TIMELOCK_IOTA_TYPE,
     });
 
-    if (timelockedObjects && currentEpochMs) {
-        const groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
-            timelockedObjects,
-            amountWithoutDecimals,
-            currentEpochMs,
-        );
-        setGroupedTimelockObjects(groupedTimelockObjects);
-    }
+    useEffect(() => {
+        if (timelockedObjects && currentEpochMs) {
+            const groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
+                timelockedObjects,
+                amountWithoutDecimals,
+                currentEpochMs,
+            );
+            setGroupedTimelockObjects(groupedTimelockObjects);
+        }
+    }, [timelockedObjects, currentEpochMs, amountWithoutDecimals]);
 
     const { values, errors, resetForm } = useFormikContext<FormValues>();
     const amount = values.amount;
