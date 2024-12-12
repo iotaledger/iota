@@ -17,15 +17,19 @@ use iota_types::{
     },
 };
 
-use crate::stardust::migration::{
-    executor::FoundryLedgerData,
-    verification::{
-        created_objects::CreatedObjects,
-        util::{
-            TokensAmountCounter, verify_address_owner, verify_issuer_feature,
-            verify_metadata_feature, verify_native_tokens, verify_parent, verify_sender_feature,
+use crate::stardust::{
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{
+            created_objects::CreatedObjects,
+            util::{
+                TokensAmountCounter, verify_address_owner, verify_issuer_feature,
+                verify_metadata_feature, verify_native_tokens, verify_parent,
+                verify_sender_feature,
+            },
         },
     },
+    types::address_swap_map::AddressSwapMap,
 };
 
 pub(super) fn verify_alias_output(
@@ -35,6 +39,7 @@ pub(super) fn verify_alias_output(
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
     tokens_counter: &mut TokensAmountCounter,
+    address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
@@ -53,6 +58,7 @@ pub(super) fn verify_alias_output(
         output.governor_address(),
         created_output_obj,
         "alias output",
+        address_swap_map,
     )?;
 
     // Alias Owner

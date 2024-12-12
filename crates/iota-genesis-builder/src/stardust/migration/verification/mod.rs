@@ -13,7 +13,10 @@ use tracing::warn;
 use util::{BASE_TOKEN_KEY, TokensAmountCounter};
 
 use self::created_objects::CreatedObjects;
-use crate::stardust::{migration::executor::FoundryLedgerData, types::output_header::OutputHeader};
+use crate::stardust::{
+    migration::executor::FoundryLedgerData,
+    types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
+};
 
 pub mod alias;
 pub mod basic;
@@ -29,6 +32,7 @@ pub(crate) fn verify_outputs<'a>(
     target_milestone_timestamp: u32,
     total_supply: u64,
     storage: &InMemoryStorage,
+    address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     let mut tokens_counter = TokensAmountCounter::new(total_supply);
     for (header, output) in outputs {
@@ -43,6 +47,7 @@ pub(crate) fn verify_outputs<'a>(
             target_milestone_timestamp,
             storage,
             &mut tokens_counter,
+            address_swap_map,
         )?;
     }
     for (key, (total_value, expected_value)) in tokens_counter.into_inner() {
@@ -68,6 +73,7 @@ fn verify_output(
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
     tokens_counter: &mut TokensAmountCounter,
+    address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     match output {
         Output::Alias(output) => alias::verify_alias_output(
@@ -77,6 +83,7 @@ fn verify_output(
             foundry_data,
             storage,
             tokens_counter,
+            address_swap_map,
         ),
         Output::Basic(output) => basic::verify_basic_output(
             header.output_id(),
@@ -86,6 +93,7 @@ fn verify_output(
             target_milestone_timestamp,
             storage,
             tokens_counter,
+            address_swap_map,
         ),
         Output::Foundry(output) => foundry::verify_foundry_output(
             header.output_id(),
@@ -94,6 +102,7 @@ fn verify_output(
             foundry_data,
             storage,
             tokens_counter,
+            address_swap_map,
         ),
         Output::Nft(output) => nft::verify_nft_output(
             header.output_id(),
@@ -102,6 +111,7 @@ fn verify_output(
             foundry_data,
             storage,
             tokens_counter,
+            address_swap_map,
         ),
         // Treasury outputs aren't used since Stardust, so no need to verify anything here.
         Output::Treasury(_) => return Ok(()),

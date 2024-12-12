@@ -22,13 +22,14 @@ use iota_types::{
     object::{Object, Owner},
     stardust::{
         output::{Alias, Nft, unlock_conditions},
-        stardust_to_iota_address, stardust_to_iota_address_owner,
+        stardust_to_iota_address,
     },
 };
 use tracing::warn;
 
 use crate::stardust::{
-    migration::executor::FoundryLedgerData, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
+    migration::executor::FoundryLedgerData,
+    types::{address_swap_map::AddressSwapMap, token_scheme::MAX_ALLOWED_U64_SUPPLY},
 };
 
 pub const BASE_TOKEN_KEY: &str = "base_token";
@@ -326,8 +327,10 @@ pub(super) fn verify_address_owner(
     owning_address: &Address,
     obj: &Object,
     name: &str,
+    address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
-    let expected_owner = stardust_to_iota_address_owner(owning_address)?;
+    let expected_owner = address_swap_map.stardust_to_iota_address_owner(owning_address)?;
+
     ensure!(
         obj.owner == expected_owner,
         "{name} owner mismatch: found {}, expected {}",
