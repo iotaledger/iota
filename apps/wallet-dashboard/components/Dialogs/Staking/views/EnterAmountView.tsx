@@ -6,7 +6,6 @@ import { useFormatCoin, useBalance, CoinFormat, parseAmount, useCoinMetadata } f
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-
 import { useNewStakeTransaction, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import EnterAmountDialogLayout from './EnterAmountDialogLayout';
