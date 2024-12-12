@@ -9,10 +9,17 @@ type ObjectChangeWithObjectType = Extract<
     { objectType: string }
 >;
 
+type PackageId = string;
+type ModuleName = string;
+type TypeName = string;
 export function parseObjectChangeDetails(
     objectChange: ObjectChangeWithObjectType,
-): [string, string, string] {
-    const [packageId, moduleName, typeName] =
-        objectChange.objectType?.split('<')[0]?.split('::') || [];
+): [PackageId, ModuleName, TypeName] {
+    const [packageId, moduleName, typeName] = extractObjectTypeStruct(objectChange.objectType);
     return [packageId, moduleName, typeName];
+}
+
+export function extractObjectTypeStruct(objectType: string): [PackageId, ModuleName, TypeName] {
+    const [packageId, moduleName, functionName] = objectType?.split('<')[0]?.split('::') || [];
+    return [packageId, moduleName, functionName];
 }
