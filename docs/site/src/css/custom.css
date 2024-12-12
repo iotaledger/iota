@@ -129,14 +129,14 @@
 
 [data-theme="dark"] .menu__link--active {
   font-weight: bold;
-  color: white;
+  color: #3b82f6;
 }
 
 @media (min-width: 997px) {
   [data-theme="light"] .menu__link:hover,
   [data-theme="light"] .menu__link--active{
     font-weight: bold;
-    color: var(--ifm-menu-color)
+    color: #3b82f6
   }
 }
 @media (max-width: 996px) {
@@ -148,7 +148,7 @@
   [data-theme="light"] .menu__list-item-collapsible--active,
   [data-theme="light"] .menu__link--active {
     font-weight: bold;
-    color: white;
+    color: #3b82f6;
   }
 
   [data-theme="light"] .menu__list-item-collapsible:hover,
