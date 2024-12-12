@@ -85,7 +85,7 @@ export function SupplyIncreaseVestingOverview() {
                 <Title title="Vesting" />
                 <div className="flex h-full w-full items-center gap-md p-md--rs">
                     <div className="w-1/2">
-                        <Card type={CardType.Filled} isHoverable>
+                        <Card type={CardType.Filled}>
                             <CardBody
                                 title=""
                                 subtitle={
@@ -110,7 +110,7 @@ export function SupplyIncreaseVestingOverview() {
                         </Card>
                     </div>
                     <div className="w-1/2">
-                        <Card type={CardType.Filled} isHoverable>
+                        <Card type={CardType.Filled}>
                             <CardBody
                                 title=""
                                 subtitle={
