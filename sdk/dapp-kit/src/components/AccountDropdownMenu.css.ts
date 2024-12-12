@@ -34,6 +34,7 @@ export const scrollableContent = style({
 
 export const menuItem = style({
     padding: 8,
+    height: 40,
     userSelect: 'none',
     outline: 'none',
     display: 'flex',
