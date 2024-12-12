@@ -31,6 +31,7 @@ import { DetailsView, UnstakeView } from './views';
 import { FormValues } from './views/EnterAmountView';
 import { TransactionDialogView } from '../TransactionDialog';
 import { StakeDialogView } from './enums/view.enums';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -114,7 +115,7 @@ export function StakeDialog({
         groupedTimelockObjects,
     );
 
-    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const { mutateAsync: signAndExecuteTransaction, isPending } = useSignAndExecuteTransaction();
     const { addNotification } = useNotifications();
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
@@ -173,6 +174,29 @@ export function StakeDialog({
         );
     }
 
+    function handleUnstake(transaction: Transaction): void {
+        if (!transaction) {
+            addNotification('Unstake transaction was not created', NotificationType.Error);
+            return;
+        }
+        signAndExecuteTransaction(
+            {
+                transaction: transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    onSuccess?.(tx.digest);
+                    addNotification('Unstake transaction has been sent');
+                    setTxDigest(tx.digest);
+                    setView?.(StakeDialogView.TransactionDetails);
+                },
+                onError: () => {
+                    addNotification('Unstake transaction was not sent', NotificationType.Error);
+                },
+            },
+        );
+    }
+
     function onSubmit(_: FormValues, { resetForm }: FormikHelpers<FormValues>) {
         handleStake();
         resetForm();
@@ -225,7 +249,8 @@ export function StakeDialog({
                         <UnstakeView
                             extendedStake={stakedDetails}
                             handleClose={handleClose}
-                            showActiveStatus
+                            onUnstake={handleUnstake}
+                            isPending={isPending}
                         />
                     )}
                     {view === StakeDialogView.TransactionDetails && (

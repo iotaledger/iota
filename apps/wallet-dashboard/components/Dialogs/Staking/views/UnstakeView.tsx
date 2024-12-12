@@ -26,22 +26,25 @@ import {
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
-import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useCurrentAccount } from '@iota/dapp-kit';
 import { Loader, Warning } from '@iota/ui-icons';
 import { useUnstakeTransaction } from '@/hooks';
 import { ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
     handleClose: () => void;
-    showActiveStatus?: boolean;
+    onUnstake: (unstakeTransaction: Transaction) => void;
+    isPending: boolean;
 }
 
 export function UnstakeView({
     extendedStake,
     handleClose,
-    showActiveStatus,
+    onUnstake,
+    isPending,
 }: UnstakeDialogProps): JSX.Element {
     const stakingReward = BigInt(extendedStake.estimatedReward ?? '').toString();
     const [rewards, rewardSymbol] = useFormatCoin(stakingReward, IOTA_TYPE_ARG);
@@ -67,7 +70,7 @@ export function UnstakeView({
         error: delegatedStakeDataError,
     } = delegatedStakeDataResult;
 
-    const delegationId = extendedStake?.status === 'Active' && extendedStake?.stakedIotaId;
+    const delegationId = extendedStake?.stakedIotaId;
 
     const [totalIota] = useFormatCoin(
         BigInt(stakingReward || 0) + totalStakeOriginal,
@@ -93,14 +96,10 @@ export function UnstakeView({
         extendedStake.stakedIotaId,
         activeAddress || '',
     );
-    const { mutateAsync: signAndExecuteTransaction, isPending } = useSignAndExecuteTransaction();
 
-    async function handleUnstake(): Promise<void> {
+    function handleUnstake(): void {
         if (!unstakeData) return;
-        await signAndExecuteTransaction({
-            transaction: unstakeData.transaction,
-        });
-        handleClose();
+        onUnstake(unstakeData.transaction);
     }
 
     const currentEpochEndTimeFormatted =
