@@ -1020,7 +1020,7 @@ export interface IotaObjectData {
     /**
      * The Display metadata for frontend UI rendering, default to be None unless
      * IotaObjectDataOptions.showContent is set to true This can also be None if the struct type does not
-     * have Display defined See more details in <https://forums.iota.io/t/nft-object-display-proposal/4872>
+     * have Display defined
      */
     display?: DisplayFieldsResponse | null;
     objectId: string;
