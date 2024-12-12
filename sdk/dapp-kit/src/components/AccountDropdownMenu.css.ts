@@ -18,12 +18,18 @@ export const menuContent = style({
     display: 'flex',
     flexDirection: 'column',
     width: 180,
-    height: 'auto',
+    maxHeight: 300,
     marginTop: 4,
     padding: 8,
     gap: 8,
     borderRadius: themeVars.radii.large,
     backgroundColor: themeVars.backgroundColors.dropdownMenu,
+});
+
+export const scrollableContent = style({
+    overflowY: 'auto',
+    maxHeight: 300,
+    flexGrow: 1,
 });
 
 export const menuItem = style({
