@@ -453,7 +453,6 @@ impl TransactionEffectsV1 {
                 .unwrap() as u32
         });
 
-        #[cfg_attr(not(debug_assertions), expect(clippy::let_and_return))]
         let result = Self {
             status,
             executed_epoch,

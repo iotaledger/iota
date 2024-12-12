@@ -342,7 +342,6 @@ impl RocksDB {
         delegate_call!(self.drop_cf(name))
     }
 
-    #[expect(clippy::let_and_return)]
     pub fn delete_cf<K: AsRef<[u8]>>(
         &self,
         cf: &impl AsColumnFamilyRef,
@@ -352,6 +351,7 @@ impl RocksDB {
         fail_point!("delete-cf-before");
         let ret = delegate_call!(self.delete_cf_opt(cf, key, writeopts));
         fail_point!("delete-cf-after");
+        #[expect(clippy::let_and_return)]
         ret
     }
 
