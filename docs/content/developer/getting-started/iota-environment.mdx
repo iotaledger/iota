@@ -12,33 +12,6 @@ tags:
 
 # Before You Start
 
-Simple Token Transfer App
-
-```mermaid
-sequenceDiagram
-    participant Sender
-    participant Contract
-    participant Treasury
-    participant Recipient
-
-    Sender->>Contract: init(witness, ctx)
-    Contract->>Treasury: create_currency(witness)
-    Treasury-->>Contract: Returns TreasuryCap, Metadata
-    Contract->>Sender: transfer(treasury, sender)
-
-    Sender->>Contract: mint(treasury_cap, amount, recipient, ctx)
-    Contract->>Treasury: mint(treasury_cap, amount)
-    Treasury-->>Contract: Returns Coin
-    Contract->>Recipient: transfer(coin, recipient)
-
-    Sender->>Contract: transfer(token, amount, recipient, ctx)
-    Contract->>Treasury: split(token, amount)
-    Treasury-->>Contract: Returns CoinToTransfer
-    Contract->>Recipient: transfer(CoinToTransfer, recipient)
-
-    Sender->>Contract: balances(token)
-    Contract-->>Sender: Returns token.balance
-```
 It's a good idea to look at the toolbox before you start building. This section will give you a quick overview
 of the most important tools to get started:
 
