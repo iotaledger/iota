@@ -43,11 +43,36 @@ pub trait DataReader {
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error>;
 }
 
-#[derive(Clone)]
-pub struct TransactionBuilder(Arc<dyn DataReader + Sync + Send>);
+#[async_trait]
+impl<T: DataReader + Send + Sync + 'static> DataReader for Arc<T> {
+    async fn get_owned_objects(
+        &self,
+        address: IotaAddress,
+        object_type: StructTag,
+    ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
+        self.as_ref().get_owned_objects(address, object_type).await
+    }
 
-impl TransactionBuilder {
-    pub fn new(data_reader: Arc<dyn DataReader + Sync + Send>) -> Self {
+    async fn get_object_with_options(
+        &self,
+        object_id: ObjectID,
+        options: IotaObjectDataOptions,
+    ) -> Result<IotaObjectResponse, anyhow::Error> {
+        self.as_ref()
+            .get_object_with_options(object_id, options)
+            .await
+    }
+
+    async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
+        self.as_ref().get_reference_gas_price().await
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TransactionBuilder<R>(R);
+
+impl<R: DataReader + core::fmt::Debug + Clone + Send + Sync> TransactionBuilder<R> {
+    pub fn new(data_reader: R) -> Self {
         Self(data_reader)
     }
 

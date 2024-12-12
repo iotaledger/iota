@@ -24,9 +24,9 @@ use move_binary_format::{
 };
 use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
-use crate::TransactionBuilder;
+use crate::{DataReader, TransactionBuilder};
 
-impl TransactionBuilder {
+impl<R: DataReader + core::fmt::Debug + Clone + Send + Sync> TransactionBuilder<R> {
     /// Select a gas coin for the provided gas budget.
     pub(crate) async fn select_gas(
         &self,

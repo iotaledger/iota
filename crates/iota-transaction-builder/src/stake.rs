@@ -16,9 +16,9 @@ use iota_types::{
     transaction::{CallArg, Command, ObjectArg, TransactionData},
 };
 
-use crate::TransactionBuilder;
+use crate::{DataReader, TransactionBuilder};
 
-impl TransactionBuilder {
+impl<R: DataReader + core::fmt::Debug + Clone + Send + Sync> TransactionBuilder<R> {
     /// Add stake to a validator's staking pool using multiple IOTA coins.
     pub async fn request_add_stake(
         &self,
