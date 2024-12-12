@@ -153,7 +153,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     return (
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
-                <Validator validatorAddress={validatorAddress} type={CardType.Filled} />
+                <Validator address={validatorAddress} type={CardType.Filled} />
                 {hasInactiveValidatorDelegation ? (
                     <InfoBox
                         type={InfoBoxType.Error}

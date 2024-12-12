@@ -285,10 +285,7 @@ function StakingCard() {
                     {({ isSubmitting, isValid, submitForm }) => (
                         <>
                             <div className="flex h-full flex-col gap-md overflow-auto">
-                                <Validator
-                                    validatorAddress={validatorAddress}
-                                    type={CardType.Filled}
-                                />
+                                <Validator address={validatorAddress} type={CardType.Filled} />
                                 <ValidatorFormDetail
                                     validatorAddress={validatorAddress}
                                     unstake={unstake}
