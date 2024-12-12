@@ -1,9 +1,9 @@
-name: Rosetta tests
+name: Rosetta validation
 
 on: workflow_call
 
 concurrency:
-  group: rosetta-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: rosetta-validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
@@ -21,7 +21,7 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
-  test:
+  validation:
     timeout-minutes: 45
     runs-on: [self-hosted]
     steps:
