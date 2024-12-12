@@ -14,6 +14,7 @@ import {
     useFormatCoin,
     formatPercentageDisplay,
     MIN_NUMBER_IOTA_TO_STAKE,
+    ValidatorLogo,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
@@ -35,7 +36,6 @@ import {
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { ValidatorLogo } from '../validators/ValidatorLogo';
 import { Warning } from '@iota/ui-icons';
 
 interface DelegationDetailCardProps {

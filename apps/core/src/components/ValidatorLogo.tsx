@@ -14,7 +14,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
-import { formatPercentageDisplay, useGetValidatorsApy, ImageIcon, ImageIconSize } from '@iota/core';
+import { formatPercentageDisplay, useGetValidatorsApy, ImageIcon, ImageIconSize } from '../';
 
 interface ValidatorLogoProps {
     validatorAddress: string;

@@ -17,6 +17,7 @@ import {
     getStakeIotaByIotaId,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
+    ValidatorLogo,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
@@ -43,7 +44,6 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { ValidatorLogo } from '../validators/ValidatorLogo';
 import { Info, Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
