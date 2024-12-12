@@ -88,7 +88,7 @@ export default function MigrationDashboardPage(): JSX.Element {
         [iotaClient, queryClient, address],
     );
 
-    const openMigratePopup = () => {
+    function openMigratePopup(): void {
         openPopup(
             <MigratePopup
                 basicOutputObjects={migratableBasicOutputs}
@@ -97,7 +97,7 @@ export default function MigrationDashboardPage(): JSX.Element {
                 onSuccess={handleOnSuccess}
             />,
         );
-    };
+    }
 
     const MIGRATION_CARDS: MigrationDisplayCard[] = [
         {
