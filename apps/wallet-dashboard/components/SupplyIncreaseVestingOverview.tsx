@@ -26,8 +26,12 @@ export function SupplyIncreaseVestingOverview() {
     const address = account?.address || '';
     const iotaClient = useIotaClient();
     const queryClient = useQueryClient();
-    const { nextPayout, supplyIncreaseVestingSchedule, supplyIncreaseVestingMapped, supplyIncreaseVestingStakedMapped } =
-        useGetSupplyIncreaseVestingObjects(address);
+    const {
+        nextPayout,
+        supplyIncreaseVestingSchedule,
+        supplyIncreaseVestingMapped,
+        supplyIncreaseVestingStakedMapped,
+    } = useGetSupplyIncreaseVestingObjects(address);
 
     const {
         isDialogStakeOpen,
