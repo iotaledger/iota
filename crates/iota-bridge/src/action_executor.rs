@@ -695,7 +695,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_onchain_execution_loop() {
-        let Data {
+        let SetupData {
             signing_tx,
             iota_client_mock,
             mut tx_subscription,
@@ -901,7 +901,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_signature_aggregation_loop() {
-        let Data {
+        let SetupData {
             signing_tx,
             iota_client_mock,
             mut tx_subscription,
@@ -1026,7 +1026,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_request_signature_if_already_processed_on_chain() {
-        let Data {
+        let SetupData {
             signing_tx,
             iota_client_mock,
             mut tx_subscription,
@@ -1090,7 +1090,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_tx_submission_if_already_processed_on_chain() {
-        let Data {
+        let SetupData {
             execution_tx,
             iota_client_mock,
             mut tx_subscription,
@@ -1175,7 +1175,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_tx_submission_if_bridge_is_paused() {
-        let Data {
+        let SetupData {
             execution_tx,
             iota_client_mock,
             mut tx_subscription,
@@ -1276,7 +1276,7 @@ mod tests {
     async fn test_action_executor_handle_new_token() {
         let new_token_id = 255u8; // token id that does not exist
         let new_type_tag = TypeTag::from_str("0xbeef::beef::BEEF").unwrap();
-        let Data {
+        let SetupData {
             execution_tx,
             iota_client_mock,
             mut tx_subscription,
@@ -1484,7 +1484,7 @@ mod tests {
         }
     }
 
-    struct Data {
+    struct SetupData {
         signing_tx: iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
         execution_tx: iota_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
         iota_client_mock: IotaMockClient,
@@ -1504,7 +1504,7 @@ mod tests {
         bridge_pause_tx: tokio::sync::watch::Sender<IsBridgePaused>,
     }
 
-    async fn setup() -> Data {
+    async fn setup() -> SetupData {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
         iota_metrics::init_metrics(&registry);
@@ -1563,7 +1563,7 @@ mod tests {
         let (executor_handle, signing_tx, execution_tx) = executor.run_inner();
         handles.extend(executor_handle);
 
-        Data {
+        SetupData {
             signing_tx,
             execution_tx,
             iota_client_mock,
