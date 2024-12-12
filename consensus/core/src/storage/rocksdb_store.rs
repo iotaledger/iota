@@ -215,7 +215,6 @@ impl Store for RocksDBStore {
     // ascending order. When a `before_round` is defined then the blocks of
     // round `<=before_round` are returned. If not then the max value for round
     // will be used as cut off.
-    #[cfg(test)]
     fn scan_last_blocks_by_author(
         &self,
         author: AuthorityIndex,
