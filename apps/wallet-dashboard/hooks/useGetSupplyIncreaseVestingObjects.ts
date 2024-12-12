@@ -33,6 +33,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
     supplyIncreaseVestingPortfolio: SupplyIncreaseVestingPortfolio | undefined;
     supplyIncreaseVestingMapped: TimelockedObject[];
     supplyIncreaseVestingStakedMapped: ExtendedDelegatedTimelockedStake[];
+    istimelockedStakedObjectsLoading: boolean;
     unlockAllsupplyIncreaseVesting:
         | {
               transactionBlock: Transaction;
@@ -44,7 +45,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
     const { data: timelockedObjects } = useGetAllOwnedObjects(address || '', {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-    const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(address || '');
+    const { data: timelockedStakedObjects, isPending: istimelockedStakedObjectsLoading } = useGetTimelockedStakedObjects(address || '');
 
     const supplyIncreaseVestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
         isSupplyIncreaseVestingObject,
@@ -91,6 +92,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
         supplyIncreaseVestingPortfolio,
         supplyIncreaseVestingMapped,
         supplyIncreaseVestingStakedMapped,
+        istimelockedStakedObjectsLoading,
         unlockAllsupplyIncreaseVesting,
     };
 }

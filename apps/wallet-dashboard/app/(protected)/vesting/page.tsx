@@ -6,6 +6,7 @@
 import {
     Banner,
     StakeDialog,
+    StakeDialogView,
     TimelockedUnstakePopup,
     useStakeDialog,
     VestingScheduleDialog,
@@ -28,8 +29,9 @@ import {
     CardType,
     ImageType,
     ImageShape,
-    ButtonType,
     Button,
+    ButtonType,
+    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import {
     Theme,
@@ -40,13 +42,19 @@ import {
     useCountdownByTimestamp,
     Feature,
 } from '@iota/core';
-import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import {
+    useCurrentAccount,
+    useIotaClient,
+    useIotaClientQuery,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Calendar, StarHex } from '@iota/ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { StakedTimelockObject } from '@/components';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -54,6 +62,7 @@ function VestingDashboardPage(): JSX.Element {
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { addNotification } = useNotifications();
     const { openPopup, closePopup } = usePopups();
@@ -74,6 +83,7 @@ function VestingDashboardPage(): JSX.Element {
         supplyIncreaseVestingSchedule,
         supplyIncreaseVestingMapped,
         supplyIncreaseVestingStakedMapped,
+        istimelockedStakedObjectsLoading,
         unlockAllsupplyIncreaseVesting,
     } = useGetSupplyIncreaseVestingObjects(address);
 
@@ -107,6 +117,16 @@ function VestingDashboardPage(): JSX.Element {
 
     const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(
         supplyIncreaseVestingSchedule.availableClaiming,
+        IOTA_TYPE_ARG,
+    );
+
+    const [totalStakedFormatted, totalStakedSymbol] = useFormatCoin(
+        supplyIncreaseVestingSchedule.totalStaked,
+        IOTA_TYPE_ARG,
+    );
+
+    const [totalEarnedFormatted, totalEarnedSymbol] = useFormatCoin(
+        supplyIncreaseVestingSchedule.totalEarned,
         IOTA_TYPE_ARG,
     );
 
@@ -192,75 +212,85 @@ function VestingDashboardPage(): JSX.Element {
             router.push('/');
         }
     }, [router, supplyIncreaseVestingEnabled]);
+
+    if (istimelockedStakedObjectsLoading) {
+        return (
+            <div className="flex w-full max-w-4xl items-start justify-center justify-self-center">
+                <LoadingIndicator />
+            </div>
+        );
+    }
+
     return (
-        <div className="flex w-full max-w-xl flex-col gap-lg justify-self-center">
-            <Panel>
-                <Title title="Vesting" size={TitleSize.Medium} />
-                <div className="flex flex-col gap-md p-lg pt-sm">
-                    <div className="flex h-24 flex-row gap-4">
-                        <DisplayStats
-                            label="Total Vested"
-                            value={formattedTotalVested}
-                            supportingLabel={vestedSymbol}
-                        />
-                        <DisplayStats
-                            label="Total Locked"
-                            value={formattedTotalLocked}
-                            supportingLabel={lockedSymbol}
-                            tooltipText="Total amount of IOTA that is still locked in your account."
-                            tooltipPosition={TooltipPosition.Right}
-                        />
+        <div className="flex w-full max-w-4xl flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
+            <div className="flex w-full flex-col gap-lg md:w-1/2">
+                <Panel>
+                    <Title title="Vesting" size={TitleSize.Medium} />
+                    <div className="flex flex-col gap-md p-lg pt-sm">
+                        <div className="flex h-24 flex-row gap-4">
+                            <DisplayStats
+                                label="Total Vested"
+                                value={formattedTotalVested}
+                                supportingLabel={vestedSymbol}
+                            />
+                            <DisplayStats
+                                label="Total Locked"
+                                value={formattedTotalLocked}
+                                supportingLabel={lockedSymbol}
+                                tooltipText="Total amount of IOTA that is still locked in your account."
+                                tooltipPosition={TooltipPosition.Right}
+                            />
+                        </div>
+                        <Card type={CardType.Outlined}>
+                            <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
+                                <StarHex className="h-5 w-5 text-primary-30 dark:text-primary-80" />
+                            </CardImage>
+                            <CardBody
+                                title={`${formattedAvailableClaiming} ${availableClaimingSymbol}`}
+                                subtitle="Available Rewards"
+                            />
+                            <CardAction
+                                type={CardActionType.Button}
+                                onClick={handleCollect}
+                                title="Collect"
+                                buttonType={ButtonType.Primary}
+                                buttonDisabled={
+                                    !supplyIncreaseVestingSchedule.availableClaiming ||
+                                    supplyIncreaseVestingSchedule.availableClaiming === 0n
+                                }
+                            />
+                        </Card>
+                        <Card type={CardType.Outlined}>
+                            <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
+                                <Calendar className="h-5 w-5 text-primary-30 dark:text-primary-80" />
+                            </CardImage>
+                            <CardBody
+                                title={`${formattedNextPayout} ${nextPayoutSymbol}`}
+                                subtitle={`Next payout ${
+                                    nextPayout?.expirationTimestampMs
+                                        ? formattedLastPayoutExpirationTime
+                                        : ''
+                                }`}
+                            />
+                            <CardAction
+                                type={CardActionType.Button}
+                                onClick={openReceiveTokenPopup}
+                                title="See All"
+                                buttonType={ButtonType.Secondary}
+                                buttonDisabled={!supplyIncreaseVestingPortfolio}
+                            />
+                        </Card>
+                        {supplyIncreaseVestingPortfolio && (
+                            <VestingScheduleDialog
+                                open={isVestingScheduleDialogOpen}
+                                setOpen={setIsVestingScheduleDialogOpen}
+                                vestingPortfolio={supplyIncreaseVestingPortfolio}
+                            />
+                        )}
                     </div>
-                    <Card type={CardType.Outlined}>
-                        <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
-                            <StarHex className="h-5 w-5 text-primary-30 dark:text-primary-80" />
-                        </CardImage>
-                        <CardBody
-                            title={`${formattedAvailableClaiming} ${availableClaimingSymbol}`}
-                            subtitle="Available Rewards"
-                        />
-                        <CardAction
-                            type={CardActionType.Button}
-                            onClick={handleCollect}
-                            title="Collect"
-                            buttonType={ButtonType.Primary}
-                            buttonDisabled={
-                                !supplyIncreaseVestingSchedule.availableClaiming ||
-                                supplyIncreaseVestingSchedule.availableClaiming === 0
-                            }
-                        />
-                    </Card>
-                    <Card type={CardType.Outlined}>
-                        <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
-                            <Calendar className="h-5 w-5 text-primary-30 dark:text-primary-80" />
-                        </CardImage>
-                        <CardBody
-                            title={`${formattedNextPayout} ${nextPayoutSymbol}`}
-                            subtitle={`Next payout ${
-                                nextPayout?.expirationTimestampMs
-                                    ? formattedLastPayoutExpirationTime
-                                    : ''
-                            }`}
-                        />
-                        <CardAction
-                            type={CardActionType.Button}
-                            onClick={openReceiveTokenPopup}
-                            title="See All"
-                            buttonType={ButtonType.Secondary}
-                            buttonDisabled={!supplyIncreaseVestingPortfolio}
-                        />
-                    </Card>
-                    {supplyIncreaseVestingPortfolio && (
-                        <VestingScheduleDialog
-                            open={isVestingScheduleDialogOpen}
-                            setOpen={setIsVestingScheduleDialogOpen}
-                            vestingPortfolio={supplyIncreaseVestingPortfolio}
-                        />
-                    )}
-                </div>
-            </Panel>
-            {supplyIncreaseVestingMapped.length === 0 ? (
-                <>
+                </Panel>
+
+                {supplyIncreaseVestingMapped.length === 0 ? (
                     <Banner
                         videoSrc={videoSrc}
                         title="Stake Vested Tokens"
@@ -268,56 +298,64 @@ function VestingDashboardPage(): JSX.Element {
                         onButtonClick={() => handleNewStake()}
                         buttonText="Stake"
                     />
-                </>
-            ) : (
-                <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
-                    <h1>Staked Vesting</h1>
-                    <div className="flex flex-row space-x-4">
-                        <div className="flex flex-col items-center rounded-lg border p-4">
-                            <span>Your stake</span>
-                            <span>{supplyIncreaseVestingSchedule.totalStaked}</span>
-                        </div>
-                        <div className="flex flex-col items-center rounded-lg border p-4">
-                            <span>Total Unlocked</span>
-                            <span>{supplyIncreaseVestingSchedule.totalUnlocked}</span>
-                        </div>
-                    </div>
-                    <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                        {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
-                            return (
-                                <div
-                                    key={
-                                        timelockedStakedObject.validatorAddress +
-                                        timelockedStakedObject.stakeRequestEpoch +
-                                        timelockedStakedObject.label
-                                    }
-                                    className="flex w-full flex-row items-center justify-center space-x-4"
-                                >
-                                    <span>
-                                        Validator:{' '}
-                                        {getValidatorByAddress(
-                                            timelockedStakedObject.validatorAddress,
-                                        )?.name || timelockedStakedObject.validatorAddress}
-                                    </span>
-                                    <span>
-                                        Stake Request Epoch:{' '}
-                                        {timelockedStakedObject.stakeRequestEpoch}
-                                    </span>
-                                    <span>Stakes: {timelockedStakedObject.stakes.length}</span>
+                ) : null}
+            </div>
 
-                                    <Button
-                                        onClick={() => handleUnstake(timelockedStakedObject)}
-                                        text="Unstake"
-                                    />
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <Button onClick={() => handleNewStake()} text="Stake" />
+            {supplyIncreaseVestingStakedMapped.length !== 0 ? (
+                <div className="flex w-full md:w-1/2">
+                    <Panel>
+                        <Title
+                            title="Staked Vesting"
+                            trailingElement={
+                                <Button
+                                    type={ButtonType.Primary}
+                                    text="Stake"
+                                    onClick={() => {
+                                        setStakeDialogView(StakeDialogView.SelectValidator);
+                                    }}
+                                />
+                            }
+                        />
+
+                        <div className="flex flex-col px-lg py-sm">
+                            <div className="flex flex-row gap-md">
+                                <DisplayStats
+                                    label="Your stake"
+                                    value={`${totalStakedFormatted} ${totalStakedSymbol}`}
+                                />
+                                <DisplayStats
+                                    label="Earned"
+                                    value={`${totalEarnedFormatted} ${totalEarnedSymbol}`}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-col px-lg py-sm">
+                            <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
+                                {system &&
+                                    timelockedStakedObjectsGrouped?.map(
+                                        (timelockedStakedObject) => {
+                                            return (
+                                                <StakedTimelockObject
+                                                    key={
+                                                        timelockedStakedObject.validatorAddress +
+                                                        timelockedStakedObject.stakeRequestEpoch +
+                                                        timelockedStakedObject.label
+                                                    }
+                                                    getValidatorByAddress={getValidatorByAddress}
+                                                    timelockedStakedObject={timelockedStakedObject}
+                                                    handleUnstake={handleUnstake}
+                                                    currentEpoch={Number(system.epoch)}
+                                                />
+                                            );
+                                        },
+                                    )}
+                            </div>
+                        </div>
+                    </Panel>
                 </div>
-            )}
+            ) : null}
             <StakeDialog
-                isTimelockedStaking={true}
+                isTimelockedStaking
                 stakedDetails={selectedStake}
                 onSuccess={handleOnSuccess}
                 isOpen={isDialogStakeOpen}

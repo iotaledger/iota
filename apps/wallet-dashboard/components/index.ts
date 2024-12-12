@@ -27,3 +27,4 @@ export * from './Toaster';
 export * from './Banner';
 export * from './MigrationOverview';
 export * from './SupplyIncreaseVestingOverview';
+export * from './staked-timelock-object';
