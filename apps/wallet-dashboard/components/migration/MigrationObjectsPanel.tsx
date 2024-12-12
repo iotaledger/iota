@@ -3,10 +3,14 @@
 
 'use client';
 
-import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
+import {
+    useGetCurrentEpochStartTimestamp,
+    useGroupedMigrationObjectsByExpirationDate,
+} from '@/hooks';
 import {
     MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY,
-    STARDUST_MIGRATION_OBJECTS_FILTER_LIST,
+    STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
+    STARDUST_UNMIGRATABLE_OBJECTS_FILTER_LIST,
 } from '@/lib/constants';
 import { CommonMigrationObjectType, StardustObjectTypeFilter } from '@/lib/enums';
 import {
@@ -46,16 +50,23 @@ import {
     isObjectTypeBasic,
 } from './helpers';
 
+const FILTERS = {
+    migratable: STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
+    unmigratable: STARDUST_UNMIGRATABLE_OBJECTS_FILTER_LIST,
+};
+
 interface MigrationObjectsPanelProps {
     selectedObjects: IotaObjectData[];
     onClose: () => void;
     isHidden: boolean;
+    isTimelockedObjects: boolean;
 }
 
 export function MigrationObjectsPanel({
     selectedObjects,
     onClose,
     isHidden,
+    isTimelockedObjects,
 }: MigrationObjectsPanelProps): React.JSX.Element {
     const [selectedStardustObjectType, setSelectedStardustObjectType] =
         useState<StardustObjectTypeFilter>(StardustObjectTypeFilter.All);
@@ -64,9 +75,10 @@ export function MigrationObjectsPanel({
         data: resolvedObjects,
         isLoading,
         error: isErrored,
-    } = useGroupedMigrationObjectsByExpirationDate(selectedObjects);
+    } = useGroupedMigrationObjectsByExpirationDate(selectedObjects, isTimelockedObjects);
 
     const filteredObjects = useGetFilteredObjects(resolvedObjects, selectedStardustObjectType);
+    const filters = isTimelockedObjects ? FILTERS.unmigratable : FILTERS.migratable;
 
     return (
         <div className={clsx('flex h-full min-h-0 w-2/3 flex-col', isHidden && 'hidden')}>
@@ -79,7 +91,7 @@ export function MigrationObjectsPanel({
                 />
                 <div className="flex min-h-0 flex-1 flex-col px-md--rs">
                     <div className="flex flex-row gap-xs py-xs">
-                        {STARDUST_MIGRATION_OBJECTS_FILTER_LIST.map((filter) => (
+                        {filters.map((filter) => (
                             <Chip
                                 key={filter}
                                 label={filter}
@@ -92,7 +104,7 @@ export function MigrationObjectsPanel({
                         <div className="h-full flex-1 overflow-auto">
                             {isLoading && <LoadingPanel />}
                             {isErrored && !isLoading && (
-                                <div>
+                                <div className="flex h-full max-h-full w-full flex-col items-center">
                                     <InfoBox
                                         title="Error"
                                         supportingText="Failed to load migration objects"
@@ -102,7 +114,12 @@ export function MigrationObjectsPanel({
                                     />
                                 </div>
                             )}
-                            {!isLoading && !isErrored && <ObjectsList objects={filteredObjects} />}
+                            {!isLoading && !isErrored && (
+                                <ObjectsList
+                                    objects={filteredObjects}
+                                    isTimelockedObjects={isTimelockedObjects}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
@@ -136,9 +153,10 @@ function LoadingPanel() {
 
 interface ObjectsListProps {
     objects: ExpirationObjectListEntries;
+    isTimelockedObjects: boolean;
 }
 
-function ObjectsList({ objects }: ObjectsListProps) {
+function ObjectsList({ objects, isTimelockedObjects }: ObjectsListProps) {
     return (
         <>
             {objects.map(([expirationUnix, objectList]) => {
@@ -147,6 +165,7 @@ function ObjectsList({ objects }: ObjectsListProps) {
                     <ObjectListRenderer
                         objectList={objectList}
                         key={`${expirationUnix} ${listKey}`}
+                        isTimelockedObjects={isTimelockedObjects}
                     />
                 );
             })}
@@ -154,21 +173,46 @@ function ObjectsList({ objects }: ObjectsListProps) {
     );
 }
 
-function ObjectListRenderer({ objectList }: { objectList: ResolvedObjectsList }) {
+function ObjectListRenderer({
+    objectList,
+    isTimelockedObjects,
+}: {
+    objectList: ResolvedObjectsList;
+    isTimelockedObjects: boolean;
+}) {
     if (isNftObjectList(objectList)) {
         return objectList.map((nft) => (
-            <ResolvedObjectCard migrationObject={nft} key={nft.uniqueId} />
+            <ResolvedObjectCard
+                migrationObject={nft}
+                key={nft.uniqueId}
+                isTimelockedObjects={isTimelockedObjects}
+            />
         ));
     } else if (isObjectTypeBasic(objectList)) {
-        return <ResolvedObjectCard migrationObject={objectList} />;
+        return (
+            <ResolvedObjectCard
+                migrationObject={objectList}
+                isTimelockedObjects={isTimelockedObjects}
+            />
+        );
     } else {
         return Object.values(objectList).map((nativeToken) => (
-            <ResolvedObjectCard migrationObject={nativeToken} key={nativeToken.uniqueId} />
+            <ResolvedObjectCard
+                migrationObject={nativeToken}
+                key={nativeToken.uniqueId}
+                isTimelockedObjects={isTimelockedObjects}
+            />
         ));
     }
 }
 
-function ResolvedObjectCard({ migrationObject }: { migrationObject: ResolvedObjectTypes }) {
+function ResolvedObjectCard({
+    migrationObject,
+    isTimelockedObjects,
+}: {
+    migrationObject: ResolvedObjectTypes;
+    isTimelockedObjects: boolean;
+}) {
     const coinType = 'coinType' in migrationObject ? migrationObject.coinType : IOTA_TYPE_ARG;
     const [balance, token] = useFormatCoin(migrationObject.balance, coinType);
 
@@ -180,6 +224,7 @@ function ResolvedObjectCard({ migrationObject }: { migrationObject: ResolvedObje
                     subtitle="IOTA Tokens"
                     expirationKey={migrationObject.expirationKey}
                     image={<IotaLogoMark />}
+                    isTimelockedObjects={isTimelockedObjects}
                 />
             );
         case CommonMigrationObjectType.Nft:
@@ -191,11 +236,13 @@ function ResolvedObjectCard({ migrationObject }: { migrationObject: ResolvedObje
                     image={
                         <ExternalImage src={migrationObject.image_url} alt={migrationObject.name} />
                     }
+                    isTimelockedObjects={isTimelockedObjects}
                 />
             );
         case CommonMigrationObjectType.NativeToken:
             return (
                 <MigrationObjectCard
+                    isTimelockedObjects={isTimelockedObjects}
                     title={`${balance} ${token}`}
                     subtitle="Native Tokens"
                     expirationKey={migrationObject.expirationKey}
@@ -212,30 +259,57 @@ interface MigrationObjectCardProps {
     subtitle: string;
     expirationKey: string;
     image?: React.ReactNode;
+    isTimelockedObjects: boolean;
 }
 
-function MigrationObjectCard({ title, subtitle, image, expirationKey }: MigrationObjectCardProps) {
+function MigrationObjectCard({
+    title,
+    subtitle,
+    image,
+    expirationKey,
+    isTimelockedObjects,
+}: MigrationObjectCardProps) {
     const hasExpiration = expirationKey !== MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY;
     return (
         <Card>
             <CardImage shape={ImageShape.SquareRounded}>{image}</CardImage>
             <CardBody title={title} subtitle={subtitle} />
-            {hasExpiration && <ExpirationDate expirationKey={expirationKey} />}
+            {hasExpiration && (
+                <ExpirationDate
+                    groupKey={expirationKey}
+                    isTimelockedObjects={isTimelockedObjects}
+                />
+            )}
         </Card>
     );
 }
 
-function ExpirationDate({ expirationKey }: { expirationKey: string }) {
+function ExpirationDate({
+    groupKey,
+    isTimelockedObjects,
+}: {
+    groupKey: string;
+    isTimelockedObjects: boolean;
+}) {
+    const { data: epochTimestamp } = useGetCurrentEpochStartTimestamp();
     const timeAgo = useTimeAgo({
-        timeFrom: Number(expirationKey),
+        timeFrom: Number(groupKey) * 1000,
         shortedTimeLabel: true,
         shouldEnd: true,
         maxTimeUnit: TimeUnit.ONE_DAY,
     });
 
+    const showTimestamp = Number(groupKey) < Number(epochTimestamp);
+
     return (
         <div className="ml-auto h-full whitespace-nowrap">
-            <LabelText size={LabelTextSize.Small} text={timeAgo} label={'Expires in'} />
+            {showTimestamp && (
+                <LabelText
+                    size={LabelTextSize.Small}
+                    text={timeAgo}
+                    label={isTimelockedObjects ? 'Unlocks in' : 'Expires in'}
+                />
+            )}
         </div>
     );
 }

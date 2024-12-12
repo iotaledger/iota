@@ -3,7 +3,11 @@
 
 import { StardustObjectTypeFilter } from '../enums';
 
-export const STARDUST_MIGRATION_OBJECTS_FILTER_LIST: StardustObjectTypeFilter[] =
+export const STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST: StardustObjectTypeFilter[] =
     Object.values(StardustObjectTypeFilter);
+
+export const STARDUST_UNMIGRATABLE_OBJECTS_FILTER_LIST: StardustObjectTypeFilter[] = Object.values(
+    StardustObjectTypeFilter,
+).filter((element) => element !== StardustObjectTypeFilter.WithExpiration);
 
 export const MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY = 'no-expiration';

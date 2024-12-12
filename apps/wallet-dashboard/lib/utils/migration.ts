@@ -12,7 +12,7 @@ import {
 import { IotaClient } from '@iota/iota-sdk/client';
 import { CommonMigrationObjectType } from '../enums';
 import {
-    ExpirationMigrationKey,
+    UnlockConditionGroupKey,
     ResolvedNativeToken,
     ResolvedNftObject,
     ResolvedObjectsGrouped,
@@ -118,10 +118,12 @@ export function extractMigrationOutputFields(
         }
     ).fields;
 }
-export async function groupMigrationObjectsByExpirationDate(
+
+export async function groupMigrationObjectsByUnlockCondition(
     objectsData: IotaObjectData[],
     client: IotaClient,
     currentAddress?: string,
+    isTimelockUnlockCondition: boolean = false,
 ) {
     const nftObjects: ResolvedObjectsGrouped['nftObjects'] = {};
     const basicObjects: ResolvedObjectsGrouped['basicObjects'] = {};
@@ -129,43 +131,36 @@ export async function groupMigrationObjectsByExpirationDate(
 
     for (const object of objectsData) {
         const objectFields = extractMigrationOutputFields(object);
-        let expirationKey: ExpirationMigrationKey;
-
-        if (!objectFields.expiration_uc) {
-            expirationKey = MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY;
-        } else {
-            expirationKey = objectFields.expiration_uc.fields.unix_time.toString();
-        }
+        const groupKey: UnlockConditionGroupKey = getGroupingObjectsKey(
+            isTimelockUnlockCondition,
+            objectFields,
+        );
 
         if (object.type === STARDUST_BASIC_OUTPUT_TYPE) {
             // Merge balances if already present
-            const existing = basicObjects[expirationKey];
+            const existing = basicObjects[groupKey];
             const gasReturn = extractStorageDepositReturnAmount(objectFields, currentAddress ?? '');
             const newBalance =
                 (existing ? existing.balance : 0) + Number(objectFields.balance) + (gasReturn ?? 0);
-            basicObjects[expirationKey] = {
+            basicObjects[groupKey] = {
                 balance: newBalance,
-                expirationKey: expirationKey,
+                expirationKey: groupKey,
                 type: object.type,
                 commonObjectType: CommonMigrationObjectType.Basic,
                 output: object,
                 uniqueId: objectFields.id.id,
             };
         } else if (object.type === STARDUST_NFT_OUTPUT_TYPE) {
-            const nftDetails = await getNftDetails(object, expirationKey, client);
-            if (nftObjects[expirationKey]) {
-                nftObjects[expirationKey].push(...nftDetails);
+            const nftDetails = await getNftDetails(object, groupKey, client);
+            if (nftObjects[groupKey]) {
+                nftObjects[groupKey].push(...nftDetails);
             } else {
-                nftObjects[expirationKey] = nftDetails;
+                nftObjects[groupKey] = nftDetails;
             }
         }
 
-        const objectNativeTokens = await extractNativeTokensFromObject(
-            object,
-            client,
-            expirationKey,
-        );
-        mergeNativeTokens(nativeTokens, objectNativeTokens, expirationKey);
+        const objectNativeTokens = await extractNativeTokensFromObject(object, client, groupKey);
+        mergeNativeTokens(nativeTokens, objectNativeTokens, groupKey);
     }
 
     return { nftObjects, basicObjects, nativeTokens };
@@ -173,7 +168,7 @@ export async function groupMigrationObjectsByExpirationDate(
 
 async function getNftDetails(
     object: IotaObjectData,
-    expirationKey: ExpirationMigrationKey,
+    expirationKey: UnlockConditionGroupKey,
     client: IotaClient,
 ) {
     const objectFields = extractMigrationOutputFields(object);
@@ -209,7 +204,7 @@ async function getNftDetails(
 async function extractNativeTokensFromObject(
     object: IotaObjectData,
     client: IotaClient,
-    expirationKey: ExpirationMigrationKey,
+    expirationKey: UnlockConditionGroupKey,
 ): Promise<ResolvedNativeToken[]> {
     const fields = extractMigrationOutputFields(object);
     const bagId = fields.native_tokens.fields.id.id;
@@ -254,7 +249,7 @@ async function extractNativeTokensFromObject(
 function mergeNativeTokens(
     nativeTokens: ResolvedObjectsGrouped['nativeTokens'],
     tokensToAdd: ResolvedNativeToken[],
-    expirationKey: ExpirationMigrationKey,
+    expirationKey: UnlockConditionGroupKey,
 ) {
     if (!nativeTokens[expirationKey]) {
         nativeTokens[expirationKey] = {};
@@ -264,5 +259,22 @@ function mergeNativeTokens(
         const existing = nativeTokens[expirationKey][token.name];
         const newBalance = (existing ? existing.balance : 0) + token.balance;
         nativeTokens[expirationKey][token.name] = { ...token, balance: newBalance };
+    }
+}
+
+function getGroupingObjectsKey(
+    isTimelockUnlockCondition: boolean,
+    objectFields: CommonOutputObjectWithUc,
+): string {
+    if (!isTimelockUnlockCondition) {
+        return (
+            objectFields.expiration_uc?.fields.unix_time.toString() ??
+            MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY
+        );
+    } else {
+        return (
+            objectFields.timelock_uc?.fields.unix_time.toString() ??
+            MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY
+        );
     }
 }

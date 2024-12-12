@@ -4,9 +4,9 @@
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { CommonMigrationObjectType } from '../enums';
 
-export type ExpirationMigrationKey = string;
+export type UnlockConditionGroupKey = string;
 interface CommonExpirationTypeObject {
-    expirationKey: ExpirationMigrationKey;
+    expirationKey: UnlockConditionGroupKey;
     output: IotaObjectData;
     uniqueId: string;
     balance: number;
@@ -30,9 +30,9 @@ export interface ResolvedNftObject extends CommonExpirationTypeObject {
 }
 
 export interface ResolvedObjectsGrouped {
-    nftObjects: Record<ExpirationMigrationKey, NftObjectsResolvedList>;
-    basicObjects: Record<ExpirationMigrationKey, BasicObjectsResolvedList>;
-    nativeTokens: Record<ExpirationMigrationKey, NativeTokensResolvedList>;
+    nftObjects: Record<UnlockConditionGroupKey, NftObjectsResolvedList>;
+    basicObjects: Record<UnlockConditionGroupKey, BasicObjectsResolvedList>;
+    nativeTokens: Record<UnlockConditionGroupKey, NativeTokensResolvedList>;
 }
 
 export type NftObjectsResolvedList = ResolvedNftObject[];
