@@ -23,6 +23,7 @@ services:
       - --epoch-duration-ms=120000
       - --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz
       - --force-regenesis
+      - --delegator=0x4f72f788cdf4bb478cf9809e878e6163d5b351c82c11f1ea28750430752e7892
     expose:
       - 9000
     ports:
