@@ -111,8 +111,10 @@ export function StakeDialog({
     }
 
     function detailsHandleStake() {
-        setSelectedValidator?.(stakedDetails?.validatorAddress ?? '');
-        setViewBasedOnStakingType();
+        if (stakedDetails) {
+            setSelectedValidator?.(stakedDetails.validatorAddress);
+            setViewBasedOnStakingType();
+        }
     }
 
     function handleTransactionSuccess(digest: string) {
