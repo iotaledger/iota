@@ -3,7 +3,18 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
+import {
+    MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY,
+    STARDUST_MIGRATION_OBJECTS_FILTER_LIST,
+} from '@/lib/constants';
+import { CommonMigrationObjectType, StardustObjectTypeFilter } from '@/lib/enums';
+import {
+    ExpirationObjectListEntries,
+    ResolvedObjectsGrouped,
+    ResolvedObjectsList,
+    ResolvedObjectTypes,
+} from '@/lib/types';
 import {
     Button,
     ButtonType,
@@ -12,29 +23,21 @@ import {
     CardImage,
     Chip,
     ImageShape,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
     LabelText,
     LabelTextSize,
     Panel,
     Title,
 } from '@iota/apps-ui-kit';
-import { Close, DataStack, IotaLogoMark } from '@iota/ui-icons';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
 import { TimeUnit, useFormatCoin, useTimeAgo } from '@iota/core';
-import {
-    MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY,
-    STARDUST_MIGRATION_OBJECTS_FILTER_LIST,
-} from '@/lib/constants';
 import type { IotaObjectData } from '@iota/iota-sdk/client';
-import { CommonMigrationObjectType, StardustObjectTypeFilter } from '@/lib/enums';
-import {
-    ExpirationObjectListEntries,
-    ResolvedObjectsList,
-    ResolvedObjectTypes,
-    ResolvedObjectsGrouped,
-} from '@/lib/types';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { Close, DataStack, IotaLogoMark, Warning } from '@iota/ui-icons';
 import clsx from 'clsx';
-import { SkeletonLoader } from '..';
+import { useMemo, useState } from 'react';
+import { ExternalImage, SkeletonLoader } from '..';
 import {
     getAllResolvedObjects,
     getObjectListReactKey,
@@ -49,26 +52,6 @@ interface MigrationObjectsPanelProps {
     isHidden: boolean;
 }
 
-function useGetFilteredObjects(
-    objects: ResolvedObjectsGrouped,
-    filter: StardustObjectTypeFilter,
-): ExpirationObjectListEntries {
-    return useMemo(() => {
-        switch (filter) {
-            case StardustObjectTypeFilter.All:
-                return getAllResolvedObjects(objects);
-            case StardustObjectTypeFilter.IOTA:
-                return Object.entries(objects.basicObjects);
-            case StardustObjectTypeFilter.VisualAssets:
-                return Object.entries(objects.nftObjects);
-            case StardustObjectTypeFilter.NativeTokens:
-                return Object.entries(objects.nativeTokens);
-            case StardustObjectTypeFilter.WithExpiration:
-                return getObjectsWithExpiration(objects);
-        }
-    }, [objects, filter]);
-}
-
 export function MigrationObjectsPanel({
     selectedObjects,
     onClose,
@@ -80,7 +63,7 @@ export function MigrationObjectsPanel({
     const {
         data: resolvedObjects,
         isLoading,
-        isErrored,
+        error: isErrored,
     } = useGroupedMigrationObjectsByExpirationDate(selectedObjects);
 
     const filteredObjects = useGetFilteredObjects(resolvedObjects, selectedStardustObjectType);
@@ -108,7 +91,17 @@ export function MigrationObjectsPanel({
                     <div className="flex h-[600px] min-h-0 flex-col py-sm">
                         <div className="h-full flex-1 overflow-auto">
                             {isLoading && <LoadingPanel />}
-                            {isErrored && !isLoading && <div>Error</div>}
+                            {isErrored && !isLoading && (
+                                <div>
+                                    <InfoBox
+                                        title="Error"
+                                        supportingText="Failed to load migration objects"
+                                        style={InfoBoxStyle.Elevated}
+                                        type={InfoBoxType.Error}
+                                        icon={<Warning />}
+                                    />
+                                </div>
+                            )}
                             {!isLoading && !isErrored && <ObjectsList objects={filteredObjects} />}
                         </div>
                     </div>
@@ -195,7 +188,9 @@ function ResolvedObjectCard({ migrationObject }: { migrationObject: ResolvedObje
                     title={migrationObject.name}
                     subtitle="Visual Assets"
                     expirationKey={migrationObject.expirationKey}
-                    image={<img src={migrationObject.image_url} alt={migrationObject.name} />}
+                    image={
+                        <ExternalImage src={migrationObject.image_url} alt={migrationObject.name} />
+                    }
                 />
             );
         case CommonMigrationObjectType.NativeToken:
@@ -243,4 +238,30 @@ function ExpirationDate({ expirationKey }: { expirationKey: string }) {
             <LabelText size={LabelTextSize.Small} text={timeAgo} label={'Expires in'} />
         </div>
     );
+}
+
+function useGetFilteredObjects(
+    objects: ResolvedObjectsGrouped | undefined,
+    filter: StardustObjectTypeFilter,
+): ExpirationObjectListEntries {
+    return useMemo(() => {
+        const objectsMap = objects ?? {
+            nftObjects: {},
+            basicObjects: {},
+            nativeTokens: {},
+        };
+
+        switch (filter) {
+            case StardustObjectTypeFilter.All:
+                return getAllResolvedObjects(objectsMap);
+            case StardustObjectTypeFilter.IOTA:
+                return Object.entries(objectsMap.basicObjects);
+            case StardustObjectTypeFilter.VisualAssets:
+                return Object.entries(objectsMap.nftObjects);
+            case StardustObjectTypeFilter.NativeTokens:
+                return Object.entries(objectsMap.nativeTokens);
+            case StardustObjectTypeFilter.WithExpiration:
+                return getObjectsWithExpiration(objectsMap);
+        }
+    }, [objects, filter]);
 }

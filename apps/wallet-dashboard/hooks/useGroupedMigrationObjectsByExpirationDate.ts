@@ -1,57 +1,35 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ResolvedObjectsGrouped } from '@/lib/types';
 import { groupMigrationObjectsByExpirationDate } from '@/lib/utils';
+import { TimeUnit } from '@iota/core';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
-export function useGroupedMigrationObjectsByExpirationDate(objects: IotaObjectData[]): {
-    isLoading: boolean;
-    isErrored: boolean;
-    data: ResolvedObjectsGrouped;
-} {
-    const [isLoading, setIsLoading] = useState(false);
-    const [isErrored, setIsErrored] = useState(false);
-    const [groupedObjects, setGroupedObjects] = useState({
-        nftObjects: {},
-        basicObjects: {},
-        nativeTokens: {},
-    });
-
+export function useGroupedMigrationObjectsByExpirationDate(objects: IotaObjectData[]) {
     const client = useIotaClient();
     const address = useCurrentAccount()?.address;
 
-    useEffect(() => {
-        if (!client || objects.length === 0) {
-            setGroupedObjects({
-                nftObjects: {},
-                basicObjects: {},
-                nativeTokens: {},
-            });
-            setIsErrored(false);
-            setIsLoading(false);
-            return;
-        }
-
-        setIsLoading(true);
-        groupMigrationObjectsByExpirationDate(objects, client, address)
-            .then((groupedObjects) => {
-                setGroupedObjects(groupedObjects);
-            })
-            .catch((e) => {
-                console.error('Error fetching grouped stardust objects:', e);
-                setIsErrored(true);
-            })
-            .finally(() => {
-                setIsLoading(false);
-            });
-    }, [objects, client, address]);
-
-    return {
-        isLoading,
-        isErrored,
-        data: groupedObjects,
-    };
+    return useQuery({
+        // eslint-disable-next-line @tanstack/query/exhaustive-deps
+        queryKey: ['grouped-migration-objects', objects, address],
+        queryFn: async () => {
+            if (!client || objects.length === 0) {
+                return {
+                    nftObjects: {},
+                    basicObjects: {},
+                    nativeTokens: {},
+                };
+            }
+            return await groupMigrationObjectsByExpirationDate(objects, client, address);
+        },
+        enabled: !!client && objects.length > 0,
+        staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
+        select: (data) => ({
+            nftObjects: data.nftObjects,
+            basicObjects: data.basicObjects,
+            nativeTokens: data.nativeTokens,
+        }),
+    });
 }
