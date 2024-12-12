@@ -11,7 +11,7 @@ description = "tools for rustls-based certificate generation and verification"
 anyhow.workspace = true
 # Axum support
 axum.workspace = true
-axum-server = { git = "https://github.com/bmwill/axum-server.git", rev = "f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7", version = "0.6", default-features = false, features = ["tls-rustls"] }
+axum-server.workspace = true
 ed25519 = { version = "2.2", features = ["pkcs8", "alloc", "zeroize"] }
 fastcrypto.workspace = true
 pkcs8 = { version = "0.10", features = ["std"] }
