@@ -166,7 +166,7 @@ pub struct BridgeSummary {
 
 impl Default for BridgeSummary {
     fn default() -> Self {
-        BridgeSummary {
+        Self {
             bridge_version: 1,
             message_version: 1,
             chain_id: 1,
