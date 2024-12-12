@@ -46,10 +46,10 @@ jobs:
       matrix:
         os: [
           self-hosted, # ubuntu-x86_64
+          # TODO: uncomment when runners are public available https://github.com/iotaledger/iota/issues/4421
+          # ubuntu-arm64, # ubuntu-arm64
           macos-latest, # macos-arm64
-          # windows-latest (windows-x86_64) is disabled because we need to add custom logic for authenticating
-          # git for private repositories during the build (needed for iota-msim)
-          # MrSquaare/ssh-setup-action@v3 does not support windows
+          windows-latest, # windows-x86_64
         ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
@@ -108,10 +108,10 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: bash
         run: |
-          choco install postgresql12 --force --params '/Password:root'
-          echo "C:\Program Files\PostgreSQL\12\bin" >> $GITHUB_PATH
-          echo "C:\Program Files\PostgreSQL\12\lib" >> $GITHUB_PATH
-          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\12\lib" >> $GITHUB_ENV
+          choco install postgresql16 --force --params '/Password:root'
+          echo "C:\Program Files\PostgreSQL\16\bin" >> $GITHUB_PATH
+          echo "C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_PATH
+          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_ENV
           echo "PG_DATABASE_URL=postgres://postgres:root@localhost/" >> $GITHUB_ENV
           echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
 
@@ -126,6 +126,7 @@ jobs:
         run: |
           brew install postgresql
 
+      # TODO: uncomment when runners are public available https://github.com/iotaledger/iota/issues/4421
       #  NOTE: Self-hosted runners should already have postgres installed
       #      - name: Install postgres (Ubuntu arm64)
       #        if: ${{ matrix.os == 'ubuntu-arm64' }}
