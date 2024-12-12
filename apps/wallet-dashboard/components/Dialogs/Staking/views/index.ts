@@ -5,4 +5,3 @@ export { default as EnterAmountView } from './EnterAmountView';
 export { default as EnterTimelockedAmountView } from './EnterTimelockedAmountView';
 export { default as SelectValidatorView } from './SelectValidatorView';
 export * from './DetailsView';
-export * from './UnstakeView';
