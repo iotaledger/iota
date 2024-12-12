@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME","IOTA_SYSTEM_ADMIN_CAP_STRUCT_NAME"],"struct":["IotaSystemAdminCap"]};
