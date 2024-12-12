@@ -16,7 +16,6 @@ It's possible to convert a legacy Bech32 address back to hex format by doing the
 
 1. Take the part after `iota1`. Using the address from the above paragraph as an example, iota1**qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx**.
 2. Base32 decode it. 
-3. Strip away the last 6 digits containing the checksum. 
 
 You are left with a 33-byte hex string. The first byte represents the address type (`0x00`) and can be stripped. The 32 bytes represent an address in hex format. 
 
