@@ -176,7 +176,6 @@ impl Store for RocksDBStore {
         Ok(exist)
     }
 
-    #[cfg(test)]
     fn contains_block_at_slot(&self, slot: crate::block::Slot) -> ConsensusResult<bool> {
         let found = self
             .digests_by_authorities

@@ -30,7 +30,7 @@ pub(crate) trait Store: Send + Sync {
     fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks whether there is any block at the given slot
-    #[cfg(test)]
+    #[allow(dead_code)]
     fn contains_block_at_slot(&self, slot: crate::block::Slot) -> ConsensusResult<bool>;
 
     /// Reads blocks for an authority, from start_round.
