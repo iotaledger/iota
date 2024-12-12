@@ -25,7 +25,6 @@ const INITIAL_VALUES = {
 };
 
 interface StakeDialogProps {
-    isOpen: boolean;
     handleClose: () => void;
     view: StakeDialogView | undefined;
     setView: (view: StakeDialogView) => void;
@@ -41,7 +40,6 @@ interface StakeDialogProps {
 export function StakeDialog({
     onSuccess,
     isTimelockedStaking,
-    isOpen,
     handleClose,
     view,
     setView,
@@ -117,7 +115,7 @@ export function StakeDialog({
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={() => handleClose()}>
+        <Dialog open onOpenChange={() => handleClose()}>
             <FormikProvider value={formik}>
                 <>
                     {view === StakeDialogView.Details && stakedDetails && (
