@@ -56,7 +56,7 @@ export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element 
 
             setDigest(tx.digest);
             addNotification('Transfer transaction successful', NotificationType.Success);
-            setView(AssetsDialogView.Receipt);
+            setView(AssetsDialogView.TransactionDetails);
         } catch {
             addNotification('Transfer transaction failed', NotificationType.Error);
         }
@@ -84,7 +84,7 @@ export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element 
                         <SendView asset={asset} onClose={onOpenChange} onBack={onSendViewBack} />
                     )}
 
-                    {view === AssetsDialogView.Receipt && !!digest ? (
+                    {view === AssetsDialogView.TransactionDetails && !!digest ? (
                         <DialogLayout>
                             <TransactionDetailsView digest={digest} onClose={onOpenChange} />
                         </DialogLayout>
