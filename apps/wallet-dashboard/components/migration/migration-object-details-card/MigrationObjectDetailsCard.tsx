@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import ExternalImage from '@/components/ExternalImage';
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
-import { MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY } from '@/lib/constants';
+import { ExternalImage } from '@/components';
+import { useGetCurrentEpochEndTimestamp } from '@/hooks/useGetCurrentEpochEndTimestamp';
+import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
 import { CommonMigrationObjectType } from '@/lib/enums';
 import { ResolvedObjectTypes } from '@/lib/types';
 import { Card, CardBody, CardImage, ImageShape, LabelText, LabelTextSize } from '@iota/apps-ui-kit';
@@ -12,13 +12,14 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Assets, DataStack, IotaLogoMark } from '@iota/ui-icons';
 import { useState } from 'react';
 
-export function ResolvedObjectCard({
-    migrationObject,
-    isTimelockedObjects,
-}: {
+interface MigrationObjectDetailsCardProps {
     migrationObject: ResolvedObjectTypes;
-    isTimelockedObjects: boolean;
-}) {
+    isTimelocked: boolean;
+}
+export function MigrationObjectDetailsCard({
+    migrationObject: { unlockConditionTimestamp, ...migrationObject },
+    isTimelocked: isTimelocked,
+}: MigrationObjectDetailsCardProps) {
     const coinType = 'coinType' in migrationObject ? migrationObject.coinType : IOTA_TYPE_ARG;
     const [balance, token] = useFormatCoin(migrationObject.balance, coinType);
 
@@ -28,9 +29,9 @@ export function ResolvedObjectCard({
                 <MigrationObjectCard
                     title={`${balance} ${token}`}
                     subtitle="IOTA Tokens"
-                    expirationKey={migrationObject.expirationKey}
+                    unlockConditionTimestamp={unlockConditionTimestamp}
                     image={<IotaLogoMark />}
-                    isTimelockedObjects={isTimelockedObjects}
+                    isTimelocked={isTimelocked}
                 />
             );
         case CommonMigrationObjectType.Nft:
@@ -38,7 +39,7 @@ export function ResolvedObjectCard({
                 <MigrationObjectCard
                     title={migrationObject.name}
                     subtitle="Visual Assets"
-                    expirationKey={migrationObject.expirationKey}
+                    unlockConditionTimestamp={unlockConditionTimestamp}
                     image={
                         <ExternalImageWithFallback
                             src={migrationObject.image_url}
@@ -46,16 +47,16 @@ export function ResolvedObjectCard({
                             fallback={<Assets />}
                         />
                     }
-                    isTimelockedObjects={isTimelockedObjects}
+                    isTimelocked={isTimelocked}
                 />
             );
         case CommonMigrationObjectType.NativeToken:
             return (
                 <MigrationObjectCard
-                    isTimelockedObjects={isTimelockedObjects}
+                    isTimelocked={isTimelocked}
                     title={`${balance} ${token}`}
                     subtitle="Native Tokens"
-                    expirationKey={migrationObject.expirationKey}
+                    unlockConditionTimestamp={unlockConditionTimestamp}
                     image={<DataStack />}
                 />
             );
@@ -80,57 +81,64 @@ function ExternalImageWithFallback({ src, alt, fallback }: ExternalImageWithFall
 interface MigrationObjectCardProps {
     title: string;
     subtitle: string;
-    expirationKey: string;
+    unlockConditionTimestamp: string;
+    isTimelocked: boolean;
     image?: React.ReactNode;
-    isTimelockedObjects: boolean;
 }
 
 function MigrationObjectCard({
     title,
     subtitle,
+    unlockConditionTimestamp,
+    isTimelocked,
     image,
-    expirationKey,
-    isTimelockedObjects,
 }: MigrationObjectCardProps) {
-    const hasExpiration = expirationKey !== MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY;
+    const hasUnlockConditionTimestamp =
+        unlockConditionTimestamp !== MIGRATION_OBJECT_WITHOUT_UC_KEY;
     return (
         <Card>
             <CardImage shape={ImageShape.SquareRounded}>{image}</CardImage>
             <CardBody title={title} subtitle={subtitle} />
-            {hasExpiration && (
-                <ExpirationDate
-                    groupKey={expirationKey}
-                    isTimelockedObjects={isTimelockedObjects}
+            {hasUnlockConditionTimestamp && (
+                <UnlockConditionLabel
+                    groupKey={unlockConditionTimestamp}
+                    isTimelocked={isTimelocked}
                 />
             )}
         </Card>
     );
 }
 
-function ExpirationDate({
-    groupKey,
-    isTimelockedObjects,
-}: {
+interface UnlockConditionLabelProps {
     groupKey: string;
-    isTimelockedObjects: boolean;
-}) {
-    const { data: epochTimestamp } = useGetCurrentEpochStartTimestamp();
-    const timeAgo = useTimeAgo({
-        timeFrom: Number(groupKey) * 1000,
+    isTimelocked: boolean;
+}
+function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockConditionLabelProps) {
+    const { data: currentEpochEndTimestampMs } = useGetCurrentEpochEndTimestamp();
+
+    const epochEndMs = currentEpochEndTimestampMs ?? 0;
+    const currentDateMs = Date.now();
+
+    const unlockConditionTimestampMs = Number(groupKey) * 1000;
+    const isInAFutureEpoch = unlockConditionTimestampMs > epochEndMs;
+    const outputTimestampMs = isInAFutureEpoch ? unlockConditionTimestampMs : epochEndMs;
+
+    const timeLabel = useTimeAgo({
+        timeFrom: outputTimestampMs,
         shortedTimeLabel: true,
         shouldEnd: true,
         maxTimeUnit: TimeUnit.ONE_DAY,
     });
 
-    const showTimestamp = Number(groupKey) < Number(epochTimestamp);
+    const showLabel = outputTimestampMs > currentDateMs;
 
     return (
         <div className="ml-auto h-full whitespace-nowrap">
-            {showTimestamp && (
+            {showLabel && (
                 <LabelText
                     size={LabelTextSize.Small}
-                    text={timeAgo}
-                    label={isTimelockedObjects ? 'Unlocks in' : 'Expires in'}
+                    text={timeLabel}
+                    label={isTimelocked ? 'Unlocks in' : 'Expires in'}
                 />
             )}
         </div>

@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import MigratePopup from '@/components/Popup/Popups/MigratePopup';
 import { useGetStardustMigratableObjects, usePopups } from '@/hooks';
-import { summarizeMigratableObjectValues } from '@/lib/utils';
+import { summarizeMigratableObjectValues, summarizeUnmigratableObjectValues } from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -24,7 +24,7 @@ import { Assets, Clock, IotaLogoMark, Tokens } from '@iota/ui-icons';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { StardustObjectMigrationType } from '@/lib/enums';
+import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel } from '@/components';
 
 interface MigrationDisplayCard {
@@ -33,7 +33,7 @@ interface MigrationDisplayCard {
     icon: React.FC;
 }
 
-export default function MigrationDashboardPage(): JSX.Element {
+function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const { openPopup, closePopup } = usePopups();
@@ -41,30 +41,41 @@ export default function MigrationDashboardPage(): JSX.Element {
     const iotaClient = useIotaClient();
 
     const [selectedStardustObjectsCategory, setSelectedStardustObjectsCategory] = useState<
-        StardustObjectMigrationType | undefined
+        StardustOutputMigrationStatus | undefined
     >(undefined);
 
     const { data: stardustMigrationObjects, isLoading } = useGetStardustMigratableObjects(address);
-    const {
-        migratableBasicOutputs = [],
-        migratableNftOutputs = [],
-        unmigratableBasicOutputs = [],
-        unmigratableNftOutputs = [],
-    } = stardustMigrationObjects || {};
+    const { migratableBasicOutputs, migratableNftOutputs } = stardustMigrationObjects || {};
 
-    const { totalIotaAmount, totalNativeTokens, totalVisualAssets } = useMemo(
-        () =>
-            summarizeMigratableObjectValues({
-                migratableBasicOutputs,
-                migratableNftOutputs,
-                address,
-            }),
-        [migratableBasicOutputs, migratableNftOutputs, address],
-    );
+    const {
+        totalIotaAmount,
+        totalNativeTokens: migratableNativeTokens,
+        totalVisualAssets: migratableVisualAssets,
+        totalUnmigratableObjects,
+    } = useMemo(() => {
+        const {
+            migratableBasicOutputs,
+            migratableNftOutputs,
+            unmigratableBasicOutputs,
+            unmigratableNftOutputs,
+        } = stardustMigrationObjects || {};
+
+        const migrationValues = summarizeMigratableObjectValues({
+            basicOutputs: migratableBasicOutputs,
+            nftOutputs: migratableNftOutputs,
+            address,
+        });
+        const unmigratableValues = summarizeUnmigratableObjectValues({
+            basicOutputs: unmigratableBasicOutputs,
+            nftOutputs: unmigratableNftOutputs,
+        });
+        return { ...migrationValues, ...unmigratableValues };
+    }, [stardustMigrationObjects, address]);
+
+    const hasMigratableObjects =
+        (migratableBasicOutputs?.length || 0) > 0 && (migratableNftOutputs?.length || 0) > 0;
 
     const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);
-    const hasMigratableObjects =
-        migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0;
 
     const handleOnSuccess = useCallback(
         (digest: string) => {
@@ -88,6 +99,51 @@ export default function MigrationDashboardPage(): JSX.Element {
         [iotaClient, queryClient, address],
     );
 
+    const MIGRATION_CARDS: MigrationDisplayCard[] = [
+        {
+            title: `${timelockedIotaTokens} ${symbol}`,
+            subtitle: 'IOTA Tokens',
+            icon: IotaLogoMark,
+        },
+        {
+            title: `${migratableNativeTokens}`,
+            subtitle: 'Native Tokens',
+            icon: Tokens,
+        },
+        {
+            title: `${migratableVisualAssets}`,
+            subtitle: 'Visual Assets',
+            icon: Assets,
+        },
+    ];
+
+    const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCard[] = [
+        {
+            title: `${totalUnmigratableObjects}`,
+            subtitle: 'Time-locked',
+            icon: Clock,
+        },
+    ];
+
+    const selectedObjects = useMemo(() => {
+        if (stardustMigrationObjects) {
+            if (selectedStardustObjectsCategory === StardustOutputMigrationStatus.Migratable) {
+                return [
+                    ...stardustMigrationObjects.migratableBasicOutputs,
+                    ...stardustMigrationObjects.migratableNftOutputs,
+                ];
+            } else if (
+                selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
+            ) {
+                return [
+                    ...stardustMigrationObjects.unmigratableBasicOutputs,
+                    ...stardustMigrationObjects.unmigratableNftOutputs,
+                ];
+            }
+        }
+        return [];
+    }, [selectedStardustObjectsCategory, stardustMigrationObjects]);
+
     function openMigratePopup(): void {
         openPopup(
             <MigratePopup
@@ -99,53 +155,9 @@ export default function MigrationDashboardPage(): JSX.Element {
         );
     }
 
-    const MIGRATION_CARDS: MigrationDisplayCard[] = [
-        {
-            title: `${timelockedIotaTokens} ${symbol}`,
-            subtitle: 'IOTA Tokens',
-            icon: IotaLogoMark,
-        },
-        {
-            title: `${totalNativeTokens}`,
-            subtitle: 'Native Tokens',
-            icon: Tokens,
-        },
-        {
-            title: `${totalVisualAssets}`,
-            subtitle: 'Visual Assets',
-            icon: Assets,
-        },
-    ];
-
-    const timelockedAssetsAmount = unmigratableBasicOutputs.length + unmigratableNftOutputs.length;
-    const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCard[] = [
-        {
-            title: `${timelockedAssetsAmount}`,
-            subtitle: 'Time-locked',
-            icon: Clock,
-        },
-    ];
-
-    const handleCloseDetailsPanel = useCallback(() => {
+    function handleCloseDetailsPanel() {
         setSelectedStardustObjectsCategory(undefined);
-    }, []);
-
-    const selectedObjects = useMemo(() => {
-        if (stardustMigrationObjects) {
-            if (selectedStardustObjectsCategory === StardustObjectMigrationType.Migration) {
-                return [
-                    ...stardustMigrationObjects.migratableBasicOutputs,
-                    ...stardustMigrationObjects.migratableNftOutputs,
-                ];
-            } else if (selectedStardustObjectsCategory === StardustObjectMigrationType.TimeLocked) {
-                return [
-                    ...stardustMigrationObjects.unmigratableBasicOutputs,
-                    ...stardustMigrationObjects.unmigratableNftOutputs,
-                ];
-            }
-        }
-        return [];
-    }, [selectedStardustObjectsCategory, stardustMigrationObjects]);
+    }
 
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
@@ -184,9 +196,13 @@ export default function MigrationDashboardPage(): JSX.Element {
                                 text="See All"
                                 type={ButtonType.Ghost}
                                 fullWidth
+                                disabled={
+                                    selectedStardustObjectsCategory ===
+                                    StardustOutputMigrationStatus.Migratable
+                                }
                                 onClick={() =>
                                     setSelectedStardustObjectsCategory(
-                                        StardustObjectMigrationType.Migration,
+                                        StardustOutputMigrationStatus.Migratable,
                                     )
                                 }
                             />
@@ -211,9 +227,13 @@ export default function MigrationDashboardPage(): JSX.Element {
                                 text="See All"
                                 type={ButtonType.Ghost}
                                 fullWidth
+                                disabled={
+                                    selectedStardustObjectsCategory ===
+                                    StardustOutputMigrationStatus.TimeLocked
+                                }
                                 onClick={() =>
                                     setSelectedStardustObjectsCategory(
-                                        StardustObjectMigrationType.TimeLocked,
+                                        StardustOutputMigrationStatus.TimeLocked,
                                     )
                                 }
                             />
@@ -225,11 +245,13 @@ export default function MigrationDashboardPage(): JSX.Element {
                     selectedObjects={selectedObjects}
                     onClose={handleCloseDetailsPanel}
                     isHidden={!selectedStardustObjectsCategory}
-                    isTimelockedObjects={
-                        selectedStardustObjectsCategory === StardustObjectMigrationType.TimeLocked
+                    isTimelocked={
+                        selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
                     }
                 />
             </div>
         </div>
     );
 }
+
+export default MigrationDashboardPage;

@@ -12,3 +12,4 @@ export * from './useTimelockedUnstakeTransaction';
 export * from './useExplorerLinkGetter';
 export * from './useGetStardustMigratableObjects';
 export * from './useGroupedMigrationObjectsByExpirationDate';
+export * from './useFilterMigrationObjectDetails';

@@ -24,7 +24,6 @@ export * from './Dialogs';
 export * from './ValidatorStakingData';
 export * from './tiles';
 export * from './migration';
-export * from './Skeleton';
 export * from './Toaster';
 export * from './Banner';
 export * from './MigrationOverview';

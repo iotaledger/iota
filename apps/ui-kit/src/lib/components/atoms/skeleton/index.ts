@@ -1,5 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export * from './ResolvedObjectCard';
-export * from './ResolvedObjectList';
+export * from './skeleton.constants';
+export * from './Skeleton';

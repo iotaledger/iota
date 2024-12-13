@@ -4,5 +4,5 @@
 export * from './protectedRouteTitle.enum';
 export * from './assetCategory.enum';
 export * from './commonMigrationObjectType.enums';
-export * from './stardustObjectTypeFilter.enum';
-export * from './stardustObjectMigrationType.enum';
+export * from './stardustOutputDetailsFilter.enum';
+export * from './stardustOutputMigrationStatus.enum';
