@@ -16,6 +16,7 @@ use iota_genesis_builder::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
         process_outputs::scale_amount_for_iota,
+        types::address_swap_map::AddressSwapMap,
     },
 };
 use iota_json_rpc_types::{
@@ -33,7 +34,7 @@ use iota_types::{
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    stardust::{address_swap_map::init_address_swap_map, coin_type::CoinType, output::NftOutput},
+    stardust::{coin_type::CoinType, output::NftOutput},
     transaction::{Argument, ObjectArg, Transaction, TransactionData},
 };
 use move_core_types::ident_str;
@@ -96,7 +97,7 @@ fn genesis_builder_snapshot_generation(
     let total_supply = scale_amount_for_iota(snapshot_parser.total_supply()?)?;
     let target_network = MigrationTargetNetwork::from_str(TEST_TARGET_NETWORK)?;
     let coin_type = CoinType::Iota;
-    let address_swap_map = init_address_swap_map(&ADDRESS_SWAP_MAP_PATH)?;
+    let address_swap_map = AddressSwapMap::from_csv(ADDRESS_SWAP_MAP_PATH)?;
 
     // Migrate using the parser output stream
     Migration::new(
