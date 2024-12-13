@@ -405,7 +405,6 @@ export default function VestingDashboardPage(): JSX.Element {
                         isTimelockedStaking
                         stakedDetails={selectedStake}
                         onSuccess={handleOnSuccess}
-                        isOpen
                         handleClose={handleCloseStakeDialog}
                         view={stakeDialogView}
                         setView={setStakeDialogView}
