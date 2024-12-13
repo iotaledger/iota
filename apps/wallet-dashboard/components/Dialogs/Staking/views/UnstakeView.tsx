@@ -33,7 +33,7 @@ import { ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-interface UnstakeDialogProps {
+interface UnstakeViewProps {
     extendedStake: ExtendedDelegatedStake;
     handleClose: () => void;
     onUnstake: (unstakeTransaction: Transaction) => void;
@@ -45,7 +45,7 @@ export function UnstakeView({
     handleClose,
     onUnstake,
     isPending,
-}: UnstakeDialogProps): JSX.Element {
+}: UnstakeViewProps): JSX.Element {
     const stakingReward = BigInt(extendedStake.estimatedReward ?? '').toString();
     const [rewards, rewardSymbol] = useFormatCoin(stakingReward, IOTA_TYPE_ARG);
     const activeAddress = useCurrentAccount()?.address ?? null;
