@@ -7,9 +7,6 @@ echo "Install binaries"
 cargo install --locked --bin iota --path crates/iota
 cargo install --locked --bin iota-rosetta --path crates/iota-rosetta
 
-echo "create dedicated config dir for IOTA genesis"
-mkdir -p $CONFIG_DIR
-
 echo "run IOTA genesis"
 CONFIG_DIR="~/.iota/iota_config"
 if ! [ -d "$CONFIG_DIR" ]; then
