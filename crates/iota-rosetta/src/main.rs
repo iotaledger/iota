@@ -21,7 +21,7 @@ use iota_config::{
 use iota_node::IotaNode;
 use iota_rosetta::{
     IOTA, RosettaOfflineServer, RosettaOnlineServer,
-    types::{BootstrapBalance, CurveType, IotaEnv, PrefundedAccount},
+    types::{CurveType, IotaEnv, PrefundedAccount},
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
@@ -85,15 +85,6 @@ impl RosettaServerCommand {
                     .unwrap_or_else(|| iota_config_dir().unwrap().join(IOTA_KEYSTORE_FILENAME));
 
                 let prefunded_accounts = read_prefunded_account(&path)?;
-                let bootstrap_balances: Vec<BootstrapBalance> =
-                    prefunded_accounts.iter().map(Into::into).collect();
-
-                let bootstrap_path = PathBuf::from(".").join("bootstrap_balances.json");
-                fs::write(
-                    &bootstrap_path,
-                    serde_json::to_string_pretty(&bootstrap_balances)?,
-                )?;
-                info!("Bootstrap balances file is stored in {:?}", bootstrap_path);
 
                 info!(
                     "Retrieved {} Iota address from keystore file {:?}",
@@ -126,14 +117,6 @@ impl RosettaServerCommand {
                 let construction = construction.as_object_mut().unwrap();
                 construction.insert("prefunded_accounts".into(), json!(prefunded_accounts));
                 construction.insert("offline_url".into(), json!(offline_url));
-
-                // Add boostrap balances file
-                let data = config
-                    .pointer_mut("/data")
-                    .ok_or_else(|| anyhow!("Cannot find data config in default config file."))?;
-                data.as_object_mut()
-                    .unwrap()
-                    .insert("bootstrap_balances".into(), json!(bootstrap_path));
 
                 let config_path = PathBuf::from(".").join("rosetta_cli.json");
                 fs::write(&config_path, serde_json::to_string_pretty(&config)?)?;

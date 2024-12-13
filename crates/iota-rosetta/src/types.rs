@@ -10,7 +10,6 @@ use axum::{
 };
 use fastcrypto::encoding::Hex;
 use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockKind};
-use iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT;
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
@@ -856,23 +855,6 @@ pub struct PrefundedAccount {
     pub account_identifier: AccountIdentifier,
     pub curve_type: CurveType,
     pub currency: Currency,
-}
-
-#[derive(Serialize, Clone)]
-pub struct BootstrapBalance {
-    pub account_identifier: AccountIdentifier,
-    pub currency: Currency,
-    pub value: String,
-}
-
-impl From<&PrefundedAccount> for BootstrapBalance {
-    fn from(account: &PrefundedAccount) -> Self {
-        Self {
-            account_identifier: account.account_identifier.clone(),
-            currency: account.currency.clone(),
-            value: DEFAULT_GAS_AMOUNT.to_string(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
