@@ -12,12 +12,13 @@ import {
 import { IotaClient } from '@iota/iota-sdk/client';
 import { CommonMigrationObjectType } from '../enums';
 import {
-    UnlockConditionGroupKey,
+    UnlockConditionTimestamp,
     ResolvedNativeToken,
     ResolvedNftObject,
-    ResolvedObjectsGrouped,
+    ResolvedObjectTypes,
+    ResolvedBasicObject,
 } from '../types';
-import { MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY } from '../constants';
+import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '../constants';
 
 export type StardustMigrationGroupedObjects = {
     migratable: IotaObjectData[];
@@ -26,20 +27,20 @@ export type StardustMigrationGroupedObjects = {
 
 export function groupStardustObjectsByMigrationStatus(
     stardustOutputObjects: IotaObjectData[],
-    epochTimestamp: number,
+    epochTimestampMs: number,
     address: string,
 ): StardustMigrationGroupedObjects {
     const migratable: IotaObjectData[] = [];
     const unmigratable: IotaObjectData[] = [];
 
-    const epochUnix = epochTimestamp / 1000;
+    const unixEpoch = epochTimestampMs / 1000;
 
     for (const outputObject of stardustOutputObjects) {
         const outputObjectFields = extractMigrationOutputFields(outputObject);
 
         if (outputObjectFields.expiration_uc) {
             const unlockableAddress =
-                outputObjectFields.expiration_uc.fields.unix_time <= epochUnix
+                outputObjectFields.expiration_uc.fields.unix_time <= unixEpoch
                     ? outputObjectFields.expiration_uc.fields.return_address
                     : outputObjectFields.expiration_uc.fields.owner;
 
@@ -48,9 +49,10 @@ export function groupStardustObjectsByMigrationStatus(
                 continue;
             }
         }
+
         if (
             outputObjectFields.timelock_uc &&
-            outputObjectFields.timelock_uc.fields.unix_time > epochUnix
+            outputObjectFields.timelock_uc.fields.unix_time > unixEpoch
         ) {
             unmigratable.push(outputObject);
             continue;
@@ -68,22 +70,22 @@ interface MigratableObjectsData {
     totalIotaAmount: number;
 }
 
-interface SummarizeMigratableObjectValuesParams {
-    migratableBasicOutputs: IotaObjectData[];
-    migratableNftOutputs: IotaObjectData[];
+interface SummarizeMigrationObjectParams {
+    basicOutputs: IotaObjectData[] | undefined;
+    nftOutputs: IotaObjectData[] | undefined;
     address: string;
 }
 
 export function summarizeMigratableObjectValues({
-    migratableBasicOutputs,
-    migratableNftOutputs,
+    basicOutputs = [],
+    nftOutputs = [],
     address,
-}: SummarizeMigratableObjectValuesParams): MigratableObjectsData {
+}: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
     let totalIotaAmount = 0;
 
-    const totalVisualAssets = migratableNftOutputs.length;
-    const outputObjects = [...migratableBasicOutputs, ...migratableNftOutputs];
+    const totalVisualAssets = nftOutputs.length;
+    const outputObjects = [...basicOutputs, ...nftOutputs];
 
     for (const output of outputObjects) {
         const outputObjectFields = extractMigrationOutputFields(output);
@@ -94,6 +96,29 @@ export function summarizeMigratableObjectValues({
     }
 
     return { totalNativeTokens, totalVisualAssets, totalIotaAmount };
+}
+
+interface UnmmigratableObjectsData {
+    totalUnmigratableObjects: number;
+}
+
+export function summarizeUnmigratableObjectValues({
+    basicOutputs = [],
+    nftOutputs = [],
+}: Omit<SummarizeMigrationObjectParams, 'address'>): UnmmigratableObjectsData {
+    const basicObjects = basicOutputs.length;
+    const nftObjects = nftOutputs.length;
+    let nativeTokens = 0;
+
+    for (const output of [...basicOutputs, ...nftOutputs]) {
+        const outputObjectFields = extractMigrationOutputFields(output);
+
+        nativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
+    }
+
+    const totalUnmigratableObjects = basicObjects + nativeTokens + nftObjects;
+
+    return { totalUnmigratableObjects };
 }
 
 export function extractStorageDepositReturnAmount(
@@ -118,59 +143,72 @@ export function extractMigrationOutputFields(
         }
     ).fields;
 }
-
 export async function groupMigrationObjectsByUnlockCondition(
     objectsData: IotaObjectData[],
     client: IotaClient,
-    currentAddress?: string,
+    currentAddress: string = '',
     isTimelockUnlockCondition: boolean = false,
-) {
-    const nftObjects: ResolvedObjectsGrouped['nftObjects'] = {};
-    const basicObjects: ResolvedObjectsGrouped['basicObjects'] = {};
-    const nativeTokens: ResolvedObjectsGrouped['nativeTokens'] = {};
+): Promise<ResolvedObjectTypes[]> {
+    const flatObjects: ResolvedObjectTypes[] = [];
+    const basicObjectMap: Map<string, ResolvedBasicObject> = new Map();
+    const nativeTokenMap: Map<string, Map<string, ResolvedNativeToken>> = new Map();
 
     for (const object of objectsData) {
         const objectFields = extractMigrationOutputFields(object);
-        const groupKey: UnlockConditionGroupKey = getGroupingObjectsKey(
-            isTimelockUnlockCondition,
-            objectFields,
-        );
+        const groupKey = getGroupingObjectsKey(isTimelockUnlockCondition, objectFields);
 
         if (object.type === STARDUST_BASIC_OUTPUT_TYPE) {
-            // Merge balances if already present
-            const existing = basicObjects[groupKey];
-            const gasReturn = extractStorageDepositReturnAmount(objectFields, currentAddress ?? '');
+            const existing = basicObjectMap.get(groupKey);
+            const gasReturn = extractStorageDepositReturnAmount(objectFields, currentAddress);
             const newBalance =
                 (existing ? existing.balance : 0) + Number(objectFields.balance) + (gasReturn ?? 0);
-            basicObjects[groupKey] = {
-                balance: newBalance,
-                expirationKey: groupKey,
-                type: object.type,
-                commonObjectType: CommonMigrationObjectType.Basic,
-                output: object,
-                uniqueId: objectFields.id.id,
-            };
+
+            if (existing) {
+                existing.balance = newBalance;
+            } else {
+                const newBasicObject: ResolvedBasicObject = {
+                    balance: newBalance,
+                    unlockConditionTimestamp: groupKey,
+                    type: object.type,
+                    commonObjectType: CommonMigrationObjectType.Basic,
+                    output: object,
+                    uniqueId: objectFields.id.id,
+                };
+                basicObjectMap.set(groupKey, newBasicObject);
+                flatObjects.push(newBasicObject);
+            }
         } else if (object.type === STARDUST_NFT_OUTPUT_TYPE) {
             const nftDetails = await getNftDetails(object, groupKey, client);
-            if (nftObjects[groupKey]) {
-                nftObjects[groupKey].push(...nftDetails);
-            } else {
-                nftObjects[groupKey] = nftDetails;
-            }
+            flatObjects.push(...nftDetails);
         }
 
+        if (!nativeTokenMap.has(groupKey)) {
+            nativeTokenMap.set(groupKey, new Map());
+        }
+
+        const tokenGroup = nativeTokenMap.get(groupKey)!;
         const objectNativeTokens = await extractNativeTokensFromObject(object, client, groupKey);
-        mergeNativeTokens(nativeTokens, objectNativeTokens, groupKey);
+
+        for (const token of objectNativeTokens) {
+            const existing = tokenGroup.get(token.name);
+
+            if (existing) {
+                existing.balance += token.balance;
+            } else {
+                tokenGroup.set(token.name, token);
+                flatObjects.push(token);
+            }
+        }
     }
 
-    return { nftObjects, basicObjects, nativeTokens };
+    return flatObjects;
 }
 
 async function getNftDetails(
     object: IotaObjectData,
-    expirationKey: UnlockConditionGroupKey,
+    expirationKey: UnlockConditionTimestamp,
     client: IotaClient,
-) {
+): Promise<ResolvedNftObject[]> {
     const objectFields = extractMigrationOutputFields(object);
     const nftOutputDynamicFields = await client.getDynamicFields({
         parentId: objectFields.id.id,
@@ -192,7 +230,7 @@ async function getNftDetails(
             name: nftObject.data.display.data.name ?? '',
             image_url: nftObject.data.display.data.image_url ?? '',
             commonObjectType: CommonMigrationObjectType.Nft,
-            expirationKey: expirationKey,
+            unlockConditionTimestamp: expirationKey,
             output: object,
             uniqueId: nftObject.data.objectId,
         });
@@ -204,7 +242,7 @@ async function getNftDetails(
 async function extractNativeTokensFromObject(
     object: IotaObjectData,
     client: IotaClient,
-    expirationKey: UnlockConditionGroupKey,
+    expirationKey: UnlockConditionTimestamp,
 ): Promise<ResolvedNativeToken[]> {
     const fields = extractMigrationOutputFields(object);
     const bagId = fields.native_tokens.fields.id.id;
@@ -222,11 +260,10 @@ async function extractNativeTokensFromObject(
 
         if (objectDynamic?.data?.content && 'fields' in objectDynamic.data.content) {
             const nativeTokenFields = objectDynamic.data.content.fields as {
-                id: { id: string };
                 name: string;
                 value: string;
+                id: { id: string };
             };
-
             const tokenStruct = extractObjectTypeStruct(nativeTokenFields.name);
             const tokenName = tokenStruct[2];
             const balance = Number(nativeTokenFields.value);
@@ -235,7 +272,7 @@ async function extractNativeTokensFromObject(
                 name: tokenName,
                 balance,
                 coinType: nativeTokenFields.name,
-                expirationKey: expirationKey,
+                unlockConditionTimestamp: expirationKey,
                 commonObjectType: CommonMigrationObjectType.NativeToken,
                 output: object,
                 uniqueId: nativeTokenFields.id.id,
@@ -246,22 +283,6 @@ async function extractNativeTokensFromObject(
     return result;
 }
 
-function mergeNativeTokens(
-    nativeTokens: ResolvedObjectsGrouped['nativeTokens'],
-    tokensToAdd: ResolvedNativeToken[],
-    expirationKey: UnlockConditionGroupKey,
-) {
-    if (!nativeTokens[expirationKey]) {
-        nativeTokens[expirationKey] = {};
-    }
-
-    for (const token of tokensToAdd) {
-        const existing = nativeTokens[expirationKey][token.name];
-        const newBalance = (existing ? existing.balance : 0) + token.balance;
-        nativeTokens[expirationKey][token.name] = { ...token, balance: newBalance };
-    }
-}
-
 function getGroupingObjectsKey(
     isTimelockUnlockCondition: boolean,
     objectFields: CommonOutputObjectWithUc,
@@ -269,12 +290,11 @@ function getGroupingObjectsKey(
     if (!isTimelockUnlockCondition) {
         return (
             objectFields.expiration_uc?.fields.unix_time.toString() ??
-            MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY
+            MIGRATION_OBJECT_WITHOUT_UC_KEY
         );
     } else {
         return (
-            objectFields.timelock_uc?.fields.unix_time.toString() ??
-            MIGRATION_OBJECT_WITHOUT_EXPIRATION_KEY
+            objectFields.timelock_uc?.fields.unix_time.toString() ?? MIGRATION_OBJECT_WITHOUT_UC_KEY
         );
     }
 }
