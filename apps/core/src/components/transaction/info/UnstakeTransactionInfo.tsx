@@ -41,7 +41,7 @@ export function UnstakeTransactionInfo({
     return (
         <div className="flex flex-col gap-y-md">
             {validatorAddress && <ValidatorLogo address={validatorAddress} isSelected />}
-            {totalAmount && (
+            {totalAmount!== 0n && (
                 <TransactionAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} subtitle="Total" />
             )}
             <Panel hasBorder>
