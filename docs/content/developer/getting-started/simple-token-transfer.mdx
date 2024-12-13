@@ -37,7 +37,7 @@ sequenceDiagram
     Contract-->>Sender: Returns token.balance
 ```
 
-### Prerequisites
+## Prerequisites
 
 - [Node.js](https://nodejs.org/) >=v20.18.0
 - [npx](https://www.npmjs.com/package/npx) >=10.8.2
@@ -48,26 +48,28 @@ sequenceDiagram
 Run the following command to create a Move package
 
 ```bash
-iota move new token-transfer
+iota move new token_transfer
 ```
 
-### Configure the IOTA CLI
+This will generate a new Move package in a folder named token-transfer.
+
+## Configure the IOTA CLI
+
+To run the `mint` function from the frontend app, you must be the owner of the package; otherwise, you cannot execute the function. To become the owner, you need to publish the package, and this process can only be done through the CLI. Note that the CLI and browser wallet extension use separate accounts. In the CLI, you can update the active address and private key to match the account used in the browser wallet extension. By aligning these accounts, you ensure the same account is used in both the CLI and the wallet extension, enabling seamless transactions in your frontend app.
 
 Before publishing the package, you need to configure your IOTA CLI with your wallet details.
 
-#### Navigate to the IOTA configuration directory
+### Navigate to the IOTA configuration directory
 
 ```bash
 cd ~/.iota/iota_config/
 ```
 
-### Update the following files 
+### Update the Private Key and Active Address
 
 `iota.keystore`: Replace the existing private key with your IOTA wallet private key.
 
 `client.yaml`: Replace the `active_address` field with your IOTA wallet address.
-
-This will generate a new Move package in a folder named token-transfer.
 
 ### Package Overview
 
@@ -385,49 +387,49 @@ https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf4
 
 ### Dashboard
 
-- The dashboard of the token transfer app, displaying different operations like Transfer and Mint.
+The dashboard of the token transfer app, displaying different operations like Transfer and Mint.
 
 ![Dashboard](/img/developer/getting-started/token-transfer/Dashboard.png)
 
-### Connect IOTA wallet
+### Connect IOTA Wallet
 
-- Click on the Connect wallet button at the top right corner to connect your IOTA wallet.
+Click on the Connect wallet button at the top right corner to connect your IOTA wallet.
 
 ![Connect IOTA wallet](/img/developer/getting-started/token-transfer/wallet-connect.png)
 
-### Wallet connected
+### Wallet Connected
 
-- When the wallet gets connected to the app the address of the selected account will be displayed at top right  corner.
+When the wallet is connected to the app, the address of the selected account will be displayed at the top right corner.
 
 ![Wallet connected](/img/developer/getting-started/token-transfer/wallet-connected.png)
 
-### Minting token
+### Minting Tokens
 
-- Click the Mint button to mint the token. Please note that the account used for minting must be the same as the one used during the publication.
+Click the Mint button to mint the token. The account used for minting must be the same as the one used during the publication.
 
 ![Minting token](/img/developer/getting-started/token-transfer/minting-token.png)
 
-### Wallet transaction
+### Wallet Transaction
 
-- The minted amount will be displayed in the balance changes section of the wallet popup, approve the transaction.
+The minted amount will be displayed in the balance changes section of the wallet popup, so you can approve the transaction.
 
 ![Wallet transaction](/img/developer/getting-started/token-transfer/wallet-transaction.png)
 
-### Transaction successfull
+### Transaction Successful
 
-- Once you approve the mint transaction, an alert will appear indicating 'Transaction Successful'.
+Once you approve the mint transaction, an alert will appear indicating 'Transaction Successful'.
 
-![Transaction successfull](/img/developer/getting-started/token-transfer/transaction-successfull.png)
+![Transaction successfull](/img/developer/getting-started/token-transfer/transaction-successful.png)
 
-### Wallet check
+### Wallet Check
 
-- After successfull transaction of mint you can check the balance have increase in the wallet.
+After a successful mint transaction, you can check if the balance has increased in the wallet.
 
 ![Wallet check](/img/developer/getting-started/token-transfer/wallet-check.png)
 
-### Check balance
+### Check Balance
 
-- Click on the Check balance button to check the token balance.
+Click on the `Check balance` button to check the token balance.
 
 ![Check balance](/img/developer/getting-started/token-transfer/check-balance.png)
 
