@@ -83,7 +83,7 @@ function VestingDashboardPage(): JSX.Element {
         supplyIncreaseVestingSchedule,
         supplyIncreaseVestingMapped,
         supplyIncreaseVestingStakedMapped,
-        istimelockedStakedObjectsLoading,
+        isTimelockedStakedObjectsLoading,
         unlockAllsupplyIncreaseVesting,
     } = useGetSupplyIncreaseVestingObjects(address);
 
@@ -213,7 +213,7 @@ function VestingDashboardPage(): JSX.Element {
         }
     }, [router, supplyIncreaseVestingEnabled]);
 
-    if (istimelockedStakedObjectsLoading) {
+    if (isTimelockedStakedObjectsLoading) {
         return (
             <div className="flex w-full max-w-4xl items-start justify-center justify-self-center">
                 <LoadingIndicator />
