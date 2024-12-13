@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { BACKGROUND_COLORS } from './skeleton.constants';
 
 interface SkeletonLoaderProps {
     /**
@@ -30,15 +29,16 @@ export function Skeleton({
     hasSecondaryColors,
     isRounded = true,
 }: React.PropsWithChildren<SkeletonLoaderProps>): React.JSX.Element {
-    const bgColor = hasSecondaryColors ? BACKGROUND_COLORS.secondary : BACKGROUND_COLORS.primary;
     return (
         <div
             className={cx(
                 'animate-pulse rounded-full',
                 widthClass,
                 heightClass,
-                bgColor,
                 isRounded && 'rounded-full',
+                hasSecondaryColors
+                    ? 'bg-neutral-80 dark:bg-neutral-10'
+                    : 'bg-neutral-90 dark:bg-neutral-12',
             )}
         >
             {children}

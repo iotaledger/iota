@@ -67,7 +67,7 @@ export function groupStardustObjectsByMigrationStatus(
 interface MigratableObjectsData {
     totalNativeTokens: number;
     totalVisualAssets: number;
-    totalIotaAmount: number;
+    totalIotaAmount: bigint;
 }
 
 interface SummarizeMigrationObjectParams {
@@ -82,7 +82,7 @@ export function summarizeMigratableObjectValues({
     address,
 }: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
-    let totalIotaAmount = 0;
+    let totalIotaAmount: bigint = 0n;
 
     const totalVisualAssets = nftOutputs.length;
     const outputObjects = [...basicOutputs, ...nftOutputs];
@@ -90,9 +90,9 @@ export function summarizeMigratableObjectValues({
     for (const output of outputObjects) {
         const outputObjectFields = extractMigrationOutputFields(output);
 
-        totalIotaAmount += parseInt(outputObjectFields.balance);
+        totalIotaAmount += BigInt(outputObjectFields.balance);
         totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
-        totalIotaAmount += extractStorageDepositReturnAmount(outputObjectFields, address) || 0;
+        totalIotaAmount += extractStorageDepositReturnAmount(outputObjectFields, address) || 0n;
     }
 
     return { totalNativeTokens, totalVisualAssets, totalIotaAmount };
@@ -124,12 +124,12 @@ export function summarizeUnmigratableObjectValues({
 export function extractStorageDepositReturnAmount(
     { storage_deposit_return_uc }: CommonOutputObjectWithUc,
     address: string,
-): number | null {
+): bigint | null {
     if (
         storage_deposit_return_uc?.fields &&
         storage_deposit_return_uc?.fields.return_address === address
     ) {
-        return parseInt(storage_deposit_return_uc?.fields.return_amount);
+        return BigInt(storage_deposit_return_uc?.fields.return_amount);
     }
     return null;
 }
@@ -161,7 +161,9 @@ export async function groupMigrationObjectsByUnlockCondition(
             const existing = basicObjectMap.get(groupKey);
             const gasReturn = extractStorageDepositReturnAmount(objectFields, currentAddress);
             const newBalance =
-                (existing ? existing.balance : 0) + Number(objectFields.balance) + (gasReturn ?? 0);
+                (existing ? existing.balance : 0n) +
+                BigInt(objectFields.balance) +
+                (gasReturn ?? 0n);
 
             if (existing) {
                 existing.balance = newBalance;
@@ -226,7 +228,7 @@ async function getNftDetails(
         }
 
         nftDetails.push({
-            balance: Number(objectFields.balance),
+            balance: BigInt(objectFields.balance),
             name: nftObject.data.display.data.name ?? '',
             image_url: nftObject.data.display.data.image_url ?? '',
             commonObjectType: CommonMigrationObjectType.Nft,
@@ -266,7 +268,7 @@ async function extractNativeTokensFromObject(
             };
             const tokenStruct = extractObjectTypeStruct(nativeTokenFields.name);
             const tokenName = tokenStruct[2];
-            const balance = Number(nativeTokenFields.value);
+            const balance = BigInt(nativeTokenFields.value);
 
             result.push({
                 name: tokenName,

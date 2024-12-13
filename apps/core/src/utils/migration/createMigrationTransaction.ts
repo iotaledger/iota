@@ -36,12 +36,7 @@ export async function getNativeTokenTypesFromBag(
     const nativeTokenDynamicFields = await client.getDynamicFields({
         parentId: bagId,
     });
-    const nativeTokenTypes: string[] = [];
-    for (const nativeToken of nativeTokenDynamicFields.data) {
-        nativeTokenTypes.push(nativeToken?.name?.value as string);
-    }
-
-    return nativeTokenTypes;
+    return nativeTokenDynamicFields.data.map(({ name }) => name.value as string);
 }
 
 export function validateBasicOutputObject(outputObject: IotaObjectData): BasicOutputObject {

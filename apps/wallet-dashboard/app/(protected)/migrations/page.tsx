@@ -45,32 +45,26 @@ function MigrationDashboardPage(): JSX.Element {
     >(undefined);
 
     const { data: stardustMigrationObjects, isLoading } = useGetStardustMigratableObjects(address);
-    const { migratableBasicOutputs, migratableNftOutputs } = stardustMigrationObjects || {};
+    const {
+        migratableBasicOutputs,
+        migratableNftOutputs,
+        unmigratableBasicOutputs,
+        unmigratableNftOutputs,
+    } = stardustMigrationObjects || {};
 
     const {
         totalIotaAmount,
         totalNativeTokens: migratableNativeTokens,
         totalVisualAssets: migratableVisualAssets,
-        totalUnmigratableObjects,
-    } = useMemo(() => {
-        const {
-            migratableBasicOutputs,
-            migratableNftOutputs,
-            unmigratableBasicOutputs,
-            unmigratableNftOutputs,
-        } = stardustMigrationObjects || {};
-
-        const migrationValues = summarizeMigratableObjectValues({
-            basicOutputs: migratableBasicOutputs,
-            nftOutputs: migratableNftOutputs,
-            address,
-        });
-        const unmigratableValues = summarizeUnmigratableObjectValues({
-            basicOutputs: unmigratableBasicOutputs,
-            nftOutputs: unmigratableNftOutputs,
-        });
-        return { ...migrationValues, ...unmigratableValues };
-    }, [stardustMigrationObjects, address]);
+    } = summarizeMigratableObjectValues({
+        basicOutputs: migratableBasicOutputs,
+        nftOutputs: migratableNftOutputs,
+        address,
+    });
+    const { totalUnmigratableObjects } = summarizeUnmigratableObjectValues({
+        basicOutputs: unmigratableBasicOutputs,
+        nftOutputs: unmigratableNftOutputs,
+    });
 
     const hasMigratableObjects =
         (migratableBasicOutputs?.length || 0) > 0 && (migratableNftOutputs?.length || 0) > 0;
@@ -244,7 +238,6 @@ function MigrationDashboardPage(): JSX.Element {
                 <MigrationObjectsPanel
                     selectedObjects={selectedObjects}
                     onClose={handleCloseDetailsPanel}
-                    isHidden={!selectedStardustObjectsCategory}
                     isTimelocked={
                         selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
                     }

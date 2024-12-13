@@ -38,14 +38,12 @@ const FILTERS = {
 interface MigrationObjectsPanelProps {
     selectedObjects: IotaObjectData[];
     onClose: () => void;
-    isHidden: boolean;
     isTimelocked: boolean;
 }
 
 export function MigrationObjectsPanel({
     selectedObjects,
     onClose,
-    isHidden,
     isTimelocked,
 }: MigrationObjectsPanelProps): React.JSX.Element {
     const [stardustOutputDetailsFilter, setStardustOutputDetailsFilter] =
@@ -60,6 +58,7 @@ export function MigrationObjectsPanel({
     const filteredObjects = useFilterMigrationObjects(resolvedObjects, stardustOutputDetailsFilter);
 
     const filters = isTimelocked ? FILTERS.unmigratable : FILTERS.migratable;
+    const isHidden = selectedObjects.length === 0;
 
     return (
         <div className={clsx('flex h-full min-h-0 w-2/3 flex-col', isHidden && 'hidden')}>

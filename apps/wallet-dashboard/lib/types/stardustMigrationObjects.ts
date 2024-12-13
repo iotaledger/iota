@@ -10,7 +10,7 @@ interface CommonExpirationTypeObject {
     unlockConditionTimestamp: UnlockConditionTimestamp;
     output: IotaObjectData;
     uniqueId: string;
-    balance: number;
+    balance: bigint;
 }
 
 export interface ResolvedNativeToken extends CommonExpirationTypeObject {

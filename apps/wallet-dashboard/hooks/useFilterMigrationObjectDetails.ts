@@ -24,7 +24,7 @@ export function useFilterMigrationObjects(
                     CommonMigrationObjectType.NativeToken,
                 );
             case StardustOutputDetailsFilter.WithExpiration:
-                return getObjectsWithExpiration(objects);
+                return filterObjectsByExpiration(objects);
         }
     }, [objects, filter]);
 }
@@ -36,7 +36,7 @@ function filterObjectByCommonOutputType(
     return objects.filter((object) => object.commonObjectType === type);
 }
 
-function getObjectsWithExpiration(objects: ResolvedObjectTypes[]): ResolvedObjectTypes[] {
+function filterObjectsByExpiration(objects: ResolvedObjectTypes[]): ResolvedObjectTypes[] {
     return objects.filter(
         (object) => object.unlockConditionTimestamp !== MIGRATION_OBJECT_WITHOUT_UC_KEY,
     );
