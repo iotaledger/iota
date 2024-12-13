@@ -99,6 +99,8 @@ confidence-threshold = 0.8
 # Allow 1 or more licenses on a per-crate basis, so that particular licenses
 # aren't accepted for every possible crate as with the normal allow list
 exceptions = [
+
+
   # Each entry is the crate and version constraint, and its specific allow
   # list
   # { allow = ["Zlib"], name = "adler32", version = "*" },
@@ -237,7 +239,7 @@ allow-git = [
   "https://github.com/iotaledger/iota-rust-sdk.git",
   "https://github.com/bmwill/openapiv3.git",
   "https://github.com/bmwill/axum-server.git",
-  "https://github.com/1Password/passkey-rs.git"
+  "https://github.com/1Password/passkey-rs.git",
 ]
 
 [sources.allow-org]
