@@ -6,14 +6,17 @@ import { Notifications } from '@/components/index';
 import React, { type PropsWithChildren } from 'react';
 import { Button } from '@iota/apps-ui-kit';
 import { Sidebar, TopNav } from './components';
-import { Theme, useTheme } from '@iota/core';
+import { ThemePreference, useTheme } from '@iota/core';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
-    const { theme, setTheme } = useTheme();
+    const { theme, themePreference, setThemePreference } = useTheme();
 
     const toggleTheme = () => {
-        const newTheme = theme === Theme.Light ? Theme.Dark : Theme.Light;
-        setTheme(newTheme);
+        const newTheme =
+            themePreference === ThemePreference.Light
+                ? ThemePreference.Dark
+                : ThemePreference.Light;
+        setThemePreference(newTheme);
     };
 
     return (
@@ -22,11 +25,14 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
                 <Sidebar />
             </div>
 
-            <div className="container relative flex min-h-screen flex-col">
-                <div className="sticky top-0">
-                    <TopNav />
+            {/* This padding need to have aligned left/right content's position, because of sidebar overlap on the small screens */}
+            <div className="pl-[72px]">
+                <div className="container relative flex min-h-screen flex-col">
+                    <div className="sticky top-0 z-10 backdrop-blur-lg">
+                        <TopNav />
+                    </div>
+                    <div className="flex-1 py-md--rs">{children}</div>
                 </div>
-                <div className="flex-1 py-md--rs">{children}</div>
             </div>
 
             <div className="fixed bottom-5 right-5">

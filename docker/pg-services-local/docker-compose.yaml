@@ -135,7 +135,7 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
     command:
-      - /opt/iota/bin/iota-graphql-rpc
+      - /usr/local/bin/iota-graphql-rpc
       - start-server
       - --db-url=postgres://postgres:postgrespw@postgres:5432/iota_indexer
       - --host=0.0.0.0

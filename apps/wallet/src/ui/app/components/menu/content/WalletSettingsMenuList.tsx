@@ -31,7 +31,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork } from '@iota/core';
 
 function MenuList() {
-    const { theme } = useTheme();
+    const { themePreference } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
@@ -84,7 +84,7 @@ function MenuList() {
     }
 
     const autoLockSubtitle = handleAutoLockSubtitle();
-    const themeSubtitle = theme.charAt(0).toUpperCase() + theme.slice(1);
+    const themeSubtitle = themePreference.charAt(0).toUpperCase() + themePreference.slice(1);
     const MENU_ITEMS = [
         {
             title: 'Network',

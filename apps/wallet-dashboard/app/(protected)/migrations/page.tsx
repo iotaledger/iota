@@ -2,19 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { VirtualList } from '@/components';
 import MigratePopup from '@/components/Popup/Popups/MigratePopup';
-import { useGetCurrentEpochStartTimestamp, usePopups } from '@/hooks';
-import { groupStardustObjectsByMigrationStatus } from '@/lib/utils';
-import { Button } from '@iota/apps-ui-kit';
-import { useCurrentAccount, useIotaClient, useIotaClientContext } from '@iota/dapp-kit';
+import { usePopups } from '@/hooks';
+import { summarizeMigratableObjectValues } from '@/lib/utils';
 import {
-    STARDUST_BASIC_OUTPUT_TYPE,
-    STARDUST_NFT_OUTPUT_TYPE,
-    useGetAllOwnedObjects,
-} from '@iota/core';
-import { getNetwork, IotaObjectData } from '@iota/iota-sdk/client';
+    Button,
+    ButtonSize,
+    ButtonType,
+    Card,
+    CardBody,
+    CardImage,
+    ImageShape,
+    Panel,
+    Title,
+} from '@iota/apps-ui-kit';
+import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
+import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
+import { useGetStardustMigratableObjects } from '@/hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import { Assets, Clock, IotaLogoMark, Tokens } from '@iota/ui-icons';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+
+interface MigrationDisplayCard {
+    title: string;
+    subtitle: string;
+    icon: React.FC;
+}
 
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -22,39 +35,16 @@ function MigrationDashboardPage(): JSX.Element {
     const { openPopup, closePopup } = usePopups();
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
-    const { network } = useIotaClientContext();
-    const { explorer } = getNetwork(network);
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
-    const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_BASIC_OUTPUT_TYPE,
-    });
-    const { data: nftOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_NFT_OUTPUT_TYPE,
-    });
-
-    const { migratable: migratableBasicOutputs, unmigratable: unmigratableBasicOutputs } =
-        groupStardustObjectsByMigrationStatus(
-            basicOutputObjects ?? [],
-            Number(currentEpochMs),
-            address,
-        );
-
-    const { migratable: migratableNftOutputs, unmigratable: unmigratableNftOutputs } =
-        groupStardustObjectsByMigrationStatus(
-            nftOutputObjects ?? [],
-            Number(currentEpochMs),
-            address,
-        );
+    const {
+        migratableBasicOutputs,
+        unmigratableBasicOutputs,
+        migratableNftOutputs,
+        unmigratableNftOutputs,
+    } = useGetStardustMigratableObjects(address);
 
     const hasMigratableObjects =
         migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0;
-
-    const virtualItem = (asset: IotaObjectData): JSX.Element => (
-        <a href={`${explorer}/object/${asset.objectId}`} target="_blank" rel="noreferrer">
-            {asset.objectId}
-        </a>
-    );
 
     function handleOnSuccess(digest: string): void {
         iotaClient
@@ -93,41 +83,93 @@ function MigrationDashboardPage(): JSX.Element {
         );
     }
 
+    const {
+        accumulatedIotaAmount: accumulatedTimelockedIotaAmount,
+        totalNativeTokens,
+        totalVisualAssets,
+    } = summarizeMigratableObjectValues({
+        migratableBasicOutputs,
+        migratableNftOutputs,
+        address,
+    });
+
+    const [timelockedIotaTokens, symbol] = useFormatCoin(
+        accumulatedTimelockedIotaAmount,
+        IOTA_TYPE_ARG,
+    );
+
+    const MIGRATION_CARDS: MigrationDisplayCard[] = [
+        {
+            title: `${timelockedIotaTokens} ${symbol}`,
+            subtitle: 'IOTA Tokens',
+            icon: IotaLogoMark,
+        },
+        {
+            title: `${totalNativeTokens}`,
+            subtitle: 'Native Tokens',
+            icon: Tokens,
+        },
+        {
+            title: `${totalVisualAssets}`,
+            subtitle: 'Visual Assets',
+            icon: Assets,
+        },
+    ];
+
+    const timelockedAssetsAmount = unmigratableBasicOutputs.length + unmigratableNftOutputs.length;
+    const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCard[] = [
+        {
+            title: `${timelockedAssetsAmount}`,
+            subtitle: 'Time-locked',
+            icon: Clock,
+        },
+    ];
+
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
-            <div className="flex w-1/2 flex-col">
-                <h1>Migratable Basic Outputs: {migratableBasicOutputs.length}</h1>
-                <VirtualList
-                    items={migratableBasicOutputs}
-                    estimateSize={() => 30}
-                    render={virtualItem}
-                />
+            <div className="flex w-full flex-row justify-center">
+                <div className="flex w-1/3 flex-col gap-md--rs">
+                    <Panel>
+                        <Title
+                            title="Migration"
+                            trailingElement={
+                                <Button
+                                    text="Migrate All"
+                                    disabled={!hasMigratableObjects}
+                                    onClick={openMigratePopup}
+                                    size={ButtonSize.Small}
+                                />
+                            }
+                        />
+                        <div className="flex flex-col gap-xs p-md--rs">
+                            {MIGRATION_CARDS.map((card) => (
+                                <Card key={card.subtitle}>
+                                    <CardImage shape={ImageShape.SquareRounded}>
+                                        <card.icon />
+                                    </CardImage>
+                                    <CardBody title={card.title} subtitle={card.subtitle} />
+                                </Card>
+                            ))}
+                            <Button text="See All" type={ButtonType.Ghost} fullWidth />
+                        </div>
+                    </Panel>
+
+                    <Panel>
+                        <Title title="Time-locked Assets" />
+                        <div className="flex flex-col gap-xs p-md--rs">
+                            {TIMELOCKED_ASSETS_CARDS.map((card) => (
+                                <Card key={card.subtitle}>
+                                    <CardImage shape={ImageShape.SquareRounded}>
+                                        <card.icon />
+                                    </CardImage>
+                                    <CardBody title={card.title} subtitle={card.subtitle} />
+                                </Card>
+                            ))}
+                            <Button text="See All" type={ButtonType.Ghost} fullWidth />
+                        </div>
+                    </Panel>
+                </div>
             </div>
-            <div className="flex w-1/2 flex-col">
-                <h1>Unmigratable Basic Outputs: {unmigratableBasicOutputs.length}</h1>
-                <VirtualList
-                    items={unmigratableBasicOutputs}
-                    estimateSize={() => 30}
-                    render={virtualItem}
-                />
-            </div>
-            <div className="flex w-1/2 flex-col">
-                <h1>Migratable NFT Outputs: {migratableNftOutputs.length}</h1>
-                <VirtualList
-                    items={migratableNftOutputs}
-                    estimateSize={() => 30}
-                    render={virtualItem}
-                />
-            </div>
-            <div className="flex w-1/2 flex-col">
-                <h1>Unmigratable NFT Outputs: {unmigratableNftOutputs.length}</h1>
-                <VirtualList
-                    items={unmigratableNftOutputs}
-                    estimateSize={() => 30}
-                    render={virtualItem}
-                />
-            </div>
-            <Button text="Migrate" disabled={!hasMigratableObjects} onClick={openMigratePopup} />
         </div>
     );
 }

@@ -93,6 +93,7 @@ const references = [
         items: [
             'references/contribute/contribution-process',
             'references/contribute/code-of-conduct',
+            'references/contribute/contribute-to-iota-repos',
             'references/contribute/style-guide',
             'references/contribute/add-a-quiz',
             'references/contribute/import-code-docs',

@@ -20,6 +20,7 @@ jobs:
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
+      isRosetta: ${{ steps.diff.outputs.isRosetta }}
       isDoc: ${{ steps.diff.outputs.isDoc }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
       isExternalCrates: ${{ steps.diff.outputs.isExternalCrates }}
@@ -32,7 +33,7 @@ jobs:
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
       isLedgerjs: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/ledgerjs-hw-app-iota')) }}
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Detect Changes (turbo)
         uses: "./.github/actions/turbo-diffs"
         id: turbo
@@ -46,7 +47,7 @@ jobs:
       group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Check dprint formatting
         run: dprint check
 
@@ -62,7 +63,7 @@ jobs:
     if: (!cancelled() && needs.diff.outputs.isRust == 'true')
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Run license check
         run: cargo ci-license
 
@@ -106,6 +107,17 @@ jobs:
     secrets: inherit
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+
+  rosetta:
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    if: |
+      !cancelled() && !failure() &&
+      (needs.diff.outputs.isRosetta == 'true' || needs.diff.outputs.isRust == 'true')
+    uses: ./.github/workflows/_rosetta.yml
 
   e2e:
     if: (!cancelled() && !failure() && (!github.event.pull_request.draft || github.ref_name == 'develop'))
