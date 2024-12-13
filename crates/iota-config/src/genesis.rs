@@ -639,7 +639,7 @@ impl TokenDistributionScheduleBuilder {
 pub struct ValidatorAllocation {
     /// The validator address receiving the stake and/or gas payment
     pub validator: IotaAddress,
-    // The amount of nanos to stake to the validator
+    /// The amount of nanos to stake to the validator
     pub amount_nanos_to_stake: u64,
     /// The amount of nanos to transfer as gas payment to the validator
     pub amount_nanos_to_pay_gas: u64,
@@ -661,24 +661,22 @@ pub struct Delegation {
 /// stake and gas allocations. Each ValidatorAllocation contains the address of
 /// a validator that will receive an amount of nanos to stake and an amount as
 /// gas payment.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Delegations {
     pub allocations: HashMap<IotaAddress, Vec<ValidatorAllocation>>,
 }
 
 impl Delegations {
-    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
-        validators: I,
+    pub fn new_for_validators_with_default_allocation(
+        validators: impl IntoIterator<Item = IotaAddress>,
         delegator: IotaAddress,
     ) -> Self {
-        let default_allocation = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
-
         let validator_allocations = validators
             .into_iter()
             .map(|address| ValidatorAllocation {
                 validator: address,
-                amount_nanos_to_stake: default_allocation,
+                amount_nanos_to_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
                 amount_nanos_to_pay_gas: 0,
             })
             .collect();
@@ -701,16 +699,17 @@ impl Delegations {
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
         let mut reader = csv::Reader::from_reader(reader);
 
-        let mut allocations: HashMap<IotaAddress, Vec<ValidatorAllocation>> = HashMap::new();
+        let mut delegations = Self::default();
         for delegation in reader.deserialize::<Delegation>() {
             let delegation = delegation?;
-            allocations
+            delegations
+                .allocations
                 .entry(delegation.delegator)
                 .or_default()
                 .push(delegation.validator_allocation);
         }
 
-        Ok(Self { allocations })
+        Ok(delegations)
     }
 
     /// Helper to write a Delegations struct into a csv file.
@@ -731,13 +730,11 @@ impl Delegations {
         ])?;
 
         for (&delegator, validator_allocations) in &self.allocations {
-            for validator_allocation in validator_allocations {
-                writer.write_record(&[
-                    delegator.to_string(),
-                    validator_allocation.validator.to_string(),
-                    validator_allocation.amount_nanos_to_stake.to_string(),
-                    validator_allocation.amount_nanos_to_pay_gas.to_string(),
-                ])?;
+            for &validator_allocation in validator_allocations {
+                writer.serialize(Delegation {
+                    delegator,
+                    validator_allocation,
+                })?;
             }
         }
 
