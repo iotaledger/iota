@@ -87,8 +87,6 @@ jobs:
         with:
           context: .
           file: docker/iota-node/Dockerfile
-          build-args: |
-            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
           platforms: linux/amd64
           tags: ${{ steps.meta-node.outputs.tags }}
           push: true
@@ -96,6 +94,7 @@ jobs:
           build-args: |
             GIT_REVISION=${{ env.GIT_REVISION }}
             BUILD_DATE=${{ env.BUILD_DATE }}
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
 
   build-iota-indexer:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_indexer == 'true' || github.event_name == 'release'
@@ -157,8 +156,6 @@ jobs:
         with:
           context: .
           file: docker/iota-indexer/Dockerfile
-          build-args: |
-            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
           platforms: linux/amd64
           tags: ${{ steps.meta-indexer.outputs.tags }}
           push: true
@@ -166,6 +163,7 @@ jobs:
           build-args: |
             GIT_REVISION=${{ env.GIT_REVISION }}
             BUILD_DATE=${{ env.BUILD_DATE }}
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
 
   build-iota-tools:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_tools == 'true' || github.event_name == 'release'
@@ -227,8 +225,6 @@ jobs:
         with:
           context: .
           file: docker/iota-tools/Dockerfile
-          build-args: |
-            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
           platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
@@ -236,6 +232,7 @@ jobs:
           build-args: |
             GIT_REVISION=${{ env.GIT_REVISION }}
             BUILD_DATE=${{ env.BUILD_DATE }}
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
 
   build-iota-graphql-rpc:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_graphql_rpc == 'true' || github.event_name == 'release'
@@ -297,8 +294,6 @@ jobs:
         with:
           context: .
           file: docker/iota-graphql-rpc/Dockerfile
-          build-args: |
-            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
           platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
@@ -306,3 +301,4 @@ jobs:
           build-args: |
             GIT_REVISION=${{ env.GIT_REVISION }}
             BUILD_DATE=${{ env.BUILD_DATE }}
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
