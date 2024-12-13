@@ -161,7 +161,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "0.7.0-alpha"
+version = "0.8.0-alpha"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
@@ -238,7 +238,7 @@ crossterm = "0.25.0"
 csv = "1.2.1"
 dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
-derivative = "2.2.0"
+derive_more = "1.0"
 diesel = { version = "2.1.0", features = ["chrono", "r2d2", "serde_json", "64-column-tables", "i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
 dirs = "5.0"
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
@@ -274,7 +274,7 @@ leb128 = "0.2.5"
 lru = "0.12"
 mockall = "0.11.4"
 more-asserts = "0.3.1"
-msim = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim" }
+msim = { git = "https://github.com/iotaledger/iota-sim.git", rev = "f16ef50ba7d874fe1f0960f248f6c651a634d6a5", package = "msim" }
 nonempty = "0.9.0"
 notify = "6.1.1"
 num-bigint = "0.4.4"
@@ -302,7 +302,7 @@ reqwest = { version = "0.12", default-features = false, features = ["http2", "js
 roaring = "0.10.6"
 rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
 rstest = "0.16.0"
-rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
+rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
 schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"
 serde = { version = "1.0.144", features = ["derive", "rc"] }
@@ -409,7 +409,7 @@ iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 # core-types with json format for REST API
-iota-sdk2 = { package = "iota-rust-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "d605da95029e74376f0f39a95526bb1a5c0ebd7a", features = ["hash", "serde", "schemars"] }
+iota-sdk2 = { package = "iota-rust-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d605da95029e74376f0f39a95526bb1a5c0ebd7a", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -461,5 +461,3 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
 typed-store = { path = "crates/typed-store" }
 typed-store-derive = { path = "crates/typed-store-derive" }
 typed-store-error = { path = "crates/typed-store-error" }
-
-[patch.crates-io]

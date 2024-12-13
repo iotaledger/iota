@@ -387,7 +387,7 @@ impl HistogramReporter {
     }
 }
 
-impl<'a> Drop for HistogramTimerGuard<'a> {
+impl Drop for HistogramTimerGuard<'_> {
     /// Reports the elapsed time in milliseconds to the associated histogram
     /// when the `HistogramTimerGuard` is dropped.
     fn drop(&mut self) {

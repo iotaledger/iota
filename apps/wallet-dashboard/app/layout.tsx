@@ -7,6 +7,7 @@ import { Inter } from 'next/font/google';
 import { Metadata } from 'next';
 import { AppProviders } from '@/providers';
 import { FontLinks } from '@/components/FontLinks';
+import { ConnectionGuard } from '@/components/connection-guard';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -25,7 +26,7 @@ export default function RootLayout({
             <body className={inter.className}>
                 <AppProviders>
                     <FontLinks />
-                    {children}
+                    <ConnectionGuard>{children}</ConnectionGuard>
                 </AppProviders>
             </body>
         </html>

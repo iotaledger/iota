@@ -26,8 +26,10 @@ import {
 } from '../timelock';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 
-export function getLastSupplyIncreaseVestingPayout(
+export function getLatestOrEarliestSupplyIncreaseVestingPayout(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
+    currentEpochTimestamp: number,
+    useLastPayout: boolean = true,
 ): SupplyIncreaseVestingPayout | undefined {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
 
@@ -37,9 +39,17 @@ export function getLastSupplyIncreaseVestingPayout(
 
     const vestingPayoutMap = supplyIncreaseVestingObjectsToPayoutMap(vestingObjects);
 
-    const payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
+    let payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
 
-    return payouts.sort((a, b) => b.expirationTimestampMs - a.expirationTimestampMs)[0];
+    if (!useLastPayout) {
+        payouts = payouts.filter((payout) => payout.expirationTimestampMs >= currentEpochTimestamp);
+    }
+
+    return payouts.sort((a, b) =>
+        useLastPayout
+            ? b.expirationTimestampMs - a.expirationTimestampMs
+            : a.expirationTimestampMs - b.expirationTimestampMs,
+    )[0];
 }
 
 function addVestingPayoutToSupplyIncreaseMap(
@@ -117,12 +127,14 @@ export function buildSupplyIncreaseVestingSchedule(
 
     const payoutsCount = getSupplyIncreaseVestingPayoutsCount(userType);
 
-    return Array.from({ length: payoutsCount }).map((_, i) => ({
-        amount: referencePayout.amount,
-        expirationTimestampMs:
-            referencePayout.expirationTimestampMs -
-            SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS * i,
-    }));
+    return Array.from({ length: payoutsCount })
+        .map((_, i) => ({
+            amount: referencePayout.amount,
+            expirationTimestampMs:
+                referencePayout.expirationTimestampMs -
+                SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS * i,
+        }))
+        .sort((a, b) => a.expirationTimestampMs - b.expirationTimestampMs);
 }
 
 export function getVestingOverview(
@@ -130,56 +142,68 @@ export function getVestingOverview(
     currentEpochTimestamp: number,
 ): VestingOverview {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
-    const latestPayout = getLastSupplyIncreaseVestingPayout(vestingObjects);
+    const latestPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
+        vestingObjects,
+        currentEpochTimestamp,
+    );
 
     if (vestingObjects.length === 0 || !latestPayout) {
         return {
-            totalVested: 0,
-            totalUnlocked: 0,
-            totalLocked: 0,
-            totalStaked: 0,
-            availableClaiming: 0,
-            availableStaking: 0,
+            totalVested: 0n,
+            totalUnlocked: 0n,
+            totalLocked: 0n,
+            totalStaked: 0n,
+            totalEarned: 0n,
+            availableClaiming: 0n,
+            availableStaking: 0n,
         };
     }
 
     const userType = getSupplyIncreaseVestingUserType([latestPayout]);
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
-    const totalVestedAmount = (vestingPayoutsCount * latestPayout.amount) / 0.9;
+    const totalVestedAmount = BigInt(Math.floor((vestingPayoutsCount * latestPayout.amount) / 0.9));
     const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
         latestPayout,
         currentEpochTimestamp,
     );
     const totalLockedAmount = vestingPortfolio.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > currentEpochTimestamp ? acc + current.amount : acc,
-        0,
+            current.expirationTimestampMs > currentEpochTimestamp
+                ? acc + BigInt(current.amount)
+                : acc,
+        0n,
     );
     const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
 
     const timelockedStakedObjects = vestingObjects.filter(isTimelockedStakedIota);
     const totalStaked = timelockedStakedObjects.reduce(
-        (acc, current) => acc + Number(current.principal),
-        0,
+        (acc, current) => acc + BigInt(current.principal),
+        0n,
     );
+
+    const totalEarned = timelockedStakedObjects
+        .filter((t) => t.status === 'Active')
+        .reduce((acc, current) => {
+            return acc + BigInt(current.estimatedReward);
+        }, 0n);
 
     const timelockedObjects = vestingObjects.filter(isTimelockedObject);
 
     const totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs <= currentEpochTimestamp
-                ? acc + current.locked.value
+                ? acc + BigInt(current.locked.value)
                 : acc,
-        0,
+        0n,
     );
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs > currentEpochTimestamp &&
-            current.locked.value > MIN_STAKING_THRESHOLD
-                ? acc + current.locked.value
+            current.locked.value >= MIN_STAKING_THRESHOLD
+                ? acc + BigInt(current.locked.value)
                 : acc,
-        0,
+        0n,
     );
 
     return {
@@ -187,6 +211,7 @@ export function getVestingOverview(
         totalUnlocked: totalUnlockedVestedAmount,
         totalLocked: totalLockedAmount,
         totalStaked: totalStaked,
+        totalEarned: totalEarned,
         availableClaiming: totalAvailableClaimingAmount,
         availableStaking: totalAvailableStakingAmount,
     };

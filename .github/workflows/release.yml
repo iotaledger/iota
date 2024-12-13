@@ -46,10 +46,10 @@ jobs:
       matrix:
         os: [
           self-hosted, # ubuntu-x86_64
+          # TODO: uncomment when runners are public available https://github.com/iotaledger/iota/issues/4421
+          # ubuntu-arm64, # ubuntu-arm64
           macos-latest, # macos-arm64
-          # windows-latest (windows-x86_64) is disabled because we need to add custom logic for authenticating
-          # git for private repositories during the build (needed for iota-msim)
-          # MrSquaare/ssh-setup-action@v3 does not support windows
+          windows-latest, # windows-x86_64
         ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
@@ -64,7 +64,7 @@ jobs:
           echo "iota_version=${iota_version}" >> $GITHUB_ENV
 
       - name: Check out ${{ env.iota_tag }}
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           ref: ${{ env.iota_tag }}
 
@@ -96,11 +96,11 @@ jobs:
 
       - name: Setup caching
         # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-        uses: bmwill/rust-cache@fb63fcd7a959767755b88b5af2f5cbf65fb8a127 # pin@v1
+        uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
 
       - name: Install nexttest (Windows)
         if: ${{ matrix.os == 'windows-latest' }}
-        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # pin@v2
+        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
         with:
           tool: nextest
 
@@ -108,10 +108,10 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: bash
         run: |
-          choco install postgresql12 --force --params '/Password:root'
-          echo "C:\Program Files\PostgreSQL\12\bin" >> $GITHUB_PATH
-          echo "C:\Program Files\PostgreSQL\12\lib" >> $GITHUB_PATH
-          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\12\lib" >> $GITHUB_ENV
+          choco install postgresql16 --force --params '/Password:root'
+          echo "C:\Program Files\PostgreSQL\16\bin" >> $GITHUB_PATH
+          echo "C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_PATH
+          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_ENV
           echo "PG_DATABASE_URL=postgres://postgres:root@localhost/" >> $GITHUB_ENV
           echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
 
@@ -126,6 +126,7 @@ jobs:
         run: |
           brew install postgresql
 
+      # TODO: uncomment when runners are public available https://github.com/iotaledger/iota/issues/4421
       #  NOTE: Self-hosted runners should already have postgres installed
       #      - name: Install postgres (Ubuntu arm64)
       #        if: ${{ matrix.os == 'ubuntu-arm64' }}
@@ -145,15 +146,6 @@ jobs:
           sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
           sudo rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
           df -h /
-
-      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-      - name: Set up SSH (MacOs only)
-        if: ${{ matrix.os == 'macos-latest' }}
-        uses: MrSquaare/ssh-setup-action@2d028b70b5e397cf8314c6eaea229a6c3e34977a # pin@v3
-        with:
-          host: github.com
-          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
-          private-key-name: github-ppk
 
       - name: Cargo build for ${{ matrix.os }} platform
         shell: bash
@@ -196,7 +188,7 @@ jobs:
       #          choco push iota.${{ env.iota_version }}.nupkg --source https://push.chocolatey.org/
 
       - name: Upload release artifacts for ${{ matrix.os }} platform
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # pin@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: iota-binaries-${{ matrix.os }}
           if-no-files-found: error
@@ -204,7 +196,7 @@ jobs:
             ./tmp/iota-${{ env.iota_tag }}-${{ env.os_type }}.tgz
 
       - name: Attach artifacts to ${{ env.iota_tag }} release in GH
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # pin@v2
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
           tag_name: ${{ env.iota_tag }}
           files: |
@@ -222,7 +214,7 @@ jobs:
 #        run: |
 #          echo "iota_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
 #          echo "versionless_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'// | sed s/'testnet\-v'//)" >> $GITHUB_ENV
-#      - uses: mislav/bump-homebrew-formula-action@b3327118b2153c82da63fd9cbf58942146ee99f0 # pin@v3
+#      - uses: mislav/bump-homebrew-formula-action@b3327118b2153c82da63fd9cbf58942146ee99f0 # v3.1.0
 #        with:
 #          formula-name: iota
 #          create-pullrequest: true
@@ -236,15 +228,3 @@ jobs:
 #        env:
 #          # https://github.com/settings/tokens/new?scopes=public_repo,workflow
 #          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}
-#
-#  # Tag all iota images with release tag, so that they can be easily found
-#  tag-docker-hub-images:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Dispatch Tagging of images in DockerHub, in MystenLabs/sui-operations
-#        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
-#        with:
-#          repository: iotaledger/iota
-#          token: ${{ secrets.DOCKER_BINARY_BUILDS_DISPATCH }}
-#          event-type: tag-docker-images
-#          client-payload: '{"iota_commit": "${{ github.sha }}", "repo_name": "all", "tag": "${{ env.TAG_NAME }}"}'

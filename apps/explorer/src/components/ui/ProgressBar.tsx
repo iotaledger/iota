@@ -26,10 +26,10 @@ export interface ProgressBarProps {
 
 export function ProgressBar({ progress }: ProgressBarProps): JSX.Element {
     return (
-        <div className="relative w-full rounded-full bg-primary-90">
+        <div className="relative w-full rounded-full bg-primary-90 dark:bg-primary-10">
             <motion.div
                 variants={getProgressBarVariant(progress)}
-                className="h-1 rounded-full bg-primary-30"
+                className="h-1 rounded-full bg-primary-30 dark:bg-primary-80"
                 initial="initial"
                 animate="animate"
             />

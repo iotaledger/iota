@@ -3,7 +3,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { AssetCard, Input } from '@/components';
+import { VisualAssetTile, Input } from '@/components';
 import { Button } from '@/components/Buttons';
 import { FlexDirection } from '@/lib/ui/enums';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -49,7 +49,7 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
     function onSendAssetSuccess() {
         addNotification('Transfer transaction successful', NotificationType.Success);
         onClose?.();
-        router.push(ASSETS_ROUTE.path + '/visual-assets');
+        router.push(ASSETS_ROUTE.path + '/assets');
     }
 
     function onSendAssetError() {
@@ -67,7 +67,7 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
 
     return (
         <div className="flex flex-col space-y-4">
-            <AssetCard asset={asset} flexDirection={FlexDirection.Column} />
+            <VisualAssetTile asset={asset} flexDirection={FlexDirection.Column} />
             <div className="flex flex-col space-y-2">
                 <Input
                     type="text"

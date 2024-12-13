@@ -1,41 +1,37 @@
 # Default fallback, if no other path below this matches
-* @iotaledger/l1-core @iotaledger/core-node @iotaledger/core-consensus
+* @iotaledger/sc-platform @iotaledger/core-protocol
 
 # Everything within the SDK folder
-/sdk/ @iotaledger/boxfish @iotaledger/l1-core @iotaledger/tooling
+/sdk/ @iotaledger/tooling
 
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
 /crates/iota-genesis-builder/ @kodemartin @miker83z
 
-# vm-language team
-/iota-execution/ @miker83z @valeriyr
-/external-crates/ @miker83z @valeriyr
+# infrastructure team
+/docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
+/crates/iota-json-rpc*/ @iotaledger/infrastructure
+/crates/iota-graphql*/ @iotaledger/infrastructure
+/crates/iota-indexer*/ @iotaledger/infrastructure
+/crates/iota-data-ingestion*/ @iotaledger/infrastructure
+/crates/iota-analytics-indexer/ @iotaledger/infrastructure
 
-# l1-core-infra team
-/docker/ @iotaledger/l1-core-infra @iotaledger/core-node @iotaledger/devops-admin
-/crates/iota-json-rpc*/ @iotaledger/l1-core-infra
-/crates/iota-graphql*/ @iotaledger/l1-core-infra
-/crates/iota-indexer*/ @iotaledger/l1-core-infra
-/crates/iota-data-ingestion*/ @iotaledger/l1-core-infra
-/crates/iota-analytics-indexer/ @iotaledger/l1-core-infra
+# node team
+/crates/iota-archival/ @iotaledger/node
+/crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
+/crates/iota-config/ @iotaledger/node
+/crates/iota-core/ @iotaledger/node @iotaledger/consensus
+/crates/iota-network/ @iotaledger/node
+/crates/iota-network-stack/ @iotaledger/node
+/crates/iota-node/ @iotaledger/node
+/crates/iota-types/ @iotaledger/node @iotaledger/sc-platform
+/crates/iota-protocol-config/ @iotaledger/node @iotaledger/sc-platform
+/crates/iota-protocol-config-macros/ @iotaledger/node @iotaledger/sc-platform
+/crates/iota-rest-api/ @iotaledger/node @iotaledger/infrastructure
+/crates/iota-snapshot/ @iotaledger/node
+/crates/iota-storage/ @iotaledger/node
 
-# core-node team
-/crates/iota-archival/ @iotaledger/core-node
-/crates/iota-authority-aggregation/ @iotaledger/core-node @iotaledger/core-consensus
-/crates/iota-config/ @iotaledger/core-node
-/crates/iota-core/ @iotaledger/core-node @iotaledger/core-consensus
-/crates/iota-network/ @iotaledger/core-node
-/crates/iota-network-stack/ @iotaledger/core-node
-/crates/iota-node/ @iotaledger/core-node
-/crates/iota-types/ @iotaledger/core-node @iotaledger/l1-core
-/crates/iota-protocol-config/ @iotaledger/core-node @iotaledger/l1-core
-/crates/iota-protocol-config-macros/ @iotaledger/core-node @iotaledger/l1-core
-/crates/iota-rest-api/ @iotaledger/core-node @iotaledger/l1-core-infra
-/crates/iota-snapshot/ @iotaledger/core-node
-/crates/iota-storage/ @iotaledger/core-node
-
-# core-consensus team
-/consensus/ @iotaledger/core-consensus
+# consensus team
+/consensus/ @iotaledger/consensus
 
 # dev-tools team
 /crates/iota/ @iotaledger/dev-tools
@@ -45,21 +41,26 @@
 /crates/iota-transaction-builder/ @iotaledger/dev-tools
 
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
-/apps/ @iotaledger/boxfish @iotaledger/tooling
-/dapps/ @iotaledger/boxfish @iotaledger/tooling
-/linting/ @iotaledger/boxfish @iotaledger/tooling
-/.husky/ @iotaledger/boxfish @iotaledger/tooling
-/.changeset/ @iotaledger/boxfish @iotaledger/tooling
-.eslintrc.js @iotaledger/boxfish @iotaledger/tooling
-.lintstagedrc.json @iotaledger/boxfish @iotaledger/tooling
-.npmrc @iotaledger/boxfish @iotaledger/tooling
-.prettierignore @iotaledger/boxfish @iotaledger/tooling
-graphql.config.ts @iotaledger/boxfish @iotaledger/tooling
-package.json @iotaledger/boxfish @iotaledger/tooling
-pnpm-workspace.yaml @iotaledger/boxfish @iotaledger/tooling
-prettier.config.js @iotaledger/boxfish @iotaledger/tooling
-turbo.json @iotaledger/boxfish @iotaledger/tooling
-vercel.json @iotaledger/boxfish @iotaledger/tooling
+/apps/ @iotaledger/tooling
+/dapps/ @iotaledger/tooling
+/linting/ @iotaledger/tooling
+/.husky/ @iotaledger/tooling
+/.changeset/ @iotaledger/tooling
+.eslintrc.js @iotaledger/tooling
+.lintstagedrc.json @iotaledger/tooling
+.npmrc @iotaledger/tooling
+.prettierignore @iotaledger/tooling
+graphql.config.ts @iotaledger/tooling
+package.json @iotaledger/tooling
+pnpm-workspace.yaml @iotaledger/tooling
+prettier.config.js @iotaledger/tooling
+turbo.json @iotaledger/tooling
+vercel.json @iotaledger/tooling
+
+# vm-language team
+# Needs to be after package.json ownership definition to override it
+/iota-execution/ @iotaledger/vm-language
+/external-crates/ @iotaledger/vm-language
 
 # Docs and examples are for DevEx to approve upon
 /docs/ @iotaledger/devx

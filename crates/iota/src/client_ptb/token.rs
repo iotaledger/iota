@@ -65,7 +65,7 @@ pub enum Token {
     Upgrade,
 }
 
-impl<'l> Lexeme<'l> {
+impl Lexeme<'_> {
     /// Returns true if this lexeme corresponds to a special error token.
     pub fn is_error(&self) -> bool {
         use Token as T;
@@ -84,7 +84,7 @@ impl<'l> Lexeme<'l> {
     }
 }
 
-impl<'a> fmt::Display for Lexeme<'a> {
+impl fmt::Display for Lexeme<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use Token as T;
 

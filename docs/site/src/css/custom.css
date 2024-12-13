@@ -129,13 +129,8 @@ html[data-theme="dark"] {
 }
 
 /** navbar overrides */
-[data-theme="light"] .menu__link {
-  color: #525860;
-}
-
-[data-theme="light"] .menu__link--active {
-  font-weight: bold;
-  color: #525860;
+[data-theme="light"] .clean-btn:hover {
+    background-color: #525860;
 }
 
 [data-theme="dark"] .menu__link--active {
@@ -143,14 +138,35 @@ html[data-theme="dark"] {
   color: white;
 }
 
-.navbar-sidebar,
-.menu__link {
-  color: rgba(255, 255, 255, 0.7);
+@media (min-width: 997px) {
+  [data-theme="light"] .menu__link:hover,
+  [data-theme="light"] .menu__link--active{
+    font-weight: bold;
+    color: var(--ifm-menu-color)
+  }
 }
+@media (max-width: 996px) {
+.navbar-sidebar,
+  .menu__link {
+    color: rgba(255, 255, 255, 0.7);
+  }
 
-[data-theme="light"] .menu__link--active {
-  font-weight: bold;
-  color: #525860;
+  [data-theme="light"] .menu__list-item-collapsible--active,
+  [data-theme="light"] .menu__link--active {
+    font-weight: bold;
+    color: white;
+  }
+
+  [data-theme="light"] .menu__list-item-collapsible:hover,
+  [data-theme="light"] .menu__link:hover{
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+  }
+  [data-theme="light"] .menu__link:after,
+  [data-theme="light"] .menu__caret:before{
+    filter: invert(100%);
+
+  }
 }
 
 [data-theme="light"] .pagination-nav__label {
@@ -244,12 +260,6 @@ html[data-theme="dark"] {
 [data-theme="dark"] .pagination-nav__label--light {
   color: white;
 }
-
-[data-theme="dark"] .navbar-sidebar .menu__link--active {
-  background-color: rgba(11, 11, 11, 0.607);
-  color: var(--iota-gray-100);
-}
-
 html[data-theme="dark"] {
   background-color: var(--iota-black);
 }
@@ -400,7 +410,6 @@ h4 {
 
 .navbar__items .navbar__brand {
   width: 17%;
-
   color: rgba(255, 255, 255, 0.7);
 }
 
@@ -411,6 +420,12 @@ h4 {
   line-height: 1.125rem;
   letter-spacing: -0.02em;
   color: rgba(255, 255, 255, 0.7);
+}
+
+
+.navbar__items .navbar__item.navbar__link--active {
+  font-weight: bold;
+  color:white;
 }
 
 .navbar__items_wrapper {
