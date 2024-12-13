@@ -252,7 +252,7 @@ const config = {
           },
           {
             label: "TS SDK",
-            to: "references/ts-sdk/typescript/",
+            to: "ts-sdk/typescript/",
           },
           {
             label: "IOTA Identity",
