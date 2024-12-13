@@ -39,7 +39,7 @@ num_enum.workspace = true
 once_cell.workspace = true
 packable = { version = "0.8", default-features = false, features = ["io"] }
 parking_lot.workspace = true
-passkey-types.workspace = true
+passkey.workspace = true
 prometheus.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
@@ -87,8 +87,6 @@ coset.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 p256.workspace = true
-passkey-authenticator.workspace = true
-passkey-client.workspace = true
 proptest.workspace = true
 serde_yaml.workspace = true
 tokio.workspace = true

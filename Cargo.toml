@@ -284,11 +284,9 @@ object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 parking_lot = "0.12.1"
-passkey-authenticator = { version = "0.2.0" }
-# TODO: Re-enable when passkey-client 0.4.0 is released
-# passkey-client = "0.3.0"
-passkey-client = { git = "https://github.com/1Password/passkey-rs", rev = "9e34d025f3d302fd9b0fc1b361e19fc78e594a4c" }
-passkey-types = "0.3.0"
+# TODO: Re-enable when passkey 0.4.0 is released
+# passkey = "0.4.0"
+passkey = { git = "https://github.com/1Password/passkey-rs", rev = "9e34d025f3d302fd9b0fc1b361e19fc78e594a4c" }
 pretty_assertions = "1.3.0"
 proc-macro2 = "1.0.47"
 prometheus = "0.13.3"

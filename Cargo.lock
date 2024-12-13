@@ -6602,9 +6602,7 @@ dependencies = [
  "move-core-types",
  "move-package",
  "p256 0.13.2",
- "passkey-authenticator 0.2.0",
- "passkey-client",
- "passkey-types 0.3.0",
+ "passkey",
  "prometheus",
  "rand 0.8.5",
  "serde",
@@ -8338,9 +8336,7 @@ dependencies = [
  "p256 0.13.2",
  "packable",
  "parking_lot 0.12.3",
- "passkey-authenticator 0.2.0",
- "passkey-client",
- "passkey-types 0.3.0",
+ "passkey",
  "prometheus",
  "proptest",
  "proptest-derive",
@@ -9005,7 +9001,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -11174,17 +11170,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "passkey-authenticator"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4017d27e98940a98358b43a3fe19cb3d7b7c821c3b35634d8087230e92445579"
+name = "passkey"
+version = "0.4.0"
+source = "git+https://github.com/1Password/passkey-rs?rev=9e34d025f3d302fd9b0fc1b361e19fc78e594a4c#9e34d025f3d302fd9b0fc1b361e19fc78e594a4c"
 dependencies = [
- "async-trait",
- "coset",
- "log",
- "p256 0.13.2",
- "passkey-types 0.2.0",
- "rand 0.8.5",
+ "passkey-authenticator",
+ "passkey-client",
+ "passkey-transports",
+ "passkey-types",
 ]
 
 [[package]]
@@ -11196,7 +11189,7 @@ dependencies = [
  "coset",
  "log",
  "p256 0.13.2",
- "passkey-types 0.4.0",
+ "passkey-types",
  "rand 0.8.5",
 ]
 
@@ -11208,8 +11201,8 @@ dependencies = [
  "ciborium",
  "coset",
  "idna",
- "passkey-authenticator 0.4.0",
- "passkey-types 0.4.0",
+ "passkey-authenticator",
+ "passkey-types",
  "public-suffix",
  "serde",
  "serde_json",
@@ -11218,45 +11211,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "passkey-types"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "499cff8432e71c5f8784d9645aac0f9fca604d67f59b68a606170b5e229c6538"
-dependencies = [
- "bitflags 2.6.0",
- "ciborium",
- "coset",
- "data-encoding",
- "indexmap 2.5.0",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "strum 0.25.0",
- "typeshare",
-]
-
-[[package]]
-name = "passkey-types"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b5d3d17d8ad54ba7c7574595f026244ab06ee44f0524379c1575a95aab4c030"
-dependencies = [
- "bitflags 2.6.0",
- "ciborium",
- "coset",
- "data-encoding",
- "getrandom 0.2.15",
- "hmac",
- "indexmap 2.5.0",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "strum 0.25.0",
- "typeshare",
- "zeroize",
-]
+name = "passkey-transports"
+version = "0.1.0"
+source = "git+https://github.com/1Password/passkey-rs?rev=9e34d025f3d302fd9b0fc1b361e19fc78e594a4c#9e34d025f3d302fd9b0fc1b361e19fc78e594a4c"
 
 [[package]]
 name = "passkey-types"
@@ -15548,7 +15505,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 

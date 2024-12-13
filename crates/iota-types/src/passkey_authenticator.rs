@@ -15,7 +15,7 @@ use fastcrypto::{
     traits::{ToFromBytes, VerifyingKey},
 };
 use once_cell::sync::OnceCell;
-use passkey_types::webauthn::{ClientDataType, CollectedClientData};
+use passkey::types::webauthn::{ClientDataType, CollectedClientData};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage};

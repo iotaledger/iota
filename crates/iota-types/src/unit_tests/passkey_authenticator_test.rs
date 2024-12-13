@@ -11,17 +11,19 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use p256::pkcs8::DecodePublicKey;
-use passkey_authenticator::{Authenticator, UserValidationMethod};
-use passkey_client::Client;
-use passkey_types::{
-    Bytes, Passkey,
-    ctap2::Aaguid,
-    rand::random_vec,
-    webauthn::{
-        AttestationConveyancePreference, CredentialCreationOptions, CredentialRequestOptions,
-        PublicKeyCredentialCreationOptions, PublicKeyCredentialParameters,
-        PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
-        PublicKeyCredentialUserEntity, UserVerificationRequirement,
+use passkey::{
+    authenticator::{Authenticator, UserCheck, UserValidationMethod},
+    client::Client,
+    types::{
+        Bytes, Passkey,
+        ctap2::{Aaguid, Ctap2Error},
+        rand::random_vec,
+        webauthn::{
+            AttestationConveyancePreference, CredentialCreationOptions, CredentialRequestOptions,
+            PublicKeyCredentialCreationOptions, PublicKeyCredentialParameters,
+            PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity,
+            PublicKeyCredentialType, PublicKeyCredentialUserEntity, UserVerificationRequirement,
+        },
     },
 };
 use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage};
@@ -43,13 +45,7 @@ use crate::{
 pub struct MyUserValidationMethod {}
 #[async_trait::async_trait]
 impl UserValidationMethod for MyUserValidationMethod {
-    async fn check_user_presence(&self) -> bool {
-        true
-    }
-
-    async fn check_user_verification(&self) -> bool {
-        true
-    }
+    type PasskeyItem = Passkey;
 
     fn is_verification_enabled(&self) -> Option<bool> {
         Some(true)
@@ -57,6 +53,18 @@ impl UserValidationMethod for MyUserValidationMethod {
 
     fn is_presence_enabled(&self) -> bool {
         true
+    }
+
+    async fn check_user<'a>(
+        &self,
+        _credential: Option<&'a Self::PasskeyItem>,
+        presence: bool,
+        verification: bool,
+    ) -> Result<UserCheck, Ctap2Error> {
+        Ok(UserCheck {
+            presence,
+            verification,
+        })
     }
 }
 
