@@ -190,17 +190,18 @@ function StakingDashboardPage(): React.JSX.Element {
                                 </div>
                             </div>
                         </div>
-                        <StakeDialog
-                            stakedDetails={selectedStake}
-                            onSuccess={handleOnStakeSuccess}
-                            isOpen={isDialogStakeOpen}
-                            handleClose={handleCloseStakeDialog}
-                            view={stakeDialogView}
-                            setView={setStakeDialogView}
-                            selectedValidator={selectedValidator}
-                            setSelectedValidator={setSelectedValidator}
-                            onUnstakeClick={handleUnstakeClick}
-                        />
+                        {isDialogStakeOpen && (
+                            <StakeDialog
+                                stakedDetails={selectedStake}
+                                onSuccess={handleOnStakeSuccess}
+                                handleClose={handleCloseStakeDialog}
+                                view={stakeDialogView}
+                                setView={setStakeDialogView}
+                                selectedValidator={selectedValidator}
+                                setSelectedValidator={setSelectedValidator}
+                                onUnstakeClick={handleUnstakeClick}
+                            />
+                        )}
 
                         {isUnstakeDialogOpen && selectedStake && (
                             <UnstakeDialog

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     useFormatCoin,
     CoinFormat,
@@ -26,12 +26,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/ui-icons';
-import {
-    useCurrentAccount,
-    useIotaClientQuery,
-    useSignAndExecuteTransaction,
-} from '@iota/dapp-kit';
-
+import { useIotaClientQuery, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
@@ -66,33 +61,28 @@ function EnterTimelockedAmountView({
     handleClose,
     onSuccess,
 }: EnterTimelockedAmountViewProps): JSX.Element {
-    const account = useCurrentAccount();
-    const accountAddress = account?.address;
     const { addNotification } = useNotifications();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const [groupedTimelockObjects, setGroupedTimelockObjects] = useState<GroupedTimelockObject[]>(
         [],
     );
     const { data: newStakeData, isLoading: isTransactionLoading } =
-        useNewStakeTimelockedTransaction(
-            selectedValidator,
-            amountWithoutDecimals,
-            senderAddress,
-            groupedTimelockObjects,
-        );
+        useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
         StructType: TIMELOCK_IOTA_TYPE,
     });
 
-    if (timelockedObjects && currentEpochMs) {
-        const groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
-            timelockedObjects,
-            amountWithoutDecimals,
-            currentEpochMs,
-        );
-        setGroupedTimelockObjects(groupedTimelockObjects);
-    }
+    useEffect(() => {
+        if (timelockedObjects && currentEpochMs) {
+            const groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
+                timelockedObjects,
+                amountWithoutDecimals,
+                currentEpochMs,
+            );
+            setGroupedTimelockObjects(groupedTimelockObjects);
+        }
+    }, [timelockedObjects, currentEpochMs, amountWithoutDecimals]);
 
     const { values, errors, resetForm } = useFormikContext<FormValues>();
     const amount = values.amount;
@@ -150,7 +140,7 @@ function EnterTimelockedAmountView({
                         </div>
                         <StakedInfo
                             validatorAddress={selectedValidator}
-                            accountAddress={accountAddress!}
+                            accountAddress={senderAddress!}
                         />
                         <div className="my-md w-full">
                             <Field name="amount">

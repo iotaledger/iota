@@ -26,11 +26,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/ui-icons';
-import {
-    useCurrentAccount,
-    useIotaClientQuery,
-    useSignAndExecuteTransaction,
-} from '@iota/dapp-kit';
+import { useIotaClientQuery, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 
 import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
@@ -65,8 +61,6 @@ function EnterAmountView({
     const decimals = metadata?.decimals ?? 0;
 
     const { addNotification } = useNotifications();
-    const account = useCurrentAccount();
-    const accountAddress = account?.address;
 
     const { values, errors, resetForm } = useFormikContext<FormValues>();
     const amount = values.amount;
@@ -78,7 +72,7 @@ function EnterAmountView({
     );
 
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const { data: iotaBalance } = useBalance(accountAddress!);
+    const { data: iotaBalance } = useBalance(senderAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
@@ -140,7 +134,7 @@ function EnterAmountView({
                         </div>
                         <StakedInfo
                             validatorAddress={selectedValidatorAddress}
-                            accountAddress={accountAddress!}
+                            accountAddress={senderAddress!}
                         />
                         <div className="my-md w-full">
                             <Field name="amount">

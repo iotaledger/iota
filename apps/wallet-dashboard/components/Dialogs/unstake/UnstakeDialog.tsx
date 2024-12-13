@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Dialog } from '@iota/apps-ui-kit';
-import { UnstakeView } from '../Staking/views';
+import { UnstakeTimelockedObjectsView, UnstakeView } from './views';
 import { ExtendedDelegatedStake } from '@iota/core';
-import { UnstakeTimelockedObjectsDialog } from '@/components';
 import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { UnstakeDialogView } from './enums';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
@@ -39,7 +38,7 @@ export function UnstakeDialog({
             )}
 
             {view === UnstakeDialogView.TimelockedUnstake && groupedTimelockedObjects && (
-                <UnstakeTimelockedObjectsDialog
+                <UnstakeTimelockedObjectsView
                     onClose={handleClose}
                     groupedTimelockedObjects={groupedTimelockedObjects}
                     onBack={onBack?.(UnstakeDialogView.TimelockedUnstake)}
