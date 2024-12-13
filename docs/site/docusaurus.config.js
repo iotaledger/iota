@@ -108,6 +108,214 @@ const config = {
         intentionallyNotExported: [],
       },
     ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        createRedirects(existingPath) {
+          const redirects = [
+            {
+              to: 'ts-sdk/typescript/install',
+              from: '/references/ts-sdk/typescript/install',
+          },
+          {
+              to: 'ts-sdk/typescript/hello-iota',
+              from: '/references/ts-sdk/typescript/hello-iota',
+          },
+          {
+              to: 'ts-sdk/typescript/faucet',
+              from: '/references/ts-sdk/typescript/faucet',
+          },
+          {
+              to: 'ts-sdk/typescript/iota-client',
+              from: '/references/ts-sdk/typescript/iota-client',
+          },
+          {
+              to: 'ts-sdk/typescript/graphql',
+              from: '/references/ts-sdk/typescript/graphql',
+          },
+          {
+              to: 'ts-sdk/typescript/transaction-building/basics',
+              from: '/references/ts-sdk/typescript/transaction-building/basics',
+          },
+          {
+              to: 'ts-sdk/typescript/transaction-building/gas',
+              from: '/references/ts-sdk/typescript/transaction-building/gas',
+          },
+          {
+              to: 'ts-sdk/typescript/transaction-building/sponsored-transactions',
+              from: '/references/ts-sdk/typescript/transaction-building/sponsored-transactions',
+          },
+          {
+              to: 'ts-sdk/typescript/transaction-building/offline',
+              from: '/references/ts-sdk/typescript/transaction-building/offline',
+          },
+          {
+              to: 'ts-sdk/typescript/cryptography/keypairs',
+              from: '/references/ts-sdk/typescript/cryptography/keypairs',
+          },
+          {
+              to: 'ts-sdk/typescript/cryptography/multisig',
+              from: '/references/ts-sdk/typescript/cryptography/multisig',
+          },
+          {
+              to: 'ts-sdk/typescript/utils',
+              from: '/references/ts-sdk/typescript/utils',
+          },
+          {
+              to: 'ts-sdk/typescript/bcs',
+              from: '/references/ts-sdk/typescript/bcs',
+          },
+          {
+              to: 'ts-sdk/typescript/executors',
+              from: '/references/ts-sdk/typescript/executors',
+          },
+          {
+              to: 'ts-sdk/typescript/plugins',
+              from: '/references/ts-sdk/typescript/plugins',
+          },
+          {
+              to: 'ts-sdk/typescript/owned-object-pool/overview',
+              from: '/references/ts-sdk/typescript/owned-object-pool/overview',
+          },
+          {
+              to: 'ts-sdk/typescript/owned-object-pool/local-development',
+              from: '/references/ts-sdk/typescript/owned-object-pool/local-development',
+          },
+          {
+              to: 'ts-sdk/typescript/owned-object-pool/custom-split-strategy',
+              from: '/references/ts-sdk/typescript/owned-object-pool/custom-split-strategy',
+          },
+          {
+              to: 'ts-sdk/typescript/owned-object-pool/examples',
+              from: '/references/ts-sdk/typescript/owned-object-pool/examples',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/create-dapp',
+              from: '/references/ts-sdk/dapp-kit/create-dapp',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/iota-client-provider',
+              from: '/references/ts-sdk/dapp-kit/iota-client-provider',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/rpc-hooks',
+              from: '/references/ts-sdk/dapp-kit/rpc-hooks',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-provider',
+              from: '/references/ts-sdk/dapp-kit/wallet-provider',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-components/ConnectButton',
+              from: '/references/ts-sdk/dapp-kit/wallet-components/ConnectButton',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-components/ConnectModal',
+              from: '/references/ts-sdk/dapp-kit/wallet-components/ConnectModal',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useWallets',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useWallets',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useAccounts',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useAccounts',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useCurrentWallet',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useCurrentWallet',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useCurrentAccount',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useCurrentAccount',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useAutoConnectWallet',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useAutoConnectWallet',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useConnectWallet',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useConnectWallet',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useDisconnectWallet',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useDisconnectWallet',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useSwitchAccount',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useSwitchAccount',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useReportTransactionEffects',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useReportTransactionEffects',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useSignPersonalMessage',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useSignPersonalMessage',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useSignTransaction',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useSignTransaction',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/wallet-hooks/useSignAndExecuteTransaction',
+              from: '/references/ts-sdk/dapp-kit/wallet-hooks/useSignAndExecuteTransaction',
+          },
+          {
+              to: 'ts-sdk/dapp-kit/themes',
+              from: '/references/ts-sdk/dapp-kit/themes',
+          },
+          {
+              to: 'ts-sdk/kiosk/kiosk-client/introduction',
+              from: '/references/ts-sdk/kiosk/kiosk-client/introduction',
+          },
+          {
+              to: 'ts-sdk/kiosk/kiosk-client/querying',
+              from: '/references/ts-sdk/kiosk/kiosk-client/querying',
+          },
+          {
+              to: 'ts-sdk/kiosk/kiosk-client/kiosk-transaction/kiosk-transaction',
+              from: '/references/ts-sdk/kiosk/kiosk-client/kiosk-transaction/kiosk-transaction',
+          },
+          {
+              to: 'ts-sdk/kiosk/kiosk-client/kiosk-transaction/managing',
+              from: '/references/ts-sdk/kiosk/kiosk-client/kiosk-transaction/managing',
+          },
+          {
+              to: 'ts-sdk/kiosk/kiosk-client/kiosk-transaction/purchasing',
+              from: '/references/ts-sdk/kiosk/kiosk-client/kiosk-transaction/purchasing',
+          },
+          {
+              to: 'ts-sdk/kiosk/kiosk-client/kiosk-transaction/examples',
+              from: '/references/ts-sdk/kiosk/kiosk-client/kiosk-transaction/examples',
+          },
+          {
+              to: 'ts-sdk/kiosk/kiosk-client/transfer-policy-transaction/introduction',
+              from: '/references/ts-sdk/kiosk/kiosk-client/transfer-policy-transaction/introduction',
+          },
+          {
+              to: 'ts-sdk/kiosk/kiosk-client/transfer-policy-transaction/using-the-manager',
+              from: '/references/ts-sdk/kiosk/kiosk-client/transfer-policy-transaction/using-the-manager',
+          },
+          {
+              to: 'ts-sdk/kiosk/advanced-examples',
+              from: '/references/ts-sdk/kiosk/advanced-examples',
+          },
+          {
+              to: 'ts-sdk/bcs',
+              from: '/references/ts-sdk/bcs',
+          },
+          ];
+          let paths = [];
+          for (const redirect of redirects) {
+            if (existingPath.startsWith(redirect.to)) {
+              paths.push(existingPath.replace(redirect.to, redirect.from));
+            }
+          }
+          return paths.length > 0 ? paths : undefined;
+        },
+      },
+    ],
     'plugin-image-zoom'
   ],
   presets: [
