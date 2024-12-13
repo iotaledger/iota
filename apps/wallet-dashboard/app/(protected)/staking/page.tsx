@@ -3,7 +3,6 @@
 
 'use client';
 
-import { StartStaking } from '@/components/staking-overview/StartStaking';
 import {
     Button,
     ButtonSize,
@@ -16,7 +15,15 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { StakeDialog, StakeDialogView, UnstakeDialog } from '@/components';
+import {
+    StakeDialog,
+    StakeDialogView,
+    UnstakeDialog,
+    useUnstakeDialog,
+    UnstakeDialogView,
+    useStakeDialog,
+    StartStaking,
+} from '@/components';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,
@@ -32,10 +39,7 @@ import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp
 import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
-import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useUnstakeDialog } from '@/components/Dialogs/unstake/hooks';
-import { UnstakeDialogView } from '@/components/Dialogs/unstake/enums';
 
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
