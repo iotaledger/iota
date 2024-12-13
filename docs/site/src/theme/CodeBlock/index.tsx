@@ -21,10 +21,9 @@ function isReferenceCodeBlockType(props: object): props is ReferenceCodeBlockPro
 // If it isn't, we just return the live plugin CodeBlock which will check,
 // if the CodeBlock is a live CodeBlock or the original CodeBlock
 export default function CodeBlockWrapper(props: ReferenceCodeBlockProps | Props): JSX.Element {
-    return (
-      <>
-       {isReferenceCodeBlockType(props) ?  <ReferenceCodeBlock {...props} /> :  <CodeBlock {...props} />}
-      </>
-    );
-  }
+  return (
+    <>
+      {isReferenceCodeBlockType(props) ?  <ReferenceCodeBlock {...props} /> :  <CodeBlock {...props} />}
+    </>
+  );
 }
