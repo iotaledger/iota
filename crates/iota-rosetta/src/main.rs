@@ -127,7 +127,7 @@ impl RosettaServerCommand {
                 construction.insert("prefunded_accounts".into(), json!(prefunded_accounts));
                 construction.insert("offline_url".into(), json!(offline_url));
 
-                // Add bootstrap balances file
+                // Add boostrap balances file
                 let data = config
                     .pointer_mut("/data")
                     .ok_or_else(|| anyhow!("Cannot find data config in default config file."))?;
