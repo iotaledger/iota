@@ -21,7 +21,7 @@ interface ValidatorProps {
     type?: CardType;
     showApy?: boolean;
     showActiveStatus?: boolean;
-    onClick?(): void;
+    onClick?: () => void;
     showAction?: boolean;
     activeEpoch?: string;
 }
