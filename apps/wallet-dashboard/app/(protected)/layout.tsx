@@ -3,35 +3,36 @@
 'use client';
 
 import { Notifications } from '@/components/index';
-import React, { useEffect, type PropsWithChildren } from 'react';
-import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
+import React, { type PropsWithChildren } from 'react';
 import { Button } from '@iota/apps-ui-kit';
-import { redirect } from 'next/navigation';
-import { Sidebar } from './components';
-import { TopNav } from './components/top-nav/TopNav';
-import { useTheme } from '@/contexts';
+import { Sidebar, TopNav } from './components';
+import { ThemePreference, useTheme } from '@iota/core';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
-    const { connectionStatus } = useCurrentWallet();
-    const { theme, toggleTheme } = useTheme();
-    const account = useCurrentAccount();
-    useEffect(() => {
-        if (connectionStatus !== 'connected' && !account) {
-            redirect('/');
-        }
-    }, [connectionStatus, account]);
+    const { theme, themePreference, setThemePreference } = useTheme();
+
+    const toggleTheme = () => {
+        const newTheme =
+            themePreference === ThemePreference.Light
+                ? ThemePreference.Dark
+                : ThemePreference.Light;
+        setThemePreference(newTheme);
+    };
 
     return (
-        <div className="h-full">
+        <div className="min-h-full">
             <div className="fixed left-0 top-0 z-50 h-full">
                 <Sidebar />
             </div>
 
-            <div className="container relative flex min-h-screen flex-col">
-                <div className="sticky top-0">
-                    <TopNav />
+            {/* This padding need to have aligned left/right content's position, because of sidebar overlap on the small screens */}
+            <div className="pl-[72px]">
+                <div className="container relative flex min-h-screen flex-col">
+                    <div className="sticky top-0 z-10 backdrop-blur-lg">
+                        <TopNav />
+                    </div>
+                    <div className="flex-1 py-md--rs">{children}</div>
                 </div>
-                <div className="flex-1 py-md--rs">{children}</div>
             </div>
 
             <div className="fixed bottom-5 right-5">

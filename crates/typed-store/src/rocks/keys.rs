@@ -24,7 +24,7 @@ impl<'a, K: DeserializeOwned> Keys<'a, K> {
     }
 }
 
-impl<'a, K: DeserializeOwned> Iterator for Keys<'a, K> {
+impl<K: DeserializeOwned> Iterator for Keys<'_, K> {
     type Item = Result<K, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -44,7 +44,7 @@ impl<'a, K: DeserializeOwned> Iterator for Keys<'a, K> {
     }
 }
 
-impl<'a, K: Serialize> Keys<'a, K> {
+impl<K: Serialize> Keys<'_, K> {
     /// Skips all the elements that are smaller than the given key,
     /// and either lands on the key or the first one greater than
     /// the key.

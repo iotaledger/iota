@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cmp::max, collections::BTreeMap, sync::Arc};
+use std::{cmp::max, collections::BTreeMap, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
@@ -17,9 +17,10 @@ use iota_json_rpc_types::{
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_types::{
+    MoveTypeTagTrait,
     base_types::{IotaAddress, ObjectID},
     committee::EpochId,
-    dynamic_field::get_dynamic_field_from_store,
+    dynamic_field::{DynamicFieldInfo, get_dynamic_field_from_store},
     error::{IotaError, UserInputError},
     governance::StakedIota,
     id::ID,
@@ -33,6 +34,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
+use serde::{Serialize, de::DeserializeOwned};
 use statrs::statistics::{Data, Median};
 use tracing::{info, instrument};
 
@@ -42,6 +44,9 @@ use crate::{
     error::{Error, IotaRpcInputError, RpcInterimResult},
     logger::FutureWithTracing as _,
 };
+
+type ValidatorTable = (IotaAddress, ObjectID, ObjectID, u64, bool);
+
 #[derive(Clone)]
 pub struct GovernanceReadApi {
     state: Arc<dyn StateRead>,
@@ -198,8 +203,10 @@ impl GovernanceReadApi {
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
             .into_iter()
-            // Try to find for any pending active validator
-            .chain(pending_validator_exchange_rate(&self.state)?.into_iter())
+            // Try to find for any candidate validator exchange rate
+            .chain(candidate_validators_exchange_rate(&self.state)?.into_iter())
+            // Try to find for any pending validator exchange rate
+            .chain(pending_validators_exchange_rate(&self.state)?.into_iter())
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -527,54 +534,16 @@ async fn exchange_rates(
     state: &Arc<dyn StateRead>,
     _current_epoch: EpochId,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
-    let system_state = state.get_system_state()?;
-    let system_state_summary: IotaSystemStateSummary =
-        system_state.into_iota_system_state_summary();
-
-    // Get validator rate tables
-    let mut tables = vec![];
-
-    for validator in system_state_summary.active_validators {
-        tables.push((
-            validator.iota_address,
-            validator.staking_pool_id,
-            validator.exchange_rates_id,
-            validator.exchange_rates_size,
-            true,
-        ));
-    }
-
-    // Get inactive validator rate tables
-    for df in state.get_dynamic_fields(
-        system_state_summary.inactive_pools_id,
-        None,
-        system_state_summary.inactive_pools_size as usize,
-    )? {
-        let pool_id: ID =
-            bcs::from_bytes(&df.1.bcs_name).map_err(|e| IotaError::ObjectDeserialization {
-                error: e.to_string(),
-            })?;
-        let validator = get_validator_from_table(
-            state.get_object_store().as_ref(),
-            system_state_summary.inactive_pools_id,
-            &pool_id,
-        )?; // TODO(wlmyng): roll this into StateReadError
-        tables.push((
-            validator.iota_address,
-            validator.staking_pool_id,
-            validator.exchange_rates_id,
-            validator.exchange_rates_size,
-            false,
-        ));
-    }
-
-    validator_exchange_rates(state, tables)
+    Ok(active_validators_exchange_rates(state)?
+        .into_iter()
+        .chain(inactive_validators_exchange_rates(state)?.into_iter())
+        .collect())
 }
 
 /// Get validator exchange rates
 fn validator_exchange_rates(
     state: &Arc<dyn StateRead>,
-    tables: Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>,
+    tables: Vec<ValidatorTable>,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
     if tables.is_empty() {
         return Ok(vec![]);
@@ -586,8 +555,8 @@ fn validator_exchange_rates(
         let mut rates = state
             .get_dynamic_fields(exchange_rates_id, None, exchange_rates_size as usize)?
             .into_iter()
-            .map(|df| {
-                let epoch: EpochId = bcs::from_bytes(&df.1.bcs_name).map_err(|e| {
+            .map(|(_object_id, df)| {
+                let epoch: EpochId = bcs::from_bytes(&df.bcs_name).map_err(|e| {
                     IotaError::ObjectDeserialization {
                         error: e.to_string(),
                     }
@@ -616,8 +585,51 @@ fn validator_exchange_rates(
     Ok(exchange_rates)
 }
 
-/// Check if there is any pending validator and get its exchange rates
-fn pending_validator_exchange_rate(
+/// Check for validators in the `Active` state and get its exchange rate
+fn active_validators_exchange_rates(
+    state: &Arc<dyn StateRead>,
+) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
+    let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
+
+    let tables = system_state_summary
+        .active_validators
+        .into_iter()
+        .map(|validator| {
+            (
+                validator.iota_address,
+                validator.staking_pool_id,
+                validator.exchange_rates_id,
+                validator.exchange_rates_size,
+                true,
+            )
+        })
+        .collect();
+
+    validator_exchange_rates(state, tables)
+}
+
+/// Check for validators in the `Inactive` state and get its exchange rate
+fn inactive_validators_exchange_rates(
+    state: &Arc<dyn StateRead>,
+) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
+    let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
+
+    let tables = validator_summary_from_system_state(
+        state,
+        system_state_summary.inactive_pools_id,
+        system_state_summary.inactive_pools_size,
+        |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+    )?;
+
+    validator_exchange_rates(state, tables)
+}
+
+/// Check for validators in the `Pending` state and get its exchange rate. For
+/// these validators, their exchange rates should not be cached as their state
+/// can occur during an epoch or across multiple ones. In contrast, exchange
+/// rates for `Active` and `Inactive` validators can be cached, as their state
+/// changes only at epoch change.
+fn pending_validators_exchange_rate(
     state: &Arc<dyn StateRead>,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
     let system_state = state.get_system_state()?;
@@ -636,10 +648,108 @@ fn pending_validator_exchange_rate(
                 false,
             )
         })
-        .collect::<Vec<(IotaAddress, ObjectID, ObjectID, u64, bool)>>();
+        .collect::<Vec<ValidatorTable>>();
 
     validator_exchange_rates(state, tables)
 }
+
+/// Check for validators in the `Candidate` state and get its exchange rate. For
+/// these validators, their exchange rates should not be cached as their state
+/// can occur during an epoch or across multiple ones. In contrast, exchange
+/// rates for `Active` and `Inactive` validators can be cached, as their state
+/// changes only at epoch change.
+fn candidate_validators_exchange_rate(
+    state: &Arc<dyn StateRead>,
+) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
+    let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
+
+    // From validator_candidates_id table get validator info using as key its
+    // IotaAddress
+    let tables = validator_summary_from_system_state(
+        state,
+        system_state_summary.validator_candidates_id,
+        system_state_summary.validator_candidates_size,
+        |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+    )?;
+
+    validator_exchange_rates(state, tables)
+}
+
+/// Fetches validator status information from `StateRead`.
+///
+/// This makes sense for validators not included in `IotaSystemStateSummary`.
+/// `IotaSystemStateSummary` only contains information about `Active`
+/// validators. To retrieve information about `Inactive`, `Candidate`, and
+/// `Pending` validators, we need to access dynamic fields within specific
+/// Move tables.
+///
+/// To retrieve validator status information, this function utilizes the
+/// corresponding `table_id` (an `ObjectID` value) and a `limit` to specify the
+/// number of records to fetch. Both the `table_id` and `limit` can be obtained
+/// from `IotaSystemStateSummary` in the caller. Additionally, keys are
+/// extracted from the table `DynamicFieldInfo` values according to the `key`
+/// closure. This helps in identifying the specific validator within the table.
+///
+/// # Example
+///
+/// ```text
+/// // Get inactive validators
+/// let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
+/// let _ = validator_summary_from_system_state(
+///     state,
+///     // ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool.
+///     system_state_summary.inactive_pools_id,
+///     // Number of inactive staking pools.
+///     system_state_summary.inactive_pools_size,
+///     // Extract the `ID` of the `Inactive` validator from the `DynamicFieldInfo` in the `system_state_summary.inactive_pools_id` table
+///     |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+/// ).unwrap();
+/// ```
+///
+/// # Example
+///
+/// ```text
+/// // Get candidate validators
+/// let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
+/// let _ = validator_summary_from_system_state(
+///     state,
+///     // ID of the object that stores preactive validators, mapping their addresses to their Validator structs
+///     system_state_summary.validator_candidates_id,
+///     // Number of preactive validators
+///     system_state_summary.validator_candidates_size,
+///     // Extract the `IotaAddress` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
+///     |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+/// ).unwrap();
+/// ```
+fn validator_summary_from_system_state<K, F>(
+    state: &Arc<dyn StateRead>,
+    table_id: ObjectID,
+    limit: u64,
+    key: F,
+) -> RpcInterimResult<Vec<ValidatorTable>>
+where
+    F: Fn(DynamicFieldInfo) -> RpcInterimResult<K>,
+    K: MoveTypeTagTrait + Serialize + DeserializeOwned + Debug,
+{
+    let object_store = state.get_object_store();
+
+    state
+        .get_dynamic_fields(table_id, None, limit as usize)?
+        .into_iter()
+        .map(|(_object_id, df)| {
+            let validator_summary = get_validator_from_table(object_store, table_id, &key(df)?)?;
+
+            Ok((
+                validator_summary.iota_address,
+                validator_summary.staking_pool_id,
+                validator_summary.exchange_rates_id,
+                validator_summary.exchange_rates_size,
+                false,
+            ))
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug)]
 pub struct ValidatorExchangeRates {
     pub address: IotaAddress,

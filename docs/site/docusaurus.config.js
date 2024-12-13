@@ -186,7 +186,8 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
+  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense',
+    '@saucelabs/theme-github-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
@@ -242,17 +243,20 @@ const config = {
             to: "developer",
           },
           {
-            label: "TS SDK",
-            to: "ts-sdk/typescript",
-            activeBaseRegex: "^/ts-sdk/.*"
-          },
-          {
             label: "Node Operators",
             to: "operator",
           },
           {
             label: "References",
             to: "references",
+          },
+          {
+            label: "TS SDK",
+            to: "references/ts-sdk/typescript/",
+          },
+          {
+            label: "IOTA Identity",
+            to: "iota-identity",
           },
         ],
       },

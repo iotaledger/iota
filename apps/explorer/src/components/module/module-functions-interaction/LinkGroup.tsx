@@ -17,7 +17,7 @@ export function LinkGroup(props: LinkGroupProps): JSX.Element | null {
     }
     return (
         <div className="space-y-3">
-            <div className="font-semibold text-gray-90">{title}</div>
+            <div className="font-semibold text-neutral-40">{title}</div>
             {isLinks
                 ? props.links.map(({ text, to }) => (
                       <div key={to}>
@@ -28,7 +28,7 @@ export function LinkGroup(props: LinkGroupProps): JSX.Element | null {
                   ))
                 : null}
             {isText ? (
-                <div className="text-pBodySmall font-medium text-gray-90">{props.text}</div>
+                <div className="text-pBodySmall font-medium text-neutral-40">{props.text}</div>
             ) : null}
         </div>
     );

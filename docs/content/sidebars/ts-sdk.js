@@ -133,4 +133,4 @@ const references = [
     },
 ];
 
-module.exports = references;
+module.exports = tsSDK;

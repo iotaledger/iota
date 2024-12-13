@@ -2,7 +2,7 @@
   "name": "iota-move",
   "displayName": "IOTA Move",
   "description": "A Move language integrated development environment for IOTA.",
-  "publisher": "iota-foundation",
+  "publisher": "iotaledger",
   "icon": "images/move.png",
   "license": "Apache-2.0",
   "version": "1.0.0",
@@ -152,8 +152,6 @@
     "damirka.move-syntax"
   ],
   "dependencies": {
-    "command-exists": "^1.2.9",
-    "lru-cache": "^4.1.3",
     "semver": "^7.6.2",
     "vscode-languageclient": "^9.0.1"
   },
@@ -176,8 +174,7 @@
     "mocha": "^9.1.1",
     "typescript": "^4.9.5",
     "typescript-formatter": "^7.2.2",
-    "vsce": "^2.5.1",
-    "vscode-test": "^1.6.1"
+    "@vscode/vsce": "^3.2.1"
   },
   "__metadata": {
     "id": "227cd049-67e6-468e-bc8f-b60e02b79e36",
