@@ -40,6 +40,7 @@ import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
@@ -121,6 +122,15 @@ function StakingDashboardPage(): React.JSX.Element {
         if (view === UnstakeDialogView.Unstake) {
             return handleUnstakeDialogBack;
         }
+    }
+
+    function handleOnUnstakeSuccess(tx: IotaSignAndExecuteTransactionOutput): void {
+        setIsUnstakeDialogOpen(false);
+        iotaClient
+            .waitForTransaction({
+                digest: tx.digest,
+            })
+            .then(() => refetchDelegatedStakes());
     }
 
     return (
@@ -213,10 +223,7 @@ function StakingDashboardPage(): React.JSX.Element {
                                 extendedStake={selectedStake}
                                 onBack={handleOnUnstakeBack}
                                 view={UnstakeDialogView.Unstake}
-                                onSuccess={() => {
-                                    refetchDelegatedStakes();
-                                    setIsUnstakeDialogOpen(false);
-                                }}
+                                onSuccess={handleOnUnstakeSuccess}
                             />
                         )}
                     </Panel>

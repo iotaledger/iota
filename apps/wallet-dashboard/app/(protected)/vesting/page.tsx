@@ -68,6 +68,7 @@ import { Calendar, StarHex } from '@iota/ui-icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
+import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -195,6 +196,11 @@ export default function VestingDashboardPage(): JSX.Element {
         unlockedTimelockedObjectIds,
     );
 
+    function refreshStakeList() {
+        refetchTimelockedStakedObjects();
+        refetchGetAllOwnedObjects();
+    }
+
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);
 
@@ -202,10 +208,7 @@ export default function VestingDashboardPage(): JSX.Element {
             .waitForTransaction({
                 digest,
             })
-            .then(() => {
-                refetchTimelockedStakedObjects();
-                refetchGetAllOwnedObjects();
-            });
+            .then(refreshStakeList);
     }
 
     const handleCollect = () => {
@@ -239,6 +242,11 @@ export default function VestingDashboardPage(): JSX.Element {
 
     function openReceiveTokenPopup(): void {
         setIsVestingScheduleDialogOpen(true);
+    }
+
+    function handleOnSuccessUnstake(tx: IotaSignAndExecuteTransactionOutput): void {
+        setUnstakeDialogOpen(false);
+        iotaClient.waitForTransaction({ digest: tx.digest }).then(refreshStakeList);
     }
 
     useEffect(() => {
@@ -420,7 +428,7 @@ export default function VestingDashboardPage(): JSX.Element {
                         groupedTimelockedObjects={timelockedObjectsToUnstake}
                         view={unstakeDialogView}
                         handleClose={() => setUnstakeDialogOpen(false)}
-                        onSuccess={() => setUnstakeDialogOpen(false)}
+                        onSuccess={handleOnSuccessUnstake}
                     />
                 )}
             </div>
