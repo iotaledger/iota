@@ -27,7 +27,6 @@ const STR_IOTA_DISTRIBUTION: &str = "Iota Distribution";
 const STR_OBJECTS: &str = "Objects";
 const STR_VALIDATORS: &str = "Validators";
 
-#[allow(clippy::or_fun_call)]
 pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     let system_object = genesis
         .iota_system_object()
@@ -52,7 +51,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     let mut iota_distribution = BTreeMap::new();
     let entry = iota_distribution
         .entry("Iota System".to_string())
-        .or_insert(BTreeMap::new());
+        .or_insert_with(BTreeMap::new);
     entry.insert(
         "Storage Fund".to_string(),
         (
@@ -150,7 +149,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     }
 }
 
-#[allow(clippy::ptr_arg)]
+#[expect(clippy::ptr_arg)]
 fn examine_validators(
     validator_options: &Vec<&str>,
     validator_map: &BTreeMap<&str, &IotaValidatorGenesis>,
