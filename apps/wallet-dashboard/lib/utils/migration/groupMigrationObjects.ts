@@ -108,24 +108,48 @@ export async function groupMigrationObjectsByUnlockCondition(
         await Promise.all(promises);
     }
 
-    const parseTimestamp = (timestamp: string) => {
-        // Move objects with no expiration to the end of the list
-        if (timestamp === MIGRATION_OBJECT_WITHOUT_UC_KEY) {
-            return Number.MAX_SAFE_INTEGER;
-            // Move objects with expired unlock conditions to the end of the list
-        } else if (parseInt(timestamp) < Date.now() / MILLISECONDS_PER_SECOND) {
-            return Number.MAX_SAFE_INTEGER;
-        } else {
-            return parseInt(timestamp);
-        }
-    };
-
-    flatObjects.sort((a, b) => {
-        const timestampA = parseTimestamp(a.unlockConditionTimestamp);
-        const timestampB = parseTimestamp(b.unlockConditionTimestamp);
-        return timestampA - timestampB;
-    });
     return flatObjects;
+}
+
+export function sortStardustResolvedObjectsByExpiration(
+    objects: ResolvedObjectTypes[],
+    currentEpochStartMs: number,
+    currentEpochEndMs: number,
+): ResolvedObjectTypes[] {
+    const currentTimestampMs = Date.now();
+
+    return objects.sort((a, b) => {
+        const aIsNoExpiration = a.unlockConditionTimestamp === MIGRATION_OBJECT_WITHOUT_UC_KEY;
+        const bIsNoExpiration = b.unlockConditionTimestamp === MIGRATION_OBJECT_WITHOUT_UC_KEY;
+
+        // No-expiration objects should be last
+        if (aIsNoExpiration && bIsNoExpiration) return 0;
+        if (aIsNoExpiration) return 1;
+        if (bIsNoExpiration) return -1;
+
+        const aTimestampMs = parseInt(a.unlockConditionTimestamp) * MILLISECONDS_PER_SECOND;
+        const bTimestampMs = parseInt(b.unlockConditionTimestamp) * MILLISECONDS_PER_SECOND;
+
+        const aIsFromPreviousEpoch = aTimestampMs < currentEpochStartMs;
+        const bIsFromPreviousEpoch = bTimestampMs < currentEpochStartMs;
+
+        // Objects from a past epoch should be last (but before no-expiration objects)
+        if (aIsFromPreviousEpoch && bIsFromPreviousEpoch) return 0;
+        if (aIsFromPreviousEpoch) return 1;
+        if (bIsFromPreviousEpoch) return -1;
+
+        const aIsInFutureEpoch = aTimestampMs > currentEpochEndMs;
+        const bIsInFutureEpoch = bTimestampMs > currentEpochEndMs;
+
+        const aOutputTimestampMs = aIsInFutureEpoch ? aTimestampMs : currentEpochEndMs;
+        const bOutputTimestampMs = bIsInFutureEpoch ? bTimestampMs : currentEpochEndMs;
+
+        // Objects closer to the calculated `outputTimestampMs` should be first
+        const aProximity = Math.abs(aOutputTimestampMs - currentTimestampMs);
+        const bProximity = Math.abs(bOutputTimestampMs - currentTimestampMs);
+
+        return aProximity - bProximity;
+    });
 }
 
 async function getNftDetails(
