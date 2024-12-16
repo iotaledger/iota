@@ -4,15 +4,13 @@
 'use client';
 
 import { Panel, Title, Chip, TitleSize } from '@iota/apps-ui-kit';
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { hasDisplayData, useGetNFTs } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
 import { AssetDialog } from '@/components/Dialogs/Assets';
-
-const OBJECTS_PER_REQ = 50;
 
 const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
     {
@@ -33,31 +31,48 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const account = useCurrentAccount();
-    const { data, isFetching, fetchNextPage, hasNextPage } = useGetOwnedObjects(
-        account?.address,
-        undefined,
-        OBJECTS_PER_REQ,
-    );
+    const {
+        data: ownedAssets,
+        isFetching,
+        fetchNextPage,
+        hasNextPage,
+    } = useGetNFTs(account?.address);
 
-    const assets: IotaObjectData[] = [];
-
-    for (const page of data?.pages || []) {
-        for (const asset of page.data) {
-            if (asset.data && asset.data.objectId) {
-                if (selectedCategory == AssetCategory.Visual) {
-                    if (hasDisplayData(asset)) {
-                        assets.push(asset.data);
-                    }
-                } else if (selectedCategory == AssetCategory.Other) {
-                    assets.push(asset.data);
-                }
-            }
+    console.log('ownedAssets', ownedAssets);
+    const assets: IotaObjectData[] = (ownedAssets?.[selectedCategory] || []).filter((asset) => {
+        if (selectedCategory === AssetCategory.Visual) {
+            return hasDisplayData({ data: asset });
         }
-    }
+        return true;
+    });
 
     function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
     }
+
+    useEffect(() => {
+        let computeSelectedCategory = false;
+
+        if (
+            (selectedCategory === AssetCategory.Visual && ownedAssets?.visual.length === 0) ||
+            (selectedCategory === AssetCategory.Other && ownedAssets?.other.length === 0) ||
+            (selectedCategory === AssetCategory.Hidden && ownedAssets?.hidden.length === 0) ||
+            !selectedCategory
+        ) {
+            computeSelectedCategory = true;
+        }
+        if (computeSelectedCategory && ownedAssets) {
+            const defaultCategory =
+                ownedAssets.visual.length > 0
+                    ? AssetCategory.Visual
+                    : ownedAssets.other.length > 0
+                      ? AssetCategory.Other
+                      : ownedAssets.hidden.length > 0
+                        ? AssetCategory.Hidden
+                        : AssetCategory.Visual;
+            setSelectedCategory(defaultCategory);
+        }
+    }, [ownedAssets]);
 
     return (
         <Panel>

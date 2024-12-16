@@ -56,7 +56,9 @@ function NftsPage() {
         error,
         isPending,
         isError,
-    } = useGetNFTs(accountAddress);
+    } = useGetNFTs(accountAddress, {
+        MatchNone: [{ StructType: '0x2::coin::Coin' }],
+    });
 
     const isAssetsLoaded = !!ownedAssets;
 

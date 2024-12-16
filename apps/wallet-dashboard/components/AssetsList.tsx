@@ -22,6 +22,7 @@ const ASSET_LAYOUT: Record<AssetCategory, string> = {
     [AssetCategory.Visual]:
         'grid-template-visual-assets grid max-h-[600px] gap-md overflow-auto py-sm',
     [AssetCategory.Other]: 'flex flex-col overflow-auto py-sm',
+    [AssetCategory.Hidden]: 'flex flex-col overflow-auto py-sm',
 };
 
 export function AssetList({
