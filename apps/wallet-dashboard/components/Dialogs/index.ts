@@ -5,3 +5,4 @@ export * from './SendToken';
 export * from './ReceiveFundsDialog';
 export * from './Staking';
 export * from './vesting';
+export * from './MigrationDialog';
