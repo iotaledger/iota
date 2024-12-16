@@ -138,7 +138,6 @@ function MigrationDialog({
                                         />
                                     </div>
                                 </Collapsible>
-
                                 <Panel hasBorder>
                                     <div className="flex flex-col gap-y-sm p-md">
                                         <KeyValueInfo
