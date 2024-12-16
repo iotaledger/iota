@@ -156,6 +156,10 @@ function MigrationDashboardPage(): JSX.Element {
                             onSuccess={handleOnSuccess}
                             open={isMigrationDialogOpen}
                             setOpen={setIsMigrationDialogOpen}
+                            isTimelocked={
+                                selectedStardustObjectsCategory ===
+                                StardustOutputMigrationStatus.TimeLocked
+                            }
                         />
                     )}
                     <Panel>

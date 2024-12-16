@@ -3,19 +3,18 @@
 
 import React from 'react';
 import { VirtualList } from '@/components';
-import {
-    useCurrentAccount,
-    useIotaClientContext,
-    useSignAndExecuteTransaction,
-} from '@iota/dapp-kit';
-import { getNetwork, IotaObjectData } from '@iota/iota-sdk/client';
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useMigrationTransaction } from '@/hooks/useMigrationTransaction';
-import { Button, Dialog, Header, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { useNotifications } from '@/hooks';
+import { Button, Dialog, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { useGroupedMigrationObjectsByExpirationDate, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
-import { Loader, Warning } from '@iota/ui-icons';
+import { Loader } from '@iota/ui-icons';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from './layout';
 import { MigrationObjectDetailsCard } from '../migration/migration-object-details-card';
+import { useFormatCoin } from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { summarizeMigratableObjectValues } from '@/lib/utils';
 
 interface MigrationDialogProps {
     basicOutputObjects: IotaObjectData[] | undefined;
@@ -27,6 +26,8 @@ interface MigrationDialogProps {
 }
 
 function MigrationDialog({
+    basicOutputObjects = [],
+    nftOutputObjects = [],
     onSuccess,
     open,
     setOpen,
@@ -40,11 +41,20 @@ function MigrationDialog({
         isError,
         error,
     } = useMigrationTransaction(account?.address || '', basicOutputObjects, nftOutputObjects);
+    const [gasFee, gasFeesymbol] = useFormatCoin(migrateData?.gasBudget, IOTA_TYPE_ARG);
 
-    const { network } = useIotaClientContext();
-    const { explorer } = getNetwork(network);
     const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
         useSignAndExecuteTransaction();
+
+    const { totalIotaAmount } = summarizeMigratableObjectValues({
+        basicOutputs: basicOutputObjects,
+        nftOutputs: nftOutputObjects,
+        address: account?.address || '',
+    });
+    const [totalIotaAmountFormatted, totalIotaAmountSymbol] = useFormatCoin(
+        totalIotaAmount.toString(),
+        IOTA_TYPE_ARG,
+    );
 
     async function handleMigrate(): Promise<void> {
         if (!migrateData) return;
@@ -68,51 +78,50 @@ function MigrationDialog({
             });
     }
 
-    const filteredObjects = [...basicOutputObjects, ...nftOutputObjects];
+    const {
+        data: resolvedObjects = [],
+        isLoading,
+        error: isErrored,
+    } = useGroupedMigrationObjectsByExpirationDate(
+        [...basicOutputObjects, ...nftOutputObjects],
+        isTimelocked,
+    );
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogLayout>
                 <Header title="Confirmation" onClose={() => setOpen(false)} titleCentered />
                 <DialogLayoutBody>
-                    {/* <div className="flex min-w-[300px] flex-col gap-2">
-                        <div className="flex flex-col">
-                            <h1>Migratable Basic Outputs: {basicOutputObjects?.length}</h1>
-                            <VirtualList
-                                items={basicOutputObjects ?? []}
-                                estimateSize={() => 30}
-                                render={virtualItem}
-                            />
-                        </div>
-                        <div className="flex flex-col">
-                            <h1>Migratable Nft Outputs: {nftOutputObjects?.length}</h1>
-                            <VirtualList
-                                items={nftOutputObjects ?? []}
-                                estimateSize={() => 30}
-                                render={virtualItem}
-                            />
-                        </div>
-                        <p>Gas Fees: {migrateData?.gasBudget?.toString() || '--'}</p>
-                        {isError ? (
-                            <InfoBox
-                                type={InfoBoxType.Error}
-                                title={error?.message || 'Error creating migration transcation'}
-                                icon={<Warning />}
-                                style={InfoBoxStyle.Elevated}
-                            />
-                        ) : null}
-                    </div> */}
-                    <VirtualList
-                        heightClassName="h-[600px]"
-                        overflowClassName="overflow-y-auto"
-                        items={filteredObjects}
-                        estimateSize={() => 58}
-                        render={(migrationObject) => (
-                            <MigrationObjectDetailsCard
-                                migrationObject={migrationObject}
-                                isTimelocked={isTimelocked}
-                            />
-                        )}
-                    />
+                    <div className="flex h-full flex-col gap-y-md">
+                        <VirtualList
+                            heightClassName="h-[600px]"
+                            overflowClassName="overflow-y-auto"
+                            items={resolvedObjects}
+                            estimateSize={() => 58}
+                            render={(migrationObject) => (
+                                <MigrationObjectDetailsCard
+                                    migrationObject={migrationObject}
+                                    isTimelocked={isTimelocked}
+                                />
+                            )}
+                        />
+                        <Panel hasBorder>
+                            <div className="flex flex-col gap-y-sm p-md">
+                                <KeyValueInfo
+                                    keyText="Legacy storage deposit"
+                                    value={totalIotaAmountFormatted || '-'}
+                                    supportingLabel={totalIotaAmountSymbol}
+                                    fullwidth
+                                />
+                                <KeyValueInfo
+                                    keyText="Gas Fees"
+                                    value={gasFee || '-'}
+                                    supportingLabel={gasFeesymbol}
+                                    fullwidth
+                                />
+                            </div>
+                        </Panel>
+                    </div>
                 </DialogLayoutBody>
                 <DialogLayoutFooter>
                     <Button
