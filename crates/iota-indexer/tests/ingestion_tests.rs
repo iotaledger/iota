@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[cfg(feature = "pg_integration")]
 mod common;
 #[cfg(feature = "pg_integration")]
