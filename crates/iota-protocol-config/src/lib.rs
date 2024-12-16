@@ -1150,7 +1150,7 @@ impl ProtocolConfig {
     /// potentially returning a protocol config that is incorrect for some
     /// feature flags. Definitely safe for testing and for protocol version
     /// 11 and prior.
-    #[allow(non_snake_case)]
+    #[expect(non_snake_case)]
     pub fn get_for_max_version_UNSAFE() -> Self {
         if Self::load_poison_get_for_min_version() {
             panic!("get_for_max_version_UNSAFE called on validator");

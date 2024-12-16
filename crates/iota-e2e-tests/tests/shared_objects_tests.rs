@@ -512,7 +512,6 @@ async fn access_clock_object_test() {
     assert!(event.timestamp_ms <= finish.as_millis() as u64);
 
     let mut attempt = 0;
-    #[allow(clippy::never_loop)] // seem to be a bug in clippy with let else statement
     loop {
         let checkpoint = test_cluster
             .fullnode_handle

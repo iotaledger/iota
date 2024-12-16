@@ -29,6 +29,7 @@
   --ifm-font-family-base: "Inter", sans-serif;
   --ifm-menu-color: #011829;
   --ifm-menu-color-background-active: transparent;
+  --ifm-hover-overlay: var(--ifm-color-emphasis-100);
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
   --iota-black: #111111;
   --iota-blue: #6fbcf0;
@@ -89,7 +90,7 @@
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme="dark"] {
+html[data-theme="dark"] {
   --ifm-color-primary: #4ca2ff;
   --ifm-color-primary-dark: #2b91ff;
   --ifm-color-primary-darker: #1a88ff;
@@ -102,6 +103,7 @@
   --ifm-menu-color-background-active: transparent;
   --ifm-navbar-sidebar-link-color: #f7f7f8;
   --ifm-navbar-sidebar-background-color: black;
+  --ifm-hover-overlay: var(--ifm-color-emphasis-100);
 }
 
 .active-scroll-spy {
@@ -112,16 +114,20 @@
 [data-theme="dark"] img.balance-coin-token {
   filter: invert(1);
 }
+
 .table-of-contents__link--active {
   color: #525860;
   font-weight: 600;
 }
+/* Hide ToC from imported READMEs */
 .hidden-text{
   display: none;
 }
+
 [data-theme="dark"] .table-of-contents__link--active {
   color: white;
 }
+
 /** navbar overrides */
 [data-theme="light"] .clean-btn:hover {
     background-color: #525860;
@@ -172,17 +178,21 @@
   color: white;
   font-weight: 500;
 }
+
 .pagination-nav__label--blue,
 .pagination-nav__sublabel--blue {
   color: white;
 }
+
 .pagination-nav {
   display: flex;
   justify-content: space-between;
 }
+
 [data-theme="light"] .pagination-nav__link {
   border: 1px solid #d8e1f4;
 }
+
 .pagination-nav__link {
   background-color: transparent;
   border-radius: 0px;
@@ -193,6 +203,7 @@
   width: fit-content;
   min-width: 240px;
 }
+
 .pagination-nav__label {
   color: white;
 }
@@ -204,6 +215,7 @@
   flex-direction: column;
   justify-content: space-between !important;
 }
+
 .page-nav-content-light {
   display: flex;
   align-items: center;
@@ -212,6 +224,7 @@
   color: white !important;
   flex-direction: row-reverse;
 }
+
 .page-nav-content-blue {
   display: flex;
   align-items: center;
@@ -219,31 +232,38 @@
   width: 100%;
   color: white !important;
 }
+
 .page-nav-arrow--light,
 .pagination-nav__sublabel--light {
   color: white;
 }
+
 .pagination-nav__label--light {
   color: black;
 }
+
 [data-theme="dark"] .page-nav-arrow--light,
 .pagination-nav__sublabel--light,
 .pagination-nav__label--light {
   color: white;
 }
+
 [data-theme="light"] .page-nav-arrow--light,
 .pagination-nav__label--light {
   color: black;
 }
+
 [data-theme="light"] .pagination-nav__sublabel--light {
   color: #909fbe;
 }
+
 [data-theme="dark"] .pagination-nav__label--light {
   color: white;
 }
 html[data-theme="dark"] {
   background-color: var(--iota-black);
 }
+
 /** setup global style overrides */
 body {
   font-family: var(--primaryFont);
@@ -256,6 +276,7 @@ h1 {
   font-weight: 500;
   letter-spacing: -0.04em;
 }
+
 .h1 {
   letter-spacing: -2.88px;
   margin-top: 0;
@@ -273,6 +294,7 @@ h2 {
   line-height: 2.125rem;
   letter-spacing: -0.04em;
 }
+
 .h2 {
   letter-spacing: -1.62px;
   margin-top: 0;
@@ -316,24 +338,30 @@ h4 {
   line-height: 1.75rem;
   letter-spacing: -2%;
 }
+
 @media screen and (max-width: 767px) {
+
   h1,
   .h1 {
     font-size: 3.5rem;
   }
+
   h2,
   .h2 {
     font-size: 2rem;
   }
+
   h3,
   .h3 {
     font-size: 1.5rem;
   }
+
   h4,
   .h4 {
     font-size: 1.2rem;
   }
 }
+
 @media screen and (max-width: 599px) {
   .pagination-nav{
     display: flex;
@@ -350,10 +378,12 @@ h4 {
   .h2 {
     font-size: 1.7rem;
   }
+
   h3,
   .h3 {
     font-size: 1.2rem;
   }
+
   h4,
   .h4 {
     font-size: 1rem;
@@ -365,19 +395,24 @@ h4 {
   border-bottom: 1px solid var(--iota-line);
   background-color: black;
 }
+
 .navbar__title {
   width: 10px;
 }
+
 .navbar__toggle path {
   stroke: var(--iota-white);
 }
+
 .navbar__items {
   color: rgba(255, 255, 255, 0.7);
 }
+
 .navbar__items .navbar__brand {
   width: 17%;
   color: rgba(255, 255, 255, 0.7);
 }
+
 .navbar__items .navbar__item.navbar__link {
   /* font-family: var(--headerFont); */
   font-size: 0.9375rem;
@@ -408,10 +443,12 @@ h4 {
 [data-theme='light'] .DocSearch {
   --docsearch-searchbox-background: var(--ifm-background-color-dark);
 }
+
 .DocSearch-Button-Container {
   width: 100%;
   justify-content: space-between;
 }
+
 .DocSearch-Button {
   width: 12.5rem;
   height: 2.625rem !important;
@@ -423,18 +460,22 @@ h4 {
   font-family: var(--primaryFont);
   letter-spacing: -0.01em;
 }
+
 @media screen and (max-width: 599px) {
   .DocSearch-Button {
     width: initial;
   }
 }
+
 .DocSearch-Search-Icon {
   order: 2;
   margin-left: auto;
 }
+
 .DocSearch-Search-Icon path {
   stroke: var(--iota-white);
 }
+
 .DocSearch-Button-Keys {
   display: none !important;
 }
@@ -443,6 +484,7 @@ h4 {
   row-gap: 1rem;
   column-gap: 1rem;
 }
+
 .markdown h1:first-child {
   margin-top: 1rem;
 }
@@ -453,12 +495,15 @@ h4 {
   color: var(--iota-white);
   background: var(--iota-hero-dark);
 }
-.button--success{
+
+.button--success {
   background: var(--iota-success-dark);
 }
-.button--danger{
+
+.button--danger {
   background: var(--iota-issue-dark);
 }
+
 .button-cta {
   letter-spacing: -0.3px;
   cursor: pointer;
@@ -480,22 +525,26 @@ h4 {
   justify-content: center;
   gap: 1rem;
 }
+
 .button-cta:hover {
   background-color: var(--iota-button-hover);
   color: var(--iota-white);
   text-decoration: none;
 }
+
 .button-cta:after {
   content: url("data:image/svg+xml,%3Csvg width='18' height='19' viewBox='0 0 18 19' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 5.5H14V14.5' stroke='%23ABBDCC' stroke-width='2'/%3E%3Cpath d='M14 5.5L3 16.5' stroke='%23ABBDCC' stroke-width='2'/%3E%3C/svg%3E");
   width: 18px;
   height: 18px;
   padding-bottom: 2px;
 }
+
 @media (max-width: 1050px) {
   .navbar .button-cta {
     display: none;
   }
 }
+
 .footer {
   background-color: black;
 }
@@ -504,9 +553,56 @@ h4 {
 .text-white {
   color: var(--iota-white);
 }
+
 .text-gray {
   color: var(--iota-gray);
 }
+
+/*------------Jargon---------------*/
+/* Add a dashed line under jargon terms */
+.jargon-term {
+  text-decoration: underline var(--ifm-color-primary-light);
+}
+
+/* Add a question mark behind/above jargon terms */
+.jargon-term::after {
+  content: '?';
+  font-weight: bold;
+  display: inline-block;
+  transform: translate(0, -0.5em);
+  font-size: 75%;
+  color: var(--ifm-color-primary-light);
+  margin-left: 3px;
+}
+
+/* Hover behavior for the therm itself */
+.jargon-term:hover {
+  position: relative;
+  text-decoration: none;
+  cursor: help;
+}
+
+/* Hide info by default */
+.jargon-term .jargon-info {
+  display: none;
+}
+
+/* Show info on hover */
+.jargon-term:hover .jargon-info {
+  display: block;
+  position: absolute;
+  top: 1.5em;
+  left: 0;
+  background: var(--ifm-hover-overlay);
+  border: 1px solid var(--ifm-color-primary-light);
+  padding: 1rem;
+  border-radius: 4px;
+  font-size: 90%;
+  min-width: 250px;
+  max-width: 450px;
+  z-index: 1;
+}
+/*---------------------------------*/
 
 /* Ensure equations are scrollable on smaller screens */
 .katex-display {

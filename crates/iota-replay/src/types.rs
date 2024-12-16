@@ -75,7 +75,6 @@ fn unspecified_chain() -> Chain {
     Chain::Unknown
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Error, Clone)]
 pub enum ReplayEngineError {
     #[error("IotaError: {:#?}", err)]
