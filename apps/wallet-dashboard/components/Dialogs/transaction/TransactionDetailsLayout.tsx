@@ -9,10 +9,12 @@ import {
     ViewTxnOnExplorerButton,
     ExplorerLinkType,
     TransactionReceipt,
+    useRecognizedPackages,
 } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../layout';
 import { Validator } from '../Staking/views/Validator';
+import { Network } from '@iota/iota-sdk/client';
 
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
@@ -26,10 +28,12 @@ export function TransactionDetailsLayout({
 }: TransactionDialogDetailsProps) {
     const address = useCurrentAccount()?.address ?? '';
 
+    const { network } = useIotaClientContext();
+    const recognizedPackagesList = useRecognizedPackages(network as Network);
     const summary = useTransactionSummary({
         transaction: transaction.raw,
         currentAddress: address,
-        recognizedPackagesList: [],
+        recognizedPackagesList,
     });
 
     if (!summary) return <LoadingIndicator />;
