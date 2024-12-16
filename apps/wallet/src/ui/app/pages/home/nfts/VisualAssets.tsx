@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary, NFTDisplayCard } from '_components';
+import { ErrorBoundary, NFTDisplayCard, MovedAssetNotification } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
-
+import { toast } from 'react-hot-toast';
 import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
 import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
 import { VisibilityOff } from '@iota/ui-icons';
@@ -16,7 +16,7 @@ interface VisualAssetsProps {
 }
 
 export default function VisualAssets({ items }: VisualAssetsProps) {
-    const { hideAsset } = useHiddenAssets();
+    const { hideAsset, undoHideAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
 
     function handleHideAsset(event: React.MouseEvent<HTMLButtonElement>, object: IotaObjectData) {
@@ -26,7 +26,25 @@ export default function VisualAssets({ items }: VisualAssetsProps) {
             objectId: object.objectId,
             collectibleType: object.type!,
         });
-        hideAsset(object.objectId);
+        hideAsset(object.objectId).then(() => {
+            toast.success(
+                (t) => (
+                    <MovedAssetNotification
+                        t={t}
+                        destination="Hidden Assets"
+                        onUndo={() =>
+                            undoHideAsset(object.objectId).catch(() => {
+                                // Handle any error that occurred during the unhide process
+                                toast.error('Failed to unhide asset.');
+                            })
+                        }
+                    />
+                ),
+                {
+                    duration: 4000,
+                },
+            );
+        });
     }
 
     return (

@@ -21,7 +21,8 @@ type HiddenAssets =
 interface HiddenAssetContext {
     hiddenAssets: HiddenAssets;
     setHiddenAssetIds: (hiddenAssetIds: string[]) => void;
-    hideAsset: (assetId: string) => void;
+    hideAsset: (assetId: string) => Promise<string | undefined>;
+    undoHideAsset: (assetId: string) => Promise<void>;
     showAsset: (assetId: string) => void;
 }
 
@@ -30,7 +31,8 @@ export const HiddenAssetsContext = createContext<HiddenAssetContext>({
         type: 'loading',
     },
     setHiddenAssetIds: () => {},
-    hideAsset: () => {},
+    hideAsset: async () => undefined,
+    undoHideAsset: async () => undefined,
     showAsset: () => {},
 });
 
@@ -62,46 +64,29 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
             const newHiddenAssetIds = [...hiddenAssetIds, newAssetId];
             setHiddenAssetIds(newHiddenAssetIds);
             await set(HIDDEN_ASSET_IDS, newHiddenAssetIds);
-
-            const undoHideAsset = async (assetId: string) => {
-                try {
-                    let updatedHiddenAssetIds;
-                    setHiddenAssets((previous) => {
-                        const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
-                        updatedHiddenAssetIds = previousIds.filter((id) => id !== assetId);
-                        return {
-                            type: 'loaded',
-                            assetIds: updatedHiddenAssetIds,
-                        };
-                    });
-                    await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
-                } catch (error) {
-                    // Handle any error that occurred during the unhide process
-                    toast.error('Failed to unhide asset.');
-                    // Restore the asset ID back to the hidden asset IDs list
-                    setHiddenAssetIds([...hiddenAssetIds, assetId]);
-                    await set(HIDDEN_ASSET_IDS, hiddenAssetIds);
-                }
-            };
-
-            const showAssetHiddenToast = async (objectId: string) => {
-                toast.success(
-                    (t) => (
-                        <MovedAssetNotification
-                            t={t}
-                            destination="Hidden Assets"
-                            onUndo={() => undoHideAsset(objectId)}
-                        />
-                    ),
-                    {
-                        duration: 4000,
-                    },
-                );
-            };
-            showAssetHiddenToast(newAssetId);
+            return newAssetId;
         },
         [hiddenAssetIds],
     );
+
+    const undoHideAsset = async (assetId: string) => {
+        try {
+            let updatedHiddenAssetIds;
+            setHiddenAssets((previous) => {
+                const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
+                updatedHiddenAssetIds = previousIds.filter((id) => id !== assetId);
+                return {
+                    type: 'loaded',
+                    assetIds: updatedHiddenAssetIds,
+                };
+            });
+            await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
+        } catch (error) {
+            // Restore the asset ID back to the hidden asset IDs list
+            setHiddenAssetIds([...hiddenAssetIds, assetId]);
+            await set(HIDDEN_ASSET_IDS, hiddenAssetIds);
+        }
+    };
 
     const showAssetId = useCallback(
         async (newAssetId: string) => {
@@ -152,10 +137,6 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
         [hiddenAssetIds],
     );
 
-    const showAsset = (objectId: string) => {
-        showAssetId(objectId);
-    };
-
     return (
         <HiddenAssetsContext.Provider
             value={{
@@ -165,7 +146,8 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
                         : { type: 'loading' },
                 setHiddenAssetIds,
                 hideAsset: hideAssetId,
-                showAsset,
+                undoHideAsset: undoHideAsset,
+                showAsset: showAssetId,
             }}
         >
             {children}
