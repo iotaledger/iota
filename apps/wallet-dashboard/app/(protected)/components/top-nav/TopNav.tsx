@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Badge, BadgeType, Button, ButtonType } from '@iota/apps-ui-kit';
+import { ThemeSwitcher } from '@iota/core';
 import { ConnectButton } from '@iota/dapp-kit';
 import { Settings } from '@iota/ui-icons';
 
@@ -11,6 +12,7 @@ export function TopNav() {
             <Badge label="Mainnet" type={BadgeType.PrimarySoft} />
             <ConnectButton size="md" />
             <Button icon={<Settings />} type={ButtonType.Ghost} />
+            <ThemeSwitcher />
         </div>
     );
 }
