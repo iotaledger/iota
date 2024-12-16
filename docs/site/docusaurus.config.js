@@ -114,14 +114,18 @@ const config = {
         createRedirects(existingPath) {
           const redirects = [
             {
-              from: '/references/ts-sdk',
-              to: '/ts-sdk',
+              from: '/references/ts-sdk/*',
+              to: '/ts-sdk/*',
             },
           ];
           let paths = [];
           for (const redirect of redirects) {
-            if (existingPath.startsWith(redirect.to)) {
-              paths.push(existingPath.replace(redirect.to, redirect.from));
+            const fromBase = redirect.from.replace('/*', '');
+            const toBase = redirect.to.replace('/*', '');
+            
+            if (existingPath.startsWith(toBase)) {
+              const newPath = existingPath.replace(toBase, fromBase);
+              paths.push(newPath);
             }
           }
           return paths.length > 0 ? paths : undefined;
