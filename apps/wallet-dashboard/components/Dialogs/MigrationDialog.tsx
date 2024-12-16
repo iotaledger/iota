@@ -23,14 +23,14 @@ interface MigrationDialogProps {
     onSuccess?: (digest: string) => void;
     setOpen: (bool: boolean) => void;
     open: boolean;
+    isTimelocked: boolean;
 }
 
 function MigrationDialog({
-    basicOutputObjects = [],
-    nftOutputObjects = [],
     onSuccess,
     open,
     setOpen,
+    isTimelocked,
 }: MigrationDialogProps): JSX.Element {
     const account = useCurrentAccount();
     const { addNotification } = useNotifications();
