@@ -19,7 +19,6 @@ body {
 
 @layer components {
     .home-page-grid-container {
-        height: calc(100vh - 130px);
         @apply grid grid-cols-1 gap-lg;
         grid-template-areas:
             'balance'
@@ -111,6 +110,7 @@ body {
 
     @screen md {
         .home-page-grid-container {
+            height: calc(100vh - 140px);
             @apply grid-cols-3;
             grid-template-areas:
                 'balance staking staking'

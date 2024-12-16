@@ -51,7 +51,7 @@ function VirtualList<T>({
         if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer]);
+    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems]);
 
     return (
         <div className="relative h-fit w-full" ref={containerRef}>
