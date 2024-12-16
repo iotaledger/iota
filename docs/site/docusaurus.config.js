@@ -10,6 +10,8 @@ import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
+const jargonConfig = require('./config/jargon.js');
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "IOTA Documentation",
@@ -158,7 +160,10 @@ const config = {
             ],
             [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
-          rehypePlugins: [katex],
+          rehypePlugins: [
+            katex,
+            [require('rehype-jargon'), { jargon: jargonConfig}]
+          ],
         },
         theme: {
           customCss: [
@@ -186,8 +191,8 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense',
-    '@saucelabs/theme-github-codeblock'],
+  themes: ["@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense', 
+    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
