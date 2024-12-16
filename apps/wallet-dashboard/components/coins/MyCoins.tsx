@@ -71,9 +71,9 @@ function MyCoins(): React.JSX.Element {
 
     return (
         <Panel>
-            <div className="flex w-full flex-col">
+            <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                <div className="px-sm pb-md pt-sm">
+                <div className="px-sm pt-sm">
                     <div className="inline-flex">
                         <SegmentedButton type={SegmentedButtonType.Filled}>
                             {TOKEN_CATEGORIES.map(({ label, value }) => {
@@ -96,37 +96,35 @@ function MyCoins(): React.JSX.Element {
                             })}
                         </SegmentedButton>
                     </div>
-                    <div className="pb-md pt-sm">
-                        {[TokenCategory.All, TokenCategory.Recognized].includes(
-                            selectedTokenCategory,
-                        ) &&
-                            recognized?.map((coin, index) => {
-                                return (
-                                    <CoinItem
-                                        key={index}
-                                        coinType={coin.coinType}
-                                        balance={BigInt(coin.totalBalance)}
-                                        onClick={() => openSendTokenDialog(coin)}
-                                        icon={
-                                            <RecognizedBadge className="h-4 w-4 text-primary-40" />
-                                        }
-                                    />
-                                );
-                            })}
-                        {[TokenCategory.All, TokenCategory.Unrecognized].includes(
-                            selectedTokenCategory,
-                        ) &&
-                            unrecognized?.map((coin, index) => {
-                                return (
-                                    <CoinItem
-                                        key={index}
-                                        coinType={coin.coinType}
-                                        balance={BigInt(coin.totalBalance)}
-                                        onClick={() => openSendTokenDialog(coin)}
-                                    />
-                                );
-                            })}
-                    </div>
+                </div>
+                <div className="h-full overflow-y-auto px-sm pb-md pt-sm">
+                    {[TokenCategory.All, TokenCategory.Recognized].includes(
+                        selectedTokenCategory,
+                    ) &&
+                        recognized?.map((coin, index) => {
+                            return (
+                                <CoinItem
+                                    key={index}
+                                    coinType={coin.coinType}
+                                    balance={BigInt(coin.totalBalance)}
+                                    onClick={() => openSendTokenDialog(coin)}
+                                    icon={<RecognizedBadge className="h-4 w-4 text-primary-40" />}
+                                />
+                            );
+                        })}
+                    {[TokenCategory.All, TokenCategory.Unrecognized].includes(
+                        selectedTokenCategory,
+                    ) &&
+                        unrecognized?.map((coin, index) => {
+                            return (
+                                <CoinItem
+                                    key={index}
+                                    coinType={coin.coinType}
+                                    balance={BigInt(coin.totalBalance)}
+                                    onClick={() => openSendTokenDialog(coin)}
+                                />
+                            );
+                        })}
                 </div>
             </div>
             {selectedCoin && activeAccountAddress && (
