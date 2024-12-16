@@ -7,8 +7,12 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
+import {
+    useHiddenAssets,
+    getKioskIdFromOwnerCap,
+    isKioskOwnerToken,
+    useKioskClient,
+} from '@iota/core';
 import { VisibilityOff } from '@iota/ui-icons';
 
 interface VisualAssetsProps {
