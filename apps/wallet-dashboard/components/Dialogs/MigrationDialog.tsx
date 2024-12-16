@@ -15,6 +15,7 @@ import { useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import { Loader, Warning } from '@iota/ui-icons';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from './layout';
+import { MigrationObjectDetailsCard } from '../migration/migration-object-details-card';
 
 interface MigrationDialogProps {
     basicOutputObjects: IotaObjectData[] | undefined;
@@ -67,17 +68,13 @@ function MigrationDialog({
             });
     }
 
-    const virtualItem = (asset: IotaObjectData): JSX.Element => (
-        <a href={`${explorer}/object/${asset.objectId}`} target="_blank" rel="noreferrer">
-            {asset.objectId}
-        </a>
-    );
+    const filteredObjects = [...basicOutputObjects, ...nftOutputObjects];
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogLayout>
                 <Header title="Confirmation" onClose={() => setOpen(false)} titleCentered />
                 <DialogLayoutBody>
-                    <div className="flex min-w-[300px] flex-col gap-2">
+                    {/* <div className="flex min-w-[300px] flex-col gap-2">
                         <div className="flex flex-col">
                             <h1>Migratable Basic Outputs: {basicOutputObjects?.length}</h1>
                             <VirtualList
@@ -103,7 +100,19 @@ function MigrationDialog({
                                 style={InfoBoxStyle.Elevated}
                             />
                         ) : null}
-                    </div>
+                    </div> */}
+                    <VirtualList
+                        heightClassName="h-[600px]"
+                        overflowClassName="overflow-y-auto"
+                        items={filteredObjects}
+                        estimateSize={() => 58}
+                        render={(migrationObject) => (
+                            <MigrationObjectDetailsCard
+                                migrationObject={migrationObject}
+                                isTimelocked={isTimelocked}
+                            />
+                        )}
+                    />
                 </DialogLayoutBody>
                 <DialogLayoutFooter>
                     <Button
