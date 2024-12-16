@@ -126,8 +126,9 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const {
         isOpen: isUnstakeDialogOpen,
-        setIsOpen: setUnstakeDialogOpen,
-        view: unstakeDialogView,
+        openUnstakeDialog,
+        defaultDialogProps,
+        setTxDigest,
         setView: setUnstakeDialogView,
     } = useUnstakeDialog();
 
@@ -236,8 +237,7 @@ export default function VestingDashboardPage(): JSX.Element {
 
     function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
         setTimelockedObjectsToUnstake(delegatedTimelockedStake);
-        setUnstakeDialogOpen(true);
-        setUnstakeDialogView(UnstakeDialogView.TimelockedUnstake);
+        openUnstakeDialog(UnstakeDialogView.TimelockedUnstake);
     }
 
     function openReceiveTokenPopup(): void {
@@ -245,8 +245,11 @@ export default function VestingDashboardPage(): JSX.Element {
     }
 
     function handleOnSuccessUnstake(tx: IotaSignAndExecuteTransactionOutput): void {
-        setUnstakeDialogOpen(false);
-        iotaClient.waitForTransaction({ digest: tx.digest }).then(refreshStakeList);
+        setUnstakeDialogView(UnstakeDialogView.TransactionDetails);
+        iotaClient.waitForTransaction({ digest: tx.digest }).then((tx) => {
+            refreshStakeList();
+            setTxDigest(tx.digest);
+        });
     }
 
     useEffect(() => {
@@ -419,16 +422,15 @@ export default function VestingDashboardPage(): JSX.Element {
                         selectedValidator={selectedValidator}
                         setSelectedValidator={setSelectedValidator}
                         maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
-                        onUnstakeClick={() => setUnstakeDialogOpen(true)}
+                        onUnstakeClick={openUnstakeDialog}
                     />
                 )}
 
                 {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
                     <UnstakeDialog
                         groupedTimelockedObjects={timelockedObjectsToUnstake}
-                        view={unstakeDialogView}
-                        handleClose={() => setUnstakeDialogOpen(false)}
                         onSuccess={handleOnSuccessUnstake}
+                        {...defaultDialogProps}
                     />
                 )}
             </div>

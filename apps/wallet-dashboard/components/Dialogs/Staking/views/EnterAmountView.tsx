@@ -45,7 +45,7 @@ interface EnterAmountViewProps {
     handleClose: () => void;
     amountWithoutDecimals: bigint;
     senderAddress: string;
-    onSuccess?: (digest: string) => void;
+    onSuccess: (digest: string) => void;
 }
 
 function EnterAmountView({
@@ -108,7 +108,7 @@ function EnterAmountView({
             },
             {
                 onSuccess: (tx) => {
-                    onSuccess?.(tx.digest);
+                    onSuccess(tx.digest);
                     addNotification('Stake transaction has been sent');
                     resetForm();
                 },

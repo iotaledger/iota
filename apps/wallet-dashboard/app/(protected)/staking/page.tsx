@@ -59,7 +59,14 @@ function StakingDashboardPage(): React.JSX.Element {
         handleCloseStakeDialog,
         handleNewStake,
     } = useStakeDialog();
-    const { isOpen: isUnstakeDialogOpen, setIsOpen: setIsUnstakeDialogOpen } = useUnstakeDialog();
+    const {
+        isOpen: isUnstakeDialogOpen,
+        openUnstakeDialog,
+        defaultDialogProps,
+        handleClose: handleCloseUnstakeDialog,
+        setView: setUnstakeDialogView,
+        setTxDigest,
+    } = useUnstakeDialog();
 
     const { data: delegatedStakeData, refetch: refetchDelegatedStakes } = useGetDelegatedStake({
         address: account?.address || '',
@@ -110,12 +117,12 @@ function StakingDashboardPage(): React.JSX.Element {
 
     function handleUnstakeClick() {
         setStakeDialogView(undefined);
-        setIsUnstakeDialogOpen(true);
+        openUnstakeDialog();
     }
 
     function handleUnstakeDialogBack() {
         setStakeDialogView(StakeDialogView.Details);
-        setIsUnstakeDialogOpen(false);
+        handleCloseUnstakeDialog();
     }
 
     function handleOnUnstakeBack(view: UnstakeDialogView): (() => void) | undefined {
@@ -125,12 +132,15 @@ function StakingDashboardPage(): React.JSX.Element {
     }
 
     function handleOnUnstakeSuccess(tx: IotaSignAndExecuteTransactionOutput): void {
-        setIsUnstakeDialogOpen(false);
+        setUnstakeDialogView(UnstakeDialogView.TransactionDetails);
         iotaClient
             .waitForTransaction({
                 digest: tx.digest,
             })
-            .then(() => refetchDelegatedStakes());
+            .then((tx) => {
+                refetchDelegatedStakes();
+                setTxDigest(tx.digest);
+            });
     }
 
     return (
@@ -219,11 +229,10 @@ function StakingDashboardPage(): React.JSX.Element {
 
                         {isUnstakeDialogOpen && selectedStake && (
                             <UnstakeDialog
-                                handleClose={() => setIsUnstakeDialogOpen(false)}
                                 extendedStake={selectedStake}
                                 onBack={handleOnUnstakeBack}
-                                view={UnstakeDialogView.Unstake}
                                 onSuccess={handleOnUnstakeSuccess}
+                                {...defaultDialogProps}
                             />
                         )}
                     </Panel>

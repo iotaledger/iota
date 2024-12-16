@@ -4,4 +4,5 @@
 export enum UnstakeDialogView {
     Unstake = 'unstake',
     TimelockedUnstake = 'timelockedUnstake',
+    TransactionDetails = 'transactionDetails',
 }
