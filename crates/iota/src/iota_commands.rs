@@ -230,6 +230,8 @@ pub enum IotaCommand {
         #[clap(long, name = "iota|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
+        #[clap(long, help = "Specify the delegator address")]
+        delegator: Option<IotaAddress>,
     },
     /// Bootstrap and initialize a new iota network
     #[clap(name = "genesis")]
@@ -384,6 +386,7 @@ impl IotaCommand {
                 epoch_duration_ms,
                 local_migration_snapshots,
                 remote_migration_snapshots,
+                delegator,
             } => {
                 start(
                     config_dir.clone(),
@@ -397,6 +400,7 @@ impl IotaCommand {
                     no_full_node,
                     local_migration_snapshots,
                     remote_migration_snapshots,
+                    delegator,
                 )
                 .await?;
 
@@ -612,6 +616,7 @@ async fn start(
     no_full_node: bool,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
+    delegator: Option<IotaAddress>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -671,6 +676,17 @@ async fn start(
             .into_iter()
             .map(SnapshotSource::S3);
         genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
+
+        // A delegator must be supplied when migration snapshots are provided.
+        if !genesis_config.migration_sources.is_empty() {
+            if let Some(delegator) = delegator {
+                // Add a delegator account to the genesis.
+                genesis_config = genesis_config.add_delegator(delegator);
+            } else {
+                bail!("a delegator must be supplied when migration snapshots are provided.");
+            }
+        }
+
         swarm_builder = swarm_builder.with_genesis_config(genesis_config);
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
         swarm_builder = swarm_builder.with_epoch_duration_ms(epoch_duration_ms);
@@ -688,7 +704,7 @@ async fn start(
                 DEFAULT_NUMBER_OF_AUTHORITIES,
                 local_migration_snapshots,
                 remote_migration_snapshots,
-                None,
+                delegator,
             )
             .await?;
         }

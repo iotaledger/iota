@@ -730,11 +730,13 @@ impl Delegations {
         ])?;
 
         for (&delegator, validator_allocations) in &self.allocations {
-            for &validator_allocation in validator_allocations {
-                writer.serialize(Delegation {
-                    delegator,
-                    validator_allocation,
-                })?;
+            for validator_allocation in validator_allocations {
+                writer.write_record(&[
+                    delegator.to_string(),
+                    validator_allocation.validator.to_string(),
+                    validator_allocation.amount_nanos_to_stake.to_string(),
+                    validator_allocation.amount_nanos_to_pay_gas.to_string(),
+                ])?;
             }
         }
 
