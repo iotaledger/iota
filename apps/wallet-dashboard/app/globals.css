@@ -17,7 +17,6 @@ body {
     }
 }
 
-
 @layer components {
     .home-page-grid-container {
         height: calc(100vh - 130px);
@@ -63,7 +62,8 @@ body {
             'coins'
             'activity';
     }
-    .home-page-grid-container:has(.with-migration), .home-page-grid-container:has(.with-vesting) {
+    .home-page-grid-container:has(.with-migration),
+    .home-page-grid-container:has(.with-vesting) {
         grid-template-areas:
             'balance'
             'staking'
@@ -82,7 +82,7 @@ body {
                 'coins coins'
                 'activity activity';
         }
-        .home-page-grid-container:has(.with-vesting)  {
+        .home-page-grid-container:has(.with-vesting) {
             @apply grid-cols-2;
             grid-template-areas:
                 'balance balance'
@@ -98,7 +98,8 @@ body {
                 'coins coins'
                 'activity activity';
         }
-        .home-page-grid-container:has(.with-migration), .home-page-grid-container:has(.with-vesting) {
+        .home-page-grid-container:has(.with-migration),
+        .home-page-grid-container:has(.with-vesting) {
             grid-template-areas:
                 'balance balance'
                 'staking migration'
@@ -115,7 +116,7 @@ body {
                 'balance staking staking'
                 'coins activity activity';
         }
-        .home-page-grid-container:has(.with-vesting)  {
+        .home-page-grid-container:has(.with-vesting) {
             grid-template-areas:
                 'balance staking staking'
                 'coins vesting vesting'
@@ -127,14 +128,14 @@ body {
                 'balance staking migration'
                 'coins activity activity';
         }
-        .home-page-grid-container:has(.with-migration), .home-page-grid-container:has(.with-vesting) {
+        .home-page-grid-container:has(.with-migration),
+        .home-page-grid-container:has(.with-vesting) {
             grid-template-areas:
                 'balance staking migration'
                 'coins vesting vesting'
                 'coins activity activity';
         }
     }
-
 
     .grid-template-visual-assets {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

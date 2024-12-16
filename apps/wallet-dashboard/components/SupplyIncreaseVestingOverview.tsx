@@ -70,7 +70,7 @@ export function SupplyIncreaseVestingOverview() {
             .then(() => {
                 queryClient.invalidateQueries({
                     queryKey: [
-                    	'get-timelocked-staked-objects',
+                        'get-timelocked-staked-objects',
                         'get-all-owned-objects',
                         account?.address,
                         {
