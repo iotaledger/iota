@@ -13,13 +13,12 @@ import {
 } from '@iota/apps-ui-kit';
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Loading, NoData, PageTemplate } from '_components';
-import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HiddenAssets from './HiddenAssets';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
 import { Warning } from '@iota/ui-icons';
-import { useOnScreen } from '@iota/core';
+import { useOnScreen, useGetNFTs } from '@iota/core';
 
 enum AssetCategory {
     Visual = 'Visual',

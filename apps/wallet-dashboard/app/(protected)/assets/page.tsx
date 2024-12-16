@@ -23,6 +23,10 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
         label: 'Other',
         value: AssetCategory.Other,
     },
+    {
+        label: 'Hidden',
+        value: AssetCategory.Hidden,
+    },
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {

@@ -8,8 +8,8 @@ import {
     useGetOwnedObjects,
     useKioskClient,
     useHiddenAssets,
-} from '@iota/core';
-import { type IotaObjectData } from '@iota/iota-sdk/client';
+} from 'apps/core/src/index';
+import { type IotaObjectData } from '@iota/iota-sdk/dist/cjs/client';
 import { useMemo } from 'react';
 
 type OwnedAssets = {
