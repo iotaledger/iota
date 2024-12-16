@@ -50,5 +50,11 @@ export function useGetStardustMigratableObjects(address: string) {
             basicOutputObjects !== undefined &&
             nftOutputObjects !== undefined,
         staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
+        placeholderData: {
+            migratableBasicOutputs: [],
+            unmigratableBasicOutputs: [],
+            migratableNftOutputs: [],
+            unmigratableNftOutputs: [],
+        },
     });
 }

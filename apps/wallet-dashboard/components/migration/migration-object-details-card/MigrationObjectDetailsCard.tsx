@@ -7,7 +7,7 @@ import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
 import { CommonMigrationObjectType } from '@/lib/enums';
 import { ResolvedObjectTypes } from '@/lib/types';
 import { Card, CardBody, CardImage, ImageShape, LabelText, LabelTextSize } from '@iota/apps-ui-kit';
-import { TimeUnit, useFormatCoin, useTimeAgo } from '@iota/core';
+import { MILLISECONDS_PER_SECOND, TimeUnit, useFormatCoin, useTimeAgo } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Assets, DataStack, IotaLogoMark } from '@iota/ui-icons';
 import { useState } from 'react';
@@ -114,13 +114,15 @@ interface UnlockConditionLabelProps {
     isTimelocked: boolean;
 }
 function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockConditionLabelProps) {
-    const { data: currentEpochEndTimestampMs } = useGetCurrentEpochEndTimestamp();
+    const { data: currentEpochEndTimestampMs, isLoading } = useGetCurrentEpochEndTimestamp();
 
     const epochEndMs = currentEpochEndTimestampMs ?? 0;
     const currentDateMs = Date.now();
 
-    const unlockConditionTimestampMs = Number(groupKey) * 1000;
-    const isInAFutureEpoch = unlockConditionTimestampMs > epochEndMs;
+    const unlockConditionTimestampMs = parseInt(groupKey) * MILLISECONDS_PER_SECOND;
+    // TODO: https://github.com/iotaledger/iota/issues/4369
+    const isInAFutureEpoch = !isLoading && unlockConditionTimestampMs > epochEndMs;
+
     const outputTimestampMs = isInAFutureEpoch ? unlockConditionTimestampMs : epochEndMs;
 
     const timeLabel = useTimeAgo({
