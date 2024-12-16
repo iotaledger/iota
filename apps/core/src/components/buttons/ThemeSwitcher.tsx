@@ -5,7 +5,6 @@ import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { DarkMode, LightMode } from '@iota/ui-icons';
 import { Theme, ThemePreference } from '../../enums';
 import { useTheme } from '../../hooks';
-export * from './ThemeSwitcher';
 
 export function ThemeSwitcher(): React.JSX.Element {
     const { theme, themePreference, setThemePreference } = useTheme();
