@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useFilterMigrationObjects, useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
+import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
 import {
     STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
     STARDUST_UNMIGRATABLE_OBJECTS_FILTER_LIST,
@@ -29,6 +29,7 @@ import clsx from 'clsx';
 import { useState } from 'react';
 import { MigrationObjectDetailsCard } from './migration-object-details-card';
 import VirtualList from '../VirtualList';
+import { filterMigrationObjects } from '@/lib/utils';
 
 const FILTERS = {
     migratable: STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
@@ -55,7 +56,7 @@ export function MigrationObjectsPanel({
         error: isErrored,
     } = useGroupedMigrationObjectsByExpirationDate(selectedObjects, isTimelocked);
 
-    const filteredObjects = useFilterMigrationObjects(resolvedObjects, stardustOutputDetailsFilter);
+    const filteredObjects = filterMigrationObjects(resolvedObjects, stardustOutputDetailsFilter);
 
     const filters = isTimelocked ? FILTERS.unmigratable : FILTERS.migratable;
     const isHidden = selectedObjects.length === 0;
@@ -87,7 +88,7 @@ export function MigrationObjectsPanel({
                                 <div className="flex h-full max-h-full w-full flex-col items-center">
                                     <InfoBox
                                         title="Error"
-                                        supportingText="Failed to load migration objects"
+                                        supportingText="Failed to load stardust objects"
                                         style={InfoBoxStyle.Elevated}
                                         type={InfoBoxType.Error}
                                         icon={<Warning />}

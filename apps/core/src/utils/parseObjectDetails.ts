@@ -15,8 +15,7 @@ type TypeName = string;
 export function parseObjectChangeDetails(
     objectChange: ObjectChangeWithObjectType,
 ): [PackageId, ModuleName, TypeName] {
-    const [packageId, moduleName, typeName] = extractObjectTypeStruct(objectChange.objectType);
-    return [packageId, moduleName, typeName];
+    return extractObjectTypeStruct(objectChange.objectType);
 }
 
 export function extractObjectTypeStruct(objectType: string): [PackageId, ModuleName, TypeName] {

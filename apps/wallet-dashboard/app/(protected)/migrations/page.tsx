@@ -27,12 +27,6 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel } from '@/components';
 
-interface MigrationDisplayCard {
-    title: string;
-    subtitle: string;
-    icon: React.FC;
-}
-
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
@@ -44,7 +38,8 @@ function MigrationDashboardPage(): JSX.Element {
         StardustOutputMigrationStatus | undefined
     >(undefined);
 
-    const { data: stardustMigrationObjects, isLoading } = useGetStardustMigratableObjects(address);
+    const { data: stardustMigrationObjects, isPlaceholderData } =
+        useGetStardustMigratableObjects(address);
     const {
         migratableBasicOutputs,
         migratableNftOutputs,
@@ -93,7 +88,7 @@ function MigrationDashboardPage(): JSX.Element {
         [iotaClient, queryClient, address],
     );
 
-    const MIGRATION_CARDS: MigrationDisplayCard[] = [
+    const MIGRATION_CARDS: MigrationDisplayCardProps[] = [
         {
             title: `${timelockedIotaTokens} ${symbol}`,
             subtitle: 'IOTA Tokens',
@@ -111,7 +106,7 @@ function MigrationDashboardPage(): JSX.Element {
         },
     ];
 
-    const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCard[] = [
+    const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCardProps[] = [
         {
             title: `${totalUnmigratableObjects}`,
             subtitle: 'Time-locked',
@@ -176,15 +171,11 @@ function MigrationDashboardPage(): JSX.Element {
                         />
                         <div className="flex flex-col gap-xs p-md--rs">
                             {MIGRATION_CARDS.map((card) => (
-                                <Card key={card.subtitle}>
-                                    <CardImage shape={ImageShape.SquareRounded}>
-                                        <card.icon />
-                                    </CardImage>
-                                    <CardBody
-                                        title={isLoading ? '--' : card.title}
-                                        subtitle={card.subtitle}
-                                    />
-                                </Card>
+                                <MigrationDisplayCard
+                                    key={card.subtitle}
+                                    isPlaceholder={isPlaceholderData}
+                                    {...card}
+                                />
                             ))}
                             <Button
                                 text="See All"
@@ -207,15 +198,11 @@ function MigrationDashboardPage(): JSX.Element {
                         <Title title="Time-locked Assets" />
                         <div className="flex flex-col gap-xs p-md--rs">
                             {TIMELOCKED_ASSETS_CARDS.map((card) => (
-                                <Card key={card.subtitle}>
-                                    <CardImage shape={ImageShape.SquareRounded}>
-                                        <card.icon />
-                                    </CardImage>
-                                    <CardBody
-                                        title={isLoading ? '--' : card.title}
-                                        subtitle={card.subtitle}
-                                    />
-                                </Card>
+                                <MigrationDisplayCard
+                                    key={card.subtitle}
+                                    isPlaceholder={isPlaceholderData}
+                                    {...card}
+                                />
                             ))}
                             <Button
                                 text="See All"
@@ -244,6 +231,29 @@ function MigrationDashboardPage(): JSX.Element {
                 />
             </div>
         </div>
+    );
+}
+
+interface MigrationDisplayCardProps {
+    title: string;
+    subtitle: string;
+    icon: React.ComponentType;
+    isPlaceholder?: boolean;
+}
+
+function MigrationDisplayCard({
+    title,
+    subtitle,
+    icon: Icon,
+    isPlaceholder,
+}: MigrationDisplayCardProps): React.JSX.Element {
+    return (
+        <Card>
+            <CardImage shape={ImageShape.SquareRounded}>
+                <Icon />
+            </CardImage>
+            <CardBody title={isPlaceholder ? '--' : title} subtitle={subtitle} />
+        </Card>
     );
 }
 
