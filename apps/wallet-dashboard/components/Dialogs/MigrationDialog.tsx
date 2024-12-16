@@ -37,7 +37,7 @@ interface MigrationDialogProps {
     isTimelocked: boolean;
 }
 
-function MigrationDialog({
+export function MigrationDialog({
     basicOutputObjects = [],
     nftOutputObjects = [],
     onSuccess,
@@ -179,5 +179,3 @@ function MigrationDialog({
         </Dialog>
     );
 }
-
-export default MigrationDialog;

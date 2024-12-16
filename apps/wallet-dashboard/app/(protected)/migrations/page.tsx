@@ -24,8 +24,7 @@ import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
-import { MigrationObjectsPanel } from '@/components';
-import MigrationDialog from '@/components/Dialogs/MigrationDialog';
+import { MigrationObjectsPanel, MigrationDialog } from '@/components';
 
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
