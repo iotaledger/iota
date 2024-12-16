@@ -12,6 +12,7 @@ import {
 import {
     extractObjectTypeStruct,
     getNativeTokensFromBag,
+    MILLISECONDS_PER_SECOND,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
 } from '@iota/core';
@@ -107,8 +108,18 @@ export async function groupMigrationObjectsByUnlockCondition(
         await Promise.all(promises);
     }
 
-    const parseTimestamp = (timestamp: string) =>
-        timestamp === MIGRATION_OBJECT_WITHOUT_UC_KEY ? 0 : parseInt(timestamp);
+    const parseTimestamp = (timestamp: string) => {
+        // Move objects with no expiration to the end of the list
+        if (timestamp === MIGRATION_OBJECT_WITHOUT_UC_KEY) {
+            return Number.MAX_SAFE_INTEGER;
+            // Move objects with expired unlock conditions to the end of the list
+        } else if (parseInt(timestamp) < Date.now() / MILLISECONDS_PER_SECOND) {
+            return Number.MAX_SAFE_INTEGER;
+        } else {
+            return parseInt(timestamp);
+        }
+    };
+
     flatObjects.sort((a, b) => {
         const timestampA = parseTimestamp(a.unlockConditionTimestamp);
         const timestampB = parseTimestamp(b.unlockConditionTimestamp);
