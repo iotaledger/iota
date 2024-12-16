@@ -4,8 +4,6 @@
 
 import { get, set } from 'idb-keyval';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { toast } from 'react-hot-toast';
-import { MovedAssetNotification } from '_components';
 
 const HIDDEN_ASSET_IDS = 'hidden-asset-ids';
 
@@ -23,7 +21,8 @@ interface HiddenAssetContext {
     setHiddenAssetIds: (hiddenAssetIds: string[]) => void;
     hideAsset: (assetId: string) => Promise<string | undefined>;
     undoHideAsset: (assetId: string) => Promise<void>;
-    showAsset: (assetId: string) => void;
+    showAsset: (assetId: string) => Promise<string | undefined>;
+    undoShowAsset: (assetId: string) => Promise<void>;
 }
 
 export const HiddenAssetsContext = createContext<HiddenAssetContext>({
@@ -33,7 +32,8 @@ export const HiddenAssetsContext = createContext<HiddenAssetContext>({
     setHiddenAssetIds: () => {},
     hideAsset: async () => undefined,
     undoHideAsset: async () => undefined,
-    showAsset: () => {},
+    showAsset: async () => undefined,
+    undoShowAsset: async () => undefined,
 });
 
 export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
@@ -96,46 +96,28 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
                 const updatedHiddenAssetIds = hiddenAssetIds.filter((id) => id !== newAssetId);
                 setHiddenAssetIds(updatedHiddenAssetIds);
                 await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
+                return newAssetId;
             } catch (error) {
-                // Handle any error that occurred during the unhide process
-                toast.error('Failed to show asset.');
                 // Restore the asset ID back to the hidden asset IDs list
                 setHiddenAssetIds([...hiddenAssetIds, newAssetId]);
                 await set(HIDDEN_ASSET_IDS, hiddenAssetIds);
             }
-
-            const undoShowAsset = async (assetId: string) => {
-                let newHiddenAssetIds;
-                setHiddenAssets((previous) => {
-                    const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
-                    newHiddenAssetIds = [...previousIds, assetId];
-                    return {
-                        type: 'loaded',
-                        assetIds: newHiddenAssetIds,
-                    };
-                });
-                await set(HIDDEN_ASSET_IDS, newHiddenAssetIds);
-            };
-
-            const assetShownToast = async (objectId: string) => {
-                toast.success(
-                    (t) => (
-                        <MovedAssetNotification
-                            t={t}
-                            destination="Visual Assets"
-                            onUndo={() => undoShowAsset(objectId)}
-                        />
-                    ),
-                    {
-                        duration: 4000,
-                    },
-                );
-            };
-
-            assetShownToast(newAssetId);
         },
         [hiddenAssetIds],
     );
+
+    const undoShowAsset = async (assetId: string) => {
+        let newHiddenAssetIds;
+        setHiddenAssets((previous) => {
+            const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
+            newHiddenAssetIds = [...previousIds, assetId];
+            return {
+                type: 'loaded',
+                assetIds: newHiddenAssetIds,
+            };
+        });
+        await set(HIDDEN_ASSET_IDS, newHiddenAssetIds);
+    };
 
     return (
         <HiddenAssetsContext.Provider
@@ -148,6 +130,7 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
                 hideAsset: hideAssetId,
                 undoHideAsset: undoHideAsset,
                 showAsset: showAssetId,
+                undoShowAsset: undoShowAsset,
             }}
         >
             {children}

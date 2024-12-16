@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary } from '_components';
+import { ErrorBoundary, MovedAssetNotification } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
 import {
     getKioskIdFromOwnerCap,
@@ -39,7 +40,7 @@ export interface HiddenAssetProps {
 }
 
 export default function HiddenAsset(item: HiddenAssetProps) {
-    const { showAsset } = useHiddenAssets();
+    const { showAsset, undoShowAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
     const navigate = useNavigate();
     const { objectId, type } = item.data!;
@@ -65,6 +66,28 @@ export default function HiddenAsset(item: HiddenAssetProps) {
             collectibleType: type!,
         });
     }
+
+    async function handleShowAsset() {
+        try {
+            await showAsset(objectId);
+            toast.success(
+                (t) => (
+                    <MovedAssetNotification
+                        t={t}
+                        destination="Visual Assets"
+                        onUndo={() => undoShowAsset(objectId)}
+                    />
+                ),
+                {
+                    duration: 4000,
+                },
+            );
+        } catch {
+            // Handle any error that occurred during the unhide process
+            toast.error('Failed to show asset.');
+        }
+    }
+
     return (
         <ErrorBoundary>
             <Card type={CardType.Default} onClick={handleHiddenAssetClick}>
@@ -88,9 +111,7 @@ export default function HiddenAsset(item: HiddenAssetProps) {
                 <CardBody title={nftMeta?.name ?? 'Asset'} subtitle={formatAddress(objectId)} />
                 <CardAction
                     type={CardActionType.Link}
-                    onClick={() => {
-                        showAsset(objectId);
-                    }}
+                    onClick={handleShowAsset}
                     icon={<VisibilityOff />}
                 />
             </Card>
