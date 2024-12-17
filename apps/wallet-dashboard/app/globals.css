@@ -35,25 +35,15 @@ body {
             height: 200px;
         }
     }
-    .home-page-grid-container:has(.with-vesting) {
-        @apply grid grid-cols-1 gap-lg;
+    .home-page-grid-container:has(.with-vesting):not(:has(.with-migration)) {
         grid-template-areas:
             'balance'
             'staking'
             'vesting'
             'coins'
             'activity';
-
-        &
-            > *:where(
-                [style*='grid-area: balance'],
-                [style*='grid-area: staking'],
-                [style*='grid-area: migration']
-            ) {
-            height: 200px;
-        }
     }
-    .home-page-grid-container:has(.with-migration) {
+    .home-page-grid-container:has(.with-migration):not(:has(.with-vesting)) {
         grid-template-areas:
             'balance'
             'staking'
@@ -61,8 +51,7 @@ body {
             'coins'
             'activity';
     }
-    .home-page-grid-container:has(.with-migration),
-    .home-page-grid-container:has(.with-vesting) {
+    .home-page-grid-container:has(.with-migration):has(.with-vesting) {
         grid-template-areas:
             'balance'
             'staking'
@@ -81,8 +70,7 @@ body {
                 'coins coins'
                 'activity activity';
         }
-        .home-page-grid-container:has(.with-vesting) {
-            @apply grid-cols-2;
+        .home-page-grid-container:has(.with-vesting):not(:has(.with-migration)) {
             grid-template-areas:
                 'balance balance'
                 'staking staking'
@@ -90,15 +78,14 @@ body {
                 'coins coins'
                 'activity activity';
         }
-        .home-page-grid-container:has(.with-migration) {
+        .home-page-grid-container:has(.with-migration):not(:has(.with-vesting)) {
             grid-template-areas:
                 'balance balance'
                 'staking migration'
                 'coins coins'
                 'activity activity';
         }
-        .home-page-grid-container:has(.with-migration),
-        .home-page-grid-container:has(.with-vesting) {
+        .home-page-grid-container:has(.with-migration):has(.with-vesting) {
             grid-template-areas:
                 'balance balance'
                 'staking migration'
@@ -117,20 +104,20 @@ body {
                 'balance staking staking'
                 'coins activity activity';
         }
-        .home-page-grid-container:has(.with-vesting) {
+        .home-page-grid-container:has(.with-vesting):not(:has(.with-migration)) {
             grid-template-areas:
                 'balance staking staking'
                 'coins vesting vesting'
                 'coins activity activity';
         }
-        .home-page-grid-container:has(.with-migration) {
-            @apply grid-cols-3;
+
+        .home-page-grid-container:has(.with-migration):not(:has(.with-vesting)) {
             grid-template-areas:
                 'balance staking migration'
                 'coins activity activity';
         }
-        .home-page-grid-container:has(.with-migration),
-        .home-page-grid-container:has(.with-vesting) {
+
+        .home-page-grid-container:has(.with-migration):has(.with-vesting) {
             grid-template-areas:
                 'balance staking migration'
                 'coins vesting vesting'
