@@ -34,7 +34,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
     supplyIncreaseVestingMapped: TimelockedObject[];
     supplyIncreaseVestingStakedMapped: ExtendedDelegatedTimelockedStake[];
     isTimelockedStakedObjectsLoading: boolean;
-    unlockAllsupplyIncreaseVesting:
+    unlockAllSupplyIncreaseVesting:
         | {
               transactionBlock: Transaction;
           }
@@ -81,7 +81,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
     );
     const supplyIncreaseVestingUnlockedObjectIds: string[] =
         supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
-    const { data: unlockAllsupplyIncreaseVesting } = useUnlockTimelockedObjectsTransaction(
+    const { data: unlockAllSupplyIncreaseVesting } = useUnlockTimelockedObjectsTransaction(
         address || '',
         supplyIncreaseVestingUnlockedObjectIds,
     );
@@ -94,6 +94,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
         supplyIncreaseVestingMapped,
         supplyIncreaseVestingStakedMapped,
         isTimelockedStakedObjectsLoading,
-        unlockAllsupplyIncreaseVesting,
+        unlockAllSupplyIncreaseVesting,
     };
 }
