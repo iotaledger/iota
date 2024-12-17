@@ -33,7 +33,7 @@ import { Exclamation } from '@iota/ui-icons';
 import { UseQueryResult } from '@tanstack/react-query';
 import { FormDataValues } from '../interfaces';
 import { INITIAL_VALUES } from '../constants';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
 interface EnterValuesFormProps {
     coin: CoinBalance;
@@ -209,54 +209,52 @@ export function EnterValuesFormView({
 
     return (
         <FormikProvider value={formik}>
-            <DialogLayout withDialogContent={false}>
-                <Header title={'Send'} onClose={onClose} />
-                <DialogLayoutBody>
-                    <CoinSelector
-                        activeCoinType={coin.coinType}
-                        coins={coinsBalance ?? []}
-                        onClick={(coinType) => {
-                            setFormData(INITIAL_VALUES);
-                            const selectedCoin = coinsBalance?.find(
-                                (coinBalance) => coinBalance.coinType === coinType,
-                            );
-                            if (selectedCoin) {
-                                setSelectedCoin(selectedCoin);
-                            }
-                        }}
-                    />
-
-                    <FormInputs
-                        hasEnoughBalance={hasEnoughBalance}
-                        formattedAmount={formattedAmount}
-                        isPayAllIota={isPayAllIota}
-                        coinType={coin.coinType}
-                        coinDecimals={coinDecimals}
-                        coinBalance={coinBalance}
-                        iotaBalance={iotaBalance}
-                        formattedTokenBalance={formattedTokenBalance}
-                        symbol={symbol}
-                        activeAddress={activeAddress}
-                        coins={coins ?? []}
-                        queryResult={queryResult}
-                    />
-                </DialogLayoutBody>
-                <DialogLayoutFooter>
-                    <Button
-                        onClick={formik.submitForm}
-                        htmlType={ButtonHtmlType.Submit}
-                        type={ButtonType.Primary}
-                        disabled={
-                            !formik.isValid ||
-                            formik.isSubmitting ||
-                            !hasEnoughBalance ||
-                            formik.values.gasBudgetEst === ''
+            <Header title={'Send'} onClose={onClose} />
+            <DialogLayoutBody>
+                <CoinSelector
+                    activeCoinType={coin.coinType}
+                    coins={coinsBalance ?? []}
+                    onClick={(coinType) => {
+                        setFormData(INITIAL_VALUES);
+                        const selectedCoin = coinsBalance?.find(
+                            (coinBalance) => coinBalance.coinType === coinType,
+                        );
+                        if (selectedCoin) {
+                            setSelectedCoin(selectedCoin);
                         }
-                        text="Review"
-                        fullWidth
-                    />
-                </DialogLayoutFooter>
-            </DialogLayout>
+                    }}
+                />
+
+                <FormInputs
+                    hasEnoughBalance={hasEnoughBalance}
+                    formattedAmount={formattedAmount}
+                    isPayAllIota={isPayAllIota}
+                    coinType={coin.coinType}
+                    coinDecimals={coinDecimals}
+                    coinBalance={coinBalance}
+                    iotaBalance={iotaBalance}
+                    formattedTokenBalance={formattedTokenBalance}
+                    symbol={symbol}
+                    activeAddress={activeAddress}
+                    coins={coins ?? []}
+                    queryResult={queryResult}
+                />
+            </DialogLayoutBody>
+            <DialogLayoutFooter>
+                <Button
+                    onClick={formik.submitForm}
+                    htmlType={ButtonHtmlType.Submit}
+                    type={ButtonType.Primary}
+                    disabled={
+                        !formik.isValid ||
+                        formik.isSubmitting ||
+                        !hasEnoughBalance ||
+                        formik.values.gasBudgetEst === ''
+                    }
+                    text="Review"
+                    fullWidth
+                />
+            </DialogLayoutFooter>
         </FormikProvider>
     );
 }

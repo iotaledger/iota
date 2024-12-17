@@ -3,18 +3,9 @@
 import { PropsWithChildren } from 'react';
 import { DialogBody, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 
-interface DialogLayoutProps {
-    withDialogContent?: boolean;
-}
-
 export function DialogLayout({
-    children,
-    withDialogContent = true,
-}: PropsWithChildren<DialogLayoutProps>) {
-    if (!withDialogContent) {
-        return <div className="flex h-full flex-col">{children}</div>;
-    }
-
+    children
+}: PropsWithChildren) {
     return (
         <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>
             <div className="flex h-full flex-col">{children}</div>
