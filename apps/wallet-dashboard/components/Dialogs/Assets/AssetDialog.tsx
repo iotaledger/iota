@@ -75,22 +75,30 @@ export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element 
     }
     return (
         <Dialog open onOpenChange={onOpenChange}>
-            <FormikProvider value={formik}>
-                <>
-                    {view === AssetsDialogView.Details && (
-                        <DetailsView asset={asset} onClose={onOpenChange} onSend={onDetailsSend} />
-                    )}
-                    {view === AssetsDialogView.Send && (
-                        <SendView asset={asset} onClose={onOpenChange} onBack={onSendViewBack} />
-                    )}
+            <DialogLayout>
+                <FormikProvider value={formik}>
+                    <>
+                        {view === AssetsDialogView.Details && (
+                            <DetailsView
+                                asset={asset}
+                                onClose={onOpenChange}
+                                onSend={onDetailsSend}
+                            />
+                        )}
+                        {view === AssetsDialogView.Send && (
+                            <SendView
+                                asset={asset}
+                                onClose={onOpenChange}
+                                onBack={onSendViewBack}
+                            />
+                        )}
 
-                    {view === AssetsDialogView.TransactionDetails && !!digest ? (
-                        <DialogLayout>
+                        {view === AssetsDialogView.TransactionDetails && !!digest ? (
                             <TransactionDetailsView digest={digest} onClose={onOpenChange} />
-                        </DialogLayout>
-                    ) : null}
-                </>
-            </FormikProvider>
+                        ) : null}
+                    </>
+                </FormikProvider>
+            </DialogLayout>
         </Dialog>
     );
 }
