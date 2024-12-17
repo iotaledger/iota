@@ -51,10 +51,7 @@ export function useNewStakeTimelockedTransaction(
             groupedTimelockObjects.length,
         ],
         queryFn: async () => {
-            const transaction = createTimelockedStakeTransaction(
-                groupedTimelockObjects || [],
-                validator,
-            );
+            const transaction = createTimelockedStakeTransaction(groupedTimelockObjects, validator);
             transaction.setSender(senderAddress);
             await transaction.build({ client });
             return transaction;
