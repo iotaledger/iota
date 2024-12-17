@@ -56,7 +56,10 @@ export async function groupMigrationObjectsByUnlockCondition(
 
             if (object.type === STARDUST_BASIC_OUTPUT_TYPE) {
                 const existing = basicObjectMap.get(groupKey);
-                const gasReturn = extractOwnedStorageDepositReturnAmount(objectFields, currentAddress);
+                const gasReturn = extractOwnedStorageDepositReturnAmount(
+                    objectFields,
+                    currentAddress,
+                );
                 const newBalance =
                     (existing ? existing.balance : 0n) +
                     BigInt(objectFields.balance) +
