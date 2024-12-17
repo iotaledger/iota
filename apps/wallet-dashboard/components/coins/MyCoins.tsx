@@ -73,7 +73,7 @@ function MyCoins(): React.JSX.Element {
         <Panel>
             <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                <div className="px-sm pt-sm">
+                <div className="px-sm py-sm">
                     <div className="inline-flex">
                         <SegmentedButton type={SegmentedButtonType.Filled}>
                             {TOKEN_CATEGORIES.map(({ label, value }) => {
