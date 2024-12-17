@@ -45,7 +45,6 @@ export function TransactionDetailsView({ digest, onClose }: TransactionDetailsVi
         <TransactionDetailsLayout
             transaction={transaction}
             onClose={onClose}
-            withDialogContent={false}
         />
     ) : null;
 }
