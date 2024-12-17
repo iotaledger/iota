@@ -1,5 +1,6 @@
 import NetworkInfo from "@site/src/components/NetworkInfo/index.tsx";
 import { Networks } from '@site/src/components/constant.tsx';
+import HighTrafficRpcs from "@site/../content/_snippets/info-high-traffic.mdx";
 
 # IOTA TypeScript SDK Quick Start
 
@@ -16,6 +17,9 @@ npm i @iota/iota-sdk
 
 The following table lists the locations for IOTA networks.
 
+{ /* TODO: https://github.com/iotaledger/iota/issues/4497 */ }
+<HighTrafficRpcs />
+
 ## IOTA Testnet
 
 <NetworkInfo.Move {...Networks['iota_move_testnet']}/>
@@ -29,19 +33,6 @@ The following table lists the locations for IOTA networks.
 To create a local IOTA network, you can refer to [Local Development](/developer/getting-started/local-network) page.
 
 <NetworkInfo.Move {...Networks['iota_localnet']}/>
-
-:::warning
-
-Use dedicated nodes/shared services rather than public endpoints for production apps. The public
-endpoints maintained by the IOTA Foundation (`api.<NETWORK>.iota.cafe:443`) are rate-limited, and support
-only 100 requests per 30 seconds or so. Do not use public endpoints in production applications with
-high traffic volume.
-
-You can either run your own Full nodes, or outsource this to a professional infrastructure provider
-(preferred for apps that have high traffic). You can find a list of reliable RPC endpoint providers
-for IOTA on the [IOTA Dev Portal](https://iota.io/developers#dev-tools) using the **Node Service** tab.
-
-:::
 
 ## Migrate to version 0.38.0
 
