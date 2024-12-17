@@ -354,7 +354,6 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    #[allow(clippy::type_complexity)]
     async fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
