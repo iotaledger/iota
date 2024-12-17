@@ -41,9 +41,9 @@ pub struct AnalyticsProcessor<S: Serialize + ParquetSchema> {
     metrics: AnalyticsMetrics,
     config: AnalyticsIndexerConfig,
     sender: mpsc::Sender<FileMetadata>,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     kill_sender: oneshot::Sender<()>,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     max_checkpoint_sender: oneshot::Sender<()>,
 }
 

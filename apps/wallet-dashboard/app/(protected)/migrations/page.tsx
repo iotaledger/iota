@@ -1,10 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 'use client';
 
+import { useState, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import clsx from 'clsx';
 import MigratePopup from '@/components/Popup/Popups/MigratePopup';
-import { usePopups } from '@/hooks';
-import { summarizeMigratableObjectValues } from '@/lib/utils';
+import { useGetStardustMigratableObjects, usePopups } from '@/hooks';
+import { summarizeMigratableObjectValues, summarizeUnmigratableObjectValues } from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -16,18 +20,12 @@ import {
     Panel,
     Title,
 } from '@iota/apps-ui-kit';
+import { Assets, Clock, IotaLogoMark, Tokens } from '@iota/ui-icons';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
-import { useGetStardustMigratableObjects } from '@/hooks';
-import { useQueryClient } from '@tanstack/react-query';
-import { Assets, Clock, IotaLogoMark, Tokens } from '@iota/ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-
-interface MigrationDisplayCard {
-    title: string;
-    subtitle: string;
-    icon: React.FC;
-}
+import { StardustOutputMigrationStatus } from '@/lib/enums';
+import { MigrationObjectsPanel } from '@/components';
 
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -36,42 +34,105 @@ function MigrationDashboardPage(): JSX.Element {
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
 
+    const [selectedStardustObjectsCategory, setSelectedStardustObjectsCategory] = useState<
+        StardustOutputMigrationStatus | undefined
+    >(undefined);
+
+    const { data: stardustMigrationObjects, isPlaceholderData } =
+        useGetStardustMigratableObjects(address);
     const {
         migratableBasicOutputs,
-        unmigratableBasicOutputs,
         migratableNftOutputs,
+        unmigratableBasicOutputs,
         unmigratableNftOutputs,
-    } = useGetStardustMigratableObjects(address);
+    } = stardustMigrationObjects || {};
+
+    const {
+        totalIotaAmount,
+        totalNativeTokens: migratableNativeTokens,
+        totalVisualAssets: migratableVisualAssets,
+    } = summarizeMigratableObjectValues({
+        basicOutputs: migratableBasicOutputs,
+        nftOutputs: migratableNftOutputs,
+        address,
+    });
+    const { totalUnmigratableObjects } = summarizeUnmigratableObjectValues({
+        basicOutputs: unmigratableBasicOutputs,
+        nftOutputs: unmigratableNftOutputs,
+    });
 
     const hasMigratableObjects =
-        migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0;
+        (migratableBasicOutputs?.length || 0) > 0 && (migratableNftOutputs?.length || 0) > 0;
 
-    function handleOnSuccess(digest: string): void {
-        iotaClient
-            .waitForTransaction({
-                digest,
-            })
-            .then(() => {
+    const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);
+
+    const handleOnSuccess = useCallback(
+        (digest: string) => {
+            iotaClient.waitForTransaction({ digest }).then(() => {
                 queryClient.invalidateQueries({
                     queryKey: [
                         'get-all-owned-objects',
                         address,
-                        {
-                            StructType: STARDUST_BASIC_OUTPUT_TYPE,
-                        },
+                        { StructType: STARDUST_BASIC_OUTPUT_TYPE },
                     ],
                 });
                 queryClient.invalidateQueries({
                     queryKey: [
                         'get-all-owned-objects',
                         address,
-                        {
-                            StructType: STARDUST_NFT_OUTPUT_TYPE,
-                        },
+                        { StructType: STARDUST_NFT_OUTPUT_TYPE },
                     ],
                 });
             });
-    }
+        },
+        [iotaClient, queryClient, address],
+    );
+
+    const MIGRATION_CARDS: MigrationDisplayCardProps[] = [
+        {
+            title: `${timelockedIotaTokens} ${symbol}`,
+            subtitle: 'IOTA Tokens',
+            icon: IotaLogoMark,
+        },
+        {
+            title: `${migratableNativeTokens}`,
+            subtitle: 'Native Tokens',
+            icon: Tokens,
+        },
+        {
+            title: `${migratableVisualAssets}`,
+            subtitle: 'Visual Assets',
+            icon: Assets,
+        },
+    ];
+
+    const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCardProps[] = [
+        {
+            title: `${totalUnmigratableObjects}`,
+            subtitle: 'Time-locked',
+            icon: Clock,
+        },
+    ];
+
+    const selectedObjects = useMemo(() => {
+        if (stardustMigrationObjects) {
+            if (selectedStardustObjectsCategory === StardustOutputMigrationStatus.Migratable) {
+                return [
+                    ...stardustMigrationObjects.migratableBasicOutputs,
+                    ...stardustMigrationObjects.migratableNftOutputs,
+                ];
+            } else if (
+                selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
+            ) {
+                return [
+                    ...stardustMigrationObjects.unmigratableBasicOutputs,
+                    ...stardustMigrationObjects.unmigratableNftOutputs,
+                ];
+            }
+        }
+        return [];
+    }, [selectedStardustObjectsCategory, stardustMigrationObjects]);
+
     function openMigratePopup(): void {
         openPopup(
             <MigratePopup
@@ -83,51 +144,18 @@ function MigrationDashboardPage(): JSX.Element {
         );
     }
 
-    const {
-        accumulatedIotaAmount: accumulatedTimelockedIotaAmount,
-        totalNativeTokens,
-        totalVisualAssets,
-    } = summarizeMigratableObjectValues({
-        migratableBasicOutputs,
-        migratableNftOutputs,
-        address,
-    });
-
-    const [timelockedIotaTokens, symbol] = useFormatCoin(
-        accumulatedTimelockedIotaAmount,
-        IOTA_TYPE_ARG,
-    );
-
-    const MIGRATION_CARDS: MigrationDisplayCard[] = [
-        {
-            title: `${timelockedIotaTokens} ${symbol}`,
-            subtitle: 'IOTA Tokens',
-            icon: IotaLogoMark,
-        },
-        {
-            title: `${totalNativeTokens}`,
-            subtitle: 'Native Tokens',
-            icon: Tokens,
-        },
-        {
-            title: `${totalVisualAssets}`,
-            subtitle: 'Visual Assets',
-            icon: Assets,
-        },
-    ];
-
-    const timelockedAssetsAmount = unmigratableBasicOutputs.length + unmigratableNftOutputs.length;
-    const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCard[] = [
-        {
-            title: `${timelockedAssetsAmount}`,
-            subtitle: 'Time-locked',
-            icon: Clock,
-        },
-    ];
+    function handleCloseDetailsPanel() {
+        setSelectedStardustObjectsCategory(undefined);
+    }
 
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
-            <div className="flex w-full flex-row justify-center">
+            <div
+                className={clsx(
+                    'flex h-[700px] w-full flex-row items-stretch',
+                    !selectedStardustObjectsCategory ? 'justify-center' : 'gap-md--rs',
+                )}
+            >
                 <div className="flex w-1/3 flex-col gap-md--rs">
                     <Panel>
                         <Title
@@ -143,14 +171,27 @@ function MigrationDashboardPage(): JSX.Element {
                         />
                         <div className="flex flex-col gap-xs p-md--rs">
                             {MIGRATION_CARDS.map((card) => (
-                                <Card key={card.subtitle}>
-                                    <CardImage shape={ImageShape.SquareRounded}>
-                                        <card.icon />
-                                    </CardImage>
-                                    <CardBody title={card.title} subtitle={card.subtitle} />
-                                </Card>
+                                <MigrationDisplayCard
+                                    key={card.subtitle}
+                                    isPlaceholder={isPlaceholderData}
+                                    {...card}
+                                />
                             ))}
-                            <Button text="See All" type={ButtonType.Ghost} fullWidth />
+                            <Button
+                                text="See All"
+                                type={ButtonType.Ghost}
+                                fullWidth
+                                disabled={
+                                    selectedStardustObjectsCategory ===
+                                        StardustOutputMigrationStatus.Migratable ||
+                                    !hasMigratableObjects
+                                }
+                                onClick={() =>
+                                    setSelectedStardustObjectsCategory(
+                                        StardustOutputMigrationStatus.Migratable,
+                                    )
+                                }
+                            />
                         </div>
                     </Panel>
 
@@ -158,19 +199,63 @@ function MigrationDashboardPage(): JSX.Element {
                         <Title title="Time-locked Assets" />
                         <div className="flex flex-col gap-xs p-md--rs">
                             {TIMELOCKED_ASSETS_CARDS.map((card) => (
-                                <Card key={card.subtitle}>
-                                    <CardImage shape={ImageShape.SquareRounded}>
-                                        <card.icon />
-                                    </CardImage>
-                                    <CardBody title={card.title} subtitle={card.subtitle} />
-                                </Card>
+                                <MigrationDisplayCard
+                                    key={card.subtitle}
+                                    isPlaceholder={isPlaceholderData}
+                                    {...card}
+                                />
                             ))}
-                            <Button text="See All" type={ButtonType.Ghost} fullWidth />
+                            <Button
+                                text="See All"
+                                type={ButtonType.Ghost}
+                                fullWidth
+                                disabled={
+                                    selectedStardustObjectsCategory ===
+                                        StardustOutputMigrationStatus.TimeLocked ||
+                                    !totalUnmigratableObjects
+                                }
+                                onClick={() =>
+                                    setSelectedStardustObjectsCategory(
+                                        StardustOutputMigrationStatus.TimeLocked,
+                                    )
+                                }
+                            />
                         </div>
                     </Panel>
                 </div>
+
+                <MigrationObjectsPanel
+                    selectedObjects={selectedObjects}
+                    onClose={handleCloseDetailsPanel}
+                    isTimelocked={
+                        selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
+                    }
+                />
             </div>
         </div>
+    );
+}
+
+interface MigrationDisplayCardProps {
+    title: string;
+    subtitle: string;
+    icon: React.ComponentType;
+    isPlaceholder?: boolean;
+}
+
+function MigrationDisplayCard({
+    title,
+    subtitle,
+    icon: Icon,
+    isPlaceholder,
+}: MigrationDisplayCardProps): React.JSX.Element {
+    return (
+        <Card>
+            <CardImage shape={ImageShape.SquareRounded}>
+                <Icon />
+            </CardImage>
+            <CardBody title={isPlaceholder ? '--' : title} subtitle={subtitle} />
+        </Card>
     );
 }
 

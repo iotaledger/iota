@@ -65,8 +65,8 @@ impl StoreObjectWrapper {
         match self {
             Self::V1(v1) => v1,
 
-            // can remove #[allow] when there are multiple versions
-            #[allow(unreachable_patterns)]
+            // can remove #[expect] when there are multiple versions
+            #[expect(unreachable_patterns)]
             _ => panic!("object should have been migrated to latest version at read time"),
         }
     }
@@ -74,8 +74,8 @@ impl StoreObjectWrapper {
         match self {
             Self::V1(v1) => v1,
 
-            // can remove #[allow] when there are multiple versions
-            #[allow(unreachable_patterns)]
+            // can remove #[expect] when there are multiple versions
+            #[expect(unreachable_patterns)]
             _ => panic!("object should have been migrated to latest version at read time"),
         }
     }
@@ -145,8 +145,8 @@ impl StoreMoveObjectWrapper {
         match self {
             Self::V1(v1) => v1,
 
-            // can remove #[allow] when there are multiple versions
-            #[allow(unreachable_patterns)]
+            // can remove #[expect] when there are multiple versions
+            #[expect(unreachable_patterns)]
             _ => panic!("object should have been migrated to latest version at read time"),
         }
     }
@@ -154,8 +154,8 @@ impl StoreMoveObjectWrapper {
         match self {
             Self::V1(v1) => v1,
 
-            // can remove #[allow] when there are multiple versions
-            #[allow(unreachable_patterns)]
+            // can remove #[expect] when there are multiple versions
+            #[expect(unreachable_patterns)]
             _ => panic!("object should have been migrated to latest version at read time"),
         }
     }
