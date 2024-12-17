@@ -5,6 +5,7 @@ import { SettingsDialog, useSettingsDialog } from '@/components';
 import { Badge, BadgeType, Button, ButtonType } from '@iota/apps-ui-kit';
 import { ConnectButton, useIotaClientContext } from '@iota/dapp-kit';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
+import { ThemeSwitcher } from '@iota/core';
 import { Settings } from '@iota/ui-icons';
 
 export function TopNav() {
@@ -36,6 +37,7 @@ export function TopNav() {
                 view={settingsDialogView}
                 setView={setSettingsDialogView}
             />
+            <ThemeSwitcher />
         </div>
     );
 }
