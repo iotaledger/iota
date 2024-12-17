@@ -648,7 +648,7 @@ pub struct ValidatorAllocation {
 
 /// Represents a delegation of stake and gas payment to a validator,
 /// coming from a delegator. This struct is used to serialize and deserialize
-/// delegations to and from a csv file. 
+/// delegations to and from a csv file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Delegation {
