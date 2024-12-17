@@ -10,7 +10,7 @@ export default tseslint.config(
     plugins: {
       react,
       reactHooks,
-      reactRefresh
+      reactRefresh,
     },
     settings: {
       version: "18",
