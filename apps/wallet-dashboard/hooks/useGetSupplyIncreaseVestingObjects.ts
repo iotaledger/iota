@@ -39,14 +39,21 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
               transactionBlock: Transaction;
           }
         | undefined;
+    refreshStakeList: () => void;
 } {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
-    const { data: timelockedObjects } = useGetAllOwnedObjects(address || '', {
-        StructType: TIMELOCK_IOTA_TYPE,
-    });
-    const { data: timelockedStakedObjects, isPending: isTimelockedStakedObjectsLoading } =
-        useGetTimelockedStakedObjects(address || '');
+    const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
+        address || '',
+        {
+            StructType: TIMELOCK_IOTA_TYPE,
+        },
+    );
+    const {
+        data: timelockedStakedObjects,
+        isLoading: isTimelockedStakedObjectsLoading,
+        refetch: refetchTimelockedStakedObjects,
+    } = useGetTimelockedStakedObjects(address || '');
 
     const supplyIncreaseVestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
         isSupplyIncreaseVestingObject,
@@ -86,6 +93,11 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
         supplyIncreaseVestingUnlockedObjectIds,
     );
 
+    function refreshStakeList() {
+        refetchTimelockedStakedObjects();
+        refetchGetAllOwnedObjects();
+    }
+
     return {
         nextPayout,
         lastPayout,
@@ -95,5 +107,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
         supplyIncreaseVestingStakedMapped,
         isTimelockedStakedObjectsLoading,
         unlockAllSupplyIncreaseVesting,
+        refreshStakeList,
     };
 }
