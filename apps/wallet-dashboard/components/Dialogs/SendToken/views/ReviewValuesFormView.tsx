@@ -22,7 +22,7 @@ import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { CoinIcon, ImageIconSize, useFormatCoin, ExplorerLinkType, CoinFormat } from '@iota/core';
 import { Loader } from '@iota/ui-icons';
 import { ExplorerLink } from '@/components';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
 interface ReviewValuesFormProps {
     formData: FormDataValues;
@@ -49,7 +49,7 @@ export function ReviewValuesFormView({
     const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG);
 
     return (
-        <DialogLayout withDialogContent={false}>
+        <>
             <Header title="Review & Send" onClose={onClose} onBack={onBack} />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
@@ -111,6 +111,6 @@ export function ReviewValuesFormView({
                     iconAfterText
                 />
             </DialogLayoutFooter>
-        </DialogLayout>
+        </>
     );
 }

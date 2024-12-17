@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CommonOutputObjectWithUc } from '@iota/core';
+import { CommonOutputObjectWithUc, MILLISECONDS_PER_SECOND } from '@iota/core';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 
 export type StardustMigrationGroupedObjects = {
@@ -11,16 +11,16 @@ export type StardustMigrationGroupedObjects = {
 
 export function groupStardustObjectsByMigrationStatus(
     stardustOutputObjects: IotaObjectData[],
-    epochTimestamp: number,
+    epochTimestampMs: number,
     address: string,
 ): StardustMigrationGroupedObjects {
     const migratable: IotaObjectData[] = [];
     const unmigratable: IotaObjectData[] = [];
 
-    const epochUnix = epochTimestamp / 1000;
+    const epochUnix = epochTimestampMs / MILLISECONDS_PER_SECOND;
 
     for (const outputObject of stardustOutputObjects) {
-        const outputObjectFields = extractOutputFields(outputObject);
+        const outputObjectFields = extractMigrationOutputFields(outputObject);
 
         if (outputObjectFields.expiration_uc) {
             const unlockableAddress =
@@ -33,6 +33,7 @@ export function groupStardustObjectsByMigrationStatus(
                 continue;
             }
         }
+
         if (
             outputObjectFields.timelock_uc &&
             outputObjectFields.timelock_uc.fields.unix_time > epochUnix
@@ -50,49 +51,76 @@ export function groupStardustObjectsByMigrationStatus(
 interface MigratableObjectsData {
     totalNativeTokens: number;
     totalVisualAssets: number;
-    accumulatedIotaAmount: number;
+    totalIotaAmount: bigint;
+}
+
+interface SummarizeMigrationObjectParams {
+    basicOutputs: IotaObjectData[] | undefined;
+    nftOutputs: IotaObjectData[] | undefined;
+    address: string;
 }
 
 export function summarizeMigratableObjectValues({
-    migratableBasicOutputs,
-    migratableNftOutputs,
+    basicOutputs = [],
+    nftOutputs = [],
     address,
-}: {
-    migratableBasicOutputs: IotaObjectData[];
-    migratableNftOutputs: IotaObjectData[];
-    address: string;
-}): MigratableObjectsData {
+}: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
-    let totalIotaAmount = 0;
+    let totalIotaAmount: bigint = 0n;
 
-    const totalVisualAssets = migratableNftOutputs.length;
-    const outputObjects = [...migratableBasicOutputs, ...migratableNftOutputs];
+    const totalVisualAssets = nftOutputs.length;
+    const outputObjects = [...basicOutputs, ...nftOutputs];
 
     for (const output of outputObjects) {
-        const outputObjectFields = extractOutputFields(output);
+        const outputObjectFields = extractMigrationOutputFields(output);
 
-        totalIotaAmount += parseInt(outputObjectFields.balance);
+        totalIotaAmount += BigInt(outputObjectFields.balance);
         totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
-        totalIotaAmount += extractStorageDepositReturnAmount(outputObjectFields, address) || 0;
+        totalIotaAmount += extractStorageDepositReturnAmount(outputObjectFields, address) || 0n;
     }
 
-    return { totalNativeTokens, totalVisualAssets, accumulatedIotaAmount: totalIotaAmount };
+    return { totalNativeTokens, totalVisualAssets, totalIotaAmount };
 }
 
-function extractStorageDepositReturnAmount(
+interface UnmmigratableObjectsData {
+    totalUnmigratableObjects: number;
+}
+
+export function summarizeUnmigratableObjectValues({
+    basicOutputs = [],
+    nftOutputs = [],
+}: Omit<SummarizeMigrationObjectParams, 'address'>): UnmmigratableObjectsData {
+    const basicObjects = basicOutputs.length;
+    const nftObjects = nftOutputs.length;
+    let nativeTokens = 0;
+
+    for (const output of [...basicOutputs, ...nftOutputs]) {
+        const outputObjectFields = extractMigrationOutputFields(output);
+
+        nativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
+    }
+
+    const totalUnmigratableObjects = basicObjects + nativeTokens + nftObjects;
+
+    return { totalUnmigratableObjects };
+}
+
+export function extractStorageDepositReturnAmount(
     { storage_deposit_return_uc }: CommonOutputObjectWithUc,
     address: string,
-): number | null {
+): bigint | null {
     if (
         storage_deposit_return_uc?.fields &&
         storage_deposit_return_uc?.fields.return_address === address
     ) {
-        return parseInt(storage_deposit_return_uc?.fields.return_amount);
+        return BigInt(storage_deposit_return_uc?.fields.return_amount);
     }
     return null;
 }
 
-function extractOutputFields(outputObject: IotaObjectData): CommonOutputObjectWithUc {
+export function extractMigrationOutputFields(
+    outputObject: IotaObjectData,
+): CommonOutputObjectWithUc {
     return (
         outputObject.content as unknown as {
             fields: CommonOutputObjectWithUc;
