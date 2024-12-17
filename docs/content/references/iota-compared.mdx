@@ -29,16 +29,16 @@ This doesn't mean that IOTA as a platform never orders transactions with respect
 
 ## A collaborative approach to transaction submission
 
-IOTA validates transactions individually, rather than batching them in the traditional blocks. The key advantage of this approach is low latency; each successful transaction quickly obtains a certificate of finality that proves to anyone that the transaction will persists its effects on the IOTA network.
+IOTA validates transactions individually, rather than batching them in the traditional blocks. The key advantage of this approach is low latency; each successful transaction quickly obtains a _certificate_ of finality that proves to anyone that the transaction will persists its effects on the IOTA network.
 
 But the process of submitting a transaction is a bit more involved. That little more work occurs on the network. (With bandwidth getting cheaper, this is less of a concern.) Whereas a usual blockchain can accept a bunch of transactions from the same author in a fire-and-forget mode, IOTA transaction submission follows these steps:
 
 1.  Sender broadcasts a transaction to all IOTA validators.
 1.  IOTA validators send individual votes on this transaction to the sender.
 1.  Each vote has a certain weight since each validator has weight based upon the rules of [Proof of Stake](https://en.wikipedia.org/wiki/Proof_of_work).
-1.  Sender collects a Byzantine-resistant-majority of these votes into a _certificate_ and broadcasts it to all IOTA validators.
+1.  Sender collects a Byzantine-resistant-majority of these votes into a __certificate__ and broadcasts it to all IOTA validators.
 1.  The validators execute the transaction and sign the results. When the client receives a Byzantine-resistant-majority of the results _finality_ is reached, ie., assurance the transaction will not be dropped (revoked).
-1.  Optionally, the sender assembles the votes to a certificate detailing the effects of the transaction.
+1.  Optionally, the sender assembles the votes to a _certificate_ detailing the effects of the transaction.
 
 While those steps demand more of the sender, performing them efficiently can still yield a cryptographic proof of finality with minimum latency. Aside from crafting the original transaction itself, the session management for a transaction does not require access to any private keys and can be delegated to a third party.
 
@@ -49,7 +49,7 @@ Because IOTA focuses on managing specific objects rather than a single aggregate
 - Every object in IOTA has a unique version number.
 - Every new version is created from a transaction that may involve several dependencies, themselves versioned objects.
 
-As a consequence, a IOTA Validator can exhibit a causal history of an object, showing its history since genesis. IOTA explicitly makes the bet that in many cases, the ordering of that causal history with the causal history of another object is irrelevant; and in the few cases where this information is relevant, IOTA makes this relationship explicit in the data.
+As a consequence, a IOTA Validator can exhibit a _causal history_ of an object, showing its history since genesis. IOTA explicitly makes the bet that in many cases, the ordering of that _causal history_ with the _causal history_ of another object is irrelevant; and in the few cases where this information is relevant, IOTA makes this relationship explicit in the data.
 
 ## Causal order vs. total order
 
