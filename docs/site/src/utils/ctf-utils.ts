@@ -26,7 +26,7 @@ export const handleChallengeSubmit = async ({
         const NETWORKS = {
             testnet: { url: getFullnodeUrl('testnet') },
         };
-        const NFTPackageAddress = "0xedeca9d6897cf86917e45f5c5cd596da48a5c4e3e1d9425aee42bed37c9ee44d"
+        const NFTPackageAddress = "0x61b31360fb89cae585b8cb593edde20dfc690a3f260c12693bbb8b33ebf4707d"
         const client = new IotaClient({ url: NETWORKS.testnet.url });
         const result = await client.getObject({ id: inputText, options: { showType: true } });
 
@@ -44,7 +44,7 @@ export const handleChallengeSubmit = async ({
                             const arg1 = new TextEncoder().encode('NFT Reward for completing challenge');
                             tx.setGasBudget(50000000);
                             tx.moveCall({
-                                target: `${NFTPackageAddress}::ctf_nft::mint_to_sender`,
+                                target: `${NFTPackageAddress}::CTF_NFT::mint_to_sender`,
                                 arguments: [tx.pure.vector('u8', arg0), tx.pure.vector('u8', arg1)],
                             });
                             return tx;
