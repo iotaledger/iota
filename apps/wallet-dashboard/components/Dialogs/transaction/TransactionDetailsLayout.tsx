@@ -9,33 +9,32 @@ import {
     ViewTxnOnExplorerButton,
     ExplorerLinkType,
     TransactionReceipt,
+    useRecognizedPackages,
 } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../layout';
+import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
+import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
 import { Validator } from '../Staking/views/Validator';
+import { Network } from '@iota/iota-sdk/client';
 
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
     onClose: () => void;
-    withDialogContent?: boolean;
 }
-export function TransactionDetailsLayout({
-    transaction,
-    onClose,
-    withDialogContent,
-}: TransactionDialogDetailsProps) {
+export function TransactionDetailsLayout({ transaction, onClose }: TransactionDialogDetailsProps) {
     const address = useCurrentAccount()?.address ?? '';
 
+    const { network } = useIotaClientContext();
+    const recognizedPackagesList = useRecognizedPackages(network as Network);
     const summary = useTransactionSummary({
         transaction: transaction.raw,
         currentAddress: address,
-        recognizedPackagesList: [],
+        recognizedPackagesList,
     });
 
     if (!summary) return <LoadingIndicator />;
 
     return (
-        <DialogLayout withDialogContent={withDialogContent}>
+        <>
             <Header title="Transaction" onClose={onClose} />
             <DialogLayoutBody>
                 <TransactionReceipt
@@ -54,6 +53,6 @@ export function TransactionDetailsLayout({
                     <ViewTxnOnExplorerButton digest={transaction.raw.digest} />
                 </ExplorerLink>
             </DialogLayoutFooter>
-        </DialogLayout>
+        </>
     );
 }

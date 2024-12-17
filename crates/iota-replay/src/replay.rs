@@ -512,7 +512,7 @@ impl LocalExec {
     }
 
     // TODO: remove this after `futures::executor::block_on` is removed.
-    #[allow(clippy::disallowed_methods)]
+    #[expect(clippy::disallowed_methods)]
     pub fn download_object(
         &self,
         object_id: &ObjectID,
@@ -557,7 +557,7 @@ impl LocalExec {
     }
 
     // TODO: remove this after `futures::executor::block_on` is removed.
-    #[allow(clippy::disallowed_methods)]
+    #[expect(clippy::disallowed_methods)]
     pub fn download_latest_object(
         &self,
         object_id: &ObjectID,
@@ -593,7 +593,7 @@ impl LocalExec {
         }
     }
 
-    #[allow(clippy::disallowed_methods)]
+    #[expect(clippy::disallowed_methods)]
     pub fn download_object_by_upper_bound(
         &self,
         object_id: &ObjectID,
@@ -727,18 +727,7 @@ impl LocalExec {
                 reason: "System transaction".to_string(),
             });
         }
-        // Before protocol version 16, the generation of effects depends on the wrapped
-        // tombstones. It is not possible to retrieve such data for replay.
-        if tx_info.protocol_version.as_u64() < 16 {
-            warn!(
-                "Protocol version ({:?}) too old: {}, skipping transaction",
-                tx_info.protocol_version, tx_digest
-            );
-            return Err(ReplayEngineError::TransactionNotSupported {
-                digest: *tx_digest,
-                reason: "Protocol version too old".to_string(),
-            });
-        }
+
         // Initialize the state necessary for execution
         // Get the input objects
         let input_objects = self.initialize_execution_env_state(tx_info).await?;

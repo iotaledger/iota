@@ -39,7 +39,10 @@ use crate::stardust::{
         },
         verification::created_objects::CreatedObjects,
     },
-    types::{output_header::OutputHeader, output_index::random_output_index},
+    types::{
+        address_swap_map::AddressSwapMap, output_header::OutputHeader,
+        output_index::random_output_index,
+    },
 };
 
 mod alias;
@@ -63,8 +66,13 @@ fn run_migration(
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     coin_type: CoinType,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration =
-        Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet, coin_type)?;
+    let mut migration = Migration::new(
+        1,
+        total_supply,
+        MigrationTargetNetwork::Mainnet,
+        coin_type,
+        AddressSwapMap::default(),
+    )?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }

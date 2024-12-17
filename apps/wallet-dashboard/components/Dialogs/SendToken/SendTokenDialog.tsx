@@ -5,13 +5,13 @@ import React, { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import { useSendCoinTransaction, useNotifications } from '@/hooks';
-import { useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { NotificationType } from '@/stores/notificationStore';
 import { CoinFormat, useFormatCoin, useGetAllCoins } from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useTransferTransactionMutation } from '@/hooks';
 
 interface SendCoinPopupProps {
     coin: CoinBalance;
@@ -36,12 +36,9 @@ function SendTokenDialogBody({
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
     const [digest, setDigest] = useState<string>('');
     const [fullAmount] = useFormatCoin(formData.amount, selectedCoin.coinType, CoinFormat.FULL);
-    const { addNotification } = useNotifications();
-    const iotaClient = useIotaClient();
-    const [isReviewing, setIsReviewing] = useState(false);
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
 
-    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const { addNotification } = useNotifications();
     const isPayAllIota =
         selectedCoin.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG;
 
@@ -54,35 +51,28 @@ function SendTokenDialogBody({
         isPayAllIota,
     );
 
+    const {
+        mutate: transfer,
+        data,
+        isPending: isLoadingTransfer,
+    } = useTransferTransactionMutation();
+
     async function handleTransfer() {
         if (!transaction) {
             addNotification('There was an error with the transaction', NotificationType.Error);
             return;
-        } else {
-            try {
-                setIsReviewing(true);
-                const executed = await signAndExecuteTransaction({
-                    transaction,
-                });
-
-                const tx = await iotaClient.waitForTransaction({
-                    digest: executed.digest,
-                });
-
-                setDigest(tx.digest);
-                setStep(FormStep.TransactionDetails);
-                addNotification('Transfer transaction has been sent');
-            } catch {
-                handleTransactionError();
-            } finally {
-                setIsReviewing(false);
-            }
         }
-    }
 
-    function handleTransactionError() {
-        setOpen(false);
-        addNotification('There was an error with the transaction', NotificationType.Error);
+        transfer(transaction, {
+            onSuccess: () => {
+                setStep(FormStep.TransactionDetails);
+                addNotification('Transfer transaction has been sent', NotificationType.Success);
+            },
+            onError: () => {
+                setOpen(false);
+                addNotification('Transfer transaction failed', NotificationType.Error);
+            },
+        });
     }
 
     function onNext(): void {
@@ -116,16 +106,16 @@ function SendTokenDialogBody({
                     formData={formData}
                     executeTransfer={handleTransfer}
                     senderAddress={activeAddress}
-                    isPending={isReviewing}
+                    isPending={isLoadingTransfer}
                     coinType={selectedCoin.coinType}
                     isPayAllIota={isPayAllIota}
                     onClose={() => setOpen(false)}
                     onBack={onBack}
                 />
             )}
-            {step === FormStep.TransactionDetails && (
+            {step === FormStep.TransactionDetails && data?.digest && (
                 <TransactionDetailsView
-                    digest={digest}
+                    digest={data.digest}
                     onClose={() => {
                         setOpen(false);
                         setStep(FormStep.EnterValues);
@@ -137,9 +127,6 @@ function SendTokenDialogBody({
 }
 
 export function SendTokenDialog(props: SendCoinPopupProps) {
-    if (!props.coin) {
-        return null;
-    }
     return (
         <Dialog open={props.open} onOpenChange={props.setOpen}>
             <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>

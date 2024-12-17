@@ -79,7 +79,7 @@ impl MetricsCallbackMaker {
 pub(crate) struct MetricsResponseCallback {
     metrics: Arc<NetworkRouteMetrics>,
     // The timer is held on to and "observed" once dropped
-    #[allow(unused)]
+    #[expect(unused)]
     timer: HistogramTimer,
     route: String,
     excessive_message_size: usize,
