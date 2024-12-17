@@ -63,17 +63,15 @@ export function MigrationDialog({
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
         useSignAndExecuteTransaction();
-    const { totalNonOwnedStorageDepositReturnAmount } = summarizeMigratableObjectValues({
+    const { totalNotOwnedStorageDepositReturnAmount } = summarizeMigratableObjectValues({
         basicOutputs: basicOutputObjects,
         nftOutputs: nftOutputObjects,
         address: account?.address || '',
     });
 
-    const [gasFee, gasFeesymbol] = useFormatCoin(migrateData?.gasBudget, IOTA_TYPE_ARG);
-    const [
-        totaltotalStorageDepositReturnAmountFormatted,
-        totaltotalStorageDepositReturnAmountSymbol,
-    ] = useFormatCoin(totalNonOwnedStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
+    const [gasFee, gasFeeSymbol] = useFormatCoin(migrateData?.gasBudget, IOTA_TYPE_ARG);
+    const [totalStorageDepositReturnAmountFormatted, totalStorageDepositReturnAmountSymbol] =
+        useFormatCoin(totalNotOwnedStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
 
     async function handleMigrate(): Promise<void> {
         if (!migrateData) return;
@@ -139,18 +137,14 @@ export function MigrationDialog({
                                     <div className="flex flex-col gap-y-sm p-md">
                                         <KeyValueInfo
                                             keyText="Legacy storage deposit"
-                                            value={
-                                                totaltotalStorageDepositReturnAmountFormatted || '-'
-                                            }
-                                            supportingLabel={
-                                                totaltotalStorageDepositReturnAmountSymbol
-                                            }
+                                            value={totalStorageDepositReturnAmountFormatted || '-'}
+                                            supportingLabel={totalStorageDepositReturnAmountSymbol}
                                             fullwidth
                                         />
                                         <KeyValueInfo
                                             keyText="Gas Fees"
                                             value={gasFee || '-'}
-                                            supportingLabel={gasFeesymbol}
+                                            supportingLabel={gasFeeSymbol}
                                             fullwidth
                                         />
                                     </div>

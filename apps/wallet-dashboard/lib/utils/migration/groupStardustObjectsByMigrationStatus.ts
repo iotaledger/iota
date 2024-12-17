@@ -52,7 +52,7 @@ interface MigratableObjectsData {
     totalNativeTokens: number;
     totalVisualAssets: number;
     totalIotaAmount: bigint;
-    totalNonOwnedStorageDepositReturnAmount: bigint;
+    totalNotOwnedStorageDepositReturnAmount: bigint;
 }
 
 interface SummarizeMigrationObjectParams {
@@ -68,7 +68,7 @@ export function summarizeMigratableObjectValues({
 }: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
     let totalIotaAmount: bigint = 0n;
-    let totalNonOwnedStorageDepositReturnAmount: bigint = 0n;
+    let totalNotOwnedStorageDepositReturnAmount: bigint = 0n;
 
     const totalVisualAssets = nftOutputs.length;
     const outputObjects = [...basicOutputs, ...nftOutputs];
@@ -80,7 +80,7 @@ export function summarizeMigratableObjectValues({
         totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
         totalIotaAmount +=
             extractOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
-        totalNonOwnedStorageDepositReturnAmount +=
+        totalNotOwnedStorageDepositReturnAmount +=
             extractNonOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
     }
 
@@ -88,7 +88,7 @@ export function summarizeMigratableObjectValues({
         totalNativeTokens,
         totalVisualAssets,
         totalIotaAmount,
-        totalNonOwnedStorageDepositReturnAmount,
+        totalNotOwnedStorageDepositReturnAmount,
     };
 }
 
