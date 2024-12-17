@@ -103,7 +103,7 @@ export function MigrationDialog({
             <DialogLayout>
                 <Header title="Confirmation" onClose={() => setOpen(false)} titleCentered />
                 <DialogLayoutBody>
-                    <div className="flex h-full flex-col gap-y-md">
+                    <div className="flex h-full flex-col gap-y-md overflow-y-auto">
                         {isErrored && !isLoading && (
                             <InfoBox
                                 title="Error"
@@ -123,9 +123,9 @@ export function MigrationDialog({
                                         <Title size={TitleSize.Small} title="Assets to Migrate" />
                                     )}
                                 >
-                                    <div className="pb-md--rs">
+                                    <div className="h-[600px] pb-md--rs">
                                         <VirtualList
-                                            heightClassName="h-[600px]"
+                                            heightClassName="h-full"
                                             overflowClassName="overflow-y-auto"
                                             items={resolvedObjects}
                                             estimateSize={() => 58}
