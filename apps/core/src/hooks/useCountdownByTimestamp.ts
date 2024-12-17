@@ -18,7 +18,7 @@ interface timeOptions {
 
 export function useCountdownByTimestamp(
     initialTimestamp: number | null,
-    options?: timeOptions
+    options?: timeOptions,
 ): string {
     const [timeRemainingMs, setTimeRemainingMs] = useState<number>(0);
 
@@ -32,23 +32,12 @@ export function useCountdownByTimestamp(
 
         return () => clearInterval(interval);
     }, [initialTimestamp]);
-    const formattedCountdown = formatCountdown(
-        timeRemainingMs,
-        options
-    );
+    const formattedCountdown = formatCountdown(timeRemainingMs, options);
     return formattedCountdown;
 }
 
-function formatCountdown(
-    totalMilliseconds: number,
-    options: timeOptions = {}
-) {
-    const {
-        showSeconds = true,
-        showMinutes = true,
-        showHours = true,
-        showDays = true,
-    } = options;
+function formatCountdown(totalMilliseconds: number, options: timeOptions = {}) {
+    const { showSeconds = true, showMinutes = true, showHours = true, showDays = true } = options;
 
     const days = Math.floor(totalMilliseconds / MILLISECONDS_PER_DAY);
     const hours = Math.floor((totalMilliseconds % MILLISECONDS_PER_DAY) / MILLISECONDS_PER_HOUR);
