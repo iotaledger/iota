@@ -69,7 +69,7 @@ export function UnstakeView({
         error: delegatedStakeDataError,
     } = delegatedStakeDataResult;
 
-    const delegationId = extendedStake?.status === 'Active' && extendedStake?.stakedIotaId;
+    const delegationId = extendedStake?.stakedIotaId;
     const isPreparingUnstake = !unstakeData || isUnstakeTxPending;
 
     async function handleUnstake(): Promise<void> {

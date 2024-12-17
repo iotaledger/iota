@@ -49,7 +49,7 @@ export function useNewStakeTimelockedTransaction(
             await transaction.build({ client });
             return transaction;
         },
-        enabled: !!validator && !!senderAddress,
+        enabled: !!(validator && senderAddress && groupedTimelockObjects?.length),
         gcTime: 0,
         select: (transaction) => {
             return {

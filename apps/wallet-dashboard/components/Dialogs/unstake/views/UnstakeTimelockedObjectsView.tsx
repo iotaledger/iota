@@ -5,7 +5,13 @@ import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Validator } from '../../Staking/views/Validator';
 import { useNewUnstakeTimelockedTransaction, useNotifications } from '@/hooks';
-import { Collapsible, useFormatCoin, useGetActiveValidatorsInfo } from '@iota/core';
+import {
+    Collapsible,
+    TimeUnit,
+    useFormatCoin,
+    useGetActiveValidatorsInfo,
+    useTimeAgo,
+} from '@iota/core';
 import { ExtendedDelegatedTimelockedStake, TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
@@ -165,6 +171,13 @@ function TimelockedStakeCollapsible({
     title,
     handleCopySuccess,
 }: TimelockedStakeCollapsibleProps) {
+    const currentEpochEndTimeAgo = useTimeAgo({
+        timeFrom: Number(stake.expirationTimestampMs),
+        endLabel: '--',
+        shortedTimeLabel: false,
+        shouldEnd: true,
+        maxTimeUnit: TimeUnit.ONE_DAY,
+    });
     return (
         <Collapsible defaultOpen key={stake.timelockedStakedIotaId} title={title}>
             <Panel>
@@ -179,7 +192,7 @@ function TimelockedStakeCollapsible({
                     />
                     <KeyValueInfo
                         keyText="Expiration time"
-                        value={stake.expirationTimestampMs}
+                        value={currentEpochEndTimeAgo}
                         fullwidth
                     />
                     {stake.label && (
