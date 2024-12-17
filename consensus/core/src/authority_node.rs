@@ -36,8 +36,8 @@ use crate::{
 /// ConsensusAuthority is used by Iota to manage the lifetime of AuthorityNode.
 /// It hides the details of the implementation from the caller,
 /// MysticetiManager.
-#[allow(private_interfaces)]
 pub enum ConsensusAuthority {
+    #[expect(private_interfaces)]
     WithTonic(AuthorityNode<TonicManager>),
 }
 
@@ -100,7 +100,7 @@ impl ConsensusAuthority {
         }
     }
 
-    #[allow(unused)]
+    #[cfg(test)]
     fn sync_last_known_own_block_enabled(&self) -> bool {
         match self {
             Self::WithTonic(authority) => authority.sync_last_known_own_block,
@@ -124,6 +124,7 @@ where
     broadcaster: Option<Broadcaster>,
     subscriber: Option<Subscriber<N::Client, AuthorityService<ChannelCoreThreadDispatcher>>>,
     network_manager: N,
+    #[cfg(test)]
     sync_last_known_own_block: bool,
 }
 
@@ -306,6 +307,7 @@ where
             broadcaster,
             subscriber,
             network_manager,
+            #[cfg(test)]
             sync_last_known_own_block,
         }
     }

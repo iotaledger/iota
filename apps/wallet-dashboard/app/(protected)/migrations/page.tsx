@@ -187,7 +187,8 @@ function MigrationDashboardPage(): JSX.Element {
                                 fullWidth
                                 disabled={
                                     selectedStardustObjectsCategory ===
-                                    StardustOutputMigrationStatus.Migratable
+                                        StardustOutputMigrationStatus.Migratable ||
+                                    !hasMigratableObjects
                                 }
                                 onClick={() =>
                                     setSelectedStardustObjectsCategory(
@@ -214,7 +215,8 @@ function MigrationDashboardPage(): JSX.Element {
                                 fullWidth
                                 disabled={
                                     selectedStardustObjectsCategory ===
-                                    StardustOutputMigrationStatus.TimeLocked
+                                        StardustOutputMigrationStatus.TimeLocked ||
+                                    !totalUnmigratableObjects
                                 }
                                 onClick={() =>
                                     setSelectedStardustObjectsCategory(

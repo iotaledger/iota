@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CommonOutputObjectWithUc } from '@iota/core';
+import { CommonOutputObjectWithUc, MILLISECONDS_PER_SECOND } from '@iota/core';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 
 export type StardustMigrationGroupedObjects = {
@@ -17,7 +17,7 @@ export function groupStardustObjectsByMigrationStatus(
     const migratable: IotaObjectData[] = [];
     const unmigratable: IotaObjectData[] = [];
 
-    const epochUnix = epochTimestampMs / 1000;
+    const epochUnix = epochTimestampMs / MILLISECONDS_PER_SECOND;
 
     for (const outputObject of stardustOutputObjects) {
         const outputObjectFields = extractMigrationOutputFields(outputObject);
