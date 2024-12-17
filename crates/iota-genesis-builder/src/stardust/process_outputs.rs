@@ -17,7 +17,7 @@ use iota_sdk::types::{
     },
 };
 use iota_types::timelock::timelock::is_vested_reward;
-use tracing::info;
+use tracing::debug;
 
 use super::types::output_header::OutputHeader;
 
@@ -98,17 +98,17 @@ where
     }
 
     fn print_metrics(&self) {
-        info!("Number of scaled outputs: {}", self.num_scaled_outputs);
-        info!(
+        debug!("Number of scaled outputs: {}", self.num_scaled_outputs);
+        debug!(
             "Number of vesting outputs before merge: {}",
             self.vesting_outputs.len()
         );
-        info!(
+        debug!(
             "Number of vesting outputs after merging: {}",
             self.num_vesting_outputs
         );
-        info!("Number of voting outputs: {}", self.voting_outputs.len());
-        info!("Voting outputs: {:?}", self.voting_outputs);
+        debug!("Number of voting outputs: {}", self.voting_outputs.len());
+        debug!("Voting outputs: {:?}", self.voting_outputs);
     }
 
     /// Get the next filtered output
