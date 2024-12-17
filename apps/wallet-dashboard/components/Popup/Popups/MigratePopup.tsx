@@ -16,8 +16,8 @@ import { NotificationType } from '@/stores/notificationStore';
 import { Loader, Warning } from '@iota/ui-icons';
 
 interface MigratePopupProps {
-    basicOutputObjects: IotaObjectData[];
-    nftOutputObjects: IotaObjectData[];
+    basicOutputObjects: IotaObjectData[] | undefined;
+    nftOutputObjects: IotaObjectData[] | undefined;
     closePopup: () => void;
     onSuccess?: (digest: string) => void;
 }

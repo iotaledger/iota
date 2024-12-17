@@ -42,7 +42,7 @@ impl<T: Send + Clone> AsyncOnceCell<T> {
     }
 
     /// Sets the value and notifies waiters. Return error if called twice
-    #[allow(clippy::result_unit_err)]
+    #[expect(clippy::result_unit_err)]
     pub fn set(&self, value: T) -> Result<(), ()> {
         let mut writer = self.writer.lock();
         match writer.take() {

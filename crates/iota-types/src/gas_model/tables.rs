@@ -49,7 +49,6 @@ pub static INITIAL_COST_SCHEDULE: Lazy<CostTable> = Lazy::new(initial_cost_sched
 /// Provide all the proper guarantees about gas metering in the Move VM.
 ///
 /// Every client must use an instance of this type to interact with the Move VM.
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct GasStatus {
     pub gas_model_version: u64,
@@ -151,7 +150,7 @@ impl GasStatus {
         InternalGas::new(val * Self::INTERNAL_UNIT_MULTIPLIER)
     }
 
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     fn to_nanos(&self, val: InternalGas) -> u64 {
         let gas: Gas = InternalGas::to_unit_round_down(val);
         u64::from(gas) * self.gas_price

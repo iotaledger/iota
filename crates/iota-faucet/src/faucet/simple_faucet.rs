@@ -65,7 +65,7 @@ pub struct SimpleFaucet {
     ttl_expiration: u64,
     coin_amount: u64,
     /// Shuts down the batch transfer task. Used only in testing.
-    #[allow(unused)]
+    #[cfg_attr(not(test), expect(unused))]
     batch_transfer_shutdown: parking_lot::Mutex<Option<oneshot::Sender<()>>>,
 }
 

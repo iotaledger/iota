@@ -4,7 +4,7 @@
 #[cfg(feature = "shared_test_runtime")]
 mod coin_api;
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[path = "../common/mod.rs"]
 mod common;
 #[cfg(feature = "shared_test_runtime")]

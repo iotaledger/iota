@@ -52,7 +52,7 @@ use tracing::{error, info};
 
 use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
 
-#[allow(rustdoc::invalid_html_tags)]
+#[expect(rustdoc::invalid_html_tags)]
 /// Checkpoints and summaries are persisted as blob files. Files are committed
 /// to local store by duration or file size. Committed files are synced with the
 /// remote store continuously. Files are optionally compressed with the zstd

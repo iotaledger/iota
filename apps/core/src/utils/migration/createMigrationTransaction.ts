@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaClient, IotaObjectData } from '@iota/iota-sdk/client';
+import { DynamicFieldInfo, IotaClient, IotaObjectData } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { STARDUST_PACKAGE_ID } from '../../constants/migration.constants';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -17,6 +17,18 @@ type NestedResultType = {
     NestedResult: [number, number];
 };
 
+export async function getNativeTokensFromBag(bagId: string, client: IotaClient) {
+    const nativeTokenDynamicFields = await client.getDynamicFields({
+        parentId: bagId,
+    });
+    const nativeTokenTypes: DynamicFieldInfo[] = [];
+    for (const nativeToken of nativeTokenDynamicFields.data) {
+        nativeTokenTypes.push(nativeToken);
+    }
+
+    return nativeTokenTypes;
+}
+
 export async function getNativeTokenTypesFromBag(
     bagId: string,
     client: IotaClient,
@@ -24,12 +36,7 @@ export async function getNativeTokenTypesFromBag(
     const nativeTokenDynamicFields = await client.getDynamicFields({
         parentId: bagId,
     });
-    const nativeTokenTypes: string[] = [];
-    for (const nativeToken of nativeTokenDynamicFields.data) {
-        nativeTokenTypes.push(nativeToken?.name?.value as string);
-    }
-
-    return nativeTokenTypes;
+    return nativeTokenDynamicFields.data.map(({ name }) => name.value as string);
 }
 
 export function validateBasicOutputObject(outputObject: IotaObjectData): BasicOutputObject {

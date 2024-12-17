@@ -12,7 +12,7 @@ export function MigrationOverview() {
     const router = useRouter();
     const account = useCurrentAccount();
     const address = account?.address || '';
-    const { migratableBasicOutputs, migratableNftOutputs } =
+    const { data: { migratableBasicOutputs = [], migratableNftOutputs = [] } = {} } =
         useGetStardustMigratableObjects(address);
 
     const needsMigration = migratableBasicOutputs.length > 0 || migratableNftOutputs.length > 0;

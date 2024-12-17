@@ -265,7 +265,7 @@ impl Iterator for CheckpointTransactionsIter {
 pub struct CursorInfo {
     pub checkpoint: CheckpointSequenceNumber,
     pub timestamp_ms: u64,
-    #[allow(unused)]
+    #[expect(unused)]
     pub index: u64,
 
     // None if there are no more transactions in the store

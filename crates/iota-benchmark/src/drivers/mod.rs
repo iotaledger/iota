@@ -55,7 +55,6 @@ impl std::fmt::Display for Interval {
 }
 
 // wrapper which implements serde
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct HistogramWrapper {
     histogram: Histogram<u64>,

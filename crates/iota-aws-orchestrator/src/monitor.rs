@@ -220,7 +220,6 @@ impl Grafana {
     }
 }
 
-#[allow(dead_code)]
 /// Bootstrap the grafana with datasource to connect to the given instances.
 /// NOTE: Only for macOS. Grafana must be installed through homebrew (and not
 /// from source). Deeper grafana configuration can be done through the
@@ -228,7 +227,7 @@ impl Grafana {
 /// (~/Library/LaunchAgents/homebrew.mxcl.grafana.plist).
 pub struct LocalGrafana;
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 impl LocalGrafana {
     /// The default grafana home directory (macOS, homebrew install).
     const DEFAULT_GRAFANA_HOME: &'static str = "/opt/homebrew/opt/grafana/share/grafana/";

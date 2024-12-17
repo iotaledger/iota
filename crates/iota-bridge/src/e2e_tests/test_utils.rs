@@ -434,7 +434,6 @@ pub async fn get_eth_signer_client_e2e_test_only(
     Ok((signer_0, private_key_0.to_string()))
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct DeployedSolContracts {
     pub iota_bridge: EthAddress,

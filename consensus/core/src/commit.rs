@@ -91,7 +91,6 @@ impl Commit {
 pub(crate) trait CommitAPI {
     fn round(&self) -> Round;
     fn index(&self) -> CommitIndex;
-    #[allow(dead_code)]
     fn previous_digest(&self) -> CommitDigest;
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;

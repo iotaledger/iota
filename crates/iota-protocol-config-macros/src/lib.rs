@@ -153,7 +153,7 @@ pub fn accessors_macro(input: TokenStream) -> TokenStream {
         _ => panic!("Only structs supported."),
     };
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     let ((getters, (test_setters, value_setters)), (value_lookup, field_names_str)): (
         (Vec<_>, (Vec<_>, Vec<_>)),
         (Vec<_>, Vec<_>),
@@ -201,7 +201,7 @@ pub fn accessors_macro(input: TokenStream) -> TokenStream {
             }
         }
 
-        #[allow(non_camel_case_types)]
+        #[expect(non_camel_case_types)]
         #[derive(Clone, Serialize, Debug, PartialEq, Deserialize, schemars::JsonSchema)]
         pub enum ProtocolConfigValue {
             #(#inner_types(#inner_types),)*

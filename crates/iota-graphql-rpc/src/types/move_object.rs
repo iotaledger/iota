@@ -52,7 +52,7 @@ pub(crate) enum MoveObjectDowncastError {
 
 /// This interface is implemented by types that represent a Move object on-chain
 /// (A Move value whose type has `key`).
-#[allow(clippy::duplicated_attributes)]
+#[expect(clippy::duplicated_attributes)]
 #[derive(Interface)]
 #[graphql(
     name = "IMoveObject",

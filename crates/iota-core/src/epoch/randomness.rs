@@ -57,7 +57,6 @@ pub const SINGLETON_KEY: u64 = 0;
 // Wrappers for DKG messages (to simplify upgrades).
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[allow(clippy::large_enum_variant)]
 pub enum VersionedProcessedMessage {
     V1(dkg_v1::ProcessedMessage<PkG, EncG>),
 }
@@ -427,7 +426,7 @@ impl RandomnessManager {
         info!("random beacon: created {msg:?} with dkg version {dkg_version}");
         let transaction = ConsensusTransaction::new_randomness_dkg_message(epoch_store.name, &msg);
 
-        #[allow(unused_mut)]
+        #[expect(unused_mut)]
         let mut fail_point_skip_sending = false;
         fail_point_if!("rb-dkg", || {
             // maybe skip sending in simtests
@@ -499,7 +498,7 @@ impl RandomnessManager {
                         &conf,
                     );
 
-                    #[allow(unused_mut)]
+                    #[expect(unused_mut)]
                     let mut fail_point_skip_sending = false;
                     fail_point_if!("rb-dkg", || {
                         // maybe skip sending in simtests

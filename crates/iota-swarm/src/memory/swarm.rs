@@ -69,7 +69,7 @@ pub struct SwarmBuilder<R = OsRng> {
 }
 
 impl SwarmBuilder {
-    #[allow(clippy::new_without_default)]
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             rng: OsRng,

@@ -59,7 +59,7 @@ trait StatePredicate {
         runner: &StressTestRunner,
         effects: &TransactionEffects,
     );
-    #[allow(unused)]
+    #[expect(unused)]
     async fn post_epoch_post_condition(
         &mut self,
         runner: &StressTestRunner,
@@ -67,7 +67,7 @@ trait StatePredicate {
     );
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 struct StressTestRunner {
     pub post_epoch_predicates: Vec<Box<dyn StatePredicate + Send + Sync>>,
     pub test_cluster: TestCluster,
@@ -234,7 +234,7 @@ impl StressTestRunner {
         self.get_from_effects(&effects.created(), name).await
     }
 
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub async fn get_mutated_object_of_type_name(
         &self,
         effects: &TransactionEffects,

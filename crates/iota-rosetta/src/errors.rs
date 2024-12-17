@@ -29,7 +29,6 @@ use crate::types::{BlockHash, IotaEnv, OperationType, PublicKey};
     derive(Display, EnumIter),
     strum(serialize_all = "kebab-case")
 )]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[error("Unsupported blockchain: {0}")]
     UnsupportedBlockchain(String),

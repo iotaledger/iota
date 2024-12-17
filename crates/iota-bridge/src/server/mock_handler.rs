@@ -26,7 +26,7 @@ use crate::{
     types::SignedBridgeAction,
 };
 
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 #[derive(Clone)]
 pub struct BridgeRequestMockHandler {
     signer: Arc<ArcSwap<Option<BridgeAuthorityKeyPair>>>,

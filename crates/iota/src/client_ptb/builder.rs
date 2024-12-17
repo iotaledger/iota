@@ -1163,7 +1163,7 @@ pub(crate) fn display_did_you_mean<S: AsRef<str> + std::fmt::Display>(
 // This lint is disabled because it's not good and doesn't look at what you're
 // actually iterating over. This seems to be a common problem with this lint.
 // See e.g., https://github.com/rust-lang/rust-clippy/issues/6075
-#[allow(clippy::needless_range_loop)]
+#[expect(clippy::needless_range_loop)]
 fn edit_distance(a: &str, b: &str) -> usize {
     let mut cache = vec![vec![0; b.len() + 1]; a.len() + 1];
 

@@ -485,7 +485,7 @@ mod tests {
         assert_eq!(digests.len(), 2);
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn setup() -> (
         iota_metrics::metered_channel::Sender<(Identifier, Vec<IotaEvent>)>,
         iota_metrics::metered_channel::Receiver<(Identifier, Vec<IotaEvent>)>,

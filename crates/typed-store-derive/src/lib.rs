@@ -380,7 +380,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             /// Only one process is allowed to do this at a time
             /// `global_db_options_override` apply to the whole DB
             /// `tables_db_options_override` apply to each table. If `None`, the attributes from `default_options_override_fn` are used if any
-            #[allow(unused_parens)]
+            #[expect(unused_parens)]
             pub fn open_tables_read_write(
                 path: std::path::PathBuf,
                 metric_conf: typed_store::rocks::MetricConf,
@@ -395,7 +395,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 }
             }
 
-            #[allow(unused_parens)]
+            #[expect(unused_parens)]
             pub fn open_tables_read_write_with_deprecation_option(
                 path: std::path::PathBuf,
                 metric_conf: typed_store::rocks::MetricConf,
@@ -415,7 +415,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             /// Only one process is allowed to do this at a time
             /// `global_db_options_override` apply to the whole DB
             /// `tables_db_options_override` apply to each table. If `None`, the attributes from `default_options_override_fn` are used if any
-            #[allow(unused_parens)]
+            #[expect(unused_parens)]
             pub fn open_tables_transactional(
                 path: std::path::PathBuf,
                 metric_conf: typed_store::rocks::MetricConf,
@@ -794,7 +794,7 @@ pub fn derive_sallydb_general(input: TokenStream) -> TokenStream {
             /// Only one process is allowed to do this at a time
             /// `global_db_options_override` apply to the whole DB
             /// `tables_db_options_override` apply to each table. If `None`, the attributes from `default_options_override_fn` are used if any
-            #[allow(unused_parens)]
+            #[expect(unused_parens)]
             pub fn init(
                 db_options: typed_store::sally::SallyDBOptions
             ) -> Self {

@@ -142,7 +142,7 @@ mod tests {
     }
 
     // clippy ignore dead-code
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     async fn write_full_checkpoint(
         checkpoint_path: &Path,
         checkpoint: &CheckpointData,

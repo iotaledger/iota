@@ -11,7 +11,7 @@
   {
     "questionText": "When first running the 'iota client' command, what happens if you press Enter without specifying a node URL?",
     "answerOptions": [
-      { "answerText": "It connects to the Devnet", "isCorrect": true },
+      { "answerText": "It connects to the Testnet", "isCorrect": true },
       { "answerText": "It exits the program", "isCorrect": false },
       { "answerText": "It connects to the Mainnet", "isCorrect": false },
       { "answerText": "It shows an error message", "isCorrect": false }

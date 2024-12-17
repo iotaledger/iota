@@ -36,7 +36,6 @@ pub struct EthSyncer<P> {
 /// Map from contract address to their start block.
 pub type EthTargetAddresses = HashMap<EthAddress, u64>;
 
-#[allow(clippy::new_without_default)]
 impl<P> EthSyncer<P>
 where
     P: ethers::providers::JsonRpcClient + 'static,

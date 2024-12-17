@@ -67,7 +67,7 @@ use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 pub struct Simulacrum<R = OsRng, Store: SimulatorStore = InMemoryStore> {
     rng: R,
     keystore: KeyStore,
-    #[allow(unused)]
+    #[expect(unused)]
     genesis: genesis::Genesis,
     store: Store,
     checkpoint_builder: MockCheckpointBuilder,
@@ -83,7 +83,7 @@ pub struct Simulacrum<R = OsRng, Store: SimulatorStore = InMemoryStore> {
 impl Simulacrum {
     /// Create a new, random Simulacrum instance using an `OsRng` as the source
     /// of randomness.
-    #[allow(clippy::new_without_default)]
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self::new_with_rng(OsRng)
     }

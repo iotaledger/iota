@@ -206,9 +206,10 @@ impl BlockVerifier for SignedBlockVerifier {
     }
 }
 
-#[allow(unused)]
+#[cfg(test)]
 pub(crate) struct NoopBlockVerifier;
 
+#[cfg(test)]
 impl BlockVerifier for NoopBlockVerifier {
     fn verify(&self, _block: &SignedBlock) -> ConsensusResult<()> {
         Ok(())

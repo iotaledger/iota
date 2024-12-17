@@ -920,7 +920,7 @@ impl RandomnessEventLoop {
         }
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn remove_partial_sigs_in_range(
         &mut self,
         range: (
@@ -952,7 +952,7 @@ impl RandomnessEventLoop {
         full_sig: Arc<OnceCell<RandomnessSignature>>,
     ) {
         // For simtests, we may test not sending partial signatures.
-        #[allow(unused_mut)]
+        #[expect(unused_mut)]
         let mut fail_point_skip_sending = false;
         fail_point_if!("rb-send-partial-signatures", || {
             fail_point_skip_sending = true;

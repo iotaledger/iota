@@ -76,7 +76,7 @@ fn malloc_size_of_derive(s: synstructure::Structure) -> proc_macro2::TokenStream
     let tokens = quote! {
         impl #impl_generics iota_util_mem::MallocSizeOf for #name #ty_generics #where_clause {
             #[inline]
-            #[allow(unused_variables, unused_mut, unreachable_code)]
+            #[expect(unused_variables, unused_mut, unreachable_code)]
             fn size_of(&self, ops: &mut iota_util_mem::MallocSizeOfOps) -> usize {
                 let mut sum = 0;
                 match *self {

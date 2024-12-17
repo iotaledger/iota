@@ -1238,7 +1238,7 @@ impl CheckpointBuilder {
         Ok(())
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn split_checkpoint_chunks(
         &self,
         effects_and_transaction_sizes: Vec<(TransactionEffects, usize)>,
@@ -1924,7 +1924,7 @@ impl CheckpointAggregator {
 }
 
 impl CheckpointSignatureAggregator {
-    #[allow(clippy::result_unit_err)]
+    #[expect(clippy::result_unit_err)]
     pub fn try_aggregate(
         &mut self,
         data: CheckpointSignatureMessage,

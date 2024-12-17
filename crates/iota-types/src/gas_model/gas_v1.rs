@@ -26,7 +26,7 @@ mod checked {
     /// After execution a call to `GasStatus::bucketize` will round the
     /// computation cost to `cost` for the bucket ([`min`, `max`]) the gas
     /// used falls into.
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub(crate) struct ComputationBucket {
         min: u64,
         max: u64,
@@ -165,7 +165,6 @@ mod checked {
         pub new_size: u64,
     }
 
-    #[allow(dead_code)]
     #[derive(Debug)]
     pub struct IotaGasStatus {
         // GasStatus as used by the VM, that is all the VM sees

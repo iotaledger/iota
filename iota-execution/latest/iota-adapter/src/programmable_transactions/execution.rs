@@ -844,7 +844,7 @@ mod checked {
     /// instances using the protocol's binary configuration. The function
     /// ensures that the module list is not empty and converts any
     /// deserialization errors into an `ExecutionError`.
-    #[allow(clippy::extra_unused_type_parameters)]
+    #[expect(clippy::extra_unused_type_parameters)]
     fn deserialize_modules<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: &[Vec<u8>],

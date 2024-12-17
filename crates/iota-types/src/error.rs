@@ -675,7 +675,7 @@ pub enum IotaError {
 }
 
 #[repr(u64)]
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 /// Sub-status codes for the `UNKNOWN_VERIFICATION_ERROR` VM Status Code which
 /// provides more context TODO: add more Vm Status errors. We use
@@ -686,7 +686,7 @@ pub enum VMMVerifierErrorSubStatusCode {
 }
 
 #[repr(u64)]
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 /// Sub-status codes for the `MEMORY_LIMIT_EXCEEDED` VM Status Code which
 /// provides more context
