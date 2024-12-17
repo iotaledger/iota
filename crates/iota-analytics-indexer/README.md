@@ -1,7 +1,7 @@
-IOTA Analytical Indexer
+IOTA Analytics Indexer
 =======================
 
-The IOTA Analytical Indexer is a service that exports data from the main IOTA network to a remote big object store (S3/GCS/Azure) for further analytical processing. It does not perform any analysis on its own.
+The IOTA Analytics Indexer is a service that exports data from the main IOTA network to a remote big object store (S3/GCS/Azure) for further analytical processing. It does not perform any analysis on its own.
 
 **Key Features**
 ----------------
@@ -9,11 +9,60 @@ The IOTA Analytical Indexer is a service that exports data from the main IOTA ne
 * Exports data from the IOTA network to a remote big object store
 * Provides BigQuery and Snowflake schemas for the exported data
 
+> Note: BigQuery and Snowflake are cloud-based data warehousing solutions.
+> After getting data there one can analyse it in the cloud using SQL queries.
+> 
+> BigQuery is part of Google Cloud Platform: [https://cloud.google.com/bigquery]
+> 
+> Snowflake isn't part of any large cloud provider: [https://snowflake.com]
+
+
 **Relation to iota-indexer**
 ----------------------------
 
-The data exported by the iota-analytics-indexer can be later analysed by some other solutions outside of the crate.
-Functionality from iota-indexer that is not required to serve user JSON RPC/GraphQL requests could potentially be moved away from iota-indexer and served based on data exported by the iota-analytics-indexer.
+### iota-indexer
+
+Currently iota-indexer is computing and storing analytical metrics about:
+ - network statistics (amount of transactions, transactions per second)
+ - (active) addresses (transactions senders/recipients)
+ - move calls
+
+ Those metrics are computed by a separate analytical worker instance of the indexer, but it uses the main DB as the main indexer instance.
+
+It seems that some of the values stored in main indexer tables by iota-indexer's `fullnode_sync_worker` are only stored there for analytical purposes (move calls, tx recipients) and could potentially be not processed/stored if not for analytical reasons. 
+
+### iota-analytics-indexer
+
+The `iota-analytics-indexer` is not computing any analytical metrics directly.
+It is only exporting data for further processing via external tools (BigQuery/SnowFlake).
+Functionality from `iota-indexer` that is not required to serve user JSON RPC/GraphQL requests could potentially be moved away from `iota-indexer` and served by some other tool based on data exported by the `iota-analytics-indexer`.
+The sync logic in `iota-indexer` could be simplified a bit then to store only data that is needed to serve user requests.
+
+
+
+**Schemas**
+-----------
+
+The crate provides:
+ - [BigQuery Schemas](src/store/bq/schemas/)
+ - [SnowFlake Schemas](src/store/snowflake/schemas/)
+ - [Rust struct representations](src/tables.rs)
+
+for the data that it is exporting.
+
+The tables covered by the schemas:
+ - CHECKPOINT
+ - EVENT
+ - MOVE_CALL
+ - OBJECT
+ - MOVE_PACKAGE
+ - TRANSACTION_OBJECT - input and output objects for given transactions
+ - TRANSACTION
+
+
+> Note: The following rust structs currently do not have DB schemas prepared:
+> - DynamicFieldEntry
+> - WrappedObjectEntry
 
 **Architecture**
 ----------------
@@ -31,7 +80,7 @@ The following object types are supported:
 - DynamicField
 - WrappedObject
 
-Only one object type can be passed in given run, to process multiple object types it is needed to run multiple analytical indexer instances.
+Only one object type can be passed in given run, to process multiple object types it is needed to run multiple analytics indexer instances.
 
 In general, the data flow is as follows:
 
@@ -53,13 +102,13 @@ config:
 ---
 flowchart TD
     FNODE["Fullnode/Indexer"] <-->|JSON RPC| CPREADER["`IndexerExecutor/CheckpointReader from the **iota_data_ingestion_core** package`"];
-    subgraph "`**iota-analytical-indexer**`"
+    subgraph "`**iota-analytics-indexer**`"
         CPREADER -->|"`Executor calls **AnalyticsProcessor** for each checkpoint, which in turn passes the checkpoint to appropriate Handler`"| HANDLER["CheckpointHandler/EventHandler etc., depending on indexer configuration"]
         HANDLER -->|"`**AnalyticsProcessor** reads object data extracted from the checkpoint by the Handler and passes it to the Writer`"| WRITER["CSVWriter/ParquetWriter"]
         WRITER -->|Writes objects to temporary local storage| DISK[Temporary Local Storage]
         DISK --> REMOTESYNC["`Task inside of **AnalyticsProcessor** that removes files from Local Storage and uploads them to Remote Storage(S3/GCS/Azure)`"]
         WRITER -->|"`Once every few checkpoints, **AnalyticsProcessor** calls cut() to prepare file to be sent, FileMetadata is sent to the Remote Sync Task which triggers the sync`"| REMOTESYNC
-        REMOTESYNC -->|Some process outside of analytical indexer makes the newly uploaded data available via BigQuery/Snowflake tables| BQSF["BigQuery/Snowflake"]
+        REMOTESYNC -->|Some process outside of analytics indexer makes the newly uploaded data available via BigQuery/Snowflake tables| BQSF["BigQuery/Snowflake"]
         BQSF -->|"Every 5 minutes max processed checkpoint number is read from the tables"| METRICS[Analytics Indexer Prometheus Metrics]
     end
 
@@ -68,6 +117,8 @@ linkStyle 6 color:red;
 
 **Metrics**
 -----------
+
+The following Prometheus metrics are served by `iota-analytics-indexer` to monitor the indexer execution:
 
  - **total_received**: count of checkpoints processed in given run
  - **last_uploaded_checkpoint**: id of last checkpoint uploaded to the big object store
