@@ -131,6 +131,7 @@ export function SupplyIncreaseVestingOverview() {
                                 buttonType={ButtonType.Primary}
                                 title={'Stake'}
                                 onClick={() => handleNewStake()}
+                                buttonDisabled={!supplyIncreaseVestingSchedule.availableStaking}
                             />
                         </Card>
                     </div>

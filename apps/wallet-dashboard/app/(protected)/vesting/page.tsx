@@ -84,7 +84,7 @@ function VestingDashboardPage(): JSX.Element {
         supplyIncreaseVestingMapped,
         supplyIncreaseVestingStakedMapped,
         isTimelockedStakedObjectsLoading,
-        unlockAllsupplyIncreaseVesting,
+        unlockAllSupplyIncreaseVesting,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -163,13 +163,13 @@ function VestingDashboardPage(): JSX.Element {
     }
 
     const handleCollect = () => {
-        if (!unlockAllsupplyIncreaseVesting?.transactionBlock) {
+        if (!unlockAllSupplyIncreaseVesting?.transactionBlock) {
             addNotification('Failed to create a Transaction', NotificationType.Error);
             return;
         }
         signAndExecuteTransaction(
             {
-                transaction: unlockAllsupplyIncreaseVesting.transactionBlock,
+                transaction: unlockAllSupplyIncreaseVesting.transactionBlock,
             },
             {
                 onSuccess: (tx) => {
