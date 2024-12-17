@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-import { SettingsDialogView } from '../enums/view.enums';
+import { SettingsDialogView } from '../enums';
 
 export function useSettingsDialog() {
     const [settingsDialogView, setSettingsDialogView] = useState<SettingsDialogView | undefined>();

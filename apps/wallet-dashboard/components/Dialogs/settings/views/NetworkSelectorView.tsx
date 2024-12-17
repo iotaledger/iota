@@ -5,9 +5,8 @@ import React from 'react';
 import { Header, RadioButton } from '@iota/apps-ui-kit';
 import { DialogLayout, DialogLayoutBody } from '../../layout';
 import { NetworkConfiguration } from '@iota/iota-sdk/client';
-import { useNotifications } from '@/hooks';
-import { NotificationType } from '@/stores/notificationStore';
 import { useIotaClientContext } from '@iota/dapp-kit';
+import toast from 'react-hot-toast';
 
 interface NetworkSelectorViewProps {
     handleClose: () => void;
@@ -18,7 +17,6 @@ export function NetworkSelectorView({
     handleClose,
     onBack,
 }: NetworkSelectorViewProps): JSX.Element {
-    const { addNotification } = useNotifications();
     const clientContext = useIotaClientContext();
     const activeNetwork = clientContext.network;
 
@@ -27,7 +25,7 @@ export function NetworkSelectorView({
             return;
         }
         clientContext.selectNetwork(network.id);
-        addNotification(`Switched to ${network.name}`, NotificationType.Success);
+        toast.success(`Switched to ${network.name}`);
     }
     return (
         <DialogLayout>
