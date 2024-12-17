@@ -52,7 +52,7 @@ interface MigratableObjectsData {
     totalNativeTokens: number;
     totalVisualAssets: number;
     totalIotaAmount: bigint;
-    totalStorageDepositReturnAmount: bigint;
+    totalNonOwnedStorageDepositReturnAmount: bigint;
 }
 
 interface SummarizeMigrationObjectParams {
@@ -68,7 +68,7 @@ export function summarizeMigratableObjectValues({
 }: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
     let totalIotaAmount: bigint = 0n;
-    let totalStorageDepositReturnAmount: bigint = 0n;
+    let totalNonOwnedStorageDepositReturnAmount: bigint = 0n;
 
     const totalVisualAssets = nftOutputs.length;
     const outputObjects = [...basicOutputs, ...nftOutputs];
@@ -78,18 +78,17 @@ export function summarizeMigratableObjectValues({
 
         totalIotaAmount += BigInt(outputObjectFields.balance);
         totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
-
-        const storageDeposit = extractStorageDepositReturnAmount(outputObjectFields, address);
-        if (storageDeposit !== null) {
-            totalStorageDepositReturnAmount += storageDeposit;
-        }
+        totalIotaAmount +=
+            extractOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
+        totalNonOwnedStorageDepositReturnAmount +=
+            extractNonOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
     }
 
     return {
         totalNativeTokens,
         totalVisualAssets,
         totalIotaAmount,
-        totalStorageDepositReturnAmount,
+        totalNonOwnedStorageDepositReturnAmount,
     };
 }
 
@@ -116,7 +115,7 @@ export function summarizeUnmigratableObjectValues({
     return { totalUnmigratableObjects };
 }
 
-export function extractStorageDepositReturnAmount(
+export function extractOwnedStorageDepositReturnAmount(
     { storage_deposit_return_uc }: CommonOutputObjectWithUc,
     address: string,
 ): bigint | null {
@@ -137,4 +136,17 @@ export function extractMigrationOutputFields(
             fields: CommonOutputObjectWithUc;
         }
     ).fields;
+}
+
+export function extractNonOwnedStorageDepositReturnAmount(
+    { storage_deposit_return_uc }: CommonOutputObjectWithUc,
+    address: string,
+): bigint | null {
+    if (
+        storage_deposit_return_uc?.fields &&
+        storage_deposit_return_uc?.fields.return_address !== address
+    ) {
+        return BigInt(storage_deposit_return_uc?.fields.return_amount);
+    }
+    return null;
 }

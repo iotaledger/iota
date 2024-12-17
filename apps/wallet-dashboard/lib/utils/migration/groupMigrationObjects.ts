@@ -16,7 +16,7 @@ import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
 } from '@iota/core';
-import { extractMigrationOutputFields, extractStorageDepositReturnAmount } from '.';
+import { extractMigrationOutputFields, extractOwnedStorageDepositReturnAmount } from '.';
 import { IotaClient, IotaObjectData } from '@iota/iota-sdk/client';
 import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
 
@@ -56,7 +56,7 @@ export async function groupMigrationObjectsByUnlockCondition(
 
             if (object.type === STARDUST_BASIC_OUTPUT_TYPE) {
                 const existing = basicObjectMap.get(groupKey);
-                const gasReturn = extractStorageDepositReturnAmount(objectFields, currentAddress);
+                const gasReturn = extractOwnedStorageDepositReturnAmount(objectFields, currentAddress);
                 const newBalance =
                     (existing ? existing.balance : 0n) +
                     BigInt(objectFields.balance) +

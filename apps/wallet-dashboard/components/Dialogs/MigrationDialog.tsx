@@ -64,7 +64,7 @@ export function MigrationDialog({
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
         useSignAndExecuteTransaction();
-    const { totalStorageDepositReturnAmount } = summarizeMigratableObjectValues({
+    const { totalNonOwnedStorageDepositReturnAmount } = summarizeMigratableObjectValues({
         basicOutputs: basicOutputObjects,
         nftOutputs: nftOutputObjects,
         address: account?.address || '',
@@ -74,7 +74,7 @@ export function MigrationDialog({
     const [
         totaltotalStorageDepositReturnAmountFormatted,
         totaltotalStorageDepositReturnAmountSymbol,
-    ] = useFormatCoin(totalStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
+    ] = useFormatCoin(totalNonOwnedStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
 
     async function handleMigrate(): Promise<void> {
         if (!migrateData) return;
