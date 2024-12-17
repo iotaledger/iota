@@ -19,19 +19,19 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { useGroupedMigrationObjectsByExpirationDate, useNotifications } from '@/hooks';
-import { NotificationType } from '@/stores/notificationStore';
+import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
 import { Loader, Warning } from '@iota/ui-icons';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from './layout';
 import { MigrationObjectDetailsCard } from '../migration/migration-object-details-card';
 import { Collapsible, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { summarizeMigratableObjectValues } from '@/lib/utils';
+import toast from 'react-hot-toast';
 
 interface MigrationDialogProps {
     basicOutputObjects: IotaObjectData[] | undefined;
     nftOutputObjects: IotaObjectData[] | undefined;
-    onSuccess?: (digest: string) => void;
+    onSuccess: (digest: string) => void;
     setOpen: (bool: boolean) => void;
     open: boolean;
     isTimelocked: boolean;
@@ -46,17 +46,16 @@ export function MigrationDialog({
     isTimelocked,
 }: MigrationDialogProps): JSX.Element {
     const account = useCurrentAccount();
-    const { addNotification } = useNotifications();
     const {
         data: migrateData,
-        isPending,
-        isError,
+        isPending: isMigrationPending,
+        isError: isMigrationError,
     } = useMigrationTransaction(account?.address || '', basicOutputObjects, nftOutputObjects);
 
     const {
         data: resolvedObjects = [],
         isLoading,
-        error: isErrored,
+        error: isGroupedMigrationError,
     } = useGroupedMigrationObjectsByExpirationDate(
         [...basicOutputObjects, ...nftOutputObjects],
         isTimelocked,
@@ -84,17 +83,15 @@ export function MigrationDialog({
             },
             {
                 onSuccess: (tx) => {
-                    if (onSuccess) {
-                        onSuccess(tx.digest);
-                    }
+                    onSuccess(tx.digest);
                 },
             },
         )
             .then(() => {
-                addNotification('Migration transaction has been sent');
+                toast.success('Migration transaction has been sent');
             })
             .catch(() => {
-                addNotification('Migration transaction was not sent', NotificationType.Error);
+                toast.error('Migration transaction was not sent');
             });
     }
 
@@ -104,7 +101,7 @@ export function MigrationDialog({
                 <Header title="Confirmation" onClose={() => setOpen(false)} titleCentered />
                 <DialogLayoutBody>
                     <div className="flex h-full flex-col gap-y-md overflow-y-auto">
-                        {isErrored && !isLoading && (
+                        {isGroupedMigrationError && !isLoading && (
                             <InfoBox
                                 title="Error"
                                 supportingText="Failed to load migration objects"
@@ -165,10 +162,10 @@ export function MigrationDialog({
                 <DialogLayoutFooter>
                     <Button
                         text="Migrate"
-                        disabled={isPending || isError || isSendingTransaction}
+                        disabled={isMigrationPending || isMigrationError || isSendingTransaction}
                         onClick={handleMigrate}
                         icon={
-                            isPending || isSendingTransaction ? (
+                            isMigrationPending || isSendingTransaction ? (
                                 <Loader
                                     className="h-4 w-4 animate-spin"
                                     data-testid="loading-indicator"
