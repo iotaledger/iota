@@ -229,7 +229,7 @@ where
 
     fn filter_voting_output(&mut self, output: &mut Result<(OutputHeader, Output)>) {
         if let Ok((header, inner)) = output {
-            if is_participation_output(&inner) {
+            if is_participation_output(inner) {
                 self.voting_outputs.push(header.output_id());
                 // replace the inner output
                 *inner = BasicOutputBuilder::from(inner.as_basic())
