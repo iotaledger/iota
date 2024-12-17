@@ -191,7 +191,7 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense',
+  themes: ["@docusaurus/theme-mermaid",
     '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
