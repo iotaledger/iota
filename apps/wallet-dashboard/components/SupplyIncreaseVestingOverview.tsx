@@ -34,7 +34,6 @@ export function SupplyIncreaseVestingOverview() {
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const {
-        isDialogStakeOpen,
         stakeDialogView,
         setStakeDialogView,
         selectedStake,
@@ -46,7 +45,7 @@ export function SupplyIncreaseVestingOverview() {
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
-        { showSeconds: false, showMinutes: false }
+        { showSeconds: false, showMinutes: false },
     );
     const [formattedNextPayout, nextPayoutSymbol, nextPayoutResult] = useFormatCoin(
         nextPayout?.amount,
