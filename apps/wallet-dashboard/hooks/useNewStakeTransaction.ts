@@ -39,7 +39,12 @@ export function useNewStakeTimelockedTransaction(
     const client = useIotaClient();
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['stake-timelocked-transaction', validator, senderAddress],
+        queryKey: [
+            'stake-timelocked-transaction',
+            validator,
+            senderAddress,
+            groupedTimelockObjects.toString(),
+        ],
         queryFn: async () => {
             const transaction = createTimelockedStakeTransaction(
                 groupedTimelockObjects || [],
