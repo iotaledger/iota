@@ -52,6 +52,7 @@ interface MigratableObjectsData {
     totalNativeTokens: number;
     totalVisualAssets: number;
     totalIotaAmount: bigint;
+    totalStorageDepositReturnAmount: bigint;
 }
 
 interface SummarizeMigrationObjectParams {
@@ -67,6 +68,7 @@ export function summarizeMigratableObjectValues({
 }: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
     let totalIotaAmount: bigint = 0n;
+    let totalStorageDepositReturnAmount: bigint = 0n;
 
     const totalVisualAssets = nftOutputs.length;
     const outputObjects = [...basicOutputs, ...nftOutputs];
@@ -76,10 +78,19 @@ export function summarizeMigratableObjectValues({
 
         totalIotaAmount += BigInt(outputObjectFields.balance);
         totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
-        totalIotaAmount += extractStorageDepositReturnAmount(outputObjectFields, address) || 0n;
+
+        const storageDeposit = extractStorageDepositReturnAmount(outputObjectFields, address);
+        if (storageDeposit !== null) {
+            totalStorageDepositReturnAmount += storageDeposit;
+        }
     }
 
-    return { totalNativeTokens, totalVisualAssets, totalIotaAmount };
+    return {
+        totalNativeTokens,
+        totalVisualAssets,
+        totalIotaAmount,
+        totalStorageDepositReturnAmount,
+    };
 }
 
 interface UnmmigratableObjectsData {

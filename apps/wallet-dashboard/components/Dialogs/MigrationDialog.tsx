@@ -64,17 +64,17 @@ export function MigrationDialog({
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
         useSignAndExecuteTransaction();
-    const { totalIotaAmount } = summarizeMigratableObjectValues({
+    const { totalStorageDepositReturnAmount } = summarizeMigratableObjectValues({
         basicOutputs: basicOutputObjects,
         nftOutputs: nftOutputObjects,
         address: account?.address || '',
     });
 
     const [gasFee, gasFeesymbol] = useFormatCoin(migrateData?.gasBudget, IOTA_TYPE_ARG);
-    const [totalIotaAmountFormatted, totalIotaAmountSymbol] = useFormatCoin(
-        totalIotaAmount.toString(),
-        IOTA_TYPE_ARG,
-    );
+    const [
+        totaltotalStorageDepositReturnAmountFormatted,
+        totaltotalStorageDepositReturnAmountSymbol,
+    ] = useFormatCoin(totalStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
 
     async function handleMigrate(): Promise<void> {
         if (!migrateData) return;
@@ -142,8 +142,12 @@ export function MigrationDialog({
                                     <div className="flex flex-col gap-y-sm p-md">
                                         <KeyValueInfo
                                             keyText="Legacy storage deposit"
-                                            value={totalIotaAmountFormatted || '-'}
-                                            supportingLabel={totalIotaAmountSymbol}
+                                            value={
+                                                totaltotalStorageDepositReturnAmountFormatted || '-'
+                                            }
+                                            supportingLabel={
+                                                totaltotalStorageDepositReturnAmountSymbol
+                                            }
                                             fullwidth
                                         />
                                         <KeyValueInfo
