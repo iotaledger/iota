@@ -634,6 +634,7 @@ impl TokenDistributionScheduleBuilder {
     }
 }
 
+/// Represents the allocation of stake and gas payment to a validator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ValidatorAllocation {
@@ -645,10 +646,13 @@ pub struct ValidatorAllocation {
     pub amount_nanos_to_pay_gas: u64,
 }
 
+/// Represents a delegation of stake and gas payment to a validator,
+/// coming from a delegator. This struct is used to serialize and deserialize
+/// delegations to and from a csv file. 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Delegation {
-    /// The address from which take the nanos for staking/gas
+    /// The address from which to take the nanos for staking/gas
     pub delegator: IotaAddress,
     /// The allocation to a validator receiving a stake and/or a gas payment
     #[serde(flatten)]

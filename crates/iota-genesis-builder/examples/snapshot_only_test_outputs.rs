@@ -7,12 +7,13 @@
 use std::{fs::File, path::Path};
 
 use clap::{Parser, Subcommand};
+use iota_sdk::types::block::address::Ed25519Address;
 use iota_genesis_builder::stardust::{
     parse::HornetSnapshotParser,
     test_outputs::{add_snapshot_test_outputs, to_nanos},
 };
-use iota_sdk::types::block::address::Address;
 use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
+use iota_types::base_types::IotaAddress;
 
 const WITH_SAMPLING: bool = false;
 
@@ -30,7 +31,7 @@ enum Snapshot {
         #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
         snapshot_path: String,
         #[clap(long, help = "Specify the delegator address")]
-        delegator: String,
+        delegator: IotaAddress,
     },
 }
 
@@ -91,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
         &new_path,
         coin_type,
         randomness_seed,
-        *Address::try_from_bech32(delegator_address)?.as_ed25519(),
+        Ed25519Address::from(delegator_address.to_inner()),
         WITH_SAMPLING,
     )
     .await?;
