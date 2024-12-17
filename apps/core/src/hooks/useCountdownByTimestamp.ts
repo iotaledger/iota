@@ -9,12 +9,16 @@ import {
     MILLISECONDS_PER_SECOND,
 } from '../constants';
 
+interface timeOptions {
+    showSeconds?: boolean;
+    showMinutes?: boolean;
+    showHours?: boolean;
+    showDays?: boolean;
+}
+
 export function useCountdownByTimestamp(
     initialTimestamp: number | null,
-    showSeconds = true,
-    showMinutes = true,
-    showHours = true,
-    showDays = true,
+    options?: timeOptions
 ): string {
     const [timeRemainingMs, setTimeRemainingMs] = useState<number>(0);
 
@@ -30,21 +34,22 @@ export function useCountdownByTimestamp(
     }, [initialTimestamp]);
     const formattedCountdown = formatCountdown(
         timeRemainingMs,
-        showSeconds,
-        showMinutes,
-        showHours,
-        showDays,
+        options
     );
     return formattedCountdown;
 }
 
 function formatCountdown(
     totalMilliseconds: number,
-    showSeconds: boolean,
-    showMinutes: boolean,
-    showHours: boolean,
-    showDays: boolean,
+    options: timeOptions = {}
 ) {
+    const {
+        showSeconds = true,
+        showMinutes = true,
+        showHours = true,
+        showDays = true,
+    } = options;
+
     const days = Math.floor(totalMilliseconds / MILLISECONDS_PER_DAY);
     const hours = Math.floor((totalMilliseconds % MILLISECONDS_PER_DAY) / MILLISECONDS_PER_HOUR);
     const minutes = Math.floor(
