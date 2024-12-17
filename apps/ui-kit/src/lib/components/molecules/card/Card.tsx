@@ -46,9 +46,14 @@ export function Card({
     children,
     testId,
 }: CardProps) {
+    function handleOnClick() {
+        if (!isDisabled) {
+            onClick?.();
+        }
+    }
     return (
         <div
-            onClick={onClick}
+            onClick={handleOnClick}
             className={cx(
                 'relative inline-flex w-full items-center gap-3 rounded-xl px-sm py-xs',
                 CARD_TYPE_CLASSES[type],
