@@ -2,18 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Feature } from '@iota/core';
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS } from '@iota/iota-sdk/utils';
 import { Network } from '@iota/iota-sdk/client';
+import { Feature, DEFAULT_RECOGNIZED_PACKAGES } from '../../';
 
-import { useNetwork } from './';
-
-const DEFAULT_RECOGNIZED_PACKAGES = [IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS];
-
-export function useRecognizedPackages(): string[] {
-    const [network] = useNetwork();
-
+export function useRecognizedPackages(network: Network): string[] {
     const recognizedPackages = useFeatureValue(
         Feature.RecognizedPackages,
         DEFAULT_RECOGNIZED_PACKAGES,
