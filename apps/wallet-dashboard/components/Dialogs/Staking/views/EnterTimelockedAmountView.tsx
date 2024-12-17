@@ -1,8 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
-import { useFormatCoin, CoinFormat, useStakeTxnInfo, Validator } from '@iota/core';
+import React, { useEffect, useState } from 'react';
+import {
+    useFormatCoin,
+    CoinFormat,
+    useStakeTxnInfo,
+    GroupedTimelockObject,
+    useGetAllOwnedObjects,
+    TIMELOCK_IOTA_TYPE,
+    Validator,
+} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
@@ -19,10 +27,16 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/ui-icons';
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-
+import { useIotaClientQuery, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import {
+    useGetCurrentEpochStartTimestamp,
+    useNewStakeTimelockedTransaction,
+    useNotifications,
+} from '@/hooks';
+import { NotificationType } from '@/stores/notificationStore';
+import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 
 export interface FormValues {
     amount: string;
@@ -31,32 +45,51 @@ export interface FormValues {
 interface EnterTimelockedAmountViewProps {
     selectedValidator: string;
     maxStakableTimelockedAmount: bigint;
+    amountWithoutDecimals: bigint;
+    senderAddress: string;
     onBack: () => void;
-    onStake: () => void;
-    gasBudget?: string | number | null;
     handleClose: () => void;
-    hasGroupedTimelockObjects?: boolean;
-    isTransactionLoading?: boolean;
+    onSuccess: (digest: string) => void;
 }
 
 function EnterTimelockedAmountView({
-    selectedValidator: selectedValidatorAddress,
+    selectedValidator,
     maxStakableTimelockedAmount,
-    hasGroupedTimelockObjects,
+    amountWithoutDecimals,
+    senderAddress,
     onBack,
-    onStake,
-    gasBudget,
     handleClose,
-    isTransactionLoading,
+    onSuccess,
 }: EnterTimelockedAmountViewProps): JSX.Element {
-    const account = useCurrentAccount();
-    const accountAddress = account?.address;
+    const { addNotification } = useNotifications();
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const [groupedTimelockObjects, setGroupedTimelockObjects] = useState<GroupedTimelockObject[]>(
+        [],
+    );
+    const { data: newStakeData, isLoading: isTransactionLoading } =
+        useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
+    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
+        StructType: TIMELOCK_IOTA_TYPE,
+    });
 
-    const { values, errors } = useFormikContext<FormValues>();
+    useEffect(() => {
+        if (timelockedObjects && currentEpochMs) {
+            const groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
+                timelockedObjects,
+                amountWithoutDecimals,
+                currentEpochMs,
+            );
+            setGroupedTimelockObjects(groupedTimelockObjects);
+        }
+    }, [timelockedObjects, currentEpochMs, amountWithoutDecimals]);
+
+    const { values, errors, resetForm } = useFormikContext<FormValues>();
     const amount = values.amount;
+    const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
 
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const [gas, symbol] = useFormatCoin(gasBudget ?? 0, IOTA_TYPE_ARG);
+    const [gas, symbol] = useFormatCoin(newStakeData?.gasBudget ?? 0, IOTA_TYPE_ARG);
 
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
         maxStakableTimelockedAmount,
@@ -70,6 +103,32 @@ function EnterTimelockedAmountView({
         system?.epoch,
     );
 
+    function handleStake(): void {
+        if (groupedTimelockObjects.length === 0) {
+            addNotification('Invalid stake amount. Please try again.', NotificationType.Error);
+            return;
+        }
+        if (!newStakeData?.transaction) {
+            addNotification('Stake transaction was not created', NotificationType.Error);
+            return;
+        }
+        signAndExecuteTransaction(
+            {
+                transaction: newStakeData?.transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    onSuccess?.(tx.digest);
+                    addNotification('Stake transaction has been sent');
+                    resetForm();
+                },
+                onError: () => {
+                    addNotification('Stake transaction was not sent', NotificationType.Error);
+                },
+            },
+        );
+    }
+
     return (
         <DialogLayout>
             <Header title="Enter amount" onClose={handleClose} onBack={onBack} titleCentered />
@@ -77,15 +136,11 @@ function EnterTimelockedAmountView({
                 <div className="flex w-full flex-col justify-between">
                     <div>
                         <div className="mb-md">
-                            <Validator
-                                address={selectedValidatorAddress}
-                                isSelected
-                                showAction={false}
-                            />
+                            <Validator address={selectedValidator} isSelected showAction={false} />
                         </div>
                         <StakedInfo
-                            validatorAddress={selectedValidatorAddress}
-                            accountAddress={accountAddress!}
+                            validatorAddress={selectedValidator}
+                            accountAddress={senderAddress!}
                         />
                         <div className="my-md w-full">
                             <Field name="amount">
@@ -161,7 +216,7 @@ function EnterTimelockedAmountView({
                             isTransactionLoading ||
                             !hasGroupedTimelockObjects
                         }
-                        onClick={onStake}
+                        onClick={handleStake}
                         text="Stake"
                         icon={
                             isTransactionLoading ? (

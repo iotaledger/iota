@@ -76,7 +76,6 @@ use crate::{
 /// dag_builder.layer(1).build();
 /// dag_builder.print(); // pretty print the entire DAG
 /// ```
-#[allow(unused)]
 pub(crate) struct DagBuilder {
     pub(crate) context: Arc<Context>,
     pub(crate) leader_schedule: LeaderSchedule,
@@ -93,7 +92,6 @@ pub(crate) struct DagBuilder {
     pipeline: bool,
 }
 
-#[allow(unused)]
 impl DagBuilder {
     pub(crate) fn new(context: Arc<Context>) -> Self {
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
@@ -206,25 +204,26 @@ impl DagBuilder {
             !self.blocks.is_empty(),
             "No blocks have been created, please make sure that you have called build method"
         );
-        self.blocks
-            .iter()
-            .find(|(block_ref, block)| {
-                block_ref.round == round
-                    && block_ref.author == self.leader_schedule.elect_leader(round, 0)
-            })
-            .map(|(_block_ref, block)| block.clone())
+        self.blocks.iter().find_map(|(block_ref, block)| {
+            (block_ref.round == round
+                && block_ref.author == self.leader_schedule.elect_leader(round, 0))
+            .then_some(block.clone())
+        })
     }
 
+    #[expect(unused)]
     pub(crate) fn with_wave_length(mut self, wave_length: Round) -> Self {
         self.wave_length = wave_length;
         self
     }
 
+    #[expect(unused)]
     pub(crate) fn with_number_of_leaders(mut self, number_of_leaders: u32) -> Self {
         self.number_of_leaders = number_of_leaders;
         self
     }
 
+    #[expect(unused)]
     pub(crate) fn with_pipeline(mut self, pipeline: bool) -> Self {
         self.pipeline = pipeline;
         self
@@ -290,7 +289,7 @@ impl DagBuilder {
     /// Gets all uncommitted blocks in a slot.
     pub(crate) fn get_uncommitted_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlock> {
         let mut blocks = vec![];
-        for (block_ref, block) in self.blocks.range((
+        for (_block_ref, block) in self.blocks.range((
             Included(BlockRef::new(slot.round, slot.authority, BlockDigest::MIN)),
             Included(BlockRef::new(slot.round, slot.authority, BlockDigest::MAX)),
         )) {
@@ -366,7 +365,7 @@ pub struct LayerBuilder<'a> {
     blocks: Vec<VerifiedBlock>,
 }
 
-#[allow(unused)]
+#[expect(unused)]
 impl<'a> LayerBuilder<'a> {
     fn new(dag_builder: &'a mut DagBuilder, start_round: Round) -> Self {
         assert!(start_round > 0, "genesis round is created by default");
