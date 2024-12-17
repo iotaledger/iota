@@ -42,9 +42,6 @@ export function TransactionDetailsView({ digest, onClose }: TransactionDetailsVi
     const transaction = data && getExtendedTransaction(data, currentAccount?.address || '');
 
     return transaction ? (
-        <TransactionDetailsLayout
-            transaction={transaction}
-            onClose={onClose}
-        />
+        <TransactionDetailsLayout transaction={transaction} onClose={onClose} />
     ) : null;
 }

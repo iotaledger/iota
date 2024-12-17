@@ -20,10 +20,7 @@ interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
     onClose: () => void;
 }
-export function TransactionDetailsLayout({
-    transaction,
-    onClose
-}: TransactionDialogDetailsProps) {
+export function TransactionDetailsLayout({ transaction, onClose }: TransactionDialogDetailsProps) {
     const address = useCurrentAccount()?.address ?? '';
 
     const { network } = useIotaClientContext();
