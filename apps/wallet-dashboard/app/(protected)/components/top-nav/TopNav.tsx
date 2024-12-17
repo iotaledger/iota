@@ -11,8 +11,8 @@ export function TopNav() {
         <div className="flex w-full flex-row items-center justify-end gap-md py-xs--rs">
             <Badge label="Mainnet" type={BadgeType.PrimarySoft} />
             <ConnectButton size="md" />
-            <Button icon={<Settings />} type={ButtonType.Ghost} />
             <ThemeSwitcher />
+            <Button icon={<Settings />} type={ButtonType.Ghost} />
         </div>
     );
 }
