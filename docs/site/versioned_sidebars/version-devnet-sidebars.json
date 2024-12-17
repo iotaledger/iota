@@ -1,0 +1,2932 @@
+{
+  "developerSidebar": [
+    "developer/developer",
+    "developer/network-overview",
+    {
+      "type": "category",
+      "label": "Getting Started",
+      "collapsed": true,
+      "link": {
+        "type": "doc",
+        "id": "developer/getting-started/getting-started"
+      },
+      "items": [
+        "developer/getting-started/iota-environment",
+        "developer/getting-started/install-iota",
+        "developer/getting-started/connect",
+        "developer/getting-started/local-network",
+        "developer/getting-started/get-address",
+        "developer/getting-started/get-coins",
+        "developer/getting-started/create-a-package",
+        "developer/getting-started/create-a-module",
+        "developer/getting-started/build-test",
+        "developer/getting-started/publish",
+        "developer/getting-started/debug",
+        "developer/getting-started/client-tssdk",
+        "developer/getting-started/coffee-example"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "SDKs & CLI",
+      "items": [
+        {
+          "type": "category",
+          "label": "IOTA CLI",
+          "link": {
+            "type": "doc",
+            "id": "references/cli"
+          },
+          "items": [
+            "references/cli/client",
+            "references/cli/ptb",
+            "references/cli/console",
+            "references/cli/keytool",
+            "references/cli/move",
+            "references/cli/validator",
+            "references/cli/ceremony",
+            "references/cli/cheatsheet"
+          ]
+        },
+        "references/rust-sdk",
+        {
+          "type": "link",
+          "label": "Typescript SDK",
+          "href": "/references/ts-sdk/typescript"
+        },
+        "developer/iota-101/using-events"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Move Overview",
+      "items": [
+        "developer/iota-101/move-overview/move-overview",
+        "developer/iota-101/move-overview/strings",
+        "developer/iota-101/move-overview/collections",
+        "developer/iota-101/move-overview/init",
+        "developer/iota-101/move-overview/visibility",
+        "developer/iota-101/move-overview/entry-functions",
+        {
+          "type": "category",
+          "label": "Structs and Abilities",
+          "items": [
+            "developer/iota-101/move-overview/structs-and-abilities/struct",
+            "developer/iota-101/move-overview/structs-and-abilities/copy",
+            "developer/iota-101/move-overview/structs-and-abilities/drop",
+            "developer/iota-101/move-overview/structs-and-abilities/key",
+            "developer/iota-101/move-overview/structs-and-abilities/store"
+          ]
+        },
+        "developer/iota-101/move-overview/one-time-witness",
+        {
+          "type": "category",
+          "label": "Package Upgrades",
+          "items": [
+            "developer/iota-101/move-overview/package-upgrades/introduction",
+            "developer/iota-101/move-overview/package-upgrades/upgrade",
+            "developer/iota-101/move-overview/package-upgrades/automated-address-management",
+            "developer/iota-101/move-overview/package-upgrades/custom-policies"
+          ]
+        },
+        "developer/iota-101/move-overview/ownership-scope",
+        "developer/iota-101/move-overview/references",
+        "developer/iota-101/move-overview/generics",
+        {
+          "type": "category",
+          "label": "Patterns",
+          "items": [
+            "developer/iota-101/move-overview/patterns/patterns",
+            "developer/iota-101/move-overview/patterns/capabilities",
+            "developer/iota-101/move-overview/patterns/witness",
+            "developer/iota-101/move-overview/patterns/transferable-witness",
+            "developer/iota-101/move-overview/patterns/hot-potato",
+            "developer/iota-101/move-overview/patterns/id-pointer"
+          ]
+        },
+        "developer/iota-101/access-time",
+        "developer/iota-101/move-overview/conventions"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Object Model",
+      "items": [
+        "developer/iota-101/objects/object-model",
+        "developer/iota-101/objects/shared-owned",
+        {
+          "type": "category",
+          "label": "Object Ownership",
+          "link": {
+            "type": "doc",
+            "id": "developer/iota-101/objects/object-ownership/object-ownership"
+          },
+          "items": [
+            "developer/iota-101/objects/object-ownership/address-owned",
+            "developer/iota-101/objects/object-ownership/immutable",
+            "developer/iota-101/objects/object-ownership/shared",
+            "developer/iota-101/objects/object-ownership/wrapped"
+          ]
+        },
+        "developer/iota-101/objects/uid-id",
+        {
+          "type": "category",
+          "label": "Dynamic Fields",
+          "link": {
+            "type": "doc",
+            "id": "developer/iota-101/objects/dynamic-fields/dynamic-fields"
+          },
+          "items": [
+            "developer/iota-101/objects/dynamic-fields/tables-bags"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Transfers",
+          "link": {
+            "type": "doc",
+            "id": "developer/iota-101/objects/transfers/transfers"
+          },
+          "items": [
+            "developer/iota-101/objects/transfers/custom-rules",
+            "developer/iota-101/objects/transfers/transfer-to-object"
+          ]
+        },
+        "developer/iota-101/objects/events",
+        "developer/iota-101/objects/versioning"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Transactions",
+      "link": {
+        "type": "doc",
+        "id": "developer/iota-101/transactions/transactions"
+      },
+      "items": [
+        "developer/iota-101/transactions/sign-and-send-transactions",
+        {
+          "type": "category",
+          "label": "Sponsored Transactions",
+          "link": {
+            "type": "doc",
+            "id": "developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions"
+          },
+          "items": [
+            "developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions",
+            "developer/iota-101/transactions/sponsored-transactions/use-sponsored-transactions"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Working with PTBs",
+          "link": {
+            "type": "doc",
+            "id": "developer/iota-101/transactions/ptb/programmable-transaction-blocks-overview"
+          },
+          "items": [
+            "developer/iota-101/transactions/ptb/programmable-transaction-blocks",
+            "developer/iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk",
+            "developer/iota-101/transactions/ptb/simulating-references",
+            "developer/iota-101/transactions/ptb/coin-management",
+            "developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Create Coins and Tokens",
+      "link": {
+        "type": "doc",
+        "id": "developer/iota-101/create-coin/create-coin"
+      },
+      "items": [
+        "developer/iota-101/create-coin/regulated",
+        "developer/iota-101/create-coin/migrate-to-coin-manager",
+        "developer/iota-101/create-coin/in-game-token",
+        "developer/iota-101/create-coin/loyalty"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "NFT",
+      "items": [
+        "developer/iota-101/nft/create-nft",
+        "developer/iota-101/nft/rent-nft",
+        "developer/iota-101/nft/marketplace"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Cryptography",
+      "link": {
+        "type": "doc",
+        "id": "developer/cryptography"
+      },
+      "items": [
+        {
+          "type": "category",
+          "label": "Transaction Authentication",
+          "link": {
+            "type": "doc",
+            "id": "developer/cryptography/transaction-auth"
+          },
+          "items": [
+            "developer/cryptography/transaction-auth/keys-addresses",
+            "developer/cryptography/transaction-auth/signatures",
+            "developer/cryptography/transaction-auth/multisig",
+            "developer/cryptography/transaction-auth/offline-signing",
+            "developer/cryptography/transaction-auth/intent-signing"
+          ]
+        },
+        "developer/cryptography/checkpoint-verification",
+        {
+          "type": "category",
+          "label": "Smart Contract Cryptography",
+          "link": {
+            "type": "doc",
+            "id": "developer/cryptography/on-chain"
+          },
+          "items": [
+            "developer/cryptography/on-chain/signing",
+            "developer/cryptography/on-chain/groth16",
+            "developer/cryptography/on-chain/hashing",
+            "developer/cryptography/on-chain/ecvrf"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Standards",
+      "link": {
+        "type": "generated-index",
+        "title": "IOTA Standards Overview",
+        "description": "Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.",
+        "slug": "developer/standards"
+      },
+      "items": [
+        "developer/standards/coin",
+        "developer/standards/coin-manager",
+        {
+          "type": "category",
+          "label": "Closed-Loop Token",
+          "link": {
+            "type": "doc",
+            "id": "developer/standards/closed-loop-token"
+          },
+          "items": [
+            "developer/standards/closed-loop-token/action-request",
+            "developer/standards/closed-loop-token/token-policy",
+            "developer/standards/closed-loop-token/spending",
+            "developer/standards/closed-loop-token/rules",
+            "developer/standards/closed-loop-token/coin-token-comparison"
+          ]
+        },
+        "developer/standards/kiosk",
+        "developer/standards/kiosk-apps",
+        "developer/standards/display",
+        "developer/standards/wallet-standard"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Capture The Flag",
+      "link": {
+        "type": "doc",
+        "id": "developer/iota-move-ctf/introduction"
+      },
+      "items": [
+        "developer/iota-move-ctf/challenge_1",
+        "developer/iota-move-ctf/challenge_2",
+        "developer/iota-move-ctf/challenge_3",
+        "developer/iota-move-ctf/challenge_4",
+        "developer/iota-move-ctf/challenge_5",
+        "developer/iota-move-ctf/challenge_6",
+        "developer/iota-move-ctf/challenge_7",
+        "developer/iota-move-ctf/challenge_8"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "From Solidity/EVM to Move",
+      "collapsed": true,
+      "link": {
+        "type": "doc",
+        "id": "developer/evm-to-move/evm-to-move"
+      },
+      "items": [
+        "developer/evm-to-move/tooling-apis",
+        "developer/evm-to-move/creating-token",
+        "developer/evm-to-move/creating-nft"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "GraphQL",
+      "items": [
+        "developer/getting-started/graphql-rpc",
+        "developer/graphql-rpc",
+        "developer/advanced/graphql-migration"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Advanced Topics",
+      "link": {
+        "type": "doc",
+        "id": "developer/advanced"
+      },
+      "items": [
+        "developer/advanced/introducing-move-2024",
+        "developer/advanced/iota-repository",
+        "developer/advanced/custom-indexer",
+        "developer/advanced/onchain-randomness",
+        "developer/advanced/asset-tokenization",
+        "developer/advanced/create-review-rating-dao-with-multisig"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Migrating from IOTA Stardust",
+      "link": {
+        "type": "doc",
+        "id": "developer/stardust/stardust-migration"
+      },
+      "items": [
+        "developer/stardust/exchanges",
+        "developer/stardust/move-models",
+        "developer/stardust/addresses",
+        "developer/stardust/units",
+        "developer/stardust/migration-process",
+        {
+          "type": "category",
+          "label": "Claiming Stardust Assets",
+          "link": {
+            "type": "doc",
+            "id": "developer/stardust/claiming"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "label": "Basic Outputs",
+              "id": "developer/stardust/claiming/basic"
+            },
+            {
+              "type": "doc",
+              "label": "Nft Outputs",
+              "id": "developer/stardust/claiming/nft"
+            },
+            {
+              "type": "doc",
+              "label": "Alias Outputs",
+              "id": "developer/stardust/claiming/alias"
+            },
+            {
+              "type": "doc",
+              "label": "Foundry Outputs",
+              "id": "developer/stardust/claiming/foundry"
+            },
+            {
+              "type": "doc",
+              "label": "Output unlockable by an Alias/Nft Address",
+              "id": "developer/stardust/claiming/address-unlock-condition"
+            },
+            {
+              "type": "doc",
+              "label": "Self-sponsor Iota Claiming",
+              "id": "developer/stardust/claiming/self-sponsor"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Exchange integration",
+      "items": [
+        "developer/exchange-integration/exchange-integration"
+      ]
+    },
+    "developer/dev-cheat-sheet"
+  ],
+  "operatorSidebar": [
+    "operator/operator",
+    {
+      "type": "category",
+      "label": "IOTA Full Node Configuration",
+      "items": [
+        "operator/iota-full-node/overview",
+        "operator/iota-full-node/docker",
+        "operator/iota-full-node/source",
+        "operator/iota-full-node/monitoring-and-pruning"
+      ]
+    },
+    "operator/validator-config",
+    "operator/data-management",
+    "operator/snapshots",
+    "operator/archives",
+    "operator/genesis",
+    "operator/indexer-functions",
+    "operator/validator-committee",
+    {
+      "type": "category",
+      "label": "Validator Operation",
+      "items": [
+        "operator/validator-operation/validator-tasks",
+        "operator/validator-operation/ansible/README",
+        "operator/validator-operation/docker/README",
+        "operator/validator-operation/systemd/README"
+      ]
+    },
+    "operator/validator-tools",
+    {
+      "type": "category",
+      "label": "Node Monitoring and Metrics",
+      "items": [
+        "operator/telemetry/telemetry-subscribers",
+        "operator/telemetry/iota-metrics",
+        "operator/telemetry/iota-telemetry"
+      ]
+    }
+  ],
+  "aboutIotaSidebar": [
+    "about-iota/about-iota",
+    "about-iota/why-move",
+    {
+      "type": "category",
+      "label": "IOTA Architecture",
+      "link": {
+        "type": "doc",
+        "id": "about-iota/iota-architecture/iota-architecture"
+      },
+      "items": [
+        "about-iota/iota-architecture/iota-security",
+        "about-iota/iota-architecture/transaction-lifecycle",
+        "about-iota/iota-architecture/consensus",
+        "about-iota/iota-architecture/epochs",
+        "about-iota/iota-architecture/protocol-upgrades",
+        "about-iota/iota-architecture/staking-rewards"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Tokenomics",
+      "link": {
+        "type": "doc",
+        "id": "about-iota/tokenomics/tokenomics"
+      },
+      "items": [
+        "about-iota/tokenomics/iota-token",
+        "about-iota/tokenomics/proof-of-stake",
+        "about-iota/tokenomics/validators-staking",
+        "about-iota/tokenomics/staking-unstaking",
+        "about-iota/tokenomics/gas-in-iota",
+        "about-iota/tokenomics/gas-pricing"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "IOTA Wallet",
+      "items": [
+        "about-iota/iota-wallet/getting-started",
+        {
+          "type": "category",
+          "label": "How To",
+          "items": [
+            "about-iota/iota-wallet/how-to/basics",
+            "about-iota/iota-wallet/how-to/stake",
+            "about-iota/iota-wallet/how-to/multi-account",
+            "about-iota/iota-wallet/how-to/get-test-tokens",
+            "about-iota/iota-wallet/how-to/integrate-ledger"
+          ]
+        },
+        "about-iota/iota-wallet/FAQ"
+      ]
+    },
+    "about-iota/FAQ"
+  ],
+  "referencesSidebar": [
+    {
+      "type": "doc",
+      "label": "References",
+      "id": "references/references"
+    },
+    {
+      "type": "category",
+      "label": "IOTA RPC",
+      "link": {
+        "type": "doc",
+        "id": "references/iota-api"
+      },
+      "items": [
+        {
+          "type": "category",
+          "label": "GraphQL",
+          "link": {
+            "type": "doc",
+            "id": "references/iota-graphql"
+          },
+          "items": [
+            {
+              "type": "autogenerated",
+              "dirName": "references/iota-api/iota-graphql/reference"
+            }
+          ]
+        },
+        {
+          "type": "link",
+          "label": "JSON-RPC",
+          "href": "/iota-api-ref",
+          "description": "IOTA JSON-RPC API Reference"
+        },
+        "references/iota-api/rpc-best-practices"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Move",
+      "link": {
+        "type": "doc",
+        "id": "references/iota-move"
+      },
+      "items": [
+        {
+          "type": "category",
+          "label": "Framework",
+          "link": {
+            "type": "doc",
+            "id": "references/framework"
+          },
+          "items": [
+            {
+              "type": "autogenerated",
+              "dirName": "references/framework"
+            }
+          ]
+        },
+        "references/move/move-toml",
+        "references/move/move-lock",
+        "references/move/abilities",
+        "references/move/generics",
+        {
+          "type": "link",
+          "label": "Move Language (GitHub)",
+          "href": "https://github.com/move-language/move/blob/main/language/documentation/book/src/introduction.md",
+          "description": "Move Language Documentation (GitHub Repository)"
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Execution Architecture",
+      "link": {
+        "type": "doc",
+        "id": "references/execution-architecture/execution-layer"
+      },
+      "items": [
+        "references/execution-architecture/iota-execution",
+        "references/execution-architecture/adapter",
+        "references/execution-architecture/natives"
+      ]
+    },
+    "references/research-papers",
+    "references/iota-glossary",
+    {
+      "type": "category",
+      "label": "Contribute",
+      "link": {
+        "type": "doc",
+        "id": "references/contribute/contribution-process"
+      },
+      "items": [
+        "references/contribute/contribution-process",
+        "references/contribute/code-of-conduct",
+        "references/contribute/contribute-to-iota-repos",
+        "references/contribute/style-guide",
+        "references/contribute/add-a-quiz",
+        "references/contribute/import-code-docs"
+      ]
+    }
+  ],
+  "tsSDK": [
+    {
+      "type": "category",
+      "label": "Typescript SDK",
+      "items": [
+        "references/ts-sdk/typescript/index",
+        "references/ts-sdk/typescript/install",
+        "references/ts-sdk/typescript/hello-iota",
+        "references/ts-sdk/typescript/faucet",
+        "references/ts-sdk/typescript/iota-client",
+        "references/ts-sdk/typescript/graphql",
+        {
+          "type": "category",
+          "label": "Transaction Building",
+          "items": [
+            "references/ts-sdk/typescript/transaction-building/basics",
+            "references/ts-sdk/typescript/transaction-building/gas",
+            "references/ts-sdk/typescript/transaction-building/sponsored-transactions",
+            "references/ts-sdk/typescript/transaction-building/offline"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Cryptography",
+          "items": [
+            "references/ts-sdk/typescript/cryptography/keypairs",
+            "references/ts-sdk/typescript/cryptography/multisig"
+          ]
+        },
+        "references/ts-sdk/typescript/utils",
+        "references/ts-sdk/typescript/bcs",
+        "references/ts-sdk/typescript/executors",
+        "references/ts-sdk/typescript/plugins",
+        {
+          "type": "category",
+          "label": "Owned Object Pool",
+          "items": [
+            "references/ts-sdk/typescript/owned-object-pool/index",
+            "references/ts-sdk/typescript/owned-object-pool/overview",
+            "references/ts-sdk/typescript/owned-object-pool/local-development",
+            "references/ts-sdk/typescript/owned-object-pool/custom-split-strategy",
+            "references/ts-sdk/typescript/owned-object-pool/examples"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "dApp Kit",
+      "items": [
+        "references/ts-sdk/dapp-kit/index",
+        "references/ts-sdk/dapp-kit/create-dapp",
+        "references/ts-sdk/dapp-kit/iota-client-provider",
+        "references/ts-sdk/dapp-kit/rpc-hooks",
+        "references/ts-sdk/dapp-kit/wallet-provider",
+        {
+          "type": "category",
+          "label": "Wallet Components",
+          "items": [
+            "references/ts-sdk/dapp-kit/wallet-components/ConnectButton",
+            "references/ts-sdk/dapp-kit/wallet-components/ConnectModal"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Wallet Hooks",
+          "items": [
+            "references/ts-sdk/dapp-kit/wallet-hooks/useWallets",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useAccounts",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useCurrentWallet",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useCurrentAccount",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useAutoConnectWallet",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useConnectWallet",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useDisconnectWallet",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useSwitchAccount",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useReportTransactionEffects",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useSignPersonalMessage",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useSignTransaction",
+            "references/ts-sdk/dapp-kit/wallet-hooks/useSignAndExecuteTransaction"
+          ]
+        },
+        "references/ts-sdk/dapp-kit/themes"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Kiosk SDK",
+      "items": [
+        "references/ts-sdk/kiosk/index",
+        {
+          "type": "category",
+          "label": "Kiosk Client",
+          "items": [
+            "references/ts-sdk/kiosk/kiosk-client/introduction",
+            "references/ts-sdk/kiosk/kiosk-client/querying",
+            {
+              "type": "category",
+              "label": "Kiosk Transactions",
+              "items": [
+                "references/ts-sdk/kiosk/kiosk-client/kiosk-transaction/kiosk-transaction",
+                "references/ts-sdk/kiosk/kiosk-client/kiosk-transaction/managing",
+                "references/ts-sdk/kiosk/kiosk-client/kiosk-transaction/purchasing",
+                "references/ts-sdk/kiosk/kiosk-client/kiosk-transaction/examples"
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Transfer Policy Transactions",
+              "items": [
+                "references/ts-sdk/kiosk/kiosk-client/transfer-policy-transaction/introduction",
+                "references/ts-sdk/kiosk/kiosk-client/transfer-policy-transaction/using-the-manager"
+              ]
+            }
+          ]
+        },
+        "references/ts-sdk/kiosk/advanced-examples"
+      ]
+    },
+    "references/ts-sdk/bcs",
+    {
+      "type": "category",
+      "label": "API",
+      "link": {
+        "type": "doc",
+        "id": "references/ts-sdk/api/index"
+      },
+      "items": [
+        {
+          "type": "category",
+          "label": "bcs",
+          "items": [
+            {
+              "type": "category",
+              "label": "Classes",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/bcs/classes/BcsType",
+                  "label": "BcsType"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/bcs/classes/TypeTagSerializer",
+                  "label": "TypeTagSerializer"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Interfaces",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/bcs/interfaces/BcsTypeOptions",
+                  "label": "BcsTypeOptions"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Type Aliases",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/bcs/type-aliases/TypeTag",
+                  "label": "TypeTag"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Variables",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/bcs/variables/bcs",
+                  "label": "bcs"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/bcs/index"
+          }
+        },
+        {
+          "type": "category",
+          "label": "client",
+          "items": [
+            {
+              "type": "category",
+              "label": "Enumerations",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/enumerations/Network",
+                  "label": "Network"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Classes",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/classes/IotaClient",
+                  "label": "IotaClient"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/classes/IotaHTTPTransportError",
+                  "label": "IotaHTTPTransportError"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/classes/JsonRpcError",
+                  "label": "JsonRpcError"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/classes/IotaHTTPStatusError",
+                  "label": "IotaHTTPStatusError"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/classes/IotaHTTPTransport",
+                  "label": "IotaHTTPTransport"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Interfaces",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginationArguments",
+                  "label": "PaginationArguments"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/OrderArguments",
+                  "label": "OrderArguments"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaHTTPTransportOptions",
+                  "label": "IotaHTTPTransportOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaTransportRequestOptions",
+                  "label": "IotaTransportRequestOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaTransportSubscribeOptions",
+                  "label": "IotaTransportSubscribeOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaTransport",
+                  "label": "IotaTransport"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/NetworkConfiguration",
+                  "label": "NetworkConfiguration"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/KioskConfiguration",
+                  "label": "KioskConfiguration"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/AddressMetrics",
+                  "label": "AddressMetrics"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/Balance",
+                  "label": "Balance"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/BalanceChange",
+                  "label": "BalanceChange"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/Checkpoint",
+                  "label": "Checkpoint"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/Claim",
+                  "label": "Claim"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/CoinStruct",
+                  "label": "CoinStruct"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/CommitteeInfo",
+                  "label": "CommitteeInfo"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DelegatedStake",
+                  "label": "DelegatedStake"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DelegatedTimelockedStake",
+                  "label": "DelegatedTimelockedStake"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DevInspectArgs",
+                  "label": "DevInspectArgs"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DevInspectResults",
+                  "label": "DevInspectResults"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DisplayFieldsResponse",
+                  "label": "DisplayFieldsResponse"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DryRunTransactionBlockResponse",
+                  "label": "DryRunTransactionBlockResponse"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DynamicFieldInfo",
+                  "label": "DynamicFieldInfo"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DynamicFieldName",
+                  "label": "DynamicFieldName"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/ECMHLiveObjectSetDigest",
+                  "label": "ECMHLiveObjectSetDigest"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/EndOfEpochData",
+                  "label": "EndOfEpochData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/EndOfEpochInfo",
+                  "label": "EndOfEpochInfo"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/EpochInfo",
+                  "label": "EpochInfo"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/EpochMetrics",
+                  "label": "EpochMetrics"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaEvent",
+                  "label": "IotaEvent"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/EventId",
+                  "label": "EventId"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GasCostSummary",
+                  "label": "GasCostSummary"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaGasData",
+                  "label": "IotaGasData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetPastObjectRequest",
+                  "label": "GetPastObjectRequest"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaActiveJwk",
+                  "label": "IotaActiveJwk"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaAuthenticatorStateExpire",
+                  "label": "IotaAuthenticatorStateExpire"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaChangeEpoch",
+                  "label": "IotaChangeEpoch"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/CoinMetadata",
+                  "label": "CoinMetadata"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaExecutionResult",
+                  "label": "IotaExecutionResult"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaJWK",
+                  "label": "IotaJWK"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaJwkId",
+                  "label": "IotaJwkId"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaMoveAbilitySet",
+                  "label": "IotaMoveAbilitySet"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaMoveModuleId",
+                  "label": "IotaMoveModuleId"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaMoveNormalizedField",
+                  "label": "IotaMoveNormalizedField"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaMoveNormalizedFunction",
+                  "label": "IotaMoveNormalizedFunction"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaMoveNormalizedModule",
+                  "label": "IotaMoveNormalizedModule"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaMoveNormalizedStruct",
+                  "label": "IotaMoveNormalizedStruct"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaMoveStructTypeParameter",
+                  "label": "IotaMoveStructTypeParameter"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaObjectResponse",
+                  "label": "IotaObjectResponse"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MoveCallIotaTransaction",
+                  "label": "MoveCallIotaTransaction"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaSystemStateSummary",
+                  "label": "IotaSystemStateSummary"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaValidatorSummary",
+                  "label": "IotaValidatorSummary"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MoveCallMetrics",
+                  "label": "MoveCallMetrics"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MoveCallParams",
+                  "label": "MoveCallParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MoveFunctionName",
+                  "label": "MoveFunctionName"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MoveVariant",
+                  "label": "MoveVariant"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MultiSig",
+                  "label": "MultiSig"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MultiSigPublicKey",
+                  "label": "MultiSigPublicKey"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/NetworkMetrics",
+                  "label": "NetworkMetrics"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaObjectData",
+                  "label": "IotaObjectData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaObjectDataOptions",
+                  "label": "IotaObjectDataOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaObjectRef",
+                  "label": "IotaObjectRef"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaObjectResponseQuery",
+                  "label": "IotaObjectResponseQuery"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/OwnedObjectRef",
+                  "label": "OwnedObjectRef"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginatedCheckpoints",
+                  "label": "PaginatedCheckpoints"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginatedCoins",
+                  "label": "PaginatedCoins"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginatedDynamicFieldInfos",
+                  "label": "PaginatedDynamicFieldInfos"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginatedEpochInfos",
+                  "label": "PaginatedEpochInfos"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginatedEpochMetricss",
+                  "label": "PaginatedEpochMetricss"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginatedEvents",
+                  "label": "PaginatedEvents"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginatedObjectsResponse",
+                  "label": "PaginatedObjectsResponse"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PaginatedTransactionResponse",
+                  "label": "PaginatedTransactionResponse"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/PasskeyAuthenticator",
+                  "label": "PasskeyAuthenticator"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/ProtocolConfig",
+                  "label": "ProtocolConfig"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/CoinSupply",
+                  "label": "CoinSupply"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaTransactionBlock",
+                  "label": "IotaTransactionBlock"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/TransactionBlockBytes",
+                  "label": "TransactionBlockBytes"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/TransactionBlockEffectsModifiedAtVersions",
+                  "label": "TransactionBlockEffectsModifiedAtVersions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaTransactionBlockResponse",
+                  "label": "IotaTransactionBlockResponse"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaTransactionBlockResponseOptions",
+                  "label": "IotaTransactionBlockResponseOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/IotaTransactionBlockResponseQuery",
+                  "label": "IotaTransactionBlockResponseQuery"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/TransferObjectParams",
+                  "label": "TransferObjectParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/TypeOrigin",
+                  "label": "TypeOrigin"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UpgradeInfo",
+                  "label": "UpgradeInfo"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/ValidatorApy",
+                  "label": "ValidatorApy"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/ValidatorsApy",
+                  "label": "ValidatorsApy"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/ZkLoginAuthenticator",
+                  "label": "ZkLoginAuthenticator"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/ZkLoginInputs",
+                  "label": "ZkLoginInputs"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/ZkLoginProof",
+                  "label": "ZkLoginProof"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DevInspectTransactionBlockParams",
+                  "label": "DevInspectTransactionBlockParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/DryRunTransactionBlockParams",
+                  "label": "DryRunTransactionBlockParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/ExecuteTransactionBlockParams",
+                  "label": "ExecuteTransactionBlockParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetChainIdentifierParams",
+                  "label": "GetChainIdentifierParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetCheckpointParams",
+                  "label": "GetCheckpointParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetCheckpointsParams",
+                  "label": "GetCheckpointsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetEventsParams",
+                  "label": "GetEventsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetLatestCheckpointSequenceNumberParams",
+                  "label": "GetLatestCheckpointSequenceNumberParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetMoveFunctionArgTypesParams",
+                  "label": "GetMoveFunctionArgTypesParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetNormalizedMoveFunctionParams",
+                  "label": "GetNormalizedMoveFunctionParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetNormalizedMoveModuleParams",
+                  "label": "GetNormalizedMoveModuleParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetNormalizedMoveModulesByPackageParams",
+                  "label": "GetNormalizedMoveModulesByPackageParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetNormalizedMoveStructParams",
+                  "label": "GetNormalizedMoveStructParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetObjectParams",
+                  "label": "GetObjectParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetProtocolConfigParams",
+                  "label": "GetProtocolConfigParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetTotalTransactionBlocksParams",
+                  "label": "GetTotalTransactionBlocksParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetTransactionBlockParams",
+                  "label": "GetTransactionBlockParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MultiGetObjectsParams",
+                  "label": "MultiGetObjectsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/MultiGetTransactionBlocksParams",
+                  "label": "MultiGetTransactionBlocksParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/TryGetPastObjectParams",
+                  "label": "TryGetPastObjectParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/TryMultiGetPastObjectsParams",
+                  "label": "TryMultiGetPastObjectsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetAllBalancesParams",
+                  "label": "GetAllBalancesParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetAllCoinsParams",
+                  "label": "GetAllCoinsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetAllEpochAddressMetricsParams",
+                  "label": "GetAllEpochAddressMetricsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetBalanceParams",
+                  "label": "GetBalanceParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetCheckpointAddressMetricsParams",
+                  "label": "GetCheckpointAddressMetricsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetCoinMetadataParams",
+                  "label": "GetCoinMetadataParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetCoinsParams",
+                  "label": "GetCoinsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetCommitteeInfoParams",
+                  "label": "GetCommitteeInfoParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetCurrentEpochParams",
+                  "label": "GetCurrentEpochParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetDynamicFieldObjectParams",
+                  "label": "GetDynamicFieldObjectParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetDynamicFieldsParams",
+                  "label": "GetDynamicFieldsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetEpochMetricsParams",
+                  "label": "GetEpochMetricsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetEpochsParams",
+                  "label": "GetEpochsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetLatestAddressMetricsParams",
+                  "label": "GetLatestAddressMetricsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetLatestIotaSystemStateParams",
+                  "label": "GetLatestIotaSystemStateParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetMoveCallMetricsParams",
+                  "label": "GetMoveCallMetricsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetNetworkMetricsParams",
+                  "label": "GetNetworkMetricsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetReferenceGasPriceParams",
+                  "label": "GetReferenceGasPriceParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetStakesParams",
+                  "label": "GetStakesParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetStakesByIdsParams",
+                  "label": "GetStakesByIdsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetTimelockedStakesParams",
+                  "label": "GetTimelockedStakesParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetTimelockedStakesByIdsParams",
+                  "label": "GetTimelockedStakesByIdsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetTotalSupplyParams",
+                  "label": "GetTotalSupplyParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetTotalTransactionsParams",
+                  "label": "GetTotalTransactionsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/GetValidatorsApyParams",
+                  "label": "GetValidatorsApyParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/QueryEventsParams",
+                  "label": "QueryEventsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/SubscribeEventParams",
+                  "label": "SubscribeEventParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/SubscribeTransactionParams",
+                  "label": "SubscribeTransactionParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeBatchTransactionParams",
+                  "label": "UnsafeBatchTransactionParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeMergeCoinsParams",
+                  "label": "UnsafeMergeCoinsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeMoveCallParams",
+                  "label": "UnsafeMoveCallParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafePayParams",
+                  "label": "UnsafePayParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafePayAllIotaParams",
+                  "label": "UnsafePayAllIotaParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafePayIotaParams",
+                  "label": "UnsafePayIotaParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafePublishParams",
+                  "label": "UnsafePublishParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeRequestAddStakeParams",
+                  "label": "UnsafeRequestAddStakeParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeRequestAddTimelockedStakeParams",
+                  "label": "UnsafeRequestAddTimelockedStakeParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeRequestWithdrawStakeParams",
+                  "label": "UnsafeRequestWithdrawStakeParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeRequestWithdrawTimelockedStakeParams",
+                  "label": "UnsafeRequestWithdrawTimelockedStakeParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeSplitCoinParams",
+                  "label": "UnsafeSplitCoinParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeSplitCoinEqualParams",
+                  "label": "UnsafeSplitCoinEqualParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeTransferIotaParams",
+                  "label": "UnsafeTransferIotaParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/interfaces/UnsafeTransferObjectParams",
+                  "label": "UnsafeTransferObjectParams"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Type Aliases",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaClientOptions",
+                  "label": "IotaClientOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/HttpHeaders",
+                  "label": "HttpHeaders"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/NetworkId",
+                  "label": "NetworkId"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ChainType",
+                  "label": "ChainType"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/EpochPage",
+                  "label": "EpochPage"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/EpochMetricsPage",
+                  "label": "EpochMetricsPage"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/CheckpointPage",
+                  "label": "CheckpointPage"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/AllEpochsAddressMetrics",
+                  "label": "AllEpochsAddressMetrics"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/MoveCallMetric",
+                  "label": "MoveCallMetric"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/DynamicFieldPage",
+                  "label": "DynamicFieldPage"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaMoveNormalizedModules",
+                  "label": "IotaMoveNormalizedModules"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaMoveObject",
+                  "label": "IotaMoveObject"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaMovePackage",
+                  "label": "IotaMovePackage"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ProgrammableTransaction",
+                  "label": "ProgrammableTransaction"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaObjectChangePublished",
+                  "label": "IotaObjectChangePublished"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaObjectChangeTransferred",
+                  "label": "IotaObjectChangeTransferred"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaObjectChangeMutated",
+                  "label": "IotaObjectChangeMutated"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaObjectChangeDeleted",
+                  "label": "IotaObjectChangeDeleted"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaObjectChangeWrapped",
+                  "label": "IotaObjectChangeWrapped"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaObjectChangeCreated",
+                  "label": "IotaObjectChangeCreated"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/CoinBalance",
+                  "label": "CoinBalance"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/Order",
+                  "label": "Order"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/Unsubscribe",
+                  "label": "Unsubscribe"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/CheckpointCommitment",
+                  "label": "CheckpointCommitment"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/CheckpointId",
+                  "label": "CheckpointId"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/CompressedSignature",
+                  "label": "CompressedSignature"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ConsensusDeterminedVersionAssignments",
+                  "label": "ConsensusDeterminedVersionAssignments"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaParsedData",
+                  "label": "IotaParsedData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/DynamicFieldType",
+                  "label": "DynamicFieldType"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaEventFilter",
+                  "label": "IotaEventFilter"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ExecuteTransactionRequestType",
+                  "label": "ExecuteTransactionRequestType"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ExecutionStatus",
+                  "label": "ExecutionStatus"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/InputObjectKind",
+                  "label": "InputObjectKind"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaArgument",
+                  "label": "IotaArgument"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaCallArg",
+                  "label": "IotaCallArg"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaEndOfEpochTransactionKind",
+                  "label": "IotaEndOfEpochTransactionKind"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaMoveAbility",
+                  "label": "IotaMoveAbility"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaMoveNormalizedType",
+                  "label": "IotaMoveNormalizedType"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaMoveVisibility",
+                  "label": "IotaMoveVisibility"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaObjectDataFilter",
+                  "label": "IotaObjectDataFilter"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaTransaction",
+                  "label": "IotaTransaction"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaTransactionBlockBuilderMode",
+                  "label": "IotaTransactionBlockBuilderMode"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaMoveFunctionArgType",
+                  "label": "IotaMoveFunctionArgType"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/MoveStruct",
+                  "label": "MoveStruct"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/MoveValue",
+                  "label": "MoveValue"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaObjectChange",
+                  "label": "IotaObjectChange"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ObjectRead",
+                  "label": "ObjectRead"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ObjectResponseError",
+                  "label": "ObjectResponseError"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ObjectValueKind",
+                  "label": "ObjectValueKind"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ObjectOwner",
+                  "label": "ObjectOwner"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/ProtocolConfigValue",
+                  "label": "ProtocolConfigValue"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/PublicKey",
+                  "label": "PublicKey"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/RPCTransactionRequestParams",
+                  "label": "RPCTransactionRequestParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/RawData",
+                  "label": "RawData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/Signature",
+                  "label": "Signature"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/StakeObject",
+                  "label": "StakeObject"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/TimelockedStake",
+                  "label": "TimelockedStake"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/TransactionBlockData",
+                  "label": "TransactionBlockData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/TransactionEffects",
+                  "label": "TransactionEffects"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/IotaTransactionBlockKind",
+                  "label": "IotaTransactionBlockKind"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/TransactionFilter",
+                  "label": "TransactionFilter"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/GetOwnedObjectsParams",
+                  "label": "GetOwnedObjectsParams"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/type-aliases/QueryTransactionBlocksParams",
+                  "label": "QueryTransactionBlocksParams"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Functions",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/functions/getAppsBackend",
+                  "label": "getAppsBackend"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/functions/isIotaClient",
+                  "label": "isIotaClient"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/functions/getAllNetworks",
+                  "label": "getAllNetworks"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/functions/getNetwork",
+                  "label": "getNetwork"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/functions/getDefaultNetwork",
+                  "label": "getDefaultNetwork"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/client/functions/getFullnodeUrl",
+                  "label": "getFullnodeUrl"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/client/index"
+          }
+        },
+        {
+          "type": "category",
+          "label": "cryptography",
+          "items": [
+            {
+              "type": "category",
+              "label": "Classes",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/classes/Signer",
+                  "label": "Signer"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/classes/Keypair",
+                  "label": "Keypair"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/classes/PublicKey",
+                  "label": "PublicKey"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Interfaces",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/interfaces/SignatureWithBytes",
+                  "label": "SignatureWithBytes"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Type Aliases",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/type-aliases/IntentScope",
+                  "label": "IntentScope"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/type-aliases/ParsedKeypair",
+                  "label": "ParsedKeypair"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/type-aliases/SignatureScheme",
+                  "label": "SignatureScheme"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/type-aliases/SignatureFlag",
+                  "label": "SignatureFlag"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/type-aliases/SerializeSignatureInput",
+                  "label": "SerializeSignatureInput"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Variables",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/variables/PRIVATE_KEY_SIZE",
+                  "label": "PRIVATE_KEY_SIZE"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/variables/LEGACY_PRIVATE_KEY_SIZE",
+                  "label": "LEGACY_PRIVATE_KEY_SIZE"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/variables/IOTA_PRIVATE_KEY_PREFIX",
+                  "label": "IOTA_PRIVATE_KEY_PREFIX"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/variables/SIGNATURE_SCHEME_TO_FLAG",
+                  "label": "SIGNATURE_SCHEME_TO_FLAG"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/variables/SIGNATURE_SCHEME_TO_SIZE",
+                  "label": "SIGNATURE_SCHEME_TO_SIZE"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/variables/SIGNATURE_FLAG_TO_SCHEME",
+                  "label": "SIGNATURE_FLAG_TO_SCHEME"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Functions",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/messageWithIntent",
+                  "label": "messageWithIntent"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/decodeIotaPrivateKey",
+                  "label": "decodeIotaPrivateKey"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/encodeIotaPrivateKey",
+                  "label": "encodeIotaPrivateKey"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/isValidHardenedPath",
+                  "label": "isValidHardenedPath"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/isValidBIP32Path",
+                  "label": "isValidBIP32Path"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/mnemonicToSeed",
+                  "label": "mnemonicToSeed"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/mnemonicToSeedHex",
+                  "label": "mnemonicToSeedHex"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/toSerializedSignature",
+                  "label": "toSerializedSignature"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/cryptography/functions/parseSerializedSignature",
+                  "label": "parseSerializedSignature"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/cryptography/index"
+          }
+        },
+        {
+          "type": "category",
+          "label": "faucet",
+          "items": [
+            {
+              "type": "category",
+              "label": "Classes",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/faucet/classes/FaucetRateLimitError",
+                  "label": "FaucetRateLimitError"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Functions",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/faucet/functions/requestIotaFromFaucetV0",
+                  "label": "requestIotaFromFaucetV0"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/faucet/functions/requestIotaFromFaucetV1",
+                  "label": "requestIotaFromFaucetV1"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/faucet/functions/getFaucetRequestStatus",
+                  "label": "getFaucetRequestStatus"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/faucet/functions/getFaucetHost",
+                  "label": "getFaucetHost"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/faucet/index"
+          }
+        },
+        {
+          "type": "category",
+          "label": "graphql",
+          "items": [
+            {
+              "type": "category",
+              "label": "Classes",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/graphql/classes/IotaGraphQLRequestError",
+                  "label": "IotaGraphQLRequestError"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/graphql/classes/IotaGraphQLClient",
+                  "label": "IotaGraphQLClient"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Interfaces",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/graphql/interfaces/IotaGraphQLClientOptions",
+                  "label": "IotaGraphQLClientOptions"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Type Aliases",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/graphql/type-aliases/GraphQLDocument",
+                  "label": "GraphQLDocument"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/graphql/type-aliases/GraphQLQueryOptions",
+                  "label": "GraphQLQueryOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/graphql/type-aliases/GraphQLQueryResult",
+                  "label": "GraphQLQueryResult"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/graphql/type-aliases/GraphQLResponseErrors",
+                  "label": "GraphQLResponseErrors"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/graphql/index"
+          }
+        },
+        {
+          "type": "category",
+          "label": "keypairs",
+          "items": [
+            {
+              "type": "category",
+              "label": "ed25519",
+              "items": [
+                {
+                  "type": "category",
+                  "label": "Classes",
+                  "items": [
+                    {
+                      "type": "doc",
+                      "id": "references/ts-sdk/api/keypairs/ed25519/classes/Ed25519Keypair",
+                      "label": "Ed25519Keypair"
+                    },
+                    {
+                      "type": "doc",
+                      "id": "references/ts-sdk/api/keypairs/ed25519/classes/Ed25519PublicKey",
+                      "label": "Ed25519PublicKey"
+                    }
+                  ]
+                },
+                {
+                  "type": "category",
+                  "label": "Interfaces",
+                  "items": [
+                    {
+                      "type": "doc",
+                      "id": "references/ts-sdk/api/keypairs/ed25519/interfaces/Ed25519KeypairData",
+                      "label": "Ed25519KeypairData"
+                    }
+                  ]
+                },
+                {
+                  "type": "category",
+                  "label": "Variables",
+                  "items": [
+                    {
+                      "type": "doc",
+                      "id": "references/ts-sdk/api/keypairs/ed25519/variables/DEFAULT_ED25519_DERIVATION_PATH",
+                      "label": "DEFAULT_ED25519_DERIVATION_PATH"
+                    }
+                  ]
+                }
+              ],
+              "link": {
+                "type": "doc",
+                "id": "references/ts-sdk/api/keypairs/ed25519/index"
+              }
+            },
+            {
+              "type": "category",
+              "label": "secp256k1",
+              "items": [
+                {
+                  "type": "category",
+                  "label": "Classes",
+                  "items": [
+                    {
+                      "type": "doc",
+                      "id": "references/ts-sdk/api/keypairs/secp256k1/classes/Secp256k1Keypair",
+                      "label": "Secp256k1Keypair"
+                    },
+                    {
+                      "type": "doc",
+                      "id": "references/ts-sdk/api/keypairs/secp256k1/classes/Secp256k1PublicKey",
+                      "label": "Secp256k1PublicKey"
+                    }
+                  ]
+                },
+                {
+                  "type": "category",
+                  "label": "Interfaces",
+                  "items": [
+                    {
+                      "type": "doc",
+                      "id": "references/ts-sdk/api/keypairs/secp256k1/interfaces/Secp256k1KeypairData",
+                      "label": "Secp256k1KeypairData"
+                    }
+                  ]
+                },
+                {
+                  "type": "category",
+                  "label": "Variables",
+                  "items": [
+                    {
+                      "type": "doc",
+                      "id": "references/ts-sdk/api/keypairs/secp256k1/variables/DEFAULT_SECP256K1_DERIVATION_PATH",
+                      "label": "DEFAULT_SECP256K1_DERIVATION_PATH"
+                    }
+                  ]
+                }
+              ],
+              "link": {
+                "type": "doc",
+                "id": "references/ts-sdk/api/keypairs/secp256k1/index"
+              }
+            },
+            {
+              "type": "doc",
+              "id": "references/ts-sdk/api/keypairs/secp256k1/index",
+              "label": "secp256k1"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "multisig",
+          "items": [
+            {
+              "type": "category",
+              "label": "Classes",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/multisig/classes/MultiSigPublicKey",
+                  "label": "MultiSigPublicKey"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/multisig/classes/MultiSigSigner",
+                  "label": "MultiSigSigner"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Type Aliases",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/multisig/type-aliases/MultiSigStruct",
+                  "label": "MultiSigStruct"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Functions",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/multisig/functions/parsePartialSignatures",
+                  "label": "parsePartialSignatures"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/multisig/index"
+          }
+        },
+        {
+          "type": "category",
+          "label": "transactions",
+          "items": [
+            {
+              "type": "category",
+              "label": "Enumerations",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/enumerations/UpgradePolicy",
+                  "label": "UpgradePolicy"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Classes",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/classes/AsyncCache",
+                  "label": "AsyncCache"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/classes/ObjectCache",
+                  "label": "ObjectCache"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/classes/Transaction",
+                  "label": "Transaction"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/classes/TransactionDataBuilder",
+                  "label": "TransactionDataBuilder"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/classes/ParallelTransactionExecutor",
+                  "label": "ParallelTransactionExecutor"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/classes/SerialTransactionExecutor",
+                  "label": "SerialTransactionExecutor"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Interfaces",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/interfaces/ParallelTransactionExecutorOptions",
+                  "label": "ParallelTransactionExecutorOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/interfaces/BuildTransactionOptions",
+                  "label": "BuildTransactionOptions"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/interfaces/SerializeTransactionOptions",
+                  "label": "SerializeTransactionOptions"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Type Aliases",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/TransactionArgument",
+                  "label": "TransactionArgument"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/TransactionInput",
+                  "label": "TransactionInput"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/TransactionObjectArgument",
+                  "label": "TransactionObjectArgument"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/TransactionResult",
+                  "label": "TransactionResult"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/TransactionObjectInput",
+                  "label": "TransactionObjectInput"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/ObjectRef",
+                  "label": "ObjectRef"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/Argument",
+                  "label": "Argument"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/GasData",
+                  "label": "GasData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/OpenMoveTypeSignatureBody",
+                  "label": "OpenMoveTypeSignatureBody"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/OpenMoveTypeSignature",
+                  "label": "OpenMoveTypeSignature"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/Command",
+                  "label": "Command"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/CallArg",
+                  "label": "CallArg"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/TransactionData",
+                  "label": "TransactionData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/SerializedTransactionDataV1",
+                  "label": "SerializedTransactionDataV1"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/SerializedTransactionDataV2",
+                  "label": "SerializedTransactionDataV2"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/type-aliases/TransactionPlugin",
+                  "label": "TransactionPlugin"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Variables",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/Arguments",
+                  "label": "Arguments"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/Commands",
+                  "label": "Commands"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/Inputs",
+                  "label": "Inputs"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/ObjectRef",
+                  "label": "ObjectRef"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/Argument",
+                  "label": "Argument"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/GasData",
+                  "label": "GasData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/OpenMoveTypeSignatureBody",
+                  "label": "OpenMoveTypeSignatureBody"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/OpenMoveTypeSignature",
+                  "label": "OpenMoveTypeSignature"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/Command",
+                  "label": "Command"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/TransactionData",
+                  "label": "TransactionData"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/SerializedTransactionDataV1",
+                  "label": "SerializedTransactionDataV1"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/variables/SerializedTransactionDataV2",
+                  "label": "SerializedTransactionDataV2"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Functions",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/functions/isTransaction",
+                  "label": "isTransaction"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/functions/coinWithBalance",
+                  "label": "coinWithBalance"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/functions/getPureBcsSchema",
+                  "label": "getPureBcsSchema"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/transactions/functions/normalizedTypeToMoveTypeSignature",
+                  "label": "normalizedTypeToMoveTypeSignature"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/transactions/index"
+          }
+        },
+        {
+          "type": "category",
+          "label": "utils",
+          "items": [
+            {
+              "type": "category",
+              "label": "Variables",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/IOTA_DECIMALS",
+                  "label": "IOTA_DECIMALS"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/NANOS_PER_IOTA",
+                  "label": "NANOS_PER_IOTA"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/MOVE_STDLIB_ADDRESS",
+                  "label": "MOVE_STDLIB_ADDRESS"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/IOTA_FRAMEWORK_ADDRESS",
+                  "label": "IOTA_FRAMEWORK_ADDRESS"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/IOTA_SYSTEM_ADDRESS",
+                  "label": "IOTA_SYSTEM_ADDRESS"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/IOTA_CLOCK_OBJECT_ID",
+                  "label": "IOTA_CLOCK_OBJECT_ID"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/IOTA_SYSTEM_MODULE_NAME",
+                  "label": "IOTA_SYSTEM_MODULE_NAME"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/IOTA_TYPE_ARG",
+                  "label": "IOTA_TYPE_ARG"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/IOTA_SYSTEM_STATE_OBJECT_ID",
+                  "label": "IOTA_SYSTEM_STATE_OBJECT_ID"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/variables/IOTA_ADDRESS_LENGTH",
+                  "label": "IOTA_ADDRESS_LENGTH"
+                }
+              ]
+            },
+            {
+              "type": "category",
+              "label": "Functions",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/fromB64",
+                  "label": "fromB64"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/toB64",
+                  "label": "toB64"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/fromHEX",
+                  "label": "fromHEX"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/toHEX",
+                  "label": "toHEX"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/formatAddress",
+                  "label": "formatAddress"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/formatDigest",
+                  "label": "formatDigest"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/formatType",
+                  "label": "formatType"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/isValidTransactionDigest",
+                  "label": "isValidTransactionDigest"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/isValidIotaAddress",
+                  "label": "isValidIotaAddress"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/isValidIotaObjectId",
+                  "label": "isValidIotaObjectId"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/parseStructTag",
+                  "label": "parseStructTag"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/normalizeStructTag",
+                  "label": "normalizeStructTag"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/normalizeIotaAddress",
+                  "label": "normalizeIotaAddress"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/utils/functions/normalizeIotaObjectId",
+                  "label": "normalizeIotaObjectId"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/utils/index"
+          }
+        },
+        {
+          "type": "category",
+          "label": "verify",
+          "items": [
+            {
+              "type": "category",
+              "label": "Functions",
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/verify/functions/verifySignature",
+                  "label": "verifySignature"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/verify/functions/verifyPersonalMessageSignature",
+                  "label": "verifyPersonalMessageSignature"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/verify/functions/verifyTransactionSignature",
+                  "label": "verifyTransactionSignature"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/verify/functions/publicKeyFromRawBytes",
+                  "label": "publicKeyFromRawBytes"
+                },
+                {
+                  "type": "doc",
+                  "id": "references/ts-sdk/api/verify/functions/publicKeyFromIotaBytes",
+                  "label": "publicKeyFromIotaBytes"
+                }
+              ]
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "references/ts-sdk/api/verify/index"
+          }
+        }
+      ]
+    }
+  ],
+  "identity": [
+    "iota-identity/index",
+    {
+      "type": "category",
+      "label": "Getting Started",
+      "collapsed": false,
+      "items": [
+        "iota-identity/getting-started/rust"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Explanations",
+      "items": [
+        "iota-identity/explanations/decentralized-identifiers",
+        "iota-identity/explanations/verifiable-credentials",
+        "iota-identity/explanations/verifiable-presentations",
+        "iota-identity/explanations/about-identity-objects"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "How To",
+      "items": [
+        {
+          "type": "category",
+          "label": "Decentralized Identifiers (DID)",
+          "items": [
+            "iota-identity/how-tos/decentralized-identifiers/create",
+            "iota-identity/how-tos/decentralized-identifiers/update",
+            "iota-identity/how-tos/decentralized-identifiers/resolve",
+            "iota-identity/how-tos/decentralized-identifiers/delete"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Verifiable Credentials",
+          "items": [
+            "iota-identity/how-tos/verifiable-credentials/create",
+            "iota-identity/how-tos/verifiable-credentials/revocation",
+            "iota-identity/how-tos/verifiable-credentials/selective-disclosure",
+            "iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Verifiable Presentations",
+          "items": [
+            "iota-identity/how-tos/verifiable-presentations/create-and-validate"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Domain Linkage",
+          "items": [
+            "iota-identity/how-tos/domain-linkage/create-and-verify"
+          ]
+        },
+        "iota-identity/how-tos/key-storage"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "References",
+      "collapsed": true,
+      "items": [
+        {
+          "type": "category",
+          "label": "API",
+          "items": [
+            {
+              "type": "link",
+              "label": "Rust",
+              "href": "https://docs.rs/identity_iota/latest/identity_iota/index.html"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Specifications",
+          "items": [
+            "references/iota-identity/overview",
+            "references/iota-identity/iota-did-method-spec",
+            "references/iota-identity/revocation-bitmap-2022",
+            "references/iota-identity/revocation-timeframe-2024"
+          ]
+        }
+      ]
+    },
+    "iota-identity/contribute"
+  ]
+}

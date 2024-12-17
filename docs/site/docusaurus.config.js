@@ -118,6 +118,21 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
+          lastVersion: 'current',
+          versions: {
+            current: {
+              label: 'Testnet',
+              path: '/',
+              badge: true,              
+              banner: 'none',
+            },
+            devnet: {
+              label: 'Devnet',
+              path: 'devnet',
+              badge: true,
+              banner: 'none',
+            },
+          },
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
@@ -240,28 +255,44 @@ const config = {
         },
         items: [
           {
+            type: 'docsVersion',
             label: "About IOTA",
             to: "about-iota",
+            activeBaseRegex: 'about-iota[/]{0,1}.*',
           },
           {
+            type: 'docsVersion',
             label: "Developers",
             to: "developer",
+            activeBaseRegex: 'developer[/]{0,1}.*',
           },
           {
+            type: 'docsVersion',
             label: "Node Operators",
             to: "operator",
+            activeBaseRegex: 'operator[/]{0,1}.*',
           },
           {
+            type: 'docsVersion',
             label: "References",
             to: "references",
+            activeBaseRegex: 'references[/]{0,1}(?!.*(ts-sdk))',
           },
           {
+            type: 'docsVersion',
             label: "TS SDK",
             to: "references/ts-sdk/typescript/",
+            activeBaseRegex: 'ts-sdk[/]{0,1}.*',
           },
           {
+            type: 'docsVersion',
             label: "IOTA Identity",
             to: "iota-identity",
+            activeBaseRegex: 'iota-identity[/]{0,1}.*',
+          },
+          {
+            type: 'docsVersionDropdown',
+            position: 'right',
           },
         ],
       },

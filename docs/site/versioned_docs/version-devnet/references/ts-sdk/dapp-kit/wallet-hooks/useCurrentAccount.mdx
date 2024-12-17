@@ -1,0 +1,65 @@
+# useCurrentAccount
+
+The `useCurrentAccount` hook retrieves the wallet account that is currently selected, if one exists.
+
+```ts live noInline
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        testnet: { url: getFullnodeUrl('devnet') },
+    };
+
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+const UseCurrentAccountExample = withProviders(() => {
+    const account = useCurrentAccount();
+
+    return (
+        <div style={{ padding: 20 }}>
+            <ConnectButton />
+            {!account && <div>No account connected</div>}
+            {account && (
+                <div>
+                    <h2>Current account:</h2>
+                    <div>Address: {account.address}</div>
+                </div>
+            )}
+        </div>
+    );
+});
+
+render(<UseCurrentAccountExample/>)
+```
+
+## Account properties
+
+-   `address`: The address of the account, corresponding with a public key.
+-   `publicKey`: The public key of the account, represented as a `Uint8Array`.
+-   `chains`: The chains the account supports.
+-   `features`: The features the account supports.
+-   `label`: An optional user-friendly descriptive label or name for the account.
+-   `icon`: An optional user-friendly icon for the account.
