@@ -17,13 +17,13 @@ import {
     GAS_SYMBOL,
     useFormatCoin,
     useGetStakingValidatorDetails,
+    Validator,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning } from '@iota/ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
-import { Validator } from '../../Staking/views/Validator';
 import { useNewUnstakeTransaction, useNotifications } from '@/hooks';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { NotificationType } from '@/stores/notificationStore';
