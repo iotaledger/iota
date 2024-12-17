@@ -59,14 +59,14 @@ async fn test_full_node_load_migration_data() -> Result<(), anyhow::Error> {
     // Setup the temporary dir and create the writer for the stardust object
     // snapshot
     let dir = tempdir()?;
-    let startudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
+    let stardudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
     let object_snapshot_writer =
-        BufWriter::new(File::create(&startudst_object_snapshot_file_path)?);
+        BufWriter::new(File::create(&stardudst_object_snapshot_file_path)?);
 
     // Generate the stardust object snapshot
     genesis_builder_snapshot_generation(object_snapshot_writer)?;
     // Then load it
-    let snapshot_source = SnapshotSource::Local(startudst_object_snapshot_file_path);
+    let snapshot_source = SnapshotSource::Local(stardudst_object_snapshot_file_path);
 
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
