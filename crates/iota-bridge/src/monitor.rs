@@ -906,7 +906,7 @@ mod tests {
             .unwrap();
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn setup() -> (
         iota_metrics::metered_channel::Sender<IotaBridgeEvent>,
         iota_metrics::metered_channel::Receiver<IotaBridgeEvent>,
