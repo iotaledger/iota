@@ -21,10 +21,6 @@ import {
 
 const MOCKED_CURRENT_EPOCH_TIMESTAMP = Date.now() + MILLISECONDS_PER_HOUR * 6; // 6 hours later
 
-function bigIntRound(n: number) {
-    return BigInt(Math.floor(n));
-}
-
 describe('get last supply increase vesting payout', () => {
     it('should get the object with highest expirationTimestampMs', () => {
         const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
@@ -176,13 +172,11 @@ describe('vesting overview', () => {
             formatDelegatedTimelockedStake(timelockedStakedObjects);
         const lastPayout =
             extendedTimelockedStakedObjects[extendedTimelockedStakedObjects.length - 1];
-        const lastPayoutValue = Number(lastPayout.principal);
-        const totalAmount = bigIntRound(
-            (SUPPLY_INCREASE_STAKER_VESTING_DURATION *
-                SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
-                lastPayoutValue) /
-                0.9,
-        );
+        const lastPayoutValue = BigInt(lastPayout.principal);
+        const totalAmount = 
+            (BigInt(SUPPLY_INCREASE_STAKER_VESTING_DURATION) *
+                BigInt(SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR) *
+                lastPayoutValue * 10n) / 9n
 
         const vestingOverview = getVestingOverview(extendedTimelockedStakedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
@@ -207,7 +201,7 @@ describe('vesting overview', () => {
         let totalStaked = 0n;
         for (const timelockedStakedObject of timelockedStakedObjects) {
             const stakesAmount = timelockedStakedObject.stakes.reduce(
-                (acc, current) => acc + bigIntRound(Number(current.principal)),
+                (acc, current) => acc + BigInt(current.principal),
                 0n,
             );
             totalStaked += stakesAmount;
