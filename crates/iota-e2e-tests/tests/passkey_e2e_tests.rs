@@ -17,19 +17,17 @@ use iota_types::{
     transaction::{Transaction, TransactionData},
 };
 use p256::pkcs8::DecodePublicKey;
-use passkey::{
-    authenticator::{Authenticator, UserCheck, UserValidationMethod},
-    client::Client,
-    types::{
-        Bytes, Passkey,
-        ctap2::{Aaguid, Ctap2Error},
-        rand::random_vec,
-        webauthn::{
-            AttestationConveyancePreference, CredentialCreationOptions, CredentialRequestOptions,
-            PublicKeyCredentialCreationOptions, PublicKeyCredentialParameters,
-            PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity,
-            PublicKeyCredentialType, PublicKeyCredentialUserEntity, UserVerificationRequirement,
-        },
+use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
+use passkey_client::Client;
+use passkey_types::{
+    Bytes, Passkey,
+    ctap2::{Aaguid, Ctap2Error},
+    rand::random_vec,
+    webauthn::{
+        AttestationConveyancePreference, CredentialCreationOptions, CredentialRequestOptions,
+        PublicKeyCredentialCreationOptions, PublicKeyCredentialParameters,
+        PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
+        PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
 };
 use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage};

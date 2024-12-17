@@ -6602,7 +6602,9 @@ dependencies = [
  "move-core-types",
  "move-package",
  "p256 0.13.2",
- "passkey",
+ "passkey-authenticator",
+ "passkey-client",
+ "passkey-types",
  "prometheus",
  "rand 0.8.5",
  "serde",
@@ -8336,7 +8338,9 @@ dependencies = [
  "p256 0.13.2",
  "packable",
  "parking_lot 0.12.3",
- "passkey",
+ "passkey-authenticator",
+ "passkey-client",
+ "passkey-types",
  "prometheus",
  "proptest",
  "proptest-derive",
@@ -11170,18 +11174,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "passkey"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec76b83e6102fb2aecc24a1afb5be839d1cc84914df003ab564e17fb634cc727"
-dependencies = [
- "passkey-authenticator",
- "passkey-client",
- "passkey-transports",
- "passkey-types",
-]
-
-[[package]]
 name = "passkey-authenticator"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11212,12 +11204,6 @@ dependencies = [
  "typeshare",
  "url",
 ]
-
-[[package]]
-name = "passkey-transports"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e04110fadc73577990f04153a2508989242d9c90a645aeaad98ef30e0decfbb"
 
 [[package]]
 name = "passkey-types"
