@@ -13,3 +13,4 @@ export * from './useExplorerLinkGetter';
 export * from './useGetStardustMigratableObjects';
 export * from './useGetSupplyIncreaseVestingObjects';
 export * from './useGroupedMigrationObjectsByExpirationDate';
+export * from './useTransferTransaction';
