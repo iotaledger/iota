@@ -81,7 +81,7 @@ export function summarizeMigratableObjectValues({
         totalIotaAmount +=
             extractOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
         totalNotOwnedStorageDepositReturnAmount +=
-            extractNonOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
+            extractNotOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
     }
 
     return {
@@ -138,7 +138,7 @@ export function extractMigrationOutputFields(
     ).fields;
 }
 
-export function extractNonOwnedStorageDepositReturnAmount(
+export function extractNotOwnedStorageDepositReturnAmount(
     { storage_deposit_return_uc }: CommonOutputObjectWithUc,
     address: string,
 ): bigint | null {
