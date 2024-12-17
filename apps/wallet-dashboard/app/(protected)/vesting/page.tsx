@@ -68,6 +68,7 @@ import { Calendar, StarHex } from '@iota/ui-icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
+import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -125,8 +126,9 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const {
         isOpen: isUnstakeDialogOpen,
-        setIsOpen: setUnstakeDialogOpen,
-        view: unstakeDialogView,
+        openUnstakeDialog,
+        defaultDialogProps,
+        setTxDigest,
         setView: setUnstakeDialogView,
     } = useUnstakeDialog();
 
@@ -195,6 +197,11 @@ export default function VestingDashboardPage(): JSX.Element {
         unlockedTimelockedObjectIds,
     );
 
+    function refreshStakeList() {
+        refetchTimelockedStakedObjects();
+        refetchGetAllOwnedObjects();
+    }
+
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);
 
@@ -202,10 +209,7 @@ export default function VestingDashboardPage(): JSX.Element {
             .waitForTransaction({
                 digest,
             })
-            .then(() => {
-                refetchTimelockedStakedObjects();
-                refetchGetAllOwnedObjects();
-            });
+            .then(refreshStakeList);
     }
 
     const handleCollect = () => {
@@ -233,12 +237,19 @@ export default function VestingDashboardPage(): JSX.Element {
 
     function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
         setTimelockedObjectsToUnstake(delegatedTimelockedStake);
-        setUnstakeDialogOpen(true);
-        setUnstakeDialogView(UnstakeDialogView.TimelockedUnstake);
+        openUnstakeDialog(UnstakeDialogView.TimelockedUnstake);
     }
 
     function openReceiveTokenPopup(): void {
         setIsVestingScheduleDialogOpen(true);
+    }
+
+    function handleOnSuccessUnstake(tx: IotaSignAndExecuteTransactionOutput): void {
+        setUnstakeDialogView(UnstakeDialogView.TransactionDetails);
+        iotaClient.waitForTransaction({ digest: tx.digest }).then((tx) => {
+            refreshStakeList();
+            setTxDigest(tx.digest);
+        });
     }
 
     useEffect(() => {
@@ -411,16 +422,15 @@ export default function VestingDashboardPage(): JSX.Element {
                         selectedValidator={selectedValidator}
                         setSelectedValidator={setSelectedValidator}
                         maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
-                        onUnstakeClick={() => setUnstakeDialogOpen(true)}
+                        onUnstakeClick={openUnstakeDialog}
                     />
                 )}
 
                 {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
                     <UnstakeDialog
                         groupedTimelockedObjects={timelockedObjectsToUnstake}
-                        view={unstakeDialogView}
-                        handleClose={() => setUnstakeDialogOpen(false)}
-                        onSuccess={() => setUnstakeDialogOpen(false)}
+                        onSuccess={handleOnSuccessUnstake}
+                        {...defaultDialogProps}
                     />
                 )}
             </div>

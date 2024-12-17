@@ -7,6 +7,7 @@ import { ExtendedDelegatedStake } from '@iota/core';
 import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { UnstakeDialogView } from './enums';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
+import { TransactionDialogView } from '../TransactionDialog';
 
 interface UnstakeDialogProps {
     view: UnstakeDialogView;
@@ -15,6 +16,7 @@ interface UnstakeDialogProps {
     onBack?: (view: UnstakeDialogView) => (() => void) | undefined;
     groupedTimelockedObjects?: TimelockedStakedObjectsGrouped;
     extendedStake?: ExtendedDelegatedStake;
+    txDigest?: string;
 }
 
 export function UnstakeDialog({
@@ -24,6 +26,7 @@ export function UnstakeDialog({
     extendedStake,
     groupedTimelockedObjects,
     onBack,
+    txDigest,
 }: UnstakeDialogProps): React.JSX.Element {
     return (
         <Dialog open onOpenChange={handleClose}>
@@ -44,6 +47,9 @@ export function UnstakeDialog({
                     onBack={onBack?.(UnstakeDialogView.TimelockedUnstake)}
                     onSuccess={onSuccess}
                 />
+            )}
+            {view === UnstakeDialogView.TransactionDetails && (
+                <TransactionDialogView txDigest={txDigest} onClose={handleClose} />
             )}
         </Dialog>
     );

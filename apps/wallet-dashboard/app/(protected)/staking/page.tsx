@@ -3,7 +3,6 @@
 
 'use client';
 
-import { StartStaking } from '@/components/staking-overview/StartStaking';
 import {
     Button,
     ButtonSize,
@@ -16,7 +15,15 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { StakeDialog, StakeDialogView, UnstakeDialog } from '@/components';
+import {
+    StakeDialog,
+    StakeDialogView,
+    UnstakeDialog,
+    useUnstakeDialog,
+    UnstakeDialogView,
+    useStakeDialog,
+    StartStaking,
+} from '@/components';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,
@@ -32,10 +39,8 @@ import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp
 import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
-import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useUnstakeDialog } from '@/components/Dialogs/unstake/hooks';
-import { UnstakeDialogView } from '@/components/Dialogs/unstake/enums';
+import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
@@ -54,7 +59,14 @@ function StakingDashboardPage(): React.JSX.Element {
         handleCloseStakeDialog,
         handleNewStake,
     } = useStakeDialog();
-    const { isOpen: isUnstakeDialogOpen, setIsOpen: setIsUnstakeDialogOpen } = useUnstakeDialog();
+    const {
+        isOpen: isUnstakeDialogOpen,
+        openUnstakeDialog,
+        defaultDialogProps,
+        handleClose: handleCloseUnstakeDialog,
+        setView: setUnstakeDialogView,
+        setTxDigest,
+    } = useUnstakeDialog();
 
     const { data: delegatedStakeData, refetch: refetchDelegatedStakes } = useGetDelegatedStake({
         address: account?.address || '',
@@ -105,18 +117,30 @@ function StakingDashboardPage(): React.JSX.Element {
 
     function handleUnstakeClick() {
         setStakeDialogView(undefined);
-        setIsUnstakeDialogOpen(true);
+        openUnstakeDialog();
     }
 
     function handleUnstakeDialogBack() {
         setStakeDialogView(StakeDialogView.Details);
-        setIsUnstakeDialogOpen(false);
+        handleCloseUnstakeDialog();
     }
 
     function handleOnUnstakeBack(view: UnstakeDialogView): (() => void) | undefined {
         if (view === UnstakeDialogView.Unstake) {
             return handleUnstakeDialogBack;
         }
+    }
+
+    function handleOnUnstakeSuccess(tx: IotaSignAndExecuteTransactionOutput): void {
+        setUnstakeDialogView(UnstakeDialogView.TransactionDetails);
+        iotaClient
+            .waitForTransaction({
+                digest: tx.digest,
+            })
+            .then((tx) => {
+                refetchDelegatedStakes();
+                setTxDigest(tx.digest);
+            });
     }
 
     return (
@@ -205,14 +229,10 @@ function StakingDashboardPage(): React.JSX.Element {
 
                         {isUnstakeDialogOpen && selectedStake && (
                             <UnstakeDialog
-                                handleClose={() => setIsUnstakeDialogOpen(false)}
                                 extendedStake={selectedStake}
                                 onBack={handleOnUnstakeBack}
-                                view={UnstakeDialogView.Unstake}
-                                onSuccess={() => {
-                                    refetchDelegatedStakes();
-                                    setIsUnstakeDialogOpen(false);
-                                }}
+                                onSuccess={handleOnUnstakeSuccess}
+                                {...defaultDialogProps}
                             />
                         )}
                     </Panel>

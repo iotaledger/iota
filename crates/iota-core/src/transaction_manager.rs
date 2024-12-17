@@ -64,7 +64,7 @@ pub struct TransactionManager {
 #[derive(Clone, Debug)]
 pub struct PendingCertificateStats {
     // The time this certificate enters transaction manager.
-    #[allow(unused)]
+    #[cfg(test)]
     pub enqueue_time: Instant,
     // The time this certificate becomes ready for execution.
     pub ready_time: Option<Instant>,
@@ -556,6 +556,7 @@ impl TransactionManager {
                 expected_effects_digest,
                 waiting_input_objects: input_object_keys,
                 stats: PendingCertificateStats {
+                    #[cfg(test)]
                     enqueue_time: pending_cert_enqueue_time,
                     ready_time: None,
                 },

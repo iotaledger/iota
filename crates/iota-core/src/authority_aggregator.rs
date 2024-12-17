@@ -287,7 +287,7 @@ pub enum AggregatorProcessCertificateError {
 
 /// Groups the errors by error type and stake.
 pub fn group_errors(errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>) -> GroupedErrors {
-    #[allow(clippy::mutable_key_type)]
+    #[expect(clippy::mutable_key_type)]
     let mut grouped_errors = HashMap::new();
     for (error, names, stake) in errors {
         let entry = grouped_errors.entry(error).or_insert((0, vec![]));
@@ -382,7 +382,7 @@ struct ProcessTransactionState {
 impl ProcessTransactionState {
     /// Returns the conflicting transaction digest and its validators with the
     /// most stake.
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     pub fn conflicting_tx_digest_with_most_stake(
         &self,
     ) -> Option<(
